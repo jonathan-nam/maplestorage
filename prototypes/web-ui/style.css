@@ -1,0 +1,232 @@
+* {
+  box-sizing: border-box;
+}
+
+html, body {
+  background: #111;
+  color: #ddd;
+  font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+  font-size: 13px;
+  line-height: 1.5;
+  margin: 0;
+  padding: 0;
+}
+
+a {
+  color: #ddd;
+  text-decoration: underline;
+}
+
+a:hover {
+  color: #fff;
+}
+
+a.stub {
+  color: #777;
+  cursor: default;
+  pointer-events: none;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 8px 16px;
+  border-bottom: 1px solid #3a3a3a;
+}
+
+.app-name {
+  font-weight: bold;
+}
+
+.nav {
+  flex: 1;
+}
+
+.nav a.active {
+  color: #fff;
+  font-weight: bold;
+  text-decoration: none;
+}
+
+.user {
+  color: #999;
+}
+
+main {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 24px 16px;
+}
+
+.dropzone {
+  border: 1px dashed #555;
+  padding: 48px 16px;
+  text-align: center;
+  color: #999;
+  cursor: pointer;
+}
+
+.dropzone.dragover {
+  border-color: #ccc;
+  color: #ddd;
+}
+
+.row-list {
+  margin-top: 16px;
+}
+
+.session-header {
+  margin-top: 16px;
+  padding-top: 8px;
+  border-top: 1px solid #3a3a3a;
+  color: #999;
+  font-style: italic;
+}
+
+.session-header:first-child {
+  border-top: none;
+  margin-top: 0;
+}
+
+.upload-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0;
+  border-bottom: 1px solid #262626;
+}
+
+.upload-row .thumb {
+  width: 48px;
+  height: 48px;
+  object-fit: cover;
+  border: 1px solid #3a3a3a;
+  flex-shrink: 0;
+  background: #1a1a1a;
+}
+
+.upload-row .filename {
+  width: 200px;
+  flex-shrink: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #999;
+}
+
+.upload-row .status {
+  flex: 1;
+}
+
+.status.pending {
+  color: #999;
+  font-style: italic;
+}
+
+.status.needs-review {
+  color: #ddd;
+  font-style: italic;
+}
+
+.row-actions a {
+  margin-left: 8px;
+  white-space: nowrap;
+}
+
+.change-panel {
+  padding: 8px 0 8px 58px;
+  border-bottom: 1px solid #262626;
+  color: #999;
+}
+
+.change-panel select {
+  background: #1a1a1a;
+  color: #ddd;
+  border: 1px solid #3a3a3a;
+  padding: 2px 4px;
+  margin-right: 12px;
+}
+
+.thumb-placeholder {
+  background: #1a1a1a;
+}
+
+.archive {
+  margin-top: 32px;
+}
+
+.archive-toggle {
+  color: #999;
+}
+
+.archive-body {
+  margin-top: 8px;
+}
+
+.add-toggle {
+  color: #999;
+}
+
+.add-form {
+  margin: 12px 0 20px;
+  padding: 10px 0;
+  border-bottom: 1px solid #3a3a3a;
+}
+
+.add-form input[type="text"] {
+  background: #1a1a1a;
+  color: #ddd;
+  border: 1px solid #3a3a3a;
+  padding: 3px 6px;
+  margin-right: 10px;
+  font-size: 13px;
+}
+
+.add-form a {
+  margin-right: 10px;
+}
+
+.add-form .hint {
+  color: #777;
+  font-style: italic;
+  margin: 6px 0 0;
+}
+
+.char-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.char-table th {
+  text-align: left;
+  color: #999;
+  font-weight: normal;
+  border-bottom: 1px solid #3a3a3a;
+  padding: 6px 8px;
+}
+
+.char-table td {
+  border-bottom: 1px solid #262626;
+  padding: 6px 8px;
+  vertical-align: middle;
+}
+
+.char-table .sprite {
+  width: 48px;
+  height: 48px;
+  object-fit: contain;
+  image-rendering: pixelated;
+  background: #1a1a1a;
+  border: 1px solid #3a3a3a;
+  display: block;
+}
+
+.char-table .row-actions a {
+  margin-right: 8px;
+  white-space: nowrap;
+}
+
+.char-table .row-actions a:last-child {
+  margin-right: 0;
+}

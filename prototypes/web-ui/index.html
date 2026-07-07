@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>MapleStory Companion — Upload</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="topbar">
+  <span class="app-name">MapleStory Companion</span>
+  <nav class="nav">
+    <a href="index.html" class="active">Upload</a> |
+    <a href="characters.html">Characters</a> |
+    <a href="#" class="stub">Bosses</a> |
+    <a href="#" class="stub">Tokens</a>
+  </nav>
+  <span class="user">jonathan.nam14@gmail.com ▾</span>
+</header>
+
+<main>
+
+  <div id="dropzone" class="dropzone">
+    <p>Drag screenshots here, or click to browse</p>
+    <input type="file" id="file-input" accept="image/*" multiple hidden>
+  </div>
+
+  <section id="upload-list" class="row-list"></section>
+
+  <section class="archive">
+    <a href="#" id="archive-toggle" class="archive-toggle">▸ Today (3)</a>
+    <div id="archive-body" class="archive-body" hidden>
+      <div class="session-header">Nightshade</div>
+      <div class="upload-row">
+        <div class="thumb thumb-placeholder"></div>
+        <span class="filename">boss-planner-0900.png</span>
+        <span class="status">Boss Clear — Nightshade (auto-matched)</span>
+      </div>
+      <div class="upload-row">
+        <div class="thumb thumb-placeholder"></div>
+        <span class="filename">inventory-0901.png</span>
+        <span class="status">Inventory — 5 tokens read, Nightshade</span>
+      </div>
+      <div class="session-header">Squishy</div>
+      <div class="upload-row">
+        <div class="thumb thumb-placeholder"></div>
+        <span class="filename">boss-planner-0845.png</span>
+        <span class="status">Boss Clear — Squishy (auto-matched)</span>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<script src="script.js"></script>
+</body>
+</html>
