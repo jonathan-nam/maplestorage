@@ -19,29 +19,28 @@ Craigslist-inspired minimalism, translated as **information density with zero de
 Plain header, app name as a text link (no logo image), thin bottom border, plain nav links:
 
 ```
-MapleStory Companion          Upload | Characters | Bosses | Tokens          [user email ▾]
-────────────────────────────────────────────────────────────────────────────────────────
+MapleStory Companion          Upload | Characters | Tokens          [user email ▾]
+────────────────────────────────────────────────────────────────────────────────
 ```
 
 No hero sections, no sidebar. Upload is the landing page after login.
 
 ## Page: Upload (the main event)
 
-Covers the flow: finish bossing on one character, snip the boss planner, snip the inventory, drag both in together.
+Covers the flow: finish bossing on one character, snip the inventory screen, drag it in.
 
 **Layout**: one large dashed-border dropzone taking most of the viewport, plain instruction text inside (`Drag screenshots here, or click to browse`), also clickable to open a file picker.
 
 **On drop**, each file becomes a compact row appended below the dropzone — closer to an email inbox line than a card:
 
 ```
-[thumb]  boss-planner-snip.png     Detecting…
 [thumb]  inventory-snip.png        Detecting…
+[thumb]  weird-crop.png            Detecting…
 ```
 
 Rows update in place as parsing resolves:
 
 ```
-[thumb]  boss-planner-snip.png   Boss Clear — Bubbling (auto-matched)         [change]
 [thumb]  inventory-snip.png      Inventory — 7 tokens read, Bubbling          [change]
 [thumb]  weird-crop.png          Unrecognized — needs review                  [change] [retry]
 ```
@@ -65,10 +64,6 @@ Plain table, `+ add character` as a text link that expands an inline form — **
 ```
 
 `[refresh]` re-runs the Nexon lookup on demand (no automatic polling — see `PLAN.md`). The character sprite thumbnail is the one deliberate exception to the text-only/no-icons rule above: it's the actual content the user asked to see, not decorative UI chrome, so it renders as-is (full color) inside an otherwise monochrome row.
-
-## Page: Bosses
-
-Rows = characters, columns = bosses grouped under `WEEKLY | MONTHLY | DAILY` spanning headers. Cells are plain symbols (✓, —, *stale*), not colored chips. Column headers are plain-text sort links.
 
 ## Page: Tokens
 

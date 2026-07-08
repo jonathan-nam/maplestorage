@@ -10,14 +10,14 @@
   // Canned outcomes cycled deterministically per drop, so repeated demos
   // are predictable instead of random.
   var OUTCOMES = [
-    { type: "boss_clear", character: "Bubbling", label: "Boss Clear — Bubbling (auto-matched)" },
     { type: "inventory", character: "Bubbling", label: "Inventory — 7 tokens read, Bubbling" },
-    { type: "boss_clear", character: "Squishy", label: "Boss Clear — Squishy (auto-matched)" },
+    { type: "inventory", character: "Squishy", label: "Inventory — 6 tokens read, Squishy" },
+    { type: "inventory", character: "Nightshade", label: "Inventory — 5 tokens read, Nightshade" },
     { type: "unrecognized", character: null, label: "Unrecognized — needs review" }
   ];
 
   var CHARACTERS = ["Bubbling", "Squishy", "Nightshade"];
-  var TYPES = ["boss_clear", "inventory", "unrecognized"];
+  var TYPES = ["inventory", "unrecognized"];
 
   var uploadCount = 0;
   var rowCount = 0;
@@ -97,9 +97,6 @@
       if (t === "unrecognized" || !c) {
         statusEl.textContent = "Unrecognized — needs review";
         statusEl.className = "status needs-review";
-      } else if (t === "boss_clear") {
-        statusEl.textContent = "Boss Clear — " + c + " (manual)";
-        statusEl.className = "status";
       } else {
         statusEl.textContent = "Inventory — manually assigned, " + c;
         statusEl.className = "status";
@@ -204,10 +201,10 @@
     var isHidden = archiveBody.hasAttribute("hidden");
     if (isHidden) {
       archiveBody.removeAttribute("hidden");
-      archiveToggle.textContent = "▾ Today (3)";
+      archiveToggle.textContent = "▾ Today (2)";
     } else {
       archiveBody.setAttribute("hidden", "");
-      archiveToggle.textContent = "▸ Today (3)";
+      archiveToggle.textContent = "▸ Today (2)";
     }
   });
 })();
