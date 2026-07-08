@@ -1,4 +1,4 @@
-# MapleStory Companion App — Inventory & Token Tracker
+# MapleStorage — Inventory & Token Tracker
 
 ## Context
 

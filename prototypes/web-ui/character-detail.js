@@ -43,7 +43,7 @@
   var name = getParam("char") || "Bubbling";
   var data = FAKE_CHARACTERS[name] || FAKE_CHARACTERS["Bubbling"];
 
-  document.title = "MapleStory Companion — " + name;
+  document.title = "MapleStorage — " + name;
 
   var header = document.getElementById("detail-header");
 

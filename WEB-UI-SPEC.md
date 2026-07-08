@@ -1,4 +1,4 @@
-# Web UI Spec — MapleStory Companion
+# Web UI Spec — MapleStorage
 
 Frontend design spec, kept separate from `PLAN.md` since UI iteration moves faster than the backend/infra/data-model plan there.
 
@@ -19,7 +19,7 @@ Craigslist-inspired minimalism, translated as **information density with zero de
 Plain header, app name as a text link (no logo image), thin bottom border, plain nav links:
 
 ```
-MapleStory Companion          Upload | Characters | Items          [user email ▾]
+MapleStorage                  Upload | Characters | Items          [user email ▾]
 ───────────────────────────────────────────────────────────────────────────────
 ```
 
