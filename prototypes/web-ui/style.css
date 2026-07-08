@@ -59,6 +59,128 @@ main {
   padding: 24px 16px;
 }
 
+.intro-copy {
+  color: #999;
+  margin: 0 0 16px;
+  max-width: 640px;
+}
+
+.screenshot-help {
+  border: 1px solid #3a3a3a;
+  padding: 10px 16px;
+  margin: 0 0 16px;
+  color: #ccc;
+}
+
+.screenshot-help ol {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.screenshot-help li {
+  margin-bottom: 4px;
+}
+
+.os-toggle {
+  color: #999;
+  margin: 0 0 8px;
+}
+
+.os-toggle a {
+  margin: 0 2px;
+}
+
+.os-toggle a.active {
+  color: #fff;
+  font-weight: bold;
+  text-decoration: none;
+}
+
+.upload-layout {
+  display: flex;
+  gap: 24px;
+  align-items: flex-start;
+}
+
+.char-selector {
+  width: 170px;
+  flex-shrink: 0;
+  border: 1px solid #3a3a3a;
+  padding: 10px;
+}
+
+.panel-title {
+  color: #999;
+  margin-bottom: 4px;
+}
+
+.panel-subtitle {
+  font-style: italic;
+}
+
+.panel-hint {
+  color: #777;
+  font-size: 11px;
+  font-style: italic;
+  margin: 0 0 10px;
+}
+
+.char-selector-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.char-selector-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px;
+  cursor: pointer;
+  border: 1px solid transparent;
+}
+
+.char-selector-item:hover {
+  border-color: #3a3a3a;
+}
+
+.char-selector-item.selected {
+  border-color: #ccc;
+  background: #1a1a1a;
+}
+
+.selector-sprite {
+  width: 32px;
+  height: 32px;
+  object-fit: contain;
+  image-rendering: pixelated;
+  background: #1a1a1a;
+  border: 1px solid #3a3a3a;
+  flex-shrink: 0;
+}
+
+.selector-sprite-placeholder {
+  background: #1a1a1a;
+}
+
+.selector-clear {
+  display: block;
+  margin-top: 10px;
+  font-size: 12px;
+  color: #999;
+}
+
+.selector-add {
+  display: block;
+  margin-top: 10px;
+  font-size: 12px;
+}
+
+.upload-main {
+  flex: 1;
+  min-width: 0;
+}
+
 .dropzone {
   border: 1px dashed #555;
   padding: 48px 16px;
@@ -127,6 +249,16 @@ main {
 .status.needs-review {
   color: #ddd;
   font-style: italic;
+}
+
+.status.mismatch {
+  color: #fff;
+  font-weight: bold;
+}
+
+.status.new-character {
+  color: #fff;
+  font-weight: bold;
 }
 
 .row-actions a {
@@ -392,6 +524,42 @@ main {
   color: #ddd;
   padding-right: 12px;
   white-space: nowrap;
+}
+
+.item-table th {
+  text-align: left;
+  color: #999;
+  font-weight: normal;
+  border-bottom: 1px solid #3a3a3a;
+  padding: 6px 8px;
+}
+
+.item-table th.qty {
+  text-align: right;
+  padding-right: 12px;
+}
+
+.item-table .progress-cell {
+  color: #999;
+  white-space: nowrap;
+}
+
+.item-table tbody tr:not(.category-header):not(.breakdown-row) {
+  cursor: pointer;
+}
+
+.item-table tbody tr:not(.category-header):not(.breakdown-row):hover td {
+  background: #181818;
+}
+
+.item-table .breakdown-row td {
+  background: #161616;
+  padding: 8px 8px 8px 42px;
+}
+
+.breakdown-line {
+  color: #999;
+  padding: 2px 0;
 }
 
 .char-grid {

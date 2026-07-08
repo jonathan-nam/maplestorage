@@ -29,9 +29,17 @@ No hero sections, no sidebar. Upload is the landing page after login.
 
 Covers the flow: finish bossing on one character, snip the inventory screen, drag it in.
 
-**Layout**: one large dashed-border dropzone taking most of the viewport, plain instruction text inside (`Drag screenshots here, or click to browse`), also clickable to open a file picker.
+**Two friction points identified (2026-07-08)**, both addressed below: (1) new users don't understand how the upload/character-matching relationship works, and (2) the average user may not know how to take a screenshot at all — this isn't a niche gap, it's a real onboarding blocker.
 
-**On drop**, each file becomes a compact row appended below the dropzone — closer to an email inbox line than a card:
+**Layout**: a plain instructional line at the top explaining the flow ("drag a screenshot in, we'll auto-detect the character"), then a two-column layout — a narrow **character pin panel** on the left (sprite + name per character, click to pin one; a `+ add item`-style `+ add character` link at the bottom), and the dropzone + upload row list on the right, same width as before.
+
+**Auto-detect via HUD is the primary path, pinning is an optional convenience, not a required step** (revised 2026-07-08, after considering the failure mode directly): pinning a character was originally the encouraged first step, but that makes manual selection error a real risk — forget to switch the pin between characters, or misclick, and a screenshot could get silently recorded under the wrong character. Since the HUD is read from every screenshot regardless of whether one is pinned, a pin is treated as a claim to verify, not a fact to trust: if the detected character doesn't match the pin, the row shows a **mismatch** status (`Mismatch — pinned to Bubbling, but this screenshot looks like Squishy`) instead of silently accepting either source, with `[change]` defaulting to the HUD-detected character as the one-click fix. Pinning still changes the dropzone's label (`Drag {name}'s screenshot here…`) and skips the guessing UI for the common case, so it's still a real convenience — just not one that's trusted blindly.
+
+**Screenshot-literacy help**: a `Show me how` link next to the intro copy expands an OS-detected instruction panel (Windows: Win+Shift+S then paste directly into the page; Mac: Cmd+Shift+4, which saves a file, then drag it in). This is deliberately kept as a plain expandable text panel, not a modal or video — consistent with the rest of the design language — but it's a real gap being papered over rather than solved; see the note below on further options.
+
+**Paste-to-upload**: the page listens for a clipboard paste (Ctrl/Cmd+V) anywhere on it and treats a pasted image exactly like a dropped file. This matters specifically because Windows' native screenshot tool (Win+Shift+S) copies to the clipboard, not to a file — pairing it with paste support means a user never has to save a file or find it in a folder at all, just screenshot-then-paste, a flow already familiar to anyone who's shared a screenshot in Discord (which this app's audience near-certainly already uses).
+
+**On drop (or paste)**, each file becomes a compact row appended below the dropzone — closer to an email inbox line than a card:
 
 ```
 [thumb]  inventory-snip.png        Detecting…
@@ -43,9 +51,11 @@ Rows update in place as parsing resolves:
 ```
 [thumb]  inventory-snip.png      Inventory — 7 tokens read, Bubbling          [change]
 [thumb]  weird-crop.png          Unrecognized — needs review                  [change] [retry]
+[thumb]  new-char-snip.png       New character detected: Nightwolf — not in your roster    [add Nightwolf] [pick existing character] [ignore]
 ```
 
 - `[change]` expands an inline panel below the row (not a modal): override detected type, override character, trigger re-parse.
+- **A detected name that matches no existing character never auto-creates one** (added 2026-07-08) — same reasoning as rejecting auto-discovered item catalog entries: a single unverified vision read becoming a permanent roster entry, with nothing to cross-check it against, is too risky (a misread, or someone uploading a screenshot that isn't even their own character). Instead the row offers `[add {name}]` (one click, runs the same Nexon-lookup enrichment manual add does, then re-attributes the screenshot), `[pick existing character]` (covers the "new" name actually being a misread of someone already tracked), or `[ignore]`.
 - Rows resolving to the same character auto-group visually (thin rule + character sub-header), so a multi-character bossing marathon reads as clusters, not a flat list.
 - Below the current batch, a collapsed running log of past uploads (`Today`, `Yesterday`, …) in the same row format — an archive, not a separate history page.
 
@@ -108,9 +118,10 @@ Click a row to expand inline showing the per-character breakdown with freshness 
 
 ## Open questions (unresolved)
 
-- Auto-group same-session screenshots by upload-batch timestamp (simplest) vs. letting the user manually tag "this is a bossing session for character X" before dropping — relevant to the no-HUD-visible fallback case in `PLAN.md`.
+- ~~Auto-group same-session screenshots by upload-batch timestamp vs. letting the user manually tag "this is a bossing session for character X" before dropping~~ — resolved 2026-07-08: the Upload page's character selector *is* the manual-tag option, addressing this and the no-HUD-visible fallback case together.
 - Should the Items page render the item icon crop as a thumbnail (color, like character sprites) or stay text-only-with-name? The icon image exists either way (needed for the vision prompt), so this is purely a UI call, not a data-availability question.
+- **Screenshot-literacy gap beyond in-app instructions (2026-07-08)**: the OS-detected help panel and paste-to-upload support reduce friction but don't eliminate the underlying problem — plenty of users still won't know to look for a "Show me how" link, or won't have a MapleStory window arranged in a way that makes a clean screenshot easy. Bigger, not-yet-built options worth weighing later: (a) a small companion capture tool (browser extension or lightweight desktop utility) that captures the game window and uploads directly, skipping manual screenshot/save/drag entirely — real fix, real engineering investment; (b) accepting a phone photo of the screen as a fallback input, which requires zero screenshot literacy at all but likely hurts vision-parsing accuracy (glare, angle, moiré) and hasn't been tested. Neither is built — worth validating whether screenshot literacy is actually a significant drop-off point with real users before investing in either.
 
 ## Prototype status
 
-A throwaway, dependency-free HTML/CSS/JS prototype of the Upload page lives at `prototypes/web-ui/` — real drag-and-drop via native browser APIs, fake/simulated classification (no backend), used to validate layout and interaction feel before the real Next.js build (`frontend/`, per `PLAN.md` M0).
+A throwaway, dependency-free HTML/CSS/JS prototype lives at `prototypes/web-ui/` — no backend, fake/simulated data throughout, used to validate layout and interaction feel before the real Next.js build (`frontend/`, per `PLAN.md` M0). Covers all four pages: Upload (real drag-and-drop, simulated classification), Characters (tile grid + add-character flow), Character detail, and Items (catalog search/add flow + the aggregate dashboard with per-item totals, redemption progress, and click-to-expand per-character breakdowns).
