@@ -692,3 +692,144 @@ main {
 .char-detail-header .meta {
   color: #999;
 }
+
+.signin-link {
+  margin-left: auto;
+}
+
+.landing-main {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 48px 16px;
+}
+
+.hero {
+  text-align: center;
+  padding-bottom: 32px;
+  border-bottom: 1px solid #3a3a3a;
+}
+
+.hero h1 {
+  font-size: 24px;
+  font-weight: normal;
+  line-height: 1.4;
+  margin: 0 0 12px;
+}
+
+.hero-sub {
+  color: #999;
+  max-width: 480px;
+  margin: 0 auto 24px;
+}
+
+.cta-button {
+  display: inline-block;
+  border: 1px solid #ccc;
+  padding: 8px 20px;
+  text-decoration: none;
+}
+
+.cta-button:hover {
+  border-color: #fff;
+}
+
+.how-it-works {
+  display: flex;
+  gap: 24px;
+  padding: 32px 0;
+  border-bottom: 1px solid #3a3a3a;
+}
+
+.how-step {
+  flex: 1;
+  text-align: center;
+}
+
+.step-number {
+  color: #777;
+  font-size: 20px;
+  margin-bottom: 6px;
+}
+
+.step-text {
+  color: #ccc;
+}
+
+.example {
+  padding-top: 32px;
+  text-align: center;
+}
+
+.example h2 {
+  font-size: 16px;
+  font-weight: normal;
+  margin: 0 0 6px;
+}
+
+.example-intro {
+  color: #999;
+  font-style: italic;
+  margin: 0 0 20px;
+}
+
+.example-panel {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  margin-bottom: 16px;
+  text-align: left;
+}
+
+.example-label {
+  color: #999;
+  font-size: 12px;
+  margin-bottom: 6px;
+}
+
+.example-image {
+  max-width: 260px;
+  width: 100%;
+  border: 1px solid #3a3a3a;
+  display: block;
+}
+
+.example-arrow {
+  color: #777;
+  font-size: 20px;
+  flex-shrink: 0;
+}
+
+.example-table {
+  border-collapse: collapse;
+  min-width: 280px;
+}
+
+.example-table td {
+  border-bottom: 1px solid #262626;
+  padding: 4px 8px;
+  vertical-align: middle;
+}
+
+.example-table .icon {
+  width: 24px;
+  height: 24px;
+  object-fit: contain;
+  image-rendering: pixelated;
+  background: #1a1a1a;
+  border: 1px solid #3a3a3a;
+  display: block;
+}
+
+.example-table .qty {
+  text-align: right;
+  color: #ddd;
+}
+
+.example-empty,
+.example-detecting {
+  color: #999;
+  font-style: italic;
+  text-align: center;
+  padding: 12px 8px;
+}

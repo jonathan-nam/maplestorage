@@ -23,7 +23,17 @@ MapleStory Companion          Upload | Characters | Items          [user email �
 ───────────────────────────────────────────────────────────────────────────────
 ```
 
-No hero sections, no sidebar. Upload is the landing page after login.
+No hero sections, no sidebar *inside the authenticated app* — Upload is the landing page after login. The one exception is the pre-login marketing/explainer page (see below), which deliberately breaks from this for a different reason.
+
+## Page: Landing (pre-login, new 2026-07-08)
+
+**Why this page exists**: repeated attempts to explain the core upload → extract-inventory loop *inside* the Upload page (an intro sentence, then more detail added twice) kept feeling insufficient — the diagnosis is that the Craigslist-minimalist density that makes the working tool good is the wrong mode for teaching the concept to someone who's never seen it. Rather than keep cramming explanation into the functional page, a separate pre-login page carries that job instead, freeing the authenticated Upload page to stay minimal.
+
+**Layout**: still monochrome (no color introduced purely for decoration — that stays a firm rule), but more spacious/hero-style than the rest of the app: a centered hero (one-sentence value prop + a `Sign in to get started` CTA — styled as a plain bordered box, not a filled/gradient button, keeping the "borders instead of shadows" rule even here), a plain 3-step "how it works" row, and a concrete before/after example — the actual `untradeables sample.png` reference screenshot next to a table of what gets extracted from it.
+
+**The before/after example uses real, previously-validated data, not fabricated numbers**: the extracted-item counts shown (Distorted Ambition: 10, Blissful Fantasy Shard: 6, Echo of Ancient Resolve: 6, Ferocious Beast Entanglement Ring: 9, Kalos's Residual Determination: 21) are the actual manually-verified counts from the earliest vision-feasibility check in this project (see `PLAN.md`), not a mockup — consistent with this project's preference for validating claims rather than asserting them.
+
+**"See it in action"**: a text link below the example replays the extraction with the same `Detecting…` → resolved-rows pacing used on the real Upload page, so a first-time visitor can watch the input → output transformation happen rather than just read a static table. This is the interactive complement to the static before/after image, addressing the same "explain the core loop" problem from a different angle — showing it happening, not just describing it.
 
 ## Page: Upload (the main event)
 
@@ -124,4 +134,4 @@ Click a row to expand inline showing the per-character breakdown with freshness 
 
 ## Prototype status
 
-A throwaway, dependency-free HTML/CSS/JS prototype lives at `prototypes/web-ui/` — no backend, fake/simulated data throughout, used to validate layout and interaction feel before the real Next.js build (`frontend/`, per `PLAN.md` M0). Covers all four pages: Upload (real drag-and-drop, simulated classification), Characters (tile grid + add-character flow), Character detail, and Items (catalog search/add flow + the aggregate dashboard with per-item totals, redemption progress, and click-to-expand per-character breakdowns).
+A throwaway, dependency-free HTML/CSS/JS prototype lives at `prototypes/web-ui/` — no backend, fake/simulated data throughout, used to validate layout and interaction feel before the real Next.js build (`frontend/`, per `PLAN.md` M0). Covers five pages: Landing (pre-login explainer with a real before/after example and an interactive "see it in action" replay), Upload (real drag-and-drop, HUD auto-detect + optional pin with mismatch safety net, new-character one-click-confirm), Characters (tile grid + add-character flow), Character detail, and Items (catalog search/add flow + the aggregate dashboard with per-item totals, redemption progress, and click-to-expand per-character breakdowns).

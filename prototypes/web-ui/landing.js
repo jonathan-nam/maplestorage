@@ -1,0 +1,71 @@
+(function () {
+  "use strict";
+
+  var tryItButton = document.getElementById("try-it-button");
+  var exampleRows = document.getElementById("example-rows");
+
+  // Real, manually-verified counts from the earliest vision-feasibility check
+  // in this project (see PLAN.md) — not fabricated numbers. Kalos's Residual
+  // Determination is the one item in this catalog with a confirmed real icon
+  // fetched from maplestory.io; the rest show a placeholder, same as the rest
+  // of this prototype's catalog rows, since real icons for them weren't found.
+  var SAMPLE_ITEMS = [
+    { name: "Distorted Ambition", qty: 10, icon: null },
+    { name: "Blissful Fantasy Shard", qty: 6, icon: null },
+    { name: "Echo of Ancient Resolve", qty: 6, icon: null },
+    { name: "Ferocious Beast Entanglement Ring", qty: 9, icon: null },
+    { name: "Kalos's Residual Determination", qty: 21, icon: "assets/icon-kalos-token.png" }
+  ];
+
+  function buildRow(item) {
+    var row = document.createElement("tr");
+
+    var iconCell = document.createElement("td");
+    if (item.icon) {
+      var img = document.createElement("img");
+      img.className = "icon";
+      img.src = item.icon;
+      img.alt = "";
+      iconCell.appendChild(img);
+    } else {
+      var placeholder = document.createElement("div");
+      placeholder.className = "icon icon-placeholder";
+      iconCell.appendChild(placeholder);
+    }
+
+    var nameCell = document.createElement("td");
+    nameCell.textContent = item.name;
+
+    var qtyCell = document.createElement("td");
+    qtyCell.className = "qty";
+    qtyCell.textContent = item.qty;
+
+    row.appendChild(iconCell);
+    row.appendChild(nameCell);
+    row.appendChild(qtyCell);
+    return row;
+  }
+
+  tryItButton.addEventListener("click", function (e) {
+    e.preventDefault();
+
+    exampleRows.innerHTML = "";
+    var detectingRow = document.createElement("tr");
+    var detectingCell = document.createElement("td");
+    detectingCell.colSpan = 3;
+    detectingCell.className = "example-detecting";
+    detectingCell.textContent = "Detecting…";
+    detectingRow.appendChild(detectingCell);
+    exampleRows.appendChild(detectingRow);
+
+    tryItButton.textContent = "[reading screenshot…]";
+
+    setTimeout(function () {
+      exampleRows.innerHTML = "";
+      SAMPLE_ITEMS.forEach(function (item) {
+        exampleRows.appendChild(buildRow(item));
+      });
+      tryItButton.textContent = "[see it in action again]";
+    }, 1100);
+  });
+})();
