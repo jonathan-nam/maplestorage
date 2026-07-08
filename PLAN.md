@@ -101,6 +101,11 @@ Screenshots       (id, userId, characterId?, type: INVENTORY|UNRECOGNIZED,
 
 `CharacterItemCount` is a **latest-snapshot upsert**, not an append-only history log — the dashboard only needs "what's true right now." Counts don't invalidate on a timer, so freshness is just an "as of [date]" label per contributing character, not a stale/fresh binary.
 
+**Noted for later (not in scope now)**: a 2026-07-08 survey of inventory-management tools (Sortly, general small-business WMS, game-collection trackers) turned up two real gaps against this plan — every other common feature (centralized cross-location view, real taxonomy, low-manual-entry capture, freshness signals) this app already does or has a deliberate reason not to:
+
+- **Low-stock / redemption-proximity alerting**: an optional per-`ItemCatalog`-row threshold (e.g. "notify below N" for consumables, "notify at N-1 of redeemThreshold" for tokens) that triggers a notification rather than requiring the user to go check.
+- **Proactive data-freshness discipline**: today's "as of [date]" freshness label (above) is passive — you only see it if you go look at that character. A more disciplined version would actively nudge (e.g. "Bubbling hasn't been re-scanned in 2 weeks") instead of relying on the user to notice staleness themselves.
+
 ## Character creation & the Nexon avatar lookup
 
 **Default flow is manual-add-by-name, not screenshot-derived.** Adding a character means typing the in-game name; screenshots are only ever used afterward to *match* boss-clear/inventory data to an already-known character, never to create one. This was validated directly against a real endpoint during planning (2026-07-06):
