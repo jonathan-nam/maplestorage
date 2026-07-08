@@ -12,7 +12,7 @@
   <nav class="nav">
     <a href="index.html">Upload</a> |
     <a href="characters.html" class="active">Characters</a> |
-    <a href="#" class="stub">Tokens</a>
+    <a href="items.html">Items</a>
   </nav>
   <span class="user">jonathan.nam14@gmail.com ▾</span>
 </header>
@@ -28,44 +28,64 @@
     <p class="hint">Level, job, and sprite are looked up automatically from the name — no need to enter them.</p>
   </div>
 
-  <table class="char-table">
-    <thead>
-      <tr>
-        <th></th>
-        <th>Name</th>
-        <th>Level</th>
-        <th>Job</th>
-        <th>Last updated</th>
-        <th></th>
-      </tr>
-    </thead>
-    <tbody id="char-rows">
-      <tr>
-        <td><img class="sprite" src="assets/bubbling.png" alt=""></td>
-        <td>Bubbling</td>
-        <td>285</td>
-        <td>Hoyoung</td>
-        <td>2 hours ago</td>
-        <td class="row-actions"><a href="#">[edit]</a> <a href="#" class="refresh-link">[refresh]</a> <a href="#">[delete]</a></td>
-      </tr>
-      <tr>
-        <td><img class="sprite" src="assets/squishy.png" alt=""></td>
-        <td>Squishy</td>
-        <td>271</td>
-        <td>Bow Master</td>
-        <td>3 days ago</td>
-        <td class="row-actions"><a href="#">[edit]</a> <a href="#" class="refresh-link">[refresh]</a> <a href="#">[delete]</a></td>
-      </tr>
-      <tr>
-        <td><img class="sprite" src="assets/nightshade.png" alt=""></td>
-        <td>Nightshade</td>
-        <td>299</td>
-        <td>Hero</td>
-        <td>5 days ago</td>
-        <td class="row-actions"><a href="#">[edit]</a> <a href="#" class="refresh-link">[refresh]</a> <a href="#">[delete]</a></td>
-      </tr>
-    </tbody>
-  </table>
+  <div class="char-grid" id="char-grid">
+    <div class="char-tile" data-char="Bubbling">
+      <img class="tile-sprite" src="assets/bubbling.png" alt="">
+      <div class="tile-plate">
+        <span class="tile-name">Bubbling</span>
+        <span class="tile-level">Lv.285</span>
+      </div>
+      <div class="tile-job">Hoyoung</div>
+      <div class="mini-inventory">
+        <span class="mini-item"><img src="assets/icon-kalos-token.png" alt=""><b>7</b></span>
+        <span class="mini-item"><img src="assets/icon-white-potion.png" alt=""><b>12</b></span>
+        <span class="mini-item"><img src="assets/icon-wealth-potion.png" alt=""><b>2</b></span>
+      </div>
+      <div class="tile-updated">updated 2 hours ago</div>
+      <div class="tile-actions">
+        <a href="#" class="edit-link">[edit]</a>
+        <a href="#" class="refresh-link">[refresh]</a>
+        <a href="#" class="delete-link">[delete]</a>
+      </div>
+    </div>
+    <div class="char-tile" data-char="Squishy">
+      <img class="tile-sprite" src="assets/squishy.png" alt="">
+      <div class="tile-plate">
+        <span class="tile-name">Squishy</span>
+        <span class="tile-level">Lv.271</span>
+      </div>
+      <div class="tile-job">Bow Master</div>
+      <div class="mini-inventory">
+        <span class="mini-item"><img src="assets/icon-growth-box.png" alt=""><b>1</b></span>
+        <span class="mini-item"><img src="assets/icon-white-potion.png" alt=""><b>45</b></span>
+      </div>
+      <div class="tile-updated">updated 3 days ago</div>
+      <div class="tile-actions">
+        <a href="#" class="edit-link">[edit]</a>
+        <a href="#" class="refresh-link">[refresh]</a>
+        <a href="#" class="delete-link">[delete]</a>
+      </div>
+    </div>
+    <div class="char-tile" data-char="Nightshade">
+      <img class="tile-sprite" src="assets/nightshade.png" alt="">
+      <div class="tile-plate">
+        <span class="tile-name">Nightshade</span>
+        <span class="tile-level">Lv.299</span>
+      </div>
+      <div class="tile-job">Hero</div>
+      <div class="mini-inventory">
+        <span class="mini-item"><img src="assets/icon-kalos-token.png" alt=""><b>10</b></span>
+        <span class="mini-item"><img src="assets/icon-wealth-potion.png" alt=""><b>5</b></span>
+        <span class="mini-item"><img src="assets/icon-growth-box.png" alt=""><b>3</b></span>
+      </div>
+      <div class="tile-updated">updated 5 days ago</div>
+      <div class="tile-actions">
+        <a href="#" class="edit-link">[edit]</a>
+        <a href="#" class="refresh-link">[refresh]</a>
+        <a href="#" class="delete-link">[delete]</a>
+      </div>
+    </div>
+  </div>
 
 </main>
 

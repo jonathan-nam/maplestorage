@@ -6,17 +6,23 @@
   var addName = document.getElementById("add-name");
   var addSubmit = document.getElementById("add-submit");
   var addCancel = document.getElementById("add-cancel");
-  var charRows = document.getElementById("char-rows");
+  var charGrid = document.getElementById("char-grid");
 
-  // Fake lookup results cycled deterministically, standing in for the real
-  // Nexon no-auth ranking lookup (see PLAN.md) which isn't callable from a
-  // static file:// prototype.
+  // Fake lookup + fake mini-inventory, standing in for the real Nexon lookup
+  // (see PLAN.md) and real per-character item counts (see WEB-UI-SPEC.md's
+  // Items page), neither of which are callable/queryable from a static
+  // file:// prototype. The "highest priority" items shown per tile are just
+  // whatever's listed here for the demo — the real selection rule (e.g.
+  // tokens closest to a redemption threshold, low-stock potions) is still open.
   var FAKE_LOOKUPS = [
-    { sprite: "assets/bubbling.png", level: 285, job: "Hoyoung" },
-    { sprite: "assets/squishy.png", level: 271, job: "Bow Master" },
-    { sprite: "assets/nightshade.png", level: 299, job: "Hero" }
+    { sprite: "assets/bubbling.png", level: 285, job: "Hoyoung",
+      items: [ { icon: "assets/icon-kalos-token.png", qty: 7 }, { icon: "assets/icon-white-potion.png", qty: 12 }, { icon: "assets/icon-wealth-potion.png", qty: 2 } ] },
+    { sprite: "assets/squishy.png", level: 271, job: "Bow Master",
+      items: [ { icon: "assets/icon-growth-box.png", qty: 1 }, { icon: "assets/icon-white-potion.png", qty: 45 } ] },
+    { sprite: "assets/nightshade.png", level: 299, job: "Hero",
+      items: [ { icon: "assets/icon-kalos-token.png", qty: 10 }, { icon: "assets/icon-wealth-potion.png", qty: 5 }, { icon: "assets/icon-growth-box.png", qty: 3 } ] }
   ];
-  var lookupIndex = 0;
+  var lookupIndex = FAKE_LOOKUPS.length; // the static tiles already used indices 0..2
 
   function openForm() {
     addForm.hidden = false;
@@ -28,47 +34,22 @@
     addName.value = "";
   }
 
-  function addRow(name) {
-    var lookup = FAKE_LOOKUPS[lookupIndex % FAKE_LOOKUPS.length];
-    lookupIndex++;
-
-    var row = document.createElement("tr");
-
-    var spriteCell = document.createElement("td");
-    var sprite = document.createElement("img");
-    sprite.className = "sprite";
-    sprite.src = lookup.sprite;
-    sprite.alt = "";
-    spriteCell.appendChild(sprite);
-
-    var nameCell = document.createElement("td");
-    nameCell.textContent = name;
-
-    var levelCell = document.createElement("td");
-    levelCell.textContent = lookup.level;
-
-    var jobCell = document.createElement("td");
-    jobCell.textContent = lookup.job;
-
-    var updatedCell = document.createElement("td");
-    updatedCell.textContent = "just now";
-
-    var actionsCell = document.createElement("td");
-    actionsCell.className = "row-actions";
-    actionsCell.appendChild(makeAction("[edit]"));
-    actionsCell.appendChild(document.createTextNode(" "));
-    actionsCell.appendChild(makeRefreshAction(updatedCell));
-    actionsCell.appendChild(document.createTextNode(" "));
-    actionsCell.appendChild(makeDeleteAction(row));
-
-    row.appendChild(spriteCell);
-    row.appendChild(nameCell);
-    row.appendChild(levelCell);
-    row.appendChild(jobCell);
-    row.appendChild(updatedCell);
-    row.appendChild(actionsCell);
-
-    charRows.appendChild(row);
+  function makeMiniInventory(items) {
+    var wrap = document.createElement("div");
+    wrap.className = "mini-inventory";
+    items.forEach(function (item) {
+      var span = document.createElement("span");
+      span.className = "mini-item";
+      var img = document.createElement("img");
+      img.src = item.icon;
+      img.alt = "";
+      var b = document.createElement("b");
+      b.textContent = item.qty;
+      span.appendChild(img);
+      span.appendChild(b);
+      wrap.appendChild(span);
+    });
+    return wrap;
   }
 
   function makeAction(label) {
@@ -77,47 +58,123 @@
     a.textContent = label;
     a.addEventListener("click", function (e) {
       e.preventDefault();
+      e.stopPropagation();
     });
     return a;
   }
 
-  function makeRefreshAction(updatedCell) {
+  function makeRefreshAction(updatedEl) {
     var a = document.createElement("a");
     a.href = "#";
     a.className = "refresh-link";
     a.textContent = "[refresh]";
     a.addEventListener("click", function (e) {
       e.preventDefault();
-      var previous = updatedCell.textContent;
-      updatedCell.textContent = "refreshing…";
+      e.stopPropagation();
+      updatedEl.textContent = "refreshing…";
       setTimeout(function () {
-        updatedCell.textContent = "just now";
+        updatedEl.textContent = "updated just now";
       }, 900);
     });
     return a;
   }
 
-  function makeDeleteAction(row) {
+  function makeDeleteAction(tile) {
     var a = document.createElement("a");
     a.href = "#";
+    a.className = "delete-link";
     a.textContent = "[delete]";
     a.addEventListener("click", function (e) {
       e.preventDefault();
-      row.remove();
+      e.stopPropagation();
+      tile.remove();
     });
     return a;
   }
 
-  // Wire up refresh/delete for the rows already in the static markup.
-  Array.prototype.forEach.call(charRows.querySelectorAll("tr"), function (row) {
-    var updatedCell = row.children[4];
-    var actionsCell = row.children[5];
-    actionsCell.innerHTML = "";
-    actionsCell.appendChild(makeAction("[edit]"));
-    actionsCell.appendChild(document.createTextNode(" "));
-    actionsCell.appendChild(makeRefreshAction(updatedCell));
-    actionsCell.appendChild(document.createTextNode(" "));
-    actionsCell.appendChild(makeDeleteAction(row));
+  function wireTileNav(tile) {
+    tile.addEventListener("click", function () {
+      window.location.href = "character-detail.html?char=" + encodeURIComponent(tile.dataset.char);
+    });
+  }
+
+  function addTile(name) {
+    var lookup = FAKE_LOOKUPS[lookupIndex % FAKE_LOOKUPS.length];
+    lookupIndex++;
+
+    var tile = document.createElement("div");
+    tile.className = "char-tile";
+    tile.dataset.char = name;
+
+    var sprite = document.createElement("img");
+    sprite.className = "tile-sprite";
+    sprite.src = lookup.sprite;
+    sprite.alt = "";
+
+    var plate = document.createElement("div");
+    plate.className = "tile-plate";
+    var nameSpan = document.createElement("span");
+    nameSpan.className = "tile-name";
+    nameSpan.textContent = name;
+    var levelSpan = document.createElement("span");
+    levelSpan.className = "tile-level";
+    levelSpan.textContent = "Lv." + lookup.level;
+    plate.appendChild(nameSpan);
+    plate.appendChild(levelSpan);
+
+    var job = document.createElement("div");
+    job.className = "tile-job";
+    job.textContent = lookup.job;
+
+    var updated = document.createElement("div");
+    updated.className = "tile-updated";
+    updated.textContent = "updated just now";
+
+    var actions = document.createElement("div");
+    actions.className = "tile-actions";
+    actions.appendChild(makeAction("[edit]"));
+    actions.appendChild(makeRefreshAction(updated));
+    actions.appendChild(makeDeleteAction(tile));
+
+    tile.appendChild(sprite);
+    tile.appendChild(plate);
+    tile.appendChild(job);
+    tile.appendChild(makeMiniInventory(lookup.items));
+    tile.appendChild(updated);
+    tile.appendChild(actions);
+
+    wireTileNav(tile);
+    charGrid.appendChild(tile);
+  }
+
+  // Wire up navigation + actions for the tiles already in the static markup.
+  Array.prototype.forEach.call(charGrid.querySelectorAll(".char-tile"), function (tile) {
+    wireTileNav(tile);
+
+    var editLink = tile.querySelector(".edit-link");
+    var refreshLink = tile.querySelector(".refresh-link");
+    var deleteLink = tile.querySelector(".delete-link");
+    var updatedEl = tile.querySelector(".tile-updated");
+
+    editLink.addEventListener("click", function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    });
+
+    refreshLink.addEventListener("click", function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      updatedEl.textContent = "refreshing…";
+      setTimeout(function () {
+        updatedEl.textContent = "updated just now";
+      }, 900);
+    });
+
+    deleteLink.addEventListener("click", function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      tile.remove();
+    });
   });
 
   addToggle.addEventListener("click", function (e) {
@@ -138,7 +195,7 @@
     e.preventDefault();
     var name = addName.value.trim();
     if (!name) return;
-    addRow(name);
+    addTile(name);
     closeForm();
   });
 
