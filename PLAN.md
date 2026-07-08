@@ -33,6 +33,8 @@ Confirmed **not** included: Chosen Seren (no longer drops Eternal material — d
 
 **Broadened scope — item catalog beyond tokens (2026-07-07)**: alongside the 7 Eternal-set tokens above, the catalog should also cover consumable potions, scrolls, and Etc-tab drop items — categories the user actually wants tracked, not just untradeable items. Rather than requiring every item to be hand-curated (which would restrict users to whatever's been manually added), the catalog is backed by a real external item database — see "Item catalog & icon references" below for how this changes the data model and the vision-matching approach.
 
+**Multi-user, possibly monetized (2026-07-08)**: this was originally a personal tool; the intent now is for other people to use it too, and possibly to charge for it — pricing model not decided yet. This changes what "MVP" needs to include: `ItemCatalog` being shared/global across users (already the design) now matters for real, not just as a nice-to-have, since a random other user's added items shouldn't need re-curating by everyone; per-user usage needs to be tracked from the start regardless of pricing model, so a quota or billing layer can be bolted on later without re-architecting; and the screenshot-processing pipeline needs to hold up under many users' upload activity clustering around the same weekly reset window, not just one person's. See the new `UserTrackedItem`/usage-ledger tables below and the "Screenshot ingestion" section's Batches API note.
+
 ## Tech stack
 
 | Concern | Choice | Why |
@@ -94,6 +96,21 @@ ItemCatalog       (id, name, category: EQUIP|USE|ETC|SETUP|CASH|DEC,
 CharacterItemCount    (characterId FK, itemCatalogId FK, quantity: int,
                         capturedAt, sourceScreenshotId FK?)  // unique (characterId, itemCatalogId)
 
+UserTrackedItem   (userId FK, itemCatalogId FK, addedAt)  // unique (userId, itemCatalogId)
+                  // which shared ItemCatalog rows a given user actually wants tracked —
+                  // added 2026-07-08 for multi-user support. Scopes both that user's
+                  // Items dashboard AND their vision-prompt reference-icon set to just
+                  // their own tracked subset, not the entire shared catalog — this is
+                  // what keeps prompt size/cost bounded per user regardless of how large
+                  // the global ItemCatalog grows across all users combined
+
+UsageLedger       (id, userId FK, screenshotId FK?, inputTokens: int, outputTokens: int,
+                    estimatedCostUsd: decimal, createdAt)
+                  // one row per Claude call, written regardless of pricing model — added
+                  // 2026-07-08 so usage data exists before a monetization model is chosen;
+                  // no quota/cap enforcement logic yet, this is just the ledger a future
+                  // free-tier limit or metered-billing feature would read from
+
 Screenshots       (id, userId, characterId?, type: INVENTORY|UNRECOGNIZED,
                     storageKey, uploadedAt, parseStatus: PENDING|SUCCESS|FAILED|NEEDS_REVIEW,
                     rawModelResponse: jsonb, detectedCharacterName?, detectedLevel?)
@@ -129,7 +146,7 @@ Screenshots       (id, userId, characterId?, type: INVENTORY|UNRECOGNIZED,
 
 **Redemption tracking is a flag, not a category** (revised 2026-07-08, prompted by comparing against the real in-game tab structure): a "collect N, redeem for X" item like the Eternal tokens is, in-game, just an ordinary item sitting in the `Etc` tab — there's no separate "Token" tab. So `redemptionTracked` plus its nullable fields (`sourceBossName`, `slotGroup`, `redeemThreshold`, `bonusItemName`) can apply to any catalog row regardless of `category`, and the UI shows a small "collect N →" badge on that row wherever it's grouped, instead of pulling it into its own section.
 
-**Real technical risk carried forward**: the original icon-matching spike validated ~7 icons in one vision prompt. A catalog that grows past that means the prompt eventually carries many more reference crops at once — untested territory (prompt size, matching accuracy at that reference-set size). Re-run the M6-style spike at a larger simulated catalog size before assuming the 7-icon result generalizes.
+**Real technical risk carried forward**: the original icon-matching spike validated ~7 icons in one vision prompt. Per-user scoping via `UserTrackedItem` (see the data model above) bounds this to what *one user* tracks, not the entire shared catalog across everyone — so the relevant number to stress-test is "how many items does a single heavy user realistically track" (still plausibly 50-150), not the size of the global catalog. Re-run the icon-matching spike at that larger simulated per-user scale before assuming the 7-icon result generalizes.
 
 ## Screenshot ingestion & vision-parsing pipeline
 
@@ -144,7 +161,9 @@ Screenshots       (id, userId, characterId?, type: INVENTORY|UNRECOGNIZED,
   ```
   Validate with `kotlinx.serialization`, persist `rawModelResponse` regardless of outcome, show a "detected as: X" badge with manual override + re-parse button per image.
 - **Item/icon matching**: build the reference portion of the vision prompt dynamically from every confirmed `ItemCatalog` row's icon ("this icon = Distorted Ambition", etc.) — fetched live from `sourceItemId` via maplestory.io, or from the S3-stored `iconRefKey` for manually-added rows — so the model matches icon→catalog entry and reads the stack-count badge directly off a plain inventory screenshot, no per-item tooltip screenshots needed at request time. This was validated at ~7 icons; matching accuracy at a much larger catalog (see "Item catalog & icon references") is the real open risk — re-validate before the catalog grows much past that.
-- **Concurrency**: Kotlin coroutines, fanned out with `async`/`awaitAll` inside a `supervisorScope` (so one image's failure doesn't cancel the batch), capped at ~5 concurrent Claude calls via a `Semaphore(5)`. No external queue (Redis/etc.) needed at this scale (15-20 images/week). Partial failures mark just that screenshot `FAILED` with a per-image retry button.
+- **Concurrency (single-image)**: Kotlin coroutines, fanned out with `async`/`awaitAll` inside a `supervisorScope` (so one image's failure doesn't cancel the batch), capped at ~5 concurrent synchronous Claude calls via a `Semaphore(5)`. This stays the path for small drops, since the "watch it resolve live" row-list UX (`WEB-UI-SPEC.md`'s Upload page) depends on a near-immediate response.
+- **Bulk uploads route through the Batches API instead** (added 2026-07-08, multi-user planning): a drop above some threshold (e.g. 5+ images at once) submits as a Message Batch rather than N synchronous calls — 50% cheaper, and draws from a separate rate-limit pool from the synchronous path, which matters once many users' upload activity can cluster around the same weekly reset window. Tradeoff: batches typically complete within an hour (not seconds), so the row list shows a "processing…" state and the frontend polls for batch completion rather than getting a near-immediate per-row resolution — an acceptable UX cost for a bulk drop that wasn't instant anyway, but a real regression if applied to single-image uploads, which is why the threshold exists rather than routing everything through Batches unconditionally.
+- **Usage tracking**: every Claude call (synchronous or batched) writes a `UsageLedger` row — input/output tokens and estimated cost, keyed to the requesting user. No quota or billing logic reads this yet (monetization model isn't decided — see the Context section), but the data needs to exist before any free-tier cap or metered-billing feature can be built on top of it.
 - **Character match, not character creation**: use `character_hud.name` (case-insensitive) to match an existing `Character` — screenshots never create a new `Character` row, since manual-add-by-name (enriched via the Nexon lookup above) is the only creation path. A HUD name with no matching existing character is flagged `NEEDS_REVIEW` with a manual character picker, same as when the HUD isn't visible at all (tightly-cropped upload, as happened with one of the samples) — both are the same fallback UI, just a different reason for landing there.
 
 ## Build order
@@ -153,11 +172,13 @@ Screenshots       (id, userId, characterId?, type: INVENTORY|UNRECOGNIZED,
 2. **M1 — Data model + catalog seed**: Exposed tables above; Flyway migration + a seed script for the 6 confirmed `redemptionTracked=true` `ItemCatalog` rows (+ Akechi placeholder), categorized `ETC`.
 3. **M2 — Character CRUD + Nexon lookup**: Ktor endpoints + Next.js pages for add/edit/delete, where "add" is name-only and triggers the Nexon no-auth ranking lookup server-side to populate level/jobName/worldName/spriteImgUrl; manual level entry as the fallback when the lookup finds nothing. Nothing downstream has anything to attach to without this milestone.
 4. **M3 — Item catalog management**: Ktor endpoint that searches `maplestory.io` live when adding an item (mirroring the Nexon character lookup), returning candidates (name/category/icon) for the user to pick from — handles the duplicate-name case by showing icons side by side. Picking a candidate creates an `ItemCatalog` row against `sourceItemId`; a returned `category: "Unknown"` requires the user to assign the real category manually (`needsCategoryReview`). No match found (expected for newest boss-drop content) falls back to full manual entry — name, category, and an icon crop uploaded to S3 as `iconRefKey`. What makes the catalog genuinely growable beyond the initial token seed — needed before the vision pipeline can match against anything the user adds later.
-5. **M4 — Single-image inventory upload + per-character view**: S3 upload flow, Ktor endpoint calling Claude scoped to the inventory schema, `CharacterItemCount` upsert, per-character list in Next.js. Validate parse accuracy directly against `untradeables sample.png` before moving on.
-6. **M5 — Bulk upload + auto-classification + HUD matching**: multi-file drag-and-drop in Next.js, discriminated schema in Ktor, coroutine fan-out with the semaphore cap, HUD-name matching against already-existing characters (never creating new ones — see M2), a batch review screen (per-image status, editable).
-7. **M6 — Item icon-matching spike + cross-character item dashboard**: reference-icon-crop prompt technique (validate first against `untradeables sample.png` at the original ~7-icon scale, then again at a larger simulated catalog size per the risk noted above), aggregate view grouped by the real in-game tabs (Equip/Use/Etc/Set-up/Cash/Dec) — `redemptionTracked` rows get an inline "progress toward next set" badge, everything else just shows a plain running total with freshness labels.
-8. **M7 — Polish**: retry/error UX, manual correction without re-upload, responsive/mobile-friendly CSS (stopgap before a native app exists), screenshot history management, a simple per-user daily upload/API-cost guardrail.
-9. **M8 (future, out of MVP scope) — Kotlin Multiplatform mobile**: extract the shared data models + Ktor Client-based API client from the backend project into a shared Gradle module; build native Android/iOS apps with Compose Multiplatform consuming it. Also where the video-upload/expiration-tracking idea would land, as an extension of the existing vision-parsing pipeline rather than a new architecture.
+5. **M4 — Per-user tracking + usage ledger** (added 2026-07-08, multi-user planning): `UserTrackedItem` CRUD — the "toggle this shared catalog item on for me" action folded into the M3 add-item flow, so adding an item to your own dashboard doesn't require re-curating it if someone else already has. Every Claude call (from M5 onward) writes a `UsageLedger` row. No quota or billing enforcement yet — just making sure per-user usage data exists before a pricing model is chosen.
+6. **M5 — Single-image inventory upload + per-character view**: S3 upload flow, Ktor endpoint calling Claude scoped to the inventory schema, `CharacterItemCount` upsert, per-character list in Next.js. Validate parse accuracy directly against `untradeables sample.png` before moving on.
+7. **M6 — Bulk upload + auto-classification + HUD matching**: multi-file drag-and-drop in Next.js, discriminated schema in Ktor, coroutine fan-out with the semaphore cap for small drops, Batches API for larger ones (see "Screenshot ingestion" above), HUD-name matching against already-existing characters (never creating new ones — see M2), a batch review screen (per-image status, editable).
+8. **M7 — Item icon-matching spike + cross-character item dashboard**: reference-icon-crop prompt technique (validate first against `untradeables sample.png` at the original ~7-icon scale, then again at a larger simulated per-user catalog size per the risk noted above), aggregate view grouped by the real in-game tabs (Equip/Use/Etc/Set-up/Cash/Dec) — `redemptionTracked` rows get an inline "progress toward next set" badge, everything else just shows a plain running total with freshness labels.
+9. **M8 — Polish**: retry/error UX, manual correction without re-upload, responsive/mobile-friendly CSS (stopgap before a native app exists), screenshot history management.
+10. **M9 (future, out of MVP scope) — Kotlin Multiplatform mobile**: extract the shared data models + Ktor Client-based API client from the backend project into a shared Gradle module; build native Android/iOS apps with Compose Multiplatform consuming it. Also where the video-upload/expiration-tracking idea would land, as an extension of the existing vision-parsing pipeline rather than a new architecture.
+11. **M10 (future, blocked on a pricing decision) — Monetization**: Stripe integration, plan tiers, and actual quota/billing enforcement built on top of the `UsageLedger` from M4. Deliberately not scoped further until the pricing model (freemium / usage-based / flat subscription) is decided.
 
 ## Critical files (to be created)
 
@@ -173,6 +194,7 @@ Screenshots       (id, userId, characterId?, type: INVENTORY|UNRECOGNIZED,
 ## Verification
 
 - After M0: confirm the ECS Fargate service is healthy behind the ALB, the Vercel (Next.js) deploy is live, and a signed-in user's request round-trips — Next.js attaches a Clerk JWT, the ALB routes it to Ktor, Ktor validates it via JWKS and returns data from RDS.
-- After M4: run the inventory parser against `untradeables sample.png` and manually check the parsed JSON matches what's visible in the image (correct item names, correct stack counts).
-- After M6 spike: run the icon-matching prompt against `untradeables sample.png` and manually verify each of the ~7 token quantities read off matches the visible stack-count numbers, then repeat at a larger simulated catalog size before building the full milestone on top of it.
+- After M5: run the inventory parser against `untradeables sample.png` and manually check the parsed JSON matches what's visible in the image (correct item names, correct stack counts).
+- After M7 spike: run the icon-matching prompt against `untradeables sample.png` and manually verify each of the ~7 token quantities read off matches the visible stack-count numbers, then repeat at a larger simulated per-user catalog size before building the full milestone on top of it.
 - Before considering the MVP done: log in as a test user, add 2-3 characters, bulk-upload a batch of inventory screenshots, and confirm the item dashboard reflects reality without manual data entry.
+- Before considering multi-user support done: create two test users, confirm each sees only their own tracked items and characters (no data leakage via the shared `ItemCatalog`), and confirm `UsageLedger` rows are being written per Claude call.
