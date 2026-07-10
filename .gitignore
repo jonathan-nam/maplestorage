@@ -1,0 +1,31 @@
+# Terraform (.terraform.lock.hcl is intentionally NOT ignored -- commit it,
+# same reasoning as a package-lock.json: pins exact provider versions)
+infra/.terraform/
+infra/*.tfstate
+infra/*.tfstate.*
+infra/terraform.tfvars
+infra/*.tfplan
+infra/.tflint.d/
+
+# Node / Next.js
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/.env*.local
+
+# Kotlin / Gradle (gradle-wrapper.jar is intentionally NOT ignored -- commit
+# it, that's the entire point of the wrapper: reproducible builds with no
+# pre-installed Gradle required)
+backend/.gradle/
+backend/build/
+
+# IDE
+.idea/
+*.iml
+.vscode/*
+!.vscode/extensions.json
+.claude/settings.local.json
+
+# OS
+.DS_Store
+Thumbs.db

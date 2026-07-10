@@ -1,0 +1,6 @@
+# Copy to terraform.tfvars (gitignored) and fill in real values.
+
+aws_region      = "us-east-1"
+environment     = "dev"
+clerk_jwks_url  = "https://your-clerk-instance.clerk.accounts.dev/.well-known/jwks.json"
+frontend_origin = "https://your-app.vercel.app"

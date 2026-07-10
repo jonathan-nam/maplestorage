@@ -1,0 +1,17 @@
+# Overrides on top of detekt's default ruleset (buildUponDefaultConfig = true
+# in build.gradle.kts) -- only listing what diverges from the defaults.
+
+style:
+  MaxLineLength:
+    maxLineLength: 120
+
+complexity:
+  LongMethod:
+    threshold: 60
+  LongParameterList:
+    functionThreshold: 7
+    constructorThreshold: 7
+
+formatting:
+  active: true
+  android: false

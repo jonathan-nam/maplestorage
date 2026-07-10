@@ -1,0 +1,42 @@
+# Hooks call each project's own tool (Gradle plugin / npm devDependency / Terraform CLI)
+# rather than a pre-commit-hosted mirror, so the enforced version always matches what's
+# declared in that project -- no separate version to keep in sync.
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-merge-conflict
+      - id: check-added-large-files
+        args: ["--maxkb=2048"]
+
+  - repo: local
+    hooks:
+      - id: ktlint-detekt
+        name: ktlint + detekt (backend)
+        entry: bash -c 'cd backend && ./gradlew ktlintCheck detekt'
+        language: system
+        files: ^backend/.*\.kts?$
+        pass_filenames: false
+
+      - id: eslint-prettier
+        name: eslint + prettier (frontend)
+        entry: bash -c 'cd frontend && npm run lint && npx prettier --check .'
+        language: system
+        files: ^frontend/.*\.(ts|tsx|js|jsx)$
+        pass_filenames: false
+
+      - id: terraform-fmt-validate
+        name: terraform fmt + validate (infra)
+        entry: bash -c 'cd infra && terraform fmt -check -recursive && terraform validate'
+        language: system
+        files: ^infra/.*\.tf$
+        pass_filenames: false
+
+      - id: tflint
+        name: tflint (infra)
+        entry: bash -c 'cd infra && tflint --recursive'
+        language: system
+        files: ^infra/.*\.tf$
+        pass_filenames: false
