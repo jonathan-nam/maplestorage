@@ -124,6 +124,8 @@ Reached by clicking a character tile. Header: sprite (larger, ~96px) + name + le
 
 Plain table grouped by category — the **real in-game inventory tabs** (`Equip | Use | Etc. | Set-up | Cash | Dec.`, per `reference-images/inventory sample.png`), not an app-invented scheme (revised 2026-07-08). Only tabs with at least one tracked item render a header — an empty `Dec.` section just doesn't show up. `+ add item` is a text link that expands an inline form — name, category select, an icon-crop upload.
 
+**Not empty on first login (added 2026-07-09)**: a new user's `Etc.` section already shows the default Grandis token set (see `PLAN.md`'s "New user default tracking") with a plain `not yet scanned` label in place of a quantity — the page has real, familiar rows from the moment someone signs in, rather than a blank state with nothing to anchor to before their first upload.
+
 `redemptionTracked` items (the Eternal tokens) aren't a separate tab — they show up grouped under `Etc.` like any other item, with an inline "collect N →" badge and progress column on just that row, rather than a wholly separate table shape:
 
 ```
@@ -146,6 +148,17 @@ Click a row to expand inline showing the per-character breakdown with freshness 
 **Expiration annotation (added 2026-07-08)**: same as Character detail — a per-character breakdown row with `expiresAt` set gets a plain "expires in N days" annotation (text only, no color-coding); `expirationNeedsReview` rows show a `[resolve]` link instead. See `PLAN.md`'s "Tooltip capture (video hover-capture pipeline)" for how these values are captured.
 
 **Icon-ambiguous item annotation (added 2026-07-09)**: same as Character detail — a `identifiableByIcon=false` item shows `via hover-capture` next to its freshness label instead of an as-of-date, since it's never updated by a normal screenshot upload. `+ add item` also runs the icon-collision check at save time (see `PLAN.md`'s "Item catalog & icon references") — if the new item's icon matches one already tracked, the confirmation shows a plain statement, not a warning: `{item} looks the same as {other item} you already track — both will be updated via hover-capture instead of screenshots`.
+
+**Discovery worklist (added 2026-07-09)**: a quiet text line below the category tables, only rendered once there's something to show — `14 unidentified items spotted — browse` — for icons seen in uploads that don't match anything currently tracked (see `PLAN.md`'s `unmatched_items`/`UnidentifiedItemSighting`). Deliberately not a badge, banner, or anything competing visually with the main table — this is opportunistic, not urgent. Expanding it lists one row per apparent item (sightings already grouped), each with its cropped thumbnail and a rough total:
+
+```
+14 unidentified items spotted — browse
+
+[thumb]  spotted 12× across your uploads    ~23 total, possibly Etc    [identify]
+[thumb]  spotted 3× across your uploads     ~5 total, possibly Use     [identify]
+```
+
+`[identify]` expands the same inline add-item search form used by `+ add item`, with the crop shown alongside search results as a visual reference rather than pre-filling a guessed name — the model never claims to know what an unmatched icon *is*, only that it's there (see `likelyCategory` in `PLAN.md`, a display hint, not a claim). Confirming a match immediately backfills quantities already captured across every character the item was spotted on — no re-upload needed — and the item joins the normal tracked tables above on the next render.
 
 ## Open questions (unresolved)
 
