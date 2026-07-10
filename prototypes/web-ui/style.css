@@ -284,19 +284,6 @@ main {
   background: #1a1a1a;
 }
 
-.expiration-capture {
-  margin: 0 0 16px;
-}
-
-.record-hint,
-.record-status {
-  display: block;
-  color: #999;
-  font-style: italic;
-  font-size: 12px;
-  margin-top: 4px;
-}
-
 .change-panel input[type="text"] {
   background: #1a1a1a;
   color: #ddd;
@@ -309,18 +296,6 @@ main {
   margin-right: 4px;
 }
 
-/* Kept displayed (not display:none) so the browser keeps decoding video
-   frames — some browsers stop rendering a display:none <video>, which would
-   silently break the canvas-based frame sampling below. */
-.offscreen-media {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  opacity: 0;
-  pointer-events: none;
-}
-
 .archive {
   margin-top: 32px;
 }
@@ -331,35 +306,6 @@ main {
 
 .archive-body {
   margin-top: 8px;
-}
-
-.add-toggle {
-  color: #999;
-}
-
-.add-form {
-  margin: 12px 0 20px;
-  padding: 10px 0;
-  border-bottom: 1px solid #3a3a3a;
-}
-
-.add-form input[type="text"] {
-  background: #1a1a1a;
-  color: #ddd;
-  border: 1px solid #3a3a3a;
-  padding: 3px 6px;
-  margin-right: 10px;
-  font-size: 13px;
-}
-
-.add-form a {
-  margin-right: 10px;
-}
-
-.add-form .hint {
-  color: #777;
-  font-style: italic;
-  margin: 6px 0 0;
 }
 
 .char-table {
@@ -400,134 +346,22 @@ main {
   margin-right: 0;
 }
 
-.search-results {
-  margin-top: 12px;
-  border-top: 1px solid #3a3a3a;
-  padding-top: 8px;
-}
-
-.search-hint {
-  color: #999;
-  font-style: italic;
-  margin: 0 0 8px;
-}
-
-.candidate-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 6px 0;
-  border-bottom: 1px solid #262626;
-}
-
-.candidate-row .icon {
-  width: 32px;
-  height: 32px;
-  object-fit: contain;
-  image-rendering: pixelated;
-  background: #1a1a1a;
-  border: 1px solid #3a3a3a;
-  flex-shrink: 0;
-}
-
-.candidate-info {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-}
-
-.candidate-meta {
-  color: #999;
-  font-size: 12px;
-}
-
-.candidate-meta.needs-review {
-  font-style: italic;
-}
-
-.category-picker {
-  padding: 6px 0 6px 42px;
-  color: #999;
-  border-bottom: 1px solid #262626;
-}
-
-.category-picker select {
-  background: #1a1a1a;
-  color: #ddd;
-  border: 1px solid #3a3a3a;
-  padding: 2px 4px;
-  margin-right: 8px;
-}
-
-.manual-fallback {
-  margin-top: 12px;
-  border-top: 1px solid #3a3a3a;
-  padding-top: 8px;
-}
-
-.manual-fallback .no-match {
-  color: #999;
-  font-style: italic;
-  margin: 0 0 10px;
-}
-
-.manual-fallback label {
-  display: block;
-  margin-bottom: 8px;
-}
-
-.manual-fallback input[type="text"] {
-  background: #1a1a1a;
-  color: #ddd;
-  border: 1px solid #3a3a3a;
-  padding: 3px 6px;
-}
-
-.manual-fallback select {
-  background: #1a1a1a;
-  color: #ddd;
-  border: 1px solid #3a3a3a;
-  padding: 3px 6px;
-}
-
-.mini-dropzone {
-  border: 1px dashed #555;
-  padding: 14px;
-  text-align: center;
-  color: #999;
-  cursor: pointer;
-  margin-bottom: 10px;
-  max-width: 260px;
-}
-
-.mini-dropzone.dragover {
-  border-color: #ccc;
-  color: #ddd;
-}
-
-.mini-dropzone img {
-  max-width: 40px;
-  max-height: 40px;
-  image-rendering: pixelated;
-  display: block;
-  margin: 0 auto;
-}
-
 .item-table {
   width: 100%;
   border-collapse: collapse;
   margin-top: 16px;
 }
 
-.item-table .category-header td {
-  padding: 12px 8px 4px;
-  color: #999;
+.hint {
+  color: #777;
+  font-size: 11px;
   font-style: italic;
-  border-bottom: 1px solid #3a3a3a;
+  margin: 10px 0 0;
 }
 
-.item-table tbody tr:first-child.category-header td {
-  padding-top: 4px;
+.hint code {
+  color: #999;
+  font-style: normal;
 }
 
 .item-table td {
@@ -581,11 +415,11 @@ main {
   white-space: nowrap;
 }
 
-.item-table tbody tr:not(.category-header):not(.breakdown-row) {
+.item-table tbody tr:not(.breakdown-row) {
   cursor: pointer;
 }
 
-.item-table tbody tr:not(.category-header):not(.breakdown-row):hover td {
+.item-table tbody tr:not(.breakdown-row):hover td {
   background: #181818;
 }
 

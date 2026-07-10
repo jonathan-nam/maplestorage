@@ -1,36 +1,29 @@
 (function () {
   "use strict";
 
-  // Fake per-character full inventory, standing in for a real
-  // CharacterItemCount query scoped to one character (see PLAN.md). Category
-  // values are the real in-game tabs, not an app-invented scheme — tokens
-  // (redemptionTracked) live under ETC like any other item, badge-annotated.
+  // Fake per-character token list, standing in for a real CharacterTokenCount
+  // query scoped to one character (see PLAN.md). Only the fixed 6 confirmed
+  // Grandis tokens are possible rows here — no other item types exist in this
+  // catalog, so there's no category grouping to render.
   var FAKE_CHARACTERS = {
     "Bubbling": {
       sprite: "assets/bubbling.png", level: 285, job: "Hoyoung",
       items: [
-        { category: "ETC", name: "Kalos's Residual Determination", icon: "assets/icon-kalos-token.png", qty: 7, redemption: "collect 10 → Eternal set" },
-        { category: "ETC", name: "Distorted Ambition", icon: null, qty: 4, redemption: "collect 10 → Eternal set" },
-        { category: "USE", name: "White Potion", icon: "assets/icon-white-potion.png", qty: 12 },
-        { category: "USE", name: "Wealth Acquisition Potion", icon: "assets/icon-wealth-potion.png", qty: 2 },
-        { category: "USE", name: "Sunday's Growth Box", icon: "assets/icon-growth-box.png", qty: 1 }
+        { name: "Kalos's Residual Determination", icon: "assets/icon-kalos-token.png", qty: 7, redemption: "collect 10 → Eternal set" },
+        { name: "Distorted Ambition", icon: null, qty: 4, redemption: "collect 10 → Eternal set" }
       ]
     },
     "Squishy": {
       sprite: "assets/squishy.png", level: 271, job: "Bow Master",
       items: [
-        { category: "ETC", name: "Distorted Ambition", icon: null, qty: 9, redemption: "collect 10 → Eternal set" },
-        { category: "USE", name: "White Potion", icon: "assets/icon-white-potion.png", qty: 45 },
-        { category: "USE", name: "Sunday's Growth Box", icon: "assets/icon-growth-box.png", qty: 1 }
+        { name: "Distorted Ambition", icon: null, qty: 9, redemption: "collect 10 → Eternal set" }
       ]
     },
     "Nightshade": {
       sprite: "assets/nightshade.png", level: 299, job: "Hero",
       items: [
-        { category: "ETC", name: "Kalos's Residual Determination", icon: "assets/icon-kalos-token.png", qty: 10, redemption: "collect 10 → Eternal set" },
-        { category: "ETC", name: "Ferocious Beast Entanglement Ring", icon: null, qty: 3, redemption: "collect 10 → Eternal set" },
-        { category: "USE", name: "Wealth Acquisition Potion", icon: "assets/icon-wealth-potion.png", qty: 5 },
-        { category: "USE", name: "Sunday's Growth Box", icon: "assets/icon-growth-box.png", qty: 3 }
+        { name: "Kalos's Residual Determination", icon: "assets/icon-kalos-token.png", qty: 10, redemption: "collect 10 → Eternal set" },
+        { name: "Ferocious Beast Entanglement Ring", icon: null, qty: 3, redemption: "collect 10 → Eternal set" }
       ]
     }
   };
@@ -65,20 +58,18 @@
   header.appendChild(info);
 
   var rows = document.getElementById("detail-item-rows");
-  var seenCategories = {};
+
+  if (data.items.length === 0) {
+    var emptyRow = document.createElement("tr");
+    var emptyCell = document.createElement("td");
+    emptyCell.colSpan = 3;
+    emptyCell.className = "breakdown-cell";
+    emptyCell.textContent = "No tokens read from this character yet — upload an inventory screenshot to populate it.";
+    emptyRow.appendChild(emptyCell);
+    rows.appendChild(emptyRow);
+  }
 
   data.items.forEach(function (item) {
-    if (!seenCategories[item.category]) {
-      seenCategories[item.category] = true;
-      var headerRow = document.createElement("tr");
-      headerRow.className = "category-header";
-      var headerCell = document.createElement("td");
-      headerCell.colSpan = 3;
-      headerCell.textContent = item.category;
-      headerRow.appendChild(headerCell);
-      rows.appendChild(headerRow);
-    }
-
     var row = document.createElement("tr");
 
     var iconCell = document.createElement("td");
