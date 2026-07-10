@@ -80,7 +80,7 @@ Characters        (id, userId FK, name, level, jobName?, worldName?, spriteImgUr
 ItemCatalog       (id, name, category: EQUIP|USE|ETC|SETUP|CASH|DEC,
                     sourceItemId?: int, iconRefKey?: string, needsCategoryReview: boolean,
                     redemptionTracked: boolean, sourceBossName?, slotGroup?: string[],
-                    redeemThreshold?: int, bonusItemName?, confirmed: boolean)
+                    redeemThreshold?: int, bonusItemName?, expirable: boolean, confirmed: boolean)
                   // category mirrors the real in-game inventory tabs 1:1 (see "Item catalog
                   // & icon references" below) instead of an app-invented scheme; exactly one
                   // of sourceItemId (imported from maplestory.io, icon fetched live from
@@ -93,24 +93,44 @@ ItemCatalog       (id, name, category: EQUIP|USE|ETC|SETUP|CASH|DEC,
                   // Akechi, since none are reliably in maplestory.io yet) — this is an
                   // orthogonal flag, not a category, since in-game these are just ordinary
                   // Etc-tab items; redemption fields (sourceBossName/slotGroup/redeemThreshold/
-                  // bonusItemName) only apply when redemptionTracked=true and stay null otherwise
+                  // bonusItemName) only apply when redemptionTracked=true and stay null otherwise;
+                  // expirable=true (revised 2026-07-09, replaces the old per-screenshot
+                  // has_expiration_badge signal) marks item types that are always time-limited
+                  // by design (event rewards, VIP coupons) — a fixed property of the item
+                  // decided once at add-time, not re-detected on every grid read; this is
+                  // what the "expires in N days" UI prompt keys off, not a vision-detected badge
 
 CharacterItemCount    (characterId FK, itemCatalogId FK, quantity: int,
                         capturedAt, sourceScreenshotId FK?,
                         expiresAt?: timestamp, expirationNeedsReview: boolean)
                   // unique (characterId, itemCatalogId); expiresAt/expirationNeedsReview
-                  // added 2026-07-08 for the video hover-capture pipeline (see "Expiration
-                  // tracking" below) — expirationNeedsReview is set, not silently overwritten,
+                  // added 2026-07-08 for the video hover-capture pipeline (see "Tooltip
+                  // capture" below) — expirationNeedsReview is set, not silently overwritten,
                   // when a newly-detected date conflicts with an existing one for the same row
                   // (e.g. two stacks of the same item with different expiration dates)
 
-UserTrackedItem   (userId FK, itemCatalogId FK, addedAt)  // unique (userId, itemCatalogId)
-                  // which shared ItemCatalog rows a given user actually wants tracked —
-                  // added 2026-07-08 for multi-user support. Scopes both that user's
-                  // Items dashboard AND their vision-prompt reference-icon set to just
-                  // their own tracked subset, not the entire shared catalog — this is
-                  // what keeps prompt size/cost bounded per user regardless of how large
-                  // the global ItemCatalog grows across all users combined
+UserTrackedItem   (userId FK, itemCatalogId FK, addedAt, identifiableByIcon: boolean)
+                  // unique (userId, itemCatalogId); which shared ItemCatalog rows a given
+                  // user actually wants tracked — added 2026-07-08 for multi-user support.
+                  // Scopes both that user's Items dashboard AND their vision-prompt
+                  // reference-icon set to just their own tracked subset, not the entire
+                  // shared catalog — this is what keeps prompt size/cost bounded per user
+                  // regardless of how large the global ItemCatalog grows across all users
+                  // combined.
+                  //
+                  // identifiableByIcon (added 2026-07-09, defaults true): flips to false on
+                  // both rows involved the moment a user tracks two items whose icons are
+                  // visually indistinguishable — checked at add-time (see "Item catalog &
+                  // icon references" below), not detected per-screenshot. Deliberately scoped
+                  // to the (userId, itemCatalogId) pair rather than onto ItemCatalog globally
+                  // — two items can share an icon in the abstract without that ever being a
+                  // real ambiguity for a user who only tracks one of them. A row with
+                  // identifiableByIcon=false is excluded entirely from that user's grid-pass
+                  // reference-icon set, so the model is never asked to guess between colliding
+                  // icons and no low-confidence match ever reaches the user as something to
+                  // resolve — every count for that item instead comes from a tooltip-capture
+                  // pass (see "Tooltip capture" below), which reads quantity and identifying
+                  // text off the same captured frame
 
 UsageLedger       (id, userId FK, screenshotId FK?, inputTokens: int, outputTokens: int,
                     estimatedCostUsd: decimal, createdAt)
@@ -119,11 +139,15 @@ UsageLedger       (id, userId FK, screenshotId FK?, inputTokens: int, outputToke
                   // no quota/cap enforcement logic yet, this is just the ledger a future
                   // free-tier limit or metered-billing feature would read from
 
-Screenshots       (id, userId, characterId?, type: INVENTORY|UNRECOGNIZED|EXPIRATION_TOOLTIP,
+Screenshots       (id, userId, characterId?, type: INVENTORY|UNRECOGNIZED|TOOLTIP_CAPTURE,
                     storageKey, uploadedAt, parseStatus: PENDING|SUCCESS|FAILED|NEEDS_REVIEW,
                     rawModelResponse: jsonb, detectedCharacterName?, detectedLevel?)
-                  // EXPIRATION_TOOLTIP added 2026-07-08 — a keyframe candidate extracted
-                  // client-side from a hover-capture recording, not a plain inventory grid
+                  // TOOLTIP_CAPTURE (renamed 2026-07-09 from EXPIRATION_TOOLTIP, added
+                  // 2026-07-08) — a keyframe candidate extracted client-side from a
+                  // hover-capture recording, not a plain inventory grid. Serves two purposes
+                  // now, not just expiration dates: capturing an expirable item's date, or
+                  // capturing full item data (identity + quantity) for an item flagged
+                  // identifiableByIcon=false — see "Tooltip capture" below
 ```
 
 `CharacterItemCount` is a **latest-snapshot upsert**, not an append-only history log — the dashboard only needs "what's true right now." Counts don't invalidate on a timer, so freshness is just an "as of [date]" label per contributing character, not a stale/fresh binary.
@@ -154,6 +178,8 @@ Screenshots       (id, userId, characterId?, type: INVENTORY|UNRECOGNIZED|EXPIRA
 
 **Add-item flow mirrors the Nexon character lookup** (live external call at add-time, not a batch ETL job): user types a name, Ktor calls maplestory.io's search endpoint server-side, returns candidates (name + category + icon) for the user to pick from. Selecting one creates an `ItemCatalog` row with `sourceItemId` set (icon fetched live from maplestory.io whenever needed — e.g. building a vision prompt — not re-hosted in our own S3). If the selected item came back `category: "Unknown"`, set `needsCategoryReview=true` and require the user to pick the real category by hand before the row is usable. If search finds nothing (the confirmed newest-content gap), fall back to full manual entry: name + category + an icon cropped by the user from their own screenshot, stored in S3 as `iconRefKey`.
 
+**Icon-collision check at add-time** (added 2026-07-09): right after a `UserTrackedItem` row is created (whether via the `sourceItemId` or `iconRefKey` path), compare its icon against every other item that *same user* already tracks. On a visual match, set `identifiableByIcon=false` on **both** the new and the existing colliding `UserTrackedItem` rows — not just the new one, since the existing item's grid-logging is now equally unsafe. This is deliberately a decision made once, up front, rather than a per-screenshot confidence check: the goal is that an ambiguous match is never something the grid-parsing step attempts and gets wrong, it's something that's structurally impossible for it to attempt at all (see "Item/icon matching" below and "Tooltip capture" further down). Surface this in the UI as a plain statement, not a warning — "{item} looks the same as {other item} you already track — both will be updated via hover-capture instead of screenshots" — since it's a fixed fact about the two items, not a problem the user needs to fix.
+
 **Redemption tracking is a flag, not a category** (revised 2026-07-08, prompted by comparing against the real in-game tab structure): a "collect N, redeem for X" item like the Eternal tokens is, in-game, just an ordinary item sitting in the `Etc` tab — there's no separate "Token" tab. So `redemptionTracked` plus its nullable fields (`sourceBossName`, `slotGroup`, `redeemThreshold`, `bonusItemName`) can apply to any catalog row regardless of `category`, and the UI shows a small "collect N →" badge on that row wherever it's grouped, instead of pulling it into its own section.
 
 **Real technical risk carried forward**: the original icon-matching spike validated ~7 icons in one vision prompt. Per-user scoping via `UserTrackedItem` (see the data model above) bounds this to what *one user* tracks, not the entire shared catalog across everyone — so the relevant number to stress-test is "how many items does a single heavy user realistically track" (still plausibly 50-150), not the size of the global catalog. Re-run the icon-matching spike at that larger simulated per-user scale before assuming the 7-icon result generalizes.
@@ -170,24 +196,29 @@ Screenshots       (id, userId, characterId?, type: INVENTORY|UNRECOGNIZED|EXPIRA
   }
   ```
   Validate with `kotlinx.serialization`, persist `rawModelResponse` regardless of outcome, show a "detected as: X" badge with manual override + re-parse button per image.
-- **Item/icon matching**: build the reference portion of the vision prompt dynamically from every confirmed `ItemCatalog` row's icon ("this icon = Distorted Ambition", etc.) — fetched live from `sourceItemId` via maplestory.io, or from the S3-stored `iconRefKey` for manually-added rows — so the model matches icon→catalog entry and reads the stack-count badge directly off a plain inventory screenshot, no per-item tooltip screenshots needed at request time. This was validated at ~7 icons; matching accuracy at a much larger catalog (see "Item catalog & icon references") is the real open risk — re-validate before the catalog grows much past that.
+- **Item/icon matching**: build the reference portion of the vision prompt dynamically from every `UserTrackedItem` row **with `identifiableByIcon=true`** ("this icon = Distorted Ambition," etc.) — fetched live from `sourceItemId` via maplestory.io, or from the S3-stored `iconRefKey` for manually-added rows — so the model matches icon→catalog entry and reads the stack-count badge directly off a plain inventory screenshot, no per-item tooltip screenshots needed at request time. Rows flagged `identifiableByIcon=false` (added 2026-07-09 — see "Item catalog & icon references") are left out of this reference set entirely, so the model is never prompted to guess between icons it can't actually tell apart; those items are only ever logged via "Tooltip capture" below. This was validated at ~7 icons; matching accuracy at a much larger catalog (see "Item catalog & icon references") is the real open risk — re-validate before the catalog grows much past that.
 - **Concurrency (single-image)**: Kotlin coroutines, fanned out with `async`/`awaitAll` inside a `supervisorScope` (so one image's failure doesn't cancel the batch), capped at ~5 concurrent synchronous Claude calls via a `Semaphore(5)`. This stays the path for small drops, since the "watch it resolve live" row-list UX (`WEB-UI-SPEC.md`'s Upload page) depends on a near-immediate response.
 - **Bulk uploads route through the Batches API instead** (added 2026-07-08, multi-user planning): a drop above some threshold (e.g. 5+ images at once) submits as a Message Batch rather than N synchronous calls — 50% cheaper, and draws from a separate rate-limit pool from the synchronous path, which matters once many users' upload activity can cluster around the same weekly reset window. Tradeoff: batches typically complete within an hour (not seconds), so the row list shows a "processing…" state and the frontend polls for batch completion rather than getting a near-immediate per-row resolution — an acceptable UX cost for a bulk drop that wasn't instant anyway, but a real regression if applied to single-image uploads, which is why the threshold exists rather than routing everything through Batches unconditionally.
 - **Usage tracking**: every Claude call (synchronous or batched) writes a `UsageLedger` row — input/output tokens and estimated cost, keyed to the requesting user. No quota or billing logic reads this yet (monetization model isn't decided — see the Context section), but the data needs to exist before any free-tier cap or metered-billing feature can be built on top of it.
 - **Character match, not silent character creation**: `character_hud.name` (case-insensitive) is always parsed and matched against an existing `Character`, regardless of whether the upload carries an optional pinned `characterId` from the Upload page — revised 2026-07-08, since trusting a pin without verifying it against the screenshot creates a real failure mode (forget to switch the pin, or misclick, and data gets silently recorded under the wrong character). If both are present and agree, proceed normally. If they disagree, flag `MISMATCH` rather than silently trusting either source, surfaced in the UI as "pinned to X, but this screenshot looks like Y" with a one-click fix defaulting to the HUD-detected character. No HUD visible at all (tightly-cropped upload, as happened with one of the samples) is flagged `NEEDS_REVIEW` with a manual character picker, same as before.
 - **Detected name with no roster match → one-click confirm, not auto-create** (added 2026-07-08): flagging every unrecognized name as generic `NEEDS_REVIEW` was real friction, but silently auto-creating a `Character` straight from a single vision read was rejected as too risky — same class of problem as auto-discovering item catalog entries: no existing record to cross-check the read against, so a misread (or someone accidentally uploading a screenshot that isn't even their own character) becomes a permanent, unreviewed roster entry. The middle ground: the row surfaces "New character detected: {name} — not in your roster" with three actions — confirm-add (runs the same Nexon-lookup enrichment as manual add, then re-attributes the screenshot), pick an existing character instead (covers the name being a misread of someone already tracked), or ignore. This keeps a deliberate human checkpoint while cutting the friction down to one click for the common case.
 
-## Expiration tracking (video hover-capture pipeline)
+## Tooltip capture (video hover-capture pipeline)
 
-**Problem (added 2026-07-08)**: many items carry per-instance expiration dates as a deliberate FOMO mechanic (event rewards, VIP coupons, etc. — see `reference-images/expiring.png`). The in-game UI only signals this with a small clock badge on the item icon in the plain inventory grid; the actual timestamp ("Usable Until: 9/9/2026 02:00 UTC") only renders in the per-item hover tooltip. The existing single-grid screenshot pipeline above can detect *that* an item expires but not *when* — this needed its own capture path, but reuses the existing pipeline rather than building a new one.
+**Problem (added 2026-07-08, generalized 2026-07-09)**: some item data only ever renders in the per-item hover tooltip, never in the plain inventory grid — and that's true for two distinct reasons, not just one:
 
-**Two-phase detection**:
-1. **Grid pass**: the existing inventory schema's `inventory_items` gains a `has_expiration_badge: boolean` per item — the model already reads icons/counts off the grid, this just flags which rows need a date.
-2. **Hover-capture pass**: the user clicks a `[record expiring items]` action; `getDisplayMedia()` grants a live `MediaStream` of their chosen window while they mouse over items in-game. No `MediaRecorder`/video-file encoding is used — the stream plays into a hidden `<video>`, its current frame is drawn to a `<canvas>` on a sampling loop, and each sample is diffed against the prior one. A run of consecutive near-identical samples means "settled tooltip"; the middle frame of that run becomes a keyframe candidate. Only these candidates (tens, not hundreds) upload through the existing presigned-S3 transport, tagged `Screenshots.type = EXPIRATION_TOOLTIP`, and parsed via a new discriminated schema case:
+1. **Expiration dates**: many items carry per-instance expiration dates as a deliberate FOMO mechanic (event rewards, VIP coupons, etc. — see `reference-images/expiring.png`). The grid only signals this with a small clock badge on the icon; the actual timestamp ("Usable Until: 9/9/2026 02:00 UTC") only renders on hover.
+2. **Icon-ambiguous items** (added 2026-07-09): some items a user tracks are visually indistinguishable from each other by icon alone (`UserTrackedItem.identifiableByIcon=false` — see "Item catalog & icon references"). For these, the grid pass can't safely produce *any* count, not just a missing date — the tooltip's name/description text is the only thing that disambiguates which item is which, so it's not optional supplementary data the way a date is.
+
+Both cases route through the same capture mechanism deliberately, not two separate ones: a single captured frame contains everything either case needs, since the tooltip supplies identifying/date text while that *same frame* still shows the hovered item's stack-count badge on the underlying grid behind it (confirmed directly against `expiring.png` — the tooltip doesn't occlude the grid). So this is one general "read whatever only exists in the tooltip" pipeline, not expiration-specific plumbing with item-identification bolted on afterward.
+
+**Two triggers, one capture mechanism**:
+1. **Grid pass** (unchanged from the base inventory schema): reads icons/counts normally for every `identifiableByIcon=true` item. Items flagged `identifiableByIcon=false` are excluded from the reference-icon set entirely (see "Item/icon matching" above), so they simply never appear in a grid-pass result — there's no per-item flag to add here anymore, since exclusion happens upstream of the vision call, not as an output of it.
+2. **Hover-capture pass**: the user clicks a `[capture item details]` action (renamed 2026-07-09 — no longer expiration-only); `getDisplayMedia()` grants a live `MediaStream` of their chosen window while they mouse over items in-game. No `MediaRecorder`/video-file encoding is used — the stream plays into a hidden `<video>`, its current frame is drawn to a `<canvas>` on a sampling loop, and each sample is diffed against the prior one. A run of consecutive near-identical samples means "settled tooltip"; the middle frame of that run becomes a keyframe candidate. Only these candidates (tens, not hundreds) upload through the existing presigned-S3 transport, tagged `Screenshots.type = TOOLTIP_CAPTURE`, and parsed via a new discriminated schema case:
    ```json
-   { "screenshot_type": "expiration_tooltip", "tooltip_visible": boolean, "item_name": string|null, "expires_at": string|null }
+   { "screenshot_type": "tooltip_capture", "tooltip_visible": boolean, "item_name": string|null, "quantity": number|null, "expires_at": string|null }
    ```
-   `tooltip_visible: false` silently discards a candidate the client-side heuristic mis-flagged as stable — an expected false-positive rate, not an error.
+   `tooltip_visible: false` silently discards a candidate the client-side heuristic mis-flagged as stable — an expected false-positive rate, not an error. `quantity` (added 2026-07-09) is read off the same frame's visible grid badge, not the tooltip text — this is what lets an `identifiableByIcon=false` item be fully logged (identity + count, `expires_at` too if it's also `expirable`) from tooltip capture alone, with no grid-pass contribution needed for that item at all.
 
 **Why keyframe extraction has to happen client-side, before upload**: sending every video frame to Claude is a non-starter on cost (a 30-second clip at 30fps is ~900 frames). Doing the stability-diffing in the browser first — cheap local canvas math, not an LLM call — bounds the number of images that ever reach Claude to roughly one per hovered item, which is what keeps this pipeline additive to the existing architecture rather than a separate expensive one: no new upload transport, no new concurrency model, no new usage-tracking mechanism.
 
@@ -204,13 +235,13 @@ Screenshots       (id, userId, characterId?, type: INVENTORY|UNRECOGNIZED|EXPIRA
 1. **M0 — Scaffold both services + AWS infrastructure**: provision the VPC (public subnet for the ALB, private subnets for ECS tasks + RDS), security groups, ECR repo, RDS instance, and ECS cluster/service/task definition via Terraform. Ktor project (routing skeleton, `Authentication`/`jwt` wired to Clerk's JWKS, Exposed+Flyway pointed at RDS), Next.js project (Clerk web SDK, calling one Ktor health-check endpoint through the ALB). Deploy both (ECS Fargate + Vercel) and confirm an authenticated round-trip end-to-end before building features. This milestone is the heaviest lift in the whole plan given the infrastructure involved — budget real time for it.
 2. **M1 — Data model + catalog seed**: Exposed tables above; Flyway migration + a seed script for the 6 confirmed `redemptionTracked=true` `ItemCatalog` rows (+ Akechi placeholder), categorized `ETC`.
 3. **M2 — Character CRUD + Nexon lookup**: Ktor endpoints + Next.js pages for add/edit/delete, where "add" is name-only and triggers the Nexon no-auth ranking lookup server-side to populate level/jobName/worldName/spriteImgUrl; manual level entry as the fallback when the lookup finds nothing. Nothing downstream has anything to attach to without this milestone.
-4. **M3 — Item catalog management**: Ktor endpoint that searches `maplestory.io` live when adding an item (mirroring the Nexon character lookup), returning candidates (name/category/icon) for the user to pick from — handles the duplicate-name case by showing icons side by side. Picking a candidate creates an `ItemCatalog` row against `sourceItemId`; a returned `category: "Unknown"` requires the user to assign the real category manually (`needsCategoryReview`). No match found (expected for newest boss-drop content) falls back to full manual entry — name, category, and an icon crop uploaded to S3 as `iconRefKey`. What makes the catalog genuinely growable beyond the initial token seed — needed before the vision pipeline can match against anything the user adds later.
+4. **M3 — Item catalog management**: Ktor endpoint that searches `maplestory.io` live when adding an item (mirroring the Nexon character lookup), returning candidates (name/category/icon) for the user to pick from — handles the duplicate-name case by showing icons side by side. Picking a candidate creates an `ItemCatalog` row against `sourceItemId`; a returned `category: "Unknown"` requires the user to assign the real category manually (`needsCategoryReview`). No match found (expected for newest boss-drop content) falls back to full manual entry — name, category, and an icon crop uploaded to S3 as `iconRefKey`. Also runs the icon-collision check against the user's other tracked items (added 2026-07-09, see "Item catalog & icon references"), setting `UserTrackedItem.identifiableByIcon=false` on both rows when a collision is found. What makes the catalog genuinely growable beyond the initial token seed — needed before the vision pipeline can match against anything the user adds later.
 5. **M4 — Per-user tracking + usage ledger** (added 2026-07-08, multi-user planning): `UserTrackedItem` CRUD — the "toggle this shared catalog item on for me" action folded into the M3 add-item flow, so adding an item to your own dashboard doesn't require re-curating it if someone else already has. Every Claude call (from M5 onward) writes a `UsageLedger` row. No quota or billing enforcement yet — just making sure per-user usage data exists before a pricing model is chosen.
 6. **M5 — Single-image inventory upload + per-character view**: S3 upload flow, Ktor endpoint calling Claude scoped to the inventory schema, `CharacterItemCount` upsert, per-character list in Next.js. Validate parse accuracy directly against `untradeables sample.png` before moving on.
 7. **M6 — Bulk upload + auto-classification + HUD matching**: multi-file drag-and-drop in Next.js, discriminated schema in Ktor, coroutine fan-out with the semaphore cap for small drops, Batches API for larger ones (see "Screenshot ingestion" above), HUD-name matching against already-existing characters (never creating new ones — see M2), a batch review screen (per-image status, editable).
 8. **M7 — Item icon-matching spike + cross-character item dashboard**: reference-icon-crop prompt technique (validate first against `untradeables sample.png` at the original ~7-icon scale, then again at a larger simulated per-user catalog size per the risk noted above), aggregate view grouped by the real in-game tabs (Equip/Use/Etc/Set-up/Cash/Dec) — `redemptionTracked` rows get an inline "progress toward next set" badge, everything else just shows a plain running total with freshness labels.
 9. **M8 — Polish**: retry/error UX, manual correction without re-upload, responsive/mobile-friendly CSS (stopgap before a native app exists), screenshot history management.
-10. **M9 — Expiration tracking (video hover-capture)**: Flyway migration for `CharacterItemCount.expiresAt`/`expirationNeedsReview` and the `Screenshots.type` enum extension; extend the inventory vision schema with `has_expiration_badge`; build the client-side capture flow (`getDisplayMedia()` trigger + canvas-based frame-diffing/keyframe extraction) on the Upload page; new Ktor schema case + parsing/matching logic for `EXPIRATION_TOOLTIP` frames, writing to `CharacterItemCount`. See "Expiration tracking (video hover-capture pipeline)" above for the full design. Decoupled from the mobile milestone below — this is a browser-native feature, not something that needs mobile/native code.
+10. **M9 — Tooltip capture (video hover-capture)**: Flyway migration for `ItemCatalog.expirable`, `UserTrackedItem.identifiableByIcon`, `CharacterItemCount.expiresAt`/`expirationNeedsReview`, and the `Screenshots.type` enum (`TOOLTIP_CAPTURE`); build the client-side capture flow (`getDisplayMedia()` trigger + canvas-based frame-diffing/keyframe extraction) on the Upload page; new Ktor schema case + parsing/matching logic for `TOOLTIP_CAPTURE` frames, writing quantity/identity to `CharacterItemCount` for `identifiableByIcon=false` items and `expiresAt` for `expirable` items. See "Tooltip capture (video hover-capture pipeline)" above for the full design. Decoupled from the mobile milestone below — this is a browser-native feature, not something that needs mobile/native code.
 11. **M10 (future, out of MVP scope) — Kotlin Multiplatform mobile**: extract the shared data models + Ktor Client-based API client from the backend project into a shared Gradle module; build native Android/iOS apps with Compose Multiplatform consuming it.
 12. **M11 (future, blocked on a pricing decision) — Monetization**: Stripe integration, plan tiers, and actual quota/billing enforcement built on top of the `UsageLedger` from M4. Deliberately not scoped further until the pricing model (freemium / usage-based / flat subscription) is decided.
 
@@ -230,6 +261,7 @@ Screenshots       (id, userId, characterId?, type: INVENTORY|UNRECOGNIZED|EXPIRA
 - After M0: confirm the ECS Fargate service is healthy behind the ALB, the Vercel (Next.js) deploy is live, and a signed-in user's request round-trips — Next.js attaches a Clerk JWT, the ALB routes it to Ktor, Ktor validates it via JWKS and returns data from RDS.
 - After M5: run the inventory parser against `untradeables sample.png` and manually check the parsed JSON matches what's visible in the image (correct item names, correct stack counts).
 - After M7 spike: run the icon-matching prompt against `untradeables sample.png` and manually verify each of the ~7 token quantities read off matches the visible stack-count numbers, then repeat at a larger simulated per-user catalog size before building the full milestone on top of it.
+- After M3: deliberately add two items with the same or near-identical icon to one test user's tracked set, and confirm both flip to `identifiableByIcon=false` — then confirm a subsequent grid upload correctly excludes both from its result rather than guessing at either.
 - Before considering the MVP done: log in as a test user, add 2-3 characters, bulk-upload a batch of inventory screenshots, and confirm the item dashboard reflects reality without manual data entry.
 - Before considering multi-user support done: create two test users, confirm each sees only their own tracked items and characters (no data leakage via the shared `ItemCatalog`), and confirm `UsageLedger` rows are being written per Claude call.
-- After M9: record a real hover pass over a test inventory with known expiring items, confirm the client-side keyframe count stays small (single digits to tens, not hundreds), and confirm the resulting `expiresAt` values match what's visible when manually hovering the same items.
+- After M9: record a real hover pass over a test inventory with known expiring items, confirm the client-side keyframe count stays small (single digits to tens, not hundreds), and confirm the resulting `expiresAt` values match what's visible when manually hovering the same items. Separately, record a pass over an `identifiableByIcon=false` item and confirm both its quantity and identity resolve correctly from the same captured frame, with no grid-pass contribution needed.

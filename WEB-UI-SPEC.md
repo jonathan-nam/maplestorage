@@ -71,15 +71,17 @@ Rows update in place as parsing resolves:
 
 This single page covers both single-image and bulk-upload milestones from `PLAN.md` (M4/M5) — no separate "review screen" route; the live-updating row list *is* the review screen.
 
-**Expiring items (hover-capture, added 2026-07-08)**: many items carry a per-instance expiration date, signaled only by a small clock badge on the icon in the plain inventory grid (see `reference-images/expiring.png`) — the actual date only renders in the hover tooltip, one item at a time. Rather than one tooltip screenshot per expiring item, a `[record expiring items]` text link near the dropzone (same plain-link style as the rest of the page) starts a browser screen-capture recording of a mouse pass over the inventory — see `PLAN.md`'s "Expiration tracking (video hover-capture pipeline)" for the full client-side keyframe-extraction design.
+**Tooltip capture (hover-capture, added 2026-07-08, generalized 2026-07-09)**: some item data only ever renders in the per-item hover tooltip, for two different reasons — (1) expiration dates: a per-instance timestamp signaled only by a small clock badge on the icon in the plain grid (see `reference-images/expiring.png`), and (2) icon-ambiguous items: items this user tracks that look identical to another tracked item, so the grid pass can't safely read a count for them at all (see `PLAN.md`'s "Item catalog & icon references" — `identifiableByIcon=false`). Rather than a separate screenshot per item, a `[capture item details]` text link near the dropzone (same plain-link style as the rest of the page, renamed 2026-07-09 from `[record expiring items]` since it's no longer expiration-only) starts a browser screen-capture recording of a mouse pass over the inventory — see `PLAN.md`'s "Tooltip capture (video hover-capture pipeline)" for the full client-side keyframe-extraction design.
 
-- **Requires a pinned character first** — unlike normal drag-drop, a hover-capture session has no per-frame HUD to cross-check against, so it's inherently single-character. If none is pinned when `[record expiring items]` is clicked, a plain inline prompt asks the user to pick one before recording can start.
-- Clicking it triggers the browser's own capture-permission prompt (an OS-level window/screen picker — MapleStory must be running windowed or borderless-windowed, not exclusive fullscreen, to be selectable there), then the link becomes a plain status line: `Recording… move naturally across each expiring item, then click to stop`. Deliberately not "pause on each item" — the sampling rate is tuned to catch a natural glide, not a stop-and-wait.
-- After stopping, the extracted keyframe candidates resolve through the **same row-list UI** as normal uploads, just labeled as expiration reads instead of inventory reads:
+- **Requires a pinned character first** — unlike normal drag-drop, a hover-capture session has no per-frame HUD to cross-check against, so it's inherently single-character. If none is pinned when `[capture item details]` is clicked, a plain inline prompt asks the user to pick one before recording can start.
+- Clicking it triggers the browser's own capture-permission prompt (an OS-level window/screen picker — MapleStory must be running windowed or borderless-windowed, not exclusive fullscreen, to be selectable there), then the link becomes a plain status line: `Recording… move naturally across each item, then click to stop`. Deliberately not "pause on each item" — the sampling rate is tuned to catch a natural glide, not a stop-and-wait.
+- After stopping, the extracted keyframe candidates resolve through the **same row-list UI** as normal uploads, just labeled by what kind of tooltip read they resolved to:
   ```
   [thumb]  frame-03.png    Expiration — Kalos's Residual Determination, expires 9/9/2026    [change]
+  [thumb]  frame-05.png    Wealth Acquisition Potion (variant B) — qty 12                    [change]
   [thumb]  frame-07.png    Expiration — tooltip not detected, discarded
   ```
+  The second row is the icon-ambiguous case — both identity and quantity come from this single frame, since an `identifiableByIcon=false` item is never touched by the grid pass at all, so this is its *only* source of data, not a supplement.
 - A discarded frame isn't an error state — it's an expected false-positive from the client-side stability heuristic guessing a frame was a settled tooltip when it wasn't. No `[retry]` needed for these; the surviving rows already cover every item the pass actually captured.
 
 ## Page: Characters
@@ -116,6 +118,8 @@ Reached by clicking a character tile. Header: sprite (larger, ~96px) + name + le
 
 **Expiration annotation (added 2026-07-08)**: a row with `expiresAt` set gets a plain "expires in N days" text annotation next to its quantity — text only, no color/urgency-coding, consistent with the monochrome status-via-weight/italics convention used elsewhere. A row with `expirationNeedsReview=true` (conflicting dates detected for the same item) shows a `[resolve]` link instead, mirroring how `MISMATCH` rows are handled on Upload.
 
+**Icon-ambiguous item annotation (added 2026-07-09)**: a row for an item flagged `identifiableByIcon=false` (see `PLAN.md`'s "Item catalog & icon references") shows a plain `via hover-capture` annotation next to its freshness label instead of the usual as-of-date. This item's count is never touched by a normal screenshot upload, so its freshness is tied to the last hover-capture pass specifically — worth stating plainly rather than letting the row look like an ordinary one that simply hasn't been re-scanned recently.
+
 ## Page: Items
 
 Plain table grouped by category — the **real in-game inventory tabs** (`Equip | Use | Etc. | Set-up | Cash | Dec.`, per `reference-images/inventory sample.png`), not an app-invented scheme (revised 2026-07-08). Only tabs with at least one tracked item render a header — an empty `Dec.` section just doesn't show up. `+ add item` is a text link that expands an inline form — name, category select, an icon-crop upload.
@@ -139,7 +143,9 @@ Mysterious Fragment            87
 
 Click a row to expand inline showing the per-character breakdown with freshness labels (e.g. `Bubbling: 8, as of today`). Item catalog entries are added once (name + category + icon crop) and reused forever after — same pattern as adding a character — see `PLAN.md`'s "Item catalog & icon references".
 
-**Expiration annotation (added 2026-07-08)**: same as Character detail — a per-character breakdown row with `expiresAt` set gets a plain "expires in N days" annotation (text only, no color-coding); `expirationNeedsReview` rows show a `[resolve]` link instead. See `PLAN.md`'s "Expiration tracking (video hover-capture pipeline)" for how these values are captured.
+**Expiration annotation (added 2026-07-08)**: same as Character detail — a per-character breakdown row with `expiresAt` set gets a plain "expires in N days" annotation (text only, no color-coding); `expirationNeedsReview` rows show a `[resolve]` link instead. See `PLAN.md`'s "Tooltip capture (video hover-capture pipeline)" for how these values are captured.
+
+**Icon-ambiguous item annotation (added 2026-07-09)**: same as Character detail — a `identifiableByIcon=false` item shows `via hover-capture` next to its freshness label instead of an as-of-date, since it's never updated by a normal screenshot upload. `+ add item` also runs the icon-collision check at save time (see `PLAN.md`'s "Item catalog & icon references") — if the new item's icon matches one already tracked, the confirmation shows a plain statement, not a warning: `{item} looks the same as {other item} you already track — both will be updated via hover-capture instead of screenshots`.
 
 ## Open questions (unresolved)
 
