@@ -14,8 +14,6 @@ fun main() {
         .start(wait = true)
 }
 
-// CI smoke test: confirms this module compiles/lints on a bare GitHub-hosted
-// runner, not just inside the pinned dev container.
 fun Application.module() {
     configureSerialization()
     configureCors()
