@@ -12,12 +12,17 @@ import java.util.concurrent.TimeUnit
 
 const val CLERK_AUTH = "clerk-jwt"
 
+private const val JWK_CACHE_SIZE = 10L
+private const val JWK_CACHE_EXPIRY_HOURS = 24L
+private const val JWK_RATE_LIMIT_BUCKET_SIZE = 10L
+private const val JWK_RATE_LIMIT_REFILL_MINUTES = 1L
+
 fun Application.configureSecurity() {
     val jwksUri = URI(Env.clerkJwksUrl).toURL()
     val jwkProvider =
         JwkProviderBuilder(jwksUri)
-            .cached(10, 24, TimeUnit.HOURS)
-            .rateLimited(10, 1, TimeUnit.MINUTES)
+            .cached(JWK_CACHE_SIZE, JWK_CACHE_EXPIRY_HOURS, TimeUnit.HOURS)
+            .rateLimited(JWK_RATE_LIMIT_BUCKET_SIZE, JWK_RATE_LIMIT_REFILL_MINUTES, TimeUnit.MINUTES)
             .build()
 
     install(Authentication) {

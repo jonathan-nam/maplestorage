@@ -11,7 +11,8 @@ fun Application.configureDatabase() {
     // Runs on every boot -- safe no-op when there's nothing new to apply.
     // The M1 milestone adds the first real migration (TokenCatalog seed);
     // src/main/resources/db/migration is empty until then.
-    Flyway.configure()
+    Flyway
+        .configure()
         .dataSource(jdbcUrl, Env.dbUsername, Env.dbPassword)
         .load()
         .migrate()

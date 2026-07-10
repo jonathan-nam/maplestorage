@@ -20,6 +20,9 @@ fun Application.configureCors() {
         allowMethod(HttpMethod.Delete)
         allowHeader(HttpHeaders.Authorization)
         allowHeader(HttpHeaders.ContentType)
-        allowHost(Env.frontendOrigin.removePrefix("https://").removePrefix("http://"), schemes = listOf("http", "https"))
+        allowHost(
+            Env.frontendOrigin.removePrefix("https://").removePrefix("http://"),
+            schemes = listOf("http", "https"),
+        )
     }
 }
