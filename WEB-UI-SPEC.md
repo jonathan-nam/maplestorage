@@ -71,6 +71,17 @@ Rows update in place as parsing resolves:
 
 This single page covers both single-image and bulk-upload milestones from `PLAN.md` (M4/M5) — no separate "review screen" route; the live-updating row list *is* the review screen.
 
+**Expiring items (hover-capture, added 2026-07-08)**: many items carry a per-instance expiration date, signaled only by a small clock badge on the icon in the plain inventory grid (see `reference-images/expiring.png`) — the actual date only renders in the hover tooltip, one item at a time. Rather than one tooltip screenshot per expiring item, a `[record expiring items]` text link near the dropzone (same plain-link style as the rest of the page) starts a browser screen-capture recording of a mouse pass over the inventory — see `PLAN.md`'s "Expiration tracking (video hover-capture pipeline)" for the full client-side keyframe-extraction design.
+
+- **Requires a pinned character first** — unlike normal drag-drop, a hover-capture session has no per-frame HUD to cross-check against, so it's inherently single-character. If none is pinned when `[record expiring items]` is clicked, a plain inline prompt asks the user to pick one before recording can start.
+- Clicking it triggers the browser's own capture-permission prompt (an OS-level window/screen picker — MapleStory must be running windowed or borderless-windowed, not exclusive fullscreen, to be selectable there), then the link becomes a plain status line: `Recording… move naturally across each expiring item, then click to stop`. Deliberately not "pause on each item" — the sampling rate is tuned to catch a natural glide, not a stop-and-wait.
+- After stopping, the extracted keyframe candidates resolve through the **same row-list UI** as normal uploads, just labeled as expiration reads instead of inventory reads:
+  ```
+  [thumb]  frame-03.png    Expiration — Kalos's Residual Determination, expires 9/9/2026    [change]
+  [thumb]  frame-07.png    Expiration — tooltip not detected, discarded
+  ```
+- A discarded frame isn't an error state — it's an expected false-positive from the client-side stability heuristic guessing a frame was a settled tooltip when it wasn't. No `[retry]` needed for these; the surviving rows already cover every item the pass actually captured.
+
 ## Page: Characters
 
 **Tile grid, not a table** (revised 2026-07-08) — modeled on MapleStory's own character-selection screen (see `reference-images/character selection screen.png`): each character is a tile with its sprite, a bordered name-plate (name + level, echoing the game's own plate), job, and a small **mini-inventory strip** of icon+quantity for that character's highest-priority items (e.g. tokens closest to a redemption threshold, low-stock potions — exact selection rule still open, see below):
@@ -103,6 +114,8 @@ Both the character sprite and the mini-inventory icons are full color — the sa
 
 Reached by clicking a character tile. Header: sprite (larger, ~96px) + name + level + job, in the same plain-bordered style as the tile. Below it, a single table of every item tracked for that character, grouped by the real in-game tabs (`Equip | Use | Etc. | Set-up | Cash | Dec.`) with an icon, name, and quantity column — `redemptionTracked` rows carry their "collect N →" badge inline within whichever tab they belong to, same as the Items page. The same category-grouped table pattern, just scoped to one character instead of aggregated across all of them. A `« back to characters` link returns to the grid.
 
+**Expiration annotation (added 2026-07-08)**: a row with `expiresAt` set gets a plain "expires in N days" text annotation next to its quantity — text only, no color/urgency-coding, consistent with the monochrome status-via-weight/italics convention used elsewhere. A row with `expirationNeedsReview=true` (conflicting dates detected for the same item) shows a `[resolve]` link instead, mirroring how `MISMATCH` rows are handled on Upload.
+
 ## Page: Items
 
 Plain table grouped by category — the **real in-game inventory tabs** (`Equip | Use | Etc. | Set-up | Cash | Dec.`, per `reference-images/inventory sample.png`), not an app-invented scheme (revised 2026-07-08). Only tabs with at least one tracked item render a header — an empty `Dec.` section just doesn't show up. `+ add item` is a text link that expands an inline form — name, category select, an icon-crop upload.
@@ -126,11 +139,14 @@ Mysterious Fragment            87
 
 Click a row to expand inline showing the per-character breakdown with freshness labels (e.g. `Bubbling: 8, as of today`). Item catalog entries are added once (name + category + icon crop) and reused forever after — same pattern as adding a character — see `PLAN.md`'s "Item catalog & icon references".
 
+**Expiration annotation (added 2026-07-08)**: same as Character detail — a per-character breakdown row with `expiresAt` set gets a plain "expires in N days" annotation (text only, no color-coding); `expirationNeedsReview` rows show a `[resolve]` link instead. See `PLAN.md`'s "Expiration tracking (video hover-capture pipeline)" for how these values are captured.
+
 ## Open questions (unresolved)
 
 - ~~Auto-group same-session screenshots by upload-batch timestamp vs. letting the user manually tag "this is a bossing session for character X" before dropping~~ — resolved 2026-07-08: the Upload page's character selector *is* the manual-tag option, addressing this and the no-HUD-visible fallback case together.
 - Should the Items page render the item icon crop as a thumbnail (color, like character sprites) or stay text-only-with-name? The icon image exists either way (needed for the vision prompt), so this is purely a UI call, not a data-availability question.
 - **Screenshot-literacy gap beyond in-app instructions (2026-07-08)**: the OS-detected help panel and paste-to-upload support reduce friction but don't eliminate the underlying problem — plenty of users still won't know to look for a "Show me how" link, or won't have a MapleStory window arranged in a way that makes a clean screenshot easy. Bigger, not-yet-built options worth weighing later: (a) a small companion capture tool (browser extension or lightweight desktop utility) that captures the game window and uploads directly, skipping manual screenshot/save/drag entirely — real fix, real engineering investment; (b) accepting a phone photo of the screen as a fallback input, which requires zero screenshot literacy at all but likely hurts vision-parsing accuracy (glare, angle, moiré) and hasn't been tested. Neither is built — worth validating whether screenshot literacy is actually a significant drop-off point with real users before investing in either.
+- **What counts as "expires soon" (2026-07-08)**: the Items/Character-detail "expires in N days" annotation doesn't yet have a threshold for extra emphasis (3 days? 7 days?) — not deciding now, flag for validation once real expiring-item data exists.
 
 ## Prototype status
 

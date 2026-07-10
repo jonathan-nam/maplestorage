@@ -55,6 +55,16 @@
         <input type="file" id="file-input" accept="image/*" multiple hidden>
       </div>
 
+      <div class="expiration-capture">
+        <a href="#" id="record-expiring-link">[record expiring items]</a>
+        <span id="record-hint" class="record-hint" hidden>Pin a character first — the recording needs to know who these items belong to.</span>
+        <p id="record-status" class="record-status" hidden></p>
+      </div>
+
+      <video id="capture-video" class="offscreen-media" autoplay muted playsinline></video>
+      <canvas id="diff-canvas" width="24" height="15" hidden></canvas>
+      <canvas id="snap-canvas" width="320" height="200" hidden></canvas>
+
       <section id="upload-list" class="row-list"></section>
 
       <section class="archive">

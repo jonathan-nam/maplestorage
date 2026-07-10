@@ -96,7 +96,13 @@ ItemCatalog       (id, name, category: EQUIP|USE|ETC|SETUP|CASH|DEC,
                   // bonusItemName) only apply when redemptionTracked=true and stay null otherwise
 
 CharacterItemCount    (characterId FK, itemCatalogId FK, quantity: int,
-                        capturedAt, sourceScreenshotId FK?)  // unique (characterId, itemCatalogId)
+                        capturedAt, sourceScreenshotId FK?,
+                        expiresAt?: timestamp, expirationNeedsReview: boolean)
+                  // unique (characterId, itemCatalogId); expiresAt/expirationNeedsReview
+                  // added 2026-07-08 for the video hover-capture pipeline (see "Expiration
+                  // tracking" below) — expirationNeedsReview is set, not silently overwritten,
+                  // when a newly-detected date conflicts with an existing one for the same row
+                  // (e.g. two stacks of the same item with different expiration dates)
 
 UserTrackedItem   (userId FK, itemCatalogId FK, addedAt)  // unique (userId, itemCatalogId)
                   // which shared ItemCatalog rows a given user actually wants tracked —
@@ -113,9 +119,11 @@ UsageLedger       (id, userId FK, screenshotId FK?, inputTokens: int, outputToke
                   // no quota/cap enforcement logic yet, this is just the ledger a future
                   // free-tier limit or metered-billing feature would read from
 
-Screenshots       (id, userId, characterId?, type: INVENTORY|UNRECOGNIZED,
+Screenshots       (id, userId, characterId?, type: INVENTORY|UNRECOGNIZED|EXPIRATION_TOOLTIP,
                     storageKey, uploadedAt, parseStatus: PENDING|SUCCESS|FAILED|NEEDS_REVIEW,
                     rawModelResponse: jsonb, detectedCharacterName?, detectedLevel?)
+                  // EXPIRATION_TOOLTIP added 2026-07-08 — a keyframe candidate extracted
+                  // client-side from a hover-capture recording, not a plain inventory grid
 ```
 
 `CharacterItemCount` is a **latest-snapshot upsert**, not an append-only history log — the dashboard only needs "what's true right now." Counts don't invalidate on a timer, so freshness is just an "as of [date]" label per contributing character, not a stale/fresh binary.
@@ -169,6 +177,28 @@ Screenshots       (id, userId, characterId?, type: INVENTORY|UNRECOGNIZED,
 - **Character match, not silent character creation**: `character_hud.name` (case-insensitive) is always parsed and matched against an existing `Character`, regardless of whether the upload carries an optional pinned `characterId` from the Upload page — revised 2026-07-08, since trusting a pin without verifying it against the screenshot creates a real failure mode (forget to switch the pin, or misclick, and data gets silently recorded under the wrong character). If both are present and agree, proceed normally. If they disagree, flag `MISMATCH` rather than silently trusting either source, surfaced in the UI as "pinned to X, but this screenshot looks like Y" with a one-click fix defaulting to the HUD-detected character. No HUD visible at all (tightly-cropped upload, as happened with one of the samples) is flagged `NEEDS_REVIEW` with a manual character picker, same as before.
 - **Detected name with no roster match → one-click confirm, not auto-create** (added 2026-07-08): flagging every unrecognized name as generic `NEEDS_REVIEW` was real friction, but silently auto-creating a `Character` straight from a single vision read was rejected as too risky — same class of problem as auto-discovering item catalog entries: no existing record to cross-check the read against, so a misread (or someone accidentally uploading a screenshot that isn't even their own character) becomes a permanent, unreviewed roster entry. The middle ground: the row surfaces "New character detected: {name} — not in your roster" with three actions — confirm-add (runs the same Nexon-lookup enrichment as manual add, then re-attributes the screenshot), pick an existing character instead (covers the name being a misread of someone already tracked), or ignore. This keeps a deliberate human checkpoint while cutting the friction down to one click for the common case.
 
+## Expiration tracking (video hover-capture pipeline)
+
+**Problem (added 2026-07-08)**: many items carry per-instance expiration dates as a deliberate FOMO mechanic (event rewards, VIP coupons, etc. — see `reference-images/expiring.png`). The in-game UI only signals this with a small clock badge on the item icon in the plain inventory grid; the actual timestamp ("Usable Until: 9/9/2026 02:00 UTC") only renders in the per-item hover tooltip. The existing single-grid screenshot pipeline above can detect *that* an item expires but not *when* — this needed its own capture path, but reuses the existing pipeline rather than building a new one.
+
+**Two-phase detection**:
+1. **Grid pass**: the existing inventory schema's `inventory_items` gains a `has_expiration_badge: boolean` per item — the model already reads icons/counts off the grid, this just flags which rows need a date.
+2. **Hover-capture pass**: the user clicks a `[record expiring items]` action; `getDisplayMedia()` grants a live `MediaStream` of their chosen window while they mouse over items in-game. No `MediaRecorder`/video-file encoding is used — the stream plays into a hidden `<video>`, its current frame is drawn to a `<canvas>` on a sampling loop, and each sample is diffed against the prior one. A run of consecutive near-identical samples means "settled tooltip"; the middle frame of that run becomes a keyframe candidate. Only these candidates (tens, not hundreds) upload through the existing presigned-S3 transport, tagged `Screenshots.type = EXPIRATION_TOOLTIP`, and parsed via a new discriminated schema case:
+   ```json
+   { "screenshot_type": "expiration_tooltip", "tooltip_visible": boolean, "item_name": string|null, "expires_at": string|null }
+   ```
+   `tooltip_visible: false` silently discards a candidate the client-side heuristic mis-flagged as stable — an expected false-positive rate, not an error.
+
+**Why keyframe extraction has to happen client-side, before upload**: sending every video frame to Claude is a non-starter on cost (a 30-second clip at 30fps is ~900 frames). Doing the stability-diffing in the browser first — cheap local canvas math, not an LLM call — bounds the number of images that ever reach Claude to roughly one per hovered item, which is what keeps this pipeline additive to the existing architecture rather than a separate expensive one: no new upload transport, no new concurrency model, no new usage-tracking mechanism.
+
+**Sampling rate and user pacing**: MapleStory's tooltip renders instantly (no fade-in), so the dwell requirement comes entirely from the sampling pipeline, not the game — a hover shorter than the gap between samples can be missed outright, and the stability check needs 2-3 consecutive matching samples to confirm a settled frame (one isolated sample can't confirm itself). Both are relaxed by sampling faster (~10-15fps, or every `requestVideoFrameCallback` tick) rather than by asking the user to pause — at that rate a natural, readable glide across each item is enough. One floor this can't remove: the game's own hover-hit-detection still needs the cursor to sit on an icon for a frame or two before anything renders, so the UX guidance is "move at a natural pace," not "pause on each item."
+
+**Known constraint**: `getDisplayMedia()`'s OS-level picker can only target windowed or borderless-windowed applications — exclusive-fullscreen games bypass the window compositor and generally can't be captured by any screen-capture API. Flag this in the UI copy for users running MapleStory fullscreen.
+
+**Character attribution differs from normal uploads**: a hover-pass session is inherently single-character, and there's no per-frame HUD to cross-check against a pin, so the Upload page's `characterId` pin is *required* here (not optional) — block with an inline prompt to pick a character before recording can start, rather than resolving to NEEDS_REVIEW after the fact.
+
+**Concurrency/cost**: candidate counts stay small enough (tens) to use the existing synchronous per-image path (`Semaphore(5)`), not the Batches API — the live-resolving row list is more valuable here anyway, since the user just finished the hover pass and wants immediate confirmation of which items got dates. Every call still writes a `UsageLedger` row exactly as today.
+
 ## Build order
 
 1. **M0 — Scaffold both services + AWS infrastructure**: provision the VPC (public subnet for the ALB, private subnets for ECS tasks + RDS), security groups, ECR repo, RDS instance, and ECS cluster/service/task definition via Terraform. Ktor project (routing skeleton, `Authentication`/`jwt` wired to Clerk's JWKS, Exposed+Flyway pointed at RDS), Next.js project (Clerk web SDK, calling one Ktor health-check endpoint through the ALB). Deploy both (ECS Fargate + Vercel) and confirm an authenticated round-trip end-to-end before building features. This milestone is the heaviest lift in the whole plan given the infrastructure involved — budget real time for it.
@@ -180,8 +210,9 @@ Screenshots       (id, userId, characterId?, type: INVENTORY|UNRECOGNIZED,
 7. **M6 — Bulk upload + auto-classification + HUD matching**: multi-file drag-and-drop in Next.js, discriminated schema in Ktor, coroutine fan-out with the semaphore cap for small drops, Batches API for larger ones (see "Screenshot ingestion" above), HUD-name matching against already-existing characters (never creating new ones — see M2), a batch review screen (per-image status, editable).
 8. **M7 — Item icon-matching spike + cross-character item dashboard**: reference-icon-crop prompt technique (validate first against `untradeables sample.png` at the original ~7-icon scale, then again at a larger simulated per-user catalog size per the risk noted above), aggregate view grouped by the real in-game tabs (Equip/Use/Etc/Set-up/Cash/Dec) — `redemptionTracked` rows get an inline "progress toward next set" badge, everything else just shows a plain running total with freshness labels.
 9. **M8 — Polish**: retry/error UX, manual correction without re-upload, responsive/mobile-friendly CSS (stopgap before a native app exists), screenshot history management.
-10. **M9 (future, out of MVP scope) — Kotlin Multiplatform mobile**: extract the shared data models + Ktor Client-based API client from the backend project into a shared Gradle module; build native Android/iOS apps with Compose Multiplatform consuming it. Also where the video-upload/expiration-tracking idea would land, as an extension of the existing vision-parsing pipeline rather than a new architecture.
-11. **M10 (future, blocked on a pricing decision) — Monetization**: Stripe integration, plan tiers, and actual quota/billing enforcement built on top of the `UsageLedger` from M4. Deliberately not scoped further until the pricing model (freemium / usage-based / flat subscription) is decided.
+10. **M9 — Expiration tracking (video hover-capture)**: Flyway migration for `CharacterItemCount.expiresAt`/`expirationNeedsReview` and the `Screenshots.type` enum extension; extend the inventory vision schema with `has_expiration_badge`; build the client-side capture flow (`getDisplayMedia()` trigger + canvas-based frame-diffing/keyframe extraction) on the Upload page; new Ktor schema case + parsing/matching logic for `EXPIRATION_TOOLTIP` frames, writing to `CharacterItemCount`. See "Expiration tracking (video hover-capture pipeline)" above for the full design. Decoupled from the mobile milestone below — this is a browser-native feature, not something that needs mobile/native code.
+11. **M10 (future, out of MVP scope) — Kotlin Multiplatform mobile**: extract the shared data models + Ktor Client-based API client from the backend project into a shared Gradle module; build native Android/iOS apps with Compose Multiplatform consuming it.
+12. **M11 (future, blocked on a pricing decision) — Monetization**: Stripe integration, plan tiers, and actual quota/billing enforcement built on top of the `UsageLedger` from M4. Deliberately not scoped further until the pricing model (freemium / usage-based / flat subscription) is decided.
 
 ## Critical files (to be created)
 
@@ -192,7 +223,7 @@ Screenshots       (id, userId, characterId?, type: INVENTORY|UNRECOGNIZED,
 - `backend/src/main/resources/db/migration/` — Flyway migration scripts
 - `backend/src/main/kotlin/.../ScreenshotProcessing.kt` — the vision fan-out pipeline; highest-risk piece of the system
 - `frontend/app/...` — Next.js pages/components calling the Ktor API
-- Reference: `reference-images/untradeables sample.png`, `untradebles description sample.png`, `inventory sample.png`, `character selection screen.png` — ground truth for prompt/schema design, catalog seeding, and category/UI grouping
+- Reference: `reference-images/untradeables sample.png`, `untradebles description sample.png`, `inventory sample.png`, `character selection screen.png`, `expiring.png` — ground truth for prompt/schema design, catalog seeding, category/UI grouping, and the expiration clock-badge/tooltip pattern
 
 ## Verification
 
@@ -201,3 +232,4 @@ Screenshots       (id, userId, characterId?, type: INVENTORY|UNRECOGNIZED,
 - After M7 spike: run the icon-matching prompt against `untradeables sample.png` and manually verify each of the ~7 token quantities read off matches the visible stack-count numbers, then repeat at a larger simulated per-user catalog size before building the full milestone on top of it.
 - Before considering the MVP done: log in as a test user, add 2-3 characters, bulk-upload a batch of inventory screenshots, and confirm the item dashboard reflects reality without manual data entry.
 - Before considering multi-user support done: create two test users, confirm each sees only their own tracked items and characters (no data leakage via the shared `ItemCatalog`), and confirm `UsageLedger` rows are being written per Claude call.
+- After M9: record a real hover pass over a test inventory with known expiring items, confirm the client-side keyframe count stays small (single digits to tens, not hundreds), and confirm the resulting `expiresAt` values match what's visible when manually hovering the same items.

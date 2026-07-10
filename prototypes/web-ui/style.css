@@ -284,6 +284,43 @@ main {
   background: #1a1a1a;
 }
 
+.expiration-capture {
+  margin: 0 0 16px;
+}
+
+.record-hint,
+.record-status {
+  display: block;
+  color: #999;
+  font-style: italic;
+  font-size: 12px;
+  margin-top: 4px;
+}
+
+.change-panel input[type="text"] {
+  background: #1a1a1a;
+  color: #ddd;
+  border: 1px solid #3a3a3a;
+  padding: 2px 4px;
+  margin-right: 12px;
+}
+
+.change-panel label {
+  margin-right: 4px;
+}
+
+/* Kept displayed (not display:none) so the browser keeps decoding video
+   frames — some browsers stop rendering a display:none <video>, which would
+   silently break the canvas-based frame sampling below. */
+.offscreen-media {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+}
+
 .archive {
   margin-top: 32px;
 }

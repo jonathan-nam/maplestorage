@@ -11,6 +11,12 @@
   var selectorClear = document.getElementById("selector-clear");
   var screenshotHelpToggle = document.getElementById("screenshot-help-toggle");
   var screenshotHelp = document.getElementById("screenshot-help");
+  var recordLink = document.getElementById("record-expiring-link");
+  var recordHint = document.getElementById("record-hint");
+  var recordStatus = document.getElementById("record-status");
+  var captureVideo = document.getElementById("capture-video");
+  var diffCanvas = document.getElementById("diff-canvas");
+  var snapCanvas = document.getElementById("snap-canvas");
 
   // Canned outcomes for the auto-detect (no pin) path — cycled deterministically
   // so repeated demos are predictable instead of random. This is the primary
@@ -472,6 +478,249 @@
       handleFiles(files);
     }
   });
+
+  // --- Expiring items: real getDisplayMedia() capture + client-side ------
+  // keyframe extraction (see PLAN.md's "Expiration tracking" section).
+  // This is a real screen recording and real canvas frame-diffing — nothing
+  // here is faked except what happens to a captured frame afterward (there's
+  // no backend, so a resolved frame gets a canned item/date, same as every
+  // other outcome in this prototype).
+
+  var SAMPLE_FPS = 12;           // higher than the plan's "3-5fps naive" case
+                                  // specifically so a natural glide (not a
+                                  // deliberate pause) still lands 2-3 samples
+  var DIFF_THRESHOLD = 10;       // mean-abs-difference (0-255) below this = "stable"
+  var MIN_RUN_LENGTH = 3;        // consecutive stable samples needed to trust a frame
+
+  var diffCtx = diffCanvas.getContext("2d", { willReadFrequently: true });
+  var snapCtx = snapCanvas.getContext("2d");
+
+  var mediaStream = null;
+  var sampleTimer = null;
+  var prevDiffData = null;
+  var currentRun = [];
+  var expirationRowCount = 0;
+
+  var EXPIRING_ITEMS = [
+    { name: "VIP Buff Selector Coupon", expires: "9/9/2026" },
+    { name: "Growth Potion (Event)", expires: "9/16/2026" },
+    { name: "Mysterious Wrapped Box", expires: "9/23/2026" }
+  ];
+
+  function supportsScreenCapture() {
+    return !!(navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia);
+  }
+
+  // Cheap, non-LLM stability check: downsample the current frame to a tiny
+  // canvas and compare it pixel-by-pixel to the previous sample. A low score
+  // means "nothing moved since last sample" — i.e. the mouse paused and a
+  // tooltip is likely rendered. This is the entire cost fix from PLAN.md:
+  // it runs locally on every sample, so only the handful of frames that
+  // survive as a stable run ever get treated as vision-call candidates.
+  function sampleDiffScore() {
+    diffCtx.drawImage(captureVideo, 0, 0, diffCanvas.width, diffCanvas.height);
+    var data = diffCtx.getImageData(0, 0, diffCanvas.width, diffCanvas.height).data;
+    var score = 0;
+    if (prevDiffData) {
+      var sum = 0;
+      for (var i = 0; i < data.length; i += 4) {
+        sum += Math.abs(data[i] - prevDiffData[i]);
+      }
+      score = sum / (data.length / 4);
+    }
+    prevDiffData = data;
+    return score;
+  }
+
+  function snapshotFrame() {
+    snapCtx.drawImage(captureVideo, 0, 0, snapCanvas.width, snapCanvas.height);
+    return snapCanvas.toDataURL("image/png");
+  }
+
+  // Picking the *middle* of a stable run (not the first or last sample)
+  // avoids the edges of the run, which are more likely to still carry a
+  // trace of the motion that preceded/follows the pause.
+  function finalizeRun() {
+    if (currentRun.length >= MIN_RUN_LENGTH) {
+      addExpirationCandidate(currentRun[Math.floor(currentRun.length / 2)]);
+    }
+    currentRun = [];
+  }
+
+  function sampleTick() {
+    var score = sampleDiffScore();
+    if (score < DIFF_THRESHOLD) {
+      currentRun.push(snapshotFrame());
+    } else {
+      finalizeRun();
+    }
+  }
+
+  function startRecording() {
+    if (!selectedCharacter) {
+      recordHint.hidden = false;
+      return;
+    }
+    recordHint.hidden = true;
+
+    navigator.mediaDevices.getDisplayMedia({ video: true, audio: false })
+      .then(function (stream) {
+        mediaStream = stream;
+        captureVideo.srcObject = stream;
+        // Stop tracking cleanly if the user ends the share via the browser's
+        // own "Stop sharing" control, not just via our own [stop recording] link.
+        stream.getVideoTracks()[0].addEventListener("ended", stopRecording);
+
+        captureVideo.onloadedmetadata = function () {
+          captureVideo.play();
+          prevDiffData = null;
+          currentRun = [];
+          sampleTimer = setInterval(sampleTick, 1000 / SAMPLE_FPS);
+        };
+
+        recordLink.textContent = "[stop recording]";
+        recordStatus.hidden = false;
+        recordStatus.textContent = "Recording… move naturally across each expiring item, then click to stop.";
+        recordStatus.className = "record-status pending";
+      })
+      .catch(function (err) {
+        recordStatus.hidden = false;
+        recordStatus.textContent = "Recording cancelled or unavailable" +
+          (err && err.name ? " (" + err.name + ")" : "") + ".";
+      });
+  }
+
+  function stopRecording() {
+    if (sampleTimer) {
+      clearInterval(sampleTimer);
+      sampleTimer = null;
+    }
+    finalizeRun();
+    if (mediaStream) {
+      mediaStream.getTracks().forEach(function (t) { t.stop(); });
+      mediaStream = null;
+    }
+    captureVideo.srcObject = null;
+    recordLink.textContent = "[record expiring items]";
+    recordStatus.textContent = "Recording stopped — resolving captured frames…";
+  }
+
+  function toggleExpirationChangePanel(row, statusEl, item) {
+    var existing = row.nextElementSibling;
+    if (existing && existing.classList && existing.classList.contains("change-panel")) {
+      existing.remove();
+      return;
+    }
+
+    var panel = document.createElement("div");
+    panel.className = "change-panel";
+
+    var nameLabel = document.createElement("label");
+    nameLabel.textContent = "Item: ";
+    var nameInput = document.createElement("input");
+    nameInput.type = "text";
+    nameInput.value = item.name;
+    nameLabel.appendChild(nameInput);
+
+    var dateLabel = document.createElement("label");
+    dateLabel.textContent = "Expires: ";
+    var dateInput = document.createElement("input");
+    dateInput.type = "text";
+    dateInput.value = item.expires;
+    dateLabel.appendChild(dateInput);
+
+    function apply() {
+      statusEl.textContent = "Expiration — " + nameInput.value + ", expires " + dateInput.value;
+    }
+    nameInput.addEventListener("change", apply);
+    dateInput.addEventListener("change", apply);
+
+    panel.appendChild(nameLabel);
+    panel.appendChild(dateLabel);
+    row.parentNode.insertBefore(panel, row.nextSibling);
+  }
+
+  // A real captured frame (dataURL from the actual screen recording) becomes
+  // a row exactly like a dropped screenshot — same row markup, same
+  // Detecting… pacing — except there's no backend here either, so what it
+  // resolves to is canned, same as every other outcome in this prototype.
+  // Every 4th candidate resolves as "discarded" to demonstrate the expected
+  // false-positive rate from the stability heuristic (PLAN.md: "not an
+  // error state").
+  function addExpirationCandidate(dataUrl) {
+    if (expirationRowCount === 0) {
+      var header = document.createElement("div");
+      header.className = "session-header";
+      header.textContent = "Expiration capture — " + selectedCharacter;
+      uploadList.appendChild(header);
+      // Reset so the next ordinary inventory drop gets its own fresh header
+      // instead of being folded into this one.
+      currentGroupCharacter = null;
+    }
+
+    var isDiscarded = expirationRowCount % 4 === 3;
+    var item = EXPIRING_ITEMS[expirationRowCount % EXPIRING_ITEMS.length];
+    expirationRowCount++;
+
+    var rowId = "exp-row-" + expirationRowCount;
+    var row = document.createElement("div");
+    row.className = "upload-row";
+    row.id = rowId;
+
+    var thumb = document.createElement("img");
+    thumb.className = "thumb";
+    thumb.src = dataUrl;
+    thumb.alt = "";
+
+    var filename = document.createElement("span");
+    filename.className = "filename";
+    filename.textContent = "frame-" + (expirationRowCount < 10 ? "0" : "") + expirationRowCount + ".png";
+
+    var status = document.createElement("span");
+    status.className = "status pending";
+    status.textContent = "Detecting…";
+
+    var actions = document.createElement("span");
+    actions.className = "row-actions";
+
+    row.appendChild(thumb);
+    row.appendChild(filename);
+    row.appendChild(status);
+    row.appendChild(actions);
+    uploadList.appendChild(row);
+
+    setTimeout(function () {
+      if (isDiscarded) {
+        status.textContent = "Expiration — tooltip not detected, discarded";
+        status.className = "status needs-review";
+      } else {
+        status.textContent = "Expiration — " + item.name + ", expires " + item.expires;
+        status.className = "status";
+        var changeLink = document.createElement("a");
+        changeLink.href = "#";
+        changeLink.textContent = "[change]";
+        changeLink.addEventListener("click", function (e) {
+          e.preventDefault();
+          toggleExpirationChangePanel(row, status, item);
+        });
+        actions.appendChild(changeLink);
+      }
+    }, 500 + Math.random() * 500);
+  }
+
+  if (!supportsScreenCapture()) {
+    recordLink.textContent = "[record expiring items — not supported in this browser]";
+    recordLink.classList.add("stub");
+  } else {
+    recordLink.addEventListener("click", function (e) {
+      e.preventDefault();
+      if (mediaStream) {
+        stopRecording();
+      } else {
+        startRecording();
+      }
+    });
+  }
 
   archiveToggle.addEventListener("click", function (e) {
     e.preventDefault();
