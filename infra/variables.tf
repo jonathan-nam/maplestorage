@@ -1,3 +1,4 @@
+# CI smoke test: confirms terraform fmt/validate/tflint run clean in ci.yml.
 variable "aws_region" {
   description = "AWS region for all resources."
   type        = string
