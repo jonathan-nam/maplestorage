@@ -17,3 +17,20 @@ output "db_credentials_secret_arn" {
   description = "Secrets Manager ARN holding the generated DB username/password."
   value       = aws_secretsmanager_secret.db_credentials.arn
 }
+
+output "github_actions_deploy_role_arn" {
+  description = "Paste into the GitHub repo's Actions Variables as AWS_DEPLOY_ROLE_ARN."
+  value       = aws_iam_role.github_actions_deploy.arn
+}
+
+output "ecs_cluster_name" {
+  value = aws_ecs_cluster.main.name
+}
+
+output "ecs_service_name" {
+  value = aws_ecs_service.backend.name
+}
+
+output "ecs_task_family" {
+  value = aws_ecs_task_definition.backend.family
+}

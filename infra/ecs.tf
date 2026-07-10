@@ -131,5 +131,14 @@ resource "aws_ecs_service" "backend" {
     container_port   = var.container_port
   }
 
+  # Without this, a deploy whose new task never passes the ALB health check
+  # just leaves the service stuck -- no automatic recovery, only a human
+  # noticing later. This makes ECS detect a failed rollout and revert to the
+  # last known-good task definition on its own.
+  deployment_circuit_breaker {
+    enable   = true
+    rollback = true
+  }
+
   depends_on = [aws_lb_listener.http]
 }
