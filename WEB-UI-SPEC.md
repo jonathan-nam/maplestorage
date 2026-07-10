@@ -71,18 +71,16 @@ Rows update in place as parsing resolves:
 
 This single page covers both single-image and bulk-upload milestones from `PLAN.md` (M4/M5) — no separate "review screen" route; the live-updating row list *is* the review screen.
 
-**Tooltip capture (hover-capture, added 2026-07-08, generalized 2026-07-09)**: some item data only ever renders in the per-item hover tooltip, for two different reasons — (1) expiration dates: a per-instance timestamp signaled only by a small clock badge on the icon in the plain grid (see `reference-images/expiring.png`), and (2) icon-ambiguous items: items this user tracks that look identical to another tracked item, so the grid pass can't safely read a count for them at all (see `PLAN.md`'s "Item catalog & icon references" — `identifiableByIcon=false`). Rather than a separate screenshot per item, a `[capture item details]` text link near the dropzone (same plain-link style as the rest of the page, renamed 2026-07-09 from `[record expiring items]` since it's no longer expiration-only) starts a browser screen-capture recording of a mouse pass over the inventory — see `PLAN.md`'s "Tooltip capture (video hover-capture pipeline)" for the full client-side keyframe-extraction design.
+**Tooltip screenshots (added 2026-07-08, generalized 2026-07-09, simplified 2026-07-10)**: some item data only ever renders in the per-item hover tooltip — expiration dates (a per-instance timestamp signaled only by a small clock badge in the plain grid, see `reference-images/expiring.png`), icon-ambiguous items (items this user tracks that look identical to another, so the grid pass can't safely read a count at all — `PLAN.md`'s `identifiableByIcon=false`), and unidentified items from the discovery worklist below. An earlier design handled this with a dedicated screen-recording action; reconsidered and dropped 2026-07-10 as disproportionate friction (an OS permission grant, window picker, and choreographed hovering) for something that only comes up occasionally — see `PLAN.md`'s "Tooltip screenshots" for the full reasoning.
 
-- **Requires a pinned character first** — unlike normal drag-drop, a hover-capture session has no per-frame HUD to cross-check against, so it's inherently single-character. If none is pinned when `[capture item details]` is clicked, a plain inline prompt asks the user to pick one before recording can start.
-- Clicking it triggers the browser's own capture-permission prompt (an OS-level window/screen picker — MapleStory must be running windowed or borderless-windowed, not exclusive fullscreen, to be selectable there), then the link becomes a plain status line: `Recording… move naturally across each item, then click to stop`. Deliberately not "pause on each item" — the sampling rate is tuned to catch a natural glide, not a stop-and-wait.
-- After stopping, the extracted keyframe candidates resolve through the **same row-list UI** as normal uploads, just labeled by what kind of tooltip read they resolved to:
-  ```
-  [thumb]  frame-03.png    Expiration — Kalos's Residual Determination, expires 9/9/2026    [change]
-  [thumb]  frame-05.png    Wealth Acquisition Potion (variant B) — qty 12                    [change]
-  [thumb]  frame-07.png    Expiration — tooltip not detected, discarded
-  ```
-  The second row is the icon-ambiguous case — both identity and quantity come from this single frame, since an `identifiableByIcon=false` item is never touched by the grid pass at all, so this is its *only* source of data, not a supplement.
-- A discarded frame isn't an error state — it's an expected false-positive from the client-side stability heuristic guessing a frame was a settled tooltip when it wasn't. No `[retry]` needed for these; the surviving rows already cover every item the pass actually captured.
+**There's no separate capture action at all now** — a screenshot of an item's tooltip is just another file dropped into the same dropzone, same paste-to-upload, same everything. A short instructional line near the dropzone covers it: `Got an expiring or unrecognized item? Screenshot its tooltip (same shortcut) and drop that in too.` The row list recognizes it automatically, same as it already distinguishes `inventory` from `unrecognized`:
+
+```
+[thumb]  tooltip-snip.png    Expiration — Kalos's Residual Determination, expires 9/9/2026    [change]
+[thumb]  tooltip-snip2.png   Wealth Acquisition Potion (variant B) — qty 12                    [change]
+```
+
+The second row is the icon-ambiguous case — both identity and quantity come from this single screenshot, since an `identifiableByIcon=false` item is never touched by the grid pass at all, so this is its *only* source of data, not a supplement. No pinned-character requirement to gate on either — a tooltip screenshot with no visible HUD just falls through to the same `NEEDS_REVIEW` manual-picker path any HUD-less upload already gets; pinning first is still recommended in the instructional copy since it skips that step, but nothing blocks on it.
 
 ## Page: Characters
 
@@ -118,7 +116,7 @@ Reached by clicking a character tile. Header: sprite (larger, ~96px) + name + le
 
 **Expiration annotation (added 2026-07-08)**: a row with `expiresAt` set gets a plain "expires in N days" text annotation next to its quantity — text only, no color/urgency-coding, consistent with the monochrome status-via-weight/italics convention used elsewhere. A row with `expirationNeedsReview=true` (conflicting dates detected for the same item) shows a `[resolve]` link instead, mirroring how `MISMATCH` rows are handled on Upload.
 
-**Icon-ambiguous item annotation (added 2026-07-09)**: a row for an item flagged `identifiableByIcon=false` (see `PLAN.md`'s "Item catalog & icon references") shows a plain `via hover-capture` annotation next to its freshness label instead of the usual as-of-date. This item's count is never touched by a normal screenshot upload, so its freshness is tied to the last hover-capture pass specifically — worth stating plainly rather than letting the row look like an ordinary one that simply hasn't been re-scanned recently.
+**Icon-ambiguous item annotation (added 2026-07-09)**: a row for an item flagged `identifiableByIcon=false` (see `PLAN.md`'s "Item catalog & icon references") shows a plain `via tooltip screenshot` annotation next to its freshness label instead of the usual as-of-date. This item's count is never touched by a normal grid upload, so its freshness is tied to the last tooltip screenshot specifically — worth stating plainly rather than letting the row look like an ordinary one that simply hasn't been re-scanned recently.
 
 ## Page: Items
 
@@ -145,9 +143,9 @@ Mysterious Fragment            87
 
 Click a row to expand inline showing the per-character breakdown with freshness labels (e.g. `Bubbling: 8, as of today`). Item catalog entries are added once (name + category + icon crop) and reused forever after — same pattern as adding a character — see `PLAN.md`'s "Item catalog & icon references".
 
-**Expiration annotation (added 2026-07-08)**: same as Character detail — a per-character breakdown row with `expiresAt` set gets a plain "expires in N days" annotation (text only, no color-coding); `expirationNeedsReview` rows show a `[resolve]` link instead. See `PLAN.md`'s "Tooltip capture (video hover-capture pipeline)" for how these values are captured.
+**Expiration annotation (added 2026-07-08)**: same as Character detail — a per-character breakdown row with `expiresAt` set gets a plain "expires in N days" annotation (text only, no color-coding); `expirationNeedsReview` rows show a `[resolve]` link instead. See `PLAN.md`'s "Tooltip screenshots" for how these values are captured.
 
-**Icon-ambiguous item annotation (added 2026-07-09)**: same as Character detail — a `identifiableByIcon=false` item shows `via hover-capture` next to its freshness label instead of an as-of-date, since it's never updated by a normal screenshot upload. `+ add item` also runs the icon-collision check at save time (see `PLAN.md`'s "Item catalog & icon references") — if the new item's icon matches one already tracked, the confirmation shows a plain statement, not a warning: `{item} looks the same as {other item} you already track — both will be updated via hover-capture instead of screenshots`.
+**Icon-ambiguous item annotation (added 2026-07-09)**: same as Character detail — a `identifiableByIcon=false` item shows `via tooltip screenshot` next to its freshness label instead of an as-of-date, since it's never updated by a normal grid upload. `+ add item` also runs the icon-collision check at save time (see `PLAN.md`'s "Item catalog & icon references") — if the new item's icon matches one already tracked, the confirmation shows a plain statement, not a warning: `{item} looks the same as {other item} you already track — both will need a tooltip screenshot instead of being read from the grid`.
 
 **Discovery worklist (added 2026-07-09)**: a quiet text line below the category tables, only rendered once there's something to show — `14 unidentified items spotted — browse` — for icons seen in uploads that don't match anything currently tracked (see `PLAN.md`'s `unmatched_items`/`UnidentifiedItemSighting`). Deliberately not a badge, banner, or anything competing visually with the main table — this is opportunistic, not urgent. Expanding it lists one row per apparent item (sightings already grouped), each with its cropped thumbnail and a rough total:
 
@@ -158,7 +156,7 @@ Click a row to expand inline showing the per-character breakdown with freshness 
 [thumb]  spotted 3× across your uploads     ~5 total, possibly Use     [identify]
 ```
 
-`[identify]` expands the same inline add-item search form used by `+ add item`, with the crop shown alongside search results as a visual reference rather than pre-filling a guessed name — the model never claims to know what an unmatched icon *is*, only that it's there (see `likelyCategory` in `PLAN.md`, a display hint, not a claim). Confirming a match immediately backfills quantities already captured across every character the item was spotted on — no re-upload needed — and the item joins the normal tracked tables above on the next render.
+`[identify]` expands two options, not one (revised 2026-07-10): the same inline add-item search form used by `+ add item` (crop shown alongside results for visual reference) if the user already knows what it is, or a plain note pointing at the same tooltip-screenshot mechanism described on Upload — hover the item in-game, screenshot its tooltip, drop it in — if they don't. The model never claims to know what an unmatched icon *is* on its own, only that it's there (see `likelyCategory` in `PLAN.md`, a display hint, not a claim); the tooltip screenshot is what supplies a real name when the user doesn't already have one. Either path immediately backfills quantities already captured across every character the item was spotted on — no re-upload needed — and the item joins the normal tracked tables above on the next render.
 
 ## Open questions (unresolved)
 
