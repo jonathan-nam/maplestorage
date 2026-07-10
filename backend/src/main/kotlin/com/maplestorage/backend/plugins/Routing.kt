@@ -9,7 +9,7 @@ import io.ktor.server.response.respond
 import io.ktor.server.routing.get
 import io.ktor.server.routing.routing
 import kotlinx.serialization.Serializable
-import org.jetbrains.exposed.sql.transactions.transaction
+import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 
 @Serializable
 data class PingResponse(val userId: String, val dbTimestamp: String)

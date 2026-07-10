@@ -3,7 +3,7 @@ package com.maplestorage.backend.plugins
 import com.maplestorage.backend.config.Env
 import io.ktor.server.application.Application
 import org.flywaydb.core.Flyway
-import org.jetbrains.exposed.sql.Database
+import org.jetbrains.exposed.v1.jdbc.Database
 
 fun Application.configureDatabase() {
     val jdbcUrl = "jdbc:postgresql://${Env.dbHost}:${Env.dbPort}/${Env.dbName}"
