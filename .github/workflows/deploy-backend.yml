@@ -1,0 +1,63 @@
+name: Deploy backend
+
+# workflow_dispatch only, deliberately, until this has been proven manually
+# (CI/CD rollout plan's Stage 4a/4b) -- the push-to-master trigger gets added
+# in Stage 4c, after 2-3 clean manual runs. workflow_dispatch stays
+# permanently either way, for manual redeploys/retries with no code change.
+on:
+  workflow_dispatch:
+
+jobs:
+  verify:
+    uses: ./.github/workflows/backend-verify.yml
+
+  deploy:
+    needs: verify
+    runs-on: ubuntu-latest
+    # id-token: write is what makes OIDC token minting possible -- easy to
+    # forget, and configure-aws-credentials fails opaquely without it.
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          role-session-name: gha-deploy-${{ github.sha }}
+          aws-region: us-east-1
+
+      - uses: aws-actions/amazon-ecr-login@v2
+        id: ecr-login
+
+      - name: Build and push image (tagged with commit SHA only)
+        working-directory: backend
+        run: |
+          IMAGE="${{ steps.ecr-login.outputs.registry }}/maplestorage-backend:${{ github.sha }}"
+          docker build -t "$IMAGE" .
+          docker push "$IMAGE"
+
+      # register-task-definition rejects read-only fields describe-task-definition
+      # returns -- strip them before re-registering.
+      - name: Fetch and clean current task definition
+        run: |
+          aws ecs describe-task-definition --task-definition maplestorage-backend \
+            --query 'taskDefinition' > task-definition.json
+          jq 'del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)' \
+            task-definition.json > task-definition.clean.json
+
+      - uses: aws-actions/amazon-ecs-render-task-definition@v1
+        id: render
+        with:
+          task-definition: task-definition.clean.json
+          container-name: backend
+          image: ${{ steps.ecr-login.outputs.registry }}/maplestorage-backend:${{ github.sha }}
+
+      - uses: aws-actions/amazon-ecs-deploy-task-definition@v2
+        with:
+          task-definition: ${{ steps.render.outputs.task-definition }}
+          service: maplestorage-backend
+          cluster: maplestorage-cluster
+          wait-for-service-stability: true
+          wait-for-minutes: 10
