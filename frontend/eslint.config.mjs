@@ -1,16 +1,20 @@
-import { FlatCompat } from "@eslint/eslintrc";
-import { dirname } from "path";
-import { fileURLToPath } from "url";
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-
-const compat = new FlatCompat({
-  baseDirectory: __dirname,
-});
+// Deliberately not using FlatCompat.extends("next/core-web-vitals", ...) here
+// -- that routes through @eslint/eslintrc's legacy shareable-config bridge,
+// which hits a known, currently-unresolved upstream bug (eslint/eslint#20237,
+// vercel/next.js#85244) where reporting a config validation error crashes
+// with "Converting circular structure to JSON" because eslint-plugin-react's
+// config object self-references. eslint-config-next ships its own
+// flat-config-native subpath exports built on the exact same underlying
+// plugins (react, react-hooks, jsx-a11y, import, typescript-eslint) -- import
+// those directly instead and skip the compat bridge entirely.
+import nextCoreWebVitals from "eslint-config-next/core-web-vitals";
+import nextTypescript from "eslint-config-next/typescript";
+import prettier from "eslint-config-prettier";
 
 const eslintConfig = [
-  ...compat.extends("next/core-web-vitals", "next/typescript", "prettier"),
+  ...nextCoreWebVitals,
+  ...nextTypescript,
+  prettier,
   {
     ignores: [".next/**", "node_modules/**", "next-env.d.ts"],
   },

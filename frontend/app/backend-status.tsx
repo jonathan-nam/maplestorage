@@ -16,11 +16,7 @@ export function BackendStatus() {
   const [ping, setPing] = useState<string>("checking...");
 
   useEffect(() => {
-    if (!API_BASE_URL) {
-      setHealth("NEXT_PUBLIC_API_BASE_URL is not set");
-      setPing("NEXT_PUBLIC_API_BASE_URL is not set");
-      return;
-    }
+    if (!API_BASE_URL) return;
 
     fetch(`${API_BASE_URL}/health`)
       .then((res) => res.json())
@@ -37,6 +33,10 @@ export function BackendStatus() {
       .then((data: PingResponse) => setPing(JSON.stringify(data)))
       .catch((err) => setPing(`error: ${String(err)}`));
   }, [getToken]);
+
+  if (!API_BASE_URL) {
+    return <p>NEXT_PUBLIC_API_BASE_URL is not set</p>;
+  }
 
   return (
     <dl>
