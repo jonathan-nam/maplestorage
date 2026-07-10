@@ -12,7 +12,7 @@ Craigslist-inspired minimalism, translated as **information density with zero de
 - Inline expansion instead of modals (e.g. "+ add character" expands a form in place, like Craigslist's reply/posting flow)
 - Tables wherever data is tabular (token dashboard)
 
-**True monochrome, dark-mode-first** (decided 2026-07-06, supersedes an earlier open question about keeping some color): near-black background, light grey/white text, dark grey borders as the only structural element. Status is conveyed through words, weight, and italics — not color. **Text-only for now, with one exception**: the 7 token icons are a fixed, pre-seeded asset (`TokenCatalog.iconRefKey`, cropped once at catalog-seed time — see `PLAN.md`'s "Token catalog") used to build the vision-matching prompt, but whether the Items page itself should *render* those icons (color, like character sprites) or stay text-only is an open question — see below. Character sprite thumbnails (Characters page) are the one piece of full-color content shipped from the start.
+**True monochrome, dark-mode-first** (decided 2026-07-06, supersedes an earlier open question about keeping some color): near-black background, light grey/white text, dark grey borders as the only structural element. Status is conveyed through words, weight, and italics — not color. **Text-only for now, with one exception**: the 6 token icons are a fixed, pre-seeded asset (`TokenCatalog.iconRefKey`, cropped once at catalog-seed time — see `PLAN.md`'s "Token catalog") used to build the vision-matching prompt, but whether the Items page itself should *render* those icons (color, like character sprites) or stay text-only is an open question — see below. Character sprite thumbnails (Characters page) are the one piece of full-color content shipped from the start.
 
 ## Global layout
 
@@ -59,7 +59,7 @@ Covers the flow: finish bossing on one character, snip the inventory screen, dra
 Rows update in place as parsing resolves:
 
 ```
-[thumb]  inventory-snip.png      Inventory — 7 tokens read, Bubbling          [change]
+[thumb]  inventory-snip.png      Inventory — 5 tokens read, Bubbling          [change]
 [thumb]  weird-crop.png          Unrecognized — needs review                  [change] [retry]
 [thumb]  new-char-snip.png       New character detected: Nightwolf — not in your roster    [add Nightwolf] [pick existing character] [ignore]
 ```
@@ -73,7 +73,7 @@ This single page covers both single-image and bulk-upload milestones from `PLAN.
 
 ## Page: Characters
 
-**Tile grid, not a table** (revised 2026-07-08) — modeled on MapleStory's own character-selection screen (see `reference-images/character selection screen.png`): each character is a tile with its sprite, a bordered name-plate (name + level, echoing the game's own plate), job, and a small **mini-inventory strip** of icon+quantity for that character's tokens (all 7 fit comfortably, no priority-selection logic needed at this scale):
+**Tile grid, not a table** (revised 2026-07-08) — modeled on MapleStory's own character-selection screen (see `reference-images/character selection screen.png`): each character is a tile with its sprite, a bordered name-plate (name + level, echoing the game's own plate), job, and a small **mini-inventory strip** of icon+quantity for that character's tokens (all 6 fit comfortably, no priority-selection logic needed at this scale):
 
 ```
 +-------------------+   +-------------------+   +-------------------+
@@ -101,11 +101,11 @@ Both the character sprite and the mini-inventory icons are full color — the sa
 
 ## Page: Character detail (new)
 
-Reached by clicking a character tile. Header: sprite (larger, ~96px) + name + level + job, in the same plain-bordered style as the tile. Below it, a single table of all 7 tokens for that character — icon, name, quantity, and a "collect N →" progress badge on each row. A `« back to characters` link returns to the grid.
+Reached by clicking a character tile. Header: sprite (larger, ~96px) + name + level + job, in the same plain-bordered style as the tile. Below it, a single table of all 6 tokens for that character — icon, name, quantity, and a "collect N →" progress badge on each row. A `« back to characters` link returns to the grid.
 
 ## Page: Items
 
-Plain table of all 7 tokens, grouped by nothing (there's only one category — every row is an `Etc`-tab redemption token by definition, so a tab/category structure would be overhead, not organization):
+Plain table of all 6 tokens, grouped by nothing (there's only one category — every row is an `Etc`-tab redemption token by definition, so a tab/category structure would be overhead, not organization):
 
 ```
 Token                           Total
@@ -117,7 +117,7 @@ Ferocious Beast Entanglement Ring   9  → collect 10: 0 sets + 9
 Trace of Eternal Loyalty       12      → collect 10: 1 set + 2
 ```
 
-No `+ add item` — the catalog is fixed (see `PLAN.md`'s "Token catalog"), so there's nothing for a user to add. Every signed-in user sees all 6 confirmed tokens from the moment they log in, at 0/`not yet scanned` until their first upload resolves — there's no empty state to design around.
+No `+ add item` — the catalog is fixed (see `PLAN.md`'s "Token catalog"), so there's nothing for a user to add. Every signed-in user sees all 6 tokens from the moment they log in, at 0/`not yet scanned` until their first upload resolves — there's no empty state to design around.
 
 Click a row to expand inline showing the per-character breakdown with freshness labels (e.g. `Bubbling: 8, as of today`).
 

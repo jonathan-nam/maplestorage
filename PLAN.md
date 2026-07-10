@@ -8,7 +8,7 @@ GMS has no official Nexon data API (confirmed — only KMS/TMS/MSEA do), so scre
 
 **Be precise about what problem this solves (revised 2026-07-10)**: Nexon's forums have a running complaint thread ("Unclog our inventories") about untradeable-item clutter, and players have explicitly proposed an account-wide storage/consolidation system as the fix — a request only Nexon can build, since it requires moving items between characters server-side, which no third-party tool can do. **This app doesn't solve that.** It solves a narrower, adjacent problem that happens to share the same root frustration: not being able to see your total redemption progress across characters without checking each one individually. That's a real value, but a different one from freeing up inventory slots — the project's earlier framing conflated the two, worth correcting rather than carrying forward. Critically, the real third-party tools players already use (MapleHub, MapleTools, MS Tracker) are all boss-clear/EXP/HEXA/ranking trackers built on the Nexon Open API, and confirmed via research: **that API does not expose inventory/item contents in any region that has it** — so while this app doesn't solve inventory overflow, cross-character redemption-progress visibility specifically is still unaddressed by any existing tool.
 
-**Scope note (narrowed back down 2026-07-10)**: this project briefly broadened (2026-07-07) from the 7 untradeable Eternal-set boss tokens to a general, user-curated item catalog spanning consumables and Etc-tab drop items. That broader version surfaced real problems on closer design work — a growable, per-user item catalog needed active curation (search/add flows, icon-collision handling, an open-ended "discovery worklist" for unidentified items) and dragged in a video-based tooltip-capture pipeline to read expiration dates on items that, on inspection, weren't even part of the original 7 tokens. None of that scope is worth the complexity for a use case validated at the *token* level, not the general-inventory level — the token catalog is fixed, small, and every one of the open risks the broader version carried (icon-matching accuracy at 50-150 items/user, expiration-tracking UX, discovery-worklist clustering) simply don't apply at a fixed set of 7. Scope is back to tokens only.
+**Scope note (narrowed back down 2026-07-10)**: this project briefly broadened (2026-07-07) from the 6 untradeable Eternal-set boss tokens to a general, user-curated item catalog spanning consumables and Etc-tab drop items. That broader version surfaced real problems on closer design work — a growable, per-user item catalog needed active curation (search/add flows, icon-collision handling, an open-ended "discovery worklist" for unidentified items) and dragged in a video-based tooltip-capture pipeline to read expiration dates on items that, on inspection, weren't even part of the original 6 tokens. None of that scope is worth the complexity for a use case validated at the *token* level, not the general-inventory level — the token catalog is fixed, small, and every one of the open risks the broader version carried (icon-matching accuracy at 50-150 items/user, expiration-tracking UX, discovery-worklist clustering) simply don't apply at a fixed set of 6. Scope is back to tokens only.
 
 **Stack decision**: you're a mobile engineer with strong Kotlin/Compose expertise, not a JS/TS background. The backend and future native iOS/Android apps should play to that strength via Kotlin Multiplatform. The web frontend, however, stays on Next.js/React rather than Compose Multiplatform for Web, because Compose Web is still Beta and — critically — **does not yet officially support drag-and-drop**, which lands directly on this app's bulk-upload feature (dragging 15+ screenshots at once). Splitting the stack this way puts each piece on its strongest footing: Kotlin where it's your expertise and where Kotlin Multiplatform's shared-code story is real (backend ↔ future mobile), and the most battle-tested option (Next.js) for the web layer you're shipping first and that needs mature file-upload/drag-and-drop UX.
 
@@ -19,7 +19,7 @@ Sample screenshots in `reference-images/` were used to ground this plan:
 - `untradebles description sample.png` — hover tooltips confirming the exact reward template: *"[flavor text]. Collect 10 and double-click to obtain one [slots] from the Eternal set."*
 - `character selection screen.png` — the in-game character-select screen (sprite + name-plate per character), which the Characters page's tile-grid layout is modeled on (see `WEB-UI-SPEC.md`)
 
-Confirmed token catalog — this *is* the full scope of the app, not a seed of something larger (Grandis-tier bosses only — the current top gear tier):
+Confirmed token catalog — this *is* the full scope of the app, not a seed of something larger. Six Grandis-tier bosses drop Eternal-set tokens (the current top gear tier — confirmed 2026-07-11, no unconfirmed/placeholder rows):
 | Boss | Token | Redeems for |
 |---|---|---|
 | Limbo | Distorted Ambition | Shoes, Gloves, or Cape |
@@ -28,9 +28,8 @@ Confirmed token catalog — this *is* the full scope of the app, not a seed of s
 | Kaling | Ferocious Beast Entanglement Ring | Hat, Top, Bottom, or Shoulder Accessory |
 | Kalos the Guardian | Kalos's Residual Determination | Hat, Top, Bottom, or Shoulder Accessory |
 | Baldrix | Trace of Eternal Loyalty (+ bonus "Eternal Armor of Oaths Box" in Hard) | Shoe, Glove, or Cape |
-| Akechi Mitsuhide | *(unconfirmed exact name — confirmed Grandis/Eternal-relevant by user)* | TBD |
 
-Confirmed **not** included: Chosen Seren (no longer drops Eternal material — drops "Jet Black" accessories instead). Black Mage and the pre-Grandis weekly bosses (Lotus, Damien, Guardian Angel Slime, Lucid, Will, Gloom, Verus Hilla, Darknell) belong to a separate older reward chain (Genesis Weapon traces), not Eternal — excluded from the token catalog entirely. None of these 7 tokens expire — they're plain collect-and-redeem `Etc`-tab items, not time-limited event rewards, so expiration tracking is out of scope, not deferred.
+Confirmed **not** included: Chosen Seren (no longer drops Eternal material — drops "Jet Black" accessories instead). Black Mage and the pre-Grandis weekly bosses (Lotus, Damien, Guardian Angel Slime, Lucid, Will, Gloom, Verus Hilla, Darknell) belong to a separate older reward chain (Genesis Weapon traces), not Eternal — excluded from the token catalog entirely. None of these 6 tokens expire — they're plain collect-and-redeem `Etc`-tab items, not time-limited event rewards, so expiration tracking is out of scope, not deferred.
 
 **Multi-user, possibly monetized (2026-07-08)**: this was originally a personal tool; the intent now is for other people to use it too, and possibly to charge for it — pricing model not decided yet. Per-user usage needs to be tracked from the start regardless of pricing model, so a quota or billing layer can be bolted on later without re-architecting, and the screenshot-processing pipeline needs to hold up under many users' upload activity clustering around the same weekly reset window, not just one person's. Note this is a narrower bet than a general product — the validated audience is players who farm Grandis bosses across multiple characters specifically, not MapleStory players broadly; treated as a deliberate, legible starting slice rather than an attempt at wide appeal (see the "Screenshot ingestion" section's Batches API note for the multi-user upload-clustering angle).
 
@@ -75,16 +74,18 @@ Characters        (id, userId FK, name, level, jobName?, worldName?, spriteImgUr
                   // when a name can't be found there, not the primary source
 
 TokenCatalog      (id, name, sourceBossName?, slotGroup?: string[], redeemThreshold: int,
-                    bonusItemName?, iconRefKey?: string, confirmed: boolean)
-                  // renamed from ItemCatalog 2026-07-10 — fixed at the 7 rows in the Context
+                    bonusItemName?, iconRefKey?: string)
+                  // renamed from ItemCatalog 2026-07-10 — fixed at the 6 rows in the Context
                   // table above, seeded once via migration, never grown by users. No category
                   // field (every row is an Etc-tab redemption token by definition), no
                   // needsCategoryReview (nothing is imported/classified live), no expirable
                   // flag (none of these expire), no per-user opt-in table (every user tracks
-                  // all confirmed rows, full stop — see "Token catalog" below for how icons
-                  // are sourced). Akechi seeded with confirmed=false until its exact name is
-                  // verified; unconfirmed rows are excluded from the vision reference-icon set
-                  // and from user-facing totals until flipped
+                  // every row, full stop — see "Token catalog" below for how icons are
+                  // sourced). No confirmed flag either (removed 2026-07-11) — that only ever
+                  // existed to carry Akechi Mitsuhide's placeholder row, which turned out not
+                  // to be a real Grandis token at all (corrected by user 2026-07-11: exactly
+                  // 6 bosses drop Eternal-set tokens); with no placeholder left, every row is
+                  // simply usable from the moment the seed migration runs
 
 CharacterTokenCount  (characterId FK, tokenCatalogId FK, quantity: int,
                        capturedAt, sourceScreenshotId FK?)
@@ -104,7 +105,7 @@ Screenshots       (id, userId, characterId?, type: INVENTORY|UNRECOGNIZED,
                     storageKey, uploadedAt, parseStatus: PENDING|SUCCESS|FAILED|NEEDS_REVIEW,
                     rawModelResponse: jsonb, detectedCharacterName?, detectedLevel?)
                   // no TOOLTIP type — that existed only for expiration dates and
-                  // icon-ambiguous items, neither of which apply to a fixed 7-token catalog
+                  // icon-ambiguous items, neither of which apply to a fixed 6-token catalog
 ```
 
 `CharacterTokenCount` is a **latest-snapshot upsert**, not an append-only history log — the dashboard only needs "what's true right now." Counts don't invalidate on a timer, so freshness is just an "as of [date]" label per contributing character, not a stale/fresh binary.
@@ -124,13 +125,13 @@ Screenshots       (id, userId, characterId?, type: INVENTORY|UNRECOGNIZED,
 
 ## Token catalog
 
-**Fixed and hand-curated, not bulk-imported (revised 2026-07-10).** The catalog is exactly the 7 rows in the Context table above — no search, no user-driven add flow, no growth over time. This removes the open-ended-catalog risks the broader design carried: icon-matching accuracy at scale (the old plan's real unresolved risk was "50-150 items per user"; here it's permanently 7, already validated), duplicate-name disambiguation, category classification, and discovery of unknown items — none of these apply to a closed set curated once by the developer.
+**Fixed and hand-curated, not bulk-imported (revised 2026-07-10).** The catalog is exactly the 6 rows in the Context table above — no search, no user-driven add flow, no growth over time. This removes the open-ended-catalog risks the broader design carried: icon-matching accuracy at scale (the old plan's real unresolved risk was "50-150 items per user"; here it's permanently 6, already validated), duplicate-name disambiguation, category classification, and discovery of unknown items — none of these apply to a closed set curated once by the developer.
 
 **Icon sourcing is a one-time seeding task, not a live feature.** `maplestory.io` (community-run, unofficial — same trust tier as the Nexon avatar lookup above) was validated live during planning (2026-07-08) as a real item database for GMS, confirmed solid for established content but **patchy for the newest content — the exact thing this catalog is made of**: only 2 of the 6 known Grandis-tier Eternal tokens are in the dataset at all. So icon sourcing is mixed at seed time, per row:
 - `GET https://maplestory.io/api/GMS/{version}/item/{id}/icon` for the ~2 tokens `maplestory.io` has.
 - A manually-cropped icon, stored in S3 as `iconRefKey`, for the rest (cropped once from `untradeables sample.png` or a fresh screenshot, by the developer during the M1 migration/seed — not an end-user action).
 
-Both paths land in the same `TokenCatalog.iconRefKey` field either way — the vision prompt doesn't care which source an icon came from, only that every confirmed row has one before the app can match against it.
+Both paths land in the same `TokenCatalog.iconRefKey` field either way — the vision prompt doesn't care which source an icon came from, only that every row has one before the app can match against it.
 
 ## Screenshot ingestion & vision-parsing pipeline
 
@@ -144,7 +145,7 @@ Both paths land in the same `TokenCatalog.iconRefKey` field either way — the v
   }
   ```
   Validate with `kotlinx.serialization`, persist `rawModelResponse` regardless of outcome, show a "detected as: X" badge with manual override + re-parse button per image.
-- **Token/icon matching**: build the reference portion of the vision prompt from every `confirmed=true` `TokenCatalog` row — a fixed, global list of 7 labeled icons ("this icon = Distorted Ambition," etc.), identical for every user and every request, not built dynamically per-user. The model matches icon→token and reads the stack-count badge directly off a plain inventory screenshot. Already validated at this exact scale (~7 icons in one vision prompt) — there's no larger-catalog risk left to re-validate, since the catalog can't grow.
+- **Token/icon matching**: build the reference portion of the vision prompt from every `TokenCatalog` row — a fixed, global list of 6 labeled icons ("this icon = Distorted Ambition," etc.), identical for every user and every request, not built dynamically per-user. The model matches icon→token and reads the stack-count badge directly off a plain inventory screenshot. Already validated at roughly this scale (~7 icons in the original spike, now 6) — there's no larger-catalog risk left to re-validate, since the catalog can't grow.
 - **Concurrency (single-image)**: Kotlin coroutines, fanned out with `async`/`awaitAll` inside a `supervisorScope` (so one image's failure doesn't cancel the batch), capped at ~5 concurrent synchronous Claude calls via a `Semaphore(5)`. This stays the path for small drops, since the "watch it resolve live" row-list UX (`WEB-UI-SPEC.md`'s Upload page) depends on a near-immediate response.
 - **Bulk uploads route through the Batches API instead** (added 2026-07-08, multi-user planning): a drop above some threshold (e.g. 5+ images at once) submits as a Message Batch rather than N synchronous calls — 50% cheaper, and draws from a separate rate-limit pool from the synchronous path, which matters once many users' upload activity can cluster around the same weekly reset window. Tradeoff: batches typically complete within an hour (not seconds), so the row list shows a "processing…" state and the frontend polls for batch completion rather than getting a near-immediate per-row resolution — an acceptable UX cost for a bulk drop that wasn't instant anyway, but a real regression if applied to single-image uploads, which is why the threshold exists rather than routing everything through Batches unconditionally.
 - **Usage tracking**: every Claude call (synchronous or batched) writes a `UsageLedger` row — input/output tokens and estimated cost, keyed to the requesting user. No quota or billing logic reads this yet (monetization model isn't decided — see the Context section), but the data needs to exist before any free-tier cap or metered-billing feature can be built on top of it.
@@ -154,12 +155,12 @@ Both paths land in the same `TokenCatalog.iconRefKey` field either way — the v
 ## Build order
 
 1. **M0 — Scaffold both services + AWS infrastructure**: provision the VPC (public subnet for the ALB, private subnets for ECS tasks + RDS), security groups, ECR repo, RDS instance, and ECS cluster/service/task definition via Terraform. Ktor project (routing skeleton, `Authentication`/`jwt` wired to Clerk's JWKS, Exposed+Flyway pointed at RDS), Next.js project (Clerk web SDK, calling one Ktor health-check endpoint through the ALB). Deploy both (ECS Fargate + Vercel) and confirm an authenticated round-trip end-to-end before building features. This milestone is the heaviest lift in the whole plan given the infrastructure involved — budget real time for it.
-2. **M1 — Data model + token catalog seed**: Exposed tables above; Flyway migration seeding all 7 `TokenCatalog` rows (6 `confirmed=true`, Akechi `confirmed=false`), including the one-time icon sourcing described in "Token catalog" above (fetch the ~2 available from `maplestory.io`, manually crop and upload the rest to S3 as `iconRefKey`). No per-user tracking table to wire up — every user sees every confirmed row by definition.
+2. **M1 — Data model + token catalog seed**: Exposed tables above; Flyway migration seeding all 6 `TokenCatalog` rows, including the one-time icon sourcing described in "Token catalog" above (fetch the ~2 available from `maplestory.io`, manually crop and upload the rest to S3 as `iconRefKey`). No per-user tracking table to wire up — every user sees every row by definition.
 3. **M2 — Character CRUD + Nexon lookup**: Ktor endpoints + Next.js pages for add/edit/delete, where "add" is name-only and triggers the Nexon no-auth ranking lookup server-side to populate level/jobName/worldName/spriteImgUrl; manual level entry as the fallback when the lookup finds nothing. Nothing downstream has anything to attach to without this milestone.
 4. **M3 — Usage ledger**: every Claude call (from M4 onward) writes a `UsageLedger` row. No quota or billing enforcement yet — just making sure per-user usage data exists before a pricing model is chosen.
 5. **M4 — Single-image inventory upload + per-character view**: S3 upload flow, Ktor endpoint calling Claude scoped to the token-count schema, `CharacterTokenCount` upsert, per-character list in Next.js. Validate parse accuracy directly against `untradeables sample.png` before moving on.
 6. **M5 — Bulk upload + HUD matching**: multi-file drag-and-drop in Next.js, coroutine fan-out with the semaphore cap for small drops, Batches API for larger ones (see "Screenshot ingestion" above), HUD-name matching against already-existing characters (never creating new ones — see M2), a batch review screen (per-image status, editable).
-7. **M6 — Token icon-matching validation + cross-character dashboard**: run the reference-icon-crop prompt technique against `untradeables sample.png` and manually verify all ~7 token quantities read off match the visible stack-count numbers — this is now the *only* scale that ever needs validating, not a spike against a moving target. Aggregate view grouped by boss/token, with an inline "progress toward next set" badge per row and freshness labels.
+7. **M6 — Token icon-matching validation + cross-character dashboard**: run the reference-icon-crop prompt technique against `untradeables sample.png` and manually verify all 6 token quantities read off match the visible stack-count numbers — this is now the *only* scale that ever needs validating, not a spike against a moving target. Aggregate view grouped by boss/token, with an inline "progress toward next set" badge per row and freshness labels.
 8. **M7 — Polish**: retry/error UX, manual correction without re-upload, responsive/mobile-friendly CSS (stopgap before a native app exists), screenshot history management.
 9. **M8 (future, out of MVP scope) — Kotlin Multiplatform mobile**: extract the shared data models + Ktor Client-based API client from the backend project into a shared Gradle module; build native Android/iOS apps with Compose Multiplatform consuming it.
 10. **M9 (future, blocked on a pricing decision) — Monetization**: Stripe integration, plan tiers, and actual quota/billing enforcement built on top of the `UsageLedger` from M3. Deliberately not scoped further until the pricing model (freemium / usage-based / flat subscription) is decided.
@@ -178,8 +179,8 @@ Both paths land in the same `TokenCatalog.iconRefKey` field either way — the v
 ## Verification
 
 - After M0: confirm the ECS Fargate service is healthy behind the ALB, the Vercel (Next.js) deploy is live, and a signed-in user's request round-trips — Next.js attaches a Clerk JWT, the ALB routes it to Ktor, Ktor validates it via JWKS and returns data from RDS.
-- After M1: confirm all 7 `TokenCatalog` rows exist with the correct `confirmed` flags and every confirmed row has a working `iconRefKey` before moving on — nothing downstream can match against a row with no icon.
+- After M1: confirm all 6 `TokenCatalog` rows exist and every row has a working `iconRefKey` before moving on — nothing downstream can match against a row with no icon.
 - After M4: run the inventory parser against `untradeables sample.png` and manually check the parsed JSON matches what's visible in the image (correct token names, correct stack counts).
-- After M6: manually verify each of the ~7 token quantities read off `untradeables sample.png` matches the visible stack-count numbers — this is the full validation surface now, not a scale spike.
+- After M6: manually verify each of the 6 token quantities read off `untradeables sample.png` matches the visible stack-count numbers — this is the full validation surface now, not a scale spike.
 - Before considering the MVP done: log in as a test user, add 2-3 characters, bulk-upload a batch of inventory screenshots, and confirm the token dashboard reflects reality without manual data entry.
 - Before considering multi-user support done: create two test users, confirm each sees only their own characters and counts (no data leakage), and confirm `UsageLedger` rows are being written per Claude call.

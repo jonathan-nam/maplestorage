@@ -20,7 +20,7 @@
   // failure mode of manual selection (forgetting to switch, or misclicking).
   var AUTO_OUTCOMES = [
     { type: "new-character", character: null, detectedName: "Nightwolf", label: "New character detected: Nightwolf — not in your roster" },
-    { type: "inventory", character: "Bubbling", label: "Inventory — 7 tokens read, Bubbling" },
+    { type: "inventory", character: "Bubbling", label: "Inventory — 5 tokens read, Bubbling" },
     { type: "inventory", character: "Squishy", label: "Inventory — 6 tokens read, Squishy" },
     { type: "inventory", character: "Nightshade", label: "Inventory — 5 tokens read, Nightshade" },
     { type: "unrecognized", character: null, label: "Unrecognized — needs review" }
