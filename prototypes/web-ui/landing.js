@@ -5,15 +5,13 @@
   var exampleRows = document.getElementById("example-rows");
 
   // Real, manually-verified counts from the earliest vision-feasibility check
-  // in this project (see PLAN.md) — not fabricated numbers. Kalos's Residual
-  // Determination is the one item in this catalog with a confirmed real icon
-  // fetched from maplestory.io; the rest show a placeholder, same as the rest
-  // of this prototype's catalog rows, since real icons for them weren't found.
+  // in this project (see PLAN.md) — not fabricated numbers. Icons sourced
+  // from maplestorywiki.net (media.maplestorywiki.net/yetidb/Use_*.png).
   var SAMPLE_ITEMS = [
-    { name: "Distorted Ambition", qty: 10, icon: null },
-    { name: "Blissful Fantasy Shard", qty: 6, icon: null },
-    { name: "Echo of Ancient Resolve", qty: 6, icon: null },
-    { name: "Ferocious Beast Entanglement Ring", qty: 9, icon: null },
+    { name: "Distorted Ambition", qty: 10, icon: "assets/icon-distorted-ambition.png" },
+    { name: "Blissful Fantasy Shard", qty: 6, icon: "assets/icon-blissful-fantasy-shard.png" },
+    { name: "Echo of Ancient Resolve", qty: 6, icon: "assets/icon-echo-ancient-resolve.png" },
+    { name: "Ferocious Beast Entanglement Ring", qty: 9, icon: "assets/icon-ferocious-beast-ring.png" },
     { name: "Kalos's Residual Determination", qty: 21, icon: "assets/icon-kalos-token.png" }
   ];
 

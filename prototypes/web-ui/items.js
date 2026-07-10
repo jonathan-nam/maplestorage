@@ -6,8 +6,8 @@
   // Fake per-character breakdown, standing in for a real SUM(quantity) GROUP BY
   // tokenCatalogId query joined with CharacterTokenCount (see PLAN.md) — mirrors
   // the same fake characters/quantities used on the Character detail page so
-  // the two views agree with each other. Fixed at the 6 confirmed tokens —
-  // the catalog doesn't grow, so there's nothing else to seed here.
+  // the two views agree with each other. Fixed at the 6 tokens — the catalog
+  // doesn't grow, so there's nothing else to seed here.
   var FAKE_BREAKDOWN = {
     "Distorted Ambition": { redeemThreshold: 10, entries: [
       { character: "Bubbling", qty: 4, updated: "2 hours ago" },

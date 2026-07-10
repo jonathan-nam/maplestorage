@@ -9,18 +9,19 @@
   var charGrid = document.getElementById("char-grid");
 
   // Fake lookup + fake mini-inventory, standing in for the real Nexon lookup
-  // (see PLAN.md) and real per-character item counts (see WEB-UI-SPEC.md's
+  // (see PLAN.md) and real per-character token counts (see WEB-UI-SPEC.md's
   // Items page), neither of which are callable/queryable from a static
-  // file:// prototype. The "highest priority" items shown per tile are just
-  // whatever's listed here for the demo — the real selection rule (e.g.
-  // tokens closest to a redemption threshold, low-stock potions) is still open.
+  // file:// prototype. Every possible item here is one of the 6 fixed Grandis
+  // tokens (see PLAN.md's Token catalog) — a character can't have anything
+  // else tracked, so there's no "priority selection" rule needed, just
+  // whichever tokens that character actually has.
   var FAKE_LOOKUPS = [
     { sprite: "assets/bubbling.png", level: 285, job: "Hoyoung",
-      items: [ { icon: "assets/icon-kalos-token.png", qty: 7 }, { icon: "assets/icon-white-potion.png", qty: 12 }, { icon: "assets/icon-wealth-potion.png", qty: 2 } ] },
+      items: [ { icon: "assets/icon-kalos-token.png", qty: 7 }, { icon: "assets/icon-distorted-ambition.png", qty: 4 } ] },
     { sprite: "assets/squishy.png", level: 271, job: "Bow Master",
-      items: [ { icon: "assets/icon-growth-box.png", qty: 1 }, { icon: "assets/icon-white-potion.png", qty: 45 } ] },
+      items: [ { icon: "assets/icon-distorted-ambition.png", qty: 9 } ] },
     { sprite: "assets/nightshade.png", level: 299, job: "Hero",
-      items: [ { icon: "assets/icon-kalos-token.png", qty: 10 }, { icon: "assets/icon-wealth-potion.png", qty: 5 }, { icon: "assets/icon-growth-box.png", qty: 3 } ] }
+      items: [ { icon: "assets/icon-kalos-token.png", qty: 10 }, { icon: "assets/icon-ferocious-beast-ring.png", qty: 3 } ] }
   ];
   var lookupIndex = FAKE_LOOKUPS.length; // the static tiles already used indices 0..2
 

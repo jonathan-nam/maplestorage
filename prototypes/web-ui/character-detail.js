@@ -2,28 +2,28 @@
   "use strict";
 
   // Fake per-character token list, standing in for a real CharacterTokenCount
-  // query scoped to one character (see PLAN.md). Only the fixed 6 confirmed
-  // Grandis tokens are possible rows here — no other item types exist in this
+  // query scoped to one character (see PLAN.md). Only the fixed 6 Grandis
+  // tokens are possible rows here — no other item types exist in this
   // catalog, so there's no category grouping to render.
   var FAKE_CHARACTERS = {
     "Bubbling": {
       sprite: "assets/bubbling.png", level: 285, job: "Hoyoung",
       items: [
         { name: "Kalos's Residual Determination", icon: "assets/icon-kalos-token.png", qty: 7, redemption: "collect 10 → Eternal set" },
-        { name: "Distorted Ambition", icon: null, qty: 4, redemption: "collect 10 → Eternal set" }
+        { name: "Distorted Ambition", icon: "assets/icon-distorted-ambition.png", qty: 4, redemption: "collect 10 → Eternal set" }
       ]
     },
     "Squishy": {
       sprite: "assets/squishy.png", level: 271, job: "Bow Master",
       items: [
-        { name: "Distorted Ambition", icon: null, qty: 9, redemption: "collect 10 → Eternal set" }
+        { name: "Distorted Ambition", icon: "assets/icon-distorted-ambition.png", qty: 9, redemption: "collect 10 → Eternal set" }
       ]
     },
     "Nightshade": {
       sprite: "assets/nightshade.png", level: 299, job: "Hero",
       items: [
         { name: "Kalos's Residual Determination", icon: "assets/icon-kalos-token.png", qty: 10, redemption: "collect 10 → Eternal set" },
-        { name: "Ferocious Beast Entanglement Ring", icon: null, qty: 3, redemption: "collect 10 → Eternal set" }
+        { name: "Ferocious Beast Entanglement Ring", icon: "assets/icon-ferocious-beast-ring.png", qty: 3, redemption: "collect 10 → Eternal set" }
       ]
     }
   };
