@@ -138,10 +138,14 @@ are still all detected and the counts are flagged, never silently wrong.
 
 **Uploads must not be downscaled.** The 11px font does not survive resampling —
 at **0.95x every count already reads as garbage**. `frontend/lib/compress-image.ts`
-currently shrinks uploads to save vision-LLM tokens; classical CV has no token
-cost, so that resize has to go (or be bounded to "never below native"). JPEG
-*compression* is fine — counts still read 5/5 at quality 40 — so compressing
-without resizing is safe and keeps uploads small.
+caps the longest edge at 1600px to save vision-LLM tokens, which puts our samples
+at 0.68x and 0.49x: one is rejected outright, the other cannot even find a grid.
+Classical CV has no token cost, so that resize has to go.
+
+JPEG *compression* without resizing is fine, and the safe band is measured:
+**quality 75-95 gives 16/16 on all three screenshots** (tested at every integer
+quality). Below ~72 it becomes unreliable. We send quality 0.92, which sits well
+inside the band and still cuts a 3MB PNG to roughly 400KB.
 
 `parse(img, strict=True)` enforces this: it refuses a screenshot whose pitch is
 not 46px rather than quietly returning null counts.

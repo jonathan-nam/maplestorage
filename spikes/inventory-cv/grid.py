@@ -128,38 +128,42 @@ def _largest_lattice_block(cx, cy, pitch):
     if len(cx) < MIN_CELLS:
         raise ValueError(f"only {len(cx)} cells share a lattice phase")
 
-    # 2. Integer lattice indices, then largest 4-connected cluster.
+    # 2. Anchor the 16x8 window that captures the most cells.
+    #
+    # Taking the largest 4-connected cluster instead looks equivalent and is not:
+    # JPEG noise erodes slots until the inventory's own block *fragments*, and
+    # then some unrelated cluster wins and the origin lands hundreds of pixels
+    # away (this failed at JPEG q=80 while working at q=75 and q=85). Counting
+    # cells inside a fixed-size window does not care whether they are contiguous.
     ci = np.round((cx - cx.min()) / pitch).astype(int)
     ri = np.round((cy - cy.min()) / pitch).astype(int)
-    pts = {(int(r), int(c)): i for i, (r, c) in enumerate(zip(ri, ci))}
 
-    seen, best = set(), []
-    for start in pts:
-        if start in seen:
-            continue
-        stack, comp = [start], []
-        seen.add(start)
-        while stack:
-            r, c = stack.pop()
-            comp.append((r, c))
-            for nr, nc in ((r + 1, c), (r - 1, c), (r, c + 1), (r, c - 1)):
-                if (nr, nc) in pts and (nr, nc) not in seen:
-                    seen.add((nr, nc))
-                    stack.append((nr, nc))
-        if len(comp) > len(best):
-            best = comp
-    if len(best) < MIN_CELLS:
-        raise ValueError(f"largest contiguous slot block is only {len(best)} cells")
+    best, best_n, anchor = None, -1, (0, 0)
+    for r0 in range(int(ri.min()), int(ri.max()) + 1):
+        for c0 in range(int(ci.min()), int(ci.max()) + 1):
+            inside = (
+                (ri >= r0) & (ri < r0 + ROWS) & (ci >= c0) & (ci < c0 + COLS)
+            )
+            n = int(inside.sum())
+            if n > best_n:
+                best, best_n, anchor = inside, n, (r0, c0)
+    if best_n < MIN_CELLS:
+        raise ValueError(f"best 16x8 window holds only {best_n} slots")
 
-    idx = [pts[p] for p in best]
-    bx, by = cx[idx], cy[idx]
-    br = np.array([r for r, _ in best])
-    bc = np.array([c for _, c in best])
+    r0, c0 = anchor
+    bx, by = cx[best], cy[best]
+    br, bc = ri[best], ci[best]
 
-    # 3. Origin: average the per-cell implied origin over the whole block.
-    ox = float(np.median(bx - bc * pitch)) - pitch / 2
-    oy = float(np.median(by - br * pitch)) - pitch / 2
-    return ox, oy, len(best)
+    # 3. Origin = the *window's* top-left corner, not lattice index 0.
+    #
+    # Indexing is relative to the left-most/top-most cell we happened to detect,
+    # which is not necessarily an inventory slot: a couple of stray boxes from
+    # other UI are enough to drag index 0 outside the panel, and anchoring there
+    # put the origin hundreds of pixels away in the Maple Planner. Subtracting the
+    # window's own corner ties the origin to the block we actually selected.
+    ox = float(np.median(bx - (bc - c0) * pitch)) - pitch / 2
+    oy = float(np.median(by - (br - r0) * pitch)) - pitch / 2
+    return ox, oy, best_n
 
 
 def find_grid(img: np.ndarray) -> Grid:
