@@ -1,5 +1,6 @@
 terraform {
-  required_version = ">= 1.9"
+  # 1.10+ required for use_lockfile (native S3 state locking, below).
+  required_version = ">= 1.10"
 
   required_providers {
     aws = {
@@ -12,8 +13,21 @@ terraform {
     }
   }
 
-  # M0: local state to get moving. Revisit before a second contributor or CI
-  # touches this -- an S3 backend + DynamoDB lock table is the standard fix,
-  # deliberately not set up yet since it's a one-person project so far.
-  # backend "s3" {}
+  # State holds the RDS password and Secrets Manager values in PLAINTEXT, so it
+  # lives in a private, encrypted, versioned S3 bucket rather than on one laptop.
+  #
+  # No DynamoDB lock table: since 1.10, S3 does state locking natively via
+  # use_lockfile (a .tflock object beside the state), and dynamodb_table is
+  # deprecated.
+  #
+  # bucket/region come from backend.hcl (gitignored -- it names the bucket, and
+  # this repo is public). Bootstrap the bucket and generate that file with:
+  #   ./bootstrap-state-backend.sh
+  # then:
+  #   terraform init -backend-config=backend.hcl -migrate-state
+  backend "s3" {
+    key          = "infra/terraform.tfstate"
+    encrypt      = true
+    use_lockfile = true
+  }
 }

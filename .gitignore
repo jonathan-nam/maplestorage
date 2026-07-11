@@ -6,6 +6,8 @@ infra/*.tfstate.*
 infra/terraform.tfvars
 infra/*.tfplan
 infra/.tflint.d/
+# Names the state bucket (embeds the AWS account ID); repo is public.
+infra/backend.hcl
 
 # Node / Next.js
 frontend/node_modules/
