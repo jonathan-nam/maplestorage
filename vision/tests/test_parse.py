@@ -116,3 +116,35 @@ def test_hud_is_null_when_not_in_frame():
     assert r.json()["characterHud"] is None
     # ...and the token counts are still read fine without it.
     assert len(r.json()["tokenCounts"]) == 5
+
+
+# --- catalog scaling -------------------------------------------------------
+
+def test_classify_is_flat_in_catalog_size():
+    """The whole point of the two-stage classifier: adding items must not add
+    time. Sliding one matchTemplate per item was O(N) -- ~38s at 500 items."""
+    import time
+
+    import cv2
+
+    from app.cv.classify import classify
+    from app.cv.grid import find_grid
+    from app.cv.match import load_templates
+
+    img = cv2.imread(f"{REF}/inventory sample.png")
+    g = find_grid(img)
+    base = load_templates()
+
+    def timed(n):
+        cat = dict(base)
+        vals = list(base.values())
+        for i in range(n - len(base)):
+            cat[f"filler{i}"] = vals[i % len(vals)]
+        t = time.perf_counter()
+        classify(img, g, cat)
+        return time.perf_counter() - t
+
+    small, large = timed(6), timed(500)
+    # An O(N) matcher would be ~80x slower here. Allow generous headroom for a
+    # loaded CI box while still failing loudly if the scaling regresses.
+    assert large < small * 3, f"catalog scaling regressed: {small:.2f}s -> {large:.2f}s"

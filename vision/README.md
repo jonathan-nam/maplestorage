@@ -63,24 +63,45 @@ roster — which lands in the existing one-click confirm flow rather than corrup
 data, so the failure mode is safe. Collect a few more HUDs before trusting it
 blindly.
 
-## Known limit: the catalog does not scale yet
+## Catalog scaling (solved)
 
-Icon matching is **O(N) in catalog size** — one `matchTemplate` per token across
-the grid. Fine at 6 tokens (~0.4s), unusable at a real item catalog:
+Icon matching used to slide one `matchTemplate` per catalog item across the
+grid — **O(N)**, which is fine for 6 tokens and unusable for an item catalog.
+`classify.py` replaces it with a two-stage scheme whose cost is flat in catalog
+size:
 
-| Catalog | Current | A per-cell nearest-neighbour lookup would be |
+| Catalog | Old (per-template) | Now (two-stage) |
 | --- | --- | --- |
-| 6 | ~0.4s | 0.1ms |
-| 50 | ~4s | 4ms |
-| 500 | ~38s | 12ms |
+| 6 | ~0.4s | 231 ms |
+| 50 | ~3.8s | 239 ms |
+| 500 | ~37.5s | 273 ms |
 
-Two attempts at the fix have already failed and are worth not repeating:
-exact pixel-hashing of each cell (the slot background has a per-row gradient, so
-the same icon hashes differently — 302 distinct hashes across 308 slots, zero
-collisions), and a nearest-neighbour descriptor where each cell computed its own
-mask (which compares different pixel sets, scoring 0/5). A **fixed-mask**
-nearest-neighbour is the likely answer but is **unvalidated**. Solve this before
-adding items.
+1. **Shortlist** — every slot becomes one 16×16 descriptor; a single matmul
+   scores all 128 slots against all N items.
+2. **Verify** — only the top-3 candidates per slot get the exact masked
+   correlation (1.000 on a true match, ~0.3 on a false one). This stage is
+   O(1) in N.
+
+The split is load-bearing: each stage is bad at the other's job. The descriptor
+*ranks* well (recall@1 was 5/5 on both held-out screenshots) but its absolute
+score cannot separate "a catalog item" from "some other item" — an unrelated
+icon's nearest neighbour still scores ~0.7. **Verification discriminates; the
+descriptor only decides what is worth verifying.** Still 16/16 counts, zero
+false positives across all 128 slots.
+
+Three failed attempts are recorded in `classify.py` so nobody repeats them:
+exact pixel-hashing (the slot backing has a per-row gradient, so the same icon
+hashes differently — 302 distinct hashes across 308 slots, *zero* collisions);
+a descriptor without background subtraction (the grey backing dominates, margin
+−0.41); and a pixel-exact descriptor (`matchTemplate` slides, a fixed vector
+does not, so a 1px grid-origin shift destroys it — downsampling to 16×16 blurs
+that jitter away).
+
+**Adding items is now a data change, not a code change:** drop a full-slot RGBA
+crop into `templates/` and it is picked up. What is *not* proven is
+discrimination at scale — with 6 items, the verify stage has an easy job. A
+catalog of hundreds of visually similar icons may need the verify threshold
+re-tuned. Add items in batches and watch for false positives.
 
 ## Running it
 
@@ -88,7 +109,7 @@ adding items.
 cd vision
 pip install -r requirements.txt
 uvicorn app.main:app --port 8000
-pytest tests/            # 11 tests: the 3-screenshot corpus is the regression suite
+pytest tests/            # 12 tests: the 3-screenshot corpus is the regression suite
 ```
 
 `app/cv/build_font.py` and `build_icons.py` regenerate `app/cv/templates/` and

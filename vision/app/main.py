@@ -27,7 +27,7 @@ from app.cv.hud import find_hud
 from app.cv.match import load_templates
 from app.cv.ocr import load_font
 from app.cv.pipeline import Undersampled, counts_trustworthy, normalize
-from app.cv.match import find_tokens
+from app.cv.classify import classify
 from app.cv.ocr import read_count
 
 log = logging.getLogger("vision")
@@ -105,16 +105,19 @@ async def parse(request: Request) -> ScreenshotParseResult:
     hud = find_hud(img)
 
     counts = []
-    for hit in find_tokens(img, g, TOKENS):
+    # Two-stage: shortlist every slot with a cheap descriptor, verify the top
+    # candidates exactly. Flat in catalog size, so this still holds up when the
+    # catalog grows past the 6 tokens (see app/cv/classify.py).
+    for hit in classify(img, g, TOKENS):
         digits, conf = read_count(img, g, hit.row, hit.col, FONT)
         if not digits:
-            # Icon found but the count is unreadable -- reporting the token with
+            # Icon found but the count is unreadable -- reporting the item with
             # a fabricated quantity would be worse than reporting nothing.
-            log.info("unreadable count for %s at r%dc%d", hit.token, hit.row, hit.col)
+            log.info("unreadable count for %s at r%dc%d", hit.name, hit.row, hit.col)
             continue
         counts.append(
             DetectedToken(
-                tokenName=hit.token,
+                tokenName=hit.name,
                 quantity=int(digits),
                 needsReview=not trusted,
                 iconScore=round(hit.score, 3),
