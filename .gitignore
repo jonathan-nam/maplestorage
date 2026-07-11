@@ -18,6 +18,7 @@ frontend/.env*.local
 # pre-installed Gradle required)
 backend/.gradle/
 backend/build/
+backend/.env
 
 # IDE
 .idea/

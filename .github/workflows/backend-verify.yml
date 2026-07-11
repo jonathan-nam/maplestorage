@@ -12,6 +12,23 @@ on:
 jobs:
   verify:
     runs-on: ubuntu-latest
+    # Real Postgres, not a mock -- TokenCatalogSeedTest runs Flyway's actual
+    # migrate() against it, which doubles as an implicit "migrations apply
+    # cleanly" check on every run. Same DB_* contract as backend/docker-compose.yml.
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: maplestorage
+          POSTGRES_USER: maplestorage
+          POSTGRES_PASSWORD: maplestorage
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
       - uses: actions/checkout@v4
 
@@ -24,4 +41,10 @@ jobs:
 
       - name: ktlint + detekt + test
         working-directory: backend
+        env:
+          DB_HOST: localhost
+          DB_PORT: "5432"
+          DB_NAME: maplestorage
+          DB_USERNAME: maplestorage
+          DB_PASSWORD: maplestorage
         run: ./gradlew ktlintCheck detekt test --no-daemon

@@ -6,6 +6,7 @@ val flywayVersion = "12.3.0"
 val postgresDriverVersion = "42.7.4"
 val kotlinxSerializationVersion = "1.8.0"
 val logbackVersion = "1.5.12"
+val hikariVersion = "6.2.1"
 
 plugins {
     kotlin("jvm") version "2.4.0"
@@ -46,7 +47,9 @@ dependencies {
     implementation("org.jetbrains.exposed:exposed-core:$exposedVersion")
     implementation("org.jetbrains.exposed:exposed-jdbc:$exposedVersion")
     implementation("org.jetbrains.exposed:exposed-kotlin-datetime:$exposedVersion")
+    implementation("org.jetbrains.exposed:exposed-json:$exposedVersion")
     implementation("org.postgresql:postgresql:$postgresDriverVersion")
+    implementation("com.zaxxer:HikariCP:$hikariVersion")
 
     implementation("org.flywaydb:flyway-core:$flywayVersion")
     implementation("org.flywaydb:flyway-database-postgresql:$flywayVersion")
