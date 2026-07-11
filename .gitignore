@@ -31,3 +31,9 @@ backend/.env
 # OS
 .DS_Store
 Thumbs.db
+
+# CV spike
+.venv-cv/
+spikes/inventory-cv/out/
+__pycache__/
+*.pyc
