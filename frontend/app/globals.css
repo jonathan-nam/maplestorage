@@ -119,3 +119,264 @@ a:hover {
 .char-detail-header .meta {
   color: #999;
 }
+
+/* --- M3 (upload page + token table) ---------------------------------
+   Recovered from the compiled CSS bundle after the original edits to
+   this file were lost; declarations are faithful but the original
+   formatting/comments in this block are not. Reformat at will. */
+
+.intro-copy {
+  color: #999;
+  max-width: 640px;
+  margin: 0 0 16px;
+}
+
+.screenshot-help {
+  color: #ccc;
+  border: 1px solid #3a3a3a;
+  margin: 0 0 16px;
+  padding: 10px 16px;
+}
+
+.screenshot-help ol {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.screenshot-help li {
+  margin-bottom: 4px;
+}
+
+.os-toggle {
+  color: #999;
+  margin: 0 0 8px;
+}
+
+.os-toggle a {
+  margin: 0 2px;
+}
+
+.os-toggle a.active {
+  color: #fff;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.upload-layout {
+  align-items: flex-start;
+  gap: 24px;
+  display: flex;
+}
+
+.char-selector {
+  border: 1px solid #3a3a3a;
+  flex-shrink: 0;
+  width: 170px;
+  padding: 10px;
+}
+
+.panel-title {
+  color: #999;
+  margin-bottom: 4px;
+}
+
+.panel-subtitle {
+  font-style: italic;
+}
+
+.panel-hint {
+  color: #777;
+  margin: 0 0 10px;
+  font-size: 11px;
+  font-style: italic;
+}
+
+.char-selector-list {
+  flex-direction: column;
+  gap: 4px;
+  display: flex;
+}
+
+.char-selector-item {
+  cursor: pointer;
+  border: 1px solid #0000;
+  align-items: center;
+  gap: 8px;
+  padding: 4px;
+  display: flex;
+}
+
+.char-selector-item:hover {
+  border-color: #3a3a3a;
+}
+
+.char-selector-item.selected {
+  background: #1a1a1a;
+  border-color: #ccc;
+}
+
+.selector-sprite {
+  object-fit: contain;
+  width: 32px;
+  height: 32px;
+  image-rendering: pixelated;
+  background: #1a1a1a;
+  border: 1px solid #3a3a3a;
+  flex-shrink: 0;
+}
+
+.selector-clear {
+  color: #999;
+  margin-top: 10px;
+  font-size: 12px;
+  display: block;
+}
+
+.selector-add {
+  margin-top: 10px;
+  font-size: 12px;
+  display: block;
+}
+
+.upload-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.dropzone {
+  text-align: center;
+  color: #999;
+  cursor: pointer;
+  border: 1px dashed #555;
+  padding: 48px 16px;
+}
+
+.dropzone.dragover {
+  color: #ddd;
+  border-color: #ccc;
+}
+
+.row-list {
+  margin-top: 16px;
+}
+
+.session-header {
+  color: #999;
+  border-top: 1px solid #3a3a3a;
+  margin-top: 16px;
+  padding-top: 8px;
+  font-style: italic;
+}
+
+.session-header:first-child {
+  border-top: none;
+  margin-top: 0;
+}
+
+.upload-row {
+  border-bottom: 1px solid #262626;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0;
+  display: flex;
+}
+
+.upload-row .thumb {
+  object-fit: cover;
+  background: #1a1a1a;
+  border: 1px solid #3a3a3a;
+  flex-shrink: 0;
+  width: 48px;
+  height: 48px;
+}
+
+.upload-row .filename {
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #999;
+  flex-shrink: 0;
+  width: 200px;
+  overflow: hidden;
+}
+
+.upload-row .status {
+  flex: 1;
+}
+
+.status.pending {
+  color: #999;
+  font-style: italic;
+}
+
+.status.needs-review {
+  color: #ddd;
+  font-style: italic;
+}
+
+.status.mismatch,
+.status.new-character {
+  color: #fff;
+  font-weight: 700;
+}
+
+.row-actions a {
+  white-space: nowrap;
+  margin-left: 8px;
+}
+
+.change-panel {
+  color: #999;
+  border-bottom: 1px solid #262626;
+  padding: 8px 0 8px 58px;
+}
+
+.change-panel select {
+  color: #ddd;
+  background: #1a1a1a;
+  border: 1px solid #3a3a3a;
+  margin-right: 12px;
+  padding: 2px 4px;
+}
+
+.change-panel label {
+  margin-right: 4px;
+}
+
+.item-table {
+  border-collapse: collapse;
+  width: 100%;
+  margin-top: 16px;
+}
+
+.item-table td {
+  vertical-align: middle;
+  border-bottom: 1px solid #262626;
+  padding: 6px 8px;
+}
+
+.item-table .icon {
+  object-fit: contain;
+  width: 32px;
+  height: 32px;
+  image-rendering: pixelated;
+  background: #1a1a1a;
+  border: 1px solid #3a3a3a;
+  display: block;
+}
+
+.item-table .name-cell {
+  width: 100%;
+}
+
+.redemption-note {
+  color: #999;
+  font-size: 12px;
+  font-style: italic;
+}
+
+.item-table td.qty {
+  text-align: right;
+  color: #ddd;
+  white-space: nowrap;
+  padding-right: 12px;
+}

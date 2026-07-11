@@ -1,13 +1,14 @@
 package com.maplestorage.backend.characters
 
+import com.maplestorage.backend.db.CharacterTokenCount
 import com.maplestorage.backend.db.Characters
+import com.maplestorage.backend.db.TokenCatalog
+import com.maplestorage.backend.plugins.parseUuidParam
+import com.maplestorage.backend.plugins.principalIdAndEmail
 import com.maplestorage.backend.services.NexonLookupService
 import com.maplestorage.backend.users.ensureUser
 import io.ktor.http.HttpStatusCode
-import io.ktor.server.application.ApplicationCall
 import io.ktor.server.application.call
-import io.ktor.server.auth.jwt.JWTPrincipal
-import io.ktor.server.auth.principal
 import io.ktor.server.request.receive
 import io.ktor.server.response.respond
 import io.ktor.server.routing.Route
@@ -16,6 +17,7 @@ import io.ktor.server.routing.delete
 import io.ktor.server.routing.get
 import io.ktor.server.routing.post
 import io.ktor.server.routing.put
+import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.deleteWhere
@@ -32,6 +34,7 @@ fun Route.characterRoutes(nexonLookupService: NexonLookupService) {
     get("/{id}") { getCharacter() }
     put("/{id}") { updateCharacter() }
     post("/{id}/refresh") { refreshCharacter(nexonLookupService) }
+    get("/{id}/tokens") { getCharacterTokens() }
     delete("/{id}") { deleteCharacter() }
 }
 
@@ -83,7 +86,7 @@ private suspend fun RoutingContext.listCharacters() {
 
 private suspend fun RoutingContext.getCharacter() {
     val (userId, email) = call.principalIdAndEmail()
-    val characterId = call.parseCharacterId() ?: return
+    val characterId = call.parseUuidParam("id") ?: return
 
     val character =
         transaction {
@@ -95,7 +98,7 @@ private suspend fun RoutingContext.getCharacter() {
 
 private suspend fun RoutingContext.updateCharacter() {
     val (userId, email) = call.principalIdAndEmail()
-    val characterId = call.parseCharacterId() ?: return
+    val characterId = call.parseUuidParam("id") ?: return
     val request = call.receive<UpdateCharacterRequest>()
 
     val updated =
@@ -114,7 +117,7 @@ private suspend fun RoutingContext.updateCharacter() {
 
 private suspend fun RoutingContext.refreshCharacter(nexonLookupService: NexonLookupService) {
     val (userId, email) = call.principalIdAndEmail()
-    val characterId = call.parseCharacterId() ?: return
+    val characterId = call.parseUuidParam("id") ?: return
 
     val existingName =
         transaction {
@@ -147,7 +150,7 @@ private suspend fun RoutingContext.refreshCharacter(nexonLookupService: NexonLoo
 
 private suspend fun RoutingContext.deleteCharacter() {
     val (userId, email) = call.principalIdAndEmail()
-    val characterId = call.parseCharacterId() ?: return
+    val characterId = call.parseUuidParam("id") ?: return
 
     val rowsDeleted =
         transaction {
@@ -161,34 +164,51 @@ private suspend fun RoutingContext.deleteCharacter() {
     }
 }
 
+private suspend fun RoutingContext.getCharacterTokens() {
+    val (userId, email) = call.principalIdAndEmail()
+    val characterId = call.parseUuidParam("id") ?: return
+
+    val tokens =
+        transaction {
+            ensureUser(userId, email)
+            // Ownership check first: a character that isn't this user's must 404
+            // rather than return an empty token list, which would leak existence.
+            if (findOwnedCharacter(characterId, userId) == null) {
+                null
+            } else {
+                CharacterTokenCount
+                    .innerJoin(TokenCatalog)
+                    .selectAll()
+                    .where { CharacterTokenCount.characterId eq characterId }
+                    .orderBy(TokenCatalog.name)
+                    .map { it.toCharacterTokenResponse() }
+            }
+        }
+
+    if (tokens == null) {
+        call.respond(HttpStatusCode.NotFound)
+    } else {
+        call.respond(tokens)
+    }
+}
+
+private fun ResultRow.toCharacterTokenResponse(): CharacterTokenResponse =
+    CharacterTokenResponse(
+        tokenCatalogId = this[TokenCatalog.id].toString(),
+        name = this[TokenCatalog.name],
+        // icon_ref_key is a bare filename; Routing.kt serves the seed-assets
+        // dir at /token-icons, and the frontend resolves this against the API
+        // base URL (lib/api.ts's apiAssetUrl).
+        iconUrl = this[TokenCatalog.iconRefKey]?.let { "/token-icons/$it" },
+        quantity = this[CharacterTokenCount.quantity],
+        redeemThreshold = this[TokenCatalog.redeemThreshold],
+        capturedAt = this[CharacterTokenCount.capturedAt].toString(),
+    )
+
 private suspend fun RoutingContext.respondFoundOrNotFound(character: CharacterResponse?) {
     if (character == null) {
         call.respond(HttpStatusCode.NotFound)
     } else {
         call.respond(character)
     }
-}
-
-private fun ApplicationCall.principalIdAndEmail(): Pair<String, String> {
-    val principal = principal<JWTPrincipal>()!!
-    val userId = principal.payload.subject
-    // Verify against a real Clerk JWT during implementation -- expected empty
-    // unless a custom JWT template adding an `email` claim is configured in
-    // the Clerk dashboard (Security.kt's own comment already establishes the
-    // default template carries no custom claims beyond `sub`).
-    val email =
-        principal.payload
-            .getClaim("email")
-            ?.asString()
-            .orEmpty()
-    return userId to email
-}
-
-private suspend fun ApplicationCall.parseCharacterId(): Uuid? {
-    val idParam = parameters["id"]
-    val characterId = idParam?.let { Uuid.parseOrNull(it) }
-    if (characterId == null) {
-        respond(HttpStatusCode.BadRequest, "malformed character id")
-    }
-    return characterId
 }

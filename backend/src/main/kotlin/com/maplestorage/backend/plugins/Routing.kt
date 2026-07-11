@@ -1,20 +1,32 @@
 package com.maplestorage.backend.plugins
 
 import com.maplestorage.backend.characters.characterRoutes
+import com.maplestorage.backend.screenshots.screenshotRoutes
+import com.maplestorage.backend.services.ClaudeVisionService
 import com.maplestorage.backend.services.NexonLookupService
 import io.ktor.server.application.Application
 import io.ktor.server.application.call
 import io.ktor.server.auth.authenticate
 import io.ktor.server.auth.jwt.JWTPrincipal
 import io.ktor.server.auth.principal
+import io.ktor.server.http.content.staticResources
 import io.ktor.server.response.respond
 import io.ktor.server.routing.get
 import io.ktor.server.routing.route
 import io.ktor.server.routing.routing
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 
-fun Application.configureRouting(nexonLookupService: NexonLookupService) {
+fun Application.configureRouting(
+    nexonLookupService: NexonLookupService,
+    claudeVisionService: ClaudeVisionService,
+    anthropicModel: String,
+) {
     routing {
+        // Token icons are the seeded catalog images (token_catalog.icon_ref_key
+        // is the bare filename). Public on purpose -- they're static art, and
+        // the <img> tags that load them can't attach a Bearer token.
+        staticResources("/token-icons", "seed-assets/tokens")
+
         // Unauthenticated on purpose -- this is what the ALB target group polls
         // (see infra/alb.tf's health_check block). No DB touch here: a slow or
         // briefly-unavailable RDS shouldn't flip the target group unhealthy.
@@ -43,6 +55,10 @@ fun Application.configureRouting(nexonLookupService: NexonLookupService) {
 
             route("/api/characters") {
                 characterRoutes(nexonLookupService)
+            }
+
+            route("/api/screenshots") {
+                screenshotRoutes(claudeVisionService, anthropicModel)
             }
         }
     }

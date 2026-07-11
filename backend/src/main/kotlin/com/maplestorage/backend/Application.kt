@@ -1,10 +1,12 @@
 package com.maplestorage.backend
 
+import com.maplestorage.backend.config.Env
 import com.maplestorage.backend.plugins.configureCors
 import com.maplestorage.backend.plugins.configureDatabase
 import com.maplestorage.backend.plugins.configureRouting
 import com.maplestorage.backend.plugins.configureSecurity
 import com.maplestorage.backend.plugins.configureSerialization
+import com.maplestorage.backend.services.AnthropicClaudeVisionService
 import com.maplestorage.backend.services.NexonLookupService
 import com.maplestorage.backend.services.createNexonHttpClient
 import io.ktor.server.application.Application
@@ -26,5 +28,7 @@ fun Application.module() {
     val nexonHttpClient = createNexonHttpClient()
     monitor.subscribe(ApplicationStopped) { nexonHttpClient.close() }
 
-    configureRouting(NexonLookupService(nexonHttpClient))
+    val claudeVisionService = AnthropicClaudeVisionService(Env.anthropicApiKey, Env.anthropicModel)
+
+    configureRouting(NexonLookupService(nexonHttpClient), claudeVisionService, Env.anthropicModel)
 }

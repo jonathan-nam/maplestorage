@@ -58,8 +58,11 @@ object Screenshots : Table("screenshots") {
     val id = uuid("id")
     val userId = reference("user_id", Users.id)
     val characterId = optReference("character_id", Characters.id)
-    val type = text("type")
-    val storageKey = text("storage_key")
+
+    // Nullable since V3: a FAILED row (the Claude call itself errored) never
+    // got classified, so it has no type. Images are parsed in memory and
+    // discarded, never persisted -- hence no storage_key column.
+    val type = text("type").nullable()
     val uploadedAt = timestamp("uploaded_at")
     val parseStatus = text("parse_status").default("PENDING")
     val rawModelResponse = jsonb<JsonElement>("raw_model_response", Json).nullable()

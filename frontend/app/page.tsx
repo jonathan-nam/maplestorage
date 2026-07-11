@@ -14,7 +14,7 @@ export default function Home() {
       <SignedIn>
         <UserButton />
         <p>
-          <Link href="/characters">Characters</Link>
+          <Link href="/characters">Characters</Link> · <Link href="/upload">Upload</Link>
         </p>
         <BackendStatus />
       </SignedIn>

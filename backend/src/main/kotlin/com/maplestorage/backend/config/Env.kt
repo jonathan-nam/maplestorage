@@ -1,5 +1,9 @@
 package com.maplestorage.backend.config
 
+// A narrow forced-schema extraction task fits Sonnet-tier at a fraction of
+// Opus's cost; ANTHROPIC_MODEL overrides it either direction.
+private const val DEFAULT_ANTHROPIC_MODEL = "claude-sonnet-5"
+
 // Central place to read the environment variables the ECS task definition
 // injects (see infra/ecs.tf's `environment`/`secrets` blocks) -- fail fast at
 // startup if one is missing rather than surfacing a null deep in a request.
@@ -11,6 +15,10 @@ object Env {
     val dbPassword: String get() = required("DB_PASSWORD")
     val clerkJwksUrl: String get() = required("CLERK_JWKS_URL")
     val frontendOrigin: String get() = required("FRONTEND_ORIGIN")
+    val anthropicApiKey: String get() = required("ANTHROPIC_API_KEY")
+
+    // Overridable so switching model tiers is a config change, not a deploy.
+    val anthropicModel: String get() = System.getenv("ANTHROPIC_MODEL") ?: DEFAULT_ANTHROPIC_MODEL
 
     private fun required(name: String): String =
         System.getenv(name) ?: error("Missing required environment variable: $name")

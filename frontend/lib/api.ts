@@ -1,5 +1,12 @@
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
 
+// For public, unauthenticated assets (token icons) that don't go through
+// apiFetch's Bearer-token JSON flow -- just resolves a backend-relative path
+// (e.g. "/token-icons/foo.png") to an absolute URL.
+export function apiAssetUrl(path: string): string {
+  return `${API_BASE_URL ?? ""}${path}`;
+}
+
 export class ApiError extends Error {
   constructor(
     public status: number,
