@@ -2,6 +2,120 @@
   color-scheme: light dark;
 }
 
+/* Monochrome/dark-mode-first design language per WEB-UI-SPEC.md: no rounded
+   corners, no gradients, no shadows, no modals -- ported from
+   prototypes/web-ui/style.css, the visual reference the spec points to. */
 body {
   margin: 0;
+  background: #111;
+  color: #ddd;
+  font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+a {
+  color: #ddd;
+  text-decoration: underline;
+}
+
+a:hover {
+  color: #fff;
+}
+
+.hint {
+  color: #777;
+  font-size: 11px;
+  font-style: italic;
+  margin: 10px 0 0;
+}
+
+.back-link {
+  display: inline-block;
+  margin-bottom: 16px;
+  color: #999;
+}
+
+.char-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.char-tile {
+  width: 190px;
+  border: 1px solid #3a3a3a;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  cursor: pointer;
+}
+
+.char-tile:hover {
+  border-color: #666;
+}
+
+.tile-sprite {
+  width: 72px;
+  height: 72px;
+  object-fit: contain;
+  image-rendering: pixelated;
+  background: #1a1a1a;
+  border: 1px solid #3a3a3a;
+}
+
+.tile-plate {
+  margin-top: 8px;
+  border: 1px solid #3a3a3a;
+  padding: 4px 8px;
+  width: 100%;
+}
+
+.tile-name {
+  font-weight: bold;
+}
+
+.tile-level {
+  color: #999;
+  margin-left: 6px;
+}
+
+.tile-job {
+  color: #999;
+  font-size: 12px;
+  margin-top: 2px;
+}
+
+.tile-actions {
+  margin-top: 6px;
+}
+
+.tile-actions a {
+  margin: 0 4px;
+}
+
+.char-detail-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid #3a3a3a;
+  margin-bottom: 16px;
+}
+
+.char-detail-header .tile-sprite {
+  width: 96px;
+  height: 96px;
+}
+
+.char-detail-header h1 {
+  font-size: 16px;
+  margin: 0 0 4px;
+}
+
+.char-detail-header .meta {
+  color: #999;
 }

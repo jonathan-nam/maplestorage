@@ -1,5 +1,7 @@
 package com.maplestorage.backend.plugins
 
+import com.maplestorage.backend.characters.characterRoutes
+import com.maplestorage.backend.services.NexonLookupService
 import io.ktor.server.application.Application
 import io.ktor.server.application.call
 import io.ktor.server.auth.authenticate
@@ -7,10 +9,11 @@ import io.ktor.server.auth.jwt.JWTPrincipal
 import io.ktor.server.auth.principal
 import io.ktor.server.response.respond
 import io.ktor.server.routing.get
+import io.ktor.server.routing.route
 import io.ktor.server.routing.routing
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 
-fun Application.configureRouting() {
+fun Application.configureRouting(nexonLookupService: NexonLookupService) {
     routing {
         // Unauthenticated on purpose -- this is what the ALB target group polls
         // (see infra/alb.tf's health_check block). No DB touch here: a slow or
@@ -36,6 +39,10 @@ fun Application.configureRouting() {
                     }
 
                 call.respond(PingResponse(userId = userId, dbTimestamp = dbTimestamp ?: "unknown"))
+            }
+
+            route("/api/characters") {
+                characterRoutes(nexonLookupService)
             }
         }
     }
