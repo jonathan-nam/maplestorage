@@ -71,6 +71,54 @@ artwork scores 0.61–0.93; templates cut from a real screenshot score a flat
 **1.000** on held-out screenshots. Distorted Ambition in particular sat at 0.61
 against a 0.55 threshold and was the first token to vanish under JPEG.
 
+## Player resolution, and tokens kept anywhere
+
+Both of these were raised as objections; both were tested rather than assumed.
+
+**Tokens can sit in any slots.** Nothing in the pipeline couples the tokens to
+each other: `find_tokens` takes an independent argmax per token over all 128
+slots. They happened to be adjacent in all three sample screenshots, so that was
+worth proving — synthetically relocating all six tokens to random, non-adjacent
+slots gives **8/8 trials with the right token in the right slot with the right
+count**. Layout is a non-issue.
+
+**Game resolution is also a non-issue, and for a specific reason:** the client
+draws its UI at a *fixed pixel size*. The slot pitch measures exactly 46px on
+every screenshot we have, across a 4x range of desktop pixel counts (804x550 crop,
+2359x1095, 3280x1880). Playing at a different resolution changes how much scenery
+surrounds the inventory, not how big the inventory is drawn. And the grid detector
+*measures* the pitch rather than assuming it, so it notices if this ever stops
+being true.
+
+**What does change the scale is the capture, not the game**: Windows display
+scaling, a HiDPI/Retina grab, stretched fullscreen, or a resize before upload.
+`normalize()` resamples the pitch back to 46 — but how well the counts survive
+depends on the ratio, and this is the honest picture (measured on a synthetically
+rescaled screenshot, LANCZOS4 resampling):
+
+| capture | counts correct | handling |
+| --- | --- | --- |
+| native 46px (any game resolution) | **100%** | trusted |
+| 2.0x (HiDPI) | 100% | normalized, trusted |
+| 1.5x (Windows 150%) | 100% | normalized, but flagged |
+| 1.25x (Windows 125%) | ~77% | **flagged for review** |
+| 1.1x | ~70% | **flagged for review** |
+| below native | — | rejected outright |
+
+Icon *detection* survives any of these (6/6 tokens found even at 1.25x) — the
+icons are large and distinctive. The *counts* are what degrade: a fractional
+rescale interpolates the 11px font into mush, and no resampling kernel brings it
+back. So rather than emit a plausible wrong number, `parse()` sets
+`needs_review` on those reads, which is exactly the human checkpoint M3's upload
+UI already has. Silent wrongness is the one outcome that is not acceptable here.
+
+Caveat worth stating plainly: **we have no real DPI-scaled screenshot.** The
+1.25x row above is a model (bicubic upscale, which is what Windows does to a
+non-DPI-aware app), not a measurement. If MapleStory turns out to be DPI-aware it
+would render natively and the whole row is moot. Getting one real screenshot from
+a 125%-scaling laptop would settle it, and is the single highest-value sample to
+collect next.
+
 ## The constraint this puts on the app
 
 **Uploads must not be downscaled.** The 11px font does not survive resampling —
@@ -85,12 +133,10 @@ not 46px rather than quietly returning null counts.
 
 ## Limits / what is not yet proven
 
-- Three screenshots is a thin sample. All happened to be at native UI scale.
-- **A non-native client UI scale would break it.** Windows DPI scaling or an
-  in-game UI-scale option would change the pitch; the grid detector would still
-  find the lattice, but the icon and digit templates would not match. Untested —
-  we have no such screenshot. If it turns out to be common, the fix is a template
-  set per scale, not a re-architecture.
+- Three screenshots is a thin sample, though the scatter and rescale tests above
+  are synthetic extensions of them.
+- No real DPI-scaled capture has been tested (see above). This is the biggest
+  open risk and the cheapest one to close.
 - Only the tokens' own slots are read. Nothing here identifies the character, so
   screenshot-to-character attribution still needs the existing mechanism.
 - The count band assumes the untradeable bar sits below it. Tokens are always

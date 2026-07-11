@@ -26,8 +26,12 @@ JITTER = 2  # px of slack when looking for the next digit's left edge
 # lets the 8px '4' sit on top of the 5px '1' and score higher than '1' does
 # ("1482" -> "4482"); requiring its outline to coincide with the dark pixels that
 # are really there rules that out.
-MIN_OUTLINE_AGREEMENT = 0.80
-OUTLINE_MAX = 80  # a count's outline is near-black
+#
+# "Dark" is taken relative to each band's own contrast rather than as a fixed
+# cutoff: a capture that has been through a rescale has a softened outline, and a
+# hard threshold throws every one of its digits away.
+MIN_OUTLINE_AGREEMENT = 0.75
+OUTLINE_FRACTION = 0.45  # of the band's own intensity range
 
 
 def load_font(path: str = "templates") -> dict:
@@ -45,7 +49,7 @@ def load_font(path: str = "templates") -> dict:
 
 def _outline_of(glyph: np.ndarray) -> np.ndarray:
     grey = cv2.cvtColor(glyph[:, :, :3], cv2.COLOR_BGR2GRAY)
-    return (grey <= OUTLINE_MAX) & (glyph[:, :, 3] > 0)
+    return (grey <= 80) & (glyph[:, :, 3] > 0)
 
 
 def cell_band(img: np.ndarray, g: Grid, row: int, col: int) -> np.ndarray:
@@ -66,7 +70,9 @@ def read_count(img: np.ndarray, g: Grid, row: int, col: int, font: dict) -> tupl
     if band.size == 0:
         return "", 0.0
 
-    dark = cv2.cvtColor(band, cv2.COLOR_BGR2GRAY) <= OUTLINE_MAX
+    grey = cv2.cvtColor(band, cv2.COLOR_BGR2GRAY).astype(np.float32)
+    lo, hi = float(grey.min()), float(grey.max())
+    dark = grey <= lo + OUTLINE_FRACTION * (hi - lo)
 
     # Best score for each glyph at each x, plus the y it occurred at (the font's
     # y-offset is fixed, so collapsing over y loses nothing).
