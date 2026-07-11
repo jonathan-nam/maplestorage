@@ -22,7 +22,7 @@ object Env {
     // Overridable so switching model tiers is a config change, not a deploy.
     val anthropicModel: String get() = System.getenv("ANTHROPIC_MODEL") ?: DEFAULT_ANTHROPIC_MODEL
 
-    // The vision sidecar runs as a second container in the same ECS task, so
+    // The vision service runs as a second container in the same ECS task, so
     // this is loopback by default and only needs overriding for local dev.
     val visionServiceUrl: String get() = System.getenv("VISION_SERVICE_URL") ?: DEFAULT_VISION_SERVICE_URL
 

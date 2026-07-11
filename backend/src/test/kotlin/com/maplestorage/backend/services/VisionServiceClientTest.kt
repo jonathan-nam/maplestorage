@@ -18,16 +18,17 @@ import kotlin.test.assertIs
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
-// Exercises the wire contract the Python sidecar actually serves (vision/app/main.py).
+// Exercises the wire contract the Python vision service actually serves
+// (vision/app/main.py).
 // The response bodies below are copied from its real output, not invented.
-class VisionSidecarServiceTest {
-    private fun service(handler: MockEngine.Companion.() -> MockEngine): VisionSidecarService {
+class VisionServiceClientTest {
+    private fun service(handler: MockEngine.Companion.() -> MockEngine): VisionServiceClient {
         val engine = MockEngine.handler()
         val client =
             HttpClient(engine) {
                 install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
             }
-        return VisionSidecarService(client, "http://127.0.0.1:8000")
+        return VisionServiceClient(client, "http://127.0.0.1:8000")
     }
 
     private fun ok(body: String) =
@@ -105,11 +106,11 @@ class VisionSidecarServiceTest {
             assertNull(parsed.result.tokenCounts)
         }
 
-    // The sidecar refuses a downscaled screenshot rather than returning a
-    // plausible wrong count. Its message is written for the user, so it must
+    // The vision service refuses a downscaled screenshot rather than returning
+    // a plausible wrong count. Its message is written for the user, so it must
     // reach them intact instead of being flattened to a generic failure.
     @Test
-    fun `a downscaled screenshot fails with the sidecar's own explanation`() =
+    fun `a downscaled screenshot fails with the service's own explanation`() =
         runTest {
             val outcome =
                 service {
@@ -139,11 +140,11 @@ class VisionSidecarServiceTest {
             assertIs<ClaudeVisionOutcome.Failed>(outcome)
         }
 
-    // A sidecar that is down is an infrastructure fault, not a bad screenshot:
-    // it must not throw out of parseScreenshot, and the user must be able to
-    // retry the same upload.
+    // A vision container that is down is an infrastructure fault, not a bad
+    // screenshot: it must not throw out of parseScreenshot, and the user must be
+    // able to retry the same upload.
     @Test
-    fun `an unreachable sidecar fails without throwing`() =
+    fun `an unreachable vision service fails without throwing`() =
         runTest {
             val outcome =
                 service { MockEngine { throw IOException("connection refused") } }
@@ -153,15 +154,15 @@ class VisionSidecarServiceTest {
             assertTrue(failed.reason.contains("temporarily unavailable"), failed.reason)
         }
 
-    // Contract test against a response captured from the *live* sidecar
-    // (vision/), not hand-written JSON. If the Python service changes its wire
+    // Contract test against a response captured from the *live* vision service
+    // (vision/), not hand-written JSON. If the Python side changes its wire
     // format, this fails here rather than in production.
     @Test
-    fun `decodes a response captured from the running sidecar`() =
+    fun `decodes a response captured from the running vision service`() =
         runTest {
             val golden =
-                requireNotNull(javaClass.getResourceAsStream("/sidecar-inventory-response.json")) {
-                    "golden sidecar response missing from test resources"
+                requireNotNull(javaClass.getResourceAsStream("/vision-inventory-response.json")) {
+                    "golden vision response missing from test resources"
                 }.readBytes().decodeToString()
 
             val outcome =

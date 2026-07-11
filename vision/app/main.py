@@ -1,7 +1,8 @@
 """Screenshot parsing service.
 
-Runs as a sidecar container in the same ECS task as the Ktor backend, which
-calls it over localhost. It replaces the Claude-vision call for token counts:
+Runs as a second container in the same ECS task as the Ktor backend, which calls
+it over loopback -- one deployable, two processes. It replaces the Claude-vision
+call for token counts:
 the parse is a deterministic OpenCV pipeline (see app/cv/), so it costs no
 tokens, makes no network call, and returns the same answer every time.
 

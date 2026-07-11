@@ -1,6 +1,6 @@
 """End-to-end tests against the real screenshots.
 
-This is the regression suite the sidecar exists to preserve: the same corpus
+This is the regression suite the vision service exists to preserve: the same corpus
 that validated the spike (16/16 token counts across three screenshots) now
 guards the service. If a change to the CV breaks a count, it breaks here.
 """

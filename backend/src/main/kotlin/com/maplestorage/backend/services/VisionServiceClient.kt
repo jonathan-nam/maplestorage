@@ -19,12 +19,12 @@ import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
 import org.slf4j.LoggerFactory
 
-private val log = LoggerFactory.getLogger(VisionSidecarService::class.java)
+private val log = LoggerFactory.getLogger(VisionServiceClient::class.java)
 
-// The sidecar is a second container in the same ECS task, so this is a
+// The vision service is a second container in the same ECS task, so this is a
 // loopback call -- there is no network to be slow or flaky, and no retry logic
 // worth writing. A parse is ~0.3s of CPU; the timeout only exists to stop a
-// wedged sidecar from holding a request thread forever.
+// wedged vision container from holding a request thread forever.
 private const val PARSE_TIMEOUT_MS = 15_000L
 
 // Recorded against each screenshot in place of a model id. Cost accounting
@@ -32,12 +32,12 @@ private const val PARSE_TIMEOUT_MS = 15_000L
 // so the cost falls out at $0 without special-casing.
 const val OPENCV_PARSER_ID = "opencv-classical"
 
-private const val SIDECAR_UNAVAILABLE = "Screenshot parsing is temporarily unavailable."
+private const val VISION_UNAVAILABLE = "Screenshot parsing is temporarily unavailable."
 
 fun createVisionHttpClient(): HttpClient =
     HttpClient(CIO) {
         install(ContentNegotiation) {
-            // The sidecar sends fields the Kotlin DTOs do not model yet
+            // The vision service sends fields the Kotlin DTOs do not model yet
             // (iconScore); ignoring them keeps the two sides independently
             // deployable.
             json(Json { ignoreUnknownKeys = true })
@@ -46,32 +46,36 @@ fun createVisionHttpClient(): HttpClient =
     }
 
 @Serializable
-private data class SidecarToken(
+private data class VisionToken(
     val tokenName: String,
     val quantity: Int,
     val needsReview: Boolean = false,
 )
 
 @Serializable
-private data class SidecarHud(
+private data class VisionHud(
     val name: String,
     val level: Int,
 )
 
 @Serializable
-private data class SidecarResult(
+private data class VisionResult(
     val screenshotType: String,
-    val characterHud: SidecarHud? = null,
-    val tokenCounts: List<SidecarToken>? = null,
+    val characterHud: VisionHud? = null,
+    val tokenCounts: List<VisionToken>? = null,
 )
 
 @Serializable
-private data class SidecarError(
+private data class VisionError(
     @SerialName("detail") val detail: String? = null,
 )
 
 /**
- * Parses screenshots with the OpenCV sidecar instead of a vision model.
+ * Parses screenshots by calling the co-located OpenCV vision service, rather
+ * than a vision model.
+ *
+ * The service runs as a second container in the same ECS task (see `vision/`),
+ * so this is a loopback call: one deployable, two processes.
  *
  * It implements [ClaudeVisionService] because that seam is already the right
  * shape -- the interface's name is now a misnomer and wants a rename, but that
@@ -81,7 +85,7 @@ private data class SidecarError(
  * time. [ClaudeVisionOutcome.Parsed.inputTokens] and `outputTokens` are
  * therefore always zero.
  */
-class VisionSidecarService(
+class VisionServiceClient(
     private val client: HttpClient,
     private val baseUrl: String,
 ) : ClaudeVisionService {
@@ -89,8 +93,9 @@ class VisionSidecarService(
         imageBytes: ByteArray,
         mediaType: String,
     ): ClaudeVisionOutcome {
-        // A sidecar that is down or wedged is an infrastructure fault, not a bad
-        // screenshot: FAILED lets the user retry the same upload once it recovers.
+        // A vision container that is down or wedged is an infrastructure fault,
+        // not a bad screenshot: FAILED lets the user retry the same upload once
+        // it recovers.
         val response =
             try {
                 client.post("$baseUrl/parse") {
@@ -98,31 +103,31 @@ class VisionSidecarService(
                     setBody(imageBytes)
                 }
             } catch (e: IOException) {
-                log.error("vision sidecar unreachable at {}", baseUrl, e)
+                log.error("vision service unreachable at {}", baseUrl, e)
                 null
             } catch (e: HttpRequestTimeoutException) {
-                log.error("vision sidecar timed out after {}ms", PARSE_TIMEOUT_MS, e)
+                log.error("vision service timed out after {}ms", PARSE_TIMEOUT_MS, e)
                 null
-            } ?: return ClaudeVisionOutcome.Failed(SIDECAR_UNAVAILABLE)
+            } ?: return ClaudeVisionOutcome.Failed(VISION_UNAVAILABLE)
 
         return when (response.status) {
             HttpStatusCode.OK -> parsed(response.body())
 
-            // The sidecar refuses a downscaled screenshot rather than returning
-            // a plausible wrong count, and says why. That message is written for
-            // the user, so pass it straight through.
+            // The vision service refuses a downscaled screenshot rather than
+            // returning a plausible wrong count, and says why. That message is
+            // written for the user, so pass it straight through.
             HttpStatusCode.UnprocessableEntity -> ClaudeVisionOutcome.Failed(detail(response.bodyAsText()))
 
             HttpStatusCode.BadRequest -> ClaudeVisionOutcome.Failed("That file could not be read as an image.")
 
             else -> {
-                log.error("vision sidecar returned {}: {}", response.status, response.bodyAsText())
+                log.error("vision service returned {}: {}", response.status, response.bodyAsText())
                 ClaudeVisionOutcome.Failed("Screenshot parsing failed.")
             }
         }
     }
 
-    private fun parsed(body: SidecarResult): ClaudeVisionOutcome {
+    private fun parsed(body: VisionResult): ClaudeVisionOutcome {
         val type =
             when (body.screenshotType) {
                 "INVENTORY" -> ScreenshotType.INVENTORY
@@ -130,7 +135,7 @@ class VisionSidecarService(
             }
 
         // A rescaled capture (fractional display scaling) still yields the right
-        // icons but only ~70-77% reliable counts. The sidecar flags those; until
+        // icons but only ~70-77% reliable counts. The vision service flags those; until
         // ScreenshotParseResult can carry the flag through to the review
         // decision, log it loudly rather than let it pass silently as trusted.
         body.tokenCounts?.filter { it.needsReview }?.forEach {
@@ -148,9 +153,9 @@ class VisionSidecarService(
 
     private fun detail(raw: String): String =
         try {
-            Json { ignoreUnknownKeys = true }.decodeFromString<SidecarError>(raw).detail
+            Json { ignoreUnknownKeys = true }.decodeFromString<VisionError>(raw).detail
         } catch (e: SerializationException) {
-            log.warn("could not read sidecar error body: {}", raw, e)
+            log.warn("could not read vision error body: {}", raw, e)
             null
         } ?: "That screenshot could not be parsed."
 }
