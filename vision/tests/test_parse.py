@@ -93,3 +93,26 @@ def test_non_inventory_image_is_unrecognized():
 def test_garbage_body_is_a_400():
     r = client.post("/parse", content=b"this is not an image")
     assert r.status_code == 400
+
+
+# --- HUD -------------------------------------------------------------------
+# Only one of our screenshots has a HUD in frame, so this is a thin corpus.
+# See README: it is enough to prove the mechanism, not the alphabet.
+
+def test_hud_is_read_when_in_frame():
+    r = _parse(f"{REF}/untradeables sample.png")
+    assert r.json()["characterHud"] == {"name": "acornacorn", "level": 287}
+
+
+def test_hud_survives_the_jpeg_the_frontend_sends():
+    r = _parse(f"{REF}/untradeables sample.png", quality=92)
+    assert r.json()["characterHud"] == {"name": "acornacorn", "level": 287}
+
+
+def test_hud_is_null_when_not_in_frame():
+    """A cropped inventory upload has no HUD. Null, not an error -- the backend
+    already routes this to NEEDS_REVIEW."""
+    r = _parse(f"{REF}/inventory sample.png")
+    assert r.json()["characterHud"] is None
+    # ...and the token counts are still read fine without it.
+    assert len(r.json()["tokenCounts"]) == 5

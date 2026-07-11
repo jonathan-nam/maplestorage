@@ -9,8 +9,9 @@ The response mirrors Kotlin's `ScreenshotParseResult` so the backend's existing
 `ClaudeVisionService` seam keeps working -- only the implementation behind it
 changes.
 
-`characterHud` is always null here: nothing in the CV pipeline reads the HUD.
-See README for why that is a decision the backend still has to make.
+The HUD ("Lv.287 acornacorn") is read too -- located by matching the fixed-pixel
+"Lv." prefix, then OCR'd with Tesseract. It is null when no HUD is in frame,
+which the backend already treats as NEEDS_REVIEW.
 """
 
 import logging
@@ -22,6 +23,7 @@ from fastapi import FastAPI, HTTPException, Request
 from pydantic import BaseModel
 
 from app.cv.grid import find_grid
+from app.cv.hud import find_hud
 from app.cv.match import load_templates
 from app.cv.ocr import load_font
 from app.cv.pipeline import Undersampled, counts_trustworthy, normalize
@@ -49,9 +51,16 @@ class DetectedToken(BaseModel):
     iconScore: float
 
 
+class CharacterHud(BaseModel):
+    name: str
+    level: int
+
+
 class ScreenshotParseResult(BaseModel):
     screenshotType: Literal["INVENTORY", "UNRECOGNIZED"]
-    characterHud: None = None
+    # Null when no HUD is in frame -- a tightly-cropped inventory upload has
+    # none, and the backend already treats that as NEEDS_REVIEW.
+    characterHud: CharacterHud | None = None
     tokenCounts: list[DetectedToken] | None = None
 
 
@@ -91,6 +100,10 @@ async def parse(request: Request) -> ScreenshotParseResult:
     trusted = counts_trustworthy(g.pitch)
     img, g = normalize(img, g)
 
+    # normalize() resamples the whole frame to the client's native pitch, so the
+    # HUD is at native scale here too and needs no scale of its own.
+    hud = find_hud(img)
+
     counts = []
     for hit in find_tokens(img, g, TOKENS):
         digits, conf = read_count(img, g, hit.row, hit.col, FONT)
@@ -108,4 +121,8 @@ async def parse(request: Request) -> ScreenshotParseResult:
             )
         )
 
-    return ScreenshotParseResult(screenshotType="INVENTORY", tokenCounts=counts)
+    return ScreenshotParseResult(
+        screenshotType="INVENTORY",
+        characterHud=CharacterHud(name=hud.name, level=hud.level) if hud else None,
+        tokenCounts=counts,
+    )

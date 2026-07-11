@@ -14,7 +14,7 @@ call, ~0.6s per screenshot, and the same answer every time.
 | Route | Behaviour |
 | --- | --- |
 | `GET /health` | `{"status":"ok","tokens":6,"digits":10}` |
-| `POST /parse` | Raw image bytes in. Returns `ScreenshotParseResult` (same shape as the Kotlin DTO). |
+| `POST /parse` | Raw image bytes in. Returns `ScreenshotParseResult` (same shape as the Kotlin DTO): `screenshotType`, `characterHud`, `tokenCounts`. |
 
 `POST /parse` outcomes, and why each is what it is:
 
@@ -30,27 +30,38 @@ when the capture was rescaled (e.g. fractional Windows DPI scaling) — the icon
 still match, but the counts are only ~70-77% reliable there, so the read should
 go through the existing human checkpoint rather than be trusted.
 
-## The open decision: character attribution
+## Character attribution (solved)
 
-**`characterHud` is always `null`.** Nothing in the CV pipeline reads the
-character's name or level off the HUD — that was never part of the spike.
+The HUD is read: `characterHud` returns `{name, level}` when a HUD is in frame,
+`null` when it is not (a tightly-cropped upload has none, which the backend
+already routes to NEEDS_REVIEW). No vision call, no per-screenshot cost.
 
-This matters, because `ScreenshotIngestion` currently routes to `NEEDS_REVIEW`
-whenever `characterHud == null`. Wiring this sidecar in as-is would therefore
-make **every** upload need review, which is worse UX than the vision path it
-replaces. One of these has to happen before it ships:
+It works by the opposite method to the stack counts, and that contrast is the
+point:
 
-1. **Keep a small vision call for the HUD only.** Crop the HUD region and send
-   just that — a few hundred image tokens, roughly $0.001/screenshot instead of
-   ~$0.017 for the full frame. Cheapest to build; keeps a Claude dependency.
-2. **Read the HUD with CV.** Harder than the counts: the name is an arbitrary
-   IGN in a proportional font, not a fixed 10-glyph digit set. Unproven.
-3. **Trust the pin when the HUD is absent.** The upload UI already has a
-   character-pin panel. This is a product call, not an engineering one — it
-   removes the cross-check that stops a screenshot being attributed to the
-   wrong character.
+| | Stack counts | Character HUD |
+| --- | --- | --- |
+| Text | 11px bitmap font, over icon art | ~20px anti-aliased proportional, on a dark plate |
+| Tesseract | **2/12** — unusable | **exact** on the raw crop |
+| What works | Matching the client's own 10 glyphs | Tesseract, with no preprocessing at all |
 
-Not choosing is not an option; the current default (1) is the safe interim.
+Every binarisation we tried made the HUD *worse* (`acornacom`, `Lv.28/7`), so
+`hud.py` feeds Tesseract the raw pixels. Glyph templates were never an option
+here anyway: an IGN is arbitrary text, so the alphabet is ~62 glyphs, and we
+have one HUD sample containing five distinct letters.
+
+Locating the HUD is the part classical CV does well. It is anchored to the *game
+window*, not the screenshot, so its position moves — but the client draws `Lv.`
+at a fixed pixel size, so we match that prefix (score 1.000, and 0.998 through
+JPEG q92) and read the line beside it.
+
+**Caveat worth keeping in view:** exactly one of our three screenshots has a HUD,
+so the corpus proves the *mechanism*, not the *alphabet*. Tesseract read
+`acornacorn` exactly, but no IGN with unusual glyphs, mixed case, or digits has
+been tested. The first misread IGN will show up as a name that does not match the
+roster — which lands in the existing one-click confirm flow rather than corrupting
+data, so the failure mode is safe. Collect a few more HUDs before trusting it
+blindly.
 
 ## Known limit: the catalog does not scale yet
 
@@ -77,8 +88,11 @@ adding items.
 cd vision
 pip install -r requirements.txt
 uvicorn app.main:app --port 8000
-pytest tests/            # 8 tests: the 3-screenshot corpus is the regression suite
+pytest tests/            # 11 tests: the 3-screenshot corpus is the regression suite
 ```
 
 `app/cv/build_font.py` and `build_icons.py` regenerate `app/cv/templates/` and
 only need re-running if the client changes its artwork.
+
+Runtime dependency: **tesseract-ocr** (installed in the Dockerfile) — used for
+the HUD only, never for the stack counts.
