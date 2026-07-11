@@ -72,10 +72,21 @@ resource "aws_ecs_task_definition" "backend" {
   execution_role_arn       = aws_iam_role.ecs_task_execution.arn
   task_role_arn            = aws_iam_role.ecs_task.arn
 
+  # Two containers, one task. Under awsvpc they share a network namespace, so
+  # the backend reaches the vision service on 127.0.0.1 -- no service discovery,
+  # no load balancer, and the vision port is never reachable from outside the
+  # task. They also share a lifecycle: one deploy, one rollback.
   container_definitions = jsonencode([{
     name      = "backend"
     image     = "${aws_ecr_repository.backend.repository_url}:latest"
     essential = true
+
+    # Starting the backend before the vision service is up would just produce a
+    # window of failed uploads on every deploy.
+    dependsOn = [{
+      containerName = "vision"
+      condition     = "HEALTHY"
+    }]
 
     portMappings = [{
       containerPort = var.container_port
@@ -88,6 +99,7 @@ resource "aws_ecs_task_definition" "backend" {
       { name = "DB_NAME", value = var.db_name },
       { name = "CLERK_JWKS_URL", value = var.clerk_jwks_url },
       { name = "FRONTEND_ORIGIN", value = var.frontend_origin },
+      { name = "VISION_SERVICE_URL", value = "http://127.0.0.1:${var.vision_container_port}" },
     ]
 
     secrets = [
@@ -109,6 +121,38 @@ resource "aws_ecs_task_definition" "backend" {
         "awslogs-stream-prefix" = "backend"
       }
     }
+    },
+    {
+      name  = "vision"
+      image = "${aws_ecr_repository.vision.repository_url}:latest"
+
+      # The backend cannot parse a screenshot without it, so if it dies the task
+      # should be replaced rather than left serving broken uploads.
+      essential = true
+
+      # No portMappings: the service binds 127.0.0.1 and is only ever called
+      # from the backend container in this same task.
+
+      # The image has no curl; python is what it has.
+      healthCheck = {
+        command = [
+          "CMD-SHELL",
+          "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:${var.vision_container_port}/health')\" || exit 1",
+        ]
+        interval    = 30
+        timeout     = 5
+        retries     = 3
+        startPeriod = 30
+      }
+
+      logConfiguration = {
+        logDriver = "awslogs"
+        options = {
+          "awslogs-group"         = aws_cloudwatch_log_group.backend.name
+          "awslogs-region"        = var.aws_region
+          "awslogs-stream-prefix" = "vision"
+        }
+      }
   }])
 }
 

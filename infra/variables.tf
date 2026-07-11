@@ -58,16 +58,29 @@ variable "container_port" {
   default     = 8080
 }
 
+# Shared by both containers. A parse is ~0.5s of CPU single-threaded, so at 256
+# (0.25 vCPU) it competes with the JVM and a screenshot takes a couple of
+# seconds. Raising this to 512 roughly halves that, for about $9/month more --
+# worth it only if upload latency turns out to matter.
 variable "task_cpu" {
-  description = "Fargate task CPU units (256 = 0.25 vCPU)."
+  description = "Fargate task CPU units, shared by the backend and vision containers (256 = 0.25 vCPU)."
   type        = number
   default     = 256
 }
 
+# 512 MiB was enough for the JVM alone. The task now also runs the vision
+# container (Python + OpenCV, ~250 MiB resident), so it needs 1 GiB. On Fargate
+# this costs about $1.60/month more.
 variable "task_memory" {
-  description = "Fargate task memory in MiB."
+  description = "Fargate task memory in MiB (shared by the backend and vision containers)."
   type        = number
-  default     = 512
+  default     = 1024
+}
+
+variable "vision_container_port" {
+  description = "Loopback port the vision service listens on. Never exposed outside the task."
+  type        = number
+  default     = 8000
 }
 
 variable "clerk_jwks_url" {
