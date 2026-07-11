@@ -1,0 +1,95 @@
+"""End-to-end tests against the real screenshots.
+
+This is the regression suite the sidecar exists to preserve: the same corpus
+that validated the spike (16/16 token counts across three screenshots) now
+guards the service. If a change to the CV breaks a count, it breaks here.
+"""
+
+import cv2
+import numpy as np
+import pytest
+from fastapi.testclient import TestClient
+
+from app.main import app
+
+client = TestClient(app)
+
+REF = "../reference-images"
+
+# Hand-verified by reading the digits off each screenshot.
+TRUTH = {
+    f"{REF}/untradeables sample.png": {
+        "blissful-fantasy-shard": 6,
+        "distorted-ambition": 10,
+        "echo-ancient-resolve": 6,
+        "ferocious-beast-ring": 9,
+        "kalos-token": 21,
+    },
+    f"{REF}/inventory sample.png": {
+        "distorted-ambition": 9,
+        "echo-ancient-resolve": 14,
+        "ferocious-beast-ring": 4,
+        "kalos-token": 19,
+        "trace-eternal-loyalty": 16,
+    },
+}
+
+
+def _parse(path: str, quality: int | None = None):
+    img = cv2.imread(path)
+    assert img is not None, path
+    if quality is None:
+        blob = cv2.imencode(".png", img)[1].tobytes()
+    else:
+        blob = cv2.imencode(".jpg", img, [cv2.IMWRITE_JPEG_QUALITY, quality])[1].tobytes()
+    r = client.post("/parse", content=blob)
+    return r
+
+
+def test_health():
+    r = client.get("/health")
+    assert r.status_code == 200
+    assert r.json() == {"status": "ok", "tokens": 6, "digits": 10}
+
+
+@pytest.mark.parametrize("path,truth", TRUTH.items())
+def test_counts_match_truth(path, truth):
+    r = _parse(path)
+    assert r.status_code == 200
+    body = r.json()
+    assert body["screenshotType"] == "INVENTORY"
+    got = {t["tokenName"]: t["quantity"] for t in body["tokenCounts"]}
+    assert got == truth
+    assert all(not t["needsReview"] for t in body["tokenCounts"])
+
+
+@pytest.mark.parametrize("path,truth", TRUTH.items())
+def test_counts_survive_jpeg(path, truth):
+    """The frontend sends JPEG q92; the safe band is 75-95."""
+    r = _parse(path, quality=92)
+    assert r.status_code == 200
+    got = {t["tokenName"]: t["quantity"] for t in r.json()["tokenCounts"]}
+    assert got == truth
+
+
+def test_downscaled_upload_is_rejected_loudly():
+    """A resized screenshot must 422, not return silently-wrong counts."""
+    img = cv2.imread(f"{REF}/untradeables sample.png")
+    small = cv2.resize(img, None, fx=0.9, fy=0.9, interpolation=cv2.INTER_AREA)
+    r = client.post("/parse", content=cv2.imencode(".png", small)[1].tobytes())
+    assert r.status_code == 422
+    assert "original resolution" in r.json()["detail"]
+
+
+def test_non_inventory_image_is_unrecognized():
+    """Not an error -- the same answer the vision model gave."""
+    noise = np.random.randint(0, 255, (600, 800, 3), dtype=np.uint8)
+    r = client.post("/parse", content=cv2.imencode(".png", noise)[1].tobytes())
+    assert r.status_code == 200
+    assert r.json()["screenshotType"] == "UNRECOGNIZED"
+    assert r.json()["tokenCounts"] is None
+
+
+def test_garbage_body_is_a_400():
+    r = client.post("/parse", content=b"this is not an image")
+    assert r.status_code == 400

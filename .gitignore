@@ -31,3 +31,5 @@ backend/.env
 # OS
 .DS_Store
 Thumbs.db
+vision/**/__pycache__/
+vision/.pytest_cache/
