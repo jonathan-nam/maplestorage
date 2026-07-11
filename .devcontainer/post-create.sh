@@ -4,6 +4,14 @@ set -euo pipefail
 pip install --user pre-commit
 pre-commit install
 
+# The claude-code feature installs as root at image-build time, so npm's global
+# @anthropic-ai/ dir ends up root-owned. npm updates a package by renaming that
+# dir, so `claude update` fails with EACCES for the (non-root) remote user.
+claude_pkg="$(npm -g config get prefix)/lib/node_modules/@anthropic-ai"
+if [ -d "$claude_pkg" ]; then
+  sudo chown -R "$(id -u):$(id -g)" "$claude_pkg"
+fi
+
 # devcontainer.json pins the java feature to 21, but the gradle-sdkman
 # feature installs its own JDK (25) afterward and sets it as SDKMAN's
 # default, silently overriding that -- and Gradle 8.12's embedded Kotlin DSL
