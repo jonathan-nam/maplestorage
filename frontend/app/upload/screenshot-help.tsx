@@ -49,9 +49,9 @@ export function ScreenshotHelp() {
     <>
       <p className="intro-copy">
         Drag a screenshot of your inventory into the drop zone — we&apos;ll automatically detect
-        which character it&apos;s from and read the item counts. Crop tightly to just the
-        inventory window rather than your whole screen — a full game-window screenshot makes the
-        item icons too small to read reliably.{" "}
+        which character it&apos;s from and read the item counts. Crop tightly to just the inventory
+        window rather than your whole screen — a full game-window screenshot makes the item icons
+        too small to read reliably.{" "}
         <a
           href="#"
           onClick={(e) => {

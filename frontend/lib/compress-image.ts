@@ -20,7 +20,9 @@ export async function compressImage(file: File): Promise<{ base64: string; media
   }
   ctx.drawImage(bitmap, 0, 0, width, height);
 
-  const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", JPEG_QUALITY));
+  const blob = await new Promise<Blob | null>((resolve) =>
+    canvas.toBlob(resolve, "image/jpeg", JPEG_QUALITY),
+  );
   if (!blob) {
     throw new Error("Failed to compress image");
   }

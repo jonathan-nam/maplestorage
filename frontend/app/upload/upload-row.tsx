@@ -93,7 +93,11 @@ export function UploadRow({
     if (!result) return;
     setBusy(true);
     try {
-      await apiFetch(`/api/screenshots/${result.screenshotId}/ignore`, { method: "POST" }, getToken);
+      await apiFetch(
+        `/api/screenshots/${result.screenshotId}/ignore`,
+        { method: "POST" },
+        getToken,
+      );
       setPostAction("ignored");
     } finally {
       setBusy(false);
@@ -140,7 +144,10 @@ export function UploadRow({
         )}
         {phase === "resolved" && result?.outcome === "NEW_CHARACTER_DETECTED" && !postAction && (
           <>
-            <a href="#" onClick={(e) => (e.preventDefault(), addAndResolve(result.detectedCharacterName!))}>
+            <a
+              href="#"
+              onClick={(e) => (e.preventDefault(), addAndResolve(result.detectedCharacterName!))}
+            >
               [add {result.detectedCharacterName}]
             </a>
             <a href="#" onClick={(e) => (e.preventDefault(), setPickerOpen((o) => !o))}>
