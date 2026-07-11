@@ -47,22 +47,24 @@ private suspend fun RoutingContext.createCharacter(nexonLookupService: NexonLook
     val now = Clock.System.now()
     val newId = Uuid.random()
 
-    transaction {
-        ensureUser(userId, email)
-        Characters.insert {
-            it[id] = newId
-            it[Characters.userId] = userId
-            it[name] = request.name
-            it[level] = lookup?.level
-            it[jobName] = lookup?.jobName
-            it[spriteImgUrl] = lookup?.spriteImgUrl
-            it[spriteRefreshedAt] = if (lookup != null) now else null
-            it[createdAt] = now
-            it[updatedAt] = now
+    val created =
+        transaction {
+            ensureUser(userId, email)
+            Characters.insert {
+                it[id] = newId
+                it[Characters.userId] = userId
+                it[name] = request.name
+                it[level] = lookup?.level
+                it[jobName] = lookup?.jobName
+                it[spriteImgUrl] = lookup?.spriteImgUrl
+                it[spriteRefreshedAt] = if (lookup != null) now else null
+                it[createdAt] = now
+                it[updatedAt] = now
+            }
+            findOwnedCharacter(newId, userId)
         }
-    }
 
-    call.respond(HttpStatusCode.Created, findOwnedCharacter(newId, userId)!!)
+    call.respond(HttpStatusCode.Created, created!!)
 }
 
 private suspend fun RoutingContext.listCharacters() {
