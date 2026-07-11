@@ -1,4 +1,5 @@
 import { SignedIn, SignedOut, SignInButton, UserButton } from "@clerk/nextjs";
+import Link from "next/link";
 import { BackendStatus } from "./backend-status";
 
 export default function Home() {
@@ -12,6 +13,9 @@ export default function Home() {
 
       <SignedIn>
         <UserButton />
+        <p>
+          <Link href="/characters">Characters</Link>
+        </p>
         <BackendStatus />
       </SignedIn>
     </main>

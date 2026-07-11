@@ -1,0 +1,192 @@
+package com.maplestorage.backend.characters
+
+import com.maplestorage.backend.db.Characters
+import com.maplestorage.backend.services.NexonLookupService
+import com.maplestorage.backend.users.ensureUser
+import io.ktor.http.HttpStatusCode
+import io.ktor.server.application.ApplicationCall
+import io.ktor.server.application.call
+import io.ktor.server.auth.jwt.JWTPrincipal
+import io.ktor.server.auth.principal
+import io.ktor.server.request.receive
+import io.ktor.server.response.respond
+import io.ktor.server.routing.Route
+import io.ktor.server.routing.RoutingContext
+import io.ktor.server.routing.delete
+import io.ktor.server.routing.get
+import io.ktor.server.routing.post
+import io.ktor.server.routing.put
+import org.jetbrains.exposed.v1.core.and
+import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.jdbc.deleteWhere
+import org.jetbrains.exposed.v1.jdbc.insert
+import org.jetbrains.exposed.v1.jdbc.selectAll
+import org.jetbrains.exposed.v1.jdbc.transactions.transaction
+import org.jetbrains.exposed.v1.jdbc.update
+import kotlin.time.Clock
+import kotlin.uuid.Uuid
+
+fun Route.characterRoutes(nexonLookupService: NexonLookupService) {
+    post { createCharacter(nexonLookupService) }
+    get { listCharacters() }
+    get("/{id}") { getCharacter() }
+    put("/{id}") { updateCharacter() }
+    post("/{id}/refresh") { refreshCharacter(nexonLookupService) }
+    delete("/{id}") { deleteCharacter() }
+}
+
+private suspend fun RoutingContext.createCharacter(nexonLookupService: NexonLookupService) {
+    val (userId, email) = call.principalIdAndEmail()
+    val request = call.receive<CreateCharacterRequest>()
+    if (request.name.isBlank()) {
+        call.respond(HttpStatusCode.BadRequest, "name must not be blank")
+        return
+    }
+
+    val lookup = nexonLookupService.lookup(request.name)
+    val now = Clock.System.now()
+    val newId = Uuid.random()
+
+    transaction {
+        ensureUser(userId, email)
+        Characters.insert {
+            it[id] = newId
+            it[Characters.userId] = userId
+            it[name] = request.name
+            it[level] = lookup?.level
+            it[jobName] = lookup?.jobName
+            it[spriteImgUrl] = lookup?.spriteImgUrl
+            it[spriteRefreshedAt] = if (lookup != null) now else null
+            it[createdAt] = now
+            it[updatedAt] = now
+        }
+    }
+
+    call.respond(HttpStatusCode.Created, findOwnedCharacter(newId, userId)!!)
+}
+
+private suspend fun RoutingContext.listCharacters() {
+    val (userId, email) = call.principalIdAndEmail()
+    val characters =
+        transaction {
+            ensureUser(userId, email)
+            Characters
+                .selectAll()
+                .where { Characters.userId eq userId }
+                .orderBy(Characters.createdAt)
+                .map { it.toCharacterResponse() }
+        }
+    call.respond(characters)
+}
+
+private suspend fun RoutingContext.getCharacter() {
+    val (userId, email) = call.principalIdAndEmail()
+    val characterId = call.parseCharacterId() ?: return
+
+    val character =
+        transaction {
+            ensureUser(userId, email)
+            findOwnedCharacter(characterId, userId)
+        }
+    respondFoundOrNotFound(character)
+}
+
+private suspend fun RoutingContext.updateCharacter() {
+    val (userId, email) = call.principalIdAndEmail()
+    val characterId = call.parseCharacterId() ?: return
+    val request = call.receive<UpdateCharacterRequest>()
+
+    val updated =
+        transaction {
+            ensureUser(userId, email)
+            val rowsChanged =
+                Characters.update({ (Characters.id eq characterId) and (Characters.userId eq userId) }) { row ->
+                    request.name?.let { row[Characters.name] = it }
+                    request.level?.let { row[Characters.level] = it }
+                    row[Characters.updatedAt] = Clock.System.now()
+                }
+            if (rowsChanged == 0) null else findOwnedCharacter(characterId, userId)
+        }
+    respondFoundOrNotFound(updated)
+}
+
+private suspend fun RoutingContext.refreshCharacter(nexonLookupService: NexonLookupService) {
+    val (userId, email) = call.principalIdAndEmail()
+    val characterId = call.parseCharacterId() ?: return
+
+    val existingName =
+        transaction {
+            ensureUser(userId, email)
+            findOwnedCharacter(characterId, userId)?.name
+        }
+    if (existingName == null) {
+        call.respond(HttpStatusCode.NotFound)
+        return
+    }
+
+    val lookup = nexonLookupService.lookup(existingName)
+    val refreshed =
+        transaction {
+            // A transient lookup failure leaves existing level/job/sprite
+            // untouched rather than nulling out previously-good data.
+            if (lookup != null) {
+                Characters.update({ (Characters.id eq characterId) and (Characters.userId eq userId) }) { row ->
+                    row[level] = lookup.level
+                    row[jobName] = lookup.jobName
+                    row[spriteImgUrl] = lookup.spriteImgUrl
+                    row[spriteRefreshedAt] = Clock.System.now()
+                    row[updatedAt] = Clock.System.now()
+                }
+            }
+            findOwnedCharacter(characterId, userId)
+        }
+    call.respond(refreshed!!)
+}
+
+private suspend fun RoutingContext.deleteCharacter() {
+    val (userId, email) = call.principalIdAndEmail()
+    val characterId = call.parseCharacterId() ?: return
+
+    val rowsDeleted =
+        transaction {
+            ensureUser(userId, email)
+            Characters.deleteWhere { (Characters.id eq characterId) and (Characters.userId eq userId) }
+        }
+    if (rowsDeleted == 0) {
+        call.respond(HttpStatusCode.NotFound)
+    } else {
+        call.respond(HttpStatusCode.NoContent)
+    }
+}
+
+private suspend fun RoutingContext.respondFoundOrNotFound(character: CharacterResponse?) {
+    if (character == null) {
+        call.respond(HttpStatusCode.NotFound)
+    } else {
+        call.respond(character)
+    }
+}
+
+private fun ApplicationCall.principalIdAndEmail(): Pair<String, String> {
+    val principal = principal<JWTPrincipal>()!!
+    val userId = principal.payload.subject
+    // Verify against a real Clerk JWT during implementation -- expected empty
+    // unless a custom JWT template adding an `email` claim is configured in
+    // the Clerk dashboard (Security.kt's own comment already establishes the
+    // default template carries no custom claims beyond `sub`).
+    val email =
+        principal.payload
+            .getClaim("email")
+            ?.asString()
+            .orEmpty()
+    return userId to email
+}
+
+private suspend fun ApplicationCall.parseCharacterId(): Uuid? {
+    val idParam = parameters["id"]
+    val characterId = idParam?.let { Uuid.parseOrNull(it) }
+    if (characterId == null) {
+        respond(HttpStatusCode.BadRequest, "malformed character id")
+    }
+    return characterId
+}

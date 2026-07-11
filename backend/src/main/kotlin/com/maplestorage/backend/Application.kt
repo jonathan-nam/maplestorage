@@ -5,7 +5,10 @@ import com.maplestorage.backend.plugins.configureDatabase
 import com.maplestorage.backend.plugins.configureRouting
 import com.maplestorage.backend.plugins.configureSecurity
 import com.maplestorage.backend.plugins.configureSerialization
+import com.maplestorage.backend.services.NexonLookupService
+import com.maplestorage.backend.services.createNexonHttpClient
 import io.ktor.server.application.Application
+import io.ktor.server.application.ApplicationStopped
 import io.ktor.server.engine.embeddedServer
 import io.ktor.server.netty.Netty
 
@@ -19,5 +22,9 @@ fun Application.module() {
     configureCors()
     configureSecurity()
     configureDatabase()
-    configureRouting()
+
+    val nexonHttpClient = createNexonHttpClient()
+    monitor.subscribe(ApplicationStopped) { nexonHttpClient.close() }
+
+    configureRouting(NexonLookupService(nexonHttpClient))
 }
