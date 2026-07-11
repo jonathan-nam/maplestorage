@@ -112,12 +112,27 @@ back. So rather than emit a plausible wrong number, `parse()` sets
 `needs_review` on those reads, which is exactly the human checkpoint M3's upload
 UI already has. Silent wrongness is the one outcome that is not acceptable here.
 
-Caveat worth stating plainly: **we have no real DPI-scaled screenshot.** The
-1.25x row above is a model (bicubic upscale, which is what Windows does to a
-non-DPI-aware app), not a measurement. If MapleStory turns out to be DPI-aware it
-would render natively and the whole row is moot. Getting one real screenshot from
-a 125%-scaling laptop would settle it, and is the single highest-value sample to
-collect next.
+### The in-game scale options are both safe
+
+Nexon's own forum settles what the client does: **"UI Optimization" scales the UI
+by exactly 2x with pixel doubling** — "each 1x1 pixel is instead turned into a 2x2
+pixel, there is zero data loss and it scales up perfectly." It is nearest-neighbour
+and integer, never fractional. So the client only ever draws the inventory in one
+of two states, and we handle both losslessly:
+
+| client state | pitch | result |
+| --- | --- | --- |
+| UI Optimization off | 46px | 5/5, trusted |
+| UI Optimization on | 92px | 5/5, trusted (0.5x downsample recovers the original pixels exactly) |
+
+That means *no in-game setting and no monitor resolution* can produce a fractional
+scale. The fractional rows in the table above can only come from **outside** the
+game: Windows DPI-virtualising a non-DPI-aware window, or a resize before upload.
+
+Whether the client is DPI-aware is still unconfirmed (the forum thread does not
+say, and we could not obtain a real DPI-scaled capture — Reddit, imgur and Fandom
+all block automated fetches). But the exposure is bounded: in that case the tokens
+are still all detected and the counts are flagged, never silently wrong.
 
 ## The constraint this puts on the app
 
@@ -131,10 +146,27 @@ without resizing is safe and keeps uploads small.
 `parse(img, strict=True)` enforces this: it refuses a screenshot whose pitch is
 not 46px rather than quietly returning null counts.
 
+## Synthetic coverage (`gen.py`)
+
+Three screenshots pin down 68 counts, which leaves the *decoder* -- glyph advance,
+overlap suppression, the outline gate -- barely exercised. Both bugs found so far
+("10" -> "101", "1482" -> "4482") were decoder bugs, not pixel bugs, so `gen.py`
+renders arbitrary counts using the font's real metrics (learned from the labelled
+counts: 8px advance, 5px for '1', fixed baseline) onto real icon art lifted from
+slots that draw no count of their own.
+
+Sweeping **every 1-3 digit count plus 2000 sampled 4-5 digit counts, over 5 real
+backgrounds: 14995/14995 (100%)**. No new decoder bugs.
+
+Stated plainly: the glyphs pasted here are the same glyphs the reader correlates
+against, so this cannot prove the *pixel matching* works -- the three real
+screenshots do that. It proves the *decoding* handles digit combinations the real
+screenshots never contained.
+
 ## Limits / what is not yet proven
 
-- Three screenshots is a thin sample, though the scatter and rescale tests above
-  are synthetic extensions of them.
+- Three screenshots is a thin sample, though the scatter, rescale and synthetic
+  sweeps above extend them considerably.
 - No real DPI-scaled capture has been tested (see above). This is the biggest
   open risk and the cheapest one to close.
 - Only the tokens' own slots are read. Nothing here identifies the character, so
