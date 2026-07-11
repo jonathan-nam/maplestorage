@@ -15,6 +15,17 @@ data class CharacterResponse(
     val updatedAt: String,
 )
 
+// Mirrored by frontend's types/character-token.ts field-for-field.
+@Serializable
+data class CharacterTokenResponse(
+    val tokenCatalogId: String,
+    val name: String,
+    val iconUrl: String?,
+    val quantity: Int,
+    val redeemThreshold: Int,
+    val capturedAt: String,
+)
+
 @Serializable
 data class CreateCharacterRequest(
     val name: String,
