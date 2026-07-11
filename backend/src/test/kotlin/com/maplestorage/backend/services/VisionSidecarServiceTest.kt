@@ -1,0 +1,186 @@
+package com.maplestorage.backend.services
+
+import io.ktor.client.HttpClient
+import io.ktor.client.engine.mock.MockEngine
+import io.ktor.client.engine.mock.respond
+import io.ktor.client.engine.mock.respondError
+import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
+import io.ktor.http.ContentType
+import io.ktor.http.HttpStatusCode
+import io.ktor.http.headersOf
+import io.ktor.serialization.kotlinx.json.json
+import io.ktor.utils.io.errors.IOException
+import kotlinx.coroutines.test.runTest
+import kotlinx.serialization.json.Json
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertIs
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
+
+// Exercises the wire contract the Python sidecar actually serves (vision/app/main.py).
+// The response bodies below are copied from its real output, not invented.
+class VisionSidecarServiceTest {
+    private fun service(handler: MockEngine.Companion.() -> MockEngine): VisionSidecarService {
+        val engine = MockEngine.handler()
+        val client =
+            HttpClient(engine) {
+                install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
+            }
+        return VisionSidecarService(client, "http://127.0.0.1:8000")
+    }
+
+    private fun ok(body: String) =
+        service {
+            MockEngine {
+                respond(body, HttpStatusCode.OK, headersOf("Content-Type", ContentType.Application.Json.toString()))
+            }
+        }
+
+    @Test
+    fun `parses an inventory screenshot into tokens and hud`() =
+        runTest {
+            val outcome =
+                ok(
+                    """
+                    {"screenshotType":"INVENTORY",
+                     "characterHud":{"name":"acornacorn","level":287},
+                     "tokenCounts":[
+                       {"tokenName":"kalos-token","quantity":21,"needsReview":false,"iconScore":0.964},
+                       {"tokenName":"distorted-ambition","quantity":10,"needsReview":false,"iconScore":0.606}]}
+                    """.trimIndent(),
+                ).parseScreenshot(ByteArray(8), "image/jpeg")
+
+            val parsed = assertIs<ClaudeVisionOutcome.Parsed>(outcome)
+            assertEquals(ScreenshotType.INVENTORY, parsed.result.screenshotType)
+            assertEquals(CharacterHud("acornacorn", 287), parsed.result.characterHud)
+            assertEquals(
+                listOf(DetectedToken("kalos-token", 21), DetectedToken("distorted-ambition", 10)),
+                parsed.result.tokenCounts,
+            )
+        }
+
+    // The parse is deterministic, so cost accounting must land at zero rather
+    // than at whatever the last vision call happened to cost.
+    @Test
+    fun `reports zero tokens because no model is called`() =
+        runTest {
+            val outcome =
+                ok("""{"screenshotType":"INVENTORY","characterHud":null,"tokenCounts":[]}""")
+                    .parseScreenshot(ByteArray(8), "image/png")
+
+            val parsed = assertIs<ClaudeVisionOutcome.Parsed>(outcome)
+            assertEquals(0, parsed.inputTokens)
+            assertEquals(0, parsed.outputTokens)
+        }
+
+    // A cropped upload has no HUD in frame. Null, not an error -- ingestion
+    // already routes that to NEEDS_REVIEW.
+    @Test
+    fun `a missing hud is null, not a failure`() =
+        runTest {
+            val outcome =
+                ok(
+                    """
+                    {"screenshotType":"INVENTORY","characterHud":null,
+                     "tokenCounts":[{"tokenName":"kalos-token","quantity":19,
+                                     "needsReview":false,"iconScore":0.77}]}
+                    """.trimIndent(),
+                ).parseScreenshot(ByteArray(8), "image/png")
+
+            val parsed = assertIs<ClaudeVisionOutcome.Parsed>(outcome)
+            assertNull(parsed.result.characterHud)
+            assertEquals(1, parsed.result.tokenCounts?.size)
+        }
+
+    @Test
+    fun `a non-inventory upload is UNRECOGNIZED, not a failure`() =
+        runTest {
+            val outcome =
+                ok("""{"screenshotType":"UNRECOGNIZED","characterHud":null,"tokenCounts":null}""")
+                    .parseScreenshot(ByteArray(8), "image/png")
+
+            val parsed = assertIs<ClaudeVisionOutcome.Parsed>(outcome)
+            assertEquals(ScreenshotType.UNRECOGNIZED, parsed.result.screenshotType)
+            assertNull(parsed.result.tokenCounts)
+        }
+
+    // The sidecar refuses a downscaled screenshot rather than returning a
+    // plausible wrong count. Its message is written for the user, so it must
+    // reach them intact instead of being flattened to a generic failure.
+    @Test
+    fun `a downscaled screenshot fails with the sidecar's own explanation`() =
+        runTest {
+            val outcome =
+                service {
+                    MockEngine {
+                        respond(
+                            """
+                            {"detail":"screenshot was downscaled; the stack-count font is no
+                             longer legible. Upload at original resolution."}
+                            """.trimIndent(),
+                            HttpStatusCode.UnprocessableEntity,
+                            headersOf("Content-Type", ContentType.Application.Json.toString()),
+                        )
+                    }
+                }.parseScreenshot(ByteArray(8), "image/jpeg")
+
+            val failed = assertIs<ClaudeVisionOutcome.Failed>(outcome)
+            assertTrue(failed.reason.contains("original resolution"), failed.reason)
+        }
+
+    @Test
+    fun `an undecodable file fails`() =
+        runTest {
+            val outcome =
+                service { MockEngine { respondError(HttpStatusCode.BadRequest) } }
+                    .parseScreenshot(ByteArray(8), "image/png")
+
+            assertIs<ClaudeVisionOutcome.Failed>(outcome)
+        }
+
+    // A sidecar that is down is an infrastructure fault, not a bad screenshot:
+    // it must not throw out of parseScreenshot, and the user must be able to
+    // retry the same upload.
+    @Test
+    fun `an unreachable sidecar fails without throwing`() =
+        runTest {
+            val outcome =
+                service { MockEngine { throw IOException("connection refused") } }
+                    .parseScreenshot(ByteArray(8), "image/png")
+
+            val failed = assertIs<ClaudeVisionOutcome.Failed>(outcome)
+            assertTrue(failed.reason.contains("temporarily unavailable"), failed.reason)
+        }
+
+    // Contract test against a response captured from the *live* sidecar
+    // (vision/), not hand-written JSON. If the Python service changes its wire
+    // format, this fails here rather than in production.
+    @Test
+    fun `decodes a response captured from the running sidecar`() =
+        runTest {
+            val golden =
+                requireNotNull(javaClass.getResourceAsStream("/sidecar-inventory-response.json")) {
+                    "golden sidecar response missing from test resources"
+                }.readBytes().decodeToString()
+
+            val outcome =
+                ok(golden).parseScreenshot(ByteArray(8), "image/png")
+
+            val parsed = assertIs<ClaudeVisionOutcome.Parsed>(outcome)
+            assertEquals(ScreenshotType.INVENTORY, parsed.result.screenshotType)
+            assertEquals(CharacterHud("acornacorn", 287), parsed.result.characterHud)
+            // The five tokens visible in reference-images/untradeables sample.png,
+            // read off the screenshot by eye.
+            assertEquals(
+                mapOf(
+                    "blissful-fantasy-shard" to 6,
+                    "distorted-ambition" to 10,
+                    "echo-ancient-resolve" to 6,
+                    "ferocious-beast-ring" to 9,
+                    "kalos-token" to 21,
+                ),
+                parsed.result.tokenCounts?.associate { it.tokenName to it.quantity },
+            )
+        }
+}
