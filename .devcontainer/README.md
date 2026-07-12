@@ -4,6 +4,44 @@ Open the repo in VS Code and reopen in the container. `post-create.sh` installs
 pre-commit, pins the JDK, bootstraps the Gradle wrapper, and warns you if the workspace
 is in the wrong place — which brings us to the one thing that matters most.
 
+## Starting from a fresh clone (a new machine)
+
+The repo is the whole story **except two files**, which are gitignored because they hold
+secrets. Git will never bring them, so a clone that skips this step builds fine and then
+401s every request, with nothing saying why.
+
+```bash
+git clone https://github.com/jonathan-nam/maplestorage.git
+cd maplestorage
+
+cp backend/.env.example        backend/.env
+cp frontend/.env.local.example frontend/.env.local
+```
+
+Then fill in the Clerk values — **three, all from one page** of the Clerk dashboard
+(*your instance → API keys*):
+
+| file | key | what it is |
+| --- | --- | --- |
+| `backend/.env` | `CLERK_JWKS_URL` | the JWKS endpoint the backend verifies tokens against |
+| `frontend/.env.local` | `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | public, safe in the browser |
+| `frontend/.env.local` | `CLERK_SECRET_KEY` | server-side only |
+
+Everything else in those files already works as-is against the local stack.
+
+Then open in VS Code, **Reopen in Container**, and:
+
+```bash
+./scripts/smoke.sh     # brings the whole stack up and checks it end to end (7 checks)
+```
+
+On Windows, do the clone **inside WSL** (`~/projects/…`), not on the `C:` drive — see the
+next section for why that is not a preference.
+
+**You do not need an Anthropic API key.** The `.env.example` used to ask for one;
+screenshots are parsed by the local OpenCV service in `vision/`, so no model is called and
+nothing is metered.
+
 ## Keep the repo on the Linux filesystem, not the Windows drive
 
 **Do this once. It is the highest-leverage change available to this environment.**
