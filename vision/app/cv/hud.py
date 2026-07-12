@@ -66,7 +66,28 @@ class Hud:
     score: float
 
 
+# Tesseract is trained on scanned text at ~300dpi. The HUD line is about 24px tall at
+# native scale, which is far below what it expects, and at that size "rn" simply does
+# not have the pixels to stay distinct from "m". A real upload came back as
+# `acornacorm` and the app created a character by that name.
+#
+# Upscaling the crop before OCR fixes it outright. Measured on the reference screenshot
+# rendered at every capture scale we support:
+#
+#     crop as-is (24px)   1.25x capture -> "acornacom"   WRONG
+#     crop at 64px        every scale   -> "acornacorn"  correct
+#
+# This is not a tweak that happened to help. The failure only appears where the line is
+# small, and it disappears at every scale once the line is big enough to read.
+TARGET_LINE_HEIGHT = 64
+
+
 def _tesseract(img: np.ndarray) -> str:
+    k = TARGET_LINE_HEIGHT / img.shape[0]
+    if k > 1.0:
+        # CUBIC, not LANCZOS: on text this size LANCZOS rings around the strokes.
+        img = cv2.resize(img, None, fx=k, fy=k, interpolation=cv2.INTER_CUBIC)
+
     with tempfile.NamedTemporaryFile(suffix=".png") as f:
         cv2.imwrite(f.name, img)
         out = subprocess.run(

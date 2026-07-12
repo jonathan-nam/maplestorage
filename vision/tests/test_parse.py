@@ -10,7 +10,8 @@ import numpy as np
 import pytest
 from fastapi.testclient import TestClient
 
-from app.cv.hud import HUD_RE
+from app.cv.grid import NATIVE_PITCH, find_grid
+from app.cv.hud import HUD_RE, find_hud
 from app.main import app
 
 client = TestClient(app)
@@ -224,3 +225,31 @@ def test_hud_name_stops_at_the_ign_charset(text, level, name):
     assert m is not None, text
     assert int(m.group(1)) == level
     assert m.group(2) == name
+
+
+# The HUD must survive being read at a range of scales, not just at native.
+#
+# Regression: the HUD line is ~24px tall at native scale -- far below what Tesseract
+# expects -- and at that size "rn" has too few pixels to stay distinct from "m". A real
+# upload read `acornacorm`, and the app created a character by that name, with no level,
+# job or sprite, because Nexon has never heard of them.
+#
+# Tested against find_hud directly rather than through /parse, because /parse rightly
+# rejects fractional-scale captures outright (the stack counts are unreadable there, see
+# counts_trustworthy). The HUD reader still has to be robust at those scales: it is
+# reached on the native and integer-scaled captures we DO accept, and the failure mode
+# is a function of how few pixels the text has, not of which caller asked.
+@pytest.mark.parametrize("capture_scale", [1.0, 1.1, 1.25, 1.5, 2.0])
+def test_hud_reads_at_every_capture_scale(capture_scale):
+    img = cv2.imread(f"{REF}/untradeables sample.png")
+    if capture_scale != 1.0:
+        img = cv2.resize(
+            img, None, fx=capture_scale, fy=capture_scale, interpolation=cv2.INTER_CUBIC
+        )
+
+    g = find_grid(img)
+    hud = find_hud(img, scale=g.pitch / NATIVE_PITCH)
+
+    assert hud is not None, f"no HUD found at {capture_scale}x"
+    assert hud.name == "acornacorn", f"misread at {capture_scale}x: {hud.name!r}"
+    assert hud.level == 287
