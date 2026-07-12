@@ -45,6 +45,13 @@ object TokenCatalog : Table("token_catalog") {
     // referenceable IDs across re-seeds.
     val id = uuid("id")
     val name = text("name").uniqueIndex()
+
+    // The key the screenshot parser identifies this token by (it is the name of
+    // the template file in vision/app/cv/templates/). Deliberately separate from
+    // `name`: that is prose for humans and can be reworded, this is an
+    // identifier and must not change without renaming the template too.
+    val visionKey = text("vision_key").uniqueIndex()
+
     val sourceBossName = text("source_boss_name").nullable()
     val slotGroup = array<String>("slot_group").nullable()
     val redeemThreshold = integer("redeem_threshold").default(DEFAULT_REDEEM_THRESHOLD)
