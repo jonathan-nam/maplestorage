@@ -643,3 +643,71 @@ a:hover {
     overflow-x: auto;
   }
 }
+
+/* ---------------------------------------------------------------------------
+   Character carousel
+
+   Sits above the inventory and decides whose inventory is shown. Arrows are
+   disabled at the ends rather than hidden, so the strip keeps its width as you
+   page through it.
+   --------------------------------------------------------------------------- */
+
+.carousel {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+  margin: 16px 0;
+}
+
+.carousel-track {
+  display: flex;
+  flex: 1;
+  gap: 16px;
+  overflow-x: auto;
+  scroll-snap-type: x proximity;
+  scrollbar-width: none;
+}
+
+.carousel-track::-webkit-scrollbar {
+  display: none;
+}
+
+.carousel-track .char-tile {
+  flex: 0 0 auto;
+  scroll-snap-align: start;
+}
+
+.char-tile.selected {
+  border-color: #ccc;
+  background: #1a1a1a;
+}
+
+.carousel-arrow {
+  flex: 0 0 auto;
+  width: 28px;
+  border: 1px solid #3a3a3a;
+  background: transparent;
+  color: #ddd;
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.carousel-arrow:hover:not(:disabled) {
+  border-color: #666;
+  color: #fff;
+}
+
+.carousel-arrow:disabled {
+  color: #444;
+  cursor: default;
+}
+
+/* The aggregate sits at the head of the strip and has no sprite of its own. */
+.all-sprite {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #777;
+  font-size: 28px;
+}
