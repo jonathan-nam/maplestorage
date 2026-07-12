@@ -1,19 +1,77 @@
 # Dev container
 
-Open the repo in VS Code and reopen in the container. `post-create.sh` installs
-pre-commit, pins the JDK, bootstraps the Gradle wrapper, and warns you if the workspace
-is in the wrong place — which brings us to the one thing that matters most.
+Everything — JDK, Node, Python, Terraform, the AWS CLI — lives in the container. Nothing is
+installed on your machine except Docker and VS Code.
 
-## Starting from a fresh clone (a new machine)
+## Bootstrapping a brand-new machine
+
+**Follow this order.** Each step depends on the one before, and skipping ahead produces
+errors that look like something else entirely. Every trap called out below is one we
+actually hit.
+
+### 1. Install the two things that are not in the container
+
+- **Docker Desktop** — <https://docker.com/products/docker-desktop>
+- **VS Code** — <https://code.visualstudio.com>, plus the **Dev Containers** extension
+  (`ms-vscode-remote.remote-containers`). On Windows, also install **WSL**
+  (`ms-vscode-remote.remote-wsl`).
+
+### 2. Windows only: get a real Linux distro
+
+macOS and Linux can skip to step 3.
+
+```powershell
+wsl --install -d Ubuntu       # then set a username and password
+wsl --set-default Ubuntu      # so a bare `wsl` opens Ubuntu, not Docker's VM
+```
+
+> **Trap.** Docker Desktop installs its own `docker-desktop` distro, which is Alpine and
+> is *not* a place to work. Without `--set-default`, a bare `wsl` lands you in it — where
+> the Windows drives are not mounted the way you expect (so `find /mnt/c/...` silently
+> returns nothing) and VS Code fails asking you to `apk add libstdc++`. **That prompt is
+> the tell that you are in the wrong shell.** Never install anything into it.
+
+Give the WSL VM some headroom by creating `%UserProfile%\.wslconfig`:
+
+```ini
+[wsl2]
+memory=10GB                 # tune to your RAM; leave the host plenty
+swap=8GB                    # without swap, a spike wedges the VM instead of slowing down
+autoMemoryReclaim=gradual
+```
+
+Then `wsl --shutdown` from PowerShell for it to take. Skipping this is how the container
+freezes hard enough that Docker Desktop's stop button stops responding.
+
+### 3. Windows only: let WSL talk to Docker
+
+**Docker Desktop → Settings → Resources → WSL Integration → enable `Ubuntu` → Apply &
+Restart.**
+
+> **Trap.** This is not optional. With the project in WSL, VS Code runs Docker *from inside
+> WSL*, so **"Reopen in Container" simply fails without it** — and the error does not
+> mention this setting.
+
+### 4. Clone — on Windows, into WSL, never onto `C:`
+
+```bash
+mkdir -p ~/projects && cd ~/projects
+git clone https://github.com/jonathan-nam/maplestorage.git
+cd maplestorage
+```
+
+> **Trap.** If the repo sits on the Windows `C:` drive, WSL reaches it over 9p, which has no
+> **inotify**. Hot reload then *cannot* work — the dev server silently serves stale code —
+> and every file operation is ~18× slower. See *Keep the repo on the Linux filesystem*
+> below. `post-create.sh` will warn you if you get this wrong.
+
+### 5. Secrets — the two files git will never bring you
 
 The repo is the whole story **except two files**, which are gitignored because they hold
 secrets. Git will never bring them, so a clone that skips this step builds fine and then
 401s every request, with nothing saying why.
 
 ```bash
-git clone https://github.com/jonathan-nam/maplestorage.git
-cd maplestorage
-
 cp backend/.env.example        backend/.env
 cp frontend/.env.local.example frontend/.env.local
 ```
@@ -29,20 +87,32 @@ Then fill in the Clerk values — **three, all from one page** of the Clerk dash
 
 Everything else in those files already works as-is against the local stack.
 
-Then open in VS Code, **Reopen in Container**, and:
-
-```bash
-./scripts/smoke.sh     # brings the whole stack up and checks it end to end (7 checks)
-```
-
-On Windows, do the clone **inside WSL** (`~/projects/…`), not on the `C:` drive — see the
-next section for why that is not a preference.
+> **Trap.** A wrong `CLERK_JWKS_URL` does not fail loudly. The backend boots happily and
+> then 401s every request — and the UI reports that as *"Upload failed, check your
+> connection"*, which sends you to look at your network. **If everything 401s, suspect this
+> first.**
 
 **You do not need an Anthropic API key.** The `.env.example` used to ask for one;
 screenshots are parsed by the local OpenCV service in `vision/`, so no model is called and
 nothing is metered.
 
-### Signing in to GitHub and AWS on a new machine
+### 6. Open in the container
+
+VS Code → **Reopen in Container** (on Windows, first connect to WSL: `Ctrl+Shift+P` →
+*WSL: Connect to WSL using Distro…* → Ubuntu, then open `~/projects/maplestorage`).
+
+The first build takes a few minutes. When it finishes, `post-create.sh` prints:
+
+```
+Workspace filesystem: ext4 -- file watching works.
+```
+
+If it prints a 9p warning instead, go back to step 4.
+
+> **Trap.** `code .` from WSL may fail with `Code.exe: Exec format error` if WSL interop is
+> disabled. You do not need it — open the folder from VS Code as above.
+
+### 7. Sign in to GitHub and AWS
 
 Neither is in the repo, and neither should be. Inside the container, once per machine:
 
@@ -62,14 +132,32 @@ every machine at once. AWS allows two active keys per user for this reason. Make
 one in the IAM console, and then revoking a lost laptop is one click that does not touch
 anything else.
 
-### Do not copy `.env` files between machines
+**Do not copy `.env` files between machines.** They hold your Clerk secret key. Do not send
+them over Slack, email, or a shared drive — re-fetch the three values from the Clerk
+dashboard, which takes half a minute and leaves no copy lying around. A password manager is
+fine if you want them saved. Same reasoning for `infra/backend.hcl`: it is gitignored
+because it embeds the AWS account ID, and this repo is public.
 
-They hold your Clerk secret key. Do not send them over Slack, email, or a shared drive —
-re-fetch the three values from the Clerk dashboard, which takes half a minute and leaves no
-copy lying around. A password manager is fine if you want them saved.
+### 8. Prove it works
 
-Same reasoning for `infra/backend.hcl`: it is gitignored because it embeds the AWS account
-ID, and this repo is public.
+```bash
+./scripts/smoke.sh
+```
+
+This brings the whole stack up — Postgres, the vision service, the backend — runs the
+migrations, parses a real screenshot, and checks the counts that come back. **7/7 means the
+environment is genuinely working, not just that the files are in place.** It is a much
+stronger answer than "it built".
+
+Then the day-to-day:
+
+```bash
+cd backend  && ./gradlew test     # 30 tests, against real Postgres
+cd vision   && pytest tests/      # 37 tests, against the real screenshot corpus
+cd frontend && npm run dev        # http://localhost:3000
+```
+
+---
 
 ## Keep the repo on the Linux filesystem, not the Windows drive
 
