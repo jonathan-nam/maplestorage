@@ -20,6 +20,14 @@ fun Application.configureCors() {
         allowMethod(HttpMethod.Delete)
         allowHeader(HttpHeaders.Authorization)
         allowHeader(HttpHeaders.ContentType)
+
+        // Server-Timing is cross-origin here (the frontend is a separate deployable),
+        // and a response header the browser will happily *display* in DevTools but not
+        // hand to JavaScript unless it is explicitly exposed. Without this, lib/timing.ts
+        // reads null and the frontend can only time the round trip, not see the split
+        // between our own work and the network.
+        exposeHeader("Server-Timing")
+
         allowHost(
             Env.frontendOrigin.removePrefix("https://").removePrefix("http://"),
             schemes = listOf("http", "https"),

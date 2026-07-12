@@ -5,6 +5,7 @@ import com.maplestorage.backend.db.Characters
 import com.maplestorage.backend.db.TokenCatalog
 import com.maplestorage.backend.plugins.parseUuidParam
 import com.maplestorage.backend.plugins.principalIdAndEmail
+import com.maplestorage.backend.plugins.span
 import com.maplestorage.backend.services.NexonLookupService
 import com.maplestorage.backend.users.ensureUser
 import io.ktor.http.HttpStatusCode
@@ -46,7 +47,7 @@ private suspend fun RoutingContext.createCharacter(nexonLookupService: NexonLook
         return
     }
 
-    val lookup = nexonLookupService.lookup(request.name)
+    val lookup = call.span("nexon") { nexonLookupService.lookup(request.name) }
     val now = Clock.System.now()
     val newId = Uuid.random()
 
@@ -129,7 +130,7 @@ private suspend fun RoutingContext.refreshCharacter(nexonLookupService: NexonLoo
         return
     }
 
-    val lookup = nexonLookupService.lookup(existingName)
+    val lookup = call.span("nexon") { nexonLookupService.lookup(existingName) }
     val refreshed =
         transaction {
             // A transient lookup failure leaves existing level/job/sprite

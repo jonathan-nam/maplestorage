@@ -1,3 +1,5 @@
+import { record, serverTimeFromHeader } from "./timing";
+
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
 
 // For public, unauthenticated assets (token icons) that don't go through
@@ -30,7 +32,14 @@ export async function apiFetch<T>(
     throw new Error("NEXT_PUBLIC_API_BASE_URL is not set");
   }
 
+  // getToken() is timed separately from the fetch on purpose. It happens BEFORE the
+  // request goes out, so whatever it costs is latency the user waits through on every
+  // single call -- and it was completely invisible until we measured it.
+  const startedAt = performance.now();
   const token = await getToken();
+  const authMs = performance.now() - startedAt;
+
+  const fetchedAt = performance.now();
   const response = await fetch(`${API_BASE_URL}${path}`, {
     ...options,
     headers: {
@@ -38,6 +47,16 @@ export async function apiFetch<T>(
       Authorization: `Bearer ${token}`,
       ...options.headers,
     },
+  });
+  const roundTripMs = performance.now() - fetchedAt;
+
+  const serverMs = serverTimeFromHeader(response);
+  record({
+    label: `${options.method ?? "GET"} ${path}`,
+    totalMs: performance.now() - startedAt,
+    authMs,
+    serverMs,
+    netMs: serverMs === undefined ? undefined : roundTripMs - serverMs,
   });
 
   if (!response.ok) {

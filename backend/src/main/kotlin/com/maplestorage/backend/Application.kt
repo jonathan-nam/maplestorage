@@ -6,6 +6,7 @@ import com.maplestorage.backend.plugins.configureDatabase
 import com.maplestorage.backend.plugins.configureRouting
 import com.maplestorage.backend.plugins.configureSecurity
 import com.maplestorage.backend.plugins.configureSerialization
+import com.maplestorage.backend.plugins.configureTiming
 import com.maplestorage.backend.services.NexonLookupService
 import com.maplestorage.backend.services.VisionServiceClient
 import com.maplestorage.backend.services.createNexonHttpClient
@@ -21,6 +22,7 @@ fun main() {
 }
 
 fun Application.module() {
+    configureTiming()
     configureSerialization()
     configureCors()
     configureSecurity()

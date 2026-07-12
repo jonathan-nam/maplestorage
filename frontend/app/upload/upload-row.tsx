@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { apiAssetUrl, apiFetch } from "@/lib/api";
+import { invalidate } from "@/lib/cache";
 import { compressImage } from "@/lib/compress-image";
 import type { Character } from "@/types/character";
 import type { ScreenshotResult } from "@/types/screenshot";
@@ -59,6 +60,9 @@ export function UploadRow({
         if (!cancelled) {
           setResult(res);
           setPhase("resolved");
+          // A MATCHED upload wrote token counts. Anything cached from before it is
+          // now stale, and a stale total is a wrong number that looks right.
+          if (res.outcome === "MATCHED") invalidate("/api/");
         }
       } catch {
         if (!cancelled) {
@@ -84,6 +88,7 @@ export function UploadRow({
       );
       setPostAction({ resolvedTo: characterName });
       setPickerOpen(false);
+      invalidate("/api/"); // resolving writes the counts too
     } finally {
       setBusy(false);
     }
