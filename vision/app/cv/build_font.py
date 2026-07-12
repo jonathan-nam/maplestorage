@@ -106,13 +106,22 @@ def main():
         tile = cv2.cvtColor(cv2.bitwise_and(grey, mask), cv2.COLOR_GRAY2BGR)
         tile = cv2.resize(tile, (box[2] * 12, box[3] * 12), interpolation=cv2.INTER_NEAREST)
         tile = cv2.copyMakeBorder(tile, 2, 22, 2, 2, cv2.BORDER_CONSTANT, value=(0, 90, 0))
-        cv2.putText(tile, digit, (4, tile.shape[0] - 6), cv2.FONT_HERSHEY_PLAIN, 1.0,
-                    (255, 255, 255), 1)
+        cv2.putText(
+            tile,
+            digit,
+            (4, tile.shape[0] - 6),
+            cv2.FONT_HERSHEY_PLAIN,
+            1.0,
+            (255, 255, 255),
+            1,
+        )
         sheet.append(tile)
 
     h = max(t.shape[0] for t in sheet)
-    sheet = [cv2.copyMakeBorder(t, 0, h - t.shape[0], 0, 0, cv2.BORDER_CONSTANT,
-                                value=(0, 90, 0)) for t in sheet]
+    sheet = [
+        cv2.copyMakeBorder(t, 0, h - t.shape[0], 0, 0, cv2.BORDER_CONSTANT, value=(0, 90, 0))
+        for t in sheet
+    ]
     cv2.imwrite("out/font_sheet.png", cv2.hconcat(sheet))
 
 

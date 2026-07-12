@@ -35,7 +35,7 @@ def icon_mask(cell: np.ndarray) -> np.ndarray:
     hsv = cv2.cvtColor(cell, cv2.COLOR_BGR2HSV)
 
     # Background = flat, unsaturated grey. Everything else is icon art.
-    background = ((grey >= BG_LO) & (grey <= BG_HI) & (hsv[:, :, 1] < 40))
+    background = (grey >= BG_LO) & (grey <= BG_HI) & (hsv[:, :, 1] < 40)
     mask = (~background).astype(np.uint8) * 255
 
     y0, y1, x0, x1 = DIGIT_ZONE
@@ -70,7 +70,9 @@ def main():
         mask = icon_mask(cell)
         rgba = cv2.merge([*cv2.split(cell), mask])
         cv2.imwrite(f"templates/token-{h.token}.png", rgba)
-        print(f"  {h.token:24s} r{h.row}c{h.col}  mask covers {(mask > 0).mean() * 100:4.1f}% of slot")
+        print(
+            f"  {h.token:24s} r{h.row}c{h.col}  mask covers {(mask > 0).mean() * 100:4.1f}% of slot"
+        )
     return 0
 
 

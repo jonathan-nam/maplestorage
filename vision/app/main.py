@@ -23,14 +23,12 @@ import numpy as np
 from fastapi import FastAPI, HTTPException, Request
 from pydantic import BaseModel
 
-from app.cv.grid import find_grid
+from app.cv.classify import classify
+from app.cv.grid import NATIVE_PITCH, find_grid
 from app.cv.hud import find_hud
 from app.cv.match import load_templates
-from app.cv.ocr import load_font
-from app.cv.grid import NATIVE_PITCH
+from app.cv.ocr import load_font, read_count
 from app.cv.pipeline import counts_trustworthy, normalize
-from app.cv.classify import classify
-from app.cv.ocr import read_count
 
 log = logging.getLogger("vision")
 

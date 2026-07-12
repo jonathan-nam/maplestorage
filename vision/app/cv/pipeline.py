@@ -13,7 +13,7 @@ import sys
 
 import cv2
 
-from .grid import NATIVE_PITCH, find_grid, draw
+from .grid import NATIVE_PITCH, draw, find_grid
 from .match import find_tokens, load_templates
 from .ocr import load_font, read_count
 
@@ -119,8 +119,15 @@ def main():
             r, c = d["slot"]
             x, y, w, h = g.cell(r, c)
             cv2.rectangle(vis, (x, y), (x + w, y + h), (0, 0, 255), 2)
-            cv2.putText(vis, f'{name[:6]}={d["count"]}', (x - 10, y - 4),
-                        cv2.FONT_HERSHEY_PLAIN, 0.9, (0, 0, 255), 1)
+            cv2.putText(
+                vis,
+                f"{name[:6]}={d['count']}",
+                (x - 10, y - 4),
+                cv2.FONT_HERSHEY_PLAIN,
+                0.9,
+                (0, 0, 255),
+                1,
+            )
         cv2.imwrite("out/pipeline.png", vis)
         print("\nwrote out/pipeline.png")
     return 0

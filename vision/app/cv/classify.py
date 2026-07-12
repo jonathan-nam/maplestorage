@@ -75,7 +75,7 @@ def background(cells: dict) -> np.ndarray:
 
 
 def descriptor(cell: np.ndarray, bg: np.ndarray) -> np.ndarray:
-    d = ((cell.astype(np.float32) - bg).mean(axis=2) * _KEEP)
+    d = (cell.astype(np.float32) - bg).mean(axis=2) * _KEEP
     d = cv2.resize(d, (DESC, DESC), interpolation=cv2.INTER_AREA).ravel()
     d -= d.mean()
     n = np.linalg.norm(d)
@@ -130,7 +130,7 @@ def classify(img: np.ndarray, g: Grid, templates: dict) -> list[SlotItem]:
         return []
 
     D = np.stack([descriptor(cells[k], bg) for k in keys])
-    scores = D @ cat.T                       # (slots x catalog) -- one matmul
+    scores = D @ cat.T  # (slots x catalog) -- one matmul
     order = np.argsort(scores, axis=1)[:, ::-1][:, :TOP_K]
 
     found = []

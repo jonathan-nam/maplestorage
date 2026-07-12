@@ -27,6 +27,13 @@ repos:
         files: ^frontend/.*\.(ts|tsx|js|jsx)$
         pass_filenames: false
 
+      - id: ruff
+        name: ruff (vision)
+        entry: bash -c 'cd vision && ruff check . && ruff format --check .'
+        language: system
+        files: ^vision/.*\.py$
+        pass_filenames: false
+
       - id: terraform-fmt-validate
         name: terraform fmt + validate (infra)
         entry: bash -c 'cd infra && terraform fmt -check -recursive && terraform validate'

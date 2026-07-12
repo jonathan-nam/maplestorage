@@ -10,15 +10,15 @@ the one cell it could occupy, and keep the best masked correlation.
 
 import glob
 import os
-from pathlib import Path
-
-TEMPLATE_DIR = Path(__file__).parent / "templates"
 from dataclasses import dataclass
+from pathlib import Path
 
 import cv2
 import numpy as np
 
 from .grid import COLS, NATIVE_PITCH, ROWS, Grid
+
+TEMPLATE_DIR = Path(__file__).parent / "templates"
 
 # Correlation below this is not the token. Chosen from the score histogram: real
 # tokens land at 0.6-0.95, the best non-token slot in our samples reaches ~0.35.

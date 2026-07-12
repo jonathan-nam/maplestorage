@@ -11,6 +11,18 @@ set -euo pipefail
 pip install --user --break-system-packages pre-commit
 pre-commit install
 
+# ruff backs the vision pre-commit hook, so it has to exist before anyone commits
+# Python -- otherwise the hook fails on a fresh container with a confusing
+# "ruff: command not found" rather than a lint error. pytest and httpx come along
+# because vision/README.md tells you to run the tests and, until now, never
+# installed anything you needed to.
+pip install --user --break-system-packages -r vision/requirements-dev.txt
+
+# tflint needs its AWS ruleset downloaded before it can lint anything. Without this
+# the pre-commit hook fails on a fresh container with "Plugin aws not found" -- which
+# reads like a broken hook rather than a missing one-time setup step.
+(cd infra && tflint --init >/dev/null) || echo "tflint --init failed; run it by hand in infra/"
+
 # The claude-code feature installs as root at image-build time, so npm's global
 # @anthropic-ai/ dir ends up root-owned. npm updates a package by renaming that
 # dir, so `claude update` fails with EACCES for the (non-root) remote user.

@@ -50,13 +50,19 @@
   },
   "customizations": {
     "vscode": {
+      // "detekt.detekt-vscode" used to be listed here. No such extension exists in
+      // the marketplace, so every container build was silently failing to install it
+      // and nobody noticed. detekt still runs, via Gradle, in the pre-commit hook.
+      //
+      // ms-python.python + pylance are deliberately absent: VS Code syncs personal
+      // extensions in anyway, and pinning them here would also pin their weight on
+      // people who never open vision/.
       "extensions": [
         "fwcd.kotlin",
         "esbenp.prettier-vscode",
         "dbaeumer.vscode-eslint",
         "hashicorp.terraform",
-        "editorconfig.editorconfig",
-        "detekt.detekt-vscode"
+        "editorconfig.editorconfig"
       ],
       "settings": {
         "editor.formatOnSave": true,
