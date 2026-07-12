@@ -44,6 +44,23 @@
   // Everything else -- Gradle daemons, language servers, the vision service on 8000 --
   // is reachable but not worth a row in the panel. Forward it by hand if you need it.
   "otherPortsAttributes": { "onAutoForward": "ignore" },
+  // The container's home directory does not survive a rebuild, so credentials stored in
+  // it did not either -- `aws configure` and `gh auth login` had to be re-run every time,
+  // which is the kind of chore you only notice when it blocks something urgent.
+  //
+  // Bind them from the host instead. They are the user's credentials, not the project's:
+  // they belong to the machine, and the container should borrow them rather than keep its
+  // own copy. (VS Code already forwards .gitconfig and SSH agent by itself.)
+  //
+  // initializeCommand runs on the HOST before the container is created. Without it, a bind
+  // mount whose source does not exist fails the whole container build -- which is a
+  // spectacular way to break a fresh clone for someone who has never used the AWS CLI.
+  "initializeCommand": "mkdir -p ${localEnv:HOME}/.aws ${localEnv:HOME}/.config/gh",
+  "mounts": [
+    "source=${localEnv:HOME}/.aws,target=/home/vscode/.aws,type=bind,consistency=cached",
+    "source=${localEnv:HOME}/.config/gh,target=/home/vscode/.config/gh,type=bind,consistency=cached"
+  ],
+
   "postCreateCommand": "bash .devcontainer/post-create.sh",
   "containerEnv": {
     "CLAUDE_CODE_IDE_SKIP_AUTO_INSTALL": "1"
