@@ -43,58 +43,91 @@ a:hover {
   margin-top: 16px;
 }
 
+/* No frame, no plate, no box around the sprite. The character IS the sprite --
+   everything else is a caption under it, so nothing competes with it for
+   attention. Selection is shown by lifting the name to white, not by drawing
+   another rectangle. */
 .char-tile {
-  width: 190px;
-  border: 1px solid #3a3a3a;
-  padding: 10px;
+  width: 150px;
+  padding: 4px;
   display: flex;
   flex-direction: column;
   align-items: center;
   text-align: center;
   cursor: pointer;
+  opacity: 0.65;
+  transition:
+    opacity 0.12s ease,
+    transform 0.12s ease;
 }
 
 .char-tile:hover {
-  border-color: #666;
+  opacity: 1;
+}
+
+.char-tile.selected {
+  opacity: 1;
 }
 
 .tile-sprite {
-  width: 72px;
-  height: 72px;
+  width: 116px;
+  height: 116px;
   object-fit: contain;
+  object-position: center bottom;
   image-rendering: pixelated;
-  background: #1a1a1a;
-  border: 1px solid #3a3a3a;
+}
+
+.char-tile.selected .tile-sprite {
+  transform: scale(1.06);
 }
 
 .tile-plate {
-  margin-top: 8px;
-  border: 1px solid #3a3a3a;
-  padding: 4px 8px;
-  width: 100%;
+  margin-top: 6px;
+  line-height: 1.3;
 }
 
 .tile-name {
-  font-weight: bold;
+  font-weight: 700;
+  color: #bbb;
+}
+
+.char-tile.selected .tile-name {
+  color: #fff;
 }
 
 .tile-level {
-  color: #999;
+  color: #777;
   margin-left: 6px;
+  font-variant-numeric: tabular-nums;
 }
 
 .tile-job {
-  color: #999;
+  color: #777;
   font-size: 12px;
-  margin-top: 2px;
+  margin-top: 1px;
 }
 
+/* Management actions are not what this strip is for. They stay out of the way
+   until you're actually on the tile. */
 .tile-actions {
   margin-top: 6px;
+  min-height: 18px;
+  visibility: hidden;
+}
+
+.char-tile:hover .tile-actions,
+.char-tile.selected .tile-actions {
+  visibility: visible;
 }
 
 .tile-actions a {
   margin: 0 4px;
+  color: #777;
+  font-size: 11px;
+}
+
+.tile-actions a:hover {
+  color: #fff;
 }
 
 .char-detail-header {
@@ -677,11 +710,6 @@ a:hover {
   scroll-snap-align: start;
 }
 
-.char-tile.selected {
-  border-color: #ccc;
-  background: #1a1a1a;
-}
-
 .carousel-arrow {
   flex: 0 0 auto;
   width: 28px;
@@ -708,6 +736,16 @@ a:hover {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #777;
-  font-size: 28px;
+  color: #555;
+  font-size: 44px;
+  line-height: 1;
+}
+
+.char-tile.selected .all-sprite {
+  color: #999;
+}
+
+.carousel-arrow {
+  align-self: center;
+  height: 44px;
 }
