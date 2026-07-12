@@ -157,11 +157,26 @@ resource "aws_ecs_task_definition" "backend" {
 }
 
 resource "aws_ecs_service" "backend" {
-  name            = "${var.project_name}-backend"
-  cluster         = aws_ecs_cluster.main.id
+  name    = "${var.project_name}-backend"
+  cluster = aws_ecs_cluster.main.id
+
+  # Terraform only ever sets this once, at create time. From then on the field
+  # belongs to deploy-backend.yml, which registers a SHA-tagged revision per
+  # deploy and points the service at it.
+  #
+  # Without the ignore_changes below, the two fight: Terraform sees the service
+  # on a revision it did not create, decides that is drift, and reverts the
+  # service to its own revision -- which pins `:latest`. A `terraform apply` run
+  # for an unrelated reason (a security-group tweak, say) would silently roll
+  # back whatever was last deployed. Deploys own the revision; Terraform owns
+  # the shape of the task definition.
   task_definition = aws_ecs_task_definition.backend.arn
   desired_count   = 1
   launch_type     = "FARGATE"
+
+  lifecycle {
+    ignore_changes = [task_definition, desired_count]
+  }
 
   network_configuration {
     subnets          = aws_subnet.public[*].id
