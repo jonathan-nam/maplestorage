@@ -1,0 +1,84 @@
+# The whole stack, locally. This is the pre-production environment: it runs the
+# same two images ECS runs, wired the same way, against a real Postgres.
+#
+#   ./scripts/smoke.sh     bring it up and prove it works end to end
+#   docker compose up      just bring it up
+#   docker compose down -v bring it down and wipe the database
+#
+# Fidelity is the point. The backend joins the vision container's *network
+# namespace* (network_mode: service:vision), which is exactly what ECS does under
+# awsvpc -- so the backend reaches the vision service on 127.0.0.1 here for the
+# same reason it does in production, and the vision port is not reachable from
+# outside either. A compose file that put them on separate networks and talked
+# over `http://vision:8000` would look fine and quietly fail to test the thing
+# that actually has to work.
+#
+# Consequences of sharing the namespace, which are the same in ECS:
+#   - published ports live on the vision service, since it owns the namespace
+#   - the backend cannot declare `ports:` of its own
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: maplestorage
+      POSTGRES_USER: maplestorage
+      POSTGRES_PASSWORD: maplestorage
+    ports:
+      - "5432:5432"
+    volumes:
+      - maplestorage-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U maplestorage"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  vision:
+    build: ./vision
+    volumes:
+      # Dev only. The vision service binds 127.0.0.1 (as it does in ECS), so it
+      # is deliberately unreachable from the host -- the smoke test POSTs a
+      # screenshot from inside the container instead, and needs the file there.
+      - ./reference-images:/screenshots:ro
+    # Owns the shared namespace, so both services' ports are published here.
+    ports:
+      - "8080:8080" # backend (Ktor)
+      - "8000:8000" # vision  (exposed locally only so a human can poke at it)
+    healthcheck:
+      # The same command infra/ecs.tf uses, so a health check that passes here
+      # is the one that will run in production.
+      test:
+        [
+          "CMD-SHELL",
+          "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')\" || exit 1",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  backend:
+    build: ./backend
+    # Same namespace as vision -> 127.0.0.1 reaches it, exactly as under awsvpc.
+    network_mode: "service:vision"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      vision:
+        # Mirrors the ECS container dependency: never start the backend before
+        # the parser is up, or every upload in that window fails.
+        condition: service_healthy
+    environment:
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_NAME: maplestorage
+      DB_USERNAME: maplestorage
+      DB_PASSWORD: maplestorage
+      VISION_SERVICE_URL: http://127.0.0.1:8000
+      # Real values are only needed to exercise authenticated routes; the smoke
+      # test does not, and a missing one would fail the container at startup.
+      CLERK_JWKS_URL: ${CLERK_JWKS_URL:-https://example.invalid/.well-known/jwks.json}
+      FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:-http://localhost:3000}
+
+volumes:
+  maplestorage-db-data:
