@@ -16,21 +16,20 @@ type Os = "mac" | "windows" | "unknown";
 // either way.)
 const STEPS_BY_OS: Record<Os, string[]> = {
   mac: [
-    "Open your inventory in-game so the items are visible.",
-    "Press Cmd + Shift + 4, then press the Space bar — the cursor becomes a camera.",
-    "Click the MapleStory window. It saves a PNG of the whole window to your desktop.",
-    "Drag that file into the drop zone below (or click the drop zone to browse for it).",
+    "Open your inventory in-game.",
+    "Press Cmd + Shift + 4, then Space. The cursor becomes a camera.",
+    "Click the MapleStory window. It saves a PNG to your desktop.",
+    "Drag that file into the drop zone.",
   ],
   windows: [
-    "Open your inventory in-game so the items are visible.",
-    "Click the MapleStory window to make sure it's in focus, then press Alt + Print Screen — this copies the whole window to your clipboard.",
-    "Click anywhere on this page and press Ctrl + V to paste it directly — no need to save a file first.",
+    "Open your inventory in-game.",
+    "Click the MapleStory window, then press Alt + Print Screen.",
+    "Click this page and press Ctrl + V to paste it.",
   ],
   unknown: [
-    "Open your inventory in-game so the items are visible.",
-    "Capture the whole MapleStory window (Windows: Alt + Print Screen. Mac: Cmd + Shift + 4, then Space, then click the window).",
-    "If it's on your clipboard, click this page and press Ctrl/Cmd + V to paste it directly.",
-    "Otherwise, drag the saved image file into the drop zone below.",
+    "Open your inventory in-game.",
+    "Capture the whole MapleStory window. Windows: Alt + Print Screen. Mac: Cmd + Shift + 4, then Space, then click the window.",
+    "Paste it with Ctrl / Cmd + V, or drag the saved file into the drop zone.",
   ],
 };
 
@@ -60,11 +59,9 @@ export function ScreenshotHelp() {
   return (
     <>
       <p className="intro-copy">
-        <strong>Take a screenshot of your game with your inventory open</strong> and drag it into
-        the drop zone. Capture the whole game window, not just the inventory panel — the character
-        name in the corner is how we tell which of your characters it belongs to, so you can drop a
-        whole batch of mules at once and we&apos;ll sort them out. Don&apos;t worry about the file
-        size; upload it as-is.{" "}
+        <strong>Screenshot your game with your inventory open</strong>, then drag it in. Capture the
+        whole window. The character name in the corner is how we know who the tokens belong to, so
+        you can drop a whole batch of mules at once.{" "}
         <a
           href="#"
           onClick={(e) => {
@@ -73,9 +70,8 @@ export function ScreenshotHelp() {
             setOpen((o) => !o);
           }}
         >
-          {open ? "Hide instructions" : "Don't know how to screenshot? Show me how"}
+          {open ? "Hide instructions" : "How do I screenshot?"}
         </a>
-        .
       </p>
 
       {open && (
@@ -104,9 +100,8 @@ export function ScreenshotHelp() {
             ))}
           </ol>
           <p className="help-note">
-            Cropped to just the inventory? That still works — we&apos;ll read the item counts fine —
-            but there&apos;s no character name in the image, so you&apos;ll have to tell us who it
-            belongs to.
+            Cropped to just the inventory? We can still read the counts, but you&apos;ll have to
+            tell us which character it belongs to.
           </p>
         </div>
       )}

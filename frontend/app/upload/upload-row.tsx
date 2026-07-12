@@ -242,16 +242,16 @@ function describeStatus(
   postAction: PostAction,
 ): { statusText: string; statusClass: string } {
   if (postAction === "ignored") {
-    return { statusText: "Ignored — not added", statusClass: "needs-review" };
+    return { statusText: "Ignored", statusClass: "needs-review" };
   }
   if (postAction && typeof postAction === "object") {
-    return { statusText: `Inventory — matched to ${postAction.resolvedTo}`, statusClass: "" };
+    return { statusText: `Saved to ${postAction.resolvedTo}`, statusClass: "" };
   }
   if (phase === "detecting") {
-    return { statusText: "Detecting…", statusClass: "pending" };
+    return { statusText: "Reading…", statusClass: "pending" };
   }
   if (phase === "request-error") {
-    return { statusText: "Upload failed — check your connection", statusClass: "needs-review" };
+    return { statusText: "Upload failed. Check your connection.", statusClass: "needs-review" };
   }
   if (!result) {
     return { statusText: "", statusClass: "" };
@@ -259,29 +259,31 @@ function describeStatus(
   switch (result.outcome) {
     case "MATCHED":
       return {
-        statusText: `Inventory — matched to ${result.detectedCharacterName ?? result.pinnedCharacterName}`,
+        statusText: `Saved to ${result.detectedCharacterName ?? result.pinnedCharacterName}`,
         statusClass: "",
       };
     case "MISMATCH":
       return {
-        statusText: `Mismatch — pinned to ${result.pinnedCharacterName}, but this screenshot looks like ${result.detectedCharacterName}`,
+        statusText: `Pinned to ${result.pinnedCharacterName}, but this looks like ${result.detectedCharacterName}.`,
         statusClass: "mismatch",
       };
     case "NEW_CHARACTER_DETECTED":
       return {
-        statusText: `New character detected: ${result.detectedCharacterName} — not in your roster`,
+        statusText: `New character: ${result.detectedCharacterName}. Not in your roster.`,
         statusClass: "new-character",
       };
     case "UNRESOLVABLE":
       return {
-        statusText:
-          "Read the item counts fine, but no character name is visible in this screenshot — pick who it belongs to and we'll save them",
+        statusText: "No character name in this screenshot. Pick who it belongs to.",
         statusClass: "needs-review",
       };
     case "UNRECOGNIZED_SCREENSHOT":
-      return { statusText: "Unrecognized — needs review", statusClass: "needs-review" };
+      return { statusText: "Not an inventory screenshot.", statusClass: "needs-review" };
     case "FAILED":
-      return { statusText: result.failureReason ?? "Parse failed", statusClass: "needs-review" };
+      return {
+        statusText: result.failureReason ?? "Couldn't read this one.",
+        statusClass: "needs-review",
+      };
     default:
       return { statusText: "", statusClass: "" };
   }

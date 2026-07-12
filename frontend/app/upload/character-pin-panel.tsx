@@ -23,9 +23,8 @@ export function CharacterPinPanel({
         Pin to one character <span className="panel-subtitle">(optional)</span>
       </div>
       <p className="panel-hint">
-        Not required — auto-detect works on its own. If you pin one and drop the wrong
-        character&apos;s screenshot, we&apos;ll flag the mismatch instead of silently recording it
-        under the wrong character.
+        Only needed if the character name isn&apos;t in the screenshot. Pin one and we&apos;ll flag
+        it if you drop someone else&apos;s screenshot.
       </p>
       <div className="char-selector-list">
         {characters.map((character) => (
@@ -52,7 +51,7 @@ export function CharacterPinPanel({
             onPin(null);
           }}
         >
-          [unpin — back to auto-detect]
+          [unpin]
         </a>
       )}
       <Link href="/characters" className="selector-add">
