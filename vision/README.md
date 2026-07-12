@@ -30,13 +30,24 @@ call, ~0.6s per screenshot, and the same answer every time.
 | --- | --- |
 | `200` + `screenshotType: "INVENTORY"` | Grid found; `tokenCounts` holds every token detected. |
 | `200` + `screenshotType: "UNRECOGNIZED"` | No inventory lattice. Not an error — the same answer the vision model gave for a non-inventory upload. |
-| `422` | The screenshot was **downscaled**. The 11px stack-count font does not survive resampling, so we refuse rather than return a plausible wrong number. |
+| `422` | The capture is not at the client's native scale — shrunk before upload, or taken at a scaled display resolution. The message tells the user how to fix it. |
 | `400` | Body is empty or not a decodable image. |
 
-Each detected token carries `needsReview` and `iconScore`. `needsReview` is set
-when the capture was rescaled (e.g. fractional Windows DPI scaling) — the icons
-still match, but the counts are only ~70-77% reliable there, so the read should
-go through the existing human checkpoint rather than be trusted.
+**Every count we return is one we stand behind.** A capture that is not at native
+scale is refused, not flagged.
+
+That is a deliberate reversal. The service used to return those counts with a
+`needsReview` flag, which was a half-measure: the review UI can only re-attribute
+a screenshot to a different character — it has no way to correct a *count* — so
+the dubious number was written to the database regardless. And the reliability
+figure for a fractionally-rescaled capture (~70–77%) comes from a synthetic
+model; we have never seen a real one, so we do not actually know how wrong it
+gets. For an app whose whole value is accurate counts, "you have 8" when you have
+9 is worse than "we could not read this". The user's fix is a one-time display
+setting, after which every upload works.
+
+Note that MapleStory's own UI Optimization (exact 2x pixel doubling) is *not*
+caught by this — it downsamples back losslessly and is accepted.
 
 ## Character attribution (solved)
 

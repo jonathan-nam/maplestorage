@@ -47,8 +47,8 @@ class VisionServiceClientTest {
                     {"screenshotType":"INVENTORY",
                      "characterHud":{"name":"acornacorn","level":287},
                      "tokenCounts":[
-                       {"tokenName":"kalos-token","quantity":21,"needsReview":false,"iconScore":0.964},
-                       {"tokenName":"distorted-ambition","quantity":10,"needsReview":false,"iconScore":0.606}]}
+                       {"tokenName":"kalos-token","quantity":21,"iconScore":0.964},
+                       {"tokenName":"distorted-ambition","quantity":10,"iconScore":0.606}]}
                     """.trimIndent(),
                 ).parseScreenshot(ByteArray(8), "image/jpeg")
 
@@ -85,7 +85,7 @@ class VisionServiceClientTest {
                     """
                     {"screenshotType":"INVENTORY","characterHud":null,
                      "tokenCounts":[{"tokenName":"kalos-token","quantity":19,
-                                     "needsReview":false,"iconScore":0.77}]}
+                                     "iconScore":0.77}]}
                     """.trimIndent(),
                 ).parseScreenshot(ByteArray(8), "image/png")
 
@@ -106,19 +106,20 @@ class VisionServiceClientTest {
             assertNull(parsed.result.tokenCounts)
         }
 
-    // The vision service refuses a downscaled screenshot rather than returning
-    // a plausible wrong count. Its message is written for the user, so it must
-    // reach them intact instead of being flattened to a generic failure.
+    // The vision service refuses any capture it cannot read reliably, and its
+    // message tells the user how to fix the capture. That message must reach
+    // them intact -- "parsing failed" is not actionable; "set display scaling to
+    // 100%" is.
     @Test
-    fun `a downscaled screenshot fails with the service's own explanation`() =
+    fun `an unreadable capture fails with the service's own explanation`() =
         runTest {
             val outcome =
                 service {
                     MockEngine {
                         respond(
                             """
-                            {"detail":"screenshot was downscaled; the stack-count font is no
-                             longer legible. Upload at original resolution."}
+                            {"detail":"This screenshot was captured at a scaled resolution.
+                             Set your display scaling to 100%, then take it again."}
                             """.trimIndent(),
                             HttpStatusCode.UnprocessableEntity,
                             headersOf("Content-Type", ContentType.Application.Json.toString()),
@@ -127,7 +128,7 @@ class VisionServiceClientTest {
                 }.parseScreenshot(ByteArray(8), "image/jpeg")
 
             val failed = assertIs<ClaudeVisionOutcome.Failed>(outcome)
-            assertTrue(failed.reason.contains("original resolution"), failed.reason)
+            assertTrue(failed.reason.contains("display scaling"), failed.reason)
         }
 
     @Test

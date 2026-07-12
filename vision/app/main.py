@@ -27,7 +27,8 @@ from app.cv.grid import find_grid
 from app.cv.hud import find_hud
 from app.cv.match import load_templates
 from app.cv.ocr import load_font
-from app.cv.pipeline import Undersampled, counts_trustworthy, normalize
+from app.cv.grid import NATIVE_PITCH
+from app.cv.pipeline import counts_trustworthy, normalize
 from app.cv.classify import classify
 from app.cv.ocr import read_count
 
@@ -45,10 +46,8 @@ app = FastAPI(title="maplestorage-vision")
 class DetectedToken(BaseModel):
     tokenName: str
     quantity: int
-    # Not in the Kotlin DTO yet -- the backend can ignore these, but they are
-    # what lets it route a degraded read to the existing NEEDS_REVIEW flow
-    # instead of trusting a number the pipeline is not confident in.
-    needsReview: bool
+    # Diagnostic only; the backend ignores it. Every count we return is one we
+    # stand behind -- see the 422 below for the ones we don't.
     iconScore: float
 
 
@@ -63,6 +62,21 @@ class ScreenshotParseResult(BaseModel):
     # none, and the backend already treats that as NEEDS_REVIEW.
     characterHud: CharacterHud | None = None
     tokenCounts: list[DetectedToken] | None = None
+
+
+def _rescaled_message(pitch: float) -> str:
+    if pitch < NATIVE_PITCH:
+        return (
+            "This screenshot was shrunk before upload, and the stack-count "
+            "digits are no longer readable. Upload the original file at its "
+            "full resolution."
+        )
+    return (
+        "This screenshot was captured at a scaled resolution, so the "
+        "stack-count digits are too blurred to read reliably. Set your display "
+        "scaling to 100%, or turn on MapleStory's UI Optimization (which scales "
+        "cleanly), then take the screenshot again."
+    )
 
 
 @app.get("/health")
@@ -91,14 +105,23 @@ async def parse(request: Request) -> ScreenshotParseResult:
         log.info("no grid: %s", e)
         return ScreenshotParseResult(screenshotType="UNRECOGNIZED")
 
-    if g.pitch < 44.0:
-        raise HTTPException(
-            422,
-            "screenshot was downscaled; the stack-count font is no longer "
-            "legible. Upload at original resolution.",
-        )
+    # Any capture that is not at the client's native scale gets refused, and the
+    # message tells the user how to fix it.
+    #
+    # We used to return these counts with a "needsReview" flag instead. That was
+    # a half-measure: the review UI can only re-attribute a screenshot to a
+    # different character, it has no way to correct a *count*, so the dubious
+    # number was written to the database regardless. And the reliability figure
+    # for a fractionally-rescaled capture (~70-77%) comes from a synthetic model
+    # -- we have never seen a real one -- so we do not actually know how wrong it
+    # gets.
+    #
+    # For an app whose whole value is accurate counts, "you have 8" when you have
+    # 9 is worse than "we could not read this". The fix on the user's side is a
+    # one-time display setting, after which every upload works.
+    if not counts_trustworthy(g.pitch):
+        raise HTTPException(422, _rescaled_message(g.pitch))
 
-    trusted = counts_trustworthy(g.pitch)
     img, g = normalize(img, g)
 
     # normalize() resamples the whole frame to the client's native pitch, so the
@@ -120,7 +143,6 @@ async def parse(request: Request) -> ScreenshotParseResult:
             DetectedToken(
                 tokenName=hit.name,
                 quantity=int(digits),
-                needsReview=not trusted,
                 iconScore=round(hit.score, 3),
             )
         )

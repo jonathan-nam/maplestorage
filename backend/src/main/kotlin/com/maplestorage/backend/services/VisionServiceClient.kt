@@ -49,7 +49,6 @@ fun createVisionHttpClient(): HttpClient =
 private data class VisionToken(
     val tokenName: String,
     val quantity: Int,
-    val needsReview: Boolean = false,
 )
 
 @Serializable
@@ -113,9 +112,11 @@ class VisionServiceClient(
         return when (response.status) {
             HttpStatusCode.OK -> parsed(response.body())
 
-            // The vision service refuses a downscaled screenshot rather than
-            // returning a plausible wrong count, and says why. That message is
-            // written for the user, so pass it straight through.
+            // The vision service refuses any capture it cannot read reliably --
+            // shrunk before upload, or taken at a scaled display resolution --
+            // rather than returning a plausible wrong count. Its message tells
+            // the user how to fix the capture, so pass it straight through
+            // instead of flattening it to a generic failure.
             HttpStatusCode.UnprocessableEntity -> ClaudeVisionOutcome.Failed(detail(response.bodyAsText()))
 
             HttpStatusCode.BadRequest -> ClaudeVisionOutcome.Failed("That file could not be read as an image.")
@@ -133,14 +134,6 @@ class VisionServiceClient(
                 "INVENTORY" -> ScreenshotType.INVENTORY
                 else -> ScreenshotType.UNRECOGNIZED
             }
-
-        // A rescaled capture (fractional display scaling) still yields the right
-        // icons but only ~70-77% reliable counts. The vision service flags those; until
-        // ScreenshotParseResult can carry the flag through to the review
-        // decision, log it loudly rather than let it pass silently as trusted.
-        body.tokenCounts?.filter { it.needsReview }?.forEach {
-            log.warn("low-confidence count from a rescaled capture: {}={}", it.tokenName, it.quantity)
-        }
 
         val result =
             ScreenshotParseResult(

@@ -60,7 +60,6 @@ def test_counts_match_truth(path, truth):
     assert body["screenshotType"] == "INVENTORY"
     got = {t["tokenName"]: t["quantity"] for t in body["tokenCounts"]}
     assert got == truth
-    assert all(not t["needsReview"] for t in body["tokenCounts"])
 
 
 @pytest.mark.parametrize("path,truth", TRUTH.items())
@@ -73,12 +72,35 @@ def test_counts_survive_jpeg(path, truth):
 
 
 def test_downscaled_upload_is_rejected_loudly():
-    """A resized screenshot must 422, not return silently-wrong counts."""
+    """A shrunk screenshot must 422, not return silently-wrong counts."""
     img = cv2.imread(f"{REF}/untradeables sample.png")
     small = cv2.resize(img, None, fx=0.9, fy=0.9, interpolation=cv2.INTER_AREA)
     r = client.post("/parse", content=cv2.imencode(".png", small)[1].tobytes())
     assert r.status_code == 422
-    assert "original resolution" in r.json()["detail"]
+    assert "full resolution" in r.json()["detail"]
+
+
+def test_fractionally_rescaled_capture_is_rejected_not_flagged():
+    """A 1.25x capture (fractional display scaling) reads only ~70-77% of counts
+    correctly. We refuse it and say how to fix the capture, rather than writing
+    numbers we do not stand behind -- the review UI cannot correct a count."""
+    img = cv2.imread(f"{REF}/untradeables sample.png")
+    scaled = cv2.resize(img, None, fx=1.25, fy=1.25, interpolation=cv2.INTER_CUBIC)
+    r = client.post("/parse", content=cv2.imencode(".png", scaled)[1].tobytes())
+    assert r.status_code == 422
+    detail = r.json()["detail"]
+    assert "display scaling" in detail or "UI Optimization" in detail
+
+
+def test_ui_optimization_2x_is_accepted():
+    """MapleStory's UI Optimization is exact 2x pixel doubling, which downsamples
+    back losslessly. It must NOT be caught by the rescale check."""
+    img = cv2.imread(f"{REF}/untradeables sample.png")
+    doubled = cv2.resize(img, None, fx=2, fy=2, interpolation=cv2.INTER_NEAREST)
+    r = client.post("/parse", content=cv2.imencode(".png", doubled)[1].tobytes())
+    assert r.status_code == 200
+    got = {t["tokenName"]: t["quantity"] for t in r.json()["tokenCounts"]}
+    assert got == TRUTH[f"{REF}/untradeables sample.png"]
 
 
 def test_non_inventory_image_is_unrecognized():
