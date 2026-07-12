@@ -42,6 +42,35 @@ next section for why that is not a preference.
 screenshots are parsed by the local OpenCV service in `vision/`, so no model is called and
 nothing is metered.
 
+### Signing in to GitHub and AWS on a new machine
+
+Neither is in the repo, and neither should be. Inside the container, once per machine:
+
+```bash
+gh auth login       # also sets up git push/pull over HTTPS
+aws configure       # only if you are touching infra/
+```
+
+Both persist: `~/.aws` and `~/.config/gh` are bind-mounted from the host (see
+`devcontainer.json`), so a container **rebuild** does not lose them. It is once per
+machine, not once per container.
+
+**Use a new AWS access key on each machine — do not reuse one.** An access key belongs to
+the IAM user, not the computer, so the same pair *would* work on both. That is exactly the
+problem: every extra copy is another place it can leak, and revoking it would take down
+every machine at once. AWS allows two active keys per user for this reason. Make a second
+one in the IAM console, and then revoking a lost laptop is one click that does not touch
+anything else.
+
+### Do not copy `.env` files between machines
+
+They hold your Clerk secret key. Do not send them over Slack, email, or a shared drive —
+re-fetch the three values from the Clerk dashboard, which takes half a minute and leaves no
+copy lying around. A password manager is fine if you want them saved.
+
+Same reasoning for `infra/backend.hcl`: it is gitignored because it embeds the AWS account
+ID, and this repo is public.
+
 ## Keep the repo on the Linux filesystem, not the Windows drive
 
 **Do this once. It is the highest-leverage change available to this environment.**
@@ -97,9 +126,17 @@ curl -s "localhost:3000$CSS" | grep -c 'a-class-you-just-added'
 
 ## Credentials survive rebuilds
 
-`~/.aws` and `~/.config/gh` are bind-mounted from the host (see `devcontainer.json`), so
-`aws configure` and `gh auth login` are one-time, not once-per-rebuild. `.gitconfig` and
-the SSH agent are forwarded by VS Code itself.
+`~/.aws`, `~/.config/gh` and `~/.claude` are bind-mounted from the host (see
+`devcontainer.json`), so a rebuild does not wipe them. `.gitconfig` and the SSH agent are
+forwarded by VS Code itself.
+
+`~/.claude` is in that list for a reason worth knowing: it holds Claude Code's memory and
+session history. Container-local, it died with the container, so every rebuild silently
+threw away everything learned about this machine and this project — and the next session
+started by rediscovering it.
+
+For how to sign in on a **new machine** (and why each machine should have its own AWS access
+key), see *Starting from a fresh clone* above.
 
 ## Rebuilding the vision service breaks the backend
 

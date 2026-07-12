@@ -38,4 +38,4 @@ Runs the whole thing locally and checks it works.
 | `PLAN.md` | Why the project is built the way it is |
 | `WEB-UI-SPEC.md` | The frontend design |
 | `backend/`, `frontend/`, `vision/`, `infra/` | Each has its own README |
-| `.devcontainer/README.md` | Dev environment, and what to do when it hangs |
+| `.devcontainer/README.md` | **Start here on a new machine.** Setup, credentials, and what to do when it hangs |
