@@ -1,0 +1,20 @@
+# Ruff's config lives in the repo, not in anyone's editor settings. That is the
+# whole point: before this, the only thing formatting Python here was whichever
+# VS Code extension a given person happened to have installed, to a standard
+# nothing checked and nobody had agreed to.
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+# Ruff's defaults (pyflakes + a slice of pycodestyle) plus import sorting, which
+# is what actually caught the real problem here: a TEMPLATE_DIR assignment sitting
+# in the middle of the import block in two files.
+select = ["E", "F", "I"]
+
+[tool.ruff.lint.per-file-ignores]
+# The CV modules carry long single-line comments recording measured constants --
+# the pitch, the correlation floor, the digit band. Wrapping those to satisfy a
+# line limit would make them harder to read, and the numbers are the point.
+"app/cv/*.py" = ["E501"]

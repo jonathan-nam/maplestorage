@@ -145,6 +145,7 @@ def test_garbage_body_is_a_400():
 # Only one of our screenshots has a HUD in frame, so this is a thin corpus.
 # See README: it is enough to prove the mechanism, not the alphabet.
 
+
 def test_hud_is_read_when_in_frame():
     r = _parse(f"{REF}/untradeables sample.png")
     assert r.json()["characterHud"] == {"name": "acornacorn", "level": 287}
@@ -165,6 +166,7 @@ def test_hud_is_null_when_not_in_frame():
 
 
 # --- catalog scaling -------------------------------------------------------
+
 
 def test_classify_is_flat_in_catalog_size():
     """The whole point of the two-stage classifier: adding items must not add

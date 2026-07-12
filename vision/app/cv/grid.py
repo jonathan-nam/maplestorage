@@ -109,6 +109,7 @@ def _largest_lattice_block(cx, cy, pitch):
     lattice phase, and they form one contiguous block. So we keep the modal phase
     and then take the largest 4-connected cluster in lattice space.
     """
+
     # 1. Modal phase, per axis. Cells of one grid agree on (centre mod pitch).
     def modal_phase(c):
         ph = np.mod(c, pitch)
@@ -141,9 +142,7 @@ def _largest_lattice_block(cx, cy, pitch):
     best, best_n, anchor = None, -1, (0, 0)
     for r0 in range(int(ri.min()), int(ri.max()) + 1):
         for c0 in range(int(ci.min()), int(ci.max()) + 1):
-            inside = (
-                (ri >= r0) & (ri < r0 + ROWS) & (ci >= c0) & (ci < c0 + COLS)
-            )
+            inside = (ri >= r0) & (ri < r0 + ROWS) & (ci >= c0) & (ci < c0 + COLS)
             n = int(inside.sum())
             if n > best_n:
                 best, best_n, anchor = inside, n, (r0, c0)

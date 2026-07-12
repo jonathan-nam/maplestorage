@@ -126,10 +126,17 @@ re-tuned. Add items in batches and watch for false positives.
 
 ```bash
 cd vision
-pip install -r requirements.txt
+pip install -r requirements.txt          # to run it
 uvicorn app.main:app --port 8000
-pytest tests/            # 12 tests: the 3-screenshot corpus is the regression suite
+
+pip install -r requirements-dev.txt      # to work on it: adds pytest, httpx, ruff
+pytest tests/                            # 17 tests: the 3-screenshot corpus is the regression suite
+ruff check . && ruff format .            # also enforced on commit
 ```
+
+(This block used to say `pip install -r requirements.txt` and then `pytest tests/`,
+which never worked -- pytest was declared nowhere, so the tests only ran if you
+happened to have it already. Hence `requirements-dev.txt`.)
 
 `app/cv/build_font.py` and `build_icons.py` regenerate `app/cv/templates/` and
 only need re-running if the client changes its artwork.

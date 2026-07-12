@@ -29,8 +29,6 @@ private const val PARSE_TIMEOUT_MS = 15_000L
 
 // Recorded against each screenshot in place of a model id. Cost accounting
 // multiplies tokens by a per-model rate, and this service reports zero tokens,
-// so the cost falls out at $0 without special-casing.
-const val OPENCV_PARSER_ID = "opencv-classical"
 
 private const val VISION_UNAVAILABLE = "Screenshot parsing is temporarily unavailable."
 
@@ -76,22 +74,17 @@ private data class VisionError(
  * The service runs as a second container in the same ECS task (see `vision/`),
  * so this is a loopback call: one deployable, two processes.
  *
- * It implements [ClaudeVisionService] because that seam is already the right
- * shape -- the interface's name is now a misnomer and wants a rename, but that
- * is a mechanical change worth keeping out of this diff.
- *
- * The parse is deterministic: no tokens, no third-party call, same answer every
- * time. [ClaudeVisionOutcome.Parsed.inputTokens] and `outputTokens` are
- * therefore always zero.
+ * The parse is deterministic: no third-party call, no metering, same answer every
+ * time for the same bytes.
  */
 class VisionServiceClient(
     private val client: HttpClient,
     private val baseUrl: String,
-) : ClaudeVisionService {
+) : ScreenshotParser {
     override suspend fun parseScreenshot(
         imageBytes: ByteArray,
         mediaType: String,
-    ): ClaudeVisionOutcome {
+    ): ScreenshotParseOutcome {
         // A vision container that is down or wedged is an infrastructure fault,
         // not a bad screenshot: FAILED lets the user retry the same upload once
         // it recovers.
@@ -107,7 +100,7 @@ class VisionServiceClient(
             } catch (e: HttpRequestTimeoutException) {
                 log.error("vision service timed out after {}ms", PARSE_TIMEOUT_MS, e)
                 null
-            } ?: return ClaudeVisionOutcome.Failed(VISION_UNAVAILABLE)
+            } ?: return ScreenshotParseOutcome.Failed(VISION_UNAVAILABLE)
 
         return when (response.status) {
             HttpStatusCode.OK -> parsed(response.body())
@@ -117,18 +110,18 @@ class VisionServiceClient(
             // rather than returning a plausible wrong count. Its message tells
             // the user how to fix the capture, so pass it straight through
             // instead of flattening it to a generic failure.
-            HttpStatusCode.UnprocessableEntity -> ClaudeVisionOutcome.Failed(detail(response.bodyAsText()))
+            HttpStatusCode.UnprocessableEntity -> ScreenshotParseOutcome.Failed(detail(response.bodyAsText()))
 
-            HttpStatusCode.BadRequest -> ClaudeVisionOutcome.Failed("That file could not be read as an image.")
+            HttpStatusCode.BadRequest -> ScreenshotParseOutcome.Failed("That file could not be read as an image.")
 
             else -> {
                 log.error("vision service returned {}: {}", response.status, response.bodyAsText())
-                ClaudeVisionOutcome.Failed("Screenshot parsing failed.")
+                ScreenshotParseOutcome.Failed("Screenshot parsing failed.")
             }
         }
     }
 
-    private fun parsed(body: VisionResult): ClaudeVisionOutcome {
+    private fun parsed(body: VisionResult): ScreenshotParseOutcome {
         val type =
             when (body.screenshotType) {
                 "INVENTORY" -> ScreenshotType.INVENTORY
@@ -141,7 +134,7 @@ class VisionServiceClient(
                 characterHud = body.characterHud?.let { CharacterHud(name = it.name, level = it.level) },
                 tokenCounts = body.tokenCounts?.map { DetectedToken(it.tokenName, it.quantity) },
             )
-        return ClaudeVisionOutcome.Parsed(result = result, inputTokens = 0, outputTokens = 0)
+        return ScreenshotParseOutcome.Parsed(result = result)
     }
 
     private fun detail(raw: String): String =

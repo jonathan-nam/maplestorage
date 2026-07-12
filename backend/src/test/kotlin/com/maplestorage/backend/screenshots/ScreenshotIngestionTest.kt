@@ -4,11 +4,10 @@ import com.maplestorage.backend.config.Env
 import com.maplestorage.backend.db.CharacterTokenCount
 import com.maplestorage.backend.db.Characters
 import com.maplestorage.backend.db.Screenshots
-import com.maplestorage.backend.db.UsageLedger
 import com.maplestorage.backend.services.CharacterHud
-import com.maplestorage.backend.services.ClaudeVisionOutcome
 import com.maplestorage.backend.services.DetectedToken
-import com.maplestorage.backend.services.FakeClaudeVisionService
+import com.maplestorage.backend.services.FakeScreenshotParser
+import com.maplestorage.backend.services.ScreenshotParseOutcome
 import com.maplestorage.backend.services.ScreenshotParseResult
 import com.maplestorage.backend.services.ScreenshotType
 import com.maplestorage.backend.users.ensureUser
@@ -30,8 +29,6 @@ import kotlin.test.assertTrue
 import kotlin.time.Clock
 import kotlin.uuid.Uuid
 
-private const val TEST_MODEL = "claude-sonnet-5"
-
 // The key the SCREENSHOT PARSER emits -- token_catalog.vision_key, which is the
 // name of its template file. Not the display name.
 //
@@ -48,7 +45,7 @@ private const val DISTORTED_AMBITION = "distorted-ambition"
 private const val TEST_USER_ID = "user_test_screenshots"
 
 // Exercises ScreenshotIngestion's outcome-branching (the actually-novel logic
-// here) against FakeClaudeVisionService + real Postgres -- same DB_* contract
+// here) against FakeScreenshotParser + real Postgres -- same DB_* contract
 // as TokenCatalogSeedTest.kt / CharacterRepositoryTest.kt, no HTTP/auth layer.
 //
 // Uses the TEST_USER_ID constant directly (not a `userId` property) rather
@@ -83,7 +80,6 @@ class ScreenshotIngestionTest {
             for (characterId in createdCharacterIds) {
                 CharacterTokenCount.deleteWhere { CharacterTokenCount.characterId eq characterId }
             }
-            UsageLedger.deleteWhere { UsageLedger.userId eq TEST_USER_ID }
             Screenshots.deleteWhere { Screenshots.userId eq TEST_USER_ID }
             Characters.deleteWhere { Characters.userId eq TEST_USER_ID }
         }
@@ -94,7 +90,7 @@ class ScreenshotIngestionTest {
     fun `matched -- pinned character and HUD name agree upserts token counts`() {
         val characterId = insertCharacter("Bubbling")
         val fake =
-            FakeClaudeVisionService(
+            FakeScreenshotParser(
                 parsedOutcome(
                     hud = CharacterHud("Bubbling", 285),
                     tokens = listOf(DetectedToken(DISTORTED_AMBITION, 3)),
@@ -111,7 +107,7 @@ class ScreenshotIngestionTest {
     fun `matched -- no pin but HUD name matches an existing character by name`() {
         val characterId = insertCharacter("Nightshade")
         val fake =
-            FakeClaudeVisionService(
+            FakeScreenshotParser(
                 parsedOutcome(
                     hud = CharacterHud("nightshade", 200), // case-insensitive match
                     tokens = listOf(DetectedToken(DISTORTED_AMBITION, 1)),
@@ -128,7 +124,7 @@ class ScreenshotIngestionTest {
     fun `mismatch -- pinned character disagrees with detected HUD name, no write`() {
         val characterId = insertCharacter("Alpha")
         val fake =
-            FakeClaudeVisionService(
+            FakeScreenshotParser(
                 parsedOutcome(
                     hud = CharacterHud("Beta", 100),
                     tokens = listOf(DetectedToken(DISTORTED_AMBITION, 5)),
@@ -147,7 +143,7 @@ class ScreenshotIngestionTest {
     @Test
     fun `newCharacterDetected -- no pin and HUD name matches no existing character`() {
         val fake =
-            FakeClaudeVisionService(
+            FakeScreenshotParser(
                 parsedOutcome(hud = CharacterHud("Ghostface", 50), tokens = emptyList()),
             )
 
@@ -158,26 +154,53 @@ class ScreenshotIngestionTest {
     }
 
     @Test
-    fun `unresolvable -- no HUD visible, even with a character pinned`() {
+    fun `matched -- a pin attributes on its own when no HUD is in frame`() {
         val characterId = insertCharacter("Pinned")
         val fake =
-            FakeClaudeVisionService(parsedOutcome(hud = null, tokens = listOf(DetectedToken(DISTORTED_AMBITION, 2))))
+            FakeScreenshotParser(parsedOutcome(hud = null, tokens = listOf(DetectedToken(DISTORTED_AMBITION, 2))))
 
         val result = runBlocking { ingest(fake, pinnedCharacterId = characterId) }
 
-        // The safety rule: an unverifiable pin never gets trusted blindly.
+        // A cropped inventory with a pin is the documented happy path -- the upload
+        // page tells people it works. Nothing in the image contradicts the pin, so the
+        // counts save rather than asking the user to name a character they just named.
+        assertEquals(ScreenshotOutcome.MATCHED, result.outcome)
+        assertEquals(2, tokenCountFor(characterId))
+    }
+
+    @Test
+    fun `unresolvable -- no HUD visible and no pin, so nobody knows whose this is`() {
+        val fake =
+            FakeScreenshotParser(parsedOutcome(hud = null, tokens = listOf(DetectedToken(DISTORTED_AMBITION, 2))))
+
+        val result = runBlocking { ingest(fake, pinnedCharacterId = null) }
+
         assertEquals(ScreenshotOutcome.UNRESOLVABLE, result.outcome)
-        assertNull(tokenCountFor(characterId))
+    }
+
+    @Test
+    fun `unresolvable -- a pin to a character that is not the caller's never auto-attributes`() {
+        val mine = insertCharacter("Mine")
+        val fake =
+            FakeScreenshotParser(
+                parsedOutcome(hud = CharacterHud("Mine", 200), tokens = listOf(DetectedToken(DISTORTED_AMBITION, 2))),
+            )
+
+        // A pin we cannot resolve must not fall through to HUD-based attribution: the
+        // HUD names "Mine", and saving to them would quietly honour a character the
+        // user never picked.
+        val result = runBlocking { ingest(fake, pinnedCharacterId = Uuid.random()) }
+
+        assertEquals(ScreenshotOutcome.UNRESOLVABLE, result.outcome)
+        assertNull(tokenCountFor(mine))
     }
 
     @Test
     fun `unrecognizedScreenshot -- Claude classifies the image as not MapleStory inventory`() {
         val fake =
-            FakeClaudeVisionService(
-                ClaudeVisionOutcome.Parsed(
+            FakeScreenshotParser(
+                ScreenshotParseOutcome.Parsed(
                     result = ScreenshotParseResult(ScreenshotType.UNRECOGNIZED, null, null),
-                    inputTokens = 10,
-                    outputTokens = 5,
                 ),
             )
 
@@ -188,7 +211,7 @@ class ScreenshotIngestionTest {
 
     @Test
     fun `failed -- Claude call itself errors`() {
-        val fake = FakeClaudeVisionService(ClaudeVisionOutcome.Failed("rate limited"))
+        val fake = FakeScreenshotParser(ScreenshotParseOutcome.Failed("rate limited"))
 
         val result = runBlocking { ingest(fake, pinnedCharacterId = null) }
 
@@ -201,11 +224,11 @@ class ScreenshotIngestionTest {
     fun `upsert overwrites a prior quantity rather than accumulating`() {
         val characterId = insertCharacter("Restacker")
         val first =
-            FakeClaudeVisionService(
+            FakeScreenshotParser(
                 parsedOutcome(CharacterHud("Restacker", 1), listOf(DetectedToken(DISTORTED_AMBITION, 3))),
             )
         val second =
-            FakeClaudeVisionService(
+            FakeScreenshotParser(
                 parsedOutcome(CharacterHud("Restacker", 1), listOf(DetectedToken(DISTORTED_AMBITION, 7))),
             )
 
@@ -219,7 +242,7 @@ class ScreenshotIngestionTest {
     fun `resolve attributes an already-parsed NEEDS_REVIEW screenshot to a chosen character`() {
         val newCharacter = insertCharacter("ResolvedTo")
         val fake =
-            FakeClaudeVisionService(parsedOutcome(hud = null, tokens = listOf(DetectedToken(DISTORTED_AMBITION, 4))))
+            FakeScreenshotParser(parsedOutcome(hud = null, tokens = listOf(DetectedToken(DISTORTED_AMBITION, 4))))
         val result = runBlocking { ingest(fake, pinnedCharacterId = null) }
         assertEquals(ScreenshotOutcome.UNRESOLVABLE, result.outcome)
 
@@ -232,7 +255,7 @@ class ScreenshotIngestionTest {
 
     @Test
     fun `ignore dismisses a NEEDS_REVIEW screenshot without writing token counts`() {
-        val fake = FakeClaudeVisionService(parsedOutcome(hud = null, tokens = emptyList()))
+        val fake = FakeScreenshotParser(parsedOutcome(hud = null, tokens = emptyList()))
         val result = runBlocking { ingest(fake, pinnedCharacterId = null) }
 
         val ignored = ignoreScreenshot(TEST_USER_ID, Uuid.parse(result.screenshotId))
@@ -244,14 +267,12 @@ class ScreenshotIngestionTest {
     private fun parsedOutcome(
         hud: CharacterHud?,
         tokens: List<DetectedToken>,
-    ) = ClaudeVisionOutcome.Parsed(
+    ) = ScreenshotParseOutcome.Parsed(
         result = ScreenshotParseResult(ScreenshotType.INVENTORY, hud, tokens),
-        inputTokens = 100,
-        outputTokens = 50,
     )
 
     private suspend fun ingest(
-        fake: FakeClaudeVisionService,
+        fake: FakeScreenshotParser,
         pinnedCharacterId: Uuid?,
     ) = ingestScreenshot(
         userId = TEST_USER_ID,
@@ -259,8 +280,7 @@ class ScreenshotIngestionTest {
         // Content is irrelevant -- the fake never reads it.
         request = UploadScreenshotRequest(imageBase64 = "aGVsbG8=", mediaType = "image/png"),
         pinnedCharacterId = pinnedCharacterId,
-        claudeVisionService = fake,
-        model = TEST_MODEL,
+        screenshotParser = fake,
     )
 
     private fun insertCharacter(name: String): Uuid {

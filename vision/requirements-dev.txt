@@ -1,0 +1,17 @@
+# Tooling for working on the vision service. The runtime image installs only
+# requirements.txt -- none of this ships to production.
+#
+# pytest and httpx are here because vision/README.md has always told you to
+# `pip install -r requirements.txt && pytest tests/`, and that never worked:
+# neither was declared anywhere. The tests were real and passing, but only if you
+# already happened to have pytest installed.
+-r requirements.txt
+
+pytest==8.3.4
+httpx==0.28.1        # FastAPI's TestClient needs it
+
+# The repo lints Kotlin (ktlint + detekt), TypeScript (ESLint + Prettier) and
+# Terraform (fmt + tflint) on every commit. Python -- the service doing the actual
+# image parsing -- had nothing, which is how an editor extension ended up quietly
+# reformatting it to a standard nobody had agreed to.
+ruff==0.9.2

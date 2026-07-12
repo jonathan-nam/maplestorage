@@ -14,12 +14,12 @@ import glob
 import os
 from pathlib import Path
 
-TEMPLATE_DIR = Path(__file__).parent / "templates"
-
 import cv2
 import numpy as np
 
 from .grid import NATIVE_PITCH, Grid
+
+TEMPLATE_DIR = Path(__file__).parent / "templates"
 
 BAND_TOP, BAND_BOT = 25, 41  # digit band within a native-scale (46px) slot
 DIGIT_THRESHOLD = 0.60
