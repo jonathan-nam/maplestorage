@@ -6,9 +6,11 @@ import com.maplestorage.backend.plugins.configureDatabase
 import com.maplestorage.backend.plugins.configureRouting
 import com.maplestorage.backend.plugins.configureSecurity
 import com.maplestorage.backend.plugins.configureSerialization
-import com.maplestorage.backend.services.AnthropicClaudeVisionService
 import com.maplestorage.backend.services.NexonLookupService
+import com.maplestorage.backend.services.OPENCV_PARSER_ID
+import com.maplestorage.backend.services.VisionServiceClient
 import com.maplestorage.backend.services.createNexonHttpClient
+import com.maplestorage.backend.services.createVisionHttpClient
 import io.ktor.server.application.Application
 import io.ktor.server.application.ApplicationStopped
 import io.ktor.server.engine.embeddedServer
@@ -28,7 +30,14 @@ fun Application.module() {
     val nexonHttpClient = createNexonHttpClient()
     monitor.subscribe(ApplicationStopped) { nexonHttpClient.close() }
 
-    val claudeVisionService = AnthropicClaudeVisionService(Env.anthropicApiKey, Env.anthropicModel)
+    // Screenshots are parsed by the co-located OpenCV vision service (a second
+    // container in the same ECS task), not a vision model: no tokens, no
+    // third-party call, and the same answer every time. The
+    // Anthropic implementation is kept in tree for now as a reference and a
+    // fallback, but nothing constructs it.
+    val visionHttpClient = createVisionHttpClient()
+    monitor.subscribe(ApplicationStopped) { visionHttpClient.close() }
+    val screenshotParser = VisionServiceClient(visionHttpClient, Env.visionServiceUrl)
 
-    configureRouting(NexonLookupService(nexonHttpClient), claudeVisionService, Env.anthropicModel)
+    configureRouting(NexonLookupService(nexonHttpClient), screenshotParser, OPENCV_PARSER_ID)
 }

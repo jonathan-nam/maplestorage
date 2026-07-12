@@ -4,6 +4,8 @@ package com.maplestorage.backend.config
 // Opus's cost; ANTHROPIC_MODEL overrides it either direction.
 private const val DEFAULT_ANTHROPIC_MODEL = "claude-sonnet-5"
 
+private const val DEFAULT_VISION_SERVICE_URL = "http://127.0.0.1:8000"
+
 // Central place to read the environment variables the ECS task definition
 // injects (see infra/ecs.tf's `environment`/`secrets` blocks) -- fail fast at
 // startup if one is missing rather than surfacing a null deep in a request.
@@ -19,6 +21,10 @@ object Env {
 
     // Overridable so switching model tiers is a config change, not a deploy.
     val anthropicModel: String get() = System.getenv("ANTHROPIC_MODEL") ?: DEFAULT_ANTHROPIC_MODEL
+
+    // The vision service runs as a second container in the same ECS task, so
+    // this is loopback by default and only needs overriding for local dev.
+    val visionServiceUrl: String get() = System.getenv("VISION_SERVICE_URL") ?: DEFAULT_VISION_SERVICE_URL
 
     private fun required(name: String): String =
         System.getenv(name) ?: error("Missing required environment variable: $name")

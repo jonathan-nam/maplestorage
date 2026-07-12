@@ -31,10 +31,22 @@ jobs:
       - uses: aws-actions/amazon-ecr-login@v2
         id: ecr-login
 
-      - name: Build and push image (tagged with commit SHA only)
+      # Two images, one task. They deploy together and must stay in step: the
+      # vision service's wire format is a contract the backend compiles against,
+      # so shipping one without the other is how you get a task that starts and
+      # then fails every upload. Tagging both with the same commit SHA makes a
+      # mismatched pair impossible to deploy by accident.
+      - name: Build and push backend image (tagged with commit SHA only)
         working-directory: backend
         run: |
           IMAGE="${{ steps.ecr-login.outputs.registry }}/maplestorage-backend:${{ github.sha }}"
+          docker build -t "$IMAGE" .
+          docker push "$IMAGE"
+
+      - name: Build and push vision image (same SHA)
+        working-directory: vision
+        run: |
+          IMAGE="${{ steps.ecr-login.outputs.registry }}/maplestorage-vision:${{ github.sha }}"
           docker build -t "$IMAGE" .
           docker push "$IMAGE"
 
@@ -47,12 +59,21 @@ jobs:
           jq 'del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)' \
             task-definition.json > task-definition.clean.json
 
+      # The render action rewrites one container per invocation, so chain it:
+      # the second call takes the first call's output as its input.
       - uses: aws-actions/amazon-ecs-render-task-definition@v1
-        id: render
+        id: render-backend
         with:
           task-definition: task-definition.clean.json
           container-name: backend
           image: ${{ steps.ecr-login.outputs.registry }}/maplestorage-backend:${{ github.sha }}
+
+      - uses: aws-actions/amazon-ecs-render-task-definition@v1
+        id: render
+        with:
+          task-definition: ${{ steps.render-backend.outputs.task-definition }}
+          container-name: vision
+          image: ${{ steps.ecr-login.outputs.registry }}/maplestorage-vision:${{ github.sha }}
 
       - uses: aws-actions/amazon-ecs-deploy-task-definition@v2
         with:

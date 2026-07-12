@@ -2,27 +2,49 @@
 
 Ktor + Exposed + Flyway, running against Postgres.
 
+Screenshots are parsed by the **vision service** (`../vision/`), which runs as a
+second container in the same ECS task and is reached over `127.0.0.1`. See
+`services/VisionServiceClient.kt`.
+
 ## Local dev
 
+Postgres now comes from the repo-root compose file (the one that also runs the
+vision service and the backend itself), so there is a single stack definition
+rather than two that can drift apart:
+
 ```bash
-# 1. Start a local Postgres (data persists in a named volume across restarts)
-docker compose -f docker-compose.yml up -d
+# From the repo root -- just the database, for running the backend from Gradle
+docker compose up -d postgres
 
-# 2. Copy the env template and adjust CLERK_JWKS_URL for your own Clerk dev instance
-cp .env.example .env
+cd backend
+cp .env.example .env      # then set CLERK_JWKS_URL for your own Clerk dev instance
 
-# 3. Export the vars into your shell, then run/test/build as usual --
-#    this covers ./gradlew run, ./gradlew test, a directly-run fat jar, and
-#    IDE debug launches uniformly, unlike a Gradle-only or direnv-only loader.
+# Export the vars into your shell, then run/test/build as usual -- this covers
+# ./gradlew run, ./gradlew test, and IDE debug launches uniformly, unlike a
+# Gradle-only or direnv-only loader.
 set -a && source .env && set +a
 
 ./gradlew run
 ```
 
-On boot, `configureDatabase()` runs Flyway migrations automatically (`src/main/resources/db/migration/`) before the app starts serving requests -- no separate migrate step needed.
+On boot, `configureDatabase()` runs Flyway migrations automatically
+(`src/main/resources/db/migration/`) before the app starts serving requests -- no
+separate migrate step needed.
 
-Tear down the local Postgres (keeping the data volume) with `docker compose -f docker-compose.yml down`, or wipe it entirely with `docker compose -f docker-compose.yml down -v`.
+To run **the whole stack** (backend + vision + Postgres) rather than just the
+database, use the root compose file directly, or `../scripts/smoke.sh` to bring it
+up and assert it actually works.
 
 ## Tests
 
-`./gradlew test` expects the same `DB_*` env vars as above to be exported (a real Postgres, not a mock) -- start the compose Postgres first.
+`./gradlew test` expects the same `DB_*` env vars exported, against a real
+Postgres (not a mock) -- start it as above.
+
+## A packaging note worth knowing
+
+The Dockerfile ships the `application` plugin's **distribution**, not a fat jar.
+Ktor's `buildFatJar` shades every dependency into one archive and overwrites
+duplicate `META-INF/services` files instead of concatenating them -- which silently
+emptied Flyway's plugin registry and made the deployed image fail on boot
+(`Unknown prefix for location (should be one of ):`). Tests never caught it: they
+run on an unshaded classpath. Don't switch back to the fat jar.
