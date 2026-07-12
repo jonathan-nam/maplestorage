@@ -55,10 +55,16 @@
   // initializeCommand runs on the HOST before the container is created. Without it, a bind
   // mount whose source does not exist fails the whole container build -- which is a
   // spectacular way to break a fresh clone for someone who has never used the AWS CLI.
-  "initializeCommand": "mkdir -p ${localEnv:HOME}/.aws ${localEnv:HOME}/.config/gh",
+  // ~/.claude is here for the same reason but matters more: it holds Claude Code's memory
+  // and the history of every session. Container-local, it dies with the container -- so a
+  // rebuild silently discards everything learned about this machine and this project, and
+  // the next session starts by rediscovering it. That is precisely what a memory is for,
+  // and precisely what makes losing it expensive.
+  "initializeCommand": "mkdir -p ${localEnv:HOME}/.aws ${localEnv:HOME}/.config/gh ${localEnv:HOME}/.claude",
   "mounts": [
     "source=${localEnv:HOME}/.aws,target=/home/vscode/.aws,type=bind,consistency=cached",
-    "source=${localEnv:HOME}/.config/gh,target=/home/vscode/.config/gh,type=bind,consistency=cached"
+    "source=${localEnv:HOME}/.config/gh,target=/home/vscode/.config/gh,type=bind,consistency=cached",
+    "source=${localEnv:HOME}/.claude,target=/home/vscode/.claude,type=bind,consistency=cached"
   ],
 
   "postCreateCommand": "bash .devcontainer/post-create.sh",
