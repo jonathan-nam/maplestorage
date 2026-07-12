@@ -65,17 +65,38 @@ class ScreenshotParseResult(BaseModel):
 
 
 def _rescaled_message(pitch: float) -> str:
+    """Why we cannot read this capture, in terms of what the user can change.
+
+    Every cause here is a RESAMPLE. MapleStory draws its UI at a fixed pixel size, so the
+    game's own resolution never matters -- what matters is whether anything stretched the
+    picture between the client drawing it and us seeing it. A fractional stretch smears the
+    one-pixel slot ridges into gradients and turns the 11px count font into mush, and no
+    kernel brings either back.
+
+    Remote play is named explicitly because it is invisible as a cause and increasingly
+    common. A Parsec frame arrived scaled 1.326x, and the previous message told the user to
+    check their *display scaling* -- which is not what was wrong and would not have fixed it.
+
+    Measured, so the advice is not a guess: a Parsec-style H.264 stream at NATIVE resolution
+    parses 12/12 items perfectly at crf 18 and crf 23. Video compression does us no harm at
+    all -- MapleStory's UI is flat colour with hard edges, which H.264 handles well. It is
+    only the rescale that destroys it. So remote play is fine; remote play that resizes the
+    stream is not.
+    """
     if pitch < NATIVE_PITCH:
         return (
-            "This screenshot was shrunk before upload, and the stack-count "
-            "digits are no longer readable. Upload the original file at its "
-            "full resolution."
+            "This screenshot was shrunk before upload, and the stack-count digits are no "
+            "longer readable. Upload the original file at its full resolution."
         )
     return (
-        "This screenshot was captured at a scaled resolution, so the "
-        "stack-count digits are too blurred to read reliably. Set your display "
-        "scaling to 100%, or turn on MapleStory's UI Optimization (which scales "
-        "cleanly), then take the screenshot again."
+        "This screenshot was stretched from its original size, which blurs the stack-count "
+        "digits past reading. Something resized the picture between the game drawing it and "
+        "the file being saved. The usual causes: Windows display scaling above 100%; a "
+        "remote-play session (Parsec, Moonlight, Steam Remote Play) whose window does not "
+        "match the host's resolution, so the stream is being resized; or the image being "
+        "resized after capture. Fix whichever applies -- for remote play, set the client to "
+        "the host's resolution -- and take the screenshot again. MapleStory's own UI "
+        "Optimization is fine: it scales by exactly 2x, which we handle."
     )
 
 
