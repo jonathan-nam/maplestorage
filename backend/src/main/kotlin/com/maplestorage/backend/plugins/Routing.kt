@@ -2,8 +2,8 @@ package com.maplestorage.backend.plugins
 
 import com.maplestorage.backend.characters.characterRoutes
 import com.maplestorage.backend.screenshots.screenshotRoutes
-import com.maplestorage.backend.services.ClaudeVisionService
 import com.maplestorage.backend.services.NexonLookupService
+import com.maplestorage.backend.services.ScreenshotParser
 import com.maplestorage.backend.tokens.tokenRoutes
 import io.ktor.server.application.Application
 import io.ktor.server.application.call
@@ -19,8 +19,7 @@ import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 
 fun Application.configureRouting(
     nexonLookupService: NexonLookupService,
-    claudeVisionService: ClaudeVisionService,
-    anthropicModel: String,
+    screenshotParser: ScreenshotParser,
 ) {
     routing {
         // Token icons are the seeded catalog images (token_catalog.icon_ref_key
@@ -59,7 +58,7 @@ fun Application.configureRouting(
             }
 
             route("/api/screenshots") {
-                screenshotRoutes(claudeVisionService, anthropicModel)
+                screenshotRoutes(screenshotParser)
             }
 
             route("/api/tokens") {

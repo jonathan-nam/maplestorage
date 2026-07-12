@@ -52,7 +52,7 @@ class VisionServiceClientTest {
                     """.trimIndent(),
                 ).parseScreenshot(ByteArray(8), "image/jpeg")
 
-            val parsed = assertIs<ClaudeVisionOutcome.Parsed>(outcome)
+            val parsed = assertIs<ScreenshotParseOutcome.Parsed>(outcome)
             assertEquals(ScreenshotType.INVENTORY, parsed.result.screenshotType)
             assertEquals(CharacterHud("acornacorn", 287), parsed.result.characterHud)
             assertEquals(
@@ -70,9 +70,7 @@ class VisionServiceClientTest {
                 ok("""{"screenshotType":"INVENTORY","characterHud":null,"tokenCounts":[]}""")
                     .parseScreenshot(ByteArray(8), "image/png")
 
-            val parsed = assertIs<ClaudeVisionOutcome.Parsed>(outcome)
-            assertEquals(0, parsed.inputTokens)
-            assertEquals(0, parsed.outputTokens)
+            val parsed = assertIs<ScreenshotParseOutcome.Parsed>(outcome)
         }
 
     // A cropped upload has no HUD in frame. Null, not an error -- ingestion
@@ -89,7 +87,7 @@ class VisionServiceClientTest {
                     """.trimIndent(),
                 ).parseScreenshot(ByteArray(8), "image/png")
 
-            val parsed = assertIs<ClaudeVisionOutcome.Parsed>(outcome)
+            val parsed = assertIs<ScreenshotParseOutcome.Parsed>(outcome)
             assertNull(parsed.result.characterHud)
             assertEquals(1, parsed.result.tokenCounts?.size)
         }
@@ -101,7 +99,7 @@ class VisionServiceClientTest {
                 ok("""{"screenshotType":"UNRECOGNIZED","characterHud":null,"tokenCounts":null}""")
                     .parseScreenshot(ByteArray(8), "image/png")
 
-            val parsed = assertIs<ClaudeVisionOutcome.Parsed>(outcome)
+            val parsed = assertIs<ScreenshotParseOutcome.Parsed>(outcome)
             assertEquals(ScreenshotType.UNRECOGNIZED, parsed.result.screenshotType)
             assertNull(parsed.result.tokenCounts)
         }
@@ -127,7 +125,7 @@ class VisionServiceClientTest {
                     }
                 }.parseScreenshot(ByteArray(8), "image/jpeg")
 
-            val failed = assertIs<ClaudeVisionOutcome.Failed>(outcome)
+            val failed = assertIs<ScreenshotParseOutcome.Failed>(outcome)
             assertTrue(failed.reason.contains("display scaling"), failed.reason)
         }
 
@@ -138,7 +136,7 @@ class VisionServiceClientTest {
                 service { MockEngine { respondError(HttpStatusCode.BadRequest) } }
                     .parseScreenshot(ByteArray(8), "image/png")
 
-            assertIs<ClaudeVisionOutcome.Failed>(outcome)
+            assertIs<ScreenshotParseOutcome.Failed>(outcome)
         }
 
     // A vision container that is down is an infrastructure fault, not a bad
@@ -151,7 +149,7 @@ class VisionServiceClientTest {
                 service { MockEngine { throw IOException("connection refused") } }
                     .parseScreenshot(ByteArray(8), "image/png")
 
-            val failed = assertIs<ClaudeVisionOutcome.Failed>(outcome)
+            val failed = assertIs<ScreenshotParseOutcome.Failed>(outcome)
             assertTrue(failed.reason.contains("temporarily unavailable"), failed.reason)
         }
 
@@ -169,7 +167,7 @@ class VisionServiceClientTest {
             val outcome =
                 ok(golden).parseScreenshot(ByteArray(8), "image/png")
 
-            val parsed = assertIs<ClaudeVisionOutcome.Parsed>(outcome)
+            val parsed = assertIs<ScreenshotParseOutcome.Parsed>(outcome)
             assertEquals(ScreenshotType.INVENTORY, parsed.result.screenshotType)
             assertEquals(CharacterHud("acornacorn", 287), parsed.result.characterHud)
             // The five tokens visible in reference-images/untradeables sample.png,

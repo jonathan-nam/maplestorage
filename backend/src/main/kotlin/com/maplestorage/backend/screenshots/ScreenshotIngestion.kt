@@ -6,11 +6,10 @@ import com.maplestorage.backend.db.CharacterTokenCount
 import com.maplestorage.backend.db.Characters
 import com.maplestorage.backend.db.Screenshots
 import com.maplestorage.backend.db.TokenCatalog
-import com.maplestorage.backend.db.UsageLedger
-import com.maplestorage.backend.services.ClaudeVisionOutcome
-import com.maplestorage.backend.services.ClaudeVisionService
 import com.maplestorage.backend.services.DetectedToken
+import com.maplestorage.backend.services.ScreenshotParseOutcome
 import com.maplestorage.backend.services.ScreenshotParseResult
+import com.maplestorage.backend.services.ScreenshotParser
 import com.maplestorage.backend.services.ScreenshotType
 import com.maplestorage.backend.users.ensureUser
 import kotlinx.serialization.json.Json
@@ -24,34 +23,9 @@ import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.jetbrains.exposed.v1.jdbc.update
 import org.jetbrains.exposed.v1.jdbc.upsert
-import java.math.BigDecimal
-import java.math.MathContext
 import kotlin.time.Clock
 import kotlin.time.Instant
 import kotlin.uuid.Uuid
-
-// Estimated only -- no quota/billing enforcement reads UsageLedger yet
-// (PLAN.md's M9 note). claude-sonnet-5's intro rate ($2/$10 per MTok) runs
-// through 2026-08-31; falls back to standard pricing after, and to a rough
-// default for any model not in this table rather than failing the request.
-private val MODEL_PRICING_PER_MTOK =
-    mapOf(
-        "claude-sonnet-5" to (BigDecimal("2.00") to BigDecimal("10.00")),
-        "claude-opus-4-8" to (BigDecimal("5.00") to BigDecimal("25.00")),
-    )
-private val DEFAULT_PRICING_PER_MTOK = BigDecimal("3.00") to BigDecimal("15.00")
-private const val TOKENS_PER_MTOK = 1_000_000
-private val MTOK = BigDecimal(TOKENS_PER_MTOK)
-
-private fun estimateCostUsd(
-    model: String,
-    inputTokens: Int,
-    outputTokens: Int,
-): BigDecimal {
-    val (inputPrice, outputPrice) = MODEL_PRICING_PER_MTOK[model] ?: DEFAULT_PRICING_PER_MTOK
-    return (inputPrice * BigDecimal(inputTokens) + outputPrice * BigDecimal(outputTokens))
-        .divide(MTOK, MathContext.DECIMAL64)
-}
 
 private data class OutcomeDecision(
     val outcome: ScreenshotOutcome,
@@ -67,20 +41,19 @@ suspend fun ingestScreenshot(
     email: String,
     request: UploadScreenshotRequest,
     pinnedCharacterId: Uuid?,
-    claudeVisionService: ClaudeVisionService,
-    model: String,
+    screenshotParser: ScreenshotParser,
 ): ScreenshotResultResponse {
     val imageBytes =
         java.util.Base64
             .getDecoder()
             .decode(request.imageBase64)
-    val visionOutcome = claudeVisionService.parseScreenshot(imageBytes, request.mediaType)
+    val parseOutcome = screenshotParser.parseScreenshot(imageBytes, request.mediaType)
 
     return transaction {
         ensureUser(userId, email)
-        when (visionOutcome) {
-            is ClaudeVisionOutcome.Failed -> insertFailedScreenshot(userId, pinnedCharacterId, visionOutcome.reason)
-            is ClaudeVisionOutcome.Parsed -> insertParsedScreenshot(userId, pinnedCharacterId, visionOutcome, model)
+        when (parseOutcome) {
+            is ScreenshotParseOutcome.Failed -> insertFailedScreenshot(userId, pinnedCharacterId, parseOutcome.reason)
+            is ScreenshotParseOutcome.Parsed -> insertParsedScreenshot(userId, pinnedCharacterId, parseOutcome)
         }
     }
 }
@@ -105,8 +78,7 @@ private fun insertFailedScreenshot(
 private fun insertParsedScreenshot(
     userId: String,
     pinnedCharacterId: Uuid?,
-    parsed: ClaudeVisionOutcome.Parsed,
-    model: String,
+    parsed: ScreenshotParseOutcome.Parsed,
 ): ScreenshotResultResponse {
     val result = parsed.result
     val pinnedCharacter = pinnedCharacterId?.let { findOwnedCharacter(it, userId) }
@@ -121,19 +93,9 @@ private fun insertParsedScreenshot(
         it[type] = result.screenshotType.name
         it[uploadedAt] = now
         it[parseStatus] = decision.parseStatus
-        it[rawModelResponse] = Json.encodeToJsonElement(result)
+        it[rawParseResult] = Json.encodeToJsonElement(result)
         it[detectedCharacterName] = result.characterHud?.name
         it[detectedLevel] = result.characterHud?.level
-    }
-
-    UsageLedger.insert {
-        it[id] = Uuid.random()
-        it[UsageLedger.userId] = userId
-        it[UsageLedger.screenshotId] = screenshotId
-        it[inputTokens] = parsed.inputTokens
-        it[outputTokens] = parsed.outputTokens
-        it[estimatedCostUsd] = estimateCostUsd(model, parsed.inputTokens, parsed.outputTokens)
-        it[createdAt] = now
     }
 
     if (decision.outcome == ScreenshotOutcome.MATCHED) {
@@ -274,7 +236,7 @@ private fun upsertTokenCounts(
 // = create the character via the existing M2 endpoint, then call this; pick-
 // existing = call this directly) plus mismatch's one-click fix and
 // unresolvable's manual picker -- none of them need the image again, since
-// the parsed result was already persisted to `rawModelResponse`.
+// the parsed result was already persisted to `rawParseResult`.
 fun resolveScreenshot(
     userId: String,
     screenshotId: Uuid,
@@ -287,7 +249,7 @@ fun resolveScreenshot(
                 .where { (Screenshots.id eq screenshotId) and (Screenshots.userId eq userId) }
                 .singleOrNull() ?: return@transaction false
         if (row[Screenshots.parseStatus] != "NEEDS_REVIEW") return@transaction false
-        val rawResponse = row[Screenshots.rawModelResponse] ?: return@transaction false
+        val rawResponse = row[Screenshots.rawParseResult] ?: return@transaction false
         val tokens =
             Json.decodeFromJsonElement<ScreenshotParseResult>(rawResponse).tokenCounts ?: return@transaction false
         findOwnedCharacter(newCharacterId, userId) ?: return@transaction false

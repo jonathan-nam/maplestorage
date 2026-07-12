@@ -3,7 +3,7 @@ package com.maplestorage.backend.screenshots
 import com.maplestorage.backend.characters.findOwnedCharacter
 import com.maplestorage.backend.plugins.parseUuidParam
 import com.maplestorage.backend.plugins.principalIdAndEmail
-import com.maplestorage.backend.services.ClaudeVisionService
+import com.maplestorage.backend.services.ScreenshotParser
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.call
 import io.ktor.server.request.receive
@@ -14,19 +14,13 @@ import io.ktor.server.routing.post
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import kotlin.uuid.Uuid
 
-fun Route.screenshotRoutes(
-    claudeVisionService: ClaudeVisionService,
-    anthropicModel: String,
-) {
-    post { uploadScreenshot(claudeVisionService, anthropicModel) }
+fun Route.screenshotRoutes(screenshotParser: ScreenshotParser) {
+    post { uploadScreenshot(screenshotParser) }
     post("/{id}/resolve") { resolveScreenshotRoute() }
     post("/{id}/ignore") { ignoreScreenshotRoute() }
 }
 
-private suspend fun RoutingContext.uploadScreenshot(
-    claudeVisionService: ClaudeVisionService,
-    anthropicModel: String,
-) {
+private suspend fun RoutingContext.uploadScreenshot(screenshotParser: ScreenshotParser) {
     val (userId, email) = call.principalIdAndEmail()
     val request = call.receive<UploadScreenshotRequest>()
 
@@ -52,8 +46,7 @@ private suspend fun RoutingContext.uploadScreenshot(
             email = email,
             request = request,
             pinnedCharacterId = pinnedCharacterId,
-            claudeVisionService = claudeVisionService,
-            model = anthropicModel,
+            screenshotParser = screenshotParser,
         )
     call.respond(result)
 }

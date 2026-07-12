@@ -1,7 +1,6 @@
 import { SignedIn, SignedOut, SignInButton } from "@clerk/nextjs";
 import Link from "next/link";
 import { Chest } from "@/components/chest";
-import { BackendStatus } from "./backend-status";
 
 export default function Home() {
   return (
@@ -32,7 +31,6 @@ export default function Home() {
             <Link href="/upload">drop in a new screenshot</Link>.
           </p>
         </section>
-        <BackendStatus />
       </SignedIn>
     </main>
   );

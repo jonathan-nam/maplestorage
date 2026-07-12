@@ -12,8 +12,6 @@ import org.jetbrains.exposed.v1.json.jsonb
 // string literals -- there is no SchemaUtils.create(...) call anywhere.
 
 private const val DEFAULT_REDEEM_THRESHOLD = 10
-private const val ESTIMATED_COST_PRECISION = 10
-private const val ESTIMATED_COST_SCALE = 6
 
 object Users : Table("users") {
     // Clerk userIds are strings (e.g. "user_2abc..."), not UUIDs.
@@ -72,7 +70,10 @@ object Screenshots : Table("screenshots") {
     val type = text("type").nullable()
     val uploadedAt = timestamp("uploaded_at")
     val parseStatus = text("parse_status").default("PENDING")
-    val rawModelResponse = jsonb<JsonElement>("raw_model_response", Json).nullable()
+
+    // The parser's own output: grid coords, template match scores, digit reads.
+    // Not a model response, and has not been one since the OpenCV rewrite (V5).
+    val rawParseResult = jsonb<JsonElement>("raw_parse_result", Json).nullable()
     val detectedCharacterName = text("detected_character_name").nullable()
     val detectedLevel = integer("detected_level").nullable()
 
@@ -90,16 +91,4 @@ object CharacterTokenCount : Table("character_token_count") {
     val sourceScreenshotId = optReference("source_screenshot_id", Screenshots.id)
 
     override val primaryKey = PrimaryKey(characterId, tokenCatalogId)
-}
-
-object UsageLedger : Table("usage_ledger") {
-    val id = uuid("id")
-    val userId = reference("user_id", Users.id)
-    val screenshotId = optReference("screenshot_id", Screenshots.id)
-    val inputTokens = integer("input_tokens")
-    val outputTokens = integer("output_tokens")
-    val estimatedCostUsd = decimal("estimated_cost_usd", ESTIMATED_COST_PRECISION, ESTIMATED_COST_SCALE)
-    val createdAt = timestamp("created_at")
-
-    override val primaryKey = PrimaryKey(id)
 }

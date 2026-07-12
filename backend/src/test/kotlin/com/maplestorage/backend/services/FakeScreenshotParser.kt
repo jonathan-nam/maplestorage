@@ -5,19 +5,19 @@ package com.maplestorage.backend.services
 // Ktor's engine, so ScreenshotIngestion's orchestration logic is exercised
 // against this instead. Queue outcomes in call order; each parseScreenshot
 // call consumes the next one.
-class FakeClaudeVisionService(
-    private val outcomes: MutableList<ClaudeVisionOutcome>,
-) : ClaudeVisionService {
-    constructor(vararg outcomes: ClaudeVisionOutcome) : this(outcomes.toMutableList())
+class FakeScreenshotParser(
+    private val outcomes: MutableList<ScreenshotParseOutcome>,
+) : ScreenshotParser {
+    constructor(vararg outcomes: ScreenshotParseOutcome) : this(outcomes.toMutableList())
 
     val requestedMediaTypes = mutableListOf<String>()
 
     override suspend fun parseScreenshot(
         imageBytes: ByteArray,
         mediaType: String,
-    ): ClaudeVisionOutcome {
+    ): ScreenshotParseOutcome {
         requestedMediaTypes.add(mediaType)
-        check(outcomes.isNotEmpty()) { "FakeClaudeVisionService: no more queued outcomes" }
+        check(outcomes.isNotEmpty()) { "FakeScreenshotParser: no more queued outcomes" }
         return outcomes.removeAt(0)
     }
 }
