@@ -12,6 +12,7 @@ import os
 import sys
 
 import cv2
+import numpy as np
 
 from .grid import NATIVE_PITCH, draw, find_grid
 from .match import find_tokens, load_templates
@@ -35,6 +36,35 @@ class Undersampled(ValueError):
 # casualty -- so undersampled input is rejected rather than quietly returning
 # nulls.
 MIN_PITCH = 44.0
+
+
+# When find_grid fails we have to say something, and "this isn't a MapleStory inventory" is
+# often a lie. A capture taken with Windows display scaling on is an inventory -- the client
+# drew it perfectly -- it has just been upscaled and smeared on the way out, so the slot
+# boundaries no longer resolve and the detector finds 6 boxes instead of 128. Telling that
+# user their screenshot "isn't an inventory" sends them to fix the wrong thing entirely.
+#
+# The window's own chrome gives it away, and does so independently of scale, because it is
+# about colour rather than geometry: a big field of near-neutral light grey (the #d1d4d6
+# panel and #eee slot bed) plus the #36b8d0 cyan of the active tab. Measured across the
+# corpus, a cropped inventory window scores 0.19-0.54 grey; a login screen, the character
+# select and the Storage Room all score under 0.01.
+INVENTORY_GREY_FRACTION = 0.15
+INVENTORY_CYAN_FRACTION = 0.002
+
+
+def looks_like_inventory_window(img) -> bool:
+    """Whether this frame is the inventory window, judged on chrome colour alone.
+
+    Only consulted when find_grid has already failed, to choose between "we cannot read
+    this" and "this is not an inventory at all". Deliberately conservative: a full-desktop
+    capture puts the window in a small corner of the frame and will not clear these bars, so
+    it falls back to UNRECOGNIZED rather than guessing.
+    """
+    b, g, r = cv2.split(img.astype(np.int16))
+    grey = (abs(b - g) < 8) & (abs(g - r) < 8) & (r > 195) & (r < 245)
+    cyan = (abs(b - 208) < 30) & (abs(g - 184) < 30) & (abs(r - 54) < 40)
+    return bool(grey.mean() > INVENTORY_GREY_FRACTION and cyan.mean() > INVENTORY_CYAN_FRACTION)
 
 
 def normalize(img, g):

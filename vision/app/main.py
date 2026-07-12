@@ -30,7 +30,7 @@ from app.cv.grid import NATIVE_PITCH, find_grid
 from app.cv.hud import find_hud
 from app.cv.match import load_templates
 from app.cv.ocr import load_font, read_count
-from app.cv.pipeline import counts_trustworthy, normalize
+from app.cv.pipeline import counts_trustworthy, looks_like_inventory_window, normalize
 
 log = logging.getLogger("vision")
 
@@ -132,10 +132,17 @@ async def parse(request: Request, response: Response) -> ScreenshotParseResult:
         with stage("grid"):
             g = find_grid(img)
     except ValueError as e:
-        # No inventory lattice: this isn't an inventory screenshot (or it was
-        # downscaled past the point of being one). Either way it is the same
-        # answer the vision model gave -- UNRECOGNIZED, not an error.
+        # No slot lattice. Two very different reasons, and telling the user the wrong one
+        # sends them to fix the wrong thing:
+        #
+        #   * It really is not an inventory (a login screen, the character select).
+        #   * It IS an inventory, but the capture was scaled -- Windows display scaling
+        #     upscales and smears it, so the slot boundaries stop resolving. The client drew
+        #     it perfectly; the screenshot ruined it. Saying "not an inventory" there is a lie
+        #     that costs the user an afternoon.
         log.info("no grid: %s", e)
+        if looks_like_inventory_window(img):
+            raise HTTPException(422, _rescaled_message(NATIVE_PITCH * 1.5)) from e
         return ScreenshotParseResult(screenshotType="UNRECOGNIZED")
 
     # Any capture that is not at the client's native scale gets refused, and the
