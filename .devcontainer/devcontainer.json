@@ -59,7 +59,39 @@
         "detekt.detekt-vscode"
       ],
       "settings": {
-        "editor.formatOnSave": true
+        "editor.formatOnSave": true,
+
+        // This is a Kotlin project, but VS Code syncs personal extensions into the
+        // container, and redhat.java + vscjava.vscode-gradle arrive that way. Between
+        // them they run a Java language server, a Gradle Build Server and a Gradle
+        // import daemon: about 160% CPU and 1.7GB of RAM on a 7.7GB VM, for a language
+        // this repo barely contains. The visible symptom is that typing in the terminal
+        // goes laggy, because the editor is starving it of CPU.
+        //
+        // Kotlin support is fwcd.kotlin and builds are run from the terminal, so nothing
+        // here needs Gradle project import. Turn the expensive parts off rather than
+        // relying on everyone to disable the extensions by hand.
+        "java.import.gradle.enabled": false,
+        "java.gradle.buildServer.enabled": "off",
+        "java.autobuild.enabled": false,
+        "java.configuration.updateBuildConfiguration": "disabled",
+        "java.import.maven.enabled": false,
+        "java.compile.nullAnalysis.mode": "disabled",
+        "java.jdt.ls.vmargs": "-Xmx512m -XX:MaxMetaspaceSize=256m",
+
+        // Build output churns on every build and holds nothing worth indexing.
+        "files.watcherExclude": {
+          "**/build/**": true,
+          "**/.gradle/**": true,
+          "**/node_modules/**": true,
+          "**/.next/**": true,
+          "**/.terraform/**": true
+        },
+        "search.exclude": {
+          "**/build": true,
+          "**/.gradle": true,
+          "**/.next": true
+        }
       }
     }
   },
