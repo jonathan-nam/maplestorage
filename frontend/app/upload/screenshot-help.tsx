@@ -4,20 +4,32 @@ import { useState } from "react";
 
 type Os = "mac" | "windows" | "unknown";
 
+// Capture the WHOLE game window, not a crop of the inventory panel. The window
+// includes the character's name and level in the bottom-left, which is what lets
+// us work out which of your characters a screenshot belongs to -- crop that away
+// and you have to tell us yourself, every time.
+//
+// (The old copy told users to crop, and justified it with "a full game-window
+// screenshot makes the item icons too small to read". That was true when
+// screenshots were downscaled for a vision model. It is not true now: the game
+// draws its UI at a fixed pixel size, so the icons are exactly the same size
+// either way.)
 const STEPS_BY_OS: Record<Os, string[]> = {
   mac: [
-    "Press Cmd + Shift + 4.",
-    "Drag a box around the boss-planner or inventory panel — it saves a PNG to your desktop automatically.",
+    "Open your inventory in-game so the items are visible.",
+    "Press Cmd + Shift + 4, then press the Space bar — the cursor becomes a camera.",
+    "Click the MapleStory window. It saves a PNG of the whole window to your desktop.",
     "Drag that file into the drop zone below (or click the drop zone to browse for it).",
   ],
   windows: [
-    "Press Windows key + Shift + S.",
-    "Drag a box around the boss-planner or inventory panel — it's copied to your clipboard.",
-    "Click anywhere on this page and press Ctrl+V to paste it directly — no need to save a file first.",
+    "Open your inventory in-game so the items are visible.",
+    "Click the MapleStory window to make sure it's in focus, then press Alt + Print Screen — this copies the whole window to your clipboard.",
+    "Click anywhere on this page and press Ctrl + V to paste it directly — no need to save a file first.",
   ],
   unknown: [
-    "Use your OS's screenshot shortcut (Windows: Win+Shift+S, Mac: Cmd+Shift+4) to capture the boss-planner or inventory panel.",
-    "If it's copied to your clipboard, click this page and press Ctrl/Cmd+V to paste it directly.",
+    "Open your inventory in-game so the items are visible.",
+    "Capture the whole MapleStory window (Windows: Alt + Print Screen. Mac: Cmd + Shift + 4, then Space, then click the window).",
+    "If it's on your clipboard, click this page and press Ctrl/Cmd + V to paste it directly.",
     "Otherwise, drag the saved image file into the drop zone below.",
   ],
 };
@@ -48,10 +60,11 @@ export function ScreenshotHelp() {
   return (
     <>
       <p className="intro-copy">
-        Drag a screenshot of your inventory into the drop zone — we&apos;ll automatically detect
-        which character it&apos;s from and read the item counts. Crop tightly to just the inventory
-        window rather than your whole screen — a full game-window screenshot makes the item icons
-        too small to read reliably.{" "}
+        <strong>Take a screenshot of your game with your inventory open</strong> and drag it into
+        the drop zone. Capture the whole game window, not just the inventory panel — the character
+        name in the corner is how we tell which of your characters it belongs to, so you can drop a
+        whole batch of mules at once and we&apos;ll sort them out. Don&apos;t worry about the file
+        size; upload it as-is.{" "}
         <a
           href="#"
           onClick={(e) => {
@@ -90,6 +103,11 @@ export function ScreenshotHelp() {
               <li key={step}>{step}</li>
             ))}
           </ol>
+          <p className="help-note">
+            Cropped to just the inventory? That still works — we&apos;ll read the item counts fine —
+            but there&apos;s no character name in the image, so you&apos;ll have to tell us who it
+            belongs to.
+          </p>
         </div>
       )}
     </>

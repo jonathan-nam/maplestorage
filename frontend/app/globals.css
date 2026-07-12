@@ -380,3 +380,40 @@ a:hover {
   white-space: nowrap;
   padding-right: 12px;
 }
+
+/* What we read off the screenshot, shown on every row -- including rows that
+   still need review, since those have been fully parsed too. Leaving the counts
+   invisible is what made a successful parse look like nothing had happened. */
+.token-counts {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.token-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.token-count img {
+  width: 22px;
+  height: 22px;
+  image-rendering: pixelated; /* the icons are 32px game sprites -- don't smudge them */
+}
+
+/* Says plainly that a parsed-but-unattributed screenshot has NOT been written
+   yet, so a review row can't be mistaken for a saved one. */
+.not-saved {
+  font-style: italic;
+  opacity: 0.7;
+  font-size: 0.85em;
+}
+
+.help-note {
+  margin-top: 0.75rem;
+  opacity: 0.8;
+  font-size: 0.9em;
+}

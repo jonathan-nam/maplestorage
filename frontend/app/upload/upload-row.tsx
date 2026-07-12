@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { apiFetch } from "@/lib/api";
+import { apiAssetUrl, apiFetch } from "@/lib/api";
 import { compressImage } from "@/lib/compress-image";
 import type { Character } from "@/types/character";
 import type { ScreenshotResult } from "@/types/screenshot";
@@ -121,11 +121,28 @@ export function UploadRow({
 
   const { statusText, statusClass } = describeStatus(phase, result, postAction);
 
+  // Whatever the outcome, if we read something off the image, say so. A row that
+  // needs review has still been fully parsed -- leaving the counts invisible is
+  // what made a successful parse look like nothing had happened at all.
+  const counts = result?.tokenCounts ?? [];
+  const saved = result?.outcome === "MATCHED";
+
   return (
     <div className="upload-row">
       <img className="thumb" src={thumbUrl} alt="" />
       <span className="filename">{file.name}</span>
       <span className={`status${statusClass ? ` ${statusClass}` : ""}`}>{statusText}</span>
+      {phase === "resolved" && counts.length > 0 && (
+        <span className="token-counts" title={saved ? "Saved" : "Not saved yet"}>
+          {counts.map((t) => (
+            <span key={t.tokenName} className="token-count" title={t.displayName}>
+              {t.iconUrl && <img src={apiAssetUrl(t.iconUrl)} alt={t.displayName} />}
+              {t.quantity}
+            </span>
+          ))}
+          {!saved && <em className="not-saved">not saved yet</em>}
+        </span>
+      )}
       <span className="row-actions">
         {phase === "request-error" && (
           <a href="#" onClick={(e) => (e.preventDefault(), setRunId((n) => n + 1))}>
@@ -257,7 +274,8 @@ function describeStatus(
       };
     case "UNRESOLVABLE":
       return {
-        statusText: "No character visible in this screenshot — pick one to attribute it",
+        statusText:
+          "Read the item counts fine, but no character name is visible in this screenshot — pick who it belongs to and we'll save them",
         statusClass: "needs-review",
       };
     case "UNRECOGNIZED_SCREENSHOT":
