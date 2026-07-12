@@ -40,3 +40,4 @@ vision/.pytest_cache/
 .venv-cv/
 __pycache__/
 *.pyc
+symbol-candidates.png

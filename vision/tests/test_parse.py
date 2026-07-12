@@ -162,11 +162,17 @@ def test_parsec_capture_is_read():
 
     Every stage of the old pipeline failed on it. Segmentation found 6 slots instead of 128,
     because the boundary ridge arrives as a gentle bump that never leaves the interior grey
-    band. It is here as a test rather than a fixture because it is the only capture we have
-    that was degraded by something other than our own synthetic resize, and synthetic damage
-    has a way of being kinder than the real thing.
+    band.
+
+    Kept as its OWN fixture (symbols-parsec.png) rather than reusing whatever symbols.png
+    happens to be, and that is deliberate: symbols.png was later replaced with a native-scale
+    capture of the same inventory, which would have silently turned this into a test that the
+    native path works -- something eleven other tests already cover -- while the one real
+    rescaled capture we own, and the only evidence that is not our own synthetic resize,
+    quietly stopped being exercised. Synthetic damage has a way of being kinder than the real
+    thing, so this file is worth keeping even though it is redundant-looking.
     """
-    img = cv2.imread(f"{REF}/symbols.png")
+    img = cv2.imread(f"{REF}/symbols-parsec.png")
     r = client.post("/parse", content=cv2.imencode(".png", img)[1].tobytes())
     assert r.status_code == 200, r.json()
     got = {t["tokenName"]: t["quantity"] for t in r.json()["tokenCounts"]}
