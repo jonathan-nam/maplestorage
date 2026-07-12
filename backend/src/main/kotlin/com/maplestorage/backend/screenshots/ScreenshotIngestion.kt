@@ -150,10 +150,23 @@ private fun insertParsedScreenshot(
     )
 }
 
-// Mirrors PLAN.md's "Screenshot ingestion & vision-parsing pipeline" section
-// exactly: a pin is only ever a cross-check target, never a blind
-// attribution source. No HUD visible -> always NEEDS_REVIEW, even with a
-// pin, since there's nothing in the image to verify that pin against.
+// A HUD and a pin are both attribution sources, and the pin is the stronger one:
+// the HUD is something we inferred from pixels, the pin is a human telling us the
+// answer outright. So a pin attributes on its own, and the HUD's job is to
+// contradict it when the two disagree.
+//
+// This used to read "a pin is only ever a cross-check target, never a blind
+// attribution source: no HUD -> always NEEDS_REVIEW, even with a pin." That rule
+// came from the vision-model era, when the parser could hallucinate a name and the
+// pin existed purely to catch it doing so. It inverted the trust: an upload with a
+// pin and no HUD was rejected not because we doubted it, but because we had no
+// second opinion to confirm it -- so we asked the user to pick a character they had
+// already picked, on a screenshot we had already read perfectly. The upload page
+// tells people a cropped inventory is fine; this made a liar of it.
+//
+// The MISMATCH branch below is the case that rule was really protecting, and it is
+// untouched: if a HUD IS present and disagrees with the pin, we still refuse to
+// guess.
 private fun decideOutcome(
     userId: String,
     pinnedCharacterId: Uuid?,
@@ -161,18 +174,34 @@ private fun decideOutcome(
     result: ScreenshotParseResult,
 ): OutcomeDecision =
     when {
+        // No inventory in frame means no counts to attribute, so a pin buys nothing.
         result.screenshotType == ScreenshotType.UNRECOGNIZED ->
             OutcomeDecision(ScreenshotOutcome.UNRECOGNIZED_SCREENSHOT, "NEEDS_REVIEW", pinnedCharacterId)
 
+        pinnedCharacterId != null ->
+            when {
+                // Pinned to a character we cannot resolve (deleted, or not this user's).
+                // Never fall through to auto-attribution here: the HUD could name some
+                // OTHER character and we would silently save to them instead of the one
+                // the user asked for.
+                pinnedCharacter == null ->
+                    OutcomeDecision(ScreenshotOutcome.UNRESOLVABLE, "NEEDS_REVIEW", null)
+
+                // Nothing in the image to contradict the pin: take the user at their word.
+                result.characterHud == null ->
+                    OutcomeDecision(ScreenshotOutcome.MATCHED, "SUCCESS", pinnedCharacterId)
+
+                pinnedCharacter.name.equals(result.characterHud.name, ignoreCase = true) ->
+                    OutcomeDecision(ScreenshotOutcome.MATCHED, "SUCCESS", pinnedCharacterId)
+
+                else ->
+                    OutcomeDecision(ScreenshotOutcome.MISMATCH, "NEEDS_REVIEW", pinnedCharacterId)
+            }
+
+        // Unpinned, and no name in the image: there is genuinely no way to know whose
+        // this is, so ask.
         result.characterHud == null ->
             OutcomeDecision(ScreenshotOutcome.UNRESOLVABLE, "NEEDS_REVIEW", pinnedCharacterId)
-
-        pinnedCharacterId != null ->
-            if (pinnedCharacter != null && pinnedCharacter.name.equals(result.characterHud.name, ignoreCase = true)) {
-                OutcomeDecision(ScreenshotOutcome.MATCHED, "SUCCESS", pinnedCharacterId)
-            } else {
-                OutcomeDecision(ScreenshotOutcome.MISMATCH, "NEEDS_REVIEW", pinnedCharacterId)
-            }
 
         else ->
             findCharacterIdByName(userId, result.characterHud.name)

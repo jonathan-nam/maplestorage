@@ -158,16 +158,45 @@ class ScreenshotIngestionTest {
     }
 
     @Test
-    fun `unresolvable -- no HUD visible, even with a character pinned`() {
+    fun `matched -- a pin attributes on its own when no HUD is in frame`() {
         val characterId = insertCharacter("Pinned")
         val fake =
             FakeClaudeVisionService(parsedOutcome(hud = null, tokens = listOf(DetectedToken(DISTORTED_AMBITION, 2))))
 
         val result = runBlocking { ingest(fake, pinnedCharacterId = characterId) }
 
-        // The safety rule: an unverifiable pin never gets trusted blindly.
+        // A cropped inventory with a pin is the documented happy path -- the upload
+        // page tells people it works. Nothing in the image contradicts the pin, so the
+        // counts save rather than asking the user to name a character they just named.
+        assertEquals(ScreenshotOutcome.MATCHED, result.outcome)
+        assertEquals(2, tokenCountFor(characterId))
+    }
+
+    @Test
+    fun `unresolvable -- no HUD visible and no pin, so nobody knows whose this is`() {
+        val fake =
+            FakeClaudeVisionService(parsedOutcome(hud = null, tokens = listOf(DetectedToken(DISTORTED_AMBITION, 2))))
+
+        val result = runBlocking { ingest(fake, pinnedCharacterId = null) }
+
         assertEquals(ScreenshotOutcome.UNRESOLVABLE, result.outcome)
-        assertNull(tokenCountFor(characterId))
+    }
+
+    @Test
+    fun `unresolvable -- a pin to a character that is not the caller's never auto-attributes`() {
+        val mine = insertCharacter("Mine")
+        val fake =
+            FakeClaudeVisionService(
+                parsedOutcome(hud = CharacterHud("Mine", 200), tokens = listOf(DetectedToken(DISTORTED_AMBITION, 2))),
+            )
+
+        // A pin we cannot resolve must not fall through to HUD-based attribution: the
+        // HUD names "Mine", and saving to them would quietly honour a character the
+        // user never picked.
+        val result = runBlocking { ingest(fake, pinnedCharacterId = Uuid.random()) }
+
+        assertEquals(ScreenshotOutcome.UNRESOLVABLE, result.outcome)
+        assertNull(tokenCountFor(mine))
     }
 
     @Test
