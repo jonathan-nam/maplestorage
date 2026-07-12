@@ -146,6 +146,7 @@ private fun insertParsedScreenshot(
         detectedCharacterName = result.characterHud?.name,
         detectedLevel = result.characterHud?.level,
         pinnedCharacterName = pinnedCharacter?.name,
+        tokenCounts = describeTokens(result.tokenCounts.orEmpty()),
     )
 }
 
@@ -189,21 +190,47 @@ private fun findCharacterIdByName(
         .singleOrNull()
         ?.get(Characters.id)
 
+// Resolves the parser's keys to what a human should see. Done server-side, from
+// the catalog, because the display name is not derivable from the key.
+private fun describeTokens(tokens: List<DetectedToken>): List<DetectedTokenResponse> {
+    val catalog =
+        TokenCatalog.selectAll().associate {
+            it[TokenCatalog.visionKey] to
+                (it[TokenCatalog.name] to it[TokenCatalog.iconRefKey])
+        }
+    return tokens.map { token ->
+        val (displayName, iconRefKey) = catalog[token.tokenName] ?: (token.tokenName to null)
+        DetectedTokenResponse(
+            tokenName = token.tokenName,
+            displayName = displayName,
+            iconUrl = iconRefKey?.let { "/token-icons/$it" },
+            quantity = token.quantity,
+        )
+    }
+}
+
 private fun upsertTokenCounts(
     characterId: Uuid,
     tokens: List<DetectedToken>,
     screenshotId: Uuid,
     capturedAt: Instant,
 ) {
-    val catalogIdsByName =
+    val catalogIdsByVisionKey =
         TokenCatalog.selectAll().associate {
-            it[TokenCatalog.name].lowercase() to it[TokenCatalog.id]
+            it[TokenCatalog.visionKey] to it[TokenCatalog.id]
         }
     for (token in tokens) {
-        // A name Claude returns that doesn't exactly match one of the 6 fixed
-        // catalog entries is a parse quirk, not a reason to fail the whole
-        // request -- skip just that one token.
-        val catalogId = catalogIdsByName[token.tokenName.lowercase()] ?: continue
+        // The parser can only ever emit a key it has a template for, so an
+        // unmatched one means the catalog and the templates have drifted apart.
+        // That is a bug, and it must be loud: this lookup used to fall back to
+        // `continue`, which silently dropped EVERY token when the parser switched
+        // from display names to slugs, and no test noticed.
+        val catalogId =
+            catalogIdsByVisionKey[token.tokenName]
+                ?: error(
+                    "No token_catalog row with vision_key='${token.tokenName}'. The parser's " +
+                        "templates and the catalog have drifted -- see V4__token_catalog_vision_key.sql.",
+                )
         CharacterTokenCount.upsert(CharacterTokenCount.characterId, CharacterTokenCount.tokenCatalogId) { row ->
             row[CharacterTokenCount.characterId] = characterId
             row[CharacterTokenCount.tokenCatalogId] = catalogId

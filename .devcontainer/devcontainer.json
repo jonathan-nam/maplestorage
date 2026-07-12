@@ -30,6 +30,20 @@
       "version": "latest"
     }
   },
+
+  // Only forward the ports that mean something. Without this, VS Code auto-forwards
+  // every ephemeral port it notices a process bind -- Gradle daemons, language
+  // servers, test harnesses -- and leaves the rows behind after the process exits,
+  // so the Ports panel fills with dead entries nobody can interpret.
+  "forwardPorts": [3000, 8080, 5432],
+  "portsAttributes": {
+    "3000": { "label": "frontend (Next.js)", "onAutoForward": "notify" },
+    "8080": { "label": "backend (Ktor)", "onAutoForward": "silent" },
+    "5432": { "label": "postgres", "onAutoForward": "silent" }
+  },
+  // Everything else -- Gradle daemons, language servers, the vision service on 8000 --
+  // is reachable but not worth a row in the panel. Forward it by hand if you need it.
+  "otherPortsAttributes": { "onAutoForward": "ignore" },
   "postCreateCommand": "bash .devcontainer/post-create.sh",
   "containerEnv": {
     "CLAUDE_CODE_IDE_SKIP_AUTO_INSTALL": "1"

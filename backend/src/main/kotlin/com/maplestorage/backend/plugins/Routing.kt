@@ -4,6 +4,7 @@ import com.maplestorage.backend.characters.characterRoutes
 import com.maplestorage.backend.screenshots.screenshotRoutes
 import com.maplestorage.backend.services.ClaudeVisionService
 import com.maplestorage.backend.services.NexonLookupService
+import com.maplestorage.backend.tokens.tokenRoutes
 import io.ktor.server.application.Application
 import io.ktor.server.application.call
 import io.ktor.server.auth.authenticate
@@ -59,6 +60,10 @@ fun Application.configureRouting(
 
             route("/api/screenshots") {
                 screenshotRoutes(claudeVisionService, anthropicModel)
+            }
+
+            route("/api/tokens") {
+                tokenRoutes()
             }
         }
     }

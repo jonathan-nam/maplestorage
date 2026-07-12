@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { apiFetch } from "@/lib/api";
+import { apiAssetUrl, apiFetch } from "@/lib/api";
 import { compressImage } from "@/lib/compress-image";
 import type { Character } from "@/types/character";
 import type { ScreenshotResult } from "@/types/screenshot";
@@ -121,11 +121,28 @@ export function UploadRow({
 
   const { statusText, statusClass } = describeStatus(phase, result, postAction);
 
+  // Whatever the outcome, if we read something off the image, say so. A row that
+  // needs review has still been fully parsed -- leaving the counts invisible is
+  // what made a successful parse look like nothing had happened at all.
+  const counts = result?.tokenCounts ?? [];
+  const saved = result?.outcome === "MATCHED";
+
   return (
     <div className="upload-row">
       <img className="thumb" src={thumbUrl} alt="" />
       <span className="filename">{file.name}</span>
       <span className={`status${statusClass ? ` ${statusClass}` : ""}`}>{statusText}</span>
+      {phase === "resolved" && counts.length > 0 && (
+        <span className="token-counts" title={saved ? "Saved" : "Not saved yet"}>
+          {counts.map((t) => (
+            <span key={t.tokenName} className="token-count" title={t.displayName}>
+              {t.iconUrl && <img src={apiAssetUrl(t.iconUrl)} alt={t.displayName} />}
+              {t.quantity}
+            </span>
+          ))}
+          {!saved && <em className="not-saved">not saved yet</em>}
+        </span>
+      )}
       <span className="row-actions">
         {phase === "request-error" && (
           <a href="#" onClick={(e) => (e.preventDefault(), setRunId((n) => n + 1))}>
@@ -225,16 +242,16 @@ function describeStatus(
   postAction: PostAction,
 ): { statusText: string; statusClass: string } {
   if (postAction === "ignored") {
-    return { statusText: "Ignored — not added", statusClass: "needs-review" };
+    return { statusText: "Ignored", statusClass: "needs-review" };
   }
   if (postAction && typeof postAction === "object") {
-    return { statusText: `Inventory — matched to ${postAction.resolvedTo}`, statusClass: "" };
+    return { statusText: `Saved to ${postAction.resolvedTo}`, statusClass: "" };
   }
   if (phase === "detecting") {
-    return { statusText: "Detecting…", statusClass: "pending" };
+    return { statusText: "Reading…", statusClass: "pending" };
   }
   if (phase === "request-error") {
-    return { statusText: "Upload failed — check your connection", statusClass: "needs-review" };
+    return { statusText: "Upload failed. Check your connection.", statusClass: "needs-review" };
   }
   if (!result) {
     return { statusText: "", statusClass: "" };
@@ -242,28 +259,31 @@ function describeStatus(
   switch (result.outcome) {
     case "MATCHED":
       return {
-        statusText: `Inventory — matched to ${result.detectedCharacterName ?? result.pinnedCharacterName}`,
+        statusText: `Saved to ${result.detectedCharacterName ?? result.pinnedCharacterName}`,
         statusClass: "",
       };
     case "MISMATCH":
       return {
-        statusText: `Mismatch — pinned to ${result.pinnedCharacterName}, but this screenshot looks like ${result.detectedCharacterName}`,
+        statusText: `Pinned to ${result.pinnedCharacterName}, but this looks like ${result.detectedCharacterName}.`,
         statusClass: "mismatch",
       };
     case "NEW_CHARACTER_DETECTED":
       return {
-        statusText: `New character detected: ${result.detectedCharacterName} — not in your roster`,
+        statusText: `New character: ${result.detectedCharacterName}. Not in your roster.`,
         statusClass: "new-character",
       };
     case "UNRESOLVABLE":
       return {
-        statusText: "No character visible in this screenshot — pick one to attribute it",
+        statusText: "No character name in this screenshot. Pick who it belongs to.",
         statusClass: "needs-review",
       };
     case "UNRECOGNIZED_SCREENSHOT":
-      return { statusText: "Unrecognized — needs review", statusClass: "needs-review" };
+      return { statusText: "Not an inventory screenshot.", statusClass: "needs-review" };
     case "FAILED":
-      return { statusText: result.failureReason ?? "Parse failed", statusClass: "needs-review" };
+      return {
+        statusText: result.failureReason ?? "Couldn't read this one.",
+        statusClass: "needs-review",
+      };
     default:
       return { statusText: "", statusClass: "" };
   }

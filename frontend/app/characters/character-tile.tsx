@@ -10,9 +10,14 @@ type Props = {
   character: Character;
   onUpdated: (character: Character) => void;
   onDeleted: (id: string) => void;
+  // When the tile is being used to pick whose inventory to show, clicking it
+  // selects rather than navigates. Without onSelect it keeps its original
+  // behaviour and opens the character's page.
+  selected?: boolean;
+  onSelect?: () => void;
 };
 
-export function CharacterTile({ character, onUpdated, onDeleted }: Props) {
+export function CharacterTile({ character, onUpdated, onDeleted, selected, onSelect }: Props) {
   const { getToken } = useAuth();
   const router = useRouter();
   const [editing, setEditing] = useState(false);
@@ -70,7 +75,10 @@ export function CharacterTile({ character, onUpdated, onDeleted }: Props) {
   }
 
   return (
-    <div className="char-tile" onClick={() => router.push(`/characters/${character.id}`)}>
+    <div
+      className={`char-tile${selected ? " selected" : ""}`}
+      onClick={() => (onSelect ? onSelect() : router.push(`/characters/${character.id}`))}
+    >
       {character.spriteImgUrl ? (
         <img className="tile-sprite" src={character.spriteImgUrl} alt="" />
       ) : (

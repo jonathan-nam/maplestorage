@@ -4,21 +4,32 @@ import { useState } from "react";
 
 type Os = "mac" | "windows" | "unknown";
 
+// Capture the WHOLE game window, not a crop of the inventory panel. The window
+// includes the character's name and level in the bottom-left, which is what lets
+// us work out which of your characters a screenshot belongs to -- crop that away
+// and you have to tell us yourself, every time.
+//
+// (The old copy told users to crop, and justified it with "a full game-window
+// screenshot makes the item icons too small to read". That was true when
+// screenshots were downscaled for a vision model. It is not true now: the game
+// draws its UI at a fixed pixel size, so the icons are exactly the same size
+// either way.)
 const STEPS_BY_OS: Record<Os, string[]> = {
   mac: [
-    "Press Cmd + Shift + 4.",
-    "Drag a box around the boss-planner or inventory panel — it saves a PNG to your desktop automatically.",
-    "Drag that file into the drop zone below (or click the drop zone to browse for it).",
+    "Open your inventory in-game.",
+    "Press Cmd + Shift + 4, then Space. The cursor becomes a camera.",
+    "Click the MapleStory window. It saves a PNG to your desktop.",
+    "Drag that file into the drop zone.",
   ],
   windows: [
-    "Press Windows key + Shift + S.",
-    "Drag a box around the boss-planner or inventory panel — it's copied to your clipboard.",
-    "Click anywhere on this page and press Ctrl+V to paste it directly — no need to save a file first.",
+    "Open your inventory in-game.",
+    "Click the MapleStory window, then press Alt + Print Screen.",
+    "Click this page and press Ctrl + V to paste it.",
   ],
   unknown: [
-    "Use your OS's screenshot shortcut (Windows: Win+Shift+S, Mac: Cmd+Shift+4) to capture the boss-planner or inventory panel.",
-    "If it's copied to your clipboard, click this page and press Ctrl/Cmd+V to paste it directly.",
-    "Otherwise, drag the saved image file into the drop zone below.",
+    "Open your inventory in-game.",
+    "Capture the whole MapleStory window. Windows: Alt + Print Screen. Mac: Cmd + Shift + 4, then Space, then click the window.",
+    "Paste it with Ctrl / Cmd + V, or drag the saved file into the drop zone.",
   ],
 };
 
@@ -48,10 +59,9 @@ export function ScreenshotHelp() {
   return (
     <>
       <p className="intro-copy">
-        Drag a screenshot of your inventory into the drop zone — we&apos;ll automatically detect
-        which character it&apos;s from and read the item counts. Crop tightly to just the inventory
-        window rather than your whole screen — a full game-window screenshot makes the item icons
-        too small to read reliably.{" "}
+        <strong>Screenshot your game with your inventory open</strong>, then drag it in. Capture the
+        whole window. The character name in the corner is how we know who the tokens belong to, so
+        you can drop a whole batch of mules at once.{" "}
         <a
           href="#"
           onClick={(e) => {
@@ -60,9 +70,8 @@ export function ScreenshotHelp() {
             setOpen((o) => !o);
           }}
         >
-          {open ? "Hide instructions" : "Don't know how to screenshot? Show me how"}
+          {open ? "Hide instructions" : "How do I screenshot?"}
         </a>
-        .
       </p>
 
       {open && (
@@ -90,6 +99,10 @@ export function ScreenshotHelp() {
               <li key={step}>{step}</li>
             ))}
           </ol>
+          <p className="help-note">
+            Cropped to just the inventory? We can still read the counts, but you&apos;ll have to
+            tell us which character it belongs to.
+          </p>
         </div>
       )}
     </>

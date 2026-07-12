@@ -31,7 +31,20 @@ import kotlin.time.Clock
 import kotlin.uuid.Uuid
 
 private const val TEST_MODEL = "claude-sonnet-5"
-private const val DISTORTED_AMBITION = "Distorted Ambition" // real V2-seeded catalog name
+
+// The key the SCREENSHOT PARSER emits -- token_catalog.vision_key, which is the
+// name of its template file. Not the display name.
+//
+// This constant used to be "Distorted Ambition", the catalog's display name, and
+// that is why these tests stayed green while token persistence was completely
+// broken: the vision model was prompted to echo display names back, so the fake
+// echoed them too, and the tests asserted a contract the real OpenCV parser never
+// honoured. It emits slugs. Nothing matched, and the lookup's `?: continue`
+// swallowed every token in silence.
+//
+// Keep this as the parser's key. If it ever drifts from vision/app/cv/templates/,
+// these tests must fail.
+private const val DISTORTED_AMBITION = "distorted-ambition"
 private const val TEST_USER_ID = "user_test_screenshots"
 
 // Exercises ScreenshotIngestion's outcome-branching (the actually-novel logic
