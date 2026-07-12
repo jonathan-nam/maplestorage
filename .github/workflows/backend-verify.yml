@@ -14,7 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     # Real Postgres, not a mock -- TokenCatalogSeedTest runs Flyway's actual
     # migrate() against it, which doubles as an implicit "migrations apply
-    # cleanly" check on every run. Same DB_* contract as backend/docker-compose.yml.
+    # cleanly" check on every run. Same DB_* contract as the root docker-compose.yml.
     services:
       postgres:
         image: postgres:16

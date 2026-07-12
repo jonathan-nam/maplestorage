@@ -32,6 +32,17 @@ TRUTH = {
         "kalos-token": 19,
         "trace-eternal-loyalty": 16,
     },
+    # The only screenshot carrying all SIX tokens, and a cropped panel rather than
+    # a full desktop -- so it also proves the grid detector does not depend on the
+    # surrounding game window being in frame.
+    f"{REF}/inventory804x550.png": {
+        "blissful-fantasy-shard": 48,
+        "distorted-ambition": 17,
+        "echo-ancient-resolve": 51,
+        "ferocious-beast-ring": 50,
+        "kalos-token": 21,
+        "trace-eternal-loyalty": 20,
+    },
 }
 
 
@@ -101,6 +112,19 @@ def test_ui_optimization_2x_is_accepted():
     assert r.status_code == 200
     got = {t["tokenName"]: t["quantity"] for t in r.json()["tokenCounts"]}
     assert got == TRUTH[f"{REF}/untradeables sample.png"]
+
+
+def test_a_real_downscaled_upload_is_rejected():
+    """inventory377x275.png is a real shrunk capture (from the M3 vision-LLM era,
+    when downscaling was the plan). It is now exactly the input we must refuse."""
+    img = cv2.imread(f"{REF}/inventory377x275.png")
+    assert img is not None
+    r = client.post("/parse", content=cv2.imencode(".png", img)[1].tobytes())
+    # No inventory lattice survives at that size, so it cannot even be recognised
+    # as an inventory -- which is the honest answer, not a fabricated count.
+    assert r.status_code in (200, 422)
+    if r.status_code == 200:
+        assert r.json()["screenshotType"] == "UNRECOGNIZED"
 
 
 def test_non_inventory_image_is_unrecognized():
