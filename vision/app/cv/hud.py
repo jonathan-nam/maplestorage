@@ -41,10 +41,22 @@ LINE_LEFT = 4
 LINE_UP, LINE_DOWN = 6, 18
 LINE_RIGHT = 175
 
-# The prefix is already confirmed by the template match, so this only has to
-# pull the level and name back out -- it tolerates a garbled "Lv" rather than
-# rejecting a HUD we have positively identified.
-HUD_RE = re.compile(r"^\W*[A-Za-z]{1,2}\.?\s*(\d{1,3})\s+(\S.*?)\s*$")
+# The prefix is already confirmed by the template match, so this only has to pull
+# the level and name back out -- it tolerates a garbled "Lv" rather than rejecting
+# a HUD we have positively identified.
+#
+# The name is bounded by CHARSET, not by "everything to the end of the line". That
+# is the whole fix for a real bug: LINE_RIGHT is a fixed 175px crop, wide enough for
+# the longest IGN, so on a SHORT name it overruns into the HUD icons sitting beside
+# it and Tesseract reads them as trailing glyphs. `acornacorn` came back as
+# `acornacorn?. ©` and got saved as a character by that name.
+#
+# A MapleStory IGN is alphanumeric -- no spaces, no punctuation, no symbols. So
+# anything outside [A-Za-z0-9] is, by construction, not part of the name: stop there
+# rather than trying to guess where the crop should have ended. Widening the crop
+# would still overrun on a 4-character name; narrowing it would truncate a
+# 12-character one. The charset is the only boundary that holds for both.
+HUD_RE = re.compile(r"^\W*[A-Za-z]{1,2}\.?\s*(\d{1,3})\s+([A-Za-z0-9]{2,13})")
 
 
 @dataclass

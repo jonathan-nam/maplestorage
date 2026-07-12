@@ -10,6 +10,7 @@ import numpy as np
 import pytest
 from fastapi.testclient import TestClient
 
+from app.cv.hud import HUD_RE
 from app.main import app
 
 client = TestClient(app)
@@ -196,3 +197,30 @@ def test_classify_is_flat_in_catalog_size():
     # An O(N) matcher would be ~80x slower here. Allow generous headroom for a
     # loaded CI box while still failing loudly if the scaling regresses.
     assert large < small * 3, f"catalog scaling regressed: {small:.2f}s -> {large:.2f}s"
+
+
+# The HUD name is bounded by MapleStory's IGN charset, not by the end of the crop.
+#
+# Regression: LINE_RIGHT is a fixed 175px window, sized for the longest possible IGN.
+# On a SHORT name it overruns into the HUD icons beside it, and Tesseract reads those
+# as trailing glyphs. A real upload produced "acornacorn?. ©", which the backend then
+# saved as a character by that name -- parse correct, identity wrong.
+#
+# Widening the crop would still overrun a 4-character name; narrowing it would
+# truncate a 12-character one. The charset is the only boundary that holds for both.
+@pytest.mark.parametrize(
+    "text,level,name",
+    [
+        ("Lv.287 acornacorn", 287, "acornacorn"),
+        ("Lv.287 acornacorn?. ©", 287, "acornacorn"),  # the bug, verbatim
+        ("Lv.287 acornacorn ©@ x", 287, "acornacorn"),
+        ("tv.287 acornacorn", 287, "acornacorn"),  # garbled prefix, already confirmed by the match
+        ("Lv.200 Ab12", 200, "Ab12"),  # digits are legal in an IGN
+        ("Lv.5 Bubbling", 5, "Bubbling"),
+    ],
+)
+def test_hud_name_stops_at_the_ign_charset(text, level, name):
+    m = HUD_RE.match(text)
+    assert m is not None, text
+    assert int(m.group(1)) == level
+    assert m.group(2) == name
