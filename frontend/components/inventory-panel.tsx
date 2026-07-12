@@ -3,17 +3,17 @@
 import { useEffect, useRef, useState } from "react";
 import { apiAssetUrl } from "@/lib/api";
 
-// The real inventory is 16x8 (vision/app/cv/grid.py's COLS, ROWS -- the same
-// lattice the parser locks onto). Matching it means a panel here holds exactly
-// what a panel in-game holds.
+// The real inventory is 16x8 -- the same lattice the parser locks onto
+// (vision/app/cv/grid.py), and the same 128 the client's own "SLOT 112 / 128"
+// readout counts against.
 const COLS = 16;
 const ROWS = 8;
 const SLOTS = COLS * ROWS;
 
-// The game's tab order. Tokens are consumables, so everything we track lives in
-// Use; the other four are here because an inventory with one tab isn't an
-// inventory, and because the moment we catalog anything else it lands in one.
-const CATEGORIES = ["Equip", "Use", "Etc", "Setup", "Cash"] as const;
+// The client's tab row, in its order and with its spelling ("Etc." and "Set-up"
+// carry their punctuation in-game). Tokens are consumables, so everything we
+// track lives in Use.
+const CATEGORIES = ["Equip", "Use", "Etc.", "Set-up", "Cash", "Dec."] as const;
 type Category = (typeof CATEGORIES)[number];
 
 export type InventoryItem = {
@@ -21,7 +21,6 @@ export type InventoryItem = {
   name: string;
   iconUrl: string | null;
   quantity: number;
-  // Shown under the name in the tooltip, e.g. progress toward a set.
   note?: string;
 };
 
@@ -40,9 +39,9 @@ export function InventoryPanel({
   const [focused, setFocused] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
 
-  // Tab cycles tabs, as it does in-game. Only while the panel itself holds focus,
-  // so Tab keeps meaning "next element" everywhere else on the page -- and Escape
-  // hands focus back, so a keyboard user is never stuck inside the panel.
+  // Tab cycles tabs, as it does in-game. Only while the panel holds focus, so Tab
+  // keeps meaning "next element" everywhere else on the page -- and Escape hands
+  // focus back, so a keyboard user is never stuck inside the panel.
   useEffect(() => {
     const panel = panelRef.current;
     if (!panel) return;
@@ -71,23 +70,31 @@ export function InventoryPanel({
   return (
     <div
       ref={panelRef}
-      className={`inv-panel${focused ? " focused" : ""}`}
+      className={`ms-window${focused ? " focused" : ""}`}
       tabIndex={0}
       onFocus={() => setFocused(true)}
       onBlur={() => setFocused(false)}
     >
-      <div className="inv-titlebar">
-        <span className="inv-title">{title}</span>
-        {subtitle && <span className="inv-subtitle">{subtitle}</span>}
+      <div className="ms-titlebar">
+        <span className="ms-title">INVENTORY</span>
+        <span className="ms-title-sub">
+          {title}
+          {subtitle ? ` · ${subtitle}` : ""}
+        </span>
+        <span className="ms-window-buttons" aria-hidden="true">
+          <i>&#8211;</i>
+          <i>+</i>
+          <i>&#215;</i>
+        </span>
       </div>
 
-      <div className="inv-tabs" role="tablist">
+      <div className="ms-tabs" role="tablist">
         {CATEGORIES.map((c) => (
           <button
             key={c}
             role="tab"
             aria-selected={c === category}
-            className={`inv-tab${c === category ? " active" : ""}`}
+            className={`ms-tab${c === category ? " active" : ""}`}
             onClick={() => setCategory(c)}
           >
             {c}
@@ -95,35 +102,41 @@ export function InventoryPanel({
         ))}
       </div>
 
-      <div className="inv-grid" style={{ gridTemplateColumns: `repeat(${COLS}, 1fr)` }}>
+      <div className="ms-toolbar">
+        <span className="ms-btn primary">Sort</span>
+        <span className="ms-btn">Lock</span>
+        <span className="ms-slot-readout">
+          <span className="ms-slot-label">SLOT</span>
+          <span className="ms-slot-pill">
+            {shown.length} / {SLOTS}
+          </span>
+        </span>
+      </div>
+
+      <div className="ms-grid" style={{ gridTemplateColumns: `repeat(${COLS}, 1fr)` }}>
         {Array.from({ length: SLOTS }, (_, i) => {
           const item = shown[i];
-          if (!item) return <div key={i} className="inv-slot" />;
+          if (!item) return <div key={i} className="ms-slot" />;
           return (
             <div
               key={i}
-              className="inv-slot filled"
+              className="ms-slot filled"
               title={`${item.name}\n${item.quantity}${item.note ? `\n${item.note}` : ""}`}
             >
               {item.iconUrl && <img src={apiAssetUrl(item.iconUrl)} alt={item.name} />}
-              <span className="inv-qty">{item.quantity}</span>
+              <span className="ms-qty">{item.quantity}</span>
             </div>
           );
         })}
       </div>
 
-      <div className="inv-footer">
-        {shown.length === 0 ? (
-          <span className="inv-empty">
-            {category === "Use" ? (emptyHint ?? "Nothing here yet.") : `No ${category} items.`}
-          </span>
-        ) : (
-          <span className="inv-count">
-            {shown.length} / {SLOTS} slots
-          </span>
-        )}
-        <span className="inv-hint">
-          {focused ? "Tab to switch, Esc to leave" : "Click to focus"}
+      <div className="ms-footer">
+        <span className="ms-footer-note">
+          {shown.length === 0 && category === "Use" && (emptyHint ?? "Nothing here yet.")}
+          {shown.length === 0 && category !== "Use" && `No ${category} items.`}
+        </span>
+        <span className="ms-hint">
+          {focused ? "Tab to switch · Esc to leave" : "Click to focus"}
         </span>
       </div>
     </div>
