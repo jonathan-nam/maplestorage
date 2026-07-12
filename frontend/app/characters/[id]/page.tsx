@@ -4,7 +4,8 @@ import { useAuth } from "@clerk/nextjs";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
-import { apiAssetUrl, apiFetch, ApiError } from "@/lib/api";
+import { InventoryPanel } from "@/components/inventory-panel";
+import { apiFetch, ApiError } from "@/lib/api";
 import type { Character } from "@/types/character";
 import type { CharacterToken } from "@/types/character-token";
 
@@ -59,35 +60,18 @@ export default function CharacterDetailPage() {
             </div>
           </div>
 
-          {tokens.length === 0 ? (
-            <p className="hint">
-              No tokens read from this character yet — upload an inventory screenshot to populate
-              it.
-            </p>
-          ) : (
-            <table className="item-table">
-              <tbody>
-                {tokens.map((token) => (
-                  <tr key={token.tokenCatalogId}>
-                    <td>
-                      {token.iconUrl ? (
-                        <img className="icon" src={apiAssetUrl(token.iconUrl)} alt="" />
-                      ) : (
-                        <div className="icon" />
-                      )}
-                    </td>
-                    <td className="name-cell">
-                      {token.name}{" "}
-                      <span className="redemption-note">
-                        collect {token.redeemThreshold} → Eternal set
-                      </span>
-                    </td>
-                    <td className="qty">{token.quantity}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
+          <InventoryPanel
+            title={character.name}
+            subtitle={`Lv.${character.level ?? "?"}`}
+            emptyHint="No tokens here yet. Upload an inventory screenshot."
+            items={tokens.map((token) => ({
+              id: token.tokenCatalogId,
+              name: token.name,
+              iconUrl: token.iconUrl,
+              quantity: token.quantity,
+              note: `${token.quantity} / ${token.redeemThreshold} toward an Eternal set`,
+            }))}
+          />
         </>
       )}
     </main>

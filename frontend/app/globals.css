@@ -417,3 +417,131 @@ a:hover {
   opacity: 0.8;
   font-size: 0.9em;
 }
+
+/* ---------------------------------------------------------------------------
+   Inventory panel
+
+   Evokes the in-game inventory rather than copying it: no ripped client art, so
+   the frame, slots and tabs are all CSS. The 16x8 slot lattice and the tab order
+   are faithful because they're the real thing (see vision/app/cv/grid.py).
+   --------------------------------------------------------------------------- */
+
+.inv-panel {
+  display: inline-block;
+  padding: 0.5rem;
+  border: 2px solid #6b5b46;
+  border-radius: 6px;
+  background: linear-gradient(#f3e6cd, #e6d5b4);
+  box-shadow:
+    inset 0 1px 0 #fff8e8,
+    0 2px 6px rgb(0 0 0 / 25%);
+  color: #3b2f22;
+  outline: none;
+}
+
+.inv-panel.focused {
+  border-color: #c9a227;
+  box-shadow:
+    inset 0 1px 0 #fff8e8,
+    0 0 0 2px rgb(201 162 39 / 45%);
+}
+
+.inv-titlebar {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.15rem 0.35rem 0.4rem;
+  font-weight: 700;
+}
+
+.inv-subtitle {
+  font-weight: 400;
+  font-size: 0.85em;
+  opacity: 0.7;
+}
+
+.inv-tabs {
+  display: flex;
+  gap: 2px;
+  margin-bottom: 0.4rem;
+}
+
+.inv-tab {
+  flex: 1;
+  padding: 0.25rem 0.5rem;
+  border: 1px solid #6b5b46;
+  border-bottom: none;
+  border-radius: 4px 4px 0 0;
+  background: #d3c0a0;
+  color: #5a4a36;
+  font: inherit;
+  font-size: 0.8em;
+  cursor: pointer;
+}
+
+.inv-tab:hover {
+  background: #e0cfb2;
+}
+
+.inv-tab.active {
+  background: #fbf3e2;
+  color: #3b2f22;
+  font-weight: 700;
+}
+
+.inv-grid {
+  display: grid;
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid #6b5b46;
+  border-radius: 3px;
+  background: #b9a687;
+}
+
+.inv-slot {
+  position: relative;
+  aspect-ratio: 1;
+  min-width: 26px;
+  border-radius: 2px;
+  background: #e2e2e2;
+  box-shadow: inset 0 0 0 1px #cfcfcf;
+}
+
+.inv-slot.filled {
+  background: #eee;
+  box-shadow: inset 0 0 0 1px #b9b9b9;
+  cursor: help;
+}
+
+.inv-slot img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  image-rendering: pixelated;
+}
+
+/* Stack counts sit bottom-right in the client, in a small outlined bitmap face. */
+.inv-qty {
+  position: absolute;
+  right: 1px;
+  bottom: 0;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  text-shadow:
+    1px 0 0 #000,
+    -1px 0 0 #000,
+    0 1px 0 #000,
+    0 -1px 0 #000;
+}
+
+.inv-footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-top: 0.4rem;
+  font-size: 0.75em;
+  opacity: 0.75;
+}
