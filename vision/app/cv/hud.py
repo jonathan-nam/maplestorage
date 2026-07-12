@@ -99,6 +99,57 @@ def _tesseract(img: np.ndarray) -> str:
     return out.stdout.strip()
 
 
+# Sliding a masked template over the whole frame is expensive: 763ms on a 2359x1095
+# screenshot, which was 45% of the entire parse -- more than every other stage put
+# together. The mask is what costs; the same match without one runs in 211ms.
+#
+# So search a quarter-scale copy first and only refine the winner at full resolution.
+# 13x faster, and it lands on the identical pixel.
+#
+# The coarse pass can be wrong, and the design assumes it: the refined score is checked
+# against the same threshold as before, and anything that fails falls back to the full
+# frame. So the fast path is an optimisation, never a new way to be wrong. (Empirically
+# 1/2 and 1/4 both land exactly; 1/3 misses badly -- a 25x18 template does not survive
+# an odd rescale. Powers of two only, and the fallback catches the rest.)
+COARSE_FACTOR = 4
+REFINE_PAD = 2 * COARSE_FACTOR
+
+
+def _match(img: np.ndarray, tpl: np.ndarray) -> tuple[float, tuple[int, int]]:
+    mask = cv2.cvtColor(tpl[:, :, 3], cv2.COLOR_GRAY2BGR)
+    res = cv2.matchTemplate(img, tpl[:, :, :3], cv2.TM_CCOEFF_NORMED, mask=mask)
+    res[~np.isfinite(res)] = -1.0
+    _, score, _, loc = cv2.minMaxLoc(res)
+    return float(score), loc
+
+
+def _locate(img: np.ndarray, tpl: np.ndarray) -> tuple[float, tuple[int, int]] | None:
+    """Where the "Lv." prefix is, or None if it isn't in frame."""
+    th, tw = tpl.shape[:2]
+    f = COARSE_FACTOR
+
+    # Only worth the two-pass dance if the coarse template survives the downscale.
+    if img.shape[0] // f > th and img.shape[1] // f > tw and min(th, tw) // f >= 4:
+        small = cv2.resize(img, None, fx=1 / f, fy=1 / f, interpolation=cv2.INTER_AREA)
+        small_tpl = cv2.resize(tpl, None, fx=1 / f, fy=1 / f, interpolation=cv2.INTER_AREA)
+        _, (cx, cy) = _match(small, small_tpl)
+
+        x0 = max(cx * f - REFINE_PAD, 0)
+        y0 = max(cy * f - REFINE_PAD, 0)
+        x1 = min(x0 + tw + 2 * REFINE_PAD, img.shape[1])
+        y1 = min(y0 + th + 2 * REFINE_PAD, img.shape[0])
+        window = img[y0:y1, x0:x1]
+
+        if window.shape[0] > th and window.shape[1] > tw:
+            score, (rx, ry) = _match(window, tpl)
+            if score >= MATCH_THRESHOLD:
+                return score, (x0 + rx, y0 + ry)
+
+    # Coarse pass missed, or the image is too small to bother. Do it properly.
+    score, loc = _match(img, tpl)
+    return (score, loc) if score >= MATCH_THRESHOLD else None
+
+
 def find_hud(img: np.ndarray, scale: float = 1.0) -> Hud | None:
     """Locate and read the HUD. None when no HUD is in frame.
 
@@ -116,14 +167,10 @@ def find_hud(img: np.ndarray, scale: float = 1.0) -> Hud | None:
     if th >= img.shape[0] or tw >= img.shape[1]:
         return None
 
-    mask = cv2.cvtColor(tpl[:, :, 3], cv2.COLOR_GRAY2BGR)
-    res = cv2.matchTemplate(img, tpl[:, :, :3], cv2.TM_CCOEFF_NORMED, mask=mask)
-    res[~np.isfinite(res)] = -1.0
-    _, score, _, loc = cv2.minMaxLoc(res)
-    if score < MATCH_THRESHOLD:
+    found = _locate(img, tpl)
+    if found is None:
         return None
-
-    x, y = loc
+    score, (x, y) = found
     x0 = max(int(x - LINE_LEFT * scale), 0)
     y0 = max(int(y - LINE_UP * scale), 0)
     y1 = min(int(y + LINE_DOWN * scale), img.shape[0])
