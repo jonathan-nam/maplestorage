@@ -27,6 +27,13 @@ repos:
         files: ^frontend/.*\.(ts|tsx|js|jsx)$
         pass_filenames: false
 
+      - id: catalog
+        name: catalog is in sync (items.yaml -> R__token_catalog.sql)
+        entry: python3 catalog/build.py --check
+        language: system
+        files: ^(catalog/|vision/app/cv/templates/|backend/src/main/resources/seed-assets/)
+        pass_filenames: false
+
       - id: ruff
         name: ruff (vision)
         entry: bash -c 'cd vision && ruff check . && ruff format --check .'

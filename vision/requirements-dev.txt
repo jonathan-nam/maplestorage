@@ -15,3 +15,6 @@ httpx==0.28.1        # FastAPI's TestClient needs it
 # image parsing -- had nothing, which is how an editor extension ended up quietly
 # reformatting it to a standard nobody had agreed to.
 ruff==0.9.2
+
+# catalog/build.py and the catalog guard read catalog/items.yaml.
+PyYAML==6.0.2

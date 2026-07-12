@@ -61,4 +61,38 @@ if [ ! -f backend/gradle/wrapper/gradle-wrapper.jar ]; then
   (cd backend && gradle wrapper --gradle-version 8.12)
 fi
 
+# Where the workspace actually lives decides whether this environment works properly, so
+# say so out loud rather than letting the next person rediscover it over several hours.
+#
+# On 9p (the Windows drive, reached from WSL2) inotify does not exist. File watching is not
+# broken, it is impossible: the Next dev server never sees an edit and silently serves stale
+# code, so you change something, reload, and nothing happens. Polling does not save you --
+# WATCHPACK_POLLING, CHOKIDAR_USEPOLLING and TURBOPACK_FORCE_POLLING were each tried and
+# each failed. The same mount is also ~18x slower for small writes (577ms vs 31ms for 300
+# files), which is most of the waiting in a working session.
+fs="$(stat -f -c %T /workspaces/maplestorage 2>/dev/null || echo unknown)"
+if [ "$fs" = "v9fs" ] || [ "$fs" = "9p" ]; then
+  cat <<'WARN'
+
+  ============================================================================
+  WARNING: this workspace is on the Windows drive (9p), not the Linux filesystem.
+
+    * Hot reload CANNOT work. inotify does not exist on 9p. The dev server will
+      serve stale code and say nothing. After every frontend edit you must kill
+      it, rm -rf .next, restart, and hard-refresh the browser.
+
+    * Everything is ~18x slower: npm, Gradle, pytest, git.
+
+  Fix it once, from a WSL terminal on Windows:
+
+      bash scripts/move-to-wsl.sh
+
+  See .devcontainer/README.md.
+  ============================================================================
+
+WARN
+else
+  echo "Workspace filesystem: $fs -- file watching works."
+fi
+
 echo "Dev container ready. Next: cd infra && terraform init | cd backend && ./gradlew build | cd frontend && npm install"

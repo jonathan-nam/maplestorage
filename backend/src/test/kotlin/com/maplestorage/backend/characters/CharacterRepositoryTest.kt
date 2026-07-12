@@ -1,7 +1,10 @@
 package com.maplestorage.backend.characters
 
 import com.maplestorage.backend.config.Env
+import com.maplestorage.backend.db.CharacterTokenCount
 import com.maplestorage.backend.db.Characters
+import com.maplestorage.backend.db.Screenshots
+import com.maplestorage.backend.db.TokenCatalog
 import com.maplestorage.backend.users.ensureUser
 import org.flywaydb.core.Flyway
 import org.jetbrains.exposed.v1.core.and
@@ -17,6 +20,7 @@ import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.time.Clock
 import kotlin.uuid.Uuid
@@ -108,4 +112,62 @@ class CharacterRepositoryTest {
         }
         return id
     }
+
+    // Deleting a character used to 500 the moment the character had any data -- both
+    // character_token_count and screenshots referenced it with ON DELETE NO ACTION, so
+    // the foreign key blocked the delete. The existing round-trip test above passed
+    // only because it deletes a character that was never used.
+    //
+    // The two references want different answers, and this pins both: the counts are
+    // that character's inventory and go with them (CASCADE); the screenshot is a record
+    // of something the user actually uploaded and outlives the attribution (SET NULL),
+    // so deleting a mis-read character does not also erase the upload that produced it.
+    @Test
+    fun `deleting a character takes its token counts and orphans its screenshots`() =
+        transaction {
+            ensureUser(userOneId, "one@example.com")
+            val characterId = insertCharacter(userOneId, "Doomed")
+            val catalogId =
+                TokenCatalog
+                    .selectAll()
+                    .where { TokenCatalog.visionKey eq "kalos-token" }
+                    .single()[TokenCatalog.id]
+
+            val screenshotId = Uuid.random()
+            Screenshots.insert {
+                it[id] = screenshotId
+                it[Screenshots.userId] = userOneId
+                it[Screenshots.characterId] = characterId
+                it[uploadedAt] = Clock.System.now()
+                it[parseStatus] = "SUCCESS"
+            }
+            CharacterTokenCount.insert {
+                it[CharacterTokenCount.characterId] = characterId
+                it[tokenCatalogId] = catalogId
+                it[quantity] = 7
+                it[capturedAt] = Clock.System.now()
+            }
+
+            // This is the call that used to throw.
+            val rowsDeleted =
+                Characters.deleteWhere { (Characters.id eq characterId) and (Characters.userId eq userOneId) }
+            assertEquals(1, rowsDeleted)
+
+            val countsLeft =
+                CharacterTokenCount
+                    .selectAll()
+                    .where { CharacterTokenCount.characterId eq characterId }
+                    .count()
+            assertEquals(0, countsLeft, "token counts should have gone with the character")
+
+            val screenshot =
+                Screenshots
+                    .selectAll()
+                    .where { Screenshots.id eq screenshotId }
+                    .singleOrNull()
+            assertNotNull(screenshot, "the screenshot itself must survive")
+            assertNull(screenshot[Screenshots.characterId], "but it must no longer be attributed")
+
+            Screenshots.deleteWhere { Screenshots.id eq screenshotId }
+        }
 }

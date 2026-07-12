@@ -4,19 +4,31 @@ import { useAuth } from "@clerk/nextjs";
 import { useEffect, useState } from "react";
 import { InventoryPanel, type InventoryItem } from "@/components/inventory-panel";
 import { apiFetch } from "@/lib/api";
+import { invalidate, peek, put } from "@/lib/cache";
 import type { Character } from "@/types/character";
 import type { CharacterToken } from "@/types/character-token";
 import type { TokenTotal } from "@/types/token-total";
 import { AddCharacterForm } from "./add-character-form";
-import { CharacterCarousel, type Selection } from "./character-carousel";
+import { CharacterCarousel, type Selection } from "@/components/character-carousel";
 
 type LoadState = "loading" | "loaded" | "error";
 
+const CHARACTERS_KEY = "/api/characters";
+const TOTALS_KEY = "/api/tokens";
+
 export default function CharactersPage() {
   const { getToken } = useAuth();
-  const [characters, setCharacters] = useState<Character[]>([]);
-  const [totals, setTotals] = useState<TokenTotal[]>([]);
-  const [state, setState] = useState<LoadState>("loading");
+
+  // Seed from cache so a repeat visit paints immediately instead of flashing a
+  // loading state while it re-fetches data it already had. The fetch below still
+  // runs and overwrites this -- the cache decides what you see FIRST, not what is
+  // true.
+  const seededCharacters = peek<Character[]>(CHARACTERS_KEY);
+  const seededTotals = peek<TokenTotal[]>(TOTALS_KEY);
+
+  const [characters, setCharacters] = useState<Character[]>(seededCharacters ?? []);
+  const [totals, setTotals] = useState<TokenTotal[]>(seededTotals ?? []);
+  const [state, setState] = useState<LoadState>(seededCharacters ? "loaded" : "loading");
 
   // null = the aggregate across every character, which is what you land on.
   const [selectedId, setSelectedId] = useState<Selection>(null);
@@ -28,15 +40,19 @@ export default function CharactersPage() {
 
   useEffect(() => {
     Promise.all([
-      apiFetch<Character[]>("/api/characters", { method: "GET" }, getToken),
-      apiFetch<TokenTotal[]>("/api/tokens", { method: "GET" }, getToken),
+      apiFetch<Character[]>(CHARACTERS_KEY, { method: "GET" }, getToken),
+      apiFetch<TokenTotal[]>(TOTALS_KEY, { method: "GET" }, getToken),
     ])
       .then(([characterResult, totalsResult]) => {
         setCharacters(characterResult);
         setTotals(totalsResult);
+        put(CHARACTERS_KEY, characterResult);
+        put(TOTALS_KEY, totalsResult);
         setState("loaded");
       })
-      .catch(() => setState("error"));
+      // Only show the error state if we have nothing at all. A failed refresh
+      // behind data we already have should not blank the page.
+      .catch(() => setState((s) => (s === "loaded" ? "loaded" : "error")));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -57,17 +73,23 @@ export default function CharactersPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedId]);
 
+  // Every write drops the cache. A cache that can serve a stale list after you have
+  // added, renamed or deleted a character is worse than no cache at all: the wrong
+  // answer arrives instantly and looks exactly like a backend bug.
   function handleAdded(character: Character) {
     setCharacters((prev) => [...prev, character]);
+    invalidate("/api/");
   }
 
   function handleUpdated(character: Character) {
     setCharacters((prev) => prev.map((c) => (c.id === character.id ? character : c)));
+    invalidate("/api/");
   }
 
   function handleDeleted(id: string) {
     setCharacters((prev) => prev.filter((c) => c.id !== id));
     if (selectedId === id) setSelectedId(null);
+    invalidate("/api/");
   }
 
   const selected = characters.find((c) => c.id === selectedId);

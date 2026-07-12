@@ -16,11 +16,13 @@ which the backend already treats as NEEDS_REVIEW.
 """
 
 import logging
+import time
+from contextlib import contextmanager
 from typing import Literal
 
 import cv2
 import numpy as np
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request, Response
 from pydantic import BaseModel
 
 from app.cv.classify import classify
@@ -82,20 +84,53 @@ def health() -> dict:
     return {"status": "ok", "tokens": len(TOKENS), "digits": len(FONT)}
 
 
+class Stages:
+    """Per-stage timings for one parse, emitted as a Server-Timing header.
+
+    The parse is the slowest thing in an upload by two orders of magnitude -- the
+    backend answers in ~1ms and this takes hundreds. So when an upload feels slow,
+    the only useful question is WHICH stage, and that was previously unanswerable
+    without attaching a profiler.
+    """
+
+    def __init__(self) -> None:
+        self.spans: list[tuple[str, float]] = []
+
+    @contextmanager
+    def __call__(self, name: str):
+        start = time.perf_counter()
+        try:
+            yield
+        finally:
+            self.spans.append((name, (time.perf_counter() - start) * 1000))
+
+    def header(self) -> str:
+        total = sum(ms for _, ms in self.spans)
+        parts = [f"{n};dur={ms:.1f}" for n, ms in self.spans]
+        parts.append(f"total;dur={total:.1f}")
+        return ", ".join(parts)
+
+    def log(self) -> str:
+        return " ".join(f"{n}={ms:.0f}ms" for n, ms in self.spans)
+
+
 @app.post("/parse", response_model=ScreenshotParseResult)
-async def parse(request: Request) -> ScreenshotParseResult:
+async def parse(request: Request, response: Response) -> ScreenshotParseResult:
+    stage = Stages()
     body = await request.body()
     if not body:
         raise HTTPException(400, "empty body")
     if len(body) > MAX_UPLOAD_BYTES:
         raise HTTPException(413, f"image exceeds {MAX_UPLOAD_BYTES} bytes")
 
-    img = cv2.imdecode(np.frombuffer(body, np.uint8), cv2.IMREAD_COLOR)
+    with stage("decode"):
+        img = cv2.imdecode(np.frombuffer(body, np.uint8), cv2.IMREAD_COLOR)
     if img is None:
         raise HTTPException(400, "not a decodable image")
 
     try:
-        g = find_grid(img)
+        with stage("grid"):
+            g = find_grid(img)
     except ValueError as e:
         # No inventory lattice: this isn't an inventory screenshot (or it was
         # downscaled past the point of being one). Either way it is the same
@@ -120,30 +155,41 @@ async def parse(request: Request) -> ScreenshotParseResult:
     if not counts_trustworthy(g.pitch):
         raise HTTPException(422, _rescaled_message(g.pitch))
 
-    img, g = normalize(img, g)
+    with stage("normalize"):
+        img, g = normalize(img, g)
 
     # normalize() resamples the whole frame to the client's native pitch, so the
     # HUD is at native scale here too and needs no scale of its own.
-    hud = find_hud(img)
+    with stage("hud"):
+        hud = find_hud(img)
 
     counts = []
     # Two-stage: shortlist every slot with a cheap descriptor, verify the top
     # candidates exactly. Flat in catalog size, so this still holds up when the
     # catalog grows past the 6 tokens (see app/cv/classify.py).
-    for hit in classify(img, g, TOKENS):
-        digits, conf = read_count(img, g, hit.row, hit.col, FONT)
-        if not digits:
-            # Icon found but the count is unreadable -- reporting the item with
-            # a fabricated quantity would be worse than reporting nothing.
-            log.info("unreadable count for %s at r%dc%d", hit.name, hit.row, hit.col)
-            continue
-        counts.append(
-            DetectedToken(
-                tokenName=hit.name,
-                quantity=int(digits),
-                iconScore=round(hit.score, 3),
+    with stage("classify"):
+        hits = classify(img, g, TOKENS)
+
+    with stage("counts"):
+        for hit in hits:
+            digits, conf = read_count(img, g, hit.row, hit.col, FONT)
+            if not digits:
+                # Icon found but the count is unreadable -- reporting the item with
+                # a fabricated quantity would be worse than reporting nothing.
+                log.info("unreadable count for %s at r%dc%d", hit.name, hit.row, hit.col)
+                continue
+            counts.append(
+                DetectedToken(
+                    tokenName=hit.name,
+                    quantity=int(digits),
+                    iconScore=round(hit.score, 3),
+                )
             )
-        )
+
+    # The backend forwards this straight through to the browser, so a slow upload can
+    # be attributed to a stage from the Network panel, without a profiler or a log dive.
+    response.headers["Server-Timing"] = stage.header()
+    log.info("parsed %dx%d: %s", img.shape[1], img.shape[0], stage.log())
 
     return ScreenshotParseResult(
         screenshotType="INVENTORY",

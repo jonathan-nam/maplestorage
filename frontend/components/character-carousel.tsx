@@ -2,10 +2,15 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { Character } from "@/types/character";
-import { CharacterTile } from "./character-tile";
+import { CharacterTile } from "@/components/character-tile";
 
-// `null` selects the aggregate -- everything across every character -- which is
-// the view you want first and so sits at the head of the strip.
+// `null` is the no-character-selected slot at the head of the strip. It means two
+// different things on the two pages that use this, and both are the natural reading:
+//
+//   /characters  "All characters" -- the aggregate across everyone
+//   /upload      "Auto-detect"    -- no pin; work out who it is from the screenshot
+//
+// Same control, same position, same meaning: nothing in particular is singled out.
 export type Selection = string | null;
 
 export function CharacterCarousel({
@@ -14,12 +19,18 @@ export function CharacterCarousel({
   onSelect,
   onUpdated,
   onDeleted,
+  allLabel = "All characters",
+  allHint,
+  allSymbol = "Σ",
 }: {
   characters: Character[];
   selectedId: Selection;
   onSelect: (id: Selection) => void;
   onUpdated: (character: Character) => void;
   onDeleted: (id: string) => void;
+  allLabel?: string;
+  allHint?: string;
+  allSymbol?: string;
 }) {
   const trackRef = useRef<HTMLDivElement>(null);
   const [atStart, setAtStart] = useState(true);
@@ -70,12 +81,13 @@ export function CharacterCarousel({
           className={`char-tile all-tile${selectedId === null ? " selected" : ""}`}
           onClick={() => onSelect(null)}
         >
-          <div className="tile-sprite all-sprite">Σ</div>
+          <div className="tile-sprite all-sprite">{allSymbol}</div>
           <div className="tile-plate">
-            <span className="tile-name">All characters</span>
+            <span className="tile-name">{allLabel}</span>
           </div>
           <div className="tile-job">
-            {characters.length === 1 ? "1 character" : `${characters.length} characters`}
+            {allHint ??
+              (characters.length === 1 ? "1 character" : `${characters.length} characters`)}
           </div>
         </div>
 

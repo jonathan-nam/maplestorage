@@ -3,6 +3,7 @@ package com.maplestorage.backend.screenshots
 import com.maplestorage.backend.characters.findOwnedCharacter
 import com.maplestorage.backend.plugins.parseUuidParam
 import com.maplestorage.backend.plugins.principalIdAndEmail
+import com.maplestorage.backend.plugins.span
 import com.maplestorage.backend.services.ScreenshotParser
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.call
@@ -40,14 +41,19 @@ private suspend fun RoutingContext.uploadScreenshot(screenshotParser: Screenshot
         }
     }
 
+    // The upload's whole cost is here: base64 decode, the OpenCV parse over loopback,
+    // then the DB writes. Timing it as one span tells you whether a slow upload is the
+    // parse or everything else.
     val result =
-        ingestScreenshot(
-            userId = userId,
-            email = email,
-            request = request,
-            pinnedCharacterId = pinnedCharacterId,
-            screenshotParser = screenshotParser,
-        )
+        call.span("ingest") {
+            ingestScreenshot(
+                userId = userId,
+                email = email,
+                request = request,
+                pinnedCharacterId = pinnedCharacterId,
+                screenshotParser = screenshotParser,
+            )
+        }
     call.respond(result)
 }
 

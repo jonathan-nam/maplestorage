@@ -1,0 +1,53 @@
+# The item catalog. This file is the source of truth.
+#
+# An item used to live in four places at once -- the vision template, the backend's
+# icon asset, the V2 seed migration, and the V4 vision_key mapping -- and nothing
+# checked that the four agreed. They didn't: the parser emitted slugs while the
+# lookup matched display names, so every token count was silently dropped for days.
+# The bug was not the mismatch. The bug was that a mismatch was *possible*.
+#
+# So: one entry per item, and `catalog/build.py` generates the rest. Run
+#
+#     python catalog/build.py            # regenerate
+#     python catalog/build.py --check    # fail if anything is out of sync (pre-commit)
+#
+# `key` is the identifier. It names the vision template (vision/app/cv/templates/
+# token-<key>.png), the icon asset (backend/.../seed-assets/tokens/<key>.png), and the
+# token_catalog.vision_key column. It must never change without renaming those with it
+# -- which is exactly what build.py checks.
+#
+# `name` is prose for humans, and can be reworded freely.
+
+items:
+  - key: blissful-fantasy-shard
+    name: Blissful Fantasy Shard
+    boss: Malefic Star
+    redeem_threshold: 10
+
+  - key: distorted-ambition
+    name: Distorted Ambition
+    boss: Limbo
+    redeem_threshold: 10
+
+  - key: echo-ancient-resolve
+    name: Echo of Ancient Resolve
+    boss: First Adversary
+    redeem_threshold: 10
+
+  - key: ferocious-beast-ring
+    name: Ferocious Beast Entanglement Ring
+    boss: Kaling
+    redeem_threshold: 10
+
+  # NOTE: the icon asset for this one shipped as `kalos-residual-determination.png`
+  # while the vision key was `kalos-token`. Two names for one item, kept in step by
+  # nothing. build.py now derives the filename from the key, so this is one name.
+  - key: kalos-token
+    name: Kalos's Residual Determination
+    boss: Kalos the Guardian
+    redeem_threshold: 10
+
+  - key: trace-eternal-loyalty
+    name: Trace of Eternal Loyalty
+    boss: Baldrix
+    redeem_threshold: 10
