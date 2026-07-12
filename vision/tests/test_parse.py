@@ -136,16 +136,49 @@ def test_downscaled_upload_is_rejected_loudly():
     assert "full resolution" in r.json()["detail"]
 
 
-def test_fractionally_rescaled_capture_is_rejected_not_flagged():
-    """A 1.25x capture (fractional display scaling) reads only ~70-77% of counts
-    correctly. We refuse it and say how to fix the capture, rather than writing
-    numbers we do not stand behind -- the review UI cannot correct a count."""
+@pytest.mark.parametrize("factor", [1.1, 1.25, 1.326, 1.5, 1.75])
+def test_fractionally_rescaled_capture_is_read_not_refused(factor):
+    """A fractionally upscaled capture must be READ, at its own scale.
+
+    This test used to assert the exact opposite -- that we refuse these with advice about
+    display scaling -- on the strength of a measured 70-77% count accuracy. That number was
+    real but it was measuring the wrong thing: the parser resampled the frame back down to
+    native before reading it, so the accuracy it recorded was the accuracy of a capture the
+    parser had itself just degraded. 1.326x is not chosen at random; it is what a real Parsec
+    session delivered, and it was refused outright while every item and every count sat
+    legible in the file.
+    """
     img = cv2.imread(f"{REF}/untradeables sample.png")
-    scaled = cv2.resize(img, None, fx=1.25, fy=1.25, interpolation=cv2.INTER_CUBIC)
+    scaled = cv2.resize(img, None, fx=factor, fy=factor, interpolation=cv2.INTER_CUBIC)
     r = client.post("/parse", content=cv2.imencode(".png", scaled)[1].tobytes())
-    assert r.status_code == 422
-    detail = r.json()["detail"]
-    assert "display scaling" in detail or "UI Optimization" in detail
+    assert r.status_code == 200, r.json()
+    got = {t["tokenName"]: t["quantity"] for t in r.json()["tokenCounts"]}
+    assert got == TRUTH[f"{REF}/untradeables sample.png"]
+
+
+def test_parsec_capture_is_read():
+    """The real Parsec frame: an H.264 remote-play capture, delivered at 1.326x because the
+    client window did not match the host's resolution.
+
+    Every stage of the old pipeline failed on it. Segmentation found 6 slots instead of 128,
+    because the boundary ridge arrives as a gentle bump that never leaves the interior grey
+    band. It is here as a test rather than a fixture because it is the only capture we have
+    that was degraded by something other than our own synthetic resize, and synthetic damage
+    has a way of being kinder than the real thing.
+    """
+    img = cv2.imread(f"{REF}/symbols.png")
+    r = client.post("/parse", content=cv2.imencode(".png", img)[1].tobytes())
+    assert r.status_code == 200, r.json()
+    got = {t["tokenName"]: t["quantity"] for t in r.json()["tokenCounts"]}
+    # Read off the magnified slots by eye -- NOT taken from the parser's own output, which is
+    # how the truth tables previously inherited the parser's blind spots.
+    assert got == {
+        "kalos-token": 19,
+        "ferocious-beast-ring": 4,
+        "echo-ancient-resolve": 14,
+        "trace-eternal-loyalty": 18,
+        "distorted-ambition": 9,
+    }
 
 
 def test_ui_optimization_2x_is_accepted():
@@ -277,11 +310,10 @@ def test_hud_name_stops_at_the_ign_charset(text, level, name):
 # upload read `acornacorm`, and the app created a character by that name, with no level,
 # job or sprite, because Nexon has never heard of them.
 #
-# Tested against find_hud directly rather than through /parse, because /parse rightly
-# rejects fractional-scale captures outright (the stack counts are unreadable there, see
-# counts_trustworthy). The HUD reader still has to be robust at those scales: it is
-# reached on the native and integer-scaled captures we DO accept, and the failure mode
-# is a function of how few pixels the text has, not of which caller asked.
+# Tested against find_hud directly rather than through /parse, simply because this is a unit
+# test of the HUD reader. It once carried a note explaining that /parse "rightly rejects
+# fractional-scale captures outright" -- which is no longer true, and was never as sound as it
+# sounded: those captures are now read at their own scale, HUD included.
 @pytest.mark.parametrize("capture_scale", [1.0, 1.1, 1.25, 1.5, 2.0])
 def test_hud_reads_at_every_capture_scale(capture_scale):
     img = cv2.imread(f"{REF}/untradeables sample.png")

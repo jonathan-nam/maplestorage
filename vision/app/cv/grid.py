@@ -18,11 +18,14 @@ multi-scale search -- which is what made naive template matching unreliable.
 """
 
 from dataclasses import dataclass
+from pathlib import Path
 
 import cv2
 import numpy as np
 
 COLS, ROWS = 16, 8
+
+TEMPLATE_DIR = Path(__file__).parent / "templates"
 
 # Slot interior grey. The bounds sit inside the boundary ridge's dark (214) and
 # bright (238-254) extremes, which is what severs adjacent cells.
@@ -165,8 +168,102 @@ def _largest_lattice_block(cx, cy, pitch):
     return ox, oy, best_n
 
 
+# --- The blurred-capture path ---------------------------------------------------------
+#
+# Everything above rests on one assumption: that thresholding to the interior grey SEVERS
+# adjacent cells, because the boundary ridge (222 214 242 238 238 242 214 222) swings well
+# outside the 216-236 band. On a capture that has been through a lossy rescale -- a
+# remote-play stream (Parsec, Moonlight) whose client window does not match the host -- that
+# is simply not true any more. Measured across a real Parsec boundary, the ridge arrives as
+# a gentle 222 -> 236 -> 218 bump that never leaves the interior band, so nothing severs, the
+# whole slot bed floods into one component, and the detector finds SIX boxes instead of 128.
+#
+# The fix is not a better threshold. Segmentation needs a hard edge and the capture no longer
+# has one, at any threshold. (Cutting the mask with the ridge gradient does resurrect ~37
+# blobs, but they are eroded asymmetrically -- sizes 11 to 129 px, left edges scattered over
+# the whole period -- and only 9 of them share a lattice phase. They are fragments, not slots.)
+#
+# Correlation, on the other hand, does not care about hard edges: it degrades smoothly with
+# blur instead of falling off a cliff. And an inventory always contains the same thing in
+# quantity, whatever the player owns and at whatever scale -- the EMPTY SLOT. Sliding that one
+# template over the frame at the measured pitch gives back the lattice directly: on the Parsec
+# frame, 139 peaks at up to 0.938, whose modal phase lands within 1-2px of the phase recovered
+# completely independently by matching the catalog's item icons. Two unrelated signals agreeing
+# is what makes this trustworthy rather than merely plausible.
+#
+# This runs only when segmentation has already failed, so a native capture is untouched by it.
+SLOT_PEAK_THRESHOLD = 0.50
+PITCH_SEARCH = (40.0, 90.0)
+
+
+def _pitch_by_periodicity(img: np.ndarray) -> float:
+    """The lattice period, from the autocorrelation of the slot ridges.
+
+    Blur lowers the ridges' contrast but cannot change their SPACING, so periodicity
+    survives a rescale that destroys segmentation entirely.
+    """
+    grey = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY).astype(np.float32)
+    best = None
+    for axis in (0, 1):
+        d = cv2.Sobel(grey, cv2.CV_32F, 1 - axis, axis, ksize=3)
+        prof = np.abs(d).mean(axis=axis)
+        prof = prof - prof.mean()
+        ac = np.correlate(prof, prof, "full")[len(prof) - 1 :]
+        lo, hi = int(PITCH_SEARCH[0]), int(min(PITCH_SEARCH[1], len(ac) - 1))
+        if hi <= lo:
+            continue
+        p = lo + int(np.argmax(ac[lo:hi]))
+        best = p if best is None else (best + p) / 2
+    if best is None:
+        raise ValueError("no periodic structure")
+    return float(best)
+
+
+def _slot_peaks(img: np.ndarray, pitch: float) -> tuple[np.ndarray, np.ndarray]:
+    """Top-left corners of everything that correlates with an empty slot at this pitch."""
+    tpl = cv2.imread(str(TEMPLATE_DIR / "slot_empty.png"), cv2.IMREAD_COLOR)
+    if tpl is None:
+        raise ValueError("slot_empty.png missing")
+    p = int(round(pitch))
+    tpl = cv2.resize(tpl, (p, p), interpolation=cv2.INTER_CUBIC)
+    if img.shape[0] <= p or img.shape[1] <= p:
+        raise ValueError("frame smaller than one slot")
+
+    res = cv2.matchTemplate(img, tpl, cv2.TM_CCOEFF_NORMED)
+    res[~np.isfinite(res)] = -1.0
+
+    # One peak per slot: suppress everything that is not the local max over a full period,
+    # or a single slot answers as a smear of adjacent offsets and drags the phase around.
+    k = max(int(pitch * 0.6) | 1, 3)
+    peak = res >= cv2.dilate(res, np.ones((k, k), np.uint8))
+    ys, xs = np.where(peak & (res >= SLOT_PEAK_THRESHOLD))
+    return xs, ys
+
+
+def _grid_by_correlation(img: np.ndarray) -> Grid:
+    pitch = _pitch_by_periodicity(img)
+    xs, ys = _slot_peaks(img, pitch)
+    if len(xs) < MIN_CELLS:
+        raise ValueError(f"only {len(xs)} slots correlate with an empty slot")
+
+    # The peaks are cell CORNERS; the lattice fit below is written in terms of centres.
+    cx = xs.astype(float) + pitch / 2
+    cy = ys.astype(float) + pitch / 2
+    ox, oy, n = _largest_lattice_block(cx, cy, pitch)
+    return Grid(x=ox, y=oy, pitch=pitch, n_cells=n)
+
+
 def find_grid(img: np.ndarray) -> Grid:
     """Detect the inventory lattice. Raises ValueError if none is found."""
+    try:
+        return _grid_by_segmentation(img)
+    except ValueError:
+        # Not "no inventory" -- possibly an inventory whose slot boundaries have been
+        # smeared past severing. Correlation can still find it.
+        return _grid_by_correlation(img)
+
+
+def _grid_by_segmentation(img: np.ndarray) -> Grid:
     boxes = _cell_boxes(img)
     if len(boxes) < MIN_CELLS:
         raise ValueError(f"only {len(boxes)} slot-like boxes found")
