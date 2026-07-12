@@ -9,7 +9,7 @@ import type { Character } from "@/types/character";
 import type { CharacterToken } from "@/types/character-token";
 import type { TokenTotal } from "@/types/token-total";
 import { AddCharacterForm } from "./add-character-form";
-import { CharacterCarousel, type Selection } from "./character-carousel";
+import { CharacterCarousel, type Selection } from "@/components/character-carousel";
 
 type LoadState = "loading" | "loaded" | "error";
 
