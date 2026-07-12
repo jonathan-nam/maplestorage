@@ -104,11 +104,43 @@ VERIFY_THRESHOLD = 0.80
 # the direction to err in.
 PREFILTER_THRESHOLD = 0.65
 
+NATIVE = 46  # the client's own slot size, and the size every template is cut at
+
 # Regions that are not the item: the stack count (differs per screenshot) and
 # the untradeable bar (per-item state, not identity).
-_KEEP = np.ones((46, 46), np.float32)
+_KEEP = np.ones((NATIVE, NATIVE), np.float32)
 _KEEP[26:41, 0:44] = 0
 _KEEP[40:, :] = 0
+
+
+def _keep_mask(size: int) -> np.ndarray:
+    if size == NATIVE:
+        return _KEEP
+    return cv2.resize(_KEEP, (size, size), interpolation=cv2.INTER_NEAREST)
+
+
+def scale_templates(templates: dict, scale: float) -> dict:
+    """Resize the catalog to the capture's scale, preserving alpha.
+
+    This is the whole reason the parser now survives a rescaled capture, and the direction
+    matters enormously. The old pipeline resampled the FRAME down to the native 46px pitch,
+    which meant that on a capture arriving at 1.33x we threw away a third of every pixel we
+    had been given -- and the 11px count font is the first thing to die. Measured on a real
+    Parsec frame: matching at the captured scale identifies five items at 0.84-0.93 and reads
+    all five stack counts correctly, while resampling the same frame to native drops two of
+    those items below the 0.80 bar and reads no counts at all.
+
+    Scaling the templates up instead costs one resize of ~13 small PNGs per parse and leaves
+    the evidence intact. Interpolating a template is lossless in the way that matters: we are
+    inventing detail in the thing we are searching FOR, not destroying detail in the thing we
+    are searching IN.
+    """
+    if abs(scale - 1.0) < 0.01:
+        return templates
+    return {
+        n: cv2.resize(t, None, fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC)
+        for n, t in templates.items()
+    }
 
 
 @dataclass
@@ -121,21 +153,25 @@ class SlotItem:
 
 def _busy(cell: np.ndarray) -> float:
     """How much of a slot's interior is not backing. Near zero for an empty slot."""
-    g = cv2.cvtColor(cell[6:40, 6:40], cv2.COLOR_BGR2GRAY)
+    m = max(int(round(cell.shape[0] * 6 / NATIVE)), 1)
+    g = cv2.cvtColor(cell[m:-m, m:-m], cv2.COLOR_BGR2GRAY)
     return float(((g < 214) | (g > 238)).mean())
 
 
-def background(cells: dict) -> np.ndarray:
+def background(cells: dict, size: int = NATIVE) -> np.ndarray:
     """The slot backing, taken as the median of the empty slots in this frame."""
     empties = [c.astype(np.float32) for c in cells.values() if _busy(c) < 0.02]
     if not empties:
         # A completely full inventory: fall back to the flat backing colour.
-        return np.full((46, 46, 3), 226.0, np.float32)
+        return np.full((size, size, 3), 226.0, np.float32)
     return np.median(np.stack(empties), axis=0)
 
 
 def descriptor(cell: np.ndarray, bg: np.ndarray) -> np.ndarray:
-    d = (cell.astype(np.float32) - bg).mean(axis=2) * _KEEP
+    # Collapsing to DESC x DESC is what makes the descriptor scale-free: a 61px slot and a
+    # 46px template land in the same 16x16 space, so the shortlist compares them directly
+    # without either being resampled to the other.
+    d = (cell.astype(np.float32) - bg).mean(axis=2) * _keep_mask(cell.shape[0])
     d = cv2.resize(d, (DESC, DESC), interpolation=cv2.INTER_AREA).ravel()
     d -= d.mean()
     n = np.linalg.norm(d)
@@ -143,12 +179,13 @@ def descriptor(cell: np.ndarray, bg: np.ndarray) -> np.ndarray:
 
 
 def slot_cells(img: np.ndarray, g: Grid) -> dict:
+    p = round(g.pitch)
     out = {}
     for r in range(ROWS):
         for c in range(COLS):
             x, y, w, h = g.cell(r, c)
             cell = img[max(y, 0) : y + h, max(x, 0) : x + w]
-            if cell.shape[:2] == (46, 46):
+            if cell.shape[:2] == (p, p):
                 out[(r, c)] = cell
     return out
 
@@ -156,16 +193,18 @@ def slot_cells(img: np.ndarray, g: Grid) -> dict:
 def build_catalog(templates: dict) -> tuple[list[str], np.ndarray]:
     """Descriptors for the catalog. Templates are full-slot RGBA crops."""
     names = sorted(templates)
-    bg = np.full((46, 46, 3), 226.0, np.float32)
+    size = templates[names[0]].shape[0]
+    bg = np.full((size, size, 3), 226.0, np.float32)
     mat = np.stack([descriptor(templates[n][:, :, :3], bg) for n in names])
     return names, mat
 
 
 def _slot_window(img, g, r, c):
     """The slot, padded -- icon art bleeds a couple of pixels outside its cell, and a
-    template confined strictly within the cell can never line up."""
+    template confined strictly within the cell can never line up. The pad also absorbs the
+    grid origin being a pixel or two out, which it routinely is on a rescaled capture."""
     x, y, w, h = g.cell(r, c)
-    pad = 6
+    pad = max(int(round(6 * g.scale)), 6)
     return img[max(y - pad, 0) : y + h + pad, max(x - pad, 0) : x + w + pad]
 
 
@@ -272,9 +311,14 @@ def _verify(img, g, r, c, tpl) -> float:
 
 
 def classify(img: np.ndarray, g: Grid, templates: dict) -> list[SlotItem]:
+    # The catalog is brought to the capture's scale, never the other way round. The
+    # descriptor shortlist is scale-free (everything collapses to 16x16), but the verify
+    # stage is a pixel correlation and needs the template to be the size of the thing in
+    # the frame.
+    templates = scale_templates(templates, g.scale)
     names, cat = build_catalog(templates)
     cells = slot_cells(img, g)
-    bg = background(cells)
+    bg = background(cells, round(g.pitch))
 
     keys = [k for k, cell in cells.items() if _busy(cell) >= 0.02]  # skip empty slots
     if not keys:

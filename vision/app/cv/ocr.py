@@ -17,7 +17,7 @@ from pathlib import Path
 import cv2
 import numpy as np
 
-from .grid import NATIVE_PITCH, Grid
+from .grid import Grid
 
 TEMPLATE_DIR = Path(__file__).parent / "templates"
 
@@ -73,29 +73,52 @@ def _outline_of(glyph: np.ndarray) -> np.ndarray:
 BAND_MARGIN = 3
 
 
+def scale_font(font: dict, scale: float) -> dict:
+    """The digit glyphs at the capture's scale."""
+    if abs(scale - 1.0) < 0.01:
+        return font
+    return {
+        d: cv2.resize(g, None, fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC)
+        for d, g in font.items()
+    }
+
+
 def cell_band(img: np.ndarray, g: Grid, row: int, col: int) -> np.ndarray:
-    """The count band of one slot, resampled to native scale, with a margin for grid jitter."""
+    """The count band of one slot, AT THE CAPTURE'S OWN SCALE, with a margin for grid jitter.
+
+    This used to resample the band down to the native 46px and match native glyphs against
+    it. That is backwards, and it is the single reason a rescaled capture was unreadable: the
+    count font is 11px, so on a capture that arrived at 1.33x we were taking the ~15px digits
+    we had actually been given and squeezing them back to 11px before trying to read them --
+    destroying, in the last step before the decision, exactly the evidence the decision needed.
+    Measured on a real Parsec frame: nothing legible that way; all five counts correct when the
+    band is left alone and the glyphs are scaled up to meet it.
+    """
     x, y, w, h = g.cell(row, col)
-    cell = img[max(y, 0) : y + h, max(x, 0) : x + w]
-    if cell.size == 0:
-        return cell
+    m = max(int(round(BAND_MARGIN * g.scale)), BAND_MARGIN)
+    top = y + int(round(BAND_TOP * g.scale)) - m
+    bot = y + int(round(BAND_BOT * g.scale)) + m
+    return img[max(top, 0) : bot, max(x - m, 0) : x + w]
 
-    n = int(NATIVE_PITCH)
-    scale = n / max(w, 1)
-    if cell.shape[0] != n or cell.shape[1] != n:
-        cell = cv2.resize(cell, (n, n), interpolation=cv2.INTER_CUBIC)
 
-    # Widen leftwards in the ORIGINAL image, then rescale, so the margin is real pixels
-    # rather than interpolated edge.
-    m = int(round(BAND_MARGIN / max(scale, 1e-6)))
-    x0 = max(x - m, 0)
-    strip = img[max(y, 0) : y + h, x0 : x + w]
-    if strip.size and strip.shape[1] > w:
-        target_w = int(round(strip.shape[1] * scale))
-        strip = cv2.resize(strip, (target_w, n), interpolation=cv2.INTER_CUBIC)
-        return strip[BAND_TOP:BAND_BOT]
-
-    return cell[BAND_TOP:BAND_BOT]
+# Oversampling factor for the correlation, on a capture that is not at native scale.
+#
+# matchTemplate slides in WHOLE pixels. At native that is fine, because the glyph and the
+# digit were drawn on the same pixel grid and line up exactly. On a rescaled capture they no
+# longer do: the digit lands on some arbitrary sub-pixel phase, the glyph can only be tried at
+# integer offsets, and on a 9px-wide '0' half a pixel of misalignment is a large fraction of
+# the glyph. The damage is erratic rather than progressive, which is what makes it so
+# confusing to chase -- the '0' of a stack of 10 scored 0.83 at 1.25x and 0.59 at 1.1x, the
+# GENTLER rescale, purely because 1.1x happened to land it on a worse phase.
+#
+# Enlarging the band and the glyph together by 3 lets the correlation slide in thirds of a
+# captured pixel. It invents no information -- both sides are interpolated identically, so
+# this is a finer search, not a sharper image -- and it lifts the worst case measured across
+# 1.1x / 1.25x / 1.326x / 1.5x / 1.75x from 0.591 (below the 0.60 bar, digit silently dropped)
+# to 0.710. K=4 buys another 0.003, which is not worth the time.
+#
+# Native captures skip this entirely: they already score ~0.94 and there is nothing to fix.
+OVERSAMPLE = 3
 
 
 def read_count(img: np.ndarray, g: Grid, row: int, col: int, font: dict) -> tuple[str, float]:
@@ -103,6 +126,12 @@ def read_count(img: np.ndarray, g: Grid, row: int, col: int, font: dict) -> tupl
     band = cell_band(img, g, row, col)
     if band.size == 0:
         return "", 0.0
+
+    k = g.scale
+    if abs(k - 1.0) >= 0.01:
+        k *= OVERSAMPLE
+        band = cv2.resize(band, None, fx=OVERSAMPLE, fy=OVERSAMPLE, interpolation=cv2.INTER_CUBIC)
+    font = scale_font(font, k)
 
     grey = cv2.cvtColor(band, cv2.COLOR_BGR2GRAY).astype(np.float32)
     lo, hi = float(grey.min()), float(grey.max())
@@ -134,11 +163,20 @@ def read_count(img: np.ndarray, g: Grid, row: int, col: int, font: dict) -> tupl
     # A plain non-max suppression is not enough here: '1' is only 5px wide and
     # correlates well with the vertical stroke *inside* a '0', so "10" reads as
     # "101" unless accepting the '0' also consumes the span it covers.
+    #
+    # JITTER is quoted in NATIVE pixels and must be converted into whatever units this band is
+    # measured in, which is not the same thing on a rescaled, oversampled capture. Forgetting
+    # that produced a genuinely misleading bug: the window that hunts for the next digit's
+    # left edge shrank to two thirds of a real pixel, the '0' of "x10" peaked just outside it,
+    # and the '8' -- which peaks slightly earlier and was still inside -- was accepted in its
+    # place. It read 18. Nothing was wrong with the correlation (the '0' beat the '8' 0.87 to
+    # 0.64 at its own position); we simply never looked where the '0' was.
+    jitter = max(int(round(JITTER * k)), 1)
     chosen = []
     x, width = 0, band.shape[1]
     while x < width:
         pick = None
-        for dx in range(JITTER + 1):
+        for dx in range(jitter + 1):
             xi = x + dx
             for d, (scores, _) in best.items():
                 if xi >= len(scores) or scores[xi] < DIGIT_THRESHOLD:
@@ -152,7 +190,13 @@ def read_count(img: np.ndarray, g: Grid, row: int, col: int, font: dict) -> tupl
             continue
         px, d, s = pick
         chosen.append((px, d, s))
-        x = px + font[d].shape[1] - 1
+        # Advance past what we just took, less ONE NATIVE PIXEL of slack -- the glyphs' boxes
+        # are a touch wider than the font's true advance, so consuming the full width steps
+        # over the start of the next digit. That slack is a native-pixel quantity like JITTER,
+        # and hard-coding it as a bare 1 is what actually caused the "x10" -> "18" misread: the
+        # advance overshot the '0' (which sat 16 units on) by three, landing in the middle of
+        # it, where the only glyph still scoring was '8'.
+        x = px + font[d].shape[1] - max(int(round(k)), 1)
 
     if not chosen:
         return "", 0.0
