@@ -95,15 +95,30 @@ a:hover {
   color: #fff;
 }
 
+/* Two lines: the name, then level and class together beneath it. The name is the only
+   thing you scan for, so it gets a line of its own; level and class are one thought
+   ("Lv.287 Lynn") and read as one. Level used to sit inline with the name, where a long
+   IGN and a 3-digit level fought over the same 150px. */
+.tile-meta {
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 1px;
+}
+
 .tile-level {
-  color: #777;
-  margin-left: 6px;
   font-variant-numeric: tabular-nums;
 }
 
+/* Styled on its own rather than via .tile-meta, because the carousel's head tile
+   ("All characters" / "Auto-detect") uses .tile-job by itself, with no level beside it. */
+.tile-level,
 .tile-job {
   color: #777;
   font-size: 12px;
+}
+
+.tile-job {
   margin-top: 1px;
 }
 

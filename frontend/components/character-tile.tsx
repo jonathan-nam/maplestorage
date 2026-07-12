@@ -86,10 +86,12 @@ export function CharacterTile({ character, onUpdated, onDeleted, selected, onSel
       )}
 
       <div className="tile-plate">
-        <span className="tile-name">{character.name}</span>
-        <span className="tile-level">Lv.{character.level ?? "?"}</span>
+        <div className="tile-name">{character.name}</div>
+        <div className="tile-meta">
+          <span className="tile-level">Lv.{character.level ?? "?"}</span>
+          <span className="tile-job">{character.jobName ?? "—"}</span>
+        </div>
       </div>
-      <div className="tile-job">{character.jobName ?? "—"}</div>
 
       {editing ? (
         <div onClick={(e) => e.stopPropagation()}>
