@@ -18,6 +18,11 @@ pre-commit install
 # installed anything you needed to.
 pip install --user --break-system-packages -r vision/requirements-dev.txt
 
+# The HUD is read with Tesseract, and the vision tests shell out to it. vision/Dockerfile
+# installs it for the deployed image, but running `pytest tests/` in the container needs it
+# here too -- without it 17 tests die with a Popen error that says nothing about OCR.
+sudo apt-get update -qq && sudo apt-get install -y -qq tesseract-ocr
+
 # tflint needs its AWS ruleset downloaded before it can lint anything. Without this
 # the pre-commit hook fails on a fresh container with "Plugin aws not found" -- which
 # reads like a broken hook rather than a missing one-time setup step.
@@ -31,34 +36,42 @@ if [ -d "$claude_pkg" ]; then
   sudo chown -R "$(id -u):$(id -g)" "$claude_pkg"
 fi
 
-# devcontainer.json pins the java feature to 21, but the gradle-sdkman
-# feature installs its own JDK (25) afterward and sets it as SDKMAN's
-# default, silently overriding that -- and Gradle 8.12's embedded Kotlin DSL
-# compiler can't even parse "25.0.3" as a version string (crashes with
-# IllegalArgumentException on any ./gradlew invocation run outside Docker,
-# where the Dockerfile's own JDK 21 base image masks the issue). Force it
-# back explicitly rather than relying on feature install order.
-# SDKMAN's own scripts read several variables without defaults ($ZSH_VERSION,
-# $sdkman_debug_mode), which trips `set -u` -- both in sdkman-init.sh and inside
-# the `sdk` function itself. So nounset stays off for this whole block. Without
-# it the script aborted before `sdk` ever ran, and the JDK fix below silently
-# never happened even once the pip failure above was fixed.
-set +u
-source "/usr/local/sdkman/bin/sdkman-init.sh"
+# Gradle 8.12 cannot run on JDK 25. It does not say so: ./gradlew dies with a bare
+# "25.0.3" and no explanation, which is a genuinely baffling thing to meet on a fresh
+# container. The JDK 25 came from the gradle-sdkman feature, which set itself as SDKMAN's
+# default; that feature is now gone from devcontainer.json (it only ever existed to
+# generate gradle-wrapper.jar, which has been committed since), so 25 is never installed.
+#
+# This block used to *repair* that by pinning the default back to 21 -- which worked only
+# when post-create ran to completion, turning a permanent problem into an intermittent one.
+# Verifying is better than repairing: if a future feature drags in the wrong JDK, say so
+# here, loudly, rather than let ./gradlew fail with a version number three days later.
+if command -v java >/dev/null 2>&1; then
+  jdk="$(java -version 2>&1 | head -1 | sed -E 's/.*"([0-9]+).*/\1/')"
+  if [ "$jdk" = "21" ]; then
+    echo "JDK $jdk -- Gradle is happy."
+  else
+    cat <<WARN
 
-# Resolve the installed 21.x rather than pinning the patch version -- the java
-# feature bumps it, and a stale pin here fails the same silent way.
-jdk21="$(basename "$(ls -d /usr/local/sdkman/candidates/java/21.*-tem | sort -V | tail -1)")"
-sdk default java "$jdk21"
-set -u
+  ============================================================================
+  WARNING: JDK $jdk is on the PATH. Gradle 8.12 needs JDK 21 and cannot run on
+  anything newer -- ./gradlew will die with a bare version number and no reason.
 
-echo "JDK set to $jdk21 (Gradle cannot run on the JDK 25 that gradle-sdkman installs)"
+  Something is installing a JDK other than the pinned 21 (the gradle-sdkman
+  feature used to; it has been removed). Find it, or pin around it:
 
-# Gradle wrapper jar is a binary the scaffolding couldn't generate by hand --
-# bootstrap it once here using the gradle-sdkman feature's CLI. After this,
-# ./gradlew is self-contained and the gradle-sdkman feature is no longer needed.
+      export JAVA_HOME=\$(ls -d /usr/local/sdkman/candidates/java/21.*-tem | tail -1)
+  ============================================================================
+
+WARN
+  fi
+fi
+
+# gradle-wrapper.jar is committed, so ./gradlew is self-contained and needs no Gradle on the
+# PATH. If it ever goes missing, regenerate it from a machine that has Gradle -- do not
+# reinstall the feature that broke the JDK.
 if [ ! -f backend/gradle/wrapper/gradle-wrapper.jar ]; then
-  (cd backend && gradle wrapper --gradle-version 8.12)
+  echo "WARNING: backend/gradle/wrapper/gradle-wrapper.jar is missing and cannot be rebuilt here." >&2
 fi
 
 # Where the workspace actually lives decides whether this environment works properly, so

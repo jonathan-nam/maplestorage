@@ -15,13 +15,17 @@ baking one screenshot's incidentals into the catalog:
 Run against a screenshot holding all six tokens; writes templates/token-*.png.
 """
 
+import re
 import sys
+from pathlib import Path
 
 import cv2
 import numpy as np
 
 from .grid import NATIVE_PITCH, find_grid
 from .match import find_tokens, load_templates
+
+TEMPLATE_DIR = Path(__file__).parent / "templates"
 
 # Slot-relative regions to keep out of the mask (native 46px slot).
 DIGIT_ZONE = (26, 41, 0, 41)  # y0, y1, x0, x1 -- where counts are drawn
@@ -47,8 +51,42 @@ def icon_mask(cell: np.ndarray) -> np.ndarray:
     return mask
 
 
+def cut(img: np.ndarray, g, row: int, col: int, key: str) -> float:
+    """Cut one template out of one slot. Returns the fraction of the slot the mask covers.
+
+    This is the half of the pipeline that will eventually run when a user clicks "track
+    this" on their own upload: they name a slot, and its pixels become the template every
+    future screenshot is matched against. The mask is what makes that safe -- it excludes
+    the stack-count digits and the untradeable bar, which belong to *this* screenshot
+    rather than to the item.
+    """
+    x, y, w, _ = g.cell(row, col)
+    cell = img[y : y + w, x : x + w]
+    mask = icon_mask(cell)
+    rgba = cv2.merge([*cv2.split(cell), mask])
+    cv2.imwrite(str(TEMPLATE_DIR / f"token-{key}.png"), rgba)
+    return float((mask > 0).mean())
+
+
 def main():
-    path = sys.argv[1] if len(sys.argv) > 1 else "../../reference-images/inventory sample.png"
+    # `--cut key=rXcY ...` cuts named slots; with no --cut, re-cuts the 6 known tokens by
+    # finding them, which is what this script originally did.
+    args = [a for a in sys.argv[1:] if not a.startswith("-")]
+    cuts = []
+    if "--cut" in sys.argv:
+        i = sys.argv.index("--cut")
+        for spec in sys.argv[i + 1 :]:
+            if spec.startswith("-"):
+                break
+            key, _, ref = spec.partition("=")
+            m = re.fullmatch(r"r(\d+)c(\d+)", ref)
+            if not key or not m:
+                print(f"bad --cut spec {spec!r}; want key=rXcY")
+                return 1
+            cuts.append((key, int(m.group(1)), int(m.group(2))))
+            args = [a for a in args if a != spec]
+
+    path = args[0] if args else "../../reference-images/inventory sample.png"
     img = cv2.imread(path)
     if img is None:
         print(f"cannot read {path}")
@@ -58,6 +96,13 @@ def main():
     if abs(g.pitch - NATIVE_PITCH) > 0.5:
         print(f"refusing to cut templates from a rescaled screenshot (pitch {g.pitch:.1f})")
         return 1
+
+    if cuts:
+        print(f"{path}: cutting {len(cuts)} template(s)\n")
+        for key, r, c in cuts:
+            cover = cut(img, g, r, c, key)
+            print(f"  {key:24s} r{r}c{c}  mask covers {cover * 100:4.1f}% of slot")
+        return 0
 
     # Bootstrap from the prototype artwork -- using the game-cut templates here
     # would just re-find whatever we cut last time.

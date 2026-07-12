@@ -55,15 +55,46 @@ def _outline_of(glyph: np.ndarray) -> np.ndarray:
     return (grey <= 80) & (glyph[:, :, 3] > 0)
 
 
+# The band is taken with a margin, and the margin is not cosmetic.
+#
+# The stack count is drawn at the slot's bottom-LEFT, hard against the edge, and the grid
+# origin is only accurate to about a pixel: JPEG re-encoding moved it by one at q=92 and q=85
+# while leaving it alone at q=95 and q=75. Cropping the band exactly at the cell boundary
+# meant that one-pixel shift sliced the leftmost column off the digits -- fatal for a '1'
+# that is only 5px wide.
+#
+# The symptom was baffling and worth recording: correlation collapsed from 0.995 to 0.41, but
+# only at q=92 and q=85, and only on some slots. Quality does not behave like that, and it
+# sent me looking for numerical instability in matchTemplate that was never there. The digits
+# were always perfectly legible. We were reading the wrong pixels.
+#
+# A couple of pixels of slack costs nothing -- matchTemplate slides, so a wider band simply
+# gives it more room -- and it makes the read immune to the grid being a pixel out.
+BAND_MARGIN = 3
+
+
 def cell_band(img: np.ndarray, g: Grid, row: int, col: int) -> np.ndarray:
-    """The count band of one slot, resampled to native scale."""
+    """The count band of one slot, resampled to native scale, with a margin for grid jitter."""
     x, y, w, h = g.cell(row, col)
     cell = img[max(y, 0) : y + h, max(x, 0) : x + w]
     if cell.size == 0:
         return cell
+
     n = int(NATIVE_PITCH)
+    scale = n / max(w, 1)
     if cell.shape[0] != n or cell.shape[1] != n:
         cell = cv2.resize(cell, (n, n), interpolation=cv2.INTER_CUBIC)
+
+    # Widen leftwards in the ORIGINAL image, then rescale, so the margin is real pixels
+    # rather than interpolated edge.
+    m = int(round(BAND_MARGIN / max(scale, 1e-6)))
+    x0 = max(x - m, 0)
+    strip = img[max(y, 0) : y + h, x0 : x + w]
+    if strip.size and strip.shape[1] > w:
+        target_w = int(round(strip.shape[1] * scale))
+        strip = cv2.resize(strip, (target_w, n), interpolation=cv2.INTER_CUBIC)
+        return strip[BAND_TOP:BAND_BOT]
+
     return cell[BAND_TOP:BAND_BOT]
 
 

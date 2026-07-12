@@ -44,6 +44,9 @@ SQL_OUT = ROOT / "backend" / "src" / "main" / "resources" / "db" / "migration" /
 KEY_CHARS = set("abcdefghijklmnopqrstuvwxyz0123456789-")
 
 
+CATEGORIES = {"REDEMPTION_TOKEN", "CONSUMABLE"}
+
+
 def load() -> list[dict]:
     items = yaml.safe_load(MANIFEST.read_text())["items"]
 
@@ -55,6 +58,19 @@ def load() -> list[dict]:
         if key in seen:
             sys.exit(f"duplicate key {key!r}")
         seen.add(key)
+
+        cat = it.get("category")
+        if cat not in CATEGORIES:
+            sys.exit(f"{key}: category must be one of {sorted(CATEGORIES)}, got {cat!r}")
+
+        # A redemption token is a thing you collect N of and trade in. A consumable is a
+        # thing you drink. Giving a consumable a threshold would have the UI report
+        # "7 / 10 toward an Eternal set" on a potion -- confident and meaningless.
+        has = "redeem_threshold" in it
+        if cat == "REDEMPTION_TOKEN" and not has:
+            sys.exit(f"{key}: a REDEMPTION_TOKEN needs a redeem_threshold")
+        if cat == "CONSUMABLE" and has:
+            sys.exit(f"{key}: a CONSUMABLE must not have a redeem_threshold -- you drink it")
     return items
 
 
@@ -86,9 +102,12 @@ def sql(items: list[dict]) -> str:
         return "'" + s.replace("'", "''") + "'"
 
     rows = ",\n".join(
-        f"    ({q(it['key'])}, {q(it['name'])}, {q(it['boss'])}, "
-        f"{int(it['redeem_threshold'])}, {q(it['key'] + '.png')})"
+        f"    ({q(it['key'])}, {q(it['name'])}, {q(it['boss'])}, {q(it['key'] + '.png')})"
         for it in items
+    )
+    redeemable = [it for it in items if it["category"] == "REDEMPTION_TOKEN"]
+    rules = ",\n".join(
+        f"    ({q(it['key'])}, {int(it['redeem_threshold'])})" for it in redeemable
     )
     return f"""-- GENERATED FROM catalog/items.yaml -- DO NOT EDIT BY HAND.
 -- Regenerate with:  python catalog/build.py
@@ -100,19 +119,36 @@ def sql(items: list[dict]) -> str:
 -- Upserts rather than replaces: token_catalog.id is referenced by character_token_count,
 -- so deleting and reinserting would take every user's counts with it.
 
-INSERT INTO token_catalog (id, vision_key, name, source_boss_name, redeem_threshold, icon_ref_key)
+INSERT INTO token_catalog (id, vision_key, name, source_boss_name, icon_ref_key)
 SELECT
     COALESCE(existing.id, gen_random_uuid()),
-    v.vision_key, v.name, v.boss, v.redeem_threshold, v.icon
+    v.vision_key, v.name, v.boss, v.icon
 FROM (VALUES
 {rows}
-) AS v (vision_key, name, boss, redeem_threshold, icon)
+) AS v (vision_key, name, boss, icon)
 LEFT JOIN token_catalog existing ON existing.vision_key = v.vision_key
 ON CONFLICT (vision_key) DO UPDATE SET
     name             = EXCLUDED.name,
     source_boss_name = EXCLUDED.source_boss_name,
-    redeem_threshold = EXCLUDED.redeem_threshold,
     icon_ref_key     = EXCLUDED.icon_ref_key;
+
+-- An item is redeemable if a rule exists for it -- there is no flag to keep in step with
+-- the fields it governs. So a manifest entry that stops being a REDEMPTION_TOKEN must have
+-- its rule removed, not merely have its threshold nulled.
+DELETE FROM redemption_rule
+WHERE item_id IN (
+    SELECT id FROM token_catalog
+    WHERE vision_key NOT IN ({", ".join(q(it["key"]) for it in redeemable) or "NULL"})
+);
+
+INSERT INTO redemption_rule (item_id, redeem_threshold)
+SELECT c.id, v.redeem_threshold
+FROM (VALUES
+{rules}
+) AS v (vision_key, redeem_threshold)
+JOIN token_catalog c ON c.vision_key = v.vision_key
+ON CONFLICT (item_id) DO UPDATE SET
+    redeem_threshold = EXCLUDED.redeem_threshold;
 """
 
 

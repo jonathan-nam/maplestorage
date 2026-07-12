@@ -99,8 +99,12 @@ export default function CharactersPage() {
     name: total.name,
     iconUrl: total.iconUrl,
     quantity: total.quantity,
+    // A consumable has nothing to redeem toward. Saying "7 / 10 toward an Eternal set" on a
+    // potion would be a confident, meaningless number -- the failure this app exists to avoid.
     note:
-      `${total.quantity} / ${total.redeemThreshold} toward an Eternal set` +
+      (total.redeemThreshold
+        ? `${total.quantity} / ${total.redeemThreshold} toward an Eternal set`
+        : `${total.quantity} in total`) +
       `\nheld by ${total.characterCount === 1 ? "1 character" : `${total.characterCount} characters`}`,
   }));
 
@@ -111,7 +115,9 @@ export default function CharactersPage() {
     name: token.name,
     iconUrl: token.iconUrl,
     quantity: token.quantity,
-    note: `${token.quantity} / ${token.redeemThreshold} toward an Eternal set`,
+    note: token.redeemThreshold
+      ? `${token.quantity} / ${token.redeemThreshold} toward an Eternal set`
+      : `${token.quantity} in total`,
   }));
 
   return (

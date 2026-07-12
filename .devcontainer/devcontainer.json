@@ -6,9 +6,16 @@
       "version": "21",
       "jdkDistro": "tem"
     },
-    "ghcr.io/devcontainers-extra/features/gradle-sdkman:2": {
-      "version": "latest"
-    },
+    // gradle-sdkman is deliberately NOT here. It installs its own JDK -- currently 25 --
+    // and makes it the SDKMAN default, and Gradle 8.12 cannot run on 25: every ./gradlew
+    // invocation dies with a bare "25.0.3" and no explanation. post-create.sh used to pin
+    // the JDK back to 21 afterwards, which worked only when post-create ran, and turned a
+    // permanent problem into an intermittent one.
+    //
+    // The feature was only ever needed to generate gradle-wrapper.jar, a binary the initial
+    // scaffolding could not write by hand. That jar has been committed since; ./gradlew is
+    // self-contained and needs no Gradle on the PATH at all. So the fix is to stop
+    // installing the JDK that breaks it.
     "ghcr.io/devcontainers/features/node:1": {
       "version": "22"
     },

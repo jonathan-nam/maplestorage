@@ -9,7 +9,9 @@ data class TokenTotalResponse(
     val name: String,
     val iconUrl: String?,
     val quantity: Int,
-    val redeemThreshold: Int,
+    // Null for a consumable. There is no flag: an item is redeemable exactly when it has
+    // a redemption rule, so a null threshold IS the answer to "is this redeemable?".
+    val redeemThreshold: Int?,
     // How many characters contributed to `quantity`. Without it, a total of 40 is
     // ambiguous between one hoarder and ten mules, which is exactly the question
     // the aggregate view exists to answer.

@@ -12,6 +12,7 @@ from fastapi.testclient import TestClient
 
 from app.cv.grid import NATIVE_PITCH, find_grid
 from app.cv.hud import HUD_RE, find_hud
+from app.cv.match import load_templates
 from app.main import app
 
 client = TestClient(app)
@@ -19,6 +20,11 @@ client = TestClient(app)
 REF = "../reference-images"
 
 # Hand-verified by reading the digits off each screenshot.
+#
+# The elixirs and potions were added on 2026-07-12. Their counts were read the same way --
+# off magnified crops of the slots the classifier claims, checking that the icon IS the item
+# and the digits ARE the number. Pasting the parser's own output in here would make the test
+# assert that the parser agrees with itself.
 TRUTH = {
     f"{REF}/untradeables sample.png": {
         "blissful-fantasy-shard": 6,
@@ -26,6 +32,16 @@ TRUTH = {
         "echo-ancient-resolve": 6,
         "ferocious-beast-ring": 9,
         "kalos-token": 21,
+        "collector-elixir": 1,
+        "honorable-elixir": 1,
+        "sayram-elixir": 1,
+        "extreme-blue-potion": 8,
+        "extreme-green-potion": 8,
+        # Missed for a while by the TOP_K=3 descriptor shortlist, which never handed this
+        # template to the verifier. It scores 1.000 -- a pixel-perfect match, confirmed by
+        # eye against the template. The shortlist was hiding a real item, and the truth table
+        # inherited the blind spot because it was built from the parser's own output.
+        "aurelia-elixir": 1,
     },
     f"{REF}/inventory sample.png": {
         "distorted-ambition": 9,
@@ -33,6 +49,7 @@ TRUTH = {
         "ferocious-beast-ring": 4,
         "kalos-token": 19,
         "trace-eternal-loyalty": 16,
+        "sayram-elixir": 18,
     },
     # The only screenshot carrying all SIX tokens, and a cropped panel rather than
     # a full desktop -- so it also proves the grid detector does not depend on the
@@ -44,6 +61,27 @@ TRUTH = {
         "ferocious-beast-ring": 50,
         "kalos-token": 21,
         "trace-eternal-loyalty": 20,
+        "aurelia-elixir": 3,
+        "collector-elixir": 3,
+        "honorable-elixir": 3,
+        "sayram-elixir": 3,
+        "extreme-green-potion": 9,
+        "extreme-red-potion": 9,
+    },
+    # The screenshot the elixir and potion templates were cut from.
+    f"{REF}/potions.png": {
+        "blissful-fantasy-shard": 18,
+        "distorted-ambition": 10,
+        "echo-ancient-resolve": 6,
+        "ferocious-beast-ring": 9,
+        "kalos-token": 21,
+        "aurelia-elixir": 1,
+        "collector-elixir": 1,
+        "honorable-elixir": 1,
+        "sayram-elixir": 1,
+        "extreme-blue-potion": 9,
+        "extreme-green-potion": 9,
+        "extreme-red-potion": 1,
     },
 }
 
@@ -62,7 +100,12 @@ def _parse(path: str, quality: int | None = None):
 def test_health():
     r = client.get("/health")
     assert r.status_code == 200
-    assert r.json() == {"status": "ok", "tokens": 6, "digits": 10}
+    body = r.json()
+    assert body["status"] == "ok"
+    assert body["digits"] == 10
+    # Not a hardcoded 6. The catalog grows; what must hold is that health reports what is
+    # actually loaded.
+    assert body["tokens"] == len(load_templates())
 
 
 @pytest.mark.parametrize("path,truth", TRUTH.items())
@@ -164,7 +207,7 @@ def test_hud_is_null_when_not_in_frame():
     r = _parse(f"{REF}/inventory sample.png")
     assert r.json()["characterHud"] is None
     # ...and the token counts are still read fine without it.
-    assert len(r.json()["tokenCounts"]) == 5
+    assert len(r.json()["tokenCounts"]) == len(TRUTH[f"{REF}/inventory sample.png"])
 
 
 # --- catalog scaling -------------------------------------------------------

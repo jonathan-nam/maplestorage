@@ -11,8 +11,6 @@ import org.jetbrains.exposed.v1.json.jsonb
 // route/repository code gets compile-time-checked query building instead of raw SQL
 // string literals -- there is no SchemaUtils.create(...) call anywhere.
 
-private const val DEFAULT_REDEEM_THRESHOLD = 10
-
 object Users : Table("users") {
     // Clerk userIds are strings (e.g. "user_2abc..."), not UUIDs.
     val id = text("id")
@@ -51,12 +49,21 @@ object TokenCatalog : Table("token_catalog") {
     val visionKey = text("vision_key").uniqueIndex()
 
     val sourceBossName = text("source_boss_name").nullable()
-    val slotGroup = array<String>("slot_group").nullable()
-    val redeemThreshold = integer("redeem_threshold").default(DEFAULT_REDEEM_THRESHOLD)
-    val bonusItemName = text("bonus_item_name").nullable()
+
     val iconRefKey = text("icon_ref_key").nullable()
 
     override val primaryKey = PrimaryKey(id)
+}
+
+// Items you collect N of and trade in. No row means the item is simply counted -- which is
+// most of them, and all of the consumables. "Is this redeemable?" is therefore not a flag that
+// can drift out of step with the fields it governs; it is whether a rule exists (V7).
+object RedemptionRule : Table("redemption_rule") {
+    val itemId = reference("item_id", TokenCatalog.id)
+    val redeemThreshold = integer("redeem_threshold")
+    val bonusItemName = text("bonus_item_name").nullable()
+
+    override val primaryKey = PrimaryKey(itemId)
 }
 
 object Screenshots : Table("screenshots") {

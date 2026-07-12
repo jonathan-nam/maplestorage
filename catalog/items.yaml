@@ -22,21 +22,25 @@ items:
   - key: blissful-fantasy-shard
     name: Blissful Fantasy Shard
     boss: Malefic Star
+    category: REDEMPTION_TOKEN
     redeem_threshold: 10
 
   - key: distorted-ambition
     name: Distorted Ambition
     boss: Limbo
+    category: REDEMPTION_TOKEN
     redeem_threshold: 10
 
   - key: echo-ancient-resolve
     name: Echo of Ancient Resolve
     boss: First Adversary
+    category: REDEMPTION_TOKEN
     redeem_threshold: 10
 
   - key: ferocious-beast-ring
     name: Ferocious Beast Entanglement Ring
     boss: Kaling
+    category: REDEMPTION_TOKEN
     redeem_threshold: 10
 
   # NOTE: the icon asset for this one shipped as `kalos-residual-determination.png`
@@ -45,9 +49,54 @@ items:
   - key: kalos-token
     name: Kalos's Residual Determination
     boss: Kalos the Guardian
+    category: REDEMPTION_TOKEN
     redeem_threshold: 10
 
   - key: trace-eternal-loyalty
     name: Trace of Eternal Loyalty
     boss: Baldrix
+    category: REDEMPTION_TOKEN
     redeem_threshold: 10
+
+  # --- Consumables -------------------------------------------------------------------
+  # Bought and drunk, not collected and redeemed: no redeem_threshold, and the UI must not
+  # invent one. Templates cut from reference-images/potions.png.
+  #
+  # These are also the reason the classifier now looks at colour. The Extreme potions are one
+  # bottle in three (four, once Gold turns up): shape correlates them at 0.925 against a 0.55
+  # bar, so shape alone would call a Green potion Blue and never blink. See classify.py.
+
+  - key: sayram-elixir
+    name: Sayram's Elixir
+    boss: The Collector
+    category: CONSUMABLE
+
+  - key: aurelia-elixir
+    name: Aurelia's Elixir
+    boss: The Collector
+    category: CONSUMABLE
+
+  - key: honorable-elixir
+    name: Honorable Elixir
+    boss: The Collector
+    category: CONSUMABLE
+
+  - key: collector-elixir
+    name: Collector's Elixir
+    boss: The Collector
+    category: CONSUMABLE
+
+  - key: extreme-red-potion
+    name: Extreme Red Potion
+    boss: Monster Park
+    category: CONSUMABLE
+
+  - key: extreme-blue-potion
+    name: Extreme Blue Potion
+    boss: Monster Park
+    category: CONSUMABLE
+
+  - key: extreme-green-potion
+    name: Extreme Green Potion
+    boss: Monster Park
+    category: CONSUMABLE

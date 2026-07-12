@@ -19,7 +19,7 @@ import numpy as np
 import pytest
 import yaml
 
-from app.cv.classify import VERIFY_THRESHOLD
+from app.cv.classify import MAX_LAB_DISTANCE, VERIFY_THRESHOLD, _colour_distance
 from app.cv.match import load_templates
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent.parent
@@ -62,11 +62,20 @@ def _masked_score(a: np.ndarray, b: np.ndarray) -> float:
 
 
 def test_no_two_templates_are_confusable():
-    """No icon may look like another icon well enough to pass the verifier.
+    """No icon may pass BOTH of the verifier's tests against a different icon.
 
-    The verifier accepts at VERIFY_THRESHOLD. If template A scores above that against
-    template B, then a slot holding B can be reported as A -- and nothing downstream
-    would ever know.
+    The verifier is two tests, not one: masked correlation on shape, then mean a*/b* on
+    colour. Either alone has a blind spot, and the catalog exercises both:
+
+      * Extreme Blue and Extreme Green are one bottle in two colours. Shape correlates
+        them at 0.925 against a 0.55 bar -- shape cannot tell them apart at all.
+      * The blue potion and kalos-token are 0.4 degrees apart in hue. Colour cannot tell
+        THOSE apart.
+
+    So an icon is only genuinely confusable with another if it clears the shape bar AND
+    lands inside the colour distance. This test used to check shape alone and failed the
+    moment the potions arrived -- correctly reporting a clash that the verifier, as it now
+    stands, does not actually have.
     """
     templates = load_templates()
     names = sorted(templates)
@@ -74,12 +83,19 @@ def test_no_two_templates_are_confusable():
     clashes = []
     for i, a in enumerate(names):
         for b in names[i + 1 :]:
-            s = _masked_score(templates[a], templates[b])
-            if s >= VERIFY_THRESHOLD:
-                clashes.append((a, b, s))
+            shape = _masked_score(templates[a], templates[b])
+            if shape < VERIFY_THRESHOLD:
+                continue  # shape already separates them
 
-    assert not clashes, "icons too similar to tell apart:\n" + "\n".join(
-        f"    {a} vs {b}: {s:.3f}  (verifier accepts at {VERIFY_THRESHOLD})" for a, b, s in clashes
+            # Same question the verifier asks: is B's colour close enough to A's to pass?
+            colour = _colour_distance(templates[a], templates[b][:, :, :3])
+            if colour is None or colour <= MAX_LAB_DISTANCE:
+                clashes.append((a, b, shape, colour))
+
+    assert not clashes, "icons the verifier cannot tell apart:\n" + "\n".join(
+        f"    {a} vs {b}: shape={s:.3f} (bar {VERIFY_THRESHOLD}), "
+        f"colour={'n/a' if c is None else f'{c:.1f}'} (bar {MAX_LAB_DISTANCE})"
+        for a, b, s, c in clashes
     )
 
 

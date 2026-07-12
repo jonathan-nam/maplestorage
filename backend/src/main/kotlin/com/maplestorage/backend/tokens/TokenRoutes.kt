@@ -2,6 +2,7 @@ package com.maplestorage.backend.tokens
 
 import com.maplestorage.backend.db.CharacterTokenCount
 import com.maplestorage.backend.db.Characters
+import com.maplestorage.backend.db.RedemptionRule
 import com.maplestorage.backend.db.TokenCatalog
 import com.maplestorage.backend.plugins.principalIdAndEmail
 import com.maplestorage.backend.users.ensureUser
@@ -10,6 +11,7 @@ import io.ktor.server.response.respond
 import io.ktor.server.routing.Route
 import io.ktor.server.routing.RoutingContext
 import io.ktor.server.routing.get
+import org.jetbrains.exposed.v1.core.JoinType
 import org.jetbrains.exposed.v1.core.countDistinct
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.sum
@@ -46,11 +48,13 @@ internal fun tokenTotalsFor(userId: String): List<TokenTotalResponse> {
     return CharacterTokenCount
         .innerJoin(TokenCatalog)
         .innerJoin(Characters)
+        // LEFT join: a consumable has no redemption rule, and must still be totalled.
+        .join(RedemptionRule, JoinType.LEFT, onColumn = TokenCatalog.id, otherColumn = RedemptionRule.itemId)
         .select(
             TokenCatalog.id,
             TokenCatalog.name,
             TokenCatalog.iconRefKey,
-            TokenCatalog.redeemThreshold,
+            RedemptionRule.redeemThreshold,
             totalQuantity,
             contributors,
         )
@@ -62,7 +66,7 @@ internal fun tokenTotalsFor(userId: String): List<TokenTotalResponse> {
             TokenCatalog.id,
             TokenCatalog.name,
             TokenCatalog.iconRefKey,
-            TokenCatalog.redeemThreshold,
+            RedemptionRule.redeemThreshold,
         ).orderBy(TokenCatalog.name)
         .map { row ->
             TokenTotalResponse(
@@ -70,7 +74,7 @@ internal fun tokenTotalsFor(userId: String): List<TokenTotalResponse> {
                 name = row[TokenCatalog.name],
                 iconUrl = row[TokenCatalog.iconRefKey]?.let { "/token-icons/$it" },
                 quantity = row[totalQuantity] ?: 0,
-                redeemThreshold = row[TokenCatalog.redeemThreshold],
+                redeemThreshold = row[RedemptionRule.redeemThreshold],
                 characterCount = row[contributors].toInt(),
             )
         }

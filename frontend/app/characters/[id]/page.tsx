@@ -69,7 +69,9 @@ export default function CharacterDetailPage() {
               name: token.name,
               iconUrl: token.iconUrl,
               quantity: token.quantity,
-              note: `${token.quantity} / ${token.redeemThreshold} toward an Eternal set`,
+              note: token.redeemThreshold
+                ? `${token.quantity} / ${token.redeemThreshold} toward an Eternal set`
+                : `${token.quantity} in total`,
             }))}
           />
         </>

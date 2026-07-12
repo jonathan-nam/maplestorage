@@ -41,8 +41,47 @@ import numpy as np
 from .grid import COLS, ROWS, Grid
 
 DESC = 16  # descriptor is DESC x DESC; large enough to rank, small enough to blur 1px jitter
-TOP_K = 3  # candidates per slot handed to the verify stage
-VERIFY_THRESHOLD = 0.55  # same bar find_tokens uses; a true match scores ~1.0
+# Candidates per slot handed to the verify stage.
+#
+# This was 3, chosen when the catalog was six tokens and the descriptor's recall@1 was 5/5.
+# At thirteen items it started HIDING REAL ITEMS: Aurelia's Elixir sits in `untradeables
+# sample.png` and matches its template at a pixel-perfect 1.000, and the shortlist never
+# handed that template to the verifier at all. The item simply did not exist as far as the
+# parser was concerned -- and, worse, the truth tables were built from the parser's own
+# output, so they inherited the same blind spot and the tests happily agreed.
+#
+# Measured across the corpus at PNG/q95/q92/q85, against truth corrected by verifying EVERY
+# template against every slot:
+#
+#     TOP_K=3   6/16 wrong     392ms
+#     TOP_K=5   4/16 wrong     507ms
+#     TOP_K=8   0/16 wrong     661ms
+#     TOP_K=13  0/16 wrong     965ms   (exhaustive -- no better, just slower)
+#
+# The real lesson is about the descriptor, not the number: its ranking degrades as the
+# catalog grows, and the true item can fall to rank 5 or beyond. 8 is comfortable at 13
+# items and buys headroom, but this is THE thing to re-measure when the catalog grows --
+# a shortlist that drops the right answer produces a silent undercount, which is the one
+# failure this project exists to prevent.
+TOP_K = 8
+# A true match scores ~1.000, because the client renders every icon pixel-identically and
+# the templates are cut from that rendering. Measured floor across the corpus from PNG down
+# to JPEG q=75: 0.899.
+#
+# This was 0.55 for a long time, inherited from the era when templates were the web
+# prototype's artwork -- which only reached 0.61 against the real thing, so the bar had to be
+# low to catch it at all. Client-cut templates made that bar ~0.3 too generous, and nothing
+# noticed until an item ARRIVED THAT WAS NOT IN THE CATALOG:
+#
+#   An Extreme GOLD Potion -- no template, we had never seen one -- scored 0.753 against the
+#   Extreme GREEN template and was confidently reported as green. It is the same bottle in a
+#   different colour, and gold is close enough to green in a*/b* (20.8, under the 30 bar) that
+#   the colour gate let it through too. Neither test was wrong; the shape bar was simply so
+#   low that "roughly the right bottle" cleared it.
+#
+# 0.80 sits between the 0.753 impostor and the 0.899 floor. The asymmetry is deliberate: it
+# leaves more headroom above (missing a real token undercounts, silently) than below.
+VERIFY_THRESHOLD = 0.80
 
 # A masked matchTemplate costs ~2.4ms; the same match without a mask costs ~0.5ms, and
 # verify ran the masked one ~270 times per parse (90 busy slots x TOP_K). That was 650ms
@@ -130,6 +169,66 @@ def _slot_window(img, g, r, c):
     return img[max(y - pad, 0) : y + h + pad, max(x - pad, 0) : x + w + pad]
 
 
+# The colour gate. MapleStory is full of items that are the same artwork in a different
+# colour -- the Extreme potions are one bottle in four -- and shape cannot tell them apart:
+# Extreme Blue and Extreme Green correlate at 0.925 against a 0.55 bar.
+#
+# Colour is the mean a*/b* of the icon body in CIELAB. Measured across every item at every
+# JPEG quality down to q=75, and counting only the candidates the SHAPE test already lets
+# through -- which is the only set this gate ever sees:
+#
+#     worst distance on the CORRECT item : 20.6
+#     closest distance on a WRONG item   : 41.4
+#
+# A bar of 30 sits in the middle of that gap. Note how badly shape does on its own here:
+# it scores 0.86-0.93 matching the RED potion against the BLUE template. Colour is not a
+# refinement, it is the entire basis of the decision.
+#
+# Hue was the obvious first choice and it does not work. A circular mean of hue over an icon
+# is dominated by weakly-saturated glass and highlights, whose angle is essentially noise:
+# the same blue bottle measured 157 degrees at JPEG q=92 and 109 at q=95, drifting towards
+# green. JPEG stores chroma at half resolution, so on a 46px icon the hue smears. Mean a*/b*
+# over the saturated body is stable precisely because averaging is what the subsampling
+# already did.
+MAX_LAB_DISTANCE = 30.0
+
+# Below this saturation a pixel carries no useful colour -- greys and near-whites would drag
+# the mean towards the middle of the space regardless of the item.
+MIN_SATURATION = 60
+
+
+def _colour_pixels(tpl: np.ndarray) -> np.ndarray:
+    """Which pixels of the template carry real colour. Computed from the TEMPLATE, never
+    from the screenshot -- see _colour_distance."""
+    hsv = cv2.cvtColor(tpl[:, :, :3], cv2.COLOR_BGR2HSV)
+    return (tpl[:, :, 3] > 0) & (hsv[:, :, 1] > MIN_SATURATION)
+
+
+def _mean_ab(bgr: np.ndarray, sel: np.ndarray) -> np.ndarray:
+    lab = cv2.cvtColor(bgr, cv2.COLOR_BGR2LAB)
+    return np.array([lab[:, :, 1][sel].mean(), lab[:, :, 2][sel].mean()], np.float32)
+
+
+def _colour_distance(tpl: np.ndarray, patch: np.ndarray) -> float | None:
+    """How far the matched pixels are from the template in colour. None when the icon is
+    essentially greyscale, in which case colour has nothing to say and shape decides alone.
+
+    **Which pixels to average is decided by the template, not the screenshot.** That is the
+    whole trick, and getting it wrong is what made the first attempt fail: selecting by the
+    screenshot's own saturation meant JPEG -- which crushes saturation -- changed the
+    selection itself, so on a small icon the average drifted onto contaminated edge pixels.
+    The red potion then sat 35.8 from its own template and 25.0 from the blue one, and got
+    called blue.
+
+    The template is clean PNG and never changes, so it makes a stable stencil. Only the
+    values are read from the screenshot.
+    """
+    sel = _colour_pixels(tpl)
+    if int(sel.sum()) < 20:
+        return None
+    return float(np.linalg.norm(_mean_ab(tpl[:, :, :3], sel) - _mean_ab(patch, sel)))
+
+
 def _verify(img, g, r, c, tpl) -> float:
     """Exact masked correlation of one template against one slot.
 
@@ -150,7 +249,26 @@ def _verify(img, g, r, c, tpl) -> float:
     mask = cv2.cvtColor(tpl[:, :, 3], cv2.COLOR_GRAY2BGR)
     res = cv2.matchTemplate(win, tpl[:, :, :3], cv2.TM_CCOEFF_NORMED, mask=mask)
     res[~np.isfinite(res)] = -1.0
-    return float(res.max())
+
+    _, score, _, loc = cv2.minMaxLoc(res)
+    if score < VERIFY_THRESHOLD:
+        return float(score)
+
+    # Shape says yes. Now check the colour, because shape ALONE cannot tell an Extreme Blue
+    # Potion from an Extreme Green one: same bottle, different colour, correlating at 0.925
+    # against a 0.55 bar. The right one wins by 0.075, which is luck rather than a decision,
+    # and it would flip silently the day the client nudged the art.
+    #
+    # The two tests are complementary, and each covers the other's blind spot. Colour
+    # separates blue from green (a*b* distance 61) where shape cannot. Shape separates the
+    # blue potion from kalos-token (near-identical colour) where colour cannot. Neither is
+    # sufficient alone; together nothing gets through.
+    patch = win[loc[1] : loc[1] + th, loc[0] : loc[0] + tw]
+    d = _colour_distance(tpl, patch)
+    if d is not None and d > MAX_LAB_DISTANCE:
+        return -1.0
+
+    return float(score)
 
 
 def classify(img: np.ndarray, g: Grid, templates: dict) -> list[SlotItem]:

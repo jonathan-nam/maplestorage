@@ -2,6 +2,7 @@ package com.maplestorage.backend.characters
 
 import com.maplestorage.backend.db.CharacterTokenCount
 import com.maplestorage.backend.db.Characters
+import com.maplestorage.backend.db.RedemptionRule
 import com.maplestorage.backend.db.TokenCatalog
 import com.maplestorage.backend.plugins.parseUuidParam
 import com.maplestorage.backend.plugins.principalIdAndEmail
@@ -18,6 +19,7 @@ import io.ktor.server.routing.delete
 import io.ktor.server.routing.get
 import io.ktor.server.routing.post
 import io.ktor.server.routing.put
+import org.jetbrains.exposed.v1.core.JoinType
 import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
@@ -179,7 +181,13 @@ private suspend fun RoutingContext.getCharacterTokens() {
             } else {
                 CharacterTokenCount
                     .innerJoin(TokenCatalog)
-                    .selectAll()
+                    // LEFT join: a consumable has no redemption rule, and must still be listed.
+                    .join(
+                        RedemptionRule,
+                        JoinType.LEFT,
+                        onColumn = TokenCatalog.id,
+                        otherColumn = RedemptionRule.itemId,
+                    ).selectAll()
                     .where { CharacterTokenCount.characterId eq characterId }
                     .orderBy(TokenCatalog.name)
                     .map { it.toCharacterTokenResponse() }
@@ -202,7 +210,7 @@ private fun ResultRow.toCharacterTokenResponse(): CharacterTokenResponse =
         // base URL (lib/api.ts's apiAssetUrl).
         iconUrl = this[TokenCatalog.iconRefKey]?.let { "/token-icons/$it" },
         quantity = this[CharacterTokenCount.quantity],
-        redeemThreshold = this[TokenCatalog.redeemThreshold],
+        redeemThreshold = this[RedemptionRule.redeemThreshold],
         capturedAt = this[CharacterTokenCount.capturedAt].toString(),
     )
 

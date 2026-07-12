@@ -34,19 +34,26 @@ class Hit:
 
 
 def load_templates(prefer_game_cut: bool = True) -> dict:
-    """The 6 token icons.
+    """Every catalog icon on disk.
 
     Templates cut from the client's own rendering (`build_icons.py`) score a flat
     1.000 on held-out screenshots -- the client draws each icon pixel-identically
     every time -- against 0.61-0.93 for the web prototype's artwork. We keep the
     prototype icons only as the bootstrap that located the tokens in the first
     place, and as a fallback.
+
+    This used to read `if len(game) == 6: return game`, which was fine when the catalog
+    was six tokens and a lie the moment it was not. Adding the elixirs took it to 13, and
+    it did not return 13 templates -- it raised "token templates missing", with all 13
+    sitting right there on disk. A count is not a validity check. What actually has to be
+    true is that every template is named by the manifest and vice versa, and that is
+    checked properly in vision/tests/test_catalog.py.
     """
     if prefer_game_cut:
         game = _load_rgba(str(TEMPLATE_DIR), "token-")
-        if len(game) == 6:
+        if game:
             return game
-    raise FileNotFoundError(f"token templates missing from {TEMPLATE_DIR}")
+    raise FileNotFoundError(f"no token templates in {TEMPLATE_DIR}")
 
 
 def _load_rgba(path: str, prefix: str) -> dict:
