@@ -147,7 +147,7 @@ export default function CharactersPage() {
   }));
 
   return (
-    <main style={{ padding: "2rem" }}>
+    <main className="page">
       <h1>Characters</h1>
 
       {state === "loading" && <p>loading…</p>}

@@ -14,6 +14,16 @@
 :root {
   color-scheme: dark;
 
+  /* One column for the whole app. Every page-level block aligns to it, so the layout moves as one
+     piece when the window is resized. It used to be per-component: the dock and finder centred
+     themselves at 792px, the carousel stretched to the viewport, and the inventory window and the
+     headings stayed hard left, so widening the window slid them apart.
+
+     792px is inherited from the dock and finder, which is where it already was. It is NOT the
+     inventory window's width: that is ~762px (16 slots, 42px on a 46px pitch, plus grid padding,
+     grid margins and the border), so the window sits inside this column rather than filling it. */
+  --measure: 792px;
+
   --bg: #111;
   --surface: #1a1a1a;
   --surface-2: #202020;
@@ -83,6 +93,13 @@
   --good: #5cbf87;
   --warn: #e0a24e;
   --bad: #e0706a;
+}
+
+/* Every page's root. Nothing inside it sets its own max-width or centres itself. */
+.page {
+  max-width: var(--measure);
+  margin: 0 auto;
+  padding: 2rem;
 }
 
 body {
@@ -479,12 +496,20 @@ a:hover {
    image.png is a reference for the idiom, not an asset we ship.
    --------------------------------------------------------------------------- */
 
+/* The bar spans the window; its CONTENTS sit on the shared column, so the brand's left edge lines
+   up with the page below it. Same max-width and same horizontal padding as .page, which is what
+   makes the two agree (there is no border-box reset here, so the padding has to match too). */
 .site-header {
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.site-header-inner {
   display: flex;
   align-items: center;
   gap: 24px;
+  max-width: var(--measure);
+  margin: 0 auto;
   padding: 12px 2rem;
-  border-bottom: 1px solid var(--line-soft);
 }
 
 .brand {
@@ -619,9 +644,10 @@ a:hover {
 
 /* --- Capture dock ----------------------------------------------------------------------- */
 
+/* Width and centring come from .page now. Centring itself here is what made it drift away from
+   the inventory window, which does not centre. */
 .dock {
-  max-width: 792px;
-  margin: 0 auto 1rem;
+  margin: 0 0 1rem;
 }
 
 .dock-drop {
@@ -772,9 +798,9 @@ button.link:disabled {
 
 /* --- Find an item across every character ------------------------------------------------ */
 
+/* See .dock: the column is .page's job. */
 .finder {
-  max-width: 792px;
-  margin: 0 auto 1rem;
+  margin: 0 0 1rem;
 }
 
 .finder-bar {

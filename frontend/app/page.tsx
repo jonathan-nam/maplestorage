@@ -4,7 +4,7 @@ import { Chest } from "@/components/chest";
 
 export default function Home() {
   return (
-    <main style={{ padding: "2rem" }}>
+    <main className="page">
       <SignedOut>
         <section className="hero">
           <Chest size={96} />
