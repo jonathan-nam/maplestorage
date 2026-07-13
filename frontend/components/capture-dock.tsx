@@ -55,10 +55,19 @@ export function CaptureDock({
 }) {
   const [captures, setCaptures] = useState<Capture[]>([]);
   const [dragOver, setDragOver] = useState(false);
+
+  // A GENERIC screenshot: read the character's name out of the HUD instead of taking the one you
+  // are looking at.
+  //
+  // This used to be the carousel's "All characters" tile, which was doing two unrelated jobs at
+  // once -- "show me the sum across everyone" in the inventory, and "guess who this belongs to" in
+  // the upload -- so choosing it for one silently opted you into the other. The choice belongs on
+  // the dropzone, because that is the only place it means anything.
+  const [generic, setGeneric] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const counter = useRef(0);
 
-  const pinned = characters.find((c) => c.id === pinnedCharacterId);
+  const pinned = generic ? undefined : characters.find((c) => c.id === pinnedCharacterId);
 
   useEffect(() => {
     function onPaste(e: ClipboardEvent) {
@@ -76,7 +85,7 @@ export function CaptureDock({
     document.addEventListener("paste", onPaste);
     return () => document.removeEventListener("paste", onPaste);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pinnedCharacterId]);
+  }, [pinnedCharacterId, generic]);
 
   function add(files: File[]) {
     for (const file of files.filter((f) => f.type.startsWith("image/"))) {
@@ -102,8 +111,9 @@ export function CaptureDock({
         imageBase64: base64,
         mediaType,
       };
-      // Pinning is the point of uploading from a character's page.
-      if (pinnedCharacterId) body.characterId = pinnedCharacterId;
+      // Pinning is the point of uploading from a character's page -- unless you have said this
+      // screenshot is not theirs, in which case we are back to reading the HUD.
+      if (pinnedCharacterId && !generic) body.characterId = pinnedCharacterId;
 
       const result = await apiFetch<ScreenshotResult>(
         "/api/screenshots",
@@ -164,8 +174,25 @@ export function CaptureDock({
 
   return (
     <section className="dock">
+      <div className="dock-head">
+        <button
+          type="button"
+          className={`dock-generic${generic ? " on" : ""}`}
+          aria-pressed={generic}
+          onClick={() => setGeneric((g) => !g)}
+          title={
+            generic
+              ? "Reading the character's name from the screenshot. Click to save to the selected character instead."
+              : "Saving to the selected character. Click to read the character's name from the screenshot instead."
+          }
+        >
+          <span aria-hidden="true">{generic ? "👁" : "👁"}</span>
+          {generic ? "Reading the name from the screenshot" : "Whose screenshot is this?"}
+        </button>
+      </div>
+
       <div
-        className={`dock-drop${dragOver ? " dragover" : ""}`}
+        className={`dock-drop${dragOver ? " dragover" : ""}${generic ? " generic" : ""}`}
         onClick={() => fileInputRef.current?.click()}
         onDragOver={(e) => {
           e.preventDefault();

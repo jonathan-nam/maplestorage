@@ -54,7 +54,7 @@ export function SearchBar({ query, onQuery }: { query: string; onQuery: (q: stri
         <input
           type="search"
           className="finder-input"
-          placeholder="Find an item — try “kalos”, “symbol”, “potion”"
+          placeholder="Search every character — try “kalos”, “symbol”, “potion”"
           value={query}
           onChange={(e) => onQuery(e.target.value)}
           autoComplete="off"

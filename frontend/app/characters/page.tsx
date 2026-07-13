@@ -8,7 +8,6 @@ import { invalidate, peek, put } from "@/lib/cache";
 import { redemptionNote } from "@/lib/redemption";
 import type { Character } from "@/types/character";
 import type { CharacterToken } from "@/types/character-token";
-import type { TokenTotal } from "@/types/token-total";
 import { AddCharacterForm } from "./add-character-form";
 import { CaptureDock } from "@/components/capture-dock";
 import { SearchBar, SearchResults, search } from "@/components/item-search";
@@ -17,7 +16,6 @@ import { CharacterCarousel, type Selection } from "@/components/character-carous
 type LoadState = "loading" | "loaded" | "error";
 
 const CHARACTERS_KEY = "/api/characters";
-const TOTALS_KEY = "/api/tokens";
 const ALL_TOKENS_KEY = "/api/characters/tokens";
 
 export default function CharactersPage() {
@@ -28,10 +26,8 @@ export default function CharactersPage() {
   // runs and overwrites this -- the cache decides what you see FIRST, not what is
   // true.
   const seededCharacters = peek<Character[]>(CHARACTERS_KEY);
-  const seededTotals = peek<TokenTotal[]>(TOTALS_KEY);
 
   const [characters, setCharacters] = useState<Character[]>(seededCharacters ?? []);
-  const [totals, setTotals] = useState<TokenTotal[]>(seededTotals ?? []);
   const [state, setState] = useState<LoadState>(seededCharacters ? "loaded" : "loading");
 
   // null = no character selected, which is what you land on.
@@ -63,10 +59,9 @@ export default function CharactersPage() {
     // the pixels, and that gap is the flicker: the panel renders empty, then fills.
     Promise.all([
       apiFetch<Character[]>(CHARACTERS_KEY, { method: "GET" }, getToken),
-      apiFetch<TokenTotal[]>(TOTALS_KEY, { method: "GET" }, getToken),
       apiFetch<Record<string, CharacterToken[]>>(ALL_TOKENS_KEY, { method: "GET" }, getToken),
     ])
-      .then(([characterResult, totalsResult, allTokens]) => {
+      .then(([characterResult, allTokens]) => {
         // The bulk query only returns characters that HAVE something. A character with an empty
         // inventory comes back absent, which is indistinguishable from "not fetched yet" -- so it
         // would sit on a loading state forever. Say so explicitly: no tokens is an answer.
@@ -74,10 +69,12 @@ export default function CharactersPage() {
         for (const c of characterResult) seeded[c.id] ??= [];
 
         setCharacters(characterResult);
-        setTotals(totalsResult);
         setTokensByChar(seeded);
+        // Land on a character rather than on nothing. There is no "everyone" view any more -- the
+        // aggregate was summing items that cannot be moved between characters, which is a number
+        // with no meaning -- and "who has what" is now a search, not a landing page.
+        setSelectedId((current) => current ?? characterResult[0]?.id ?? null);
         put(CHARACTERS_KEY, characterResult);
-        put(TOTALS_KEY, totalsResult);
         put(ALL_TOKENS_KEY, seeded);
         setState("loaded");
       })
@@ -128,48 +125,6 @@ export default function CharactersPage() {
 
   const selected = characters.find((c) => c.id === selectedId);
 
-  // Eternal pieces CANNOT be pooled across characters: a single character must reach the
-  // threshold alone. Six on one and four on another is not a set -- it is two characters who are
-  // both short. The aggregate used to report "10 / 10 toward an Eternal set" against the SUM,
-  // which is a confidently wrong number, and a confidently wrong number is the one thing this app
-  // exists not to produce.
-  //
-  // So progress is counted per character and only then added up. The total quantity is still worth
-  // showing -- it says how much you own -- but it is not progress, and it no longer pretends to be.
-  const setsReadyFor = (tokenCatalogId: string, threshold: number) =>
-    Object.values(tokensByChar).reduce((sets, tokens) => {
-      const held = tokens.find((t) => t.tokenCatalogId === tokenCatalogId)?.quantity ?? 0;
-      return sets + Math.floor(held / threshold);
-    }, 0);
-
-  const aggregateItems: InventoryItem[] = totals.map((total) => {
-    const held = `${total.quantity} across ${
-      total.characterCount === 1 ? "1 character" : `${total.characterCount} characters`
-    }`;
-    if (!total.redeemThreshold) {
-      return {
-        id: total.tokenCatalogId,
-        name: total.name,
-        iconUrl: total.iconUrl,
-        quantity: total.quantity,
-        itemGroup: total.itemGroup,
-        note: held,
-      };
-    }
-    const sets = setsReadyFor(total.tokenCatalogId, total.redeemThreshold);
-    return {
-      id: total.tokenCatalogId,
-      name: total.name,
-      iconUrl: total.iconUrl,
-      quantity: total.quantity,
-      itemGroup: total.itemGroup,
-      note:
-        `${held}\n` +
-        `${sets === 0 ? "no" : sets} complete ${sets === 1 ? "set" : "sets"} ` +
-        `(${total.redeemThreshold} on ONE character; pieces cannot be combined)`,
-    };
-  });
-
   const searching = query.trim().length > 0;
   const matches = search(query, characters, tokensByChar);
 
@@ -208,14 +163,7 @@ export default function CharactersPage() {
           <CaptureDock
             characters={characters}
             pinnedCharacterId={selectedId}
-            stored={
-              new Map(
-                (selectedId ? (selectedTokens ?? []) : totals).map((t) => [
-                  t.tokenCatalogId,
-                  t.quantity,
-                ]),
-              )
-            }
+            stored={new Map((selectedTokens ?? []).map((t) => [t.tokenCatalogId, t.quantity]))}
             getToken={getToken}
             onCharacterAdded={handleAdded}
             onSaved={() => setRevision((n) => n + 1)}
@@ -235,12 +183,7 @@ export default function CharactersPage() {
               items={characterItems}
             />
           ) : (
-            <InventoryPanel
-              title="Everything you hold"
-              subtitle={characters.length === 1 ? "1 character" : `${characters.length} characters`}
-              emptyHint="Nothing tracked yet. Upload an inventory screenshot."
-              items={aggregateItems}
-            />
+            <p className="finder-empty">Add a character to start tracking.</p>
           )}
         </>
       )}

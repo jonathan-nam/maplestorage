@@ -1,5 +1,88 @@
+/* The app shell's palette, as tokens.
+ *
+ * It used to be hardcoded dark (var(--bg) on var(--ink)) with the colours written directly into every rule,
+ * which made a light theme impossible and made every new component a coin toss -- the upload dock
+ * and the item finder both shipped as white cards on a near-black page, because there was nothing
+ * to reach for that would have been right.
+ *
+ * The INVENTORY WINDOW is deliberately not themed. It is the game's own window, and the game draws
+ * it light; a dark MapleStory inventory would be a MapleStory inventory that does not exist. It
+ * keeps its --ms-* palette in both themes, and the shell changes around it.
+ *
+ * Dark is the default (the app was born dark and most people use it at night), but the OS
+ * preference is honoured, and the toggle in the header wins over both. */
 :root {
-  color-scheme: light dark;
+  color-scheme: dark;
+
+  --bg: var(--bg);
+  --surface: var(--surface);
+  --surface-2: var(--surface-2);
+  --line: var(--line);
+  --line-soft: var(--line-soft);
+  --ink: var(--ink);
+  --ink-strong: var(--ink-strong);
+  --muted: var(--muted);
+  --muted-2: var(--muted-2);
+  --accent: #36b8d0;
+  --good: #5cbf87;
+  --warn: #e0a24e;
+  --bad: #e0706a;
+}
+
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme]) {
+    color-scheme: light;
+
+    --bg: #f2f5f6;
+    --surface: var(--ink-strong);
+    --surface-2: #f7f9fa;
+    --line: #d8dee1;
+    --line-soft: #e9eef0;
+    --ink: #1c2024;
+    --ink-strong: #000;
+    --muted: #69737a;
+    --muted-2: #8b959c;
+    --accent: #2ba3ba;
+    --good: #2f8f5b;
+    --warn: #b3701a;
+    --bad: #c1544a;
+  }
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+
+  --bg: #f2f5f6;
+  --surface: var(--ink-strong);
+  --surface-2: #f7f9fa;
+  --line: #d8dee1;
+  --line-soft: #e9eef0;
+  --ink: #1c2024;
+  --ink-strong: #000;
+  --muted: #69737a;
+  --muted-2: #8b959c;
+  --accent: #2ba3ba;
+  --good: #2f8f5b;
+  --warn: #b3701a;
+  --bad: #c1544a;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --bg: var(--bg);
+  --surface: var(--surface);
+  --surface-2: var(--surface-2);
+  --line: var(--line);
+  --line-soft: var(--line-soft);
+  --ink: var(--ink);
+  --ink-strong: var(--ink-strong);
+  --muted: var(--muted);
+  --muted-2: var(--muted-2);
+  --accent: #36b8d0;
+  --good: #5cbf87;
+  --warn: #e0a24e;
+  --bad: #e0706a;
 }
 
 /* Monochrome/dark-mode-first design language per WEB-UI-SPEC.md: no rounded
@@ -7,24 +90,24 @@
    prototypes/web-ui/style.css, the visual reference the spec points to. */
 body {
   margin: 0;
-  background: #111;
-  color: #ddd;
+  background: var(--bg);
+  color: var(--ink);
   font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
   font-size: 13px;
   line-height: 1.5;
 }
 
 a {
-  color: #ddd;
+  color: var(--ink);
   text-decoration: underline;
 }
 
 a:hover {
-  color: #fff;
+  color: var(--ink-strong);
 }
 
 .hint {
-  color: #777;
+  color: var(--muted-2);
   font-size: 11px;
   font-style: italic;
   margin: 10px 0 0;
@@ -33,7 +116,7 @@ a:hover {
 .back-link {
   display: inline-block;
   margin-bottom: 16px;
-  color: #999;
+  color: var(--muted);
 }
 
 .char-grid {
@@ -88,11 +171,11 @@ a:hover {
 
 .tile-name {
   font-weight: 700;
-  color: #bbb;
+  color: var(--ink);
 }
 
 .char-tile.selected .tile-name {
-  color: #fff;
+  color: var(--ink-strong);
 }
 
 /* Two lines: the name, then level and class together beneath it. The name is the only
@@ -114,7 +197,7 @@ a:hover {
    ("All characters" / "Auto-detect") uses .tile-job by itself, with no level beside it. */
 .tile-level,
 .tile-job {
-  color: #777;
+  color: var(--muted-2);
   font-size: 12px;
 }
 
@@ -137,12 +220,12 @@ a:hover {
 
 .tile-actions a {
   margin: 0 4px;
-  color: #777;
+  color: var(--muted-2);
   font-size: 11px;
 }
 
 .tile-actions a:hover {
-  color: #fff;
+  color: var(--ink-strong);
 }
 
 .char-detail-header {
@@ -150,7 +233,7 @@ a:hover {
   align-items: center;
   gap: 16px;
   padding-bottom: 16px;
-  border-bottom: 1px solid #3a3a3a;
+  border-bottom: 1px solid var(--line);
   margin-bottom: 16px;
 }
 
@@ -165,7 +248,7 @@ a:hover {
 }
 
 .char-detail-header .meta {
-  color: #999;
+  color: var(--muted);
 }
 
 /* --- M3 (upload page + token table) ---------------------------------
@@ -174,14 +257,14 @@ a:hover {
    formatting/comments in this block are not. Reformat at will. */
 
 .intro-copy {
-  color: #999;
+  color: var(--muted);
   max-width: 640px;
   margin: 0 0 16px;
 }
 
 .screenshot-help {
-  color: #ccc;
-  border: 1px solid #3a3a3a;
+  color: var(--ink);
+  border: 1px solid var(--line);
   margin: 0 0 16px;
   padding: 10px 16px;
 }
@@ -196,7 +279,7 @@ a:hover {
 }
 
 .os-toggle {
-  color: #999;
+  color: var(--muted);
   margin: 0 0 8px;
 }
 
@@ -205,22 +288,22 @@ a:hover {
 }
 
 .os-toggle a.active {
-  color: #fff;
+  color: var(--ink-strong);
   font-weight: 700;
   text-decoration: none;
 }
 
 .dropzone {
   text-align: center;
-  color: #999;
+  color: var(--muted);
   cursor: pointer;
-  border: 1px dashed #555;
+  border: 1px dashed var(--line);
   padding: 48px 16px;
 }
 
 .dropzone.dragover {
-  color: #ddd;
-  border-color: #ccc;
+  color: var(--ink);
+  border-color: var(--ink);
 }
 
 .row-list {
@@ -228,8 +311,8 @@ a:hover {
 }
 
 .session-header {
-  color: #999;
-  border-top: 1px solid #3a3a3a;
+  color: var(--muted);
+  border-top: 1px solid var(--line);
   margin-top: 16px;
   padding-top: 8px;
   font-style: italic;
@@ -241,7 +324,7 @@ a:hover {
 }
 
 .upload-row {
-  border-bottom: 1px solid #262626;
+  border-bottom: 1px solid var(--line-soft);
   align-items: center;
   gap: 10px;
   padding: 6px 0;
@@ -250,8 +333,8 @@ a:hover {
 
 .upload-row .thumb {
   object-fit: cover;
-  background: #1a1a1a;
-  border: 1px solid #3a3a3a;
+  background: var(--surface);
+  border: 1px solid var(--line);
   flex-shrink: 0;
   width: 48px;
   height: 48px;
@@ -260,7 +343,7 @@ a:hover {
 .upload-row .filename {
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: #999;
+  color: var(--muted);
   flex-shrink: 0;
   width: 200px;
   overflow: hidden;
@@ -271,18 +354,18 @@ a:hover {
 }
 
 .status.pending {
-  color: #999;
+  color: var(--muted);
   font-style: italic;
 }
 
 .status.needs-review {
-  color: #ddd;
+  color: var(--ink);
   font-style: italic;
 }
 
 .status.mismatch,
 .status.new-character {
-  color: #fff;
+  color: var(--ink-strong);
   font-weight: 700;
 }
 
@@ -292,15 +375,15 @@ a:hover {
 }
 
 .change-panel {
-  color: #999;
-  border-bottom: 1px solid #262626;
+  color: var(--muted);
+  border-bottom: 1px solid var(--line-soft);
   padding: 8px 0 8px 58px;
 }
 
 .change-panel select {
-  color: #ddd;
-  background: #1a1a1a;
-  border: 1px solid #3a3a3a;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--line);
   margin-right: 12px;
   padding: 2px 4px;
 }
@@ -317,7 +400,7 @@ a:hover {
 
 .item-table td {
   vertical-align: middle;
-  border-bottom: 1px solid #262626;
+  border-bottom: 1px solid var(--line-soft);
   padding: 6px 8px;
 }
 
@@ -326,8 +409,8 @@ a:hover {
   width: 32px;
   height: 32px;
   image-rendering: pixelated;
-  background: #1a1a1a;
-  border: 1px solid #3a3a3a;
+  background: var(--surface);
+  border: 1px solid var(--line);
   display: block;
 }
 
@@ -336,14 +419,14 @@ a:hover {
 }
 
 .redemption-note {
-  color: #999;
+  color: var(--muted);
   font-size: 12px;
   font-style: italic;
 }
 
 .item-table td.qty {
   text-align: right;
-  color: #ddd;
+  color: var(--ink);
   white-space: nowrap;
   padding-right: 12px;
 }
@@ -411,6 +494,8 @@ a:hover {
   --ms-edge: #252c34;
   --ms-accent: #36b8d0;
   --ms-tab-idle: #6c7785;
+  /* NOT a shell token. The inventory window is the game's own window and the game draws it
+     light; it stays light in both themes, and the app changes around it. */
   --ms-grid-bg: #eee;
   --ms-slot: #dfdfdf;
   --ms-slot-edge: #c8c8c8;
@@ -527,7 +612,7 @@ a:hover {
 }
 
 .ms-slot-label {
-  color: #9aa1a7;
+  color: var(--muted-2);
   font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.08em;
@@ -629,7 +714,7 @@ a:hover {
 
 .ms-hint {
   margin-left: auto;
-  color: #9aa1a7;
+  color: var(--muted-2);
   font-style: italic;
 }
 
@@ -740,7 +825,7 @@ a:hover {
 }
 
 .brand-name {
-  color: #eee;
+  color: var(--surface-2);
   font-weight: 700;
   letter-spacing: 0.02em;
 }
@@ -764,7 +849,7 @@ a:hover {
 }
 
 .site-nav a.active {
-  color: #eee;
+  color: var(--surface-2);
   font-weight: 700;
 }
 
@@ -811,13 +896,13 @@ a:hover {
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: #6c757c;
+  color: var(--muted);
 }
 
 .ms-section-count {
   margin-left: auto;
   font-size: 11px;
-  color: #9aa1a7;
+  color: var(--muted-2);
   font-variant-numeric: tabular-nums;
 }
 
@@ -830,7 +915,7 @@ a:hover {
   padding: 18px;
   border-radius: 6px;
   background: var(--ms-grid-bg);
-  color: #7a828a;
+  color: var(--muted);
   font-size: 13px;
   text-align: center;
 }
@@ -851,13 +936,13 @@ a:hover {
   box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.75);
 }
 .ms-delta.up {
-  background: #2f8f5b;
+  background: var(--good);
 }
 .ms-delta.down {
-  background: #c1544a;
+  background: var(--bad);
 }
 .ms-delta.new {
-  background: #2b7fb8;
+  background: var(--accent);
 }
 
 /* --- Capture dock ----------------------------------------------------------------------- */
@@ -873,9 +958,9 @@ a:hover {
   gap: 2px;
   align-items: center;
   padding: 18px;
-  border: 2px dashed #c3c9ce;
+  border: 2px dashed var(--line);
   border-radius: 10px;
-  background: #fafbfc;
+  background: var(--surface-2);
   cursor: pointer;
   transition:
     border-color 0.12s,
@@ -883,8 +968,8 @@ a:hover {
 }
 .dock-drop:hover,
 .dock-drop.dragover {
-  border-color: var(--ms-tab-active, #36b8d0);
-  background: #f2fafc;
+  border-color: var(--accent);
+  background: var(--surface-2);
 }
 .dock-drop-main {
   font-weight: 600;
@@ -892,12 +977,12 @@ a:hover {
 }
 .dock-drop-sub {
   font-size: 12px;
-  color: #7a828a;
+  color: var(--muted);
 }
 
 .capture {
   margin-top: 10px;
-  border: 1px solid #dde2e6;
+  border: 1px solid var(--line);
   border-radius: 10px;
   background: #fff;
   overflow: hidden;
@@ -919,7 +1004,7 @@ a:hover {
   height: 36px;
   object-fit: cover;
   border-radius: 4px;
-  background: #eee;
+  background: var(--surface-2);
   flex: none;
 }
 
@@ -933,20 +1018,20 @@ a:hover {
   font-weight: 600;
 }
 .capture-status.good {
-  color: #2f8f5b;
+  color: var(--good);
 }
 .capture-status.warn {
-  color: #b3701a;
+  color: var(--warn);
 }
 .capture-status.bad {
-  color: #c1544a;
+  color: var(--bad);
 }
 .capture-status.pending {
-  color: #7a828a;
+  color: var(--muted);
 }
 .capture-file {
   font-size: 11px;
-  color: #9aa1a7;
+  color: var(--muted-2);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -961,7 +1046,7 @@ a:hover {
 }
 .capture-spinner {
   font-size: 12px;
-  color: #7a828a;
+  color: var(--muted);
 }
 
 button.link {
@@ -970,22 +1055,22 @@ button.link {
   padding: 2px 4px;
   font: inherit;
   font-size: 12px;
-  color: #2b7fb8;
+  color: var(--accent);
   cursor: pointer;
   text-decoration: underline;
 }
 button.link:disabled {
-  color: #9aa1a7;
+  color: var(--muted-2);
   cursor: default;
 }
 
 .capture-preview {
   padding: 8px 12px 10px;
-  border-top: 1px solid #edf1f3;
+  border-top: 1px solid var(--line-soft);
   background: var(--ms-grid-bg);
 }
 .capture-preview.pending {
-  background: #fffaf0;
+  background: var(--surface-2);
 }
 .capture-preview .ms-grid {
   margin: 0;
@@ -995,10 +1080,10 @@ button.link:disabled {
 .capture-preview-note {
   margin: 8px 0 0;
   font-size: 12px;
-  color: #7a828a;
+  color: var(--muted);
 }
 .capture-preview.pending .capture-preview-note {
-  color: #b3701a;
+  color: var(--warn);
   font-weight: 600;
 }
 
@@ -1008,7 +1093,7 @@ button.link:disabled {
   margin-left: auto;
   padding-right: 10px;
   font-size: 10px;
-  color: #9aa1a7;
+  color: var(--muted-2);
   white-space: nowrap;
 }
 
@@ -1031,12 +1116,12 @@ button.link:disabled {
   font-size: 14px;
   padding: 9px 12px;
   border-radius: 8px;
-  border: 1px solid #d8dee1;
+  border: 1px solid var(--line);
   background: #fff;
-  color: #1c2024;
+  color: var(--ink);
 }
 .finder-input:focus {
-  outline: 2px solid var(--ms-tab-active, #36b8d0);
+  outline: 2px solid var(--accent);
   outline-offset: 1px;
   border-color: transparent;
 }
@@ -1051,7 +1136,7 @@ button.link:disabled {
 .finder-summary {
   margin: 0 0 10px;
   font-size: 13px;
-  color: #6c757c;
+  color: var(--muted);
   font-variant-numeric: tabular-nums;
 }
 
@@ -1060,12 +1145,12 @@ button.link:disabled {
   padding: 22px;
   border-radius: 8px;
   background: var(--ms-grid-bg);
-  color: #7a828a;
+  color: var(--muted);
   text-align: center;
 }
 
 .finder-row {
-  border: 1px solid #dde2e6;
+  border: 1px solid var(--line);
   border-radius: 10px;
   background: #fff;
   margin-bottom: 8px;
@@ -1078,14 +1163,14 @@ button.link:disabled {
   gap: 8px;
   padding: 9px 12px;
   background: var(--ms-grid-bg);
-  border-bottom: 1px solid #edf1f3;
+  border-bottom: 1px solid var(--line-soft);
 }
 .finder-name {
   font-weight: 700;
 }
 .finder-level {
   font-size: 12px;
-  color: #9aa1a7;
+  color: var(--muted-2);
   font-variant-numeric: tabular-nums;
 }
 .finder-total {
@@ -1104,7 +1189,7 @@ button.link:disabled {
   align-items: center;
   gap: 10px;
   padding: 7px 12px;
-  border-top: 1px solid #f2f5f6;
+  border-top: 1px solid var(--line-soft);
 }
 .finder-row li:first-child {
   border-top: 0;
@@ -1129,6 +1214,29 @@ button.link:disabled {
 .finder-item-note {
   flex: none;
   font-size: 11px;
-  color: #9aa1a7;
+  color: var(--muted-2);
   font-variant-numeric: tabular-nums;
+}
+
+/* Theme toggle. Cycles system -> dark -> light. */
+.theme-toggle {
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
+  border-radius: 7px;
+  width: 30px;
+  height: 30px;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+}
+.theme-toggle:hover {
+  color: var(--ink-strong);
+  border-color: var(--muted);
+}
+.theme-toggle:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }

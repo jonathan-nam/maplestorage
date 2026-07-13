@@ -19,18 +19,21 @@ export function CharacterCarousel({
   onSelect,
   onUpdated,
   onDeleted,
-  allLabel = "All characters",
-  allHint,
-  allSymbol = "Σ",
+  showAllTile = false,
 }: {
   characters: Character[];
   selectedId: Selection;
   onSelect: (id: Selection) => void;
   onUpdated: (character: Character) => void;
   onDeleted: (id: string) => void;
-  allLabel?: string;
-  allHint?: string;
-  allSymbol?: string;
+  // The "All characters" tile is gone by default, and the default is now the only caller.
+  //
+  // It meant two different things at once, which is why it had to go. In the inventory it meant
+  // "the sum across everyone" -- a number nobody can act on, since the items cannot be moved. In
+  // the upload it meant "work out who this belongs to from the HUD". One tile, two jobs, and
+  // selecting it for one silently opted you into the other. Uploading generically is now an
+  // explicit choice on the dropzone itself, where the choice actually applies.
+  showAllTile?: boolean;
 }) {
   const trackRef = useRef<HTMLDivElement>(null);
   const [atStart, setAtStart] = useState(true);
@@ -77,19 +80,17 @@ export function CharacterCarousel({
       </button>
 
       <div className="carousel-track" ref={trackRef}>
-        <div
-          className={`char-tile all-tile${selectedId === null ? " selected" : ""}`}
-          onClick={() => onSelect(null)}
-        >
-          <div className="tile-sprite all-sprite">{allSymbol}</div>
-          <div className="tile-plate">
-            <span className="tile-name">{allLabel}</span>
+        {showAllTile && (
+          <div
+            className={`char-tile all-tile${selectedId === null ? " selected" : ""}`}
+            onClick={() => onSelect(null)}
+          >
+            <div className="tile-sprite all-sprite">Σ</div>
+            <div className="tile-plate">
+              <span className="tile-name">All characters</span>
+            </div>
           </div>
-          <div className="tile-job">
-            {allHint ??
-              (characters.length === 1 ? "1 character" : `${characters.length} characters`)}
-          </div>
-        </div>
+        )}
 
         {characters.map((character) => (
           <CharacterTile
