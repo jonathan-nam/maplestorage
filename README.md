@@ -55,5 +55,6 @@ costs nothing, makes no network call, and returns the same answer every time.
 | `.devcontainer/README.md` | **Start here on a new machine.** Setup, credentials, and what to do when it hangs |
 | `CLAUDE.md` | House rules. Chiefly, what a comment is for |
 | `catalog/items.yaml` | Every item. Change it here and nowhere else |
-| `PLAN.md` | Why the project is built the way it is |
+| `WEB-UI-SPEC.md` | What the frontend is, and why |
+| `PLAN.md` | Why the project is built the way it is (historical) |
 | `backend/`, `vision/`, `infra/` | Each has its own README |
