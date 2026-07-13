@@ -4,10 +4,16 @@ variable "aws_region" {
   default     = "us-east-1"
 }
 
+variable "availability_zone" {
+  description = "AZ for the Lightsail instance. Must be inside aws_region."
+  type        = string
+  default     = "us-east-1a"
+}
+
 variable "environment" {
   description = "Deployment environment name, used in resource naming/tags."
   type        = string
-  default     = "dev"
+  default     = "prod"
 }
 
 variable "project_name" {
@@ -16,79 +22,29 @@ variable "project_name" {
   default     = "maplestorage"
 }
 
-variable "vpc_cidr" {
-  description = "CIDR block for the VPC."
+# small_3_0: $12/mo, 2 vCPU, 2 GB RAM, 60 GB SSD, 3 TB transfer, static IPv4 included.
+#
+# NOT micro_3_0 ($7, 1 GB RAM). The backend and vision containers alone were sized at 1 GiB on
+# ECS, and this box additionally carries Postgres, Caddy and the OS. The $5 saved buys an OOM kill.
+#
+# NOT any *_ipv6_* bundle. Those are $2 cheaper because they have no public IPv4 address, and a
+# meaningful share of the internet still cannot reach an IPv6-only host.
+variable "bundle_id" {
+  description = "Lightsail bundle (instance size)."
   type        = string
-  default     = "10.0.0.0/16"
+  default     = "small_3_0"
 }
 
-variable "public_subnet_cidrs" {
-  description = "CIDR blocks for the public subnets (ALB + ECS tasks), one per AZ."
+# Defaults to the whole internet because the deploying human's IP is dynamic. Narrow it if you have
+# a fixed address: SSH is the only port here that is not meant to be public.
+variable "ssh_allowed_cidrs" {
+  description = "CIDRs permitted to reach SSH."
   type        = list(string)
-  default     = ["10.0.0.0/24", "10.0.1.0/24"]
+  default     = ["0.0.0.0/0"]
 }
 
-variable "private_subnet_cidrs" {
-  description = "CIDR blocks for the private subnets (RDS only), one per AZ."
-  type        = list(string)
-  default     = ["10.0.10.0/24", "10.0.11.0/24"]
-}
-
-variable "db_instance_class" {
-  description = "RDS instance class."
-  type        = string
-  default     = "db.t3.micro"
-}
-
-variable "db_name" {
-  description = "Initial database name."
-  type        = string
-  default     = "maplestorage"
-}
-
-variable "db_username" {
-  description = "Master username for RDS. Password is generated and stored in Secrets Manager, not set here."
-  type        = string
-  default     = "maplestorage_app"
-}
-
-variable "container_port" {
-  description = "Port the Ktor container listens on."
+variable "backup_retention_days" {
+  description = "How long a nightly pg_dump is kept in S3 before it expires."
   type        = number
-  default     = 8080
-}
-
-# Shared by both containers. A parse is ~0.5s of CPU single-threaded, so at 256
-# (0.25 vCPU) it competes with the JVM and a screenshot takes a couple of
-# seconds. Raising this to 512 roughly halves that, for about $9/month more --
-# worth it only if upload latency turns out to matter.
-variable "task_cpu" {
-  description = "Fargate task CPU units, shared by the backend and vision containers (256 = 0.25 vCPU)."
-  type        = number
-  default     = 256
-}
-
-# 512 MiB was enough for the JVM alone. The task now also runs the vision
-# container (Python + OpenCV, ~250 MiB resident), so it needs 1 GiB. On Fargate
-# this costs about $1.60/month more.
-variable "task_memory" {
-  description = "Fargate task memory in MiB (shared by the backend and vision containers)."
-  type        = number
-  default     = 1024
-}
-
-variable "vision_container_port" {
-  description = "Loopback port the vision service listens on. Never exposed outside the task."
-  type        = number
-  default     = 8000
-}
-
-variable "clerk_jwks_url" {
-  description = "Clerk JWKS endpoint URL, passed to Ktor for JWT verification."
-  type        = string
-}
-
-variable "frontend_origin" {
-  description = "Deployed Next.js origin (e.g. https://maplestorage.vercel.app), passed to Ktor for CORS."
-  type        = string
+  default     = 30
 }

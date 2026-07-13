@@ -7,14 +7,11 @@ terraform {
       source  = "hashicorp/aws"
       version = "~> 5.60"
     }
-    random = {
-      source  = "hashicorp/random"
-      version = "~> 3.6"
-    }
   }
 
-  # State holds the RDS password and Secrets Manager values in PLAINTEXT, so it
-  # lives in a private, encrypted, versioned S3 bucket rather than on one laptop.
+  # State holds the backup IAM user's SECRET ACCESS KEY in plaintext, so it lives
+  # in a private, encrypted, versioned S3 bucket rather than on one laptop next to
+  # a public repo.
   #
   # No DynamoDB lock table: since 1.10, S3 does state locking natively via
   # use_lockfile (a .tflock object beside the state), and dynamodb_table is
