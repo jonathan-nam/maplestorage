@@ -41,7 +41,7 @@ val Timing =
             call.attributes.put(SPANS, mutableListOf())
         }
 
-        // Set the header before the response body goes out -- ResponseSent is too
+        // Set the header before the response body goes out. ResponseSent is too
         // late to add one.
         onCallRespond { call, _ ->
             val start = call.attributes.getOrNull(START) ?: return@onCallRespond
@@ -91,7 +91,7 @@ private fun TimeSource.Monotonic.ValueTimeMark.elapsedMillis(): Double =
  * Time one named step inside a request and attach it to that request's Server-Timing.
  *
  * Use it for the parts that can actually be slow and that you would otherwise have to
- * guess between -- the vision parse, the Nexon lookup, a database round trip:
+ * guess between, the vision parse, the Nexon lookup, a database round trip:
  *
  *     val result = call.span("vision") { parser.parseScreenshot(bytes, type) }
  */

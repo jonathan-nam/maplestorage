@@ -12,8 +12,8 @@ import type { CharacterToken } from "@/types/character-token";
 // four-a-piece over ten characters is not 40 pieces, it is ten characters who each need six more.
 // The total is arithmetic that means nothing. WHERE the items are is the whole question.
 //
-// It costs no network. Every character's inventory is already in the browser -- the page fetches
-// them all up front so that selecting a character does not flicker -- so this filters what is
+// It costs no network. Every character's inventory is already in the browser, the page fetches
+// them all up front so that selecting a character does not flicker, so this filters what is
 // already there, on every keystroke. There is nothing to debounce and nothing to wait for.
 
 export type Match = {
@@ -29,12 +29,12 @@ export type Match = {
 // its name, its BOSS, its section, and the PIECES IT BUYS.
 //
 // Terms are matched independently and all must hit, which is what makes "eternal hat" work: it is
-// not a phrase to be found anywhere, it is two facts -- section "Eternal Pieces", slot "Hat" --
+// not a phrase to be found anywhere, it is two facts. Section "Eternal Pieces", slot "Hat",
 // and the four tokens that satisfy both are exactly Kalos, Kaling, First Adversary and Malefic
 // Star. Matching the query as one string would find nothing.
 //
 // Fuzzy, and only just: substring first, subsequence as the forgiving fallback, so "kalng" still
-// finds Kaling. Deliberately NOT an edit-distance ranker -- the catalog is 26 items, and a scorer
+// finds Kaling. Deliberately NOT an edit-distance ranker, the catalog is 26 items, and a scorer
 // clever enough to be interesting is clever enough to surprise you with a confident wrong answer.
 function subsequence(needle: string, haystack: string): boolean {
   let i = 0;
@@ -54,7 +54,7 @@ const FUZZY_MIN = 5;
 // robe types "robe", and the catalog's canonical "Top" will not find it.
 //
 // SEARCH aliases only. The catalog keeps ONE canonical name per slot, because redemption is counted
-// against it -- giving a slot several identities in the data would let a piece-set silently split
+// against it. Giving a slot several identities in the data would let a piece-set silently split
 // in two, which is the exact class of bug lib/redemption.ts exists to prevent.
 const SLOT_ALIASES: Record<string, string[]> = {
   hat: ["cap", "bandana", "helm", "helmet", "hood", "circlet"],
@@ -110,7 +110,7 @@ export function SearchBar({ query, onQuery }: { query: string; onQuery: (q: stri
         <input
           type="search"
           className="finder-input"
-          placeholder="Search every character — “kaling”, “eternal hat”, “symbol”, “potion”"
+          placeholder="Search every character. “kaling”, “eternal hat”, “symbol”, “potion”"
           value={query}
           onChange={(e) => onQuery(e.target.value)}
           autoComplete="off"
@@ -135,7 +135,7 @@ export function SearchResults({ query, matches }: { query: string; matches: Matc
   // The counting lives in lib/redemption.ts, not here, and that is the point: it is the one piece
   // of arithmetic in this app that produces a confident wrong number when it is "simplified", and
   // inline in a component it could not be tested. Every holding is passed through flat and
-  // un-summed -- redeemableBySet divides each by its own threshold before adding anything, which
+  // un-summed, redeemableBySet divides each by its own threshold before adding anything, which
   // is what stops pieces being pooled across characters or mixed between tokens.
   const ready = [...redeemableBySet(matches.flatMap((m) => m.items)).entries()];
   return (
@@ -164,7 +164,7 @@ export function SearchResults({ query, matches }: { query: string; matches: Matc
                 <header>
                   <span className="finder-name">{character.name}</span>
                   {/* Redemption is per character, so the per-character figure is the ACTIONABLE
-                      one -- the total above only tells you it exists somewhere. Same tested
+                      one, the total above only tells you it exists somewhere. Same tested
                       function as the total, so the two can never disagree. */}
                   {[...redeemableBySet(items).entries()].map(([set, n]) => (
                     <span key={set} className="finder-ready">
@@ -179,8 +179,8 @@ export function SearchResults({ query, matches }: { query: string; matches: Matc
                       {item.iconUrl && (
                         <img src={apiAssetUrl(item.iconUrl)} alt="" aria-hidden="true" />
                       )}
-                      {/* The boss, but not the slots. The slots are still SEARCHED on -- "robe"
-                          finds this -- they just do not need restating on every row once the
+                      {/* The boss, but not the slots. The slots are still SEARCHED on. "robe"
+                          finds this. They just do not need restating on every row once the
                           header says what is redeemable. */}
                       <span className="finder-item-name">
                         {item.name}

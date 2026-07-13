@@ -1,6 +1,6 @@
 """Read a slot's stack-count by matching the client's digit font.
 
-Tesseract scores 2/12 on these counts -- an 11px proportional bitmap font drawn
+Tesseract scores 2/12 on these counts, an 11px proportional bitmap font drawn
 over arbitrary icon art is nothing like the scanned text it is trained for. But
 the font is fixed and, thanks to the grid, we know the exact scale, so the counts
 are better read by correlating the ten known glyphs directly.
@@ -60,7 +60,7 @@ def _outline_of(glyph: np.ndarray) -> np.ndarray:
 # The stack count is drawn at the slot's bottom-LEFT, hard against the edge, and the grid
 # origin is only accurate to about a pixel: JPEG re-encoding moved it by one at q=92 and q=85
 # while leaving it alone at q=95 and q=75. Cropping the band exactly at the cell boundary
-# meant that one-pixel shift sliced the leftmost column off the digits -- fatal for a '1'
+# meant that one-pixel shift sliced the leftmost column off the digits. Fatal for a '1'
 # that is only 5px wide.
 #
 # The symptom was baffling and worth recording: correlation collapsed from 0.995 to 0.41, but
@@ -68,8 +68,8 @@ def _outline_of(glyph: np.ndarray) -> np.ndarray:
 # sent me looking for numerical instability in matchTemplate that was never there. The digits
 # were always perfectly legible. We were reading the wrong pixels.
 #
-# A couple of pixels of slack costs nothing -- matchTemplate slides, so a wider band simply
-# gives it more room -- and it makes the read immune to the grid being a pixel out.
+# A couple of pixels of slack costs nothing, matchTemplate slides, so a wider band simply
+# gives it more room, and it makes the read immune to the grid being a pixel out.
 BAND_MARGIN = 3
 
 
@@ -89,8 +89,8 @@ def cell_band(img: np.ndarray, g: Grid, row: int, col: int) -> np.ndarray:
     This used to resample the band down to the native 46px and match native glyphs against
     it. That is backwards, and it is the single reason a rescaled capture was unreadable: the
     count font is 11px, so on a capture that arrived at 1.33x we were taking the ~15px digits
-    we had actually been given and squeezing them back to 11px before trying to read them --
-    destroying, in the last step before the decision, exactly the evidence the decision needed.
+    we had actually been given and squeezing them back to 11px before trying to read them.
+    Destroying, in the last step before the decision, exactly the evidence the decision needed.
     Measured on a real Parsec frame: nothing legible that way; all five counts correct when the
     band is left alone and the glyphs are scaled up to meet it.
     """
@@ -108,12 +108,12 @@ def cell_band(img: np.ndarray, g: Grid, row: int, col: int) -> np.ndarray:
 # longer do: the digit lands on some arbitrary sub-pixel phase, the glyph can only be tried at
 # integer offsets, and on a 9px-wide '0' half a pixel of misalignment is a large fraction of
 # the glyph. The damage is erratic rather than progressive, which is what makes it so
-# confusing to chase -- the '0' of a stack of 10 scored 0.83 at 1.25x and 0.59 at 1.1x, the
+# confusing to chase, the '0' of a stack of 10 scored 0.83 at 1.25x and 0.59 at 1.1x, the
 # GENTLER rescale, purely because 1.1x happened to land it on a worse phase.
 #
 # Enlarging the band and the glyph together by 3 lets the correlation slide in thirds of a
-# captured pixel. It invents no information -- both sides are interpolated identically, so
-# this is a finer search, not a sharper image -- and it lifts the worst case measured across
+# captured pixel. It invents no information, both sides are interpolated identically, so
+# this is a finer search, not a sharper image, and it lifts the worst case measured across
 # 1.1x / 1.25x / 1.326x / 1.5x / 1.75x from 0.591 (below the 0.60 bar, digit silently dropped)
 # to 0.710. K=4 buys another 0.003, which is not worth the time.
 #
@@ -133,8 +133,8 @@ def count_spans(img: np.ndarray, g: Grid, row: int, col: int, font: dict) -> lis
     """Where the count's glyphs sit in the slot, as (x, width) in the slot's own pixels.
 
     Exists so build_icons can blank the count out of an icon without re-deriving where it is.
-    Deriving it separately is exactly what kept going wrong -- a second, slacker glyph matcher
-    fires on the artwork -- and the answer must not be allowed to disagree with the number we
+    Deriving it separately is exactly what kept going wrong, a second, slacker glyph matcher
+    fires on the artwork, and the answer must not be allowed to disagree with the number we
     actually report. Same decode, same gates, one source of truth.
     """
     chosen, k = _decode(img, g, row, col, font)
@@ -191,7 +191,7 @@ def _decode(img: np.ndarray, g: Grid, row: int, col: int, font: dict):
     # measured in, which is not the same thing on a rescaled, oversampled capture. Forgetting
     # that produced a genuinely misleading bug: the window that hunts for the next digit's
     # left edge shrank to two thirds of a real pixel, the '0' of "x10" peaked just outside it,
-    # and the '8' -- which peaks slightly earlier and was still inside -- was accepted in its
+    # and the '8' (which peaks slightly earlier and was still inside) was accepted in its
     # place. It read 18. Nothing was wrong with the correlation (the '0' beat the '8' 0.87 to
     # 0.64 at its own position); we simply never looked where the '0' was.
     jitter = max(int(round(JITTER * k)), 1)
@@ -213,7 +213,7 @@ def _decode(img: np.ndarray, g: Grid, row: int, col: int, font: dict):
             continue
         px, d, s = pick
         chosen.append((px, d, s, font[d].shape[1]))
-        # Advance past what we just took, less ONE NATIVE PIXEL of slack -- the glyphs' boxes
+        # Advance past what we just took, less ONE NATIVE PIXEL of slack, the glyphs' boxes
         # are a touch wider than the font's true advance, so consuming the full width steps
         # over the start of the next digit. That slack is a native-pixel quantity like JITTER,
         # and hard-coding it as a bare 1 is what actually caused the "x10" -> "18" misread: the

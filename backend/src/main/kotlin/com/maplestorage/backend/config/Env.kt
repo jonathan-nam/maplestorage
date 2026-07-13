@@ -3,7 +3,7 @@ package com.maplestorage.backend.config
 private const val DEFAULT_VISION_SERVICE_URL = "http://127.0.0.1:8000"
 
 // Central place to read the environment variables the ECS task definition
-// injects (see infra/ecs.tf's `environment`/`secrets` blocks) -- fail fast at
+// injects (see infra/ecs.tf's `environment`/`secrets` blocks). Fail fast at
 // startup if one is missing rather than surfacing a null deep in a request.
 object Env {
     val dbHost: String get() = required("DB_HOST")

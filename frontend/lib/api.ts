@@ -3,7 +3,7 @@ import { record, serverTimeFromHeader } from "./timing";
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
 
 // Public, unauthenticated assets: the item icons and the client's digit sprites. that don't go through
-// apiFetch's Bearer-token JSON flow -- just resolves a backend-relative path
+// apiFetch's Bearer-token JSON flow, just resolves a backend-relative path
 // (e.g. "/token-icons/foo.png") to an absolute URL.
 export function apiAssetUrl(path: string): string {
   return `${API_BASE_URL ?? ""}${path}`;
@@ -34,7 +34,7 @@ export async function apiFetch<T>(
 
   // getToken() is timed separately from the fetch on purpose. It happens BEFORE the
   // request goes out, so whatever it costs is latency the user waits through on every
-  // single call -- and it was completely invisible until we measured it.
+  // single call, and it was completely invisible until we measured it.
   const startedAt = performance.now();
   const token = await getToken();
   const authMs = performance.now() - startedAt;

@@ -8,8 +8,8 @@
 //      Star pieces make a Hat, Top, Bottom or Shoulder; Limbo and Baldrix pieces make a Cape,
 //      Glove or Shoe. Ten of each is one armour and one accessory, never two of either.
 //
-// Each produces a plausible, confident, WRONG number -- the only kind of failure this app really
-// has -- and each of them looks like arithmetic, which is what makes them so easy to reintroduce.
+// Each produces a plausible, confident, WRONG number, the only kind of failure this app really
+// has, and each of them looks like arithmetic, which is what makes them so easy to reintroduce.
 //
 // So they live here, as pure functions, and redemption.test.ts holds them to it. The counting used
 // to be written inline in the search component, where it could not be tested at all.
@@ -45,7 +45,7 @@ export function redemptionNote(quantity: number, threshold: number): string {
 
 // What can be redeemed RIGHT NOW, keyed by piece-set.
 //
-// `holdings` is every (character, token) pair in scope, flattened deliberately -- the caller must
+// `holdings` is every (character, token) pair in scope, flattened deliberately, the caller must
 // NOT pre-sum anything. Each holding is divided by its OWN threshold and only then added up, which
 // enforces rules 1 and 2 in a single stroke: a holding belongs to one character and one token, so
 // there is nowhere for a total to sneak in. Rule 3 is the keying.

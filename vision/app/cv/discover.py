@@ -1,7 +1,7 @@
 """Which items in this screenshot do we NOT know about?
 
 Adding an item to the catalog needs a template, and a template has to be cut from the
-client's own rendering -- wiki artwork sits right on the accept threshold and drops out
+client's own rendering. Wiki artwork sits right on the accept threshold and drops out
 the moment a screenshot is JPEG-compressed (see build_icons.py). So every new item starts
 with a screenshot that contains it.
 
@@ -16,7 +16,7 @@ Sayram's", and cut_template() does the rest.
     python -m app.cv.discover <screenshot.png> [-o sheet.png]
 
 This is the manual half of the feature that will eventually let a user click "track this"
-on their own upload. The hard part -- knowing which slots are unknown -- is the same either
+on their own upload. The hard part (knowing which slots are unknown) is the same either
 way.
 """
 

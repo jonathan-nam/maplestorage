@@ -3,13 +3,13 @@
 Two failures get worse as the catalog grows, and both are silent:
 
   * A template that no manifest entry names, or an entry with no template. That is the
-    drift that already cost days -- the parser emitted `kalos-token` while the lookup
+    drift that already cost days, the parser emitted `kalos-token` while the lookup
     matched a display name, so every count was dropped without a word.
 
   * Two icons similar enough that the verifier cannot tell them apart. At six tokens
     this is theoretical. At the scale of a general item catalog it is not: potions,
     scrolls and cubes come in families that differ by a few pixels of colour, and a
-    misidentification does not error -- it reports the wrong item, confidently.
+    misidentification does not error, it reports the wrong item, confidently.
 """
 
 import pathlib
@@ -54,12 +54,12 @@ def test_every_template_is_in_the_manifest():
     orphans = set(templates) - manifest_keys()
     assert not orphans, (
         f"templates the parser can detect but the app cannot name: {sorted(orphans)}. "
-        "An orphan template is a silent mismatch waiting to happen -- add it to catalog/items.yaml."
+        "An orphan template is a silent mismatch waiting to happen. Add it to catalog/items.yaml."
     )
 
 
 def _masked_score(a: np.ndarray, b: np.ndarray) -> float:
-    """How well template `a` matches template `b`, using b's own mask -- i.e. exactly the
+    """How well template `a` matches template `b`, using b's own mask, i.e. exactly the
     question the verifier asks of a real slot."""
     h = min(a.shape[0], b.shape[0])
     w = min(a.shape[1], b.shape[1])
@@ -79,13 +79,13 @@ def test_no_two_templates_are_confusable():
     colour. Either alone has a blind spot, and the catalog exercises both:
 
       * Extreme Blue and Extreme Green are one bottle in two colours. Shape correlates
-        them at 0.925 against a 0.55 bar -- shape cannot tell them apart at all.
+        them at 0.925 against a 0.55 bar. Shape cannot tell them apart at all.
       * The blue potion and kalos-token are 0.4 degrees apart in hue. Colour cannot tell
         THOSE apart.
 
     So an icon is only genuinely confusable with another if it clears the shape bar AND
     lands inside the colour distance. This test used to check shape alone and failed the
-    moment the potions arrived -- correctly reporting a clash that the verifier, as it now
+    moment the potions arrived. Correctly reporting a clash that the verifier, as it now
     stands, does not actually have.
     """
     templates = load_templates()
@@ -124,11 +124,11 @@ def test_a_template_matches_itself_perfectly(key):
 # classify() is two stages: a cheap descriptor RANKS all N catalog items for each slot, and
 # only the top TOP_K are handed to the exact verifier. If the true item is not in that top-K,
 # the verifier never sees it and the item silently does not exist. There is no error, no low
-# score, no warning -- the count is simply absent, and an undercount is the one failure this
+# score, no warning, the count is simply absent, and an undercount is the one failure this
 # project exists to prevent.
 #
-# This has now bitten twice. At 6 items TOP_K was 3 and Aurelia's Elixir -- a pixel-perfect
-# 1.000 match -- vanished. At 13 items TOP_K was 8 and the symbol coupons pushed it over
+# This has now bitten twice. At 6 items TOP_K was 3 and Aurelia's Elixir, a pixel-perfect
+# 1.000 match, vanished. At 13 items TOP_K was 8 and the symbol coupons pushed it over
 # again. Both times the number was raised and a comment was written telling the next person to
 # re-measure, and both times nobody did, because nothing forced them to.
 #
@@ -171,10 +171,10 @@ def test_the_shortlist_never_drops_the_true_item(scale):
             if rank > worst_rank:
                 worst_rank, worst_where = rank, f"{name} at r{r}c{c} in {path}"
 
-    assert checked > 50, f"only {checked} true matches found -- the corpus is not exercising this"
+    assert checked > 50, f"only {checked} true matches found, the corpus is not exercising this"
     assert worst_rank <= classify_mod.TOP_K, (
         f"the descriptor ranked a true item #{worst_rank} of {len(names)}, outside "
         f"TOP_K={classify_mod.TOP_K}, so classify() would never verify it and the item would "
-        f"silently vanish: {worst_where}. Either raise TOP_K or improve the descriptor -- do "
+        f"silently vanish: {worst_where}. Either raise TOP_K or improve the descriptor. Do "
         f"not delete this test."
     )

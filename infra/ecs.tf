@@ -33,7 +33,7 @@ resource "aws_iam_role_policy_attachment" "ecs_task_execution" {
 }
 
 # Execution role additionally needs read access to the one Secrets Manager
-# entry it injects into the container -- not covered by the managed policy above.
+# entry it injects into the container, not covered by the managed policy above.
 resource "aws_iam_role_policy" "ecs_task_execution_secrets" {
   name = "${var.project_name}-ecs-task-execution-secrets"
   role = aws_iam_role.ecs_task_execution.id
@@ -49,7 +49,7 @@ resource "aws_iam_role_policy" "ecs_task_execution_secrets" {
 }
 
 # Task role: what the running Ktor app itself is permitted to do (S3 access
-# for screenshots gets added here once that bucket exists -- not in M0's scope).
+# for screenshots gets added here once that bucket exists, not in M0's scope).
 resource "aws_iam_role" "ecs_task" {
   name = "${var.project_name}-ecs-task-role"
 
@@ -73,7 +73,7 @@ resource "aws_ecs_task_definition" "backend" {
   task_role_arn            = aws_iam_role.ecs_task.arn
 
   # Two containers, one task. Under awsvpc they share a network namespace, so
-  # the backend reaches the vision service on 127.0.0.1 -- no service discovery,
+  # the backend reaches the vision service on 127.0.0.1. No service discovery,
   # no load balancer, and the vision port is never reachable from outside the
   # task. They also share a lifecycle: one deploy, one rollback.
   container_definitions = jsonencode([{
@@ -166,7 +166,7 @@ resource "aws_ecs_service" "backend" {
   #
   # Without the ignore_changes below, the two fight: Terraform sees the service
   # on a revision it did not create, decides that is drift, and reverts the
-  # service to its own revision -- which pins `:latest`. A `terraform apply` run
+  # service to its own revision, which pins `:latest`. A `terraform apply` run
   # for an unrelated reason (a security-group tweak, say) would silently roll
   # back whatever was last deployed. Deploys own the revision; Terraform owns
   # the shape of the task definition.
@@ -181,7 +181,7 @@ resource "aws_ecs_service" "backend" {
   network_configuration {
     subnets          = aws_subnet.public[*].id
     security_groups  = [aws_security_group.ecs_tasks.id]
-    assign_public_ip = true # required to reach the internet with no NAT Gateway -- see network.tf
+    assign_public_ip = true # required to reach the internet with no NAT Gateway. See network.tf
   }
 
   load_balancer {
@@ -191,7 +191,7 @@ resource "aws_ecs_service" "backend" {
   }
 
   # Without this, a deploy whose new task never passes the ALB health check
-  # just leaves the service stuck -- no automatic recovery, only a human
+  # just leaves the service stuck. No automatic recovery, only a human
   # noticing later. This makes ECS detect a failed rollout and revert to the
   # last known-good task definition on its own.
   deployment_circuit_breaker {

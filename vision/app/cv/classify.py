@@ -1,7 +1,7 @@
 """Identify the item in every slot, in time that does not grow with the catalog.
 
 `match.find_tokens` slides one `matchTemplate` per catalog item across the whole grid. That is
-O(N) -- fine for a handful of tokens, unusable for a catalog (~4s at 50 items, ~38s at 500).
+O(N). Fine for a handful of tokens, unusable for a catalog (~4s at 50 items, ~38s at 500).
 
 This does it in two stages instead:
 
@@ -29,7 +29,7 @@ failed attempt first:
     not, so a 1px grid-origin difference between screenshots destroys a
     pixel-exact vector. Downsampling to 16x16 blurs that jitter away.
   * Exact pixel hashing does not work at all. The slot backing has a per-row
-    gradient, so the same icon hashes differently in different rows -- 302
+    gradient, so the same icon hashes differently in different rows. 302
     distinct hashes across 308 slots, zero collisions.
 """
 
@@ -47,7 +47,7 @@ DESC = 16  # descriptor is DESC x DESC; large enough to rank, small enough to bl
 # At thirteen items it started HIDING REAL ITEMS: Aurelia's Elixir sits in `untradeables
 # sample.png` and matches its template at a pixel-perfect 1.000, and the shortlist never
 # handed that template to the verifier at all. The item simply did not exist as far as the
-# parser was concerned -- and, worse, the truth tables were built from the parser's own
+# parser was concerned, and, worse, the truth tables were built from the parser's own
 # output, so they inherited the same blind spot and the tests happily agreed.
 #
 # Measured across the corpus at PNG/q95/q92/q85, against truth corrected by verifying EVERY
@@ -56,14 +56,14 @@ DESC = 16  # descriptor is DESC x DESC; large enough to rank, small enough to bl
 #     TOP_K=3   6/16 wrong     392ms
 #     TOP_K=5   4/16 wrong     507ms
 #     TOP_K=8   0/16 wrong     661ms
-#     TOP_K=13  0/16 wrong     965ms   (exhaustive -- no better, just slower)
+#     TOP_K=13  0/16 wrong     965ms   (exhaustive. No better, just slower)
 #
 # The real lesson is about the descriptor, not the number: its ranking degrades as the
 # catalog grows, and the true item can fall to rank 5 or beyond. A shortlist that drops the
 # right answer produces a silent undercount, which is the one failure this project exists to
 # prevent.
 #
-# It happened again at 26 items, exactly as predicted, and the number was raised again -- but
+# It happened again at 26 items, exactly as predicted, and the number was raised again, but
 # a number that has to be re-guessed on every catalog change is not a design, it is a trap
 # with a comment on it. So TOP_K is now pinned by a TEST: test_catalog.py measures, over every
 # reference capture at every scale, where the descriptor ranks the item that is actually in
@@ -78,7 +78,7 @@ DESC = 16  # descriptor is DESC x DESC; large enough to rank, small enough to bl
 #
 # Note this is O(1) in catalog size, not O(N): the shortlist is a fixed budget of candidates
 # per slot, so a 100-item catalog costs the same verify time as a 26-item one. What grows with
-# N is the RISK that the descriptor's ranking pushes the true item out of the budget -- which
+# N is the RISK that the descriptor's ranking pushes the true item out of the budget, which
 # is precisely what the guard test watches.
 TOP_K = 16
 # A true match scores ~1.000, because the client renders every icon pixel-identically and
@@ -86,11 +86,11 @@ TOP_K = 16
 # to JPEG q=75: 0.899.
 #
 # This was 0.55 for a long time, inherited from the era when templates were the web
-# prototype's artwork -- which only reached 0.61 against the real thing, so the bar had to be
+# prototype's artwork, which only reached 0.61 against the real thing, so the bar had to be
 # low to catch it at all. Client-cut templates made that bar ~0.3 too generous, and nothing
 # noticed until an item ARRIVED THAT WAS NOT IN THE CATALOG:
 #
-#   An Extreme GOLD Potion -- no template, we had never seen one -- scored 0.753 against the
+#   An Extreme GOLD Potion (no template, we had never seen one) scored 0.753 against the
 #   Extreme GREEN template and was confidently reported as green. It is the same bottle in a
 #   different colour, and gold is close enough to green in a*/b* (20.8, under the 30 bar) that
 #   the colour gate let it through too. Neither test was wrong; the shape bar was simply so
@@ -102,7 +102,7 @@ VERIFY_THRESHOLD = 0.80
 
 # A masked matchTemplate costs ~2.4ms; the same match without a mask costs ~0.5ms, and
 # verify ran the masked one once per (busy slot x TOP_K), which was two thirds of the parse
-# -- two thirds of the whole pipeline -- spent almost entirely on candidates that were
+# (two thirds of the whole pipeline) spent almost entirely on candidates that were
 # never going to match.
 #
 # So run the cheap unmasked correlation first and only pay for the masked one when it
@@ -111,7 +111,7 @@ VERIFY_THRESHOLD = 0.80
 #
 # The threshold is deliberately slack, because the two errors are not symmetric:
 #
-#   a false POSITIVE here is free    -- the masked verify runs and correctly rejects it
+#   a false POSITIVE here is free   , the masked verify runs and correctly rejects it
 #   a false NEGATIVE here loses a token, silently, and an undercount is the one failure
 #                                       this whole project exists to prevent
 #
@@ -123,7 +123,7 @@ VERIFY_THRESHOLD = 0.80
 #     real matches      min 0.492   median 0.880
 #     non-matches       max 0.876   p99    0.626
 #
-# The two distributions now OVERLAP -- an unmasked score of 0.7 could be either -- so this can
+# The two distributions now OVERLAP (an unmasked score of 0.7 could be either) so this can
 # only ever be a cheap "definitely not", never a decision. And at 0.65 it was throwing away 55
 # of 405 real matches: one item in eight, silently, before the verifier ever saw it. Sacred
 # Symbol: Odium sat in `untradeables sample.png` matching its template at a perfect 1.000 and
@@ -140,7 +140,7 @@ PREFILTER_THRESHOLD = 0.40
 
 # Stop checking the shortlist once a candidate scores this well: a true match is ~1.000, so
 # nothing below it in the ranking can win. Raising TOP_K from 8 to 16 (for recall) doubled the
-# work per slot, and this hands most of it back -- 3026ms -> 2395ms per parse across the corpus,
+# work per slot, and this hands most of it back. 3026ms -> 2395ms per parse across the corpus,
 # with the results bit-for-bit identical. Deliberately set well above VERIFY_THRESHOLD: this is
 # an "obviously it" shortcut, not a decision, and it must never pre-empt a closer match.
 CERTAIN = 0.995
@@ -148,8 +148,8 @@ CERTAIN = 0.995
 NATIVE = 46  # the client's own slot size, and the size every template is cut at
 
 # Regions that are not the item: the stack count (differs per screenshot) and
-# the cyan slot-lock bar (per-SLOT state -- it marks a slot held back from the in-game
-# auto-sort -- and so says nothing about which item is in it).
+# the cyan slot-lock bar (per-SLOT state, it marks a slot held back from the in-game
+# auto-sort, and so says nothing about which item is in it).
 _KEEP = np.ones((NATIVE, NATIVE), np.float32)
 _KEEP[26:41, 0:44] = 0
 _KEEP[40:, :] = 0
@@ -167,7 +167,7 @@ def scale_templates(templates: dict, scale: float) -> dict:
     This is the whole reason the parser now survives a rescaled capture, and the direction
     matters enormously. The old pipeline resampled the FRAME down to the native 46px pitch,
     which meant that on a capture arriving at 1.33x we threw away a third of every pixel we
-    had been given -- and the 11px count font is the first thing to die. Measured on a real
+    had been given, and the 11px count font is the first thing to die. Measured on a real
     Parsec frame: matching at the captured scale identifies five items at 0.84-0.93 and reads
     all five stack counts correctly, while resampling the same frame to native drops two of
     those items below the 0.80 bar and reads no counts at all.
@@ -218,7 +218,7 @@ def descriptor(cell: np.ndarray, bg: np.ndarray) -> np.ndarray:
 
     KEEPING COLOUR is what makes it *rank*. This used to average the channels away and rank on
     a greyscale thumbnail, which is a reasonable thing to do right up until the catalog contains
-    items that are the same picture in a different colour -- and MapleStory's is full of them.
+    items that are the same picture in a different colour, and MapleStory's is full of them.
     The thirteen symbol coupons are all round glows or hexagons; in greyscale at 16x16 they are
     very nearly the same image, so they crowded each other out of the shortlist and the true
     item fell as far as rank 24 of 26. The verifier never saw it, and the item silently vanished.
@@ -227,8 +227,8 @@ def descriptor(cell: np.ndarray, bg: np.ndarray) -> np.ndarray:
         greyscale   recall@8  96.7%   worst rank 24
         colour      recall@8 100.0%   worst rank  7
 
-    This is the same lesson the colour gate in _verify already learned -- shape alone cannot
-    tell an Extreme Blue Potion from a green one -- arriving a second time, in the stage that
+    This is the same lesson the colour gate in _verify already learned. Shape alone cannot
+    tell an Extreme Blue Potion from a green one. Arriving a second time, in the stage that
     decides what the gate is even allowed to look at. Cost is a 3x wider vector in one matmul:
     still ~12ms at 500 items, i.e. nothing.
     """
@@ -261,7 +261,7 @@ def build_catalog(templates: dict) -> tuple[list[str], np.ndarray]:
 
 
 def _slot_window(img, g, r, c):
-    """The slot, padded -- icon art bleeds a couple of pixels outside its cell, and a
+    """The slot, padded. Icon art bleeds a couple of pixels outside its cell, and a
     template confined strictly within the cell can never line up. The pad also absorbs the
     grid origin being a pixel or two out, which it routinely is on a rescaled capture."""
     x, y, w, h = g.cell(r, c)
@@ -270,12 +270,12 @@ def _slot_window(img, g, r, c):
 
 
 # The colour gate. MapleStory is full of items that are the same artwork in a different
-# colour -- the Extreme potions are one bottle in four -- and shape cannot tell them apart:
-# Extreme Blue and Extreme Green correlate at 0.925 -- comfortably over the 0.80 shape bar.
+# colour (the Extreme potions are one bottle in four) and shape cannot tell them apart:
+# Extreme Blue and Extreme Green correlate at 0.925. Comfortably over the 0.80 shape bar.
 #
 # Colour is the mean a*/b* of the icon body in CIELAB. Measured across every item at every
 # JPEG quality down to q=75, and counting only the candidates the SHAPE test already lets
-# through -- which is the only set this gate ever sees:
+# through, which is the only set this gate ever sees:
 #
 #     worst distance on the CORRECT item : 20.6
 #     closest distance on a WRONG item   : 41.4
@@ -292,14 +292,14 @@ def _slot_window(img, g, r, c):
 # already did.
 MAX_LAB_DISTANCE = 30.0
 
-# Below this saturation a pixel carries no useful colour -- greys and near-whites would drag
+# Below this saturation a pixel carries no useful colour. Greys and near-whites would drag
 # the mean towards the middle of the space regardless of the item.
 MIN_SATURATION = 60
 
 
 def _colour_pixels(tpl: np.ndarray) -> np.ndarray:
     """Which pixels of the template carry real colour. Computed from the TEMPLATE, never
-    from the screenshot -- see _colour_distance."""
+    from the screenshot. See _colour_distance."""
     hsv = cv2.cvtColor(tpl[:, :, :3], cv2.COLOR_BGR2HSV)
     return (tpl[:, :, 3] > 0) & (hsv[:, :, 1] > MIN_SATURATION)
 
@@ -315,7 +315,7 @@ def _colour_distance(tpl: np.ndarray, patch: np.ndarray) -> float | None:
 
     **Which pixels to average is decided by the template, not the screenshot.** That is the
     whole trick, and getting it wrong is what made the first attempt fail: selecting by the
-    screenshot's own saturation meant JPEG -- which crushes saturation -- changed the
+    screenshot's own saturation meant JPEG (which crushes saturation) changed the
     selection itself, so on a small icon the average drifted onto contaminated edge pixels.
     The red potion then sat 35.8 from its own template and 25.0 from the blue one, and got
     called blue.
@@ -334,7 +334,7 @@ def _verify(img, g, r, c, tpl) -> float:
 
     Prefiltered: the unmasked correlation is ~5x cheaper and bounds the masked one
     closely enough to say "definitely not this" without paying for the mask. Anything
-    that clears PREFILTER_THRESHOLD still gets the real, masked answer -- the prefilter
+    that clears PREFILTER_THRESHOLD still gets the real, masked answer, the prefilter
     only skips work, it never decides.
     """
     win = _slot_window(img, g, r, c)
@@ -355,7 +355,7 @@ def _verify(img, g, r, c, tpl) -> float:
         return float(score)
 
     # Shape says yes. Now check the colour: shape ALONE cannot tell an Extreme Blue Potion from
-    # a Green one. Same bottle, different colour, correlating at 0.925 -- the right one wins by
+    # a Green one. Same bottle, different colour, correlating at 0.925, the right one wins by
     # a margin that is luck rather than a decision.
     #
     # The two tests are complementary, and each covers the other's blind spot. Colour
@@ -385,7 +385,7 @@ def classify(img: np.ndarray, g: Grid, templates: dict) -> list[SlotItem]:
         return []
 
     D = np.stack([descriptor(cells[k], bg) for k in keys])
-    scores = D @ cat.T  # (slots x catalog) -- one matmul
+    scores = D @ cat.T  # (slots x catalog), one matmul
     order = np.argsort(scores, axis=1)[:, ::-1][:, :TOP_K]
 
     found = []
@@ -398,7 +398,7 @@ def classify(img: np.ndarray, g: Grid, templates: dict) -> list[SlotItem]:
             if s >= CERTAIN:
                 # The client renders every icon pixel-identically and the templates are cut
                 # from that rendering, so a true match scores ~1.000. Nothing further down the
-                # shortlist can beat this, and checking the rest is pure waste -- which TOP_K=16
+                # shortlist can beat this, and checking the rest is pure waste, which TOP_K=16
                 # made expensive: most slots find their item in the first two or three
                 # candidates and were then grinding through thirteen more for nothing.
                 break

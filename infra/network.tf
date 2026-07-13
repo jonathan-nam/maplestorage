@@ -21,7 +21,7 @@ resource "aws_internet_gateway" "main" {
 }
 
 # Public subnets: ALB + ECS tasks. Tasks get a public IP (see ecs.tf) but the
-# task security group only allows inbound from the ALB -- no NAT Gateway,
+# task security group only allows inbound from the ALB. No NAT Gateway,
 # deliberately, to skip its ~$32-35/mo fixed cost at this project's traffic
 # scale. RDS never sits here.
 resource "aws_subnet" "public" {
@@ -36,7 +36,7 @@ resource "aws_subnet" "public" {
   }
 }
 
-# Private subnets: RDS only. No route to the internet gateway at all -- not
+# Private subnets: RDS only. No route to the internet gateway at all, not
 # just "no public IP" but no path out, since RDS has nothing that needs to
 # reach the internet.
 resource "aws_subnet" "private" {
@@ -69,7 +69,7 @@ resource "aws_route_table_association" "public" {
   route_table_id = aws_route_table.public.id
 }
 
-# Private route table has no internet route -- default local-only routing.
+# Private route table has no internet route. Default local-only routing.
 resource "aws_route_table" "private" {
   vpc_id = aws_vpc.main.id
 

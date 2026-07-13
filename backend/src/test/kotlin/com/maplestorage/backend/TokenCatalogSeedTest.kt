@@ -12,13 +12,13 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
-// Exercises the real Flyway + Exposed path against a real Postgres (DB_* env vars -- same
+// Exercises the real Flyway + Exposed path against a real Postgres (DB_* env vars. Same
 // contract as docker-compose.yml locally and the postgres service in backend-verify.yml's
 // CI job), which also serves as an implicit "migrations actually apply cleanly" check on
 // every run. Automates PLAN.md's "after M1" verification bullet.
 //
 // This test used to assert `EXPECTED_TOKEN_COUNT = 6`. Adding the elixirs took the catalog
-// to 13 and it failed -- correctly, but for the wrong reason: it was pinning a number, not
+// to 13 and it failed. Correctly, but for the wrong reason: it was pinning a number, not
 // a property. A hardcoded count is the same mistake that made load_templates() throw
 // "templates missing" while thirteen templates sat on disk.
 //
@@ -67,7 +67,7 @@ class TokenCatalogSeedTest {
         }
     }
 
-    // What the UI searches and counts on. All three were shipped empty at least once -- the field
+    // What the UI searches and counts on. All three were shipped empty at least once, the field
     // was added, the code compiled, and the running service kept serving the old shape, so every
     // slot search ("helm", "robe") silently found nothing.
     @Test

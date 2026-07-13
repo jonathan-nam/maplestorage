@@ -43,7 +43,7 @@ describe("search", () => {
     expect(found("limbo")).toEqual(["Distorted Ambition"]);
   });
 
-  it("finds a piece by WHAT IT BUYS -- 'eternal hat' is the four armour tokens", () => {
+  it("finds a piece by WHAT IT BUYS. 'eternal hat' is the four armour tokens", () => {
     expect(found("eternal hat")).toEqual([
       "Kalos's Residual Determination",
       "Ferocious Beast Entanglement Ring",
@@ -62,7 +62,7 @@ describe("search", () => {
     expect(found("kalng")).toEqual(["Ferocious Beast Entanglement Ring"]);
   });
 
-  it("does NOT fuzzy-match a short term -- 'shoe' is a subsequence of 'Shoulder'", () => {
+  it("does NOT fuzzy-match a short term. 'shoe' is a subsequence of 'Shoulder'", () => {
     // The bug this guards: with a permissive fuzzy floor, "shoe" matched every armour token.
     expect(found("shoe")).toEqual(["Distorted Ambition", "Trace of Eternal Loyalty"]);
   });

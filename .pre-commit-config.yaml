@@ -1,6 +1,6 @@
 # Hooks call each project's own tool (Gradle plugin / npm devDependency / Terraform CLI)
 # rather than a pre-commit-hosted mirror, so the enforced version always matches what's
-# declared in that project -- no separate version to keep in sync.
+# declared in that project. No separate version to keep in sync.
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.6.0

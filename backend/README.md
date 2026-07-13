@@ -13,13 +13,13 @@ vision service and the backend itself), so there is a single stack definition
 rather than two that can drift apart:
 
 ```bash
-# From the repo root -- just the database, for running the backend from Gradle
+# From the repo root, just the database, for running the backend from Gradle
 docker compose up -d postgres
 
 cd backend
 cp .env.example .env      # then set CLERK_JWKS_URL for your own Clerk dev instance
 
-# Export the vars into your shell, then run/test/build as usual -- this covers
+# Export the vars into your shell, then run/test/build as usual, this covers
 # ./gradlew run, ./gradlew test, and IDE debug launches uniformly, unlike a
 # Gradle-only or direnv-only loader.
 set -a && source .env && set +a
@@ -28,7 +28,7 @@ set -a && source .env && set +a
 ```
 
 On boot, `configureDatabase()` runs Flyway migrations automatically
-(`src/main/resources/db/migration/`) before the app starts serving requests -- no
+(`src/main/resources/db/migration/`) before the app starts serving requests. No
 separate migrate step needed.
 
 To run **the whole stack** (backend + vision + Postgres) rather than just the
@@ -38,13 +38,13 @@ up and assert it actually works.
 ## Tests
 
 `./gradlew test` expects the same `DB_*` env vars exported, against a real
-Postgres (not a mock) -- start it as above.
+Postgres (not a mock). Start it as above.
 
 ## A packaging note worth knowing
 
 The Dockerfile ships the `application` plugin's **distribution**, not a fat jar.
 Ktor's `buildFatJar` shades every dependency into one archive and overwrites
-duplicate `META-INF/services` files instead of concatenating them -- which silently
+duplicate `META-INF/services` files instead of concatenating them, which silently
 emptied Flyway's plugin registry and made the deployed image fail on boot
 (`Unknown prefix for location (should be one of ):`). Tests never caught it: they
 run on an unshaded classpath. Don't switch back to the fat jar.

@@ -32,7 +32,7 @@ export function InventoryPanel({
   const panelRef = useRef<HTMLDivElement>(null);
 
   // Tab cycles tabs, as it does in-game. Only while the panel holds focus, so Tab keeps meaning
-  // "next element" everywhere else on the page -- and Escape hands focus back, so a keyboard
+  // "next element" everywhere else on the page, and Escape hands focus back, so a keyboard
   // user is never stuck inside the panel.
   useEffect(() => {
     const panel = panelRef.current;
@@ -85,7 +85,7 @@ export function InventoryPanel({
         </span>
         {/* The keyboard hint belongs next to the window controls, where you look when you are
             thinking about the window. It used to sit in a footer beneath the grid, alongside an
-            "N items tracked" readout that told you a number you can see by looking -- so the
+            "N items tracked" readout that told you a number you can see by looking, so the
             footer is gone and the hint has moved up. */}
         <span className="ms-title-hint">{focused ? "Tab · Esc" : "Click to focus"}</span>
         <span className="ms-window-buttons" aria-hidden="true">
@@ -113,12 +113,12 @@ export function InventoryPanel({
        *
        * This used to render all 128 slots, faithfully to the client. Faithful, and useless: a
        * grid that is nine-tenths empty makes you hunt for the twenty things you actually track,
-       * and it gives the six boss tokens -- the point of the whole app -- exactly the same weight
+       * and it gives the six boss tokens (the point of the whole app) exactly the same weight
        * as a stack of potions. The game has to draw empty slots because you can put things in
        * them. We never can; we only ever show what you already HAVE.
        *
        * So: one block per group, sized to its contents, in a fixed order. The slot lattice stays
-       * -- same 16 columns, same 46px sprites drawn 1:1 -- because that is what makes this read
+       * (same 16 columns, same 46px sprites drawn 1:1) because that is what makes this read
        * as an inventory rather than a spreadsheet. */}
       {sections.length > 0 ? (
         sections.map((section) => (

@@ -1,4 +1,4 @@
-# GitHub Actions OIDC federation -- lets CI assume an AWS role via
+# GitHub Actions OIDC federation. Lets CI assume an AWS role via
 # sts:AssumeRoleWithWebIdentity using GitHub's own short-lived tokens, so no
 # long-lived AWS access keys ever need to be stored as a repo secret.
 resource "aws_iam_openid_connect_provider" "github_actions" {
@@ -6,7 +6,7 @@ resource "aws_iam_openid_connect_provider" "github_actions" {
   client_id_list = ["sts.amazonaws.com"]
 
   # AWS no longer actually validates this against GitHub's certificate chain
-  # (GitHub's CA is in AWS's trusted root store now) -- the Terraform resource
+  # (GitHub's CA is in AWS's trusted root store now), the Terraform resource
   # still requires a value, so this is effectively vestigial. Not something to
   # rotate or monitor. Both of GitHub's known intermediate-cert thumbprints
   # are listed since GitHub can return either one.
@@ -17,7 +17,7 @@ resource "aws_iam_openid_connect_provider" "github_actions" {
 }
 
 # What GitHub Actions assumes to deploy the backend. The `sub` condition is
-# the actual security boundary here -- the OIDC provider above is not
+# the actual security boundary here, the OIDC provider above is not
 # repo-scoped on its own, so a role trusting it without a tight `sub` match
 # would let any GitHub repo that discovers this provider's ARN assume it.
 # Scoped to exactly this repo + this branch; a PR-triggered workflow would
@@ -76,7 +76,7 @@ resource "aws_iam_role_policy" "github_actions_deploy" {
       },
       {
         # RegisterTaskDefinition/DescribeTaskDefinition don't support
-        # resource-level permissions at all -- confirmed against AWS's IAM
+        # resource-level permissions at all. Confirmed against AWS's IAM
         # reference and an open aws/containers-roadmap issue requesting this
         # as a feature. Resource: "*" is the only option, not an oversight.
         Sid      = "EcsTaskDefinition"

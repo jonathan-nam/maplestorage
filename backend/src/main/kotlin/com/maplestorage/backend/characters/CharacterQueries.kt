@@ -8,7 +8,7 @@ import org.jetbrains.exposed.v1.jdbc.selectAll
 import kotlin.uuid.Uuid
 
 // Shared by CharacterRoutes.kt's ownership-checked read/update/refresh/delete
-// handlers -- must be called from inside a `transaction { }` block.
+// handlers. Must be called from inside a `transaction { }` block.
 fun findOwnedCharacter(
     characterId: Uuid,
     userId: String,

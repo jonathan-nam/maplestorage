@@ -1,7 +1,7 @@
 /* The app shell's palette, as tokens.
  *
  * It used to be hardcoded dark (var(--bg) on var(--ink)) with the colours written directly into every rule,
- * which made a light theme impossible and made every new component a coin toss -- the upload dock
+ * which made a light theme impossible and made every new component a coin toss, the upload dock
  * and the item finder both shipped as white cards on a near-black page, because there was nothing
  * to reach for that would have been right.
  *
@@ -110,8 +110,8 @@ a:hover {
   margin: 10px 0 0;
 }
 
-/* No frame, no plate, no box around the sprite. The character IS the sprite --
-   everything else is a caption under it, so nothing competes with it for
+/* No frame, no plate, no box around the sprite. The character IS the sprite.
+   Everything else is a caption under it, so nothing competes with it for
    attention. Selection is shown by lifting the name to white, not by drawing
    another rectangle. */
 .char-tile {
@@ -221,7 +221,7 @@ a:hover {
 
    Every colour and dimension below was sampled from a real capture
    (reference-images/inventory804x550.png) rather than eyeballed. No client art is
-   shipped -- the chrome is all CSS. The geometry is the game's own: 16x8 slots on
+   shipped, the chrome is all CSS. The geometry is the game's own: 16x8 slots on
    a 46px pitch, which is both what the client draws and what the parser locks
    onto (vision/app/cv/grid.py).
    --------------------------------------------------------------------------- */
@@ -234,7 +234,7 @@ a:hover {
   --ms-tab-idle: #6c7785;
   /* NOT shell tokens. The inventory window is the game's own window and the game draws it
      light; it stays light in BOTH themes, and the app changes around it. Which means anything
-     inside it needs its own ink -- reaching for the shell's --muted gives you pale grey text on
+     inside it needs its own ink. Reaching for the shell's --muted gives you pale grey text on
      a pale grey panel the moment the app goes dark, which is exactly what happened. */
   --ms-grid-bg: #eee;
   --ms-ink: #2f353e;
@@ -354,16 +354,16 @@ a:hover {
  *
  * `> img` and not `img`: the count is now drawn from the client's digit sprites, which are also
  * <img> inside this slot. A descendant selector caught them too, blew each digit up to 46x46 and
- * stacked them all at the same absolute offset -- the numbers simply disappeared.
+ * stacked them all at the same absolute offset, the numbers simply disappeared.
  *
- * This used to be width/height 100% -- a 46px sprite squeezed into a 42px box -- with
+ * This used to be width/height 100% (a 46px sprite squeezed into a 42px box) with
  * `image-rendering: pixelated` on top. That is the one combination you must never use on pixel
  * art: nearest-neighbour at a non-integer ratio drops rows and columns unevenly, so a straight
  * edge grows a step in it and a 1px highlight vanishes. No amount of fixing the PNGs would have
  * helped; the damage was happening at paint time.
  *
  * The asset IS the client's 46px slot, with the border ring alpha'd away. So centre that frame on
- * our 42px slot and the artwork lands exactly where the client puts it -- including the icons that
+ * our 42px slot and the artwork lands exactly where the client puts it. Including the icons that
  * are genuinely off-centre in-game, because their glow or shadow is lopsided. Centring the FRAME
  * is right; centring the artwork inside it would be us second-guessing the game. */
 .ms-slot > img {
@@ -377,7 +377,7 @@ a:hover {
 }
 
 /* The count, drawn from the client's own digit sprites (see slot-grid.tsx). No font, no colour,
- * no text-shadow to get right -- just put it where the game puts it.
+ * no text-shadow to get right, just put it where the game puts it.
  *
  * Placed from the sprite geometry, not by eye. In the client's 46px slot the glyphs are 11px tall
  * and their band starts at y=25 (ocr.py's BAND_TOP), so they occupy roughly y=27..38, hard against
@@ -476,7 +476,7 @@ a:hover {
 
    The chest is the mark: MapleStory's Storage Room is a chest you can open from
    any town without walking to an NPC, which is exactly what this app is. The
-   sprite is drawn from scratch (components/chest.tsx) -- reference-images/storage
+   sprite is drawn from scratch (components/chest.tsx). Reference-images/storage
    image.png is a reference for the idiom, not an asset we ship.
    --------------------------------------------------------------------------- */
 
@@ -760,7 +760,7 @@ button.link:disabled {
 }
 
 /* The keyboard hint, in the titlebar beside the window controls. It replaces a footer that also
-   carried an "N items tracked" count -- a number you could get by looking at the grid. */
+   carried an "N items tracked" count, a number you could get by looking at the grid. */
 .ms-title-hint {
   margin-left: auto;
   padding-right: 10px;
@@ -921,7 +921,7 @@ button.link:disabled {
 
 /* The "not this character's" eye. Bigger and inside the box rather than tucked in a corner:
    it changes what happens to the file you are about to drop, so it belongs where you are
-   looking when you drop it -- not hiding at the edge like a settings cog. */
+   looking when you drop it, not hiding at the edge like a settings cog. */
 .dock-drop {
   position: relative;
 }

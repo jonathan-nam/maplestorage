@@ -3,7 +3,7 @@
 Kept because build_icons and the CLI still use score_grid to LOCATE a known template, which is
 a different job from deciding what an unknown slot holds.
 
-find_tokens takes an argmax per token, so it can only ever report ONE slot per item -- which is
+find_tokens takes an argmax per token, so it can only ever report ONE slot per item, which is
 wrong now that an item can occupy two (a symbol coupon exists tradeable and untradeable, with
 identical pixels). The service does not use it; main.py sums across slots instead.
 """
@@ -24,7 +24,7 @@ TEMPLATE_DIR = Path(__file__).parent / "templates"
 # Correlation below this is not the token. Chosen from the score histogram: real
 # tokens land at 0.6-0.95, the best non-token slot in our samples reaches ~0.35.
 # Only used to locate a template we already know is there, so a slack bar is fine. Do NOT reuse
-# this number to decide what an unknown slot holds -- classify.VERIFY_THRESHOLD is 0.80, because
+# this number to decide what an unknown slot holds, classify.VERIFY_THRESHOLD is 0.80, because
 # an out-of-catalog item scored 0.753 against the wrong template.
 MATCH_THRESHOLD = 0.55
 
@@ -44,7 +44,7 @@ def load_templates() -> dict:
     held-out screenshots, because the client draws each icon pixel-identically every time.
 
     Deliberately does NOT check the count. It used to say `if len(game) == 6`, which was a lie the
-    moment a seventh item existed -- it raised "templates missing" with all thirteen sitting on
+    moment a seventh item existed, it raised "templates missing" with all thirteen sitting on
     disk. Manifest/template agreement is the real invariant and is checked in tests/test_catalog.py.
     """
     game = _load_rgba(str(TEMPLATE_DIR), "token-")
@@ -71,8 +71,8 @@ def score_grid(img: np.ndarray, g: Grid, templates: dict) -> np.ndarray:
     template confined strictly within one cell can never line up (this silently
     lost Blissful Fantasy Shard). Instead we correlate once across the whole grid
     at the single scale the grid gives us, then attribute each response to the
-    cell its *centre* lands in. Scale stays pinned -- which is the constraint
-    that matters -- while cell boundaries stop being a hard wall.
+    cell its *centre* lands in. Scale stays pinned, which is the constraint
+    that matters, while cell boundaries stop being a hard wall.
     """
     names = sorted(templates)
     scale = g.pitch / NATIVE_PITCH
@@ -114,7 +114,7 @@ def find_tokens(img: np.ndarray, g: Grid, templates: dict) -> list[Hit]:
     """One hit per token: its best slot, if that beats the threshold.
 
     A token occupies at most one slot (the client stacks them), so we take an
-    argmax per token rather than thresholding every cell -- that alone kills most
+    argmax per token rather than thresholding every cell, that alone kills most
     would-be false positives.
     """
     # The frame is never resampled to meet the catalog any more; the catalog is resampled to

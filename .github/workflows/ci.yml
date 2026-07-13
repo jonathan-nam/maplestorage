@@ -19,10 +19,10 @@ jobs:
     runs-on: ubuntu-latest
     # dorny/paths-filter calls the GitHub API's listFiles on pull_request
     # events (not a local git diff), which needs pull-requests: read on
-    # GITHUB_TOKEN -- without it, this fails with "Resource not accessible
+    # GITHUB_TOKEN. Without it, this fails with "Resource not accessible
     # by integration" rather than anything path-related. Scoped to just this
     # job, not loosened repo-wide. Job-level `permissions:` isn't additive to
-    # the default set -- declaring any key switches this job to explicit
+    # the default set. Declaring any key switches this job to explicit
     # mode, so contents: read (which actions/checkout needs) has to be
     # listed too, not just the new pull-requests grant.
     permissions:
@@ -79,11 +79,11 @@ jobs:
       - run: npm run lint
       - run: npx prettier --check .
       # The redemption rules. Three ways to produce a confidently wrong number, each of which
-      # looks like arithmetic -- see lib/redemption.test.ts.
+      # looks like arithmetic. See lib/redemption.test.ts.
       - run: npm test
 
   # The CV regression corpus: the highest-risk code in the repo, and until now it ran only in a
-  # pre-commit hook -- so a PR from a machine without hooks installed merged it unchecked.
+  # pre-commit hook, so a PR from a machine without hooks installed merged it unchecked.
   vision:
     needs: changes
     if: needs.changes.outputs.vision == 'true'
@@ -105,7 +105,7 @@ jobs:
       - run: pytest tests -q
 
   # catalog/items.yaml is the single source of truth. If it and the generated SQL disagree, the
-  # catalog silently stops meaning anything -- which is the drift the manifest exists to end.
+  # catalog silently stops meaning anything, which is the drift the manifest exists to end.
   catalog:
     needs: changes
     if: needs.changes.outputs.catalog == 'true'

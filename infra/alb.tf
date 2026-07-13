@@ -31,7 +31,7 @@ resource "aws_lb_target_group" "backend" {
   }
 }
 
-# HTTP only for now -- no domain/ACM cert provisioned yet. Adding HTTPS later
+# HTTP only for now. No domain/ACM cert provisioned yet. Adding HTTPS later
 # is an additive change (new listener + cert), not a rework, so not worth
 # blocking M0 on.
 resource "aws_lb_listener" "http" {

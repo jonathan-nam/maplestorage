@@ -20,12 +20,12 @@ import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 // What a character HOLDS, kept apart from what a character IS.
 //
 // Split out of CharacterRoutes.kt when detekt started objecting that the file had too many
-// functions -- a fair reading of something real. Character CRUD and inventory queries share a URL
+// functions, a fair reading of something real. Character CRUD and inventory queries share a URL
 // prefix and nothing else; they do not share a reason to change.
 
 // Every character's inventory, in one request.
 //
-// The page already knows, on load, that you are about to look at one of these characters -- it
+// The page already knows, on load, that you are about to look at one of these characters, it
 // just does not know WHICH. Fetching them one at a time on selection means the first visit to
 // each character has nothing to draw, so the panel renders empty and then fills: the flicker.
 //

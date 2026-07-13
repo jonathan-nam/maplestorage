@@ -31,7 +31,7 @@ private suspend fun RoutingContext.uploadScreenshot(screenshotParser: Screenshot
         return
     }
     // Ownership check before parsing a request that would
-    // 404 anyway -- also stops a screenshot from ever getting attributed
+    // 404 anyway. Also stops a screenshot from ever getting attributed
     // under another user's guessed/stolen character id.
     if (pinnedCharacterId != null) {
         val owned = transaction { findOwnedCharacter(pinnedCharacterId, userId) }

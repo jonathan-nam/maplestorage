@@ -27,7 +27,7 @@ import kotlin.uuid.Uuid
 
 // Exercises the same Exposed query shapes CharacterRoutes.kt's handlers use
 // (insert/select/update/delete, ownership filtering) directly against a
-// real Postgres -- same DB_* contract as TokenCatalogSeedTest.kt -- without
+// real Postgres (same DB_* contract as TokenCatalogSeedTest.kt) without
 // going through Ktor's routing/auth layer. Ownership-scoping (a real user
 // never seeing another user's rows) is the trickiest correctness property
 // here, so it gets its own dedicated assertion below.
@@ -113,7 +113,7 @@ class CharacterRepositoryTest {
         return id
     }
 
-    // Deleting a character used to 500 the moment the character had any data -- both
+    // Deleting a character used to 500 the moment the character had any data, both
     // character_token_count and screenshots referenced it with ON DELETE NO ACTION, so
     // the foreign key blocked the delete. The existing round-trip test above passed
     // only because it deletes a character that was never used.

@@ -34,7 +34,7 @@ private data class OutcomeDecision(
 )
 
 // Ownership of `pinnedCharacterId` (if present) must already be verified by
-// the caller -- see ScreenshotRoutes.kt's pre-check -- so this never has to
+// the caller. See ScreenshotRoutes.kt's pre-check, so this never has to
 // distinguish "not owned" from "not pinned."
 suspend fun ingestScreenshot(
     userId: String,
@@ -122,7 +122,7 @@ private fun insertParsedScreenshot(
 // came from the vision-model era, when the parser could hallucinate a name and the
 // pin existed purely to catch it doing so. It inverted the trust: an upload with a
 // pin and no HUD was rejected not because we doubted it, but because we had no
-// second opinion to confirm it -- so we asked the user to pick a character they had
+// second opinion to confirm it, so we asked the user to pick a character they had
 // already picked, on a screenshot we had already read perfectly. The upload page
 // tells people a cropped inventory is fine; this made a liar of it.
 //
@@ -218,7 +218,7 @@ private fun upsertTokenCounts(
             catalogIdsByVisionKey[token.tokenName]
                 ?: error(
                     "No token_catalog row with vision_key='${token.tokenName}'. The parser's " +
-                        "templates and the catalog have drifted -- see V4__token_catalog_vision_key.sql.",
+                        "templates and the catalog have drifted. See V4__token_catalog_vision_key.sql.",
                 )
         CharacterTokenCount.upsert(CharacterTokenCount.characterId, CharacterTokenCount.tokenCatalogId) { row ->
             row[CharacterTokenCount.characterId] = characterId
@@ -233,7 +233,7 @@ private fun upsertTokenCounts(
 // Powers all three of PLAN.md's "new character detected" actions (confirm-add
 // = create the character via the existing M2 endpoint, then call this; pick-
 // existing = call this directly) plus mismatch's one-click fix and
-// unresolvable's manual picker -- none of them need the image again, since
+// unresolvable's manual picker. None of them need the image again, since
 // the parsed result was already persisted to `rawParseResult`.
 fun resolveScreenshot(
     userId: String,

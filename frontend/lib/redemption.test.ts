@@ -21,7 +21,7 @@ const potion = (quantity: number): Holding => ({
 
 const sets = (holdings: Holding[]) => Object.fromEntries(redeemableBySet(holdings));
 
-describe("rule 1 — pieces cannot be pooled across characters", () => {
+describe("rule 1. Pieces cannot be pooled across characters", () => {
   it("6 on one character and 4 on another is not a set", () => {
     // The aggregate view used to report this as "10 / 10 toward an Eternal set". It is zero.
     expect(sets([piece(6, ARMOUR), piece(4, ARMOUR)])).toEqual({});
@@ -36,9 +36,9 @@ describe("rule 1 — pieces cannot be pooled across characters", () => {
   });
 });
 
-describe("rule 2 — pieces cannot be mixed between tokens", () => {
+describe("rule 2. Pieces cannot be mixed between tokens", () => {
   it("9 Kalos and 1 Kaling is nine and one, not ten", () => {
-    // Same character, same piece-set, same threshold -- and still not a set, because the ten must
+    // Same character, same piece-set, same threshold, and still not a set, because the ten must
     // be ten of the SAME token. This is the case most likely to be 'fixed' into a bug.
     expect(sets([piece(9, ARMOUR), piece(1, ARMOUR)])).toEqual({});
   });
@@ -50,7 +50,7 @@ describe("rule 2 — pieces cannot be mixed between tokens", () => {
   });
 });
 
-describe("rule 3 — the two piece-sets do not buy the same thing", () => {
+describe("rule 3, the two piece-sets do not buy the same thing", () => {
   it("10 armour pieces and 10 accessory pieces is one of each, never two of either", () => {
     expect(sets([piece(10, ARMOUR), piece(10, ACCESSORY)])).toEqual({
       "Hat / Top / Bottom / Shoulder": 1,

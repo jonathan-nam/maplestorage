@@ -1,19 +1,19 @@
 """Screenshot parsing service.
 
 Runs as a second container in the same ECS task as the Ktor backend, which calls it over
-loopback -- one deployable, two processes. It replaced a Claude-vision call: the parse is a
+loopback, one deployable, two processes. It replaced a Claude-vision call: the parse is a
 deterministic OpenCV pipeline (see app/cv/), so it costs no tokens, makes no network call, and
 returns the same answer every time. Nothing about the vision LLM survives; the backend now
 speaks to this service directly.
 
-The HUD ("Lv.287 acornacorn") is read too -- located by matching the fixed-pixel "Lv." prefix,
+The HUD ("Lv.287 acornacorn") is read too. Located by matching the fixed-pixel "Lv." prefix,
 then OCR'd with Tesseract. It is null when no HUD is in frame, which the backend treats as
 needing review.
 
 Two things this service will NOT do, both learned the hard way:
 
   * It will not report a count it cannot stand behind. An item whose stack count is unreadable
-    is dropped rather than reported with a guessed number -- a wrong count is worse than a
+    is dropped rather than reported with a guessed number, a wrong count is worse than a
     missing one, and it is the failure this whole project exists to prevent.
   * It will not refuse a capture it can actually read. A rescaled screenshot (remote play,
     display scaling) used to be rejected on the strength of an accuracy figure that had been
@@ -53,7 +53,7 @@ class DetectedToken(BaseModel):
     tokenName: str
     quantity: int
     # Diagnostic only; the backend ignores it. Every count we return is one we
-    # stand behind -- see the 422 below for the ones we don't.
+    # stand behind. See the 422 below for the ones we don't.
     iconScore: float
 
 
@@ -64,7 +64,7 @@ class CharacterHud(BaseModel):
 
 class ScreenshotParseResult(BaseModel):
     screenshotType: Literal["INVENTORY", "UNRECOGNIZED"]
-    # Null when no HUD is in frame -- a tightly-cropped inventory upload has
+    # Null when no HUD is in frame, a tightly-cropped inventory upload has
     # none, and the backend already treats that as NEEDS_REVIEW.
     characterHud: CharacterHud | None = None
     tokenCounts: list[DetectedToken] | None = None
@@ -76,7 +76,7 @@ def _downscaled_message() -> str:
     An upscale interpolates: it adds no information, but it destroys none either, and the
     parser now reads the capture at whatever scale it arrives in rather than squeezing it
     back to native first. A DOWNSCALE actually discards pixels, and the 11px count font is
-    the first thing to go -- there is nothing to recover and no kernel that invents it back.
+    the first thing to go. There is nothing to recover and no kernel that invents it back.
 
     So this is the only rescale left that we refuse, and unlike the old blanket refusal it
     asks the user for something they can always do: send the file they already have, whole.
@@ -95,7 +95,7 @@ def health() -> dict:
 class Stages:
     """Per-stage timings for one parse, emitted as a Server-Timing header.
 
-    The parse is the slowest thing in an upload by two orders of magnitude -- the
+    The parse is the slowest thing in an upload by two orders of magnitude, the
     backend answers in ~1ms and this takes hundreds. So when an upload feels slow,
     the only useful question is WHICH stage, and that was previously unanswerable
     without attaching a profiler.
@@ -144,8 +144,8 @@ async def parse(request: Request, response: Response) -> ScreenshotParseResult:
         # and telling the user the wrong one sends them to fix the wrong thing:
         #
         #   * It really is not an inventory (a login screen, the character select).
-        #   * It IS an inventory we still could not read. This is now rare -- the smeared
-        #     boundaries of a rescaled capture are handled by find_grid's correlation path --
+        #   * It IS an inventory we still could not read. This is now rare, the smeared
+        #     boundaries of a rescaled capture are handled by find_grid's correlation path,
         #     so if we land here the cause is something we have not seen, and the honest thing
         #     is to say so rather than to guess at a cause and send the user off to fix it.
         log.info("no grid: %s", e)
@@ -163,7 +163,7 @@ async def parse(request: Request, response: Response) -> ScreenshotParseResult:
     # An UPSCALED capture is a different matter, and used to be refused here too. That was
     # wrong, and the reason it was wrong is worth keeping: the reliability figures that
     # justified the refusal were all measured through a pipeline that resampled the frame
-    # down to native before reading it -- so what they actually measured was the damage the
+    # down to native before reading it, so what they actually measured was the damage the
     # parser was doing to itself, not the damage in the capture. Read at its own scale, a
     # real Parsec frame at 1.33x gives up all five of its items and all five stack counts.
     if g.pitch < MIN_PITCH:
@@ -180,7 +180,7 @@ async def parse(request: Request, response: Response) -> ScreenshotParseResult:
 
     # Two-stage: shortlist every slot with a cheap descriptor, verify the top candidates
     # exactly. The verify cost is O(TOP_K) rather than O(catalog), so this holds up as the
-    # catalog grows -- what does NOT come for free is the shortlist's recall, which is pinned by
+    # catalog grows. What does NOT come for free is the shortlist's recall, which is pinned by
     # a test rather than a hope. See app/cv/classify.py.
     with stage("classify"):
         hits = classify(img, g, TOKENS)
@@ -190,7 +190,7 @@ async def parse(request: Request, response: Response) -> ScreenshotParseResult:
     #
     # This is not a hypothetical. Every symbol coupon exists in a tradeable and an untradeable
     # version. They are different items to the client, they sit in different slots, and they are
-    # drawn with THE SAME ICON -- there is no pixel anywhere in the slot that tells them apart.
+    # drawn with THE SAME ICON. There is no pixel anywhere in the slot that tells them apart.
     # (The cyan bar along the bottom is not it: that marks a slot the player has locked against
     # the in-game auto-sort, and is a property of the slot, not of what is in it.)
     #
@@ -200,14 +200,14 @@ async def parse(request: Request, response: Response) -> ScreenshotParseResult:
     #
     # Emitting one result per slot and letting the backend upsert them would have quietly kept
     # whichever arrived last and discarded the other: 630 reported against 1427 held. A silent
-    # undercount -- precisely the failure the rest of this pipeline exists to prevent -- and it
+    # undercount (precisely the failure the rest of this pipeline exists to prevent) and it
     # would have looked entirely plausible on screen.
     totals: dict[str, list] = {}
     with stage("counts"):
         for hit in hits:
             digits, conf = read_count(img, g, hit.row, hit.col, FONT)
             if not digits:
-                # Icon found but the count is unreadable -- reporting the item with
+                # Icon found but the count is unreadable. Reporting the item with
                 # a fabricated quantity would be worse than reporting nothing.
                 log.info("unreadable count for %s at r%dc%d", hit.name, hit.row, hit.col)
                 continue

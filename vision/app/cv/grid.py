@@ -1,7 +1,7 @@
 """Locate the MapleStory inventory slot lattice in a screenshot.
 
 The inventory is a 16x8 grid of square slots, and the recovered pitch doubles as the
-screenshot's SCALE -- which is what lets every downstream step (icon matching, count reading)
+screenshot's SCALE, which is what lets every downstream step (icon matching, count reading)
 work per-cell at a known size instead of doing a free-floating multi-scale search. That search
 is what made naive template matching unreliable, so getting the lattice right is the whole
 foundation.
@@ -11,7 +11,7 @@ There are two ways to find it, and both are needed.
 SEGMENTATION (the fast path, _grid_by_segmentation). Two properties of how the client draws a
 slot make the lattice recoverable without any learned model:
 
-  * A slot's interior is a flat light grey (~226), whether it is empty or holds an icon -- the
+  * A slot's interior is a flat light grey (~226), whether it is empty or holds an icon, the
     icon never covers the whole cell.
   * Every slot boundary is a fixed ridge (`222 214 242 238 238 242 214 222`): a bright core with
     dark flanks, ~5px of which falls outside the interior's grey band.
@@ -21,13 +21,13 @@ its own connected component whose bounding box *is* the slot, and a lattice is f
 boxes.
 
 CORRELATION (the fallback, _grid_by_correlation). All of the above rests on the ridge escaping
-the interior band -- and on a capture that has been through a lossy rescale it simply does not.
+the interior band, and on a capture that has been through a lossy rescale it simply does not.
 A real Parsec frame arrived with the ridge as a gentle 222 -> 236 -> 218 bump that never leaves
 the band, so nothing severed, the slot bed flooded into one component, and segmentation found
 SIX boxes instead of 128. No threshold fixes that: segmentation needs a hard edge and the
 capture no longer has one.
 
-Correlation does not care about hard edges -- it degrades smoothly with blur instead of falling
+Correlation does not care about hard edges, it degrades smoothly with blur instead of falling
 off a cliff. And whatever the player owns, an inventory always contains the same thing in
 quantity: the EMPTY SLOT. Sliding that one template over the frame gives the lattice back
 directly.
@@ -188,20 +188,20 @@ def _largest_lattice_block(cx, cy, pitch):
 #
 # Everything above rests on one assumption: that thresholding to the interior grey SEVERS
 # adjacent cells, because the boundary ridge (222 214 242 238 238 242 214 222) swings well
-# outside the 216-236 band. On a capture that has been through a lossy rescale -- a
-# remote-play stream (Parsec, Moonlight) whose client window does not match the host -- that
+# outside the 216-236 band. On a capture that has been through a lossy rescale, a
+# remote-play stream (Parsec, Moonlight) whose client window does not match the host, that
 # is simply not true any more. Measured across a real Parsec boundary, the ridge arrives as
 # a gentle 222 -> 236 -> 218 bump that never leaves the interior band, so nothing severs, the
 # whole slot bed floods into one component, and the detector finds SIX boxes instead of 128.
 #
 # The fix is not a better threshold. Segmentation needs a hard edge and the capture no longer
 # has one, at any threshold. (Cutting the mask with the ridge gradient does resurrect ~37
-# blobs, but they are eroded asymmetrically -- sizes 11 to 129 px, left edges scattered over
-# the whole period -- and only 9 of them share a lattice phase. They are fragments, not slots.)
+# blobs, but they are eroded asymmetrically. Sizes 11 to 129 px, left edges scattered over
+# the whole period, and only 9 of them share a lattice phase. They are fragments, not slots.)
 #
 # Correlation, on the other hand, does not care about hard edges: it degrades smoothly with
 # blur instead of falling off a cliff. And an inventory always contains the same thing in
-# quantity, whatever the player owns and at whatever scale -- the EMPTY SLOT. Sliding that one
+# quantity, whatever the player owns and at whatever scale, the EMPTY SLOT. Sliding that one
 # template over the frame at the measured pitch gives back the lattice directly: on the Parsec
 # frame, 139 peaks at up to 0.938, whose modal phase lands within 1-2px of the phase recovered
 # completely independently by matching the catalog's item icons. Two unrelated signals agreeing
@@ -274,7 +274,7 @@ def find_grid(img: np.ndarray) -> Grid:
     try:
         return _grid_by_segmentation(img)
     except ValueError:
-        # Not "no inventory" -- possibly an inventory whose slot boundaries have been
+        # Not "no inventory". Possibly an inventory whose slot boundaries have been
         # smeared past severing. Correlation can still find it.
         return _grid_by_correlation(img)
 

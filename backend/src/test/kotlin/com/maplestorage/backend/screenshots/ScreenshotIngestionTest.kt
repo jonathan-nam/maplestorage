@@ -29,7 +29,7 @@ import kotlin.test.assertTrue
 import kotlin.time.Clock
 import kotlin.uuid.Uuid
 
-// The key the SCREENSHOT PARSER emits -- token_catalog.vision_key, which is the
+// The key the SCREENSHOT PARSER emits, token_catalog.vision_key, which is the
 // name of its template file. Not the display name.
 //
 // This constant used to be "Distorted Ambition", the catalog's display name, and
@@ -45,11 +45,11 @@ private const val DISTORTED_AMBITION = "distorted-ambition"
 private const val TEST_USER_ID = "user_test_screenshots"
 
 // Exercises ScreenshotIngestion's outcome-branching (the actually-novel logic
-// here) against FakeScreenshotParser + real Postgres -- same DB_* contract
+// here) against FakeScreenshotParser + real Postgres. Same DB_* contract
 // as TokenCatalogSeedTest.kt / CharacterRepositoryTest.kt, no HTTP/auth layer.
 //
 // Uses the TEST_USER_ID constant directly (not a `userId` property) rather
-// than a same-named local variable -- inside `Table.insert { }`/`.update { }`
+// than a same-named local variable. Inside `Table.insert { }`/`.update { }`
 // lambdas the receiver is the Table itself, so a bare `userId` there resolves
 // to `Characters.userId` (the column), not an outer property of the same
 // name, silently mis-generating SQL. Always qualify column keys as
@@ -87,7 +87,7 @@ class ScreenshotIngestionTest {
     }
 
     @Test
-    fun `matched -- pinned character and HUD name agree upserts token counts`() {
+    fun `matched, Pinned character and HUD name agree upserts token counts`() {
         val characterId = insertCharacter("Bubbling")
         val fake =
             FakeScreenshotParser(
@@ -104,7 +104,7 @@ class ScreenshotIngestionTest {
     }
 
     @Test
-    fun `matched -- no pin but HUD name matches an existing character by name`() {
+    fun `matched, No pin but HUD name matches an existing character by name`() {
         val characterId = insertCharacter("Nightshade")
         val fake =
             FakeScreenshotParser(
@@ -121,7 +121,7 @@ class ScreenshotIngestionTest {
     }
 
     @Test
-    fun `mismatch -- pinned character disagrees with detected HUD name, no write`() {
+    fun `mismatch, Pinned character disagrees with detected HUD name, no write`() {
         val characterId = insertCharacter("Alpha")
         val fake =
             FakeScreenshotParser(
@@ -141,7 +141,7 @@ class ScreenshotIngestionTest {
     }
 
     @Test
-    fun `newCharacterDetected -- no pin and HUD name matches no existing character`() {
+    fun `newCharacterDetected, No pin and HUD name matches no existing character`() {
         val fake =
             FakeScreenshotParser(
                 parsedOutcome(hud = CharacterHud("Ghostface", 50), tokens = emptyList()),
@@ -154,14 +154,14 @@ class ScreenshotIngestionTest {
     }
 
     @Test
-    fun `matched -- a pin attributes on its own when no HUD is in frame`() {
+    fun `matched, a pin attributes on its own when no HUD is in frame`() {
         val characterId = insertCharacter("Pinned")
         val fake =
             FakeScreenshotParser(parsedOutcome(hud = null, tokens = listOf(DetectedToken(DISTORTED_AMBITION, 2))))
 
         val result = runBlocking { ingest(fake, pinnedCharacterId = characterId) }
 
-        // A cropped inventory with a pin is the documented happy path -- the upload
+        // A cropped inventory with a pin is the documented happy path, the upload
         // page tells people it works. Nothing in the image contradicts the pin, so the
         // counts save rather than asking the user to name a character they just named.
         assertEquals(ScreenshotOutcome.MATCHED, result.outcome)
@@ -169,7 +169,7 @@ class ScreenshotIngestionTest {
     }
 
     @Test
-    fun `unresolvable -- no HUD visible and no pin, so nobody knows whose this is`() {
+    fun `unresolvable, No HUD visible and no pin, so nobody knows whose this is`() {
         val fake =
             FakeScreenshotParser(parsedOutcome(hud = null, tokens = listOf(DetectedToken(DISTORTED_AMBITION, 2))))
 
@@ -179,7 +179,7 @@ class ScreenshotIngestionTest {
     }
 
     @Test
-    fun `unresolvable -- a pin to a character that is not the caller's never auto-attributes`() {
+    fun `unresolvable, a pin to a character that is not the caller's never auto-attributes`() {
         val mine = insertCharacter("Mine")
         val fake =
             FakeScreenshotParser(
@@ -196,7 +196,7 @@ class ScreenshotIngestionTest {
     }
 
     @Test
-    fun `unrecognizedScreenshot -- the parser classifies the image as not a MapleStory inventory`() {
+    fun `unrecognizedScreenshot, the parser classifies the image as not a MapleStory inventory`() {
         val fake =
             FakeScreenshotParser(
                 ScreenshotParseOutcome.Parsed(
@@ -210,7 +210,7 @@ class ScreenshotIngestionTest {
     }
 
     @Test
-    fun `failed -- the vision service is unreachable`() {
+    fun `failed, the vision service is unreachable`() {
         val fake = FakeScreenshotParser(ScreenshotParseOutcome.Failed("rate limited"))
 
         val result = runBlocking { ingest(fake, pinnedCharacterId = null) }
@@ -277,7 +277,7 @@ class ScreenshotIngestionTest {
     ) = ingestScreenshot(
         userId = TEST_USER_ID,
         email = "screenshots-test@example.com",
-        // Content is irrelevant -- the fake never reads it.
+        // Content is irrelevant, the fake never reads it.
         request = UploadScreenshotRequest(imageBase64 = "aGVsbG8=", mediaType = "image/png"),
         pinnedCharacterId = pinnedCharacterId,
         screenshotParser = fake,

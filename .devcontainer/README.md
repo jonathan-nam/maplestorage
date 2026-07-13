@@ -1,6 +1,6 @@
 # Dev container
 
-Everything — JDK, Node, Python, Terraform, the AWS CLI — lives in the container. Nothing is
+Everything (JDK, Node, Python, Terraform, the AWS CLI) lives in the container. Nothing is
 installed on your machine except Docker and VS Code.
 
 ## Bootstrapping a brand-new machine
@@ -11,8 +11,8 @@ actually hit.
 
 ### 1. Install the two things that are not in the container
 
-- **Docker Desktop** — <https://docker.com/products/docker-desktop>
-- **VS Code** — <https://code.visualstudio.com>, plus the **Dev Containers** extension
+- **Docker Desktop**. <https://docker.com/products/docker-desktop>
+- **VS Code**. <https://code.visualstudio.com>, plus the **Dev Containers** extension
   (`ms-vscode-remote.remote-containers`). On Windows, also install **WSL**
   (`ms-vscode-remote.remote-wsl`).
 
@@ -26,7 +26,7 @@ wsl --set-default Ubuntu      # so a bare `wsl` opens Ubuntu, not Docker's VM
 ```
 
 > **Trap.** Docker Desktop installs its own `docker-desktop` distro, which is Alpine and
-> is *not* a place to work. Without `--set-default`, a bare `wsl` lands you in it — where
+> is *not* a place to work. Without `--set-default`, a bare `wsl` lands you in it, where
 > the Windows drives are not mounted the way you expect (so `find /mnt/c/...` silently
 > returns nothing) and VS Code fails asking you to `apk add libstdc++`. **That prompt is
 > the tell that you are in the wrong shell.** Never install anything into it.
@@ -49,10 +49,10 @@ freezes hard enough that Docker Desktop's stop button stops responding.
 Restart.**
 
 > **Trap.** This is not optional. With the project in WSL, VS Code runs Docker *from inside
-> WSL*, so **"Reopen in Container" simply fails without it** — and the error does not
+> WSL*, so **"Reopen in Container" simply fails without it**, and the error does not
 > mention this setting.
 
-### 4. Clone — on Windows, into WSL, never onto `C:`
+### 4. Clone. On Windows, into WSL, never onto `C:`
 
 ```bash
 mkdir -p ~/projects && cd ~/projects
@@ -61,11 +61,11 @@ cd maplestorage
 ```
 
 > **Trap.** If the repo sits on the Windows `C:` drive, WSL reaches it over 9p, which has no
-> **inotify**. Hot reload then *cannot* work — the dev server silently serves stale code —
+> **inotify**. Hot reload then *cannot* work, the dev server silently serves stale code.
 > and every file operation is ~18× slower. See *Keep the repo on the Linux filesystem*
 > below. `post-create.sh` will warn you if you get this wrong.
 
-### 5. Secrets — the two files git will never bring you
+### 5. Secrets, the two files git will never bring you
 
 The repo is the whole story **except two files**, which are gitignored because they hold
 secrets. Git will never bring them, so a clone that skips this step builds fine and then
@@ -76,7 +76,7 @@ cp backend/.env.example        backend/.env
 cp frontend/.env.local.example frontend/.env.local
 ```
 
-Then fill in the Clerk values — **three, all from one page** of the Clerk dashboard
+Then fill in the Clerk values. **three, all from one page** of the Clerk dashboard
 (*your instance → API keys*):
 
 | file | key | what it is |
@@ -88,7 +88,7 @@ Then fill in the Clerk values — **three, all from one page** of the Clerk dash
 Everything else in those files already works as-is against the local stack.
 
 > **Trap.** A wrong `CLERK_JWKS_URL` does not fail loudly. The backend boots happily and
-> then 401s every request — and the UI reports that as *"Upload failed, check your
+> then 401s every request, and the UI reports that as *"Upload failed, check your
 > connection"*, which sends you to look at your network. **If everything 401s, suspect this
 > first.**
 
@@ -104,13 +104,13 @@ VS Code → **Reopen in Container** (on Windows, first connect to WSL: `Ctrl+Shi
 The first build takes a few minutes. When it finishes, `post-create.sh` prints:
 
 ```
-Workspace filesystem: ext4 -- file watching works.
+Workspace filesystem: ext4. File watching works.
 ```
 
 If it prints a 9p warning instead, go back to step 4.
 
 > **Trap.** `code .` from WSL may fail with `Code.exe: Exec format error` if WSL interop is
-> disabled. You do not need it — open the folder from VS Code as above.
+> disabled. You do not need it. Open the folder from VS Code as above.
 
 ### 7. Sign in to GitHub and AWS
 
@@ -125,7 +125,7 @@ Both persist: `~/.aws` and `~/.config/gh` are bind-mounted from the host (see
 `devcontainer.json`), so a container **rebuild** does not lose them. It is once per
 machine, not once per container.
 
-**Use a new AWS access key on each machine — do not reuse one.** An access key belongs to
+**Use a new AWS access key on each machine. Do not reuse one.** An access key belongs to
 the IAM user, not the computer, so the same pair *would* work on both. That is exactly the
 problem: every extra copy is another place it can leak, and revoking it would take down
 every machine at once. AWS allows two active keys per user for this reason. Make a second
@@ -133,7 +133,7 @@ one in the IAM console, and then revoking a lost laptop is one click that does n
 anything else.
 
 **Do not copy `.env` files between machines.** They hold your Clerk secret key. Do not send
-them over Slack, email, or a shared drive — re-fetch the three values from the Clerk
+them over Slack, email, or a shared drive. Re-fetch the three values from the Clerk
 dashboard, which takes half a minute and leaves no copy lying around. A password manager is
 fine if you want them saved. Same reasoning for `infra/backend.hcl`: it is gitignored
 because it embeds the AWS account ID, and this repo is public.
@@ -144,7 +144,7 @@ because it embeds the AWS account ID, and this repo is public.
 ./scripts/smoke.sh
 ```
 
-This brings the whole stack up — Postgres, the vision service, the backend — runs the
+This brings the whole stack up (Postgres, the vision service, the backend) runs the
 migrations, parses a real screenshot, and checks the counts that come back. **7/7 means the
 environment is genuinely working, not just that the files are in place.** It is a much
 stronger answer than "it built".
@@ -167,7 +167,7 @@ cd frontend && npm run dev        # http://localhost:3000
 If the repo lives on the Windows `C:` drive, WSL2 reaches it over **9p**, and 9p has no
 **inotify**. That means:
 
-- **Hot reload cannot work.** Not "is flaky" — *cannot*. The Next dev server never sees
+- **Hot reload cannot work.** Not "is flaky". *cannot*. The Next dev server never sees
   an edit, so it silently serves the code it compiled when it started. You change a file,
   reload, and nothing happens. Its compile log stays empty, which reads as success. This
   cost several hours before we found it. Polling does not rescue it: `WATCHPACK_POLLING`,
@@ -175,7 +175,7 @@ If the repo lives on the Windows `C:` drive, WSL2 reaches it over **9p**, and 9p
 - **Everything is ~18× slower.** 300 small writes: **577 ms** on 9p, **31 ms** on ext4.
   That tax lands on npm, Gradle, pytest and git.
 
-Fix it from a **WSL terminal on Windows** (not from inside the container — the filesystem
+Fix it from a **WSL terminal on Windows** (not from inside the container, the filesystem
 it needs to write to is the one the container cannot see):
 
 ```bash
@@ -204,7 +204,7 @@ cd frontend && fuser -k 3000/tcp; sleep 2; rm -rf .next
 nohup npm run dev > /tmp/next.log 2>&1 & disown
 ```
 
-and hard-refresh the browser (`Ctrl+Shift+R`) — the CSS filename never changes between
+and hard-refresh the browser (`Ctrl+Shift+R`), the CSS filename never changes between
 builds, so a normal reload serves the cached copy. **Verify the bytes, not the log**: the
 log is silent precisely *because* nothing recompiled.
 
@@ -221,7 +221,7 @@ forwarded by VS Code itself.
 
 `~/.claude` is in that list for a reason worth knowing: it holds Claude Code's memory and
 session history. Container-local, it died with the container, so every rebuild silently
-threw away everything learned about this machine and this project — and the next session
+threw away everything learned about this machine and this project, and the next session
 started by rediscovering it.
 
 For how to sign in on a **new machine** (and why each machine should have its own AWS access
@@ -230,7 +230,7 @@ key), see *Starting from a fresh clone* above.
 ## Rebuilding the vision service breaks the backend
 
 The backend shares the vision container's network namespace (`network_mode:
-service:vision`, deliberately — it mirrors how ECS co-locates them). Rebuilding vision
+service:vision`, deliberately, it mirrors how ECS co-locates them). Rebuilding vision
 *recreates* that container, and the backend's networking goes with it: uploads start
 failing with "Upload failed, check your connection".
 
@@ -247,7 +247,7 @@ Symptom: the container locks up after a while, you get an HTTP 500, Docker Deskt
 stop/restart buttons do nothing, and a reboot is the only thing that works.
 
 It has run out of memory. WSL2 gives its VM roughly half the host's RAM by default,
-and everything runs inside it — VS Code's server, language servers, Docker builds,
+and everything runs inside it. VS Code's server, language servers, Docker builds,
 the local stack, and the JVMs a Gradle build spawns. When that fills, WSL thrashes,
 the Docker API stops answering (the 500), and Docker Desktop cannot stop a VM that
 is no longer scheduling.
@@ -272,7 +272,7 @@ swap=8GB              # a memory spike gets slow instead of wedging
 autoMemoryReclaim=gradual   # WSL 2.0+: hands freed memory back to Windows
 ```
 
-Tune `memory` to your machine. `swap` matters more than it looks — without it, a
+Tune `memory` to your machine. `swap` matters more than it looks. Without it, a
 spike wedges the VM instead of just slowing down.
 
 `backend/gradle.properties` also caps the Gradle and Kotlin daemons and the worker

@@ -1,4 +1,4 @@
--- GENERATED FROM catalog/items.yaml -- DO NOT EDIT BY HAND.
+-- GENERATED FROM catalog/items.yaml. DO NOT EDIT BY HAND.
 -- Regenerate with:  python catalog/build.py
 --
 -- Repeatable (R__) on purpose: Flyway re-applies it whenever its checksum changes, so
@@ -48,7 +48,7 @@ ON CONFLICT (vision_key) DO UPDATE SET
     item_group       = EXCLUDED.item_group,
     sort_order       = EXCLUDED.sort_order;
 
--- An item is redeemable if a rule exists for it -- there is no flag to keep in step with
+-- An item is redeemable if a rule exists for it. There is no flag to keep in step with
 -- the fields it governs. So a manifest entry that stops being a REDEMPTION_TOKEN must have
 -- its rule removed, not merely have its threshold nulled.
 DELETE FROM redemption_rule

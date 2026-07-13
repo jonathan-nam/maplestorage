@@ -5,7 +5,7 @@
 
 An item used to be added by hand in four places: the vision template, the backend's
 icon asset, the seed migration, and the vision_key mapping. Nothing checked that the
-four agreed, and they didn't -- the parser emitted `kalos-token` while the lookup
+four agreed, and they didn't, the parser emitted `kalos-token` while the lookup
 matched `Kalos's Residual Determination`, so every count was dropped in silence.
 
 The fix is not "remember to update all four". It is to make disagreement impossible:
@@ -54,17 +54,17 @@ def load() -> list[dict]:
     for it in items:
         key = it["key"]
         if set(key) - KEY_CHARS:
-            sys.exit(f"key {key!r} must be lowercase kebab-case -- it becomes a filename and a DB value")
+            sys.exit(f"key {key!r} must be lowercase kebab-case, it becomes a filename and a DB value")
         if key in seen:
             sys.exit(f"duplicate key {key!r}")
         seen.add(key)
 
         if it.get("sort") is None:
-            sys.exit(f"{key}: needs a sort -- it decides the order within its section")
+            sys.exit(f"{key}: needs a sort, it decides the order within its section")
 
         grp = it.get("group")
         if not grp:
-            sys.exit(f"{key}: needs a group -- it decides which section of the UI it appears in")
+            sys.exit(f"{key}: needs a group, it decides which section of the UI it appears in")
 
         cat = it.get("category")
         if cat not in CATEGORIES:
@@ -72,20 +72,20 @@ def load() -> list[dict]:
 
         # A redemption token is a thing you collect N of and trade in. A consumable is a
         # thing you drink. Giving a consumable a threshold would have the UI report
-        # "7 / 10 toward an Eternal set" on a potion -- confident and meaningless.
+        # "7 / 10 toward an Eternal set" on a potion. Confident and meaningless.
         has = "redeem_threshold" in it
         if cat == "REDEMPTION_TOKEN" and not has:
             sys.exit(f"{key}: a REDEMPTION_TOKEN needs a redeem_threshold")
         if cat == "CONSUMABLE" and has:
-            sys.exit(f"{key}: a CONSUMABLE must not have a redeem_threshold -- you drink it")
+            sys.exit(f"{key}: a CONSUMABLE must not have a redeem_threshold. You drink it")
 
-        # What the token actually BUYS. The two sets do not overlap -- Kalos/Kaling/Adversary/
+        # What the token actually BUYS. The two sets do not overlap. Kalos/Kaling/Adversary/
         # Star pieces make a Hat, Top, Bottom or Shoulder; Limbo/Baldrix pieces make a Cape,
-        # Glove or Shoe -- so ten of one and ten of the other are not "twenty pieces". A
+        # Glove or Shoe, so ten of one and ten of the other are not "twenty pieces". A
         # redeemable token without this is a token whose progress bar means nothing.
         slots = it.get("redeem_slots")
         if cat == "REDEMPTION_TOKEN" and not slots:
-            sys.exit(f"{key}: a REDEMPTION_TOKEN needs redeem_slots -- what does it buy?")
+            sys.exit(f"{key}: a REDEMPTION_TOKEN needs redeem_slots. What does it buy?")
         if cat != "REDEMPTION_TOKEN" and slots:
             sys.exit(f"{key}: only a REDEMPTION_TOKEN can have redeem_slots")
     return items
@@ -103,7 +103,7 @@ def check_art(items: list[dict]) -> list[str]:
         if not icon.exists():
             problems.append(f"missing icon asset:     {icon.relative_to(ROOT)}")
 
-    # And nothing may exist that the manifest does not know about -- an orphan template
+    # And nothing may exist that the manifest does not know about, an orphan template
     # is an item the parser can detect but the app cannot name, which is the same class
     # of silent mismatch this file exists to prevent.
     known = {it["key"] for it in items}
@@ -131,7 +131,7 @@ def sql(items: list[dict]) -> str:
         f"    ({q(it['key'])}, {int(it['redeem_threshold'])}, {arr(it['redeem_slots'])})"
         for it in redeemable
     )
-    return f"""-- GENERATED FROM catalog/items.yaml -- DO NOT EDIT BY HAND.
+    return f"""-- GENERATED FROM catalog/items.yaml. DO NOT EDIT BY HAND.
 -- Regenerate with:  python catalog/build.py
 --
 -- Repeatable (R__) on purpose: Flyway re-applies it whenever its checksum changes, so
@@ -156,7 +156,7 @@ ON CONFLICT (vision_key) DO UPDATE SET
     item_group       = EXCLUDED.item_group,
     sort_order       = EXCLUDED.sort_order;
 
--- An item is redeemable if a rule exists for it -- there is no flag to keep in step with
+-- An item is redeemable if a rule exists for it. There is no flag to keep in step with
 -- the fields it governs. So a manifest entry that stops being a REDEMPTION_TOKEN must have
 -- its rule removed, not merely have its threshold nulled.
 DELETE FROM redemption_rule
@@ -196,7 +196,7 @@ def main() -> None:
 
     if args.check:
         if want != have:
-            sys.exit(f"{SQL_OUT.relative_to(ROOT)} is stale -- run: python catalog/build.py")
+            sys.exit(f"{SQL_OUT.relative_to(ROOT)} is stale. Run: python catalog/build.py")
         print(f"catalog is in sync ({len(items)} items)")
         return
 
