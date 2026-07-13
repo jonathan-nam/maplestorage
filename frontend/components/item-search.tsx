@@ -49,6 +49,19 @@ function subsequence(needle: string, haystack: string): boolean {
 // half the catalog. So the fuzzy fallback only applies to terms long enough to be a mistyped word.
 const FUZZY_MIN = 5;
 
+// A typo happens INSIDE a word, so the fuzzy fallback is applied per word and never across a
+// field. Run across the whole field and the gaps between words become free letters: "eternal
+// pieces" contains t-r-a-c-e in order, so searching "trace" for Trace of Eternal Loyalty returned
+// all six Eternal pieces; "Kalos the Guardian" contains s-h-a-r-d, so "shard" returned Kalos as
+// well as Blissful Fantasy Shard. Measured over the real 26-item catalog, eight words lifted from
+// one item's own name matched a different item this way. Per word, none do.
+//
+// The substring test above still runs on the WHOLE field, so multi-word queries ("shangri-la",
+// "chu chu") keep working.
+function fuzzyMatchesField(term: string, field: string): boolean {
+  return field.split(/[^a-z0-9]+/).some((word) => subsequence(term, word));
+}
+
 // The game does not call a slot by one name. A hat is a Bandana on a thief; a top is a Hood, a
 // Shirt, a Coat, a Robe or an Armor depending on the class. Someone hunting for what makes their
 // robe types "robe", and the catalog's canonical "Top" will not find it.
@@ -60,7 +73,10 @@ const SLOT_ALIASES: Record<string, string[]> = {
   hat: ["cap", "bandana", "helm", "helmet", "hood", "circlet"],
   top: ["shirt", "coat", "robe", "armor", "armour", "overall"],
   bottom: ["pants", "trousers", "shorts", "skirt"],
-  shoulder: ["pauldron", "accessory"],
+  // No "accessory" here. It is not what the game calls this slot, and as an alias for Shoulder it
+  // answered "accessory" with Hat/Top/Bottom/Shoulder, which is the opposite of the Cape/Glove/Shoe
+  // set people mean by the word. A wrong answer, delivered confidently. Nothing is a better answer.
+  shoulder: ["pauldron"],
   cape: ["cloak"],
   glove: ["gloves", "gauntlet"],
   shoe: ["shoes", "boots", "boot"],
@@ -72,7 +88,7 @@ export function matchesQuery(token: CharacterToken, terms: string[]): boolean {
     .filter(Boolean)
     .map((f) => f.toLowerCase());
   return terms.every((t) =>
-    fields.some((f) => f.includes(t) || (t.length >= FUZZY_MIN && subsequence(t, f))),
+    fields.some((f) => f.includes(t) || (t.length >= FUZZY_MIN && fuzzyMatchesField(t, f))),
   );
 }
 
