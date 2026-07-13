@@ -42,6 +42,22 @@ TRUTH = {
         # eye against the template. The shortlist was hiding a real item, and the truth table
         # inherited the blind spot because it was built from the parser's own output.
         "aurelia-elixir": 1,
+        # Symbol coupons. Verified by eye against the magnified slots.
+        "arcane-vanishing-journey": 1629,
+        "arcane-chu-chu-island": 1482,
+        "arcane-lachelein": 187,
+        "arcane-arcana": 187,
+        "arcane-morass": 212,
+        "arcane-esfera": 353,
+        # 341 = two slots, 340 + 1. Both verified by eye: the same Cernium hexagon, one stack
+        # of 340 and one of 1. The second was invisible until the prefilter stopped discarding
+        # real matches -- see PREFILTER_THRESHOLD.
+        "sacred-cernium": 341,
+        "sacred-hotel-arcus": 76,
+        "sacred-carcion": 65,  # two slots: 16 + 49
+        "sacred-shangri-la": 62,
+        "sacred-arteria": 38,
+        "sacred-odium": 19,
     },
     f"{REF}/inventory sample.png": {
         "distorted-ambition": 9,
@@ -50,6 +66,19 @@ TRUTH = {
         "kalos-token": 19,
         "trace-eternal-loyalty": 16,
         "sayram-elixir": 18,
+        "arcane-vanishing-journey": 2340,
+        "arcane-chu-chu-island": 2350,
+        "arcane-lachelein": 2342,
+        "arcane-arcana": 2347,
+        "arcane-morass": 2347,
+        "sacred-cernium": 2655,
+        "sacred-hotel-arcus": 1846,
+        "sacred-odium": 1306,
+        "sacred-carcion": 923,
+        "sacred-tallahart": 417,
+        "sacred-arteria": 1956,
+        "sacred-shangri-la": 1352,
+        "arcane-esfera": 2347,
     },
     # The only screenshot carrying all SIX tokens, and a cropped panel rather than
     # a full desktop -- so it also proves the grid detector does not depend on the
@@ -67,6 +96,23 @@ TRUTH = {
         "sayram-elixir": 3,
         "extreme-green-potion": 9,
         "extreme-red-potion": 9,
+        "arcane-vanishing-journey": 830,
+        "arcane-chu-chu-island": 915,
+        "arcane-lachelein": 936,
+        "arcane-arcana": 896,
+        "arcane-morass": 1076,
+        "arcane-esfera": 1096,
+        "sacred-cernium": 786,
+        "sacred-hotel-arcus": 188,
+        "sacred-odium": 869,
+        "sacred-shangri-la": 232,
+        "sacred-arteria": 317,
+        "sacred-carcion": 351,
+        # SUMMED across two slots: 797 (r1c14) + 626 (r6c0). Every symbol coupon exists in a
+        # tradeable and an untradeable version, drawn with the same icon and indistinguishable
+        # in the pixels, so the player's two stacks are two slots holding "the same" item. The
+        # total is the only figure we can honestly report -- see the note in main.py.
+        "sacred-tallahart": 1423,
     },
     # The screenshot the elixir and potion templates were cut from.
     f"{REF}/potions.png": {
@@ -82,6 +128,18 @@ TRUTH = {
         "extreme-blue-potion": 9,
         "extreme-green-potion": 9,
         "extreme-red-potion": 1,
+        "arcane-vanishing-journey": 1629,
+        "arcane-chu-chu-island": 1482,
+        "arcane-lachelein": 187,
+        "arcane-arcana": 187,
+        "arcane-morass": 212,
+        "arcane-esfera": 353,
+        "sacred-cernium": 341,  # two slots: 340 + 1
+        "sacred-hotel-arcus": 76,
+        "sacred-carcion": 77,  # two slots: 61 + 16
+        "sacred-shangri-la": 62,
+        "sacred-arteria": 38,
+        "sacred-odium": 19,
     },
 }
 
@@ -136,16 +194,82 @@ def test_downscaled_upload_is_rejected_loudly():
     assert "full resolution" in r.json()["detail"]
 
 
-def test_fractionally_rescaled_capture_is_rejected_not_flagged():
-    """A 1.25x capture (fractional display scaling) reads only ~70-77% of counts
-    correctly. We refuse it and say how to fix the capture, rather than writing
-    numbers we do not stand behind -- the review UI cannot correct a count."""
+@pytest.mark.parametrize("factor", [1.1, 1.25, 1.326, 1.5, 1.75])
+def test_fractionally_rescaled_capture_is_read_not_refused(factor):
+    """A fractionally upscaled capture must be READ, at its own scale.
+
+    This test used to assert the exact opposite -- that we refuse these with advice about
+    display scaling -- on the strength of a measured 70-77% count accuracy. That number was
+    real but it was measuring the wrong thing: the parser resampled the frame back down to
+    native before reading it, so the accuracy it recorded was the accuracy of a capture the
+    parser had itself just degraded. 1.326x is not chosen at random; it is what a real Parsec
+    session delivered, and it was refused outright while every item and every count sat
+    legible in the file.
+    """
     img = cv2.imread(f"{REF}/untradeables sample.png")
-    scaled = cv2.resize(img, None, fx=1.25, fy=1.25, interpolation=cv2.INTER_CUBIC)
+    scaled = cv2.resize(img, None, fx=factor, fy=factor, interpolation=cv2.INTER_CUBIC)
     r = client.post("/parse", content=cv2.imencode(".png", scaled)[1].tobytes())
-    assert r.status_code == 422
-    detail = r.json()["detail"]
-    assert "display scaling" in detail or "UI Optimization" in detail
+    assert r.status_code == 200, r.json()
+    got = {t["tokenName"]: t["quantity"] for t in r.json()["tokenCounts"]}
+    assert got == TRUTH[f"{REF}/untradeables sample.png"]
+
+
+def test_parsec_capture_is_read():
+    """The real Parsec frame: an H.264 remote-play capture, delivered at 1.326x because the
+    client window did not match the host's resolution.
+
+    Every stage of the old pipeline failed on it. Segmentation found 6 slots instead of 128,
+    because the boundary ridge arrives as a gentle bump that never leaves the interior grey
+    band.
+
+    Kept as its OWN fixture (symbols-parsec.png) rather than reusing whatever symbols.png
+    happens to be, and that is deliberate: symbols.png was later replaced with a native-scale
+    capture of the same inventory, which would have silently turned this into a test that the
+    native path works -- something eleven other tests already cover -- while the one real
+    rescaled capture we own, and the only evidence that is not our own synthetic resize,
+    quietly stopped being exercised. Synthetic damage has a way of being kinder than the real
+    thing, so this file is worth keeping even though it is redundant-looking.
+
+    Establishing truth for a BLURRED capture takes more care than for a clean one, and it is
+    worth being honest about how each number below is known:
+
+      * The five Grandis tokens were read off the magnified slots by eye (19, 4, 14, 18, 9).
+      * The four-digit symbol counts CANNOT be read by eye here -- the 11px font at 1.326x is
+        mush, and I could not tell 417 from 437 by looking. They are corroborated instead: this
+        frame and `inventory sample.png` are two captures of the same character minutes apart,
+        and TEN of the four-digit counts (2347, 2350, 2342, 2340, 2655, 1956, 1352, 1846, 1306,
+        923) come out IDENTICAL across the two. A reader that gets ten four-digit numbers exactly
+        right on the blurred frame is not flipping a middle digit on the eleventh.
+      * Where the two captures genuinely disagree, the inventory had moved on between them, and
+        each difference is separately accounted for: trace-eternal-loyalty went 16 -> 18,
+        sacred-tallahart 417 -> 437, hotel-arcus gained a second stack of 2 (1846 + 2 = 1848),
+        and the slot holding sayram-elixir natively holds a completely different item here.
+        None of these is a misclassification; the player had simply been playing.
+    """
+    img = cv2.imread(f"{REF}/symbols-parsec.png")
+    r = client.post("/parse", content=cv2.imencode(".png", img)[1].tobytes())
+    assert r.status_code == 200, r.json()
+    got = {t["tokenName"]: t["quantity"] for t in r.json()["tokenCounts"]}
+    assert got == {
+        "kalos-token": 19,
+        "ferocious-beast-ring": 4,
+        "echo-ancient-resolve": 14,
+        "trace-eternal-loyalty": 18,
+        "distorted-ambition": 9,
+        "arcane-vanishing-journey": 2340,
+        "arcane-chu-chu-island": 2350,
+        "arcane-lachelein": 2342,
+        "arcane-arcana": 2347,
+        "arcane-morass": 2347,
+        "arcane-esfera": 2347,
+        "sacred-cernium": 2655,
+        "sacred-hotel-arcus": 1848,
+        "sacred-odium": 1306,
+        "sacred-carcion": 923,
+        "sacred-arteria": 1956,
+        "sacred-shangri-la": 1352,
+        "sacred-tallahart": 437,
+    }
 
 
 def test_ui_optimization_2x_is_accepted():
@@ -277,11 +401,10 @@ def test_hud_name_stops_at_the_ign_charset(text, level, name):
 # upload read `acornacorm`, and the app created a character by that name, with no level,
 # job or sprite, because Nexon has never heard of them.
 #
-# Tested against find_hud directly rather than through /parse, because /parse rightly
-# rejects fractional-scale captures outright (the stack counts are unreadable there, see
-# counts_trustworthy). The HUD reader still has to be robust at those scales: it is
-# reached on the native and integer-scaled captures we DO accept, and the failure mode
-# is a function of how few pixels the text has, not of which caller asked.
+# Tested against find_hud directly rather than through /parse, simply because this is a unit
+# test of the HUD reader. It once carried a note explaining that /parse "rightly rejects
+# fractional-scale captures outright" -- which is no longer true, and was never as sound as it
+# sounded: those captures are now read at their own scale, HUD included.
 @pytest.mark.parametrize("capture_scale", [1.0, 1.1, 1.25, 1.5, 2.0])
 def test_hud_reads_at_every_capture_scale(capture_scale):
     img = cv2.imread(f"{REF}/untradeables sample.png")

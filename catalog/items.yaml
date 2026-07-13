@@ -100,3 +100,85 @@ items:
     name: Extreme Green Potion
     boss: Monster Park
     category: CONSUMABLE
+
+  # Symbol coupons, earned from dailies and spent to grow a symbol. They are consumables,
+  # not redemption tokens: nothing is traded in at a threshold, so there is no rule for them.
+  #
+  # Two things about these are worth knowing before touching them.
+  #
+  # Shape does NOT sort them into Arcane and Sacred. Six of the thirteen icons in the
+  # reference capture are round orbs and seven are hexagons, which looks like exactly that
+  # split until you notice Shangri-La -- a SACRED symbol -- is one of the orbs. The families
+  # are a naming fact, not a visual one, and the only reason this catalog is right is that a
+  # human read the names off the tooltips.
+  #
+  # Each coupon exists in a tradeable and an untradeable version, and they share one icon.
+  # They differ only by the cyan untradeable bar along the bottom of the slot -- which the
+  # template mask excludes as per-item state rather than identity, so ONE entry matches both
+  # (verified: a template cut from the untradeable Tallahart scores 1.000 against the
+  # tradeable one). That is why the parser sums an item found in more than one slot.
+  #
+  - key: arcane-vanishing-journey
+    name: "Arcane Symbol: Vanishing Journey Coupon"
+    boss: Daily
+    category: CONSUMABLE
+
+  - key: arcane-chu-chu-island
+    name: "Arcane Symbol: Chu Chu Island Coupon"
+    boss: Daily
+    category: CONSUMABLE
+
+  - key: arcane-lachelein
+    name: "Arcane Symbol: Lachelein Coupon"
+    boss: Daily
+    category: CONSUMABLE
+
+  - key: arcane-arcana
+    name: "Arcane Symbol: Arcana Coupon"
+    boss: Daily
+    category: CONSUMABLE
+
+  - key: arcane-morass
+    name: "Arcane Symbol: Morass Coupon"
+    boss: Daily
+    category: CONSUMABLE
+
+  - key: arcane-esfera
+    name: "Arcane Symbol: Esfera Coupon"
+    boss: Daily
+    category: CONSUMABLE
+
+  - key: sacred-cernium
+    name: "Sacred Symbol: Cernium Coupon"
+    boss: Daily
+    category: CONSUMABLE
+
+  - key: sacred-hotel-arcus
+    name: "Sacred Symbol: Hotel Arcus Coupon"
+    boss: Daily
+    category: CONSUMABLE
+
+  - key: sacred-odium
+    name: "Sacred Symbol: Odium Coupon"
+    boss: Daily
+    category: CONSUMABLE
+
+  - key: sacred-shangri-la
+    name: "Sacred Symbol: Shangri-La Coupon"
+    boss: Daily
+    category: CONSUMABLE
+
+  - key: sacred-arteria
+    name: "Sacred Symbol: Arteria Coupon"
+    boss: Daily
+    category: CONSUMABLE
+
+  - key: sacred-carcion
+    name: "Sacred Symbol: Carcion Coupon"
+    boss: Daily
+    category: CONSUMABLE
+
+  - key: sacred-tallahart
+    name: "Sacred Symbol: Tallahart Coupon"
+    boss: Daily
+    category: CONSUMABLE
