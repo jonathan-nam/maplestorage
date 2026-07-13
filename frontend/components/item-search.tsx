@@ -82,9 +82,16 @@ const SLOT_ALIASES: Record<string, string[]> = {
   shoe: ["shoes", "boots", "boot"],
 };
 
-export function matchesQuery(token: CharacterToken, terms: string[]): boolean {
+// `owner` is the name of the character holding the token, and it is matched as just another field.
+// That falls out of terms being independent facts rather than a phrase: "lumi" narrows to who is
+// holding it, "lumi kalos" narrows to both, and neither needs a syntax to say which is which.
+//
+// Without it, typing a character's own name answered "No character is holding anything matching
+// Lumi", which is true of the items and useless to the person: the character is right there on the
+// strip above.
+export function matchesQuery(token: CharacterToken, terms: string[], owner = ""): boolean {
   const slots = token.redeemSlots.flatMap((s) => [s, ...(SLOT_ALIASES[s.toLowerCase()] ?? [])]);
-  const fields = [token.name, token.sourceBoss ?? "", token.itemGroup ?? "", ...slots]
+  const fields = [token.name, token.sourceBoss ?? "", token.itemGroup ?? "", owner, ...slots]
     .filter(Boolean)
     .map((f) => f.toLowerCase());
   return terms.every((t) =>
@@ -107,7 +114,9 @@ export function search(
   return (
     characters
       .map((character) => {
-        const items = (tokensByChar[character.id] ?? []).filter((t) => matchesQuery(t, terms));
+        const items = (tokensByChar[character.id] ?? []).filter((t) =>
+          matchesQuery(t, terms, character.name),
+        );
         return { character, items, total: items.reduce((n, t) => n + t.quantity, 0) };
       })
       .filter((m) => m.items.length > 0)
@@ -126,7 +135,7 @@ export function SearchBar({ query, onQuery }: { query: string; onQuery: (q: stri
         <input
           type="search"
           className="finder-input"
-          placeholder="Search every character. “kaling”, “eternal hat”, “symbol”, “potion”"
+          placeholder="Search every character. “kaling”, “eternal hat”, “symbol”, or a character’s name"
           value={query}
           onChange={(e) => onQuery(e.target.value)}
           autoComplete="off"
