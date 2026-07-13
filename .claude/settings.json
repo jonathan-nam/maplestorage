@@ -1,0 +1,17 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "./scripts/dev-up.sh",
+            "async": true,
+            "timeout": 180,
+            "statusMessage": "Booting the local stack"
+          }
+        ]
+      }
+    ]
+  }
+}
