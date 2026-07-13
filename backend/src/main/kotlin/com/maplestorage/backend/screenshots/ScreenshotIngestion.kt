@@ -184,17 +184,15 @@ private fun findCharacterIdByName(
 // Resolves the parser's keys to what a human should see. Done server-side, from
 // the catalog, because the display name is not derivable from the key.
 private fun describeTokens(tokens: List<DetectedToken>): List<DetectedTokenResponse> {
-    val catalog =
-        TokenCatalog.selectAll().associate {
-            it[TokenCatalog.visionKey] to
-                (it[TokenCatalog.name] to it[TokenCatalog.iconRefKey])
-        }
+    val catalog = TokenCatalog.selectAll().associateBy { it[TokenCatalog.visionKey] }
     return tokens.map { token ->
-        val (displayName, iconRefKey) = catalog[token.tokenName] ?: (token.tokenName to null)
+        val row = catalog[token.tokenName]
         DetectedTokenResponse(
             tokenName = token.tokenName,
-            displayName = displayName,
-            iconUrl = iconRefKey?.let { "/token-icons/$it" },
+            displayName = row?.get(TokenCatalog.name) ?: token.tokenName,
+            tokenCatalogId = row?.get(TokenCatalog.id)?.toString(),
+            itemGroup = row?.get(TokenCatalog.itemGroup),
+            iconUrl = row?.get(TokenCatalog.iconRefKey)?.let { "/token-icons/$it" },
             quantity = token.quantity,
         )
     }

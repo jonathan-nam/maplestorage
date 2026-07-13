@@ -9,6 +9,7 @@ import type { Character } from "@/types/character";
 import type { CharacterToken } from "@/types/character-token";
 import type { TokenTotal } from "@/types/token-total";
 import { AddCharacterForm } from "./add-character-form";
+import { CaptureDock } from "@/components/capture-dock";
 import { CharacterCarousel, type Selection } from "@/components/character-carousel";
 
 type LoadState = "loading" | "loaded" | "error";
@@ -33,10 +34,20 @@ export default function CharactersPage() {
   // null = the aggregate across every character, which is what you land on.
   const [selectedId, setSelectedId] = useState<Selection>(null);
 
-  // Tokens are stored against the character they were fetched for, not on their
-  // own. Clicking down the strip fires overlapping requests, and keyed state means
-  // a slow response for one character can never be rendered under another's name.
-  const [tokensFor, setTokensFor] = useState<{ id: string; tokens: CharacterToken[] } | null>(null);
+  // Tokens are kept PER CHARACTER, not as a single "the tokens" slot.
+  //
+  // Two reasons, and the second one is what you see. Overlapping requests: clicking down the
+  // strip fires several fetches, and keying by id means a slow answer for one character can
+  // never be painted under another's name. And the flash: with a single slot, selecting a
+  // character blanked the inventory (its tokens were "not for this id yet"), the panel collapsed
+  // to nothing, and then snapped back a moment later when the fetch landed. Keeping what we
+  // already know for each character means a revisit paints instantly, with no empty frame in
+  // between -- the fetch still runs and still overwrites, it just no longer decides what you see
+  // FIRST.
+  const [tokensByChar, setTokensByChar] = useState<Record<string, CharacterToken[]>>({});
+
+  // Bumped after an upload writes counts, to re-pull the inventory it just changed.
+  const [revision, setRevision] = useState(0);
 
   useEffect(() => {
     Promise.all([
@@ -54,24 +65,27 @@ export default function CharactersPage() {
       // behind data we already have should not blank the page.
       .catch(() => setState((s) => (s === "loaded" ? "loaded" : "error")));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [revision]);
 
   useEffect(() => {
     if (selectedId === null) return;
     const id = selectedId;
+    const key = `/api/characters/${id}/tokens`;
     let cancelled = false;
-    apiFetch<CharacterToken[]>(`/api/characters/${id}/tokens`, { method: "GET" }, getToken)
+    apiFetch<CharacterToken[]>(key, { method: "GET" }, getToken)
       .then((tokens) => {
-        if (!cancelled) setTokensFor({ id, tokens });
+        if (cancelled) return;
+        put(key, tokens);
+        setTokensByChar((prev) => ({ ...prev, [id]: tokens }));
       })
       .catch(() => {
-        if (!cancelled) setTokensFor({ id, tokens: [] });
+        /* keep whatever we were already showing; a failed refresh must not blank the panel */
       });
     return () => {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedId]);
+  }, [selectedId, revision]);
 
   // Every write drops the cache. A cache that can serve a stale list after you have
   // added, renamed or deleted a character is worse than no cache at all: the wrong
@@ -99,6 +113,7 @@ export default function CharactersPage() {
     name: total.name,
     iconUrl: total.iconUrl,
     quantity: total.quantity,
+    itemGroup: total.itemGroup,
     // A consumable has nothing to redeem toward. Saying "7 / 10 toward an Eternal set" on a
     // potion would be a confident, meaningless number -- the failure this app exists to avoid.
     note:
@@ -108,13 +123,19 @@ export default function CharactersPage() {
       `\nheld by ${total.characterCount === 1 ? "1 character" : `${total.characterCount} characters`}`,
   }));
 
-  // Only render tokens that were fetched for the character actually selected.
-  const tokensReady = tokensFor?.id === selectedId;
-  const characterItems: InventoryItem[] = (tokensReady ? tokensFor.tokens : []).map((token) => ({
+  // Read the cache during RENDER, not in an effect. Seeding it with setState inside the effect
+  // works but costs a second render pass on every selection -- and a cascading render is exactly
+  // the flash we are here to remove.
+  const selectedTokens = selectedId
+    ? (tokensByChar[selectedId] ?? peek<CharacterToken[]>(`/api/characters/${selectedId}/tokens`))
+    : undefined;
+  const tokensReady = selectedTokens !== undefined;
+  const characterItems: InventoryItem[] = (selectedTokens ?? []).map((token) => ({
     id: token.tokenCatalogId,
     name: token.name,
     iconUrl: token.iconUrl,
     quantity: token.quantity,
+    itemGroup: token.itemGroup,
     note: token.redeemThreshold
       ? `${token.quantity} / ${token.redeemThreshold} toward an Eternal set`
       : `${token.quantity} in total`,
@@ -135,6 +156,22 @@ export default function CharactersPage() {
             onSelect={setSelectedId}
             onUpdated={handleUpdated}
             onDeleted={handleDeleted}
+          />
+
+          <CaptureDock
+            characters={characters}
+            pinnedCharacterId={selectedId}
+            stored={
+              new Map(
+                (selectedId ? (selectedTokens ?? []) : totals).map((t) => [
+                  t.tokenCatalogId,
+                  t.quantity,
+                ]),
+              )
+            }
+            getToken={getToken}
+            onCharacterAdded={handleAdded}
+            onSaved={() => setRevision((n) => n + 1)}
           />
 
           {selected ? (

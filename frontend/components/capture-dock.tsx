@@ -250,15 +250,21 @@ function CaptureCard({
   }
 
   const items: SlotItem[] = (result?.tokenCounts ?? []).map((t) => {
-    const before = stored.get(t.tokenCatalogId);
+    // tokenCatalogId is null when the parser knows an item the catalog does not. That should not
+    // happen -- both are generated from catalog/items.yaml -- but if it ever does, show the item
+    // and skip the comparison rather than dropping it. A silently missing item is the failure
+    // this whole app exists to prevent.
+    const before = t.tokenCatalogId === null ? undefined : stored.get(t.tokenCatalogId);
     return {
-      id: t.tokenCatalogId,
+      id: t.tokenCatalogId ?? t.tokenName,
       name: t.displayName,
       iconUrl: t.iconUrl,
       quantity: t.quantity,
-      // null means "we hold none of this yet", which reads as `new` rather than `+n` -- a
-      // first sighting is a different thing from a gain.
-      delta: before === undefined ? null : t.quantity - before,
+      itemGroup: t.itemGroup,
+      // null means "we hold none of this yet", which reads as `new` rather than `+n` -- a first
+      // sighting is a different thing from a gain. undefined means we cannot say.
+      delta:
+        t.tokenCatalogId === null ? undefined : before === undefined ? null : t.quantity - before,
     };
   });
 

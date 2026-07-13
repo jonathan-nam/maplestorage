@@ -17,30 +17,45 @@
 # -- which is exactly what build.py checks.
 #
 # `name` is prose for humans, and can be reworded freely.
+#
+# `group` is how the inventory is SECTIONED in the UI -- "Eternal Pieces", "Symbols",
+# "Consumables". It is a real field rather than something the frontend infers from the key,
+# because inference would quietly mis-sort the first item whose name did not fit the pattern,
+# and it would do so silently. It is also NOT the same axis as `category`: category says what an
+# item IS to the backend (does redemption apply to it), group says where a human expects to find
+# it. Symbols and elixirs are both CONSUMABLE and nobody looks for them in the same place.
 
 items:
   - key: blissful-fantasy-shard
     name: Blissful Fantasy Shard
     boss: Malefic Star
     category: REDEMPTION_TOKEN
+    group: Eternal Pieces
+    sort: 10
     redeem_threshold: 10
 
   - key: distorted-ambition
     name: Distorted Ambition
     boss: Limbo
     category: REDEMPTION_TOKEN
+    group: Eternal Pieces
+    sort: 11
     redeem_threshold: 10
 
   - key: echo-ancient-resolve
     name: Echo of Ancient Resolve
     boss: First Adversary
     category: REDEMPTION_TOKEN
+    group: Eternal Pieces
+    sort: 12
     redeem_threshold: 10
 
   - key: ferocious-beast-ring
     name: Ferocious Beast Entanglement Ring
     boss: Kaling
     category: REDEMPTION_TOKEN
+    group: Eternal Pieces
+    sort: 13
     redeem_threshold: 10
 
   # NOTE: the icon asset for this one shipped as `kalos-residual-determination.png`
@@ -50,12 +65,16 @@ items:
     name: Kalos's Residual Determination
     boss: Kalos the Guardian
     category: REDEMPTION_TOKEN
+    group: Eternal Pieces
+    sort: 14
     redeem_threshold: 10
 
   - key: trace-eternal-loyalty
     name: Trace of Eternal Loyalty
     boss: Baldrix
     category: REDEMPTION_TOKEN
+    group: Eternal Pieces
+    sort: 15
     redeem_threshold: 10
 
   # --- Consumables -------------------------------------------------------------------
@@ -70,36 +89,50 @@ items:
     name: Sayram's Elixir
     boss: The Collector
     category: CONSUMABLE
+    group: Consumables
+    sort: 40
 
   - key: aurelia-elixir
     name: Aurelia's Elixir
     boss: The Collector
     category: CONSUMABLE
+    group: Consumables
+    sort: 41
 
   - key: honorable-elixir
     name: Honorable Elixir
     boss: The Collector
     category: CONSUMABLE
+    group: Consumables
+    sort: 42
 
   - key: collector-elixir
     name: Collector's Elixir
     boss: The Collector
     category: CONSUMABLE
+    group: Consumables
+    sort: 43
 
   - key: extreme-red-potion
     name: Extreme Red Potion
     boss: Monster Park
     category: CONSUMABLE
+    group: Consumables
+    sort: 50
 
   - key: extreme-blue-potion
     name: Extreme Blue Potion
     boss: Monster Park
     category: CONSUMABLE
+    group: Consumables
+    sort: 51
 
   - key: extreme-green-potion
     name: Extreme Green Potion
     boss: Monster Park
     category: CONSUMABLE
+    group: Consumables
+    sort: 52
 
   # Symbol coupons, earned from dailies and spent to grow a symbol. They are consumables,
   # not redemption tokens: nothing is traded in at a threshold, so there is no rule for them.
@@ -122,63 +155,89 @@ items:
     name: "Arcane Symbol: Vanishing Journey Coupon"
     boss: Daily
     category: CONSUMABLE
+    group: Symbols
+    sort: 20
 
   - key: arcane-chu-chu-island
     name: "Arcane Symbol: Chu Chu Island Coupon"
     boss: Daily
     category: CONSUMABLE
+    group: Symbols
+    sort: 21
 
   - key: arcane-lachelein
     name: "Arcane Symbol: Lachelein Coupon"
     boss: Daily
     category: CONSUMABLE
+    group: Symbols
+    sort: 22
 
   - key: arcane-arcana
     name: "Arcane Symbol: Arcana Coupon"
     boss: Daily
     category: CONSUMABLE
+    group: Symbols
+    sort: 23
 
   - key: arcane-morass
     name: "Arcane Symbol: Morass Coupon"
     boss: Daily
     category: CONSUMABLE
+    group: Symbols
+    sort: 24
 
   - key: arcane-esfera
     name: "Arcane Symbol: Esfera Coupon"
     boss: Daily
     category: CONSUMABLE
+    group: Symbols
+    sort: 25
 
   - key: sacred-cernium
     name: "Sacred Symbol: Cernium Coupon"
     boss: Daily
     category: CONSUMABLE
+    group: Symbols
+    sort: 30
 
   - key: sacred-hotel-arcus
     name: "Sacred Symbol: Hotel Arcus Coupon"
     boss: Daily
     category: CONSUMABLE
+    group: Symbols
+    sort: 31
 
   - key: sacred-odium
     name: "Sacred Symbol: Odium Coupon"
     boss: Daily
     category: CONSUMABLE
+    group: Symbols
+    sort: 32
 
   - key: sacred-shangri-la
     name: "Sacred Symbol: Shangri-La Coupon"
     boss: Daily
     category: CONSUMABLE
+    group: Symbols
+    sort: 33
 
   - key: sacred-arteria
     name: "Sacred Symbol: Arteria Coupon"
     boss: Daily
     category: CONSUMABLE
+    group: Symbols
+    sort: 34
 
   - key: sacred-carcion
     name: "Sacred Symbol: Carcion Coupon"
     boss: Daily
     category: CONSUMABLE
+    group: Symbols
+    sort: 35
 
   - key: sacred-tallahart
     name: "Sacred Symbol: Tallahart Coupon"
     boss: Daily
     category: CONSUMABLE
+    group: Symbols
+    sort: 36

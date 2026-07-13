@@ -26,9 +26,9 @@ from pathlib import Path
 import cv2
 import numpy as np
 
-from .grid import COLS, NATIVE_PITCH, ROWS, find_grid
+from .grid import COLS, NATIVE_PITCH, ROWS, Grid, find_grid
 from .match import find_tokens, load_templates
-from .ocr import load_font
+from .ocr import count_spans, load_font
 
 TEMPLATE_DIR = Path(__file__).parent / "templates"
 
@@ -47,6 +47,12 @@ BORDER = 2
 # keeping). Anything smaller than this is slot noise rather than art, and it reads as dirt
 # floating next to the item in the inventory grid.
 MIN_ISLAND = 12
+
+# Columns of blank the count is allowed to contain before we call it finished. The client leaves
+# about a pixel between digits; anything wider is not part of the number.
+# The count reader widens its band a few px LEFT of the cell; a bare cell has nothing there to
+# widen into, so we hand it that margin explicitly. See _occluded().
+BAND_PAD = 6
 BG_FLAT = (226, 226, 226)  # the backing colour, for painting over the slot-lock bar
 
 
@@ -83,42 +89,60 @@ def _occluded(cell: np.ndarray, font: dict) -> np.ndarray:
     Two things cover the art: the stack-count digits, and the slot-lock bar. Both belong to
     this screenshot rather than to the item, and neither can be seen through.
     """
-    bgr = cell[:, :, :3]
+    # ASK THE READER where the count is. Do not re-derive it.
+    #
+    # This used to run its own glyph matcher over the count band at a slack threshold, and every
+    # attempt to make that work failed in a new way. Masking the matched shapes left the ghost of
+    # a digit behind (a near-miss glyph counts as "visible", and its dark outline goes into the
+    # icon). Masking everything left of the rightmost match was worse: the matcher fires happily
+    # on the ARTWORK, so one spurious hit out in the icon swallowed everything to its left.
+    # Walking out from the left edge instead was defeated by the Extreme Blue Potion, whose dark
+    # bottle outline produces digit-like hits contiguously across the entire band -- so the walk
+    # never found a gap, declared all 46 columns hidden, and the bottle came back as a smear.
+    #
+    # The thing that actually knows where the digits are is the count reader, which has the
+    # outline-agreement gate that rejects artwork -- and it is the same code, so the answer here
+    # cannot drift away from the number we report. It reads this potion as '8'. Take its decode
+    # and occlude exactly the span it consumed.
+    # The reader takes its band with a few pixels of margin to the LEFT of the cell, because the
+    # count is drawn hard against that edge and the grid is only good to a pixel. A bare cell has
+    # no left margin to take, so the band comes back clipped and the decode finds nothing. Give it
+    # the margin it expects, filled with the slot's own backing.
+    pad = np.full((cell.shape[0], BAND_PAD, 3), BG_FLAT, np.uint8)
+    padded = np.hstack([pad, cell[:, :, :3]])
+    grid = Grid(x=float(BAND_PAD), y=0.0, pitch=NATIVE_PITCH, n_cells=1)
+    spans = count_spans(padded, grid, 0, 0, font)
+
     y0, y1, x0, x1 = DIGIT_ZONE
-    band = bgr[y0:y1, x0:x1]
-
-    digits = np.zeros(band.shape[:2], np.uint8)
-    for glyph in font.values():
-        gh, gw = glyph.shape[:2]
-        if gh > band.shape[0] or gw > band.shape[1]:
-            continue
-        m = cv2.cvtColor(glyph[:, :, 3], cv2.COLOR_GRAY2BGR)
-        res = cv2.matchTemplate(band, glyph[:, :, :3], cv2.TM_CCOEFF_NORMED, mask=m)
-        res[~np.isfinite(res)] = -1.0
-        for gy, gx in zip(*np.where(res >= DISPLAY_DIGIT_THRESHOLD)):
-            digits[gy : gy + gh, gx : gx + gw] |= glyph[:, :, 3] > 0
-
-    occ = np.zeros(bgr.shape[:2], np.uint8)
-    if digits.any():
-        # Occlude the whole EXTENT of the count, not the glyphs we happened to match.
-        #
-        # Masking the matched glyph shapes (dilated) is precise and it is precision in the wrong
-        # direction: a glyph that scores just under the bar, or an antialiased edge outside the
-        # glyph's own alpha, is then treated as "visible" -- and its dark outline goes straight
-        # into the median. Every icon came out with the ghost of a digit smeared across its
-        # bottom-left.
-        #
-        # The count is drawn left-aligned in a fixed band, so its bounding extent is all we need:
-        # hide the band from the left edge to just past the last digit. This hides MORE per
-        # instance, which is fine, because the counts differ between captures -- a slot showing
-        # '7' hides a narrow strip and hands back everything a '1096' was covering.
-        right = int(np.where(digits.any(axis=0))[0].max()) + 2
+    occ = np.zeros(cell.shape[:2], np.uint8)
+    if spans:
+        right = max(x + w for x, w in spans) + 2
         occ[y0:y1, x0 : x0 + min(right, x1 - x0)] = 1
+    else:
+        # A count we could not locate is NOT a slot with no count. Erring towards "visible" here
+        # bakes the digits into the artwork permanently; erring towards "hidden" costs this
+        # instance a strip that some other capture of the same item will almost certainly supply.
+        # The asymmetry is the whole point -- one is a permanent defect in the catalog, the other
+        # is a pixel we go and fetch from elsewhere.
+        occ[y0:y1, x0:x1] = 1
+
     occ[BOTTOM_BAR:, :] = 1
     return occ.astype(bool)
 
 
 MAX_SHIFT = 3  # px; the grid origin is never further out than this
+EMPTY_SLOT_SCORE = 0.90  # how well a slot must match the empty-slot template to vote on the fit
+
+# How closely a donor capture must agree with the base one, over the pixels both can see, before
+# it is allowed to fill in the pixels the base cannot.
+#
+# The tolerance is not zero, and cannot be: the SAME sprite is not the same pixels in different
+# slots. The slot's grey backing carries a faint per-row gradient (the same fact that defeated
+# exact pixel-hashing in classify.py), and the icons' glow is antialiased OVER that backing -- so
+# an identical icon a few rows down genuinely differs by a few levels. What we are ruling out is
+# a donor that is MISALIGNED, which shows up as wholesale disagreement, not as a few levels.
+DONOR_TOLERANCE = 24
+DONOR_AGREEMENT = 0.90
 
 
 def _shift(a: np.ndarray, dy: int, dx: int) -> np.ndarray:
@@ -154,8 +178,8 @@ def composite_display_icon(cells: list[np.ndarray], font: dict) -> np.ndarray:
     But the same item turns up in several captures with DIFFERENT counts, and a different count
     hides different pixels. A '1' covers five columns; a '2655' covers forty. Cernium appears as
     1, 340, 786 and 2655. So instead of inventing the hidden pixels, take them from a capture
-    where they are not hidden: for each pixel, the median of every instance in which it is
-    visible. Nothing is imagined, and the median also averages away JPEG noise.
+    where they are not hidden. Every pixel of the result is a verbatim client pixel, CHOSEN from
+    one capture -- never blended between several, which is just blur by another name.
 
     Measured over the corpus, the number of pixels still hidden in EVERY instance falls to 45
     (Cernium) - 317 (Vanishing Journey, whose counts are all four digits and so always cover the
@@ -181,16 +205,51 @@ def composite_display_icon(cells: list[np.ndarray], font: dict) -> np.ndarray:
     stack = np.stack([c[:, :, :3].astype(np.float32) for c in cells])
     visible = np.stack([~o for o in occs])
 
-    seen = visible.any(axis=0)
-    out = np.zeros((46, 46, 3), np.float32)
-    # Per-pixel median over the instances where the pixel is visible. Done by masking the
-    # hidden ones to NaN so they take no part in the statistic.
-    masked = np.where(visible[:, :, :, None], stack, np.nan)
-    with np.errstate(invalid="ignore"):
-        med = np.nanmedian(masked, axis=0)
-    out[seen] = med[seen]
-    out[~seen] = BG_FLAT
-    bgr = out.astype(np.uint8)
+    # CHOOSE a pixel; do not average pixels.
+    #
+    # This took the per-pixel MEDIAN across every instance in which the pixel was visible, on the
+    # reasoning that a median would also wash out JPEG noise. It washes out the artwork. With two
+    # instances a median IS the mean, so the Extreme Blue Potion -- which we only ever see in two
+    # captures -- was literally an average of two pictures, and it looked exactly as soft as that
+    # sounds. Even with five, any residual disagreement between captures gets blended rather than
+    # resolved.
+    #
+    # There is nothing to average. Every instance is the client drawing the same sprite, so any
+    # pixel visible in any instance is already the exact pixel we want. Prefer the instance with
+    # the least occlusion (its unhidden region is the largest and the most trustworthy) and fall
+    # through to the next only where that one is covered. Every pixel in the result is then a
+    # verbatim client pixel, not a blend of several.
+    order = np.argsort([o.sum() for o in occs])
+    base = int(order[0])
+
+    bgr = np.full((46, 46, 3), BG_FLAT, np.uint8)
+    filled = visible[base].copy()
+    bgr[filled] = stack[base][filled].astype(np.uint8)
+
+    for i in order[1:]:
+        # TRUST, BUT VERIFY. A donor is only allowed to contribute pixels the base could not see
+        # if it demonstrably lines up with the base where they BOTH can see.
+        #
+        # The alternative -- pasting every donor in on the strength of the per-capture origin
+        # correction alone -- is what wrecked the Extreme Blue Potion. It has only two captures,
+        # both showing a single-digit count, so the same strip is hidden in both and the second
+        # was doing all the filling; the correction was a pixel out for that capture, and the
+        # bottle's whole lower body came back as a misaligned smear. One bad donor is worse than
+        # no donor: the hole would merely have been inpainted.
+        overlap = visible[base] & visible[i]
+        if overlap.sum() < 200:
+            continue
+        agree = (
+            np.abs(stack[base][overlap] - stack[i][overlap]).max(axis=-1) <= DONOR_TOLERANCE
+        ).mean()
+        if agree < DONOR_AGREEMENT:
+            continue
+
+        take = visible[i] & ~filled
+        bgr[take] = stack[i][take].astype(np.uint8)
+        filled |= take
+
+    seen = filled
 
     # Whatever no capture ever showed us -- reconstruct, but now it is a handful of pixels
     # rather than the whole count band.
@@ -249,19 +308,29 @@ def _cut_out(bgr: np.ndarray, hole: np.ndarray | None = None) -> np.ndarray:
     return cv2.merge([*cv2.split(bgr), mask])
 
 
-def _origin_error(img: np.ndarray, g) -> tuple[int, int]:
-    """How far this capture's fitted lattice sits from the client's real slot boundaries.
+def slot_offsets(img: np.ndarray, g: Grid) -> dict[tuple[int, int], tuple[int, int]]:
+    """Per-slot (dy, dx) to add to g.cell(), bringing each cell onto the client's real boundary.
 
-    Returned as (dy, dx) to ADD to a cell's top-left. Measured against the empty-slot template,
-    which is the one thing that looks identical in every screenshot.
+    find_grid's lattice is good to a pixel or two, which is ample for matching -- the matcher
+    slides -- and not nearly enough for authoring a picture. But the error is NOT a constant
+    offset, which is what makes this subtle: measured against the empty-slot template, some slots
+    in a single capture land at x=0 and others at x=+2. The pitch is fractionally off 46.0 and the
+    error ACCUMULATES across the sixteen columns, so no single correction can straighten it -- a
+    per-capture nudge just moves which columns are wrong.
+
+    So fit, rather than nudge. The empty slot is the same pixels in every capture, so every empty
+    slot in the frame is a measurement of where the lattice really is. Least-squares a line through
+    them (x = x0 + pitch*col, and the same down the rows) and the whole grid comes into register,
+    including the busy cells that could not be measured directly.
     """
     tpl = cv2.imread(str(TEMPLATE_DIR / "slot_empty.png"), cv2.IMREAD_COLOR)
     if tpl is None:
-        return (0, 0)
+        return {}
 
     n = int(NATIVE_PITCH)
     pad = MAX_SHIFT
-    votes = []
+    xs: list[tuple[int, float]] = []
+    ys: list[tuple[int, float]] = []
     for row in range(ROWS):
         for col in range(COLS):
             x, y, w, _ = g.cell(row, col)
@@ -270,14 +339,44 @@ def _origin_error(img: np.ndarray, g) -> tuple[int, int]:
                 continue
             res = cv2.matchTemplate(win, tpl, cv2.TM_CCOEFF_NORMED)
             _, score, _, loc = cv2.minMaxLoc(res)
-            # Only slots that really do look like an empty slot get a vote; a slot full of icon
-            # art has nothing useful to say about where its own boundary is.
-            if score >= 0.90:
-                votes.append((loc[1] - pad, loc[0] - pad))
-    if not votes:
-        return (0, 0)
-    v = np.array(votes)
-    return (int(np.median(v[:, 0])), int(np.median(v[:, 1])))
+            # Only a genuinely empty slot gets a vote. A slot full of icon art has nothing useful
+            # to say about where its own boundary is.
+            if score >= EMPTY_SLOT_SCORE:
+                xs.append((col, x + loc[0] - pad))
+                ys.append((row, y + loc[1] - pad))
+
+    if len(xs) < 6:
+        return {}
+
+    # Per COLUMN and per ROW, not one line through everything.
+    #
+    # Fitting a single lattice (origin + pitch) was the obvious move and it made things worse. Grid
+    # carries ONE pitch for both axes, so the x-fit and the y-fit had to be averaged into it -- and
+    # since only x drifts (y measured dead-on in every capture), averaging in a y-pitch it did not
+    # need dragged x off by 1-3px in every column at once. A global fit also assumes the drift is
+    # linear, which is an assumption we do not need to make and cannot check.
+    #
+    # The drift is per-column, so measure it per-column. Every empty slot in a column is a direct
+    # reading of where that column really starts; take the median. Columns with no empty slot in
+    # them inherit the frame's overall median, which is the best we can say about them.
+    def offsets(points: list[tuple[int, float]], predicted) -> dict[int, int]:
+        by: dict[int, list[float]] = {}
+        for i, measured in points:
+            by.setdefault(i, []).append(measured - predicted(i))
+        overall = int(round(np.median([d for ds in by.values() for d in ds])))
+        return {i: int(round(np.median(ds))) for i, ds in by.items()}, overall
+
+    dx_by_col, dx_all = offsets(xs, lambda c: g.cell(0, c)[0])
+    dy_by_row, dy_all = offsets(ys, lambda r: g.cell(r, 0)[1])
+
+    return {
+        (r, c): (
+            dy_by_row.get(r, dy_all),
+            dx_by_col.get(c, dx_all),
+        )
+        for r in range(ROWS)
+        for c in range(COLS)
+    }
 
 
 def build_display_icons(capture_paths: list[str], out_dir: Path) -> dict[str, int]:
@@ -306,19 +405,14 @@ def build_display_icons(capture_paths: list[str], out_dir: Path) -> dict[str, in
         if abs(g.pitch - NATIVE_PITCH) > 0.5:
             raise NotNativeScale(f"{path}: pitch {g.pitch:.1f}, not native -- see cut()")
 
-        # Pin this capture's cells to the TRUE slot origin before cutting anything out of them.
-        #
-        # find_grid fits a lattice to within a pixel or two, which is ample for matching (the
-        # matcher slides) but not for authoring a picture. The error is constant across one
-        # screenshot and different between screenshots -- so each item, composited from whichever
-        # capture happened to contain it, inherited a different offset, and the icons did not
-        # agree with EACH OTHER. Rendered 1:1 they looked inexplicably off-centre, some by 5px.
-        #
-        # The empty slot is the fixed landmark: it is the same pixels in every capture, so
-        # matching it says exactly where the lattice really sits.
-        dy, dx = _origin_error(img, g)
+        # Cut from a lattice re-fitted to the client's real slot boundaries. find_grid's is good
+        # to a pixel or two -- fine for matching, not for authoring a picture -- and the error is
+        # not even constant across one capture, because the pitch is fractionally off and drifts
+        # across the columns. See refine_grid().
+        offs = slot_offsets(img, g)
         for hit in classify(img, g, templates):
             x, y, w, _ = g.cell(hit.row, hit.col)
+            dy, dx = offs.get((hit.row, hit.col), (0, 0))
             x, y = x + dx, y + dy
             cell = img[y : y + w, x : x + w]
             if cell.shape[:2] == (int(NATIVE_PITCH), int(NATIVE_PITCH)):

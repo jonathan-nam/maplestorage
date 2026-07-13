@@ -54,6 +54,8 @@ internal fun tokenTotalsFor(userId: String): List<TokenTotalResponse> {
             TokenCatalog.id,
             TokenCatalog.name,
             TokenCatalog.iconRefKey,
+            TokenCatalog.itemGroup,
+            TokenCatalog.sortOrder,
             RedemptionRule.redeemThreshold,
             totalQuantity,
             contributors,
@@ -66,14 +68,17 @@ internal fun tokenTotalsFor(userId: String): List<TokenTotalResponse> {
             TokenCatalog.id,
             TokenCatalog.name,
             TokenCatalog.iconRefKey,
+            TokenCatalog.itemGroup,
+            TokenCatalog.sortOrder,
             RedemptionRule.redeemThreshold,
-        ).orderBy(TokenCatalog.name)
+        ).orderBy(TokenCatalog.sortOrder)
         .map { row ->
             TokenTotalResponse(
                 tokenCatalogId = row[TokenCatalog.id].toString(),
                 name = row[TokenCatalog.name],
                 iconUrl = row[TokenCatalog.iconRefKey]?.let { "/token-icons/$it" },
                 quantity = row[totalQuantity] ?: 0,
+                itemGroup = row[TokenCatalog.itemGroup],
                 redeemThreshold = row[RedemptionRule.redeemThreshold],
                 characterCount = row[contributors].toInt(),
             )

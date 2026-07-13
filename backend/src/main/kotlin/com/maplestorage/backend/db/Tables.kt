@@ -52,6 +52,18 @@ object TokenCatalog : Table("token_catalog") {
 
     val iconRefKey = text("icon_ref_key").nullable()
 
+    // Which section of the inventory a human expects to find this in ("Eternal Pieces",
+    // "Symbols", "Consumables"). A different axis from redemption: that says what an item DOES,
+    // this says where it LIVES. Symbols and elixirs are both consumables and nobody looks for
+    // them in the same place. Seeded from catalog/items.yaml (V8, R__token_catalog.sql).
+    val itemGroup = text("item_group").nullable()
+
+    // Where this item sits within its section. Alphabetical is wrong for the symbols and wrongly
+    // enough to confuse: they follow the AREAS' progression (Vanishing Journey -> Esfera, then
+    // Cernium -> Tallahart), which is the order a player unlocks them in and the order the game's
+    // own Symbol UI uses. Sorting by name interleaves the two rivers and puts Arcana first.
+    val sortOrder = integer("sort_order").nullable()
+
     override val primaryKey = PrimaryKey(id)
 }
 

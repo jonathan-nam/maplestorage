@@ -59,6 +59,13 @@ def load() -> list[dict]:
             sys.exit(f"duplicate key {key!r}")
         seen.add(key)
 
+        if it.get("sort") is None:
+            sys.exit(f"{key}: needs a sort -- it decides the order within its section")
+
+        grp = it.get("group")
+        if not grp:
+            sys.exit(f"{key}: needs a group -- it decides which section of the UI it appears in")
+
         cat = it.get("category")
         if cat not in CATEGORIES:
             sys.exit(f"{key}: category must be one of {sorted(CATEGORIES)}, got {cat!r}")
@@ -102,7 +109,8 @@ def sql(items: list[dict]) -> str:
         return "'" + s.replace("'", "''") + "'"
 
     rows = ",\n".join(
-        f"    ({q(it['key'])}, {q(it['name'])}, {q(it['boss'])}, {q(it['key'] + '.png')})"
+        f"    ({q(it['key'])}, {q(it['name'])}, {q(it['boss'])}, {q(it['key'] + '.png')}, "
+        f"{q(it['group'])}, {int(it['sort'])})"
         for it in items
     )
     redeemable = [it for it in items if it["category"] == "REDEMPTION_TOKEN"]
@@ -119,18 +127,20 @@ def sql(items: list[dict]) -> str:
 -- Upserts rather than replaces: token_catalog.id is referenced by character_token_count,
 -- so deleting and reinserting would take every user's counts with it.
 
-INSERT INTO token_catalog (id, vision_key, name, source_boss_name, icon_ref_key)
+INSERT INTO token_catalog (id, vision_key, name, source_boss_name, icon_ref_key, item_group, sort_order)
 SELECT
     COALESCE(existing.id, gen_random_uuid()),
-    v.vision_key, v.name, v.boss, v.icon
+    v.vision_key, v.name, v.boss, v.icon, v.item_group, v.sort_order
 FROM (VALUES
 {rows}
-) AS v (vision_key, name, boss, icon)
+) AS v (vision_key, name, boss, icon, item_group, sort_order)
 LEFT JOIN token_catalog existing ON existing.vision_key = v.vision_key
 ON CONFLICT (vision_key) DO UPDATE SET
     name             = EXCLUDED.name,
     source_boss_name = EXCLUDED.source_boss_name,
-    icon_ref_key     = EXCLUDED.icon_ref_key;
+    icon_ref_key     = EXCLUDED.icon_ref_key,
+    item_group       = EXCLUDED.item_group,
+    sort_order       = EXCLUDED.sort_order;
 
 -- An item is redeemable if a rule exists for it -- there is no flag to keep in step with
 -- the fields it governs. So a manifest entry that stops being a REDEMPTION_TOKEN must have
