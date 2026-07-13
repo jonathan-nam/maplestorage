@@ -33,11 +33,15 @@ BOTTOM_BAR = 40  # rows below this carry the slot-lock bar
 
 BG_LO, BG_HI = 214, 238  # the slot's flat grey backing
 
-# The slot's raised border ridge, measured: 202..242, wider than the flat backing on both
-# sides. Only the display mask uses this -- the matching mask deliberately keeps the tighter
-# band, because there the ridge is a stable, identical feature of every slot and excluding it
-# would cost correlation for nothing.
-RIDGE_LO, RIDGE_HI = 200, 245
+# The slot's raised border ridge lives in the outermost ring of pixels. The display mask drops
+# it by position, not by brightness -- see display_icon(). The icon art does not reach the very
+# edge, so this costs nothing.
+BORDER = 2
+
+# An icon is one connected shape (plus, sometimes, a detached sparkle or a ring segment worth
+# keeping). Anything smaller than this is slot noise rather than art, and it reads as dirt
+# floating next to the item at 42px.
+MIN_ISLAND = 12
 BG_FLAT = (226, 226, 226)  # the backing colour, for painting over the slot-lock bar
 
 
@@ -117,20 +121,42 @@ def display_icon(cell: np.ndarray, font: dict) -> np.ndarray:
     if ink.any():
         bgr = cv2.inpaint(bgr, ink, 3, cv2.INPAINT_TELEA)
 
-    # The slot's raised border ridge runs from about 202 to 242, straddling the matching
-    # mask's 214-238 background band -- so its darker flanks read as "not background" and the
-    # corner brackets of the slot were being cut out and shipped as part of the item. Widen the
-    # band for display so the whole ridge falls inside it. The icons' own bright pixels are
-    # near-white (250+) or saturated, and stay.
+    # Background is the SAME 214-238 band the matching mask uses, and it has to be.
+    #
+    # This was briefly widened to 200-245, to swallow the slot's raised border ridge (which runs
+    # ~202-242 and so pokes out of the narrower band at both ends, leaving the slot's corner
+    # brackets attached to the icon). The comment claimed "the icons' own bright pixels are
+    # near-white (250+) or saturated, and stay". That is flatly untrue, and it wrecked every
+    # icon: the symbols' white GLOW is unsaturated and sits squarely inside 200-245, so the mask
+    # ate it and shipped hexagons and orbs with bites chewed out of them.
+    #
+    # The ridge is a fixed feature of the slot's outer edge, so remove it by GEOMETRY -- where it
+    # is -- rather than by brightness, which cannot tell it from the glow.
     grey = cv2.cvtColor(bgr, cv2.COLOR_BGR2GRAY)
     sat = cv2.cvtColor(bgr, cv2.COLOR_BGR2HSV)[:, :, 1]
-    chrome = (grey >= RIDGE_LO) & (grey <= RIDGE_HI) & (sat < 40)
+    chrome = (grey >= BG_LO) & (grey <= BG_HI) & (sat < 40)
 
     mask = (~chrome).astype(np.uint8) * 255
     mask[BOTTOM_BAR:, :] = 0
+    mask[:BORDER, :] = 0
+    mask[-BORDER:, :] = 0
+    mask[:, :BORDER] = 0
+    mask[:, -BORDER:] = 0
     mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, np.ones((2, 2), np.uint8))
     # Close the pinholes the digits used to punch through the art.
     mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, np.ones((3, 3), np.uint8))
+
+    # An icon is one connected thing. What is left over is the slot's own speckle -- a stray
+    # sparkle of the backing, a surviving crumb of the ridge -- and it renders as dirt floating
+    # beside the item. Keep the body and anything of real size touching it; drop the crumbs.
+    n, labels, stats, _ = cv2.connectedComponentsWithStats((mask > 0).astype(np.uint8), 8)
+    if n > 1:
+        keep = np.zeros_like(mask)
+        biggest = 1 + int(np.argmax(stats[1:, cv2.CC_STAT_AREA]))
+        for i in range(1, n):
+            if i == biggest or stats[i, cv2.CC_STAT_AREA] >= MIN_ISLAND:
+                keep[labels == i] = 255
+        mask = keep
 
     rgba = cv2.merge([*cv2.split(bgr), mask])
     ys, xs = np.where(mask > 0)

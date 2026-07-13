@@ -41,3 +41,6 @@ vision/.pytest_cache/
 __pycache__/
 *.pyc
 symbol-candidates.png
+
+# local Clerk config for docker compose
+.env

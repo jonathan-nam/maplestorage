@@ -75,9 +75,17 @@ services:
       DB_USERNAME: maplestorage
       DB_PASSWORD: maplestorage
       VISION_SERVICE_URL: http://127.0.0.1:8000
-      # Real values are only needed to exercise authenticated routes; the smoke
-      # test does not, and a missing one would fail the container at startup.
-      CLERK_JWKS_URL: ${CLERK_JWKS_URL:-https://example.invalid/.well-known/jwks.json}
+      # No default. The old one was https://example.invalid/..., on the reasoning that "real
+      # values are only needed to exercise authenticated routes". But EVERY route is
+      # authenticated, so what that default actually bought was a backend that boots perfectly
+      # happily, reports itself healthy, and then 401s every single request -- which the UI
+      # surfaces as "Upload failed. Check your connection", sending you to look at your network
+      # instead of your config. It has now cost debugging time twice.
+      #
+      # `:?` makes compose refuse to start and name the missing variable. A stack that will not
+      # come up is a far better failure than one that comes up broken. Put the value in .env --
+      # the domain is base64-encoded inside the frontend's Clerk publishable key.
+      CLERK_JWKS_URL: ${CLERK_JWKS_URL:?set it in .env, e.g. https://<your-instance>.clerk.accounts.dev/.well-known/jwks.json — without it the backend 401s every request}
       FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:-http://localhost:3000}
 
 volumes:

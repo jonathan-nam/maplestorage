@@ -368,7 +368,12 @@ a:hover {
 .token-count img {
   width: 22px;
   height: 22px;
-  image-rendering: pixelated; /* the icons are 32px game sprites -- don't smudge them */
+  /* The icons are NOT square -- they are cropped to their own artwork, so a wide one is 46x37
+     and a tall one 28x31. Forcing both dimensions without this squashed every one of them to
+     fit, which is subtle enough per-icon to read as "the art is a bit off" rather than as a
+     bug. `contain` letterboxes instead, keeping the sprite's proportions. */
+  object-fit: contain;
+  image-rendering: pixelated; /* the icons are game sprites -- don't smudge them */
 }
 
 /* Says plainly that a parsed-but-unattributed screenshot has NOT been written
