@@ -18,6 +18,12 @@
 #
 # `name` is prose for humans, and can be reworded freely.
 #
+# `redeem_slots` is which Eternal pieces a token can be traded for. It is not cosmetic: the two
+# sets do not overlap, so ten Kalos pieces and ten Limbo pieces are not "twenty pieces" -- they
+# buy different things. It lived only in the V7 migration, which meant the manifest did not own it
+# and the names had already drifted apart ("Shoes, Gloves" in one row, "Shoe, Glove" in another).
+# That is exactly the four-places-one-truth drift this file exists to prevent.
+#
 # `group` is how the inventory is SECTIONED in the UI -- "Eternal Pieces", "Symbols",
 # "Consumables". It is a real field rather than something the frontend infers from the key,
 # because inference would quietly mis-sort the first item whose name did not fit the pattern,
@@ -33,6 +39,7 @@ items:
     group: Eternal Pieces
     sort: 10
     redeem_threshold: 10
+    redeem_slots: [Hat, Top, Bottom, Shoulder]
 
   - key: distorted-ambition
     name: Distorted Ambition
@@ -41,6 +48,7 @@ items:
     group: Eternal Pieces
     sort: 11
     redeem_threshold: 10
+    redeem_slots: [Cape, Glove, Shoe]
 
   - key: echo-ancient-resolve
     name: Echo of Ancient Resolve
@@ -49,6 +57,7 @@ items:
     group: Eternal Pieces
     sort: 12
     redeem_threshold: 10
+    redeem_slots: [Hat, Top, Bottom, Shoulder]
 
   - key: ferocious-beast-ring
     name: Ferocious Beast Entanglement Ring
@@ -57,6 +66,7 @@ items:
     group: Eternal Pieces
     sort: 13
     redeem_threshold: 10
+    redeem_slots: [Hat, Top, Bottom, Shoulder]
 
   # NOTE: the icon asset for this one shipped as `kalos-residual-determination.png`
   # while the vision key was `kalos-token`. Two names for one item, kept in step by
@@ -68,6 +78,7 @@ items:
     group: Eternal Pieces
     sort: 14
     redeem_threshold: 10
+    redeem_slots: [Hat, Top, Bottom, Shoulder]
 
   - key: trace-eternal-loyalty
     name: Trace of Eternal Loyalty
@@ -76,6 +87,7 @@ items:
     group: Eternal Pieces
     sort: 15
     redeem_threshold: 10
+    redeem_slots: [Cape, Glove, Shoe]
 
   # --- Consumables -------------------------------------------------------------------
   # Bought and drunk, not collected and redeemed: no redeem_threshold, and the UI must not

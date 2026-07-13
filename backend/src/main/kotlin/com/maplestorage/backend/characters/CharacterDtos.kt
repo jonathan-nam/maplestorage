@@ -24,9 +24,17 @@ data class CharacterTokenResponse(
     val quantity: Int,
     // Which section of the inventory this belongs in. See TokenCatalog.itemGroup.
     val itemGroup: String?,
+    // The boss it drops from ("Kaling", "Limbo", ...). Sent so search can match on it: nobody
+    // thinks of the item as "Ferocious Beast Entanglement Ring", they think of it as the thing
+    // Kaling drops, and an item you cannot find is an item you have not really tracked.
+    val sourceBoss: String?,
     // Null for a consumable. There is no flag: an item is redeemable exactly when it has
     // a redemption rule, so a null threshold IS the answer to "is this redeemable?".
     val redeemThreshold: Int?,
+    // Which Eternal pieces this token buys. Empty for a consumable. The two sets do not overlap,
+    // so "how many pieces do I have" is a question with two different answers depending on which
+    // one you mean.
+    val redeemSlots: List<String> = emptyList(),
     val capturedAt: String,
 )
 

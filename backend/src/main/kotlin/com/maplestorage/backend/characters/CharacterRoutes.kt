@@ -1,9 +1,6 @@
 package com.maplestorage.backend.characters
 
-import com.maplestorage.backend.db.CharacterTokenCount
 import com.maplestorage.backend.db.Characters
-import com.maplestorage.backend.db.RedemptionRule
-import com.maplestorage.backend.db.TokenCatalog
 import com.maplestorage.backend.plugins.parseUuidParam
 import com.maplestorage.backend.plugins.principalIdAndEmail
 import com.maplestorage.backend.plugins.span
@@ -19,8 +16,6 @@ import io.ktor.server.routing.delete
 import io.ktor.server.routing.get
 import io.ktor.server.routing.post
 import io.ktor.server.routing.put
-import org.jetbrains.exposed.v1.core.JoinType
-import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.deleteWhere
@@ -34,6 +29,8 @@ import kotlin.uuid.Uuid
 fun Route.characterRoutes(nexonLookupService: NexonLookupService) {
     post { createCharacter(nexonLookupService) }
     get { listCharacters() }
+    // Registered BEFORE /{id}, or the parameter route swallows the literal.
+    get("/tokens") { getAllCharacterTokens() }
     get("/{id}") { getCharacter() }
     put("/{id}") { updateCharacter() }
     post("/{id}/refresh") { refreshCharacter(nexonLookupService) }
@@ -166,54 +163,6 @@ private suspend fun RoutingContext.deleteCharacter() {
         call.respond(HttpStatusCode.NoContent)
     }
 }
-
-private suspend fun RoutingContext.getCharacterTokens() {
-    val (userId, email) = call.principalIdAndEmail()
-    val characterId = call.parseUuidParam("id") ?: return
-
-    val tokens =
-        transaction {
-            ensureUser(userId, email)
-            // Ownership check first: a character that isn't this user's must 404
-            // rather than return an empty token list, which would leak existence.
-            if (findOwnedCharacter(characterId, userId) == null) {
-                null
-            } else {
-                CharacterTokenCount
-                    .innerJoin(TokenCatalog)
-                    // LEFT join: a consumable has no redemption rule, and must still be listed.
-                    .join(
-                        RedemptionRule,
-                        JoinType.LEFT,
-                        onColumn = TokenCatalog.id,
-                        otherColumn = RedemptionRule.itemId,
-                    ).selectAll()
-                    .where { CharacterTokenCount.characterId eq characterId }
-                    .orderBy(TokenCatalog.sortOrder)
-                    .map { it.toCharacterTokenResponse() }
-            }
-        }
-
-    if (tokens == null) {
-        call.respond(HttpStatusCode.NotFound)
-    } else {
-        call.respond(tokens)
-    }
-}
-
-private fun ResultRow.toCharacterTokenResponse(): CharacterTokenResponse =
-    CharacterTokenResponse(
-        tokenCatalogId = this[TokenCatalog.id].toString(),
-        name = this[TokenCatalog.name],
-        // icon_ref_key is a bare filename; Routing.kt serves the seed-assets
-        // dir at /token-icons, and the frontend resolves this against the API
-        // base URL (lib/api.ts's apiAssetUrl).
-        iconUrl = this[TokenCatalog.iconRefKey]?.let { "/token-icons/$it" },
-        quantity = this[CharacterTokenCount.quantity],
-        itemGroup = this[TokenCatalog.itemGroup],
-        redeemThreshold = this[RedemptionRule.redeemThreshold],
-        capturedAt = this[CharacterTokenCount.capturedAt].toString(),
-    )
 
 private suspend fun RoutingContext.respondFoundOrNotFound(character: CharacterResponse?) {
     if (character == null) {

@@ -41,6 +41,7 @@ export function CaptureDock({
   getToken,
   onCharacterAdded,
   onSaved,
+  onToggleGeneric,
 }: {
   characters: Character[];
   // null = no character selected (the "All characters" tile), so we fall back to reading the
@@ -52,12 +53,17 @@ export function CaptureDock({
   getToken: () => Promise<string | null>;
   onCharacterAdded: (character: Character) => void;
   onSaved: () => void;
+  onToggleGeneric: () => void;
 }) {
   const [captures, setCaptures] = useState<Capture[]>([]);
   const [dragOver, setDragOver] = useState(false);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
   const counter = useRef(0);
 
+  // "Generic" is not a second piece of state that can disagree with the carousel -- it IS having
+  // no character selected. One truth, so the eye and the carousel can never contradict each other.
+  const generic = pinnedCharacterId === null;
   const pinned = characters.find((c) => c.id === pinnedCharacterId);
 
   useEffect(() => {
@@ -102,7 +108,8 @@ export function CaptureDock({
         imageBase64: base64,
         mediaType,
       };
-      // Pinning is the point of uploading from a character's page.
+      // Pinning is the point of uploading from a character's page -- unless you have said this
+      // screenshot is not theirs, in which case we are back to reading the HUD.
       if (pinnedCharacterId) body.characterId = pinnedCharacterId;
 
       const result = await apiFetch<ScreenshotResult>(
@@ -165,7 +172,7 @@ export function CaptureDock({
   return (
     <section className="dock">
       <div
-        className={`dock-drop${dragOver ? " dragover" : ""}`}
+        className={`dock-drop${dragOver ? " dragover" : ""}${generic ? " generic" : ""}`}
         onClick={() => fileInputRef.current?.click()}
         onDragOver={(e) => {
           e.preventDefault();
@@ -199,6 +206,30 @@ export function CaptureDock({
             e.target.value = "";
           }}
         />
+
+        {/* Turning this on DESELECTS the character in the strip above, and that is the point:
+            the two are one state, so what you can see is what will happen. A screenshot cannot be
+            both "definitely Bob's" and "work out whose it is". stopPropagation because the whole
+            dropzone is a click target for the file picker. */}
+        <button
+          type="button"
+          className={`dock-eye${generic ? " on" : ""}`}
+          aria-pressed={generic}
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggleGeneric();
+          }}
+          title={
+            generic
+              ? "Reading the character's name from the screenshot. Pick a character above to save it to them instead."
+              : "Not this character's? Read the name from the screenshot instead."
+          }
+        >
+          <span aria-hidden="true">👁</span>
+          <span className="dock-eye-label">
+            {generic ? "Reading the name from the screenshot" : "Not this character's?"}
+          </span>
+        </button>
       </div>
 
       {captures.map((capture) => (
