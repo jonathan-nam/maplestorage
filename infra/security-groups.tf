@@ -41,7 +41,7 @@ resource "aws_security_group" "ecs_tasks" {
   }
 
   egress {
-    description = "Outbound to internet (Claude API, Clerk JWKS, S3, Nexon)"
+    description = "Outbound to internet (Clerk JWKS, S3, Nexon)"
     from_port   = 0
     to_port     = 0
     protocol    = "-1"

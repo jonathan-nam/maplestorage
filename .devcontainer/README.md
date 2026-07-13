@@ -152,8 +152,9 @@ stronger answer than "it built".
 Then the day-to-day:
 
 ```bash
-cd backend  && ./gradlew test     # 30 tests, against real Postgres
-cd vision   && pytest tests/      # 37 tests, against the real screenshot corpus
+cd backend  && ./gradlew test     # against real Postgres
+cd vision   && pytest tests/      # the CV regression corpus, against real screenshots
+cd frontend && npm test           # the redemption + search rules
 cd frontend && npm run dev        # http://localhost:3000
 ```
 

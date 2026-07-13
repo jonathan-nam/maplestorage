@@ -37,7 +37,7 @@ items:
     boss: Malefic Star
     category: REDEMPTION_TOKEN
     group: Eternal Pieces
-    sort: 10
+    sort: 13
     redeem_threshold: 10
     redeem_slots: [Hat, Top, Bottom, Shoulder]
 
@@ -46,7 +46,7 @@ items:
     boss: Limbo
     category: REDEMPTION_TOKEN
     group: Eternal Pieces
-    sort: 11
+    sort: 14
     redeem_threshold: 10
     redeem_slots: [Cape, Glove, Shoe]
 
@@ -64,7 +64,7 @@ items:
     boss: Kaling
     category: REDEMPTION_TOKEN
     group: Eternal Pieces
-    sort: 13
+    sort: 11
     redeem_threshold: 10
     redeem_slots: [Hat, Top, Bottom, Shoulder]
 
@@ -76,7 +76,7 @@ items:
     boss: Kalos the Guardian
     category: REDEMPTION_TOKEN
     group: Eternal Pieces
-    sort: 14
+    sort: 10
     redeem_threshold: 10
     redeem_slots: [Hat, Top, Bottom, Shoulder]
 

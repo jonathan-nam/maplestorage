@@ -21,7 +21,7 @@ call, ~0.6s per screenshot, and the same answer every time.
 
 | Route | Behaviour |
 | --- | --- |
-| `GET /health` | `{"status":"ok","tokens":6,"digits":10}` |
+| `GET /health` | `{"status":"ok","tokens":26,"digits":10}` — `tokens` is however many templates are on disk. |
 | `POST /parse` | Raw image bytes in. Returns `ScreenshotParseResult` (same shape as the Kotlin DTO): `screenshotType`, `characterHud`, `tokenCounts`. |
 
 `POST /parse` outcomes, and why each is what it is:
@@ -29,25 +29,21 @@ call, ~0.6s per screenshot, and the same answer every time.
 | Result | When |
 | --- | --- |
 | `200` + `screenshotType: "INVENTORY"` | Grid found; `tokenCounts` holds every token detected. |
-| `200` + `screenshotType: "UNRECOGNIZED"` | No inventory lattice. Not an error — the same answer the vision model gave for a non-inventory upload. |
-| `422` | The capture is not at the client's native scale — shrunk before upload, or taken at a scaled display resolution. The message tells the user how to fix it. |
+| `200` + `screenshotType: "UNRECOGNIZED"` | No inventory lattice. Not an error — it simply is not an inventory. |
+| `422` | The capture was SHRUNK before upload. Downscaling throws pixels away and the 11px count font is the first casualty; nothing recovers it. An upscaled or rescaled capture is *read*, not refused. |
 | `400` | Body is empty or not a decodable image. |
 
-**Every count we return is one we stand behind.** A capture that is not at native
-scale is refused, not flagged.
+**Every count we return is one we stand behind.** An item whose stack count cannot be read is
+dropped rather than reported with a guessed number — a wrong count is worse than a missing one.
 
-That is a deliberate reversal. The service used to return those counts with a
-`needsReview` flag, which was a half-measure: the review UI can only re-attribute
-a screenshot to a different character — it has no way to correct a *count* — so
-the dubious number was written to the database regardless. And the reliability
-figure for a fractionally-rescaled capture (~70–77%) comes from a synthetic
-model; we have never seen a real one, so we do not actually know how wrong it
-gets. For an app whose whole value is accurate counts, "you have 8" when you have
-9 is worse than "we could not read this". The user's fix is a one-time display
-setting, after which every upload works.
+**But we no longer refuse a capture we can actually read.** Rescaled screenshots (remote play,
+display scaling) used to be rejected with a 422, on the strength of a 70–77% accuracy figure. That
+figure was real and it measured the wrong thing: the parser resampled the frame back down to native
+*before* reading it, so what it recorded was the damage the parser was doing to itself. A real
+Parsec capture at 1.326x, refused outright, had every item and every count sitting legible in the
+file. The catalog is now scaled *up* to meet the frame instead, and the frame is left alone.
 
-Note that MapleStory's own UI Optimization (exact 2x pixel doubling) is *not*
-caught by this — it downsamples back losslessly and is accepted.
+Only a **downscale** is still refused: that one genuinely discards pixels.
 
 ## Character attribution (solved)
 
@@ -85,7 +81,7 @@ blindly.
 ## Catalog scaling (solved)
 
 Icon matching used to slide one `matchTemplate` per catalog item across the
-grid — **O(N)**, which is fine for 6 tokens and unusable for an item catalog.
+grid — **O(N)**, which is fine at this catalog size and unusable for an item catalog.
 `classify.py` replaces it with a two-stage scheme whose cost is flat in catalog
 size:
 
@@ -118,9 +114,9 @@ that jitter away).
 
 **Adding items is now a data change, not a code change:** drop a full-slot RGBA
 crop into `templates/` and it is picked up. What is *not* proven is
-discrimination at scale — with 6 items, the verify stage has an easy job. A
-catalog of hundreds of visually similar icons may need the verify threshold
-re-tuned. Add items in batches and watch for false positives.
+discrimination at scale — this has already been re-measured at 26 items: the verify threshold had to be raised (an
+out-of-catalog Extreme Gold Potion scored 0.753 against the Green template) and the shortlist's
+recall is now pinned by a test rather than a hope. See `classify.py`.
 
 ## Running it
 
@@ -130,7 +126,7 @@ pip install -r requirements.txt          # to run it
 uvicorn app.main:app --port 8000
 
 pip install -r requirements-dev.txt      # to work on it: adds pytest, httpx, ruff
-pytest tests/                            # 17 tests: the 3-screenshot corpus is the regression suite
+pytest tests/            # the CV regression corpus: the 3-screenshot corpus is the regression suite
 ruff check . && ruff format .            # also enforced on commit
 ```
 

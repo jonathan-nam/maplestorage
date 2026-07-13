@@ -36,9 +36,9 @@ object Characters : Table("characters") {
 }
 
 object TokenCatalog : Table("token_catalog") {
-    // No auto-default -- the 6 rows get fixed UUID literals from the V2 seed
-    // migration, not randomly generated ones, so this catalog has stable,
-    // referenceable IDs across re-seeds.
+    // No auto-default. Rows are seeded by R__token_catalog.sql (generated from
+    // catalog/items.yaml), which keeps an existing row's id across re-seeds -- these ids are
+    // referenced by character_token_count, so churning them would orphan every user's counts.
     val id = uuid("id")
     val name = text("name").uniqueIndex()
 
@@ -89,7 +89,7 @@ object Screenshots : Table("screenshots") {
     val userId = reference("user_id", Users.id)
     val characterId = optReference("character_id", Characters.id)
 
-    // Nullable since V3: a FAILED row (the Claude call itself errored) never
+    // Nullable since V3: a FAILED row (the vision service was unreachable) never
     // got classified, so it has no type. Images are parsed in memory and
     // discarded, never persisted -- hence no storage_key column.
     val type = text("type").nullable()

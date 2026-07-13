@@ -32,6 +32,8 @@ jobs:
       backend: ${{ steps.filter.outputs.backend }}
       frontend: ${{ steps.filter.outputs.frontend }}
       infra: ${{ steps.filter.outputs.infra }}
+      vision: ${{ steps.filter.outputs.vision }}
+      catalog: ${{ steps.filter.outputs.catalog }}
     steps:
       - uses: actions/checkout@v4
       - uses: dorny/paths-filter@v3
@@ -44,6 +46,15 @@ jobs:
               - 'frontend/**'
             infra:
               - 'infra/**'
+            # The catalog generates the backend's seed migration and names the vision templates,
+            # so a change to it must re-run both checks, not just its own.
+            vision:
+              - 'vision/**'
+              - 'catalog/**'
+              - 'reference-images/**'
+            catalog:
+              - 'catalog/**'
+              - 'backend/src/main/resources/db/migration/R__token_catalog.sql'
 
   backend:
     needs: changes
@@ -70,6 +81,42 @@ jobs:
       # The redemption rules. Three ways to produce a confidently wrong number, each of which
       # looks like arithmetic -- see lib/redemption.test.ts.
       - run: npm test
+
+  # The CV regression corpus: the highest-risk code in the repo, and until now it ran only in a
+  # pre-commit hook -- so a PR from a machine without hooks installed merged it unchecked.
+  vision:
+    needs: changes
+    if: needs.changes.outputs.vision == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: vision
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: vision/requirements*.txt
+      - run: sudo apt-get update && sudo apt-get install -y tesseract-ocr
+      - run: pip install -r requirements.txt -r requirements-dev.txt
+      - run: ruff check app tests
+      - run: ruff format --check app tests
+      - run: pytest tests -q
+
+  # catalog/items.yaml is the single source of truth. If it and the generated SQL disagree, the
+  # catalog silently stops meaning anything -- which is the drift the manifest exists to end.
+  catalog:
+    needs: changes
+    if: needs.changes.outputs.catalog == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install pyyaml
+      - run: python3 catalog/build.py --check
 
   infra:
     needs: changes

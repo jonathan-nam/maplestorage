@@ -196,7 +196,7 @@ class ScreenshotIngestionTest {
     }
 
     @Test
-    fun `unrecognizedScreenshot -- Claude classifies the image as not MapleStory inventory`() {
+    fun `unrecognizedScreenshot -- the parser classifies the image as not a MapleStory inventory`() {
         val fake =
             FakeScreenshotParser(
                 ScreenshotParseOutcome.Parsed(
@@ -210,7 +210,7 @@ class ScreenshotIngestionTest {
     }
 
     @Test
-    fun `failed -- Claude call itself errors`() {
+    fun `failed -- the vision service is unreachable`() {
         val fake = FakeScreenshotParser(ScreenshotParseOutcome.Failed("rate limited"))
 
         val result = runBlocking { ingest(fake, pinnedCharacterId = null) }

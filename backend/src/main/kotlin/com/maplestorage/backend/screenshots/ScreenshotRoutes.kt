@@ -30,7 +30,7 @@ private suspend fun RoutingContext.uploadScreenshot(screenshotParser: Screenshot
         call.respond(HttpStatusCode.BadRequest, "malformed characterId")
         return
     }
-    // Ownership check before spending a Claude call on a request that would
+    // Ownership check before parsing a request that would
     // 404 anyway -- also stops a screenshot from ever getting attributed
     // under another user's guessed/stolen character id.
     if (pinnedCharacterId != null) {

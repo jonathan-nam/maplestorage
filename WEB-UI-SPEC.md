@@ -1,3 +1,19 @@
+> **SUPERSEDED — historical.** This describes the UI as first designed, not the one that exists.
+> It is kept because PLAN.md and a few code comments still point at it, and because the reasoning
+> is sometimes still useful. Almost none of the surface it describes survives:
+>
+> | It says | Actually |
+> | --- | --- |
+> | Nav: Upload / Characters / Items | Characters only. There is no Items page, and no Upload page — `/upload` redirects. |
+> | Upload is the landing page | You drop a screenshot **on the character it belongs to**, which is what removes the "whose is this?" guess. |
+> | A fixed table of 6 tokens | 26 items in three sections (Eternal Pieces / Symbols / Consumables), from `catalog/items.yaml`. |
+> | Monochrome, dark-only | A real theme system: system / dark / light. The inventory window stays light, because the game draws it light. |
+> | The vision-matching *prompt* | There is no prompt and no LLM. Matching is template correlation in `vision/app/cv/`. |
+>
+> It also predates cross-character search, which is now a headline feature.
+>
+> The living design is the code, plus `CLAUDE.md` for house rules.
+
 # Web UI Spec — MapleStorage
 
 Frontend design spec, kept separate from `PLAN.md` since UI iteration moves faster than the backend/infra/data-model plan there.

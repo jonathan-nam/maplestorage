@@ -1,3 +1,19 @@
+> **Historical planning document.** Written before the thing was built, and kept for the *reasoning*
+> — why Kotlin, why a local CV parser, why a fixed catalog. Its statements about the present tense
+> have not all aged well. In particular:
+>
+> - **The catalog is 26 items, not 6.** It grew: elixirs, potions, and thirteen Arcane/Sacred symbol
+>   coupons. `catalog/items.yaml` is the single source of truth and generates the seed migration.
+>   Everything below about "permanently 6" and "a closed set" is wrong.
+> - **Rescaled captures are READ, not refused.** The 422-on-anything-not-native policy below was
+>   reversed. The accuracy figure that justified it (70–77%) was measured through the parser's own
+>   lossy resampling step — it recorded the damage the parser was doing to itself. Only a
+>   *downscaled* capture is refused now.
+> - **The milestones are done.** M4/M5/M6 are built, plus per-character inventory, batch upload and
+>   cross-character search, none of which are described here.
+>
+> For what the app actually does, read `README.md`.
+
 # MapleStorage — Grandis Token Tracker
 
 ## Context
@@ -57,7 +73,7 @@ Two deployables instead of one (Ktor service + Next.js site) means CORS configur
 
 **Do not resize screenshots client-side (corrected 2026-07-12).** The original instruction here was to canvas-resize to ~1600px wide before upload, to hold down vision-LLM token cost. That is now exactly backwards: the stack-count digits are an **11px bitmap font**, and they do not survive resampling — at **0.95× every count already reads as garbage**. The 1600px cap put our own sample screenshots at 0.68× and 0.49×, where one is rejected outright and the other cannot even locate the inventory grid. Classical CV has no token cost, so the resize bought nothing and broke everything.
 
-JPEG *compression* is still applied and is safe as long as the pixel grid is untouched: quality **75–95** reads every count correctly (measured at every integer quality); below ~72 it becomes unreliable. `frontend/lib/compress-image.ts` now draws 1:1 at quality 0.92 — a 3MB PNG lands at 200–680KB. A capture that is not at the client's native scale is **refused** with a message telling the user how to fix it, not silently parsed.
+JPEG *compression* is still applied and is safe as long as the pixel grid is untouched: quality **75–95** reads every count correctly (measured at every integer quality); below ~72 it becomes unreliable. `frontend/lib/compress-image.ts` now draws 1:1 at quality 0.92 — a 3MB PNG lands at 200–680KB. A capture that has been **shrunk** is refused; a rescaled one is read at its own scale. (Reversed since this was written — see the note at the top.)
 
 ## Project structure
 
