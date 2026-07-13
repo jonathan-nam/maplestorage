@@ -16,6 +16,7 @@ type LoadState = "loading" | "loaded" | "error";
 
 const CHARACTERS_KEY = "/api/characters";
 const TOTALS_KEY = "/api/tokens";
+const ALL_TOKENS_KEY = "/api/characters/tokens";
 
 export default function CharactersPage() {
   const { getToken } = useAuth();
@@ -44,21 +45,36 @@ export default function CharactersPage() {
   // already know for each character means a revisit paints instantly, with no empty frame in
   // between -- the fetch still runs and still overwrites, it just no longer decides what you see
   // FIRST.
-  const [tokensByChar, setTokensByChar] = useState<Record<string, CharacterToken[]>>({});
+  const [tokensByChar, setTokensByChar] = useState<Record<string, CharacterToken[]>>(
+    peek<Record<string, CharacterToken[]>>(ALL_TOKENS_KEY) ?? {},
+  );
 
   // Bumped after an upload writes counts, to re-pull the inventory it just changed.
   const [revision, setRevision] = useState(0);
 
   useEffect(() => {
+    // Every character's inventory is fetched HERE, on load, alongside the roster -- not lazily
+    // when you click one. The page already knows you are about to look at one of these; it just
+    // does not know which. Waiting to find out puts a network round-trip between the click and
+    // the pixels, and that gap is the flicker: the panel renders empty, then fills.
     Promise.all([
       apiFetch<Character[]>(CHARACTERS_KEY, { method: "GET" }, getToken),
       apiFetch<TokenTotal[]>(TOTALS_KEY, { method: "GET" }, getToken),
+      apiFetch<Record<string, CharacterToken[]>>(ALL_TOKENS_KEY, { method: "GET" }, getToken),
     ])
-      .then(([characterResult, totalsResult]) => {
+      .then(([characterResult, totalsResult, allTokens]) => {
+        // The bulk query only returns characters that HAVE something. A character with an empty
+        // inventory comes back absent, which is indistinguishable from "not fetched yet" -- so it
+        // would sit on a loading state forever. Say so explicitly: no tokens is an answer.
+        const seeded: Record<string, CharacterToken[]> = { ...allTokens };
+        for (const c of characterResult) seeded[c.id] ??= [];
+
         setCharacters(characterResult);
         setTotals(totalsResult);
+        setTokensByChar(seeded);
         put(CHARACTERS_KEY, characterResult);
         put(TOTALS_KEY, totalsResult);
+        put(ALL_TOKENS_KEY, seeded);
         setState("loaded");
       })
       // Only show the error state if we have nothing at all. A failed refresh
@@ -67,19 +83,19 @@ export default function CharactersPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [revision]);
 
+  // A selected character is re-fetched on its own, but only as a REFRESH -- the bulk load above
+  // has already supplied something to draw, so this never decides what you see first, and a
+  // failure never blanks what is on screen.
   useEffect(() => {
     if (selectedId === null) return;
     const id = selectedId;
-    const key = `/api/characters/${id}/tokens`;
     let cancelled = false;
-    apiFetch<CharacterToken[]>(key, { method: "GET" }, getToken)
+    apiFetch<CharacterToken[]>(`/api/characters/${id}/tokens`, { method: "GET" }, getToken)
       .then((tokens) => {
-        if (cancelled) return;
-        put(key, tokens);
-        setTokensByChar((prev) => ({ ...prev, [id]: tokens }));
+        if (!cancelled) setTokensByChar((prev) => ({ ...prev, [id]: tokens }));
       })
       .catch(() => {
-        /* keep whatever we were already showing; a failed refresh must not blank the panel */
+        /* keep showing what we have */
       });
     return () => {
       cancelled = true;
@@ -123,12 +139,7 @@ export default function CharactersPage() {
       `\nheld by ${total.characterCount === 1 ? "1 character" : `${total.characterCount} characters`}`,
   }));
 
-  // Read the cache during RENDER, not in an effect. Seeding it with setState inside the effect
-  // works but costs a second render pass on every selection -- and a cascading render is exactly
-  // the flash we are here to remove.
-  const selectedTokens = selectedId
-    ? (tokensByChar[selectedId] ?? peek<CharacterToken[]>(`/api/characters/${selectedId}/tokens`))
-    : undefined;
+  const selectedTokens = selectedId ? tokensByChar[selectedId] : undefined;
   const tokensReady = selectedTokens !== undefined;
   const characterItems: InventoryItem[] = (selectedTokens ?? []).map((token) => ({
     id: token.tokenCatalogId,

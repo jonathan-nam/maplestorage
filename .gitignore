@@ -44,3 +44,6 @@ symbol-candidates.png
 
 # local Clerk config for docker compose
 .env
+
+# stray build output if next is run from the wrong cwd
+**/.next/
