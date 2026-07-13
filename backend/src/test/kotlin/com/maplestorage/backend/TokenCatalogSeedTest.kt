@@ -67,6 +67,45 @@ class TokenCatalogSeedTest {
         }
     }
 
+    // What the UI searches and counts on. All three were shipped empty at least once -- the field
+    // was added, the code compiled, and the running service kept serving the old shape, so every
+    // slot search ("helm", "robe") silently found nothing.
+    @Test
+    fun `every redemption token says which boss it comes from and which pieces it buys`() {
+        val jdbcUrl = "jdbc:postgresql://${Env.dbHost}:${Env.dbPort}/${Env.dbName}"
+        Flyway
+            .configure()
+            .dataSource(jdbcUrl, Env.dbUsername, Env.dbPassword)
+            .load()
+            .migrate()
+        Database.connect(jdbcUrl, "org.postgresql.Driver", Env.dbUsername, Env.dbPassword)
+
+        transaction {
+            TokenCatalog.selectAll().forEach { row ->
+                val key = row[TokenCatalog.visionKey]
+                assertTrue(row[TokenCatalog.itemGroup] != null, "$key has no item_group")
+                assertTrue(row[TokenCatalog.sortOrder] != null, "$key has no sort_order")
+                assertTrue(row[TokenCatalog.sourceBossName] != null, "$key has no source_boss_name")
+            }
+
+            RedemptionRule
+                .innerJoin(TokenCatalog)
+                .selectAll()
+                .forEach { row ->
+                    val key = row[TokenCatalog.visionKey]
+                    val slots = row[RedemptionRule.slotGroup]
+                    assertTrue(slots.isNotEmpty(), "$key is redeemable but buys nothing")
+                    // The two sets are disjoint and must stay that way: a token that appeared in
+                    // both would let a piece-set silently split in two.
+                    assertTrue(
+                        slots.toSet() == setOf("Hat", "Top", "Bottom", "Shoulder") ||
+                            slots.toSet() == setOf("Cape", "Glove", "Shoe"),
+                        "$key buys an unexpected set: $slots",
+                    )
+                }
+        }
+    }
+
     @Test
     fun `only redemption tokens have a redemption rule`() {
         val jdbcUrl = "jdbc:postgresql://${Env.dbHost}:${Env.dbPort}/${Env.dbName}"
