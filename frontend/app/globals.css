@@ -365,15 +365,16 @@ a:hover {
   font-variant-numeric: tabular-nums;
 }
 
+/* Half size (46 -> 23) is an exact 2:1 reduction, so the grid still lines up.
+ *
+ * Deliberately NOT `pixelated` here, unlike the inventory slot. Pixelated is right when you are
+ * drawing 1:1 or scaling UP by a whole number; on the way DOWN it just throws away every other
+ * pixel, and a 1px highlight is a 50/50 coin toss. Let the browser resample instead -- slightly
+ * soft beats missing. */
 .token-count img {
-  width: 22px;
-  height: 22px;
-  /* The icons are NOT square -- they are cropped to their own artwork, so a wide one is 46x37
-     and a tall one 28x31. Forcing both dimensions without this squashed every one of them to
-     fit, which is subtle enough per-icon to read as "the art is a bit off" rather than as a
-     bug. `contain` letterboxes instead, keeping the sprite's proportions. */
-  object-fit: contain;
-  image-rendering: pixelated; /* the icons are game sprites -- don't smudge them */
+  width: 23px;
+  height: 23px;
+  image-rendering: auto;
 }
 
 /* Says plainly that a parsed-but-unattributed screenshot has NOT been written
@@ -564,10 +565,24 @@ a:hover {
   cursor: help;
 }
 
+/* Draw the sprite 1:1, at exactly the size the client draws it. Nothing is scaled.
+ *
+ * This used to be width/height 100% -- i.e. a 46px sprite squeezed into a 42px box -- with
+ * `image-rendering: pixelated` on top. That is the one combination you must never use on pixel
+ * art: nearest-neighbour at a non-integer ratio drops rows and columns unevenly, so a straight
+ * edge grows a step in it and a 1px highlight vanishes entirely. It is why the icons looked
+ * mangled, and no amount of fixing the PNGs would have helped, because the damage was happening
+ * in the browser.
+ *
+ * The seed icons are the full 46x46 slot with the 2px border ring alpha'd away, so the art
+ * occupies the inner 42px exactly. Offsetting by -2px lands it on the slot pixel-for-pixel, and
+ * the transparent margin simply overhangs. */
 .ms-slot img {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
+  position: absolute;
+  top: -2px;
+  left: -2px;
+  width: 46px;
+  height: 46px;
   image-rendering: pixelated;
 }
 

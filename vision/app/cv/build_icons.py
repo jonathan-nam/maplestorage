@@ -1,18 +1,22 @@
-"""Re-cut the 6 token icon templates from a real screenshot.
+"""Build the two kinds of picture we keep of an item, from the client's own pixels.
 
-The icons we started with came from the web prototype's assets. They work, but
-they are not what the client actually draws -- Distorted Ambition only reaches
-0.61 against a 0.55 threshold, and it is the first token to disappear once JPEG
-artefacts are added. Templates lifted from the client's own rendering do not have
-that gap.
+They are different jobs and they want opposite things from the same slot:
 
-Two regions of a slot must be excluded from the template's mask, or we would be
-baking one screenshot's incidentals into the catalog:
+  * The MATCHING template (`--cut`, `templates/token-<key>.png`) is the item's IDENTITY. The
+    stack-count digits and the cyan slot-lock bar belong to one screenshot rather than to the
+    item, so both are masked out -- otherwise an item would stop matching itself the moment its
+    count changed or the player locked its slot.
 
-  * the stack-count digits, which differ per screenshot, and
-  * the cyan slot-lock bar along the bottom, which is per-SLOT state.
+  * The DISPLAY icon (`--display`, the backend's seed-assets) is the item's PICTURE. It needs
+    the digits and the bar gone too, but everything else kept -- including the art *underneath*
+    them, which a single screenshot never captured. That art is recovered by compositing across
+    captures rather than invented; see composite_display_icon().
 
-Run against a screenshot holding all six tokens; writes templates/token-*.png.
+Both must be cut from a NATIVE-scale capture. Parsing tolerates a rescaled screenshot, but
+authoring from one bakes a blurred guess into the catalog forever -- see cut().
+
+    python -m app.cv.build_icons <shot.png> --cut kalos-token=r7c12 ...
+    python -m app.cv.build_icons --display <shot.png> <shot2.png> ...
 """
 
 import re
@@ -24,6 +28,7 @@ import numpy as np
 
 from .grid import NATIVE_PITCH, find_grid
 from .match import find_tokens, load_templates
+from .ocr import load_font
 
 TEMPLATE_DIR = Path(__file__).parent / "templates"
 
@@ -34,13 +39,13 @@ BOTTOM_BAR = 40  # rows below this carry the slot-lock bar
 BG_LO, BG_HI = 214, 238  # the slot's flat grey backing
 
 # The slot's raised border ridge lives in the outermost ring of pixels. The display mask drops
-# it by position, not by brightness -- see display_icon(). The icon art does not reach the very
+# it by position, not by brightness -- see _cut_out(). The icon art does not reach the very
 # edge, so this costs nothing.
 BORDER = 2
 
 # An icon is one connected shape (plus, sometimes, a detached sparkle or a ring segment worth
 # keeping). Anything smaller than this is slot noise rather than art, and it reads as dirt
-# floating next to the item at 42px.
+# floating next to the item in the inventory grid.
 MIN_ISLAND = 12
 BG_FLAT = (226, 226, 226)  # the backing colour, for painting over the slot-lock bar
 
@@ -72,36 +77,16 @@ def icon_mask(cell: np.ndarray) -> np.ndarray:
     return mask
 
 
-def display_icon(cell: np.ndarray, font: dict) -> np.ndarray:
-    """The icon as a picture for the UI -- a different job, and it needs the opposite mask.
+def _occluded(cell: np.ndarray, font: dict) -> np.ndarray:
+    """Which pixels of this slot are hidden by something that is not the item.
 
-    icon_mask() amputates the digit zone, which is right for matching and badly wrong here:
-    an icon tall enough to reach the count band loses most of itself. The Extreme Blue Potion's
-    seed asset was the potion's CAP and a stray fragment of slot corner -- alpha on 16% of its
-    pixels -- and every elixir and potion in the catalog shipped like that. It is only the six
-    original tokens, whose art happens to sit above the band, that looked right and hid it.
-
-    So keep the whole icon, and remove the digits rather than the region they sit in. Their
-    exact pixels are knowable -- we own the font and can find the glyphs -- so they are matched,
-    masked and inpainted, and the art underneath is reconstructed instead of thrown away.
-
-    The alpha is taken AFTER inpainting, which makes it self-correcting: a digit drawn over the
-    backing inpaints to backing and drops out of the mask, while a digit drawn over the art
-    inpaints to art and stays. The slot-lock bar is still dropped -- it is the slot's state,
-    not the item's picture.
+    Two things cover the art: the stack-count digits, and the slot-lock bar. Both belong to
+    this screenshot rather than to the item, and neither can be seen through.
     """
-    bgr = cell[:, :, :3].copy()
-
-    # Flatten the slot-lock bar to the slot backing BEFORE inpainting. Not cosmetic:
-    # INPAINT_TELEA reconstructs a hole from the colours around it, the digit zone runs right
-    # down to the bar, and so every icon came out with a cyan smear along its bottom edge --
-    # the bar leaking upward into the very pixels we were repairing. Masking the bar out
-    # afterwards does not help, because by then its colour is already inside the artwork.
-    bgr[BOTTOM_BAR:, :] = BG_FLAT
-
-    # Where are the digits? Match the font over the count band, exactly as the reader does.
+    bgr = cell[:, :, :3]
     y0, y1, x0, x1 = DIGIT_ZONE
     band = bgr[y0:y1, x0:x1]
+
     digits = np.zeros(band.shape[:2], np.uint8)
     for glyph in font.values():
         gh, gw = glyph.shape[:2]
@@ -113,25 +98,103 @@ def display_icon(cell: np.ndarray, font: dict) -> np.ndarray:
         for gy, gx in zip(*np.where(res >= DISPLAY_DIGIT_THRESHOLD)):
             digits[gy : gy + gh, gx : gx + gw] |= glyph[:, :, 3] > 0
 
-    ink = np.zeros(bgr.shape[:2], np.uint8)
-    ink[y0:y1, x0:x1] = digits * 255
-    # Dilate: the glyphs carry a dark outline and a drop shadow a pixel beyond their alpha,
-    # and leaving that behind reads as dirt on the icon.
-    ink = cv2.dilate(ink, np.ones((3, 3), np.uint8))
-    if ink.any():
-        bgr = cv2.inpaint(bgr, ink, 3, cv2.INPAINT_TELEA)
+    occ = np.zeros(bgr.shape[:2], np.uint8)
+    occ[y0:y1, x0:x1] = digits
+    # The glyphs carry a dark outline and a drop shadow a pixel beyond their own alpha, and
+    # leaving that behind reads as dirt on the icon.
+    occ = cv2.dilate(occ, np.ones((3, 3), np.uint8))
+    occ[BOTTOM_BAR:, :] = 1
+    return occ.astype(bool)
 
-    # Background is the SAME 214-238 band the matching mask uses, and it has to be.
-    #
-    # This was briefly widened to 200-245, to swallow the slot's raised border ridge (which runs
-    # ~202-242 and so pokes out of the narrower band at both ends, leaving the slot's corner
-    # brackets attached to the icon). The comment claimed "the icons' own bright pixels are
-    # near-white (250+) or saturated, and stay". That is flatly untrue, and it wrecked every
-    # icon: the symbols' white GLOW is unsaturated and sits squarely inside 200-245, so the mask
-    # ate it and shipped hexagons and orbs with bites chewed out of them.
-    #
-    # The ridge is a fixed feature of the slot's outer edge, so remove it by GEOMETRY -- where it
-    # is -- rather than by brightness, which cannot tell it from the glow.
+
+MAX_SHIFT = 3  # px; the grid origin is never further out than this
+
+
+def _shift(a: np.ndarray, dy: int, dx: int) -> np.ndarray:
+    out = np.zeros_like(a)
+    ys, yd = (slice(dy, 46), slice(0, 46 - dy)) if dy >= 0 else (slice(0, 46 + dy), slice(-dy, 46))
+    xs, xd = (slice(dx, 46), slice(0, 46 - dx)) if dx >= 0 else (slice(0, 46 + dx), slice(-dx, 46))
+    out[yd, xd] = a[ys, xs]
+    return out
+
+
+def _best_shift(ref: np.ndarray, other: np.ndarray, both_visible: np.ndarray) -> tuple[int, int]:
+    """Integer offset that best registers `other` onto `ref`, judged only where both are art."""
+    best, best_d = None, (0, 0)
+    for dy in range(-MAX_SHIFT, MAX_SHIFT + 1):
+        for dx in range(-MAX_SHIFT, MAX_SHIFT + 1):
+            m = _shift(both_visible.astype(np.float32), dy, dx) > 0.5
+            if m.sum() < 200:
+                continue
+            d = float(np.abs(_shift(other, dy, dx)[m] - ref[m]).mean())
+            if best is None or d < best:
+                best, best_d = d, (dy, dx)
+    return best_d
+
+
+def composite_display_icon(cells: list[np.ndarray], font: dict) -> np.ndarray:
+    """One item's true artwork, assembled from every slot we have ever seen it in.
+
+    The stack count is drawn ON TOP of the icon, so the pixels beneath it were never captured
+    and cannot be recovered from a single screenshot. The previous version inpainted them --
+    reconstructing plausible art from the surrounding colours -- and it looked like exactly
+    what it was: a guess, soft and smeared across the bottom-left of every tall icon.
+
+    But the same item turns up in several captures with DIFFERENT counts, and a different count
+    hides different pixels. A '1' covers five columns; a '2655' covers forty. Cernium appears as
+    1, 340, 786 and 2655. So instead of inventing the hidden pixels, take them from a capture
+    where they are not hidden: for each pixel, the median of every instance in which it is
+    visible. Nothing is imagined, and the median also averages away JPEG noise.
+
+    Measured over the corpus, the number of pixels still hidden in EVERY instance falls to 45
+    (Cernium) - 317 (Vanishing Journey, whose counts are all four digits and so always cover the
+    same place) out of the 1840 above the bar. Only those get inpainted.
+
+    Returns the FULL 46x46 slot, not a crop: the icon's position within the slot is part of how
+    the client draws it, and the UI now renders these 1:1 at the client's own slot size.
+    """
+    # ALIGN FIRST. The grid origin is only good to a pixel or two, and it lands differently in
+    # each screenshot, so the same icon sits at a slightly different offset in each cell. Taking
+    # a median of misregistered copies does not average noise away, it smears the artwork -- it
+    # punched holes clean through kalos-token and left half the catalog blotchy. So register
+    # every instance against the least-occluded one before combining them.
+    occs = [_occluded(c, font) for c in cells]
+    ref_i = int(np.argmin([o.sum() for o in occs]))
+    ref = cells[ref_i][:, :, :3].astype(np.float32)
+
+    aligned, visible = [], []
+    for cell, occ in zip(cells, occs):
+        bgr = cell[:, :, :3].astype(np.float32)
+        dy, dx = _best_shift(ref, bgr, ~occ & ~occs[ref_i])
+        aligned.append(_shift(bgr, dy, dx))
+        visible.append(_shift((~occ).astype(np.float32), dy, dx) > 0.5)
+
+    stack = np.stack(aligned)
+    visible = np.stack(visible)
+
+    seen = visible.any(axis=0)
+    out = np.zeros((46, 46, 3), np.float32)
+    # Per-pixel median over the instances where the pixel is visible. Done by masking the
+    # hidden ones to NaN so they take no part in the statistic.
+    masked = np.where(visible[:, :, :, None], stack, np.nan)
+    with np.errstate(invalid="ignore"):
+        med = np.nanmedian(masked, axis=0)
+    out[seen] = med[seen]
+    out[~seen] = BG_FLAT
+    bgr = out.astype(np.uint8)
+
+    # Whatever no capture ever showed us -- reconstruct, but now it is a handful of pixels
+    # rather than the whole count band.
+    hole = (~seen).astype(np.uint8)
+    hole[BOTTOM_BAR:, :] = 0  # the bar is not a hole in the art; there is simply nothing there
+    if hole.any():
+        bgr = cv2.inpaint(bgr, hole, 3, cv2.INPAINT_TELEA)
+
+    return _cut_out(bgr)
+
+
+def _cut_out(bgr: np.ndarray) -> np.ndarray:
+    """Alpha the slot backing away, leaving the item on transparency. Full 46x46, uncropped."""
     grey = cv2.cvtColor(bgr, cv2.COLOR_BGR2GRAY)
     sat = cv2.cvtColor(bgr, cv2.COLOR_BGR2HSV)[:, :, 1]
     chrome = (grey >= BG_LO) & (grey <= BG_HI) & (sat < 40)
@@ -143,12 +206,8 @@ def display_icon(cell: np.ndarray, font: dict) -> np.ndarray:
     mask[:, :BORDER] = 0
     mask[:, -BORDER:] = 0
     mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, np.ones((2, 2), np.uint8))
-    # Close the pinholes the digits used to punch through the art.
     mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, np.ones((3, 3), np.uint8))
 
-    # An icon is one connected thing. What is left over is the slot's own speckle -- a stray
-    # sparkle of the backing, a surviving crumb of the ridge -- and it renders as dirt floating
-    # beside the item. Keep the body and anything of real size touching it; drop the crumbs.
     n, labels, stats, _ = cv2.connectedComponentsWithStats((mask > 0).astype(np.uint8), 8)
     if n > 1:
         keep = np.zeros_like(mask)
@@ -158,15 +217,46 @@ def display_icon(cell: np.ndarray, font: dict) -> np.ndarray:
                 keep[labels == i] = 255
         mask = keep
 
-    rgba = cv2.merge([*cv2.split(bgr), mask])
-    ys, xs = np.where(mask > 0)
-    if len(xs) == 0:
-        return rgba
-    return rgba[ys.min() : ys.max() + 1, xs.min() : xs.max() + 1]
+    return cv2.merge([*cv2.split(bgr), mask])
 
 
-# Lower than the reader's 0.60: a false positive here costs a few inpainted pixels, while a
-# miss leaves a digit burned into the catalog's artwork forever.
+def build_display_icons(capture_paths: list[str], out_dir: Path) -> dict[str, int]:
+    """Regenerate every seed icon the UI shows, from every capture we have.
+
+    Kept separate from cut(), which builds the MATCHING template, because the two want opposite
+    things from the same slot. The matcher wants the item's identity, so it throws away the count
+    digits and the slot-lock bar. The UI wants the item's picture, so it needs them gone but
+    everything else kept -- including the art underneath them.
+
+    Returns {key: number of slot instances it was built from}.
+    """
+    # Imported here rather than at module scope: match.py imports this module, and classify is
+    # only needed for the offline regeneration path.
+    from .classify import classify
+
+    templates = load_templates()
+    font = load_font()
+
+    instances: dict[str, list[np.ndarray]] = {}
+    for path in capture_paths:
+        img = cv2.imread(path)
+        if img is None:
+            raise FileNotFoundError(path)
+        g = find_grid(img)
+        if abs(g.pitch - NATIVE_PITCH) > 0.5:
+            raise NotNativeScale(f"{path}: pitch {g.pitch:.1f}, not native -- see cut()")
+        for hit in classify(img, g, templates):
+            x, y, w, _ = g.cell(hit.row, hit.col)
+            cell = img[y : y + w, x : x + w]
+            if cell.shape[:2] == (int(NATIVE_PITCH), int(NATIVE_PITCH)):
+                instances.setdefault(hit.name, []).append(cell)
+
+    out_dir.mkdir(parents=True, exist_ok=True)
+    for key, cells in instances.items():
+        cv2.imwrite(str(out_dir / f"{key}.png"), composite_display_icon(cells, font))
+    return {k: len(v) for k, v in instances.items()}
+
+
 DISPLAY_DIGIT_THRESHOLD = 0.45
 
 
@@ -214,7 +304,30 @@ def cut(img: np.ndarray, g, row: int, col: int, key: str) -> float:
     return float((mask > 0).mean())
 
 
+SEED_ASSETS = Path(__file__).resolve().parents[3] / (
+    "backend/src/main/resources/seed-assets/tokens"
+)
+
+
 def main():
+    # `--display <capture>...` regenerates the seed icons the UI shows, from every capture
+    # given. Every item in the catalog must appear in at least one of them.
+    if "--display" in sys.argv:
+        i = sys.argv.index("--display")
+        caps = [a for a in sys.argv[i + 1 :] if not a.startswith("-")]
+        if not caps:
+            print("--display needs at least one screenshot")
+            return 1
+        built = build_display_icons(caps, SEED_ASSETS)
+        missing = set(load_templates()) - set(built)
+        for k in sorted(built):
+            print(f"  {k:<26} composited from {built[k]} slot(s)")
+        if missing:
+            print(f"\n  no capture contains: {sorted(missing)} -- their icons are unchanged")
+            return 1
+        print(f"\nwrote {len(built)} icons to {SEED_ASSETS}")
+        return 0
+
     # `--cut key=rXcY ...` cuts named slots; with no --cut, re-cuts the 6 known tokens by
     # finding them, which is what this script originally did.
     args = [a for a in sys.argv[1:] if not a.startswith("-")]
