@@ -40,8 +40,8 @@
     --line-soft: #e9eef0;
     --ink: #1c2024;
     --ink-strong: #000;
-    --muted: #69737a;
-    --muted-2: #6f7a82;
+    --muted: #616b72;
+    --muted-2: #6a7076;
     --accent: #2ba3ba;
     --good: #2f8f5b;
     --warn: #b3701a;
@@ -59,8 +59,8 @@
   --line-soft: #e9eef0;
   --ink: #1c2024;
   --ink-strong: #000;
-  --muted: #69737a;
-  --muted-2: #6f7a82;
+  --muted: #616b72;
+  --muted-2: #6a7076;
   --accent: #2ba3ba;
   --good: #2f8f5b;
   --warn: #b3701a;
@@ -177,8 +177,7 @@ a:hover {
   font-variant-numeric: tabular-nums;
 }
 
-/* Styled on its own rather than via .tile-meta, because the carousel's head tile
-   ("All characters" / "Auto-detect") uses .tile-job by itself, with no level beside it. */
+/* Styled on its own rather than via .tile-meta: a tile can carry a job with no level beside it. */
 .tile-level,
 .tile-job {
   color: var(--muted-2);
@@ -485,7 +484,7 @@ a:hover {
   align-items: center;
   gap: 24px;
   padding: 12px 2rem;
-  border-bottom: 1px solid #262626;
+  border-bottom: 1px solid var(--line-soft);
 }
 
 .brand {
@@ -495,14 +494,16 @@ a:hover {
   text-decoration: none;
 }
 
+/* Text takes an INK token, never a surface one. A blanket rename once set this to --surface-2,
+   which is #202020 in dark and #f7f9fa in light: invisible against the page in both. */
 .brand-name {
-  color: var(--surface-2);
+  color: var(--ink);
   font-weight: 700;
   letter-spacing: 0.02em;
 }
 
 .brand:hover .brand-name {
-  color: #fff;
+  color: var(--ink-strong);
 }
 
 .site-nav {
@@ -511,16 +512,16 @@ a:hover {
 }
 
 .site-nav a {
-  color: #999;
+  color: var(--muted);
   text-decoration: none;
 }
 
 .site-nav a:hover {
-  color: #fff;
+  color: var(--ink);
 }
 
 .site-nav a.active {
-  color: var(--surface-2);
+  color: var(--ink);
   font-weight: 700;
 }
 
