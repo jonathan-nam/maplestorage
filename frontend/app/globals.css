@@ -841,10 +841,15 @@ button.link:disabled {
 .finder-name {
   font-weight: 700;
 }
-.finder-level {
-  font-size: 12px;
-  color: var(--muted-2);
+.finder-ready {
+  font-size: 11px;
+  color: var(--accent);
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.finder-ready::after {
+  content: " redeemable";
+  color: var(--muted-2);
 }
 .finder-total {
   margin-left: auto;

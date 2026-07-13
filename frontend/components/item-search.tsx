@@ -163,7 +163,14 @@ export function SearchResults({ query, matches }: { query: string; matches: Matc
               <article key={character.id} className="finder-row">
                 <header>
                   <span className="finder-name">{character.name}</span>
-                  <span className="finder-level">Lv.{character.level ?? "?"}</span>
+                  {/* Redemption is per character, so the per-character figure is the ACTIONABLE
+                      one -- the total above only tells you it exists somewhere. Same tested
+                      function as the total, so the two can never disagree. */}
+                  {[...redeemableBySet(items).entries()].map(([set, n]) => (
+                    <span key={set} className="finder-ready">
+                      <strong>{n}</strong> {set}
+                    </span>
+                  ))}
                   <span className="finder-total">{total}</span>
                 </header>
                 <ul>
@@ -172,16 +179,13 @@ export function SearchResults({ query, matches }: { query: string; matches: Matc
                       {item.iconUrl && (
                         <img src={apiAssetUrl(item.iconUrl)} alt="" aria-hidden="true" />
                       )}
+                      {/* The boss, but not the slots. The slots are still SEARCHED on -- "robe"
+                          finds this -- they just do not need restating on every row once the
+                          header says what is redeemable. */}
                       <span className="finder-item-name">
                         {item.name}
                         {item.sourceBoss && (
                           <span className="finder-item-boss"> · {item.sourceBoss}</span>
-                        )}
-                        {item.redeemSlots.length > 0 && (
-                          <span className="finder-item-boss">
-                            {" "}
-                            · buys {item.redeemSlots.join(" / ")}
-                          </span>
                         )}
                       </span>
                       <span className="finder-item-qty">{item.quantity}</span>
