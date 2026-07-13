@@ -172,13 +172,30 @@ async def parse(request: Request, response: Response) -> ScreenshotParseResult:
     with stage("hud"):
         hud = find_hud(img, scale=g.scale)
 
-    counts = []
     # Two-stage: shortlist every slot with a cheap descriptor, verify the top
     # candidates exactly. Flat in catalog size, so this still holds up when the
     # catalog grows past the 6 tokens (see app/cv/classify.py).
     with stage("classify"):
         hits = classify(img, g, TOKENS)
 
+    # One item can occupy SEVERAL slots, so results are summed per item rather than emitted
+    # per slot.
+    #
+    # This is not a hypothetical. Every symbol coupon exists in a tradeable and an untradeable
+    # version. They are different items to the client, they sit in different slots, and they are
+    # drawn with THE SAME ICON -- there is no pixel anywhere in the slot that tells them apart.
+    # (The cyan bar along the bottom is not it: that marks a slot the player has locked against
+    # the in-game auto-sort, and is a property of the slot, not of what is in it.)
+    #
+    # So summing is not a convenience, it is the only honest answer available. We cannot say how
+    # many of a player's 1427 Tallahart coupons are tradeable, and any split we reported would be
+    # invented. The total is true regardless of which slot is which.
+    #
+    # Emitting one result per slot and letting the backend upsert them would have quietly kept
+    # whichever arrived last and discarded the other: 630 reported against 1427 held. A silent
+    # undercount -- precisely the failure the rest of this pipeline exists to prevent -- and it
+    # would have looked entirely plausible on screen.
+    totals: dict[str, list] = {}
     with stage("counts"):
         for hit in hits:
             digits, conf = read_count(img, g, hit.row, hit.col, FONT)
@@ -187,13 +204,14 @@ async def parse(request: Request, response: Response) -> ScreenshotParseResult:
                 # a fabricated quantity would be worse than reporting nothing.
                 log.info("unreadable count for %s at r%dc%d", hit.name, hit.row, hit.col)
                 continue
-            counts.append(
-                DetectedToken(
-                    tokenName=hit.name,
-                    quantity=int(digits),
-                    iconScore=round(hit.score, 3),
-                )
-            )
+            slot = totals.setdefault(hit.name, [0, 0.0])
+            slot[0] += int(digits)
+            slot[1] = max(slot[1], hit.score)
+
+    counts = [
+        DetectedToken(tokenName=name, quantity=qty, iconScore=round(score, 3))
+        for name, (qty, score) in totals.items()
+    ]
 
     # The backend forwards this straight through to the browser, so a slow upload can
     # be attributed to a stage from the Network panel, without a profiler or a log dive.
