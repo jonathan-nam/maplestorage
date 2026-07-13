@@ -5,11 +5,13 @@ import { useEffect, useState } from "react";
 import { InventoryPanel, type InventoryItem } from "@/components/inventory-panel";
 import { apiFetch } from "@/lib/api";
 import { invalidate, peek, put } from "@/lib/cache";
+import { redemptionNote } from "@/lib/redemption";
 import type { Character } from "@/types/character";
 import type { CharacterToken } from "@/types/character-token";
 import type { TokenTotal } from "@/types/token-total";
 import { AddCharacterForm } from "./add-character-form";
 import { CaptureDock } from "@/components/capture-dock";
+import { SearchBar, SearchResults, search } from "@/components/item-search";
 import { CharacterCarousel, type Selection } from "@/components/character-carousel";
 
 type LoadState = "loading" | "loaded" | "error";
@@ -32,8 +34,10 @@ export default function CharactersPage() {
   const [totals, setTotals] = useState<TokenTotal[]>(seededTotals ?? []);
   const [state, setState] = useState<LoadState>(seededCharacters ? "loaded" : "loading");
 
-  // null = the aggregate across every character, which is what you land on.
+  // null = no character selected, which is what you land on.
   const [selectedId, setSelectedId] = useState<Selection>(null);
+
+  const [query, setQuery] = useState("");
 
   // Tokens are kept PER CHARACTER, not as a single "the tokens" slot.
   //
@@ -124,20 +128,50 @@ export default function CharactersPage() {
 
   const selected = characters.find((c) => c.id === selectedId);
 
-  const aggregateItems: InventoryItem[] = totals.map((total) => ({
-    id: total.tokenCatalogId,
-    name: total.name,
-    iconUrl: total.iconUrl,
-    quantity: total.quantity,
-    itemGroup: total.itemGroup,
-    // A consumable has nothing to redeem toward. Saying "7 / 10 toward an Eternal set" on a
-    // potion would be a confident, meaningless number -- the failure this app exists to avoid.
-    note:
-      (total.redeemThreshold
-        ? `${total.quantity} / ${total.redeemThreshold} toward an Eternal set`
-        : `${total.quantity} in total`) +
-      `\nheld by ${total.characterCount === 1 ? "1 character" : `${total.characterCount} characters`}`,
-  }));
+  // Eternal pieces CANNOT be pooled across characters: a single character must reach the
+  // threshold alone. Six on one and four on another is not a set -- it is two characters who are
+  // both short. The aggregate used to report "10 / 10 toward an Eternal set" against the SUM,
+  // which is a confidently wrong number, and a confidently wrong number is the one thing this app
+  // exists not to produce.
+  //
+  // So progress is counted per character and only then added up. The total quantity is still worth
+  // showing -- it says how much you own -- but it is not progress, and it no longer pretends to be.
+  const setsReadyFor = (tokenCatalogId: string, threshold: number) =>
+    Object.values(tokensByChar).reduce((sets, tokens) => {
+      const held = tokens.find((t) => t.tokenCatalogId === tokenCatalogId)?.quantity ?? 0;
+      return sets + Math.floor(held / threshold);
+    }, 0);
+
+  const aggregateItems: InventoryItem[] = totals.map((total) => {
+    const held = `${total.quantity} across ${
+      total.characterCount === 1 ? "1 character" : `${total.characterCount} characters`
+    }`;
+    if (!total.redeemThreshold) {
+      return {
+        id: total.tokenCatalogId,
+        name: total.name,
+        iconUrl: total.iconUrl,
+        quantity: total.quantity,
+        itemGroup: total.itemGroup,
+        note: held,
+      };
+    }
+    const sets = setsReadyFor(total.tokenCatalogId, total.redeemThreshold);
+    return {
+      id: total.tokenCatalogId,
+      name: total.name,
+      iconUrl: total.iconUrl,
+      quantity: total.quantity,
+      itemGroup: total.itemGroup,
+      note:
+        `${held}\n` +
+        `${sets === 0 ? "no" : sets} complete ${sets === 1 ? "set" : "sets"} ` +
+        `(${total.redeemThreshold} on ONE character; pieces cannot be combined)`,
+    };
+  });
+
+  const searching = query.trim().length > 0;
+  const matches = search(query, characters, tokensByChar);
 
   const selectedTokens = selectedId ? tokensByChar[selectedId] : undefined;
   const tokensReady = selectedTokens !== undefined;
@@ -148,7 +182,7 @@ export default function CharactersPage() {
     quantity: token.quantity,
     itemGroup: token.itemGroup,
     note: token.redeemThreshold
-      ? `${token.quantity} / ${token.redeemThreshold} toward an Eternal set`
+      ? redemptionNote(token.quantity, token.redeemThreshold)
       : `${token.quantity} in total`,
   }));
 
@@ -161,6 +195,8 @@ export default function CharactersPage() {
 
       {state === "loaded" && (
         <>
+          <SearchBar query={query} onQuery={setQuery} />
+
           <CharacterCarousel
             characters={characters}
             selectedId={selectedId}
@@ -185,7 +221,11 @@ export default function CharactersPage() {
             onSaved={() => setRevision((n) => n + 1)}
           />
 
-          {selected ? (
+          {/* Searching answers a question the inventory cannot, so it takes over while you are
+              asking it. Typing anything replaces the panel with WHERE the item is. */}
+          {searching ? (
+            <SearchResults query={query} matches={matches} />
+          ) : selected ? (
             <InventoryPanel
               title={selected.name}
               subtitle={`Lv.${selected.level ?? "?"}`}
@@ -196,7 +236,7 @@ export default function CharactersPage() {
             />
           ) : (
             <InventoryPanel
-              title="All characters"
+              title="Everything you hold"
               subtitle={characters.length === 1 ? "1 character" : `${characters.length} characters`}
               emptyHint="Nothing tracked yet. Upload an inventory screenshot."
               items={aggregateItems}

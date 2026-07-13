@@ -4,6 +4,7 @@ import { useAuth } from "@clerk/nextjs";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
+import { redemptionNote } from "@/lib/redemption";
 import { InventoryPanel } from "@/components/inventory-panel";
 import { apiFetch, ApiError } from "@/lib/api";
 import type { Character } from "@/types/character";
@@ -70,7 +71,7 @@ export default function CharacterDetailPage() {
               iconUrl: token.iconUrl,
               quantity: token.quantity,
               note: token.redeemThreshold
-                ? `${token.quantity} / ${token.redeemThreshold} toward an Eternal set`
+                ? redemptionNote(token.quantity, token.redeemThreshold)
                 : `${token.quantity} in total`,
             }))}
           />
