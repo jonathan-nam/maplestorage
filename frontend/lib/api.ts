@@ -2,7 +2,7 @@ import { record, serverTimeFromHeader } from "./timing";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
 
-// For public, unauthenticated assets (token icons) that don't go through
+// Public, unauthenticated assets: the item icons and the client's digit sprites. that don't go through
 // apiFetch's Bearer-token JSON flow -- just resolves a backend-relative path
 // (e.g. "/token-icons/foo.png") to an absolute URL.
 export function apiAssetUrl(path: string): string {
@@ -18,8 +18,8 @@ export class ApiError extends Error {
   }
 }
 
-// Wraps the fetch + Authorization: Bearer pattern already used in
-// backend-status.tsx so it isn't copy-pasted per call site. Takes getToken
+// Wraps the fetch + Authorization: Bearer pattern so it is not copy-pasted per
+// call site. Takes getToken
 // as a plain function argument (from useAuth()) rather than calling the
 // hook itself, so this can be called from event handlers (form submit,
 // delete click) as well as effects.

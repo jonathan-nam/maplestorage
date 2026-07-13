@@ -44,8 +44,7 @@ export function CaptureDock({
   onToggleGeneric,
 }: {
   characters: Character[];
-  // null = no character selected (the "All characters" tile), so we fall back to reading the
-  // name out of the HUD, exactly as the old upload page always did.
+  // null = no character selected, so the character is read from the screenshot's HUD instead.
   pinnedCharacterId: string | null;
   // What we already hold for the pinned character, so the preview can show the DIFFERENCE
   // rather than just the numbers. Keyed by catalog id.
@@ -442,8 +441,7 @@ function describe(capture: Capture, pinned: Character | undefined): { text: stri
         tone: "warn",
       };
 
-    // Only reachable with no character selected. Uploading from a character's page is what
-    // makes this impossible -- which is the whole point of moving it here.
+    // Only reachable with no character selected -- pick one and there is nothing to resolve.
     case "UNRESOLVABLE":
       return {
         text: "No character name is visible in this screenshot. Pick a character, or select one above before uploading.",

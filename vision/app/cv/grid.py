@@ -1,20 +1,36 @@
 """Locate the MapleStory inventory slot lattice in a screenshot.
 
-The inventory is a 16x8 grid of square slots. Two properties of how the client
-draws it make the lattice recoverable without any learned model:
+The inventory is a 16x8 grid of square slots, and the recovered pitch doubles as the
+screenshot's SCALE -- which is what lets every downstream step (icon matching, count reading)
+work per-cell at a known size instead of doing a free-floating multi-scale search. That search
+is what made naive template matching unreliable, so getting the lattice right is the whole
+foundation.
 
-  * A slot's interior is a flat light grey (~226), whether it is empty or holds
-    an icon -- the icon never covers the whole cell.
-  * Every slot boundary is a fixed ridge (`222 214 242 238 238 242 214 222`):
-    a bright core with dark flanks, ~5px of which falls outside the interior's
-    grey band.
+There are two ways to find it, and both are needed.
 
-So thresholding to the interior band severs the cells from each other, and each
-slot falls out as its own connected component whose bounding box *is* the slot.
-We then fit a lattice to those boxes. The recovered pitch doubles as the
-screenshot's scale factor, which lets every downstream step (icon matching,
-count reading) work per-cell at a known scale instead of doing a free-floating
-multi-scale search -- which is what made naive template matching unreliable.
+SEGMENTATION (the fast path, _grid_by_segmentation). Two properties of how the client draws a
+slot make the lattice recoverable without any learned model:
+
+  * A slot's interior is a flat light grey (~226), whether it is empty or holds an icon -- the
+    icon never covers the whole cell.
+  * Every slot boundary is a fixed ridge (`222 214 242 238 238 242 214 222`): a bright core with
+    dark flanks, ~5px of which falls outside the interior's grey band.
+
+So thresholding to the interior band SEVERS the cells from each other, each slot falls out as
+its own connected component whose bounding box *is* the slot, and a lattice is fitted to those
+boxes.
+
+CORRELATION (the fallback, _grid_by_correlation). All of the above rests on the ridge escaping
+the interior band -- and on a capture that has been through a lossy rescale it simply does not.
+A real Parsec frame arrived with the ridge as a gentle 222 -> 236 -> 218 bump that never leaves
+the band, so nothing severed, the slot bed flooded into one component, and segmentation found
+SIX boxes instead of 128. No threshold fixes that: segmentation needs a hard edge and the
+capture no longer has one.
+
+Correlation does not care about hard edges -- it degrades smoothly with blur instead of falling
+off a cliff. And whatever the player owns, an inventory always contains the same thing in
+quantity: the EMPTY SLOT. Sliding that one template over the frame gives the lattice back
+directly.
 """
 
 from dataclasses import dataclass

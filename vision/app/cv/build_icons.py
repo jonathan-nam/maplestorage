@@ -27,7 +27,7 @@ import cv2
 import numpy as np
 
 from .grid import COLS, NATIVE_PITCH, ROWS, Grid, find_grid
-from .match import find_tokens, load_templates
+from .match import load_templates
 from .ocr import count_spans, load_font
 
 TEMPLATE_DIR = Path(__file__).parent / "templates"
@@ -48,10 +48,9 @@ BORDER = 2
 # floating next to the item in the inventory grid.
 MIN_ISLAND = 12
 
-# Columns of blank the count is allowed to contain before we call it finished. The client leaves
-# about a pixel between digits; anything wider is not part of the number.
-# The count reader widens its band a few px LEFT of the cell; a bare cell has nothing there to
-# widen into, so we hand it that margin explicitly. See _occluded().
+# The count reader takes its band a few pixels LEFT of the cell, because the count is drawn hard
+# against that edge and the grid is only ever good to a pixel. A bare 46x46 cell has nothing there
+# to widen into, so _occluded() hands it that margin explicitly.
 BAND_PAD = 6
 BG_FLAT = (226, 226, 226)  # the backing colour, for painting over the slot-lock bar
 
@@ -130,8 +129,16 @@ def _occluded(cell: np.ndarray, font: dict) -> np.ndarray:
     return occ.astype(bool)
 
 
-MAX_SHIFT = 3  # px; the grid origin is never further out than this
+MAX_SHIFT = 3  # px; the fitted grid origin is never further out than this
 EMPTY_SLOT_SCORE = 0.90  # how well a slot must match the empty-slot template to vote on the fit
+
+# There used to be a per-instance alignment search here: register each capture of an item against a
+# reference capture before combining them. It is gone, and it should stay gone. The icons are
+# glowing, near-symmetric blobs, so "best overlap" has spurious minima a few pixels off true and
+# the search happily found them -- it shifted half the catalog by 2-5px and BLURRED the artwork it
+# was meant to be sharpening. Registering the LATTICE once per capture, against a landmark that is
+# identical in every screenshot (see slot_offsets), is the reliable thing. Asking the artwork to
+# align itself is not.
 
 # How closely a donor capture must agree with the base one, over the pixels both can see, before
 # it is allowed to fill in the pixels the base cannot.
@@ -143,28 +150,6 @@ EMPTY_SLOT_SCORE = 0.90  # how well a slot must match the empty-slot template to
 # a donor that is MISALIGNED, which shows up as wholesale disagreement, not as a few levels.
 DONOR_TOLERANCE = 24
 DONOR_AGREEMENT = 0.90
-
-
-def _shift(a: np.ndarray, dy: int, dx: int) -> np.ndarray:
-    out = np.zeros_like(a)
-    ys, yd = (slice(dy, 46), slice(0, 46 - dy)) if dy >= 0 else (slice(0, 46 + dy), slice(-dy, 46))
-    xs, xd = (slice(dx, 46), slice(0, 46 - dx)) if dx >= 0 else (slice(0, 46 + dx), slice(-dx, 46))
-    out[yd, xd] = a[ys, xs]
-    return out
-
-
-def _best_shift(ref: np.ndarray, other: np.ndarray, both_visible: np.ndarray) -> tuple[int, int]:
-    """Integer offset that best registers `other` onto `ref`, judged only where both are art."""
-    best, best_d = None, (0, 0)
-    for dy in range(-MAX_SHIFT, MAX_SHIFT + 1):
-        for dx in range(-MAX_SHIFT, MAX_SHIFT + 1):
-            m = _shift(both_visible.astype(np.float32), dy, dx) > 0.5
-            if m.sum() < 200:
-                continue
-            d = float(np.abs(_shift(other, dy, dx)[m] - ref[m]).mean())
-            if best is None or d < best:
-                best, best_d = d, (dy, dx)
-    return best_d
 
 
 def composite_display_icon(cells: list[np.ndarray], font: dict) -> np.ndarray:
@@ -249,11 +234,9 @@ def composite_display_icon(cells: list[np.ndarray], font: dict) -> np.ndarray:
         bgr[take] = stack[i][take].astype(np.uint8)
         filled |= take
 
-    seen = filled
-
     # Whatever no capture ever showed us -- reconstruct, but now it is a handful of pixels
     # rather than the whole count band.
-    hole = (~seen).astype(np.uint8)
+    hole = (~filled).astype(np.uint8)
     hole[BOTTOM_BAR:, :] = 0  # the bar is not a hole in the art; there is simply nothing there
     if hole.any():
         bgr = cv2.inpaint(bgr, hole, 3, cv2.INPAINT_TELEA)
@@ -408,7 +391,7 @@ def build_display_icons(capture_paths: list[str], out_dir: Path) -> dict[str, in
         # Cut from a lattice re-fitted to the client's real slot boundaries. find_grid's is good
         # to a pixel or two -- fine for matching, not for authoring a picture -- and the error is
         # not even constant across one capture, because the pitch is fractionally off and drifts
-        # across the columns. See refine_grid().
+        # across the columns. See slot_offsets().
         offs = slot_offsets(img, g)
         for hit in classify(img, g, templates):
             x, y, w, _ = g.cell(hit.row, hit.col)
@@ -422,9 +405,6 @@ def build_display_icons(capture_paths: list[str], out_dir: Path) -> dict[str, in
     for key, cells in instances.items():
         cv2.imwrite(str(out_dir / f"{key}.png"), composite_display_icon(cells, font))
     return {k: len(v) for k, v in instances.items()}
-
-
-DISPLAY_DIGIT_THRESHOLD = 0.45
 
 
 class NotNativeScale(ValueError):
@@ -533,21 +513,8 @@ def main():
             return 1
         return 0
 
-    # Bootstrap from the prototype artwork -- using the game-cut templates here
-    # would just re-find whatever we cut last time.
-    hits = find_tokens(img, g, load_templates(prefer_game_cut=False))
-    print(f"{path}: located {len(hits)}/6 tokens with the prototype icons\n")
-
-    for h in hits:
-        x, y, w, _ = g.cell(h.row, h.col)
-        cell = img[y : y + w, x : x + w]
-        mask = icon_mask(cell)
-        rgba = cv2.merge([*cv2.split(cell), mask])
-        cv2.imwrite(f"templates/token-{h.token}.png", rgba)
-        print(
-            f"  {h.token:24s} r{h.row}c{h.col}  mask covers {(mask > 0).mean() * 100:4.1f}% of slot"
-        )
-    return 0
+    print("nothing to do: pass --cut or --display (see the module docstring)")
+    return 1
 
 
 if __name__ == "__main__":

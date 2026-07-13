@@ -1,18 +1,24 @@
 """Screenshot parsing service.
 
-Runs as a second container in the same ECS task as the Ktor backend, which calls
-it over loopback -- one deployable, two processes. It replaces the Claude-vision
-call for token counts:
-the parse is a deterministic OpenCV pipeline (see app/cv/), so it costs no
-tokens, makes no network call, and returns the same answer every time.
+Runs as a second container in the same ECS task as the Ktor backend, which calls it over
+loopback -- one deployable, two processes. It replaced a Claude-vision call: the parse is a
+deterministic OpenCV pipeline (see app/cv/), so it costs no tokens, makes no network call, and
+returns the same answer every time. Nothing about the vision LLM survives; the backend now
+speaks to this service directly.
 
-The response mirrors Kotlin's `ScreenshotParseResult` so the backend's existing
-`ClaudeVisionService` seam keeps working -- only the implementation behind it
-changes.
+The HUD ("Lv.287 acornacorn") is read too -- located by matching the fixed-pixel "Lv." prefix,
+then OCR'd with Tesseract. It is null when no HUD is in frame, which the backend treats as
+needing review.
 
-The HUD ("Lv.287 acornacorn") is read too -- located by matching the fixed-pixel
-"Lv." prefix, then OCR'd with Tesseract. It is null when no HUD is in frame,
-which the backend already treats as NEEDS_REVIEW.
+Two things this service will NOT do, both learned the hard way:
+
+  * It will not report a count it cannot stand behind. An item whose stack count is unreadable
+    is dropped rather than reported with a guessed number -- a wrong count is worse than a
+    missing one, and it is the failure this whole project exists to prevent.
+  * It will not refuse a capture it can actually read. A rescaled screenshot (remote play,
+    display scaling) used to be rejected on the strength of an accuracy figure that had been
+    measured through our OWN lossy resampling step. Read at its native scale, those captures
+    parse fine. See app/cv/classify.scale_templates.
 """
 
 import logging
@@ -36,7 +42,7 @@ log = logging.getLogger("vision")
 
 MAX_UPLOAD_BYTES = 20 * 1024 * 1024
 
-# Loaded once at import: the catalog is fixed and the templates are ~50KB.
+# Loaded once at import: the catalog is fixed and the templates are small.
 TOKENS = load_templates()
 FONT = load_font()
 
@@ -172,9 +178,10 @@ async def parse(request: Request, response: Response) -> ScreenshotParseResult:
     with stage("hud"):
         hud = find_hud(img, scale=g.scale)
 
-    # Two-stage: shortlist every slot with a cheap descriptor, verify the top
-    # candidates exactly. Flat in catalog size, so this still holds up when the
-    # catalog grows past the 6 tokens (see app/cv/classify.py).
+    # Two-stage: shortlist every slot with a cheap descriptor, verify the top candidates
+    # exactly. The verify cost is O(TOP_K) rather than O(catalog), so this holds up as the
+    # catalog grows -- what does NOT come for free is the shortlist's recall, which is pinned by
+    # a test rather than a hope. See app/cv/classify.py.
     with stage("classify"):
         hits = classify(img, g, TOKENS)
 

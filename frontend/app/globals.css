@@ -14,15 +14,15 @@
 :root {
   color-scheme: dark;
 
-  --bg: var(--bg);
-  --surface: var(--surface);
-  --surface-2: var(--surface-2);
-  --line: var(--line);
-  --line-soft: var(--line-soft);
-  --ink: var(--ink);
-  --ink-strong: var(--ink-strong);
-  --muted: var(--muted);
-  --muted-2: var(--muted-2);
+  --bg: #111;
+  --surface: #1a1a1a;
+  --surface-2: #202020;
+  --line: #3a3a3a;
+  --line-soft: #262626;
+  --ink: #ddd;
+  --ink-strong: #fff;
+  --muted: #999;
+  --muted-2: #8a8a8a;
   --accent: #36b8d0;
   --good: #5cbf87;
   --warn: #e0a24e;
@@ -34,7 +34,7 @@
     color-scheme: light;
 
     --bg: #f2f5f6;
-    --surface: var(--ink-strong);
+    --surface: #fff;
     --surface-2: #f7f9fa;
     --line: #d8dee1;
     --line-soft: #e9eef0;
@@ -53,7 +53,7 @@
   color-scheme: light;
 
   --bg: #f2f5f6;
-  --surface: var(--ink-strong);
+  --surface: #fff;
   --surface-2: #f7f9fa;
   --line: #d8dee1;
   --line-soft: #e9eef0;
@@ -70,24 +70,21 @@
 :root[data-theme="dark"] {
   color-scheme: dark;
 
-  --bg: var(--bg);
-  --surface: var(--surface);
-  --surface-2: var(--surface-2);
-  --line: var(--line);
-  --line-soft: var(--line-soft);
-  --ink: var(--ink);
-  --ink-strong: var(--ink-strong);
-  --muted: var(--muted);
-  --muted-2: var(--muted-2);
+  --bg: #111;
+  --surface: #1a1a1a;
+  --surface-2: #202020;
+  --line: #3a3a3a;
+  --line-soft: #262626;
+  --ink: #ddd;
+  --ink-strong: #fff;
+  --muted: #999;
+  --muted-2: #8a8a8a;
   --accent: #36b8d0;
   --good: #5cbf87;
   --warn: #e0a24e;
   --bad: #e0706a;
 }
 
-/* Monochrome/dark-mode-first design language per WEB-UI-SPEC.md: no rounded
-   corners, no gradients, no shadows, no modals -- ported from
-   prototypes/web-ui/style.css, the visual reference the spec points to. */
 body {
   margin: 0;
   background: var(--bg);
@@ -111,19 +108,6 @@ a:hover {
   font-size: 11px;
   font-style: italic;
   margin: 10px 0 0;
-}
-
-.back-link {
-  display: inline-block;
-  margin-bottom: 16px;
-  color: var(--muted);
-}
-
-.char-grid {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 16px;
-  margin-top: 16px;
 }
 
 /* No frame, no plate, no box around the sprite. The character IS the sprite --
@@ -226,252 +210,6 @@ a:hover {
 
 .tile-actions a:hover {
   color: var(--ink-strong);
-}
-
-.char-detail-header {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  padding-bottom: 16px;
-  border-bottom: 1px solid var(--line);
-  margin-bottom: 16px;
-}
-
-.char-detail-header .tile-sprite {
-  width: 96px;
-  height: 96px;
-}
-
-.char-detail-header h1 {
-  font-size: 16px;
-  margin: 0 0 4px;
-}
-
-.char-detail-header .meta {
-  color: var(--muted);
-}
-
-/* --- M3 (upload page + token table) ---------------------------------
-   Recovered from the compiled CSS bundle after the original edits to
-   this file were lost; declarations are faithful but the original
-   formatting/comments in this block are not. Reformat at will. */
-
-.intro-copy {
-  color: var(--muted);
-  max-width: 640px;
-  margin: 0 0 16px;
-}
-
-.screenshot-help {
-  color: var(--ink);
-  border: 1px solid var(--line);
-  margin: 0 0 16px;
-  padding: 10px 16px;
-}
-
-.screenshot-help ol {
-  margin: 0;
-  padding-left: 18px;
-}
-
-.screenshot-help li {
-  margin-bottom: 4px;
-}
-
-.os-toggle {
-  color: var(--muted);
-  margin: 0 0 8px;
-}
-
-.os-toggle a {
-  margin: 0 2px;
-}
-
-.os-toggle a.active {
-  color: var(--ink-strong);
-  font-weight: 700;
-  text-decoration: none;
-}
-
-.dropzone {
-  text-align: center;
-  color: var(--muted);
-  cursor: pointer;
-  border: 1px dashed var(--line);
-  padding: 48px 16px;
-}
-
-.dropzone.dragover {
-  color: var(--ink);
-  border-color: var(--ink);
-}
-
-.row-list {
-  margin-top: 16px;
-}
-
-.session-header {
-  color: var(--muted);
-  border-top: 1px solid var(--line);
-  margin-top: 16px;
-  padding-top: 8px;
-  font-style: italic;
-}
-
-.session-header:first-child {
-  border-top: none;
-  margin-top: 0;
-}
-
-.upload-row {
-  border-bottom: 1px solid var(--line-soft);
-  align-items: center;
-  gap: 10px;
-  padding: 6px 0;
-  display: flex;
-}
-
-.upload-row .thumb {
-  object-fit: cover;
-  background: var(--surface);
-  border: 1px solid var(--line);
-  flex-shrink: 0;
-  width: 48px;
-  height: 48px;
-}
-
-.upload-row .filename {
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--muted);
-  flex-shrink: 0;
-  width: 200px;
-  overflow: hidden;
-}
-
-.upload-row .status {
-  flex: 1;
-}
-
-.status.pending {
-  color: var(--muted);
-  font-style: italic;
-}
-
-.status.needs-review {
-  color: var(--ink);
-  font-style: italic;
-}
-
-.status.mismatch,
-.status.new-character {
-  color: var(--ink-strong);
-  font-weight: 700;
-}
-
-.row-actions a {
-  white-space: nowrap;
-  margin-left: 8px;
-}
-
-.change-panel {
-  color: var(--muted);
-  border-bottom: 1px solid var(--line-soft);
-  padding: 8px 0 8px 58px;
-}
-
-.change-panel select {
-  color: var(--ink);
-  background: var(--surface);
-  border: 1px solid var(--line);
-  margin-right: 12px;
-  padding: 2px 4px;
-}
-
-.change-panel label {
-  margin-right: 4px;
-}
-
-.item-table {
-  border-collapse: collapse;
-  width: 100%;
-  margin-top: 16px;
-}
-
-.item-table td {
-  vertical-align: middle;
-  border-bottom: 1px solid var(--line-soft);
-  padding: 6px 8px;
-}
-
-.item-table .icon {
-  object-fit: contain;
-  width: 32px;
-  height: 32px;
-  image-rendering: pixelated;
-  background: var(--surface);
-  border: 1px solid var(--line);
-  display: block;
-}
-
-.item-table .name-cell {
-  width: 100%;
-}
-
-.redemption-note {
-  color: var(--muted);
-  font-size: 12px;
-  font-style: italic;
-}
-
-.item-table td.qty {
-  text-align: right;
-  color: var(--ink);
-  white-space: nowrap;
-  padding-right: 12px;
-}
-
-/* What we read off the screenshot, shown on every row -- including rows that
-   still need review, since those have been fully parsed too. Leaving the counts
-   invisible is what made a successful parse look like nothing had happened. */
-.token-counts {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  flex-wrap: wrap;
-}
-
-.token-count {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.2rem;
-  font-variant-numeric: tabular-nums;
-}
-
-/* Half size (46 -> 23) is an exact 2:1 reduction, so the grid still lines up.
- *
- * Deliberately NOT `pixelated` here, unlike the inventory slot. Pixelated is right when you are
- * drawing 1:1 or scaling UP by a whole number; on the way DOWN it just throws away every other
- * pixel, and a 1px highlight is a 50/50 coin toss. Let the browser resample instead -- slightly
- * soft beats missing. */
-.token-count img {
-  width: 23px;
-  height: 23px;
-  image-rendering: auto;
-}
-
-/* Says plainly that a parsed-but-unattributed screenshot has NOT been written
-   yet, so a review row can't be mistaken for a saved one. */
-.not-saved {
-  font-style: italic;
-  opacity: 0.7;
-  font-size: 0.85em;
-}
-
-.help-note {
-  margin-top: 0.75rem;
-  opacity: 0.8;
-  font-size: 0.9em;
 }
 
 /* ---------------------------------------------------------------------------
@@ -589,49 +327,6 @@ a:hover {
   font-weight: 700;
 }
 
-.ms-toolbar {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 7px 8px;
-}
-
-.ms-btn {
-  padding: 3px 12px;
-  border-radius: 10px;
-  background: #b9bfc4;
-  color: #fff;
-  font-size: 11px;
-  font-weight: 700;
-}
-
-.ms-btn.primary {
-  background: var(--ms-accent);
-}
-
-.ms-slot-readout {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin-left: auto;
-}
-
-.ms-slot-label {
-  color: var(--ms-muted-2);
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-}
-
-.ms-slot-pill {
-  padding: 2px 10px;
-  border-radius: 9px;
-  background: #c2c7cb;
-  color: #fff;
-  font-size: 11px;
-  font-variant-numeric: tabular-nums;
-}
-
 .ms-grid {
   display: grid;
   gap: 4px;
@@ -704,25 +399,6 @@ a:hover {
   image-rendering: pixelated;
 }
 
-.ms-footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  margin: 6px 8px 0;
-  padding: 6px 10px;
-  border-radius: 6px;
-  background: #fff;
-  color: #6c7785;
-  font-size: 11px;
-}
-
-.ms-hint {
-  margin-left: auto;
-  color: var(--ms-muted-2);
-  font-style: italic;
-}
-
 /* 16 slots at 46px is a wide window. Let it scroll on its own rather than
    pushing the page sideways. */
 @media (width <= 900px) {
@@ -784,16 +460,6 @@ a:hover {
 .carousel-arrow:disabled {
   color: #444;
   cursor: default;
-}
-
-/* The aggregate sits at the head of the strip and has no sprite of its own. */
-.all-sprite {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #555;
-  font-size: 44px;
-  line-height: 1;
 }
 
 .char-tile.selected .all-sprite {

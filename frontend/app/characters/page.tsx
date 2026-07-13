@@ -30,7 +30,7 @@ export default function CharactersPage() {
   const [characters, setCharacters] = useState<Character[]>(seededCharacters ?? []);
   const [state, setState] = useState<LoadState>(seededCharacters ? "loaded" : "loading");
 
-  // null = no character selected, which is what you land on.
+  // null until the roster loads; then the first character. null again only via the eye toggle.
   const [selectedId, setSelectedId] = useState<Selection>(null);
 
   const [query, setQuery] = useState("");

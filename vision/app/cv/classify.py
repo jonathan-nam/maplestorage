@@ -1,17 +1,17 @@
 """Identify the item in every slot, in time that does not grow with the catalog.
 
-`match.find_tokens` slides one `matchTemplate` per catalog item across the whole
-grid. That is fine for 6 tokens (~0.4s) and unusable for an item catalog: it is
-O(N), so ~4s at 50 items and ~38s at 500.
+`match.find_tokens` slides one `matchTemplate` per catalog item across the whole grid. That is
+O(N) -- fine for a handful of tokens, unusable for a catalog (~4s at 50 items, ~38s at 500).
 
 This does it in two stages instead:
 
   1. Shortlist (cheap, O(N) but trivially so). Every slot becomes one small
      descriptor; one matmul scores all 128 slots against all N items. At 500
      items that is ~12ms.
-  2. Verify (exact, O(1) in N). Only the top-k candidates per slot are checked,
-     with the same masked correlation the 6-token matcher already uses -- which
-     scores 1.000 on a true match and ~0.3 on a false one.
+  2. Verify (exact, O(1) in N). Only the top-k candidates per slot are checked, with a masked
+     correlation that scores 1.000 on a true match. It is NOT a clean separation: an item that
+     is not in the catalog can still reach 0.753 against the wrong template, which is why
+     VERIFY_THRESHOLD is 0.80 and not something comfortable.
 
 The split matters because each stage is bad at the other's job. The descriptor
 *ranks* well (recall@1 was 5/5 on both held-out screenshots) but its absolute
@@ -101,7 +101,7 @@ TOP_K = 16
 VERIFY_THRESHOLD = 0.80
 
 # A masked matchTemplate costs ~2.4ms; the same match without a mask costs ~0.5ms, and
-# verify ran the masked one ~270 times per parse (90 busy slots x TOP_K). That was 650ms
+# verify ran the masked one once per (busy slot x TOP_K), which was two thirds of the parse
 # -- two thirds of the whole pipeline -- spent almost entirely on candidates that were
 # never going to match.
 #
@@ -271,7 +271,7 @@ def _slot_window(img, g, r, c):
 
 # The colour gate. MapleStory is full of items that are the same artwork in a different
 # colour -- the Extreme potions are one bottle in four -- and shape cannot tell them apart:
-# Extreme Blue and Extreme Green correlate at 0.925 against a 0.55 bar.
+# Extreme Blue and Extreme Green correlate at 0.925 -- comfortably over the 0.80 shape bar.
 #
 # Colour is the mean a*/b* of the icon body in CIELAB. Measured across every item at every
 # JPEG quality down to q=75, and counting only the candidates the SHAPE test already lets
@@ -354,15 +354,14 @@ def _verify(img, g, r, c, tpl) -> float:
     if score < VERIFY_THRESHOLD:
         return float(score)
 
-    # Shape says yes. Now check the colour, because shape ALONE cannot tell an Extreme Blue
-    # Potion from an Extreme Green one: same bottle, different colour, correlating at 0.925
-    # against a 0.55 bar. The right one wins by 0.075, which is luck rather than a decision,
-    # and it would flip silently the day the client nudged the art.
+    # Shape says yes. Now check the colour: shape ALONE cannot tell an Extreme Blue Potion from
+    # a Green one. Same bottle, different colour, correlating at 0.925 -- the right one wins by
+    # a margin that is luck rather than a decision.
     #
     # The two tests are complementary, and each covers the other's blind spot. Colour
     # separates blue from green (a*b* distance 61) where shape cannot. Shape separates the
     # blue potion from kalos-token (near-identical colour) where colour cannot. Neither is
-    # sufficient alone; together nothing gets through.
+    # sufficient alone.
     patch = win[loc[1] : loc[1] + th, loc[0] : loc[0] + tw]
     d = _colour_distance(tpl, patch)
     if d is not None and d > MAX_LAB_DISTANCE:

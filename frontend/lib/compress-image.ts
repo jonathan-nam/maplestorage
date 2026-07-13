@@ -2,7 +2,7 @@
 // resize.
 //
 // The screenshot is parsed by matching the client's own icons and stack-count
-// digit font (see spikes/inventory-cv). That font is 11px tall and does not
+// digit font (see vision/app/cv/). That font is 11px tall and does not
 // survive resampling: at 0.95x every count already reads as garbage. Capping the
 // longest edge at 1600px, as this used to, put our own sample screenshots at
 // 0.68x and 0.49x -- one is rejected outright, the other cannot even locate the

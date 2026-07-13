@@ -49,11 +49,6 @@ export function record(t: Timing): void {
   else console.debug(line);
 }
 
-/** Everything measured this session. `window.__perf()` in the console. */
-export function timings(): Timing[] {
-  return [...recent];
-}
-
 /**
  * Pull the backend's own timing out of its Server-Timing header.
  *
