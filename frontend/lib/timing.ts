@@ -1,14 +1,14 @@
 // Where the time actually goes, on the client.
 //
 // The backend answers in single-digit milliseconds, so when a page "feels slow" the
-// cost is somewhere between the click and the paint -- and that is the one stretch
+// cost is somewhere between the click and the paint, and that is the one stretch
 // nobody was measuring. This records it, and prints it, so a hunch becomes a number.
 //
 // Three things are worth telling apart, and a single "the request took 300ms" hides
 // all of them:
 //
 //   auth    getToken() from Clerk. It can hit the network, and it happens BEFORE the
-//           fetch -- so it is pure latency the user waits through, on every call.
+//           fetch, so it is pure latency the user waits through, on every call.
 //   server  the backend's own work, read from its Server-Timing header. Usually ~1ms.
 //   net     round trip minus server. Connection setup, transfer, the browser's own
 //           queueing.
@@ -44,20 +44,15 @@ export function record(t: Timing): void {
 
   // Slow enough to notice gets a warning, so it stands out without a dashboard.
   const slow = t.totalMs > 500;
-  const line = `[perf] ${t.label} — ${parts.join(", ")}`;
+  const line = `[perf] ${t.label}. ${parts.join(", ")}`;
   if (slow) console.warn(line);
   else console.debug(line);
-}
-
-/** Everything measured this session. `window.__perf()` in the console. */
-export function timings(): Timing[] {
-  return [...recent];
 }
 
 /**
  * Pull the backend's own timing out of its Server-Timing header.
  *
- * Requires the backend to expose the header cross-origin (see Cors.kt) -- without
+ * Requires the backend to expose the header cross-origin (see Cors.kt). Without
  * that, the browser shows it in DevTools but hands JavaScript null, and we would
  * silently attribute the backend's time to the network.
  */

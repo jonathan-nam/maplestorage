@@ -1,6 +1,6 @@
 name: Backend verify
 
-# Reusable job -- called by ci.yml (PR/push gate) and deploy-backend.yml
+# Reusable job. Called by ci.yml (PR/push gate) and deploy-backend.yml
 # (which stays self-contained rather than assuming ci.yml already ran
 # against this exact commit). Runs the same ktlintCheck/detekt commands
 # .pre-commit-config.yaml uses locally, plus the JUnit5 suite (skipped in
@@ -12,7 +12,7 @@ on:
 jobs:
   verify:
     runs-on: ubuntu-latest
-    # Real Postgres, not a mock -- TokenCatalogSeedTest runs Flyway's actual
+    # Real Postgres, not a mock. TokenCatalogSeedTest runs Flyway's actual
     # migrate() against it, which doubles as an implicit "migrations apply
     # cleanly" check on every run. Same DB_* contract as the root docker-compose.yml.
     services:

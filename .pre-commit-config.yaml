@@ -1,6 +1,6 @@
 # Hooks call each project's own tool (Gradle plugin / npm devDependency / Terraform CLI)
 # rather than a pre-commit-hosted mirror, so the enforced version always matches what's
-# declared in that project -- no separate version to keep in sync.
+# declared in that project. No separate version to keep in sync.
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.6.0
@@ -25,6 +25,16 @@ repos:
         entry: bash -c 'cd frontend && npm run lint && npx prettier --check .'
         language: system
         files: ^frontend/.*\.(ts|tsx|js|jsx)$
+        pass_filenames: false
+
+      # The redemption rules are the one place in this app where a "simplification" that looks
+      # like arithmetic ships a confident wrong number. They are cheap to check and expensive to
+      # rediscover, so they are checked on every commit that touches the frontend.
+      - id: vitest
+        name: vitest (frontend)
+        entry: bash -c 'cd frontend && npm test'
+        language: system
+        files: ^frontend/.*\.(ts|tsx)$
         pass_filenames: false
 
       - id: catalog

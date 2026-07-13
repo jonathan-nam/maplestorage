@@ -28,7 +28,7 @@ resource "aws_ecr_lifecycle_policy" "backend" {
   })
 }
 
-# The vision service ships as its own image but not its own service -- it runs
+# The vision service ships as its own image but not its own service, it runs
 # as a second container inside the backend's task (see ecs.tf).
 resource "aws_ecr_repository" "vision" {
   name                 = "${var.project_name}-vision"

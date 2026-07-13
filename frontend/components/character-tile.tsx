@@ -1,7 +1,6 @@
 "use client";
 
 import { useAuth } from "@clerk/nextjs";
-import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { apiFetch } from "@/lib/api";
 import type { Character } from "@/types/character";
@@ -14,12 +13,11 @@ type Props = {
   // selects rather than navigates. Without onSelect it keeps its original
   // behaviour and opens the character's page.
   selected?: boolean;
-  onSelect?: () => void;
+  onSelect: () => void;
 };
 
 export function CharacterTile({ character, onUpdated, onDeleted, selected, onSelect }: Props) {
   const { getToken } = useAuth();
-  const router = useRouter();
   const [editing, setEditing] = useState(false);
   const [editName, setEditName] = useState(character.name);
   const [editLevel, setEditLevel] = useState(character.level?.toString() ?? "");
@@ -75,10 +73,7 @@ export function CharacterTile({ character, onUpdated, onDeleted, selected, onSel
   }
 
   return (
-    <div
-      className={`char-tile${selected ? " selected" : ""}`}
-      onClick={() => (onSelect ? onSelect() : router.push(`/characters/${character.id}`))}
-    >
+    <div className={`char-tile${selected ? " selected" : ""}`} onClick={onSelect}>
       {character.spriteImgUrl ? (
         <img className="tile-sprite" src={character.spriteImgUrl} alt="" />
       ) : (

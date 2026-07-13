@@ -38,7 +38,7 @@ private suspend fun RoutingContext.getTokenTotals() {
 // instead of one-per-character, and keeps the ownership filter in one place.
 //
 // Must be called inside a transaction. Internal rather than private so
-// TokenTotalsTest can exercise this exact query -- the ownership scoping and the
+// TokenTotalsTest can exercise this exact query, the ownership scoping and the
 // GROUP BY are the two things most likely to be quietly wrong, and a test that
 // re-typed the query would prove nothing about the one that actually runs.
 internal fun tokenTotalsFor(userId: String): List<TokenTotalResponse> {
@@ -62,7 +62,7 @@ internal fun tokenTotalsFor(userId: String): List<TokenTotalResponse> {
         )
         // Scope to this user's characters. The join reaches every user's character
         // rows otherwise, so dropping this leaks other people's counts into the
-        // totals -- silently, and as a plausible-looking larger number.
+        // totals. Silently, and as a plausible-looking larger number.
         .where { Characters.userId eq userId }
         .groupBy(
             TokenCatalog.id,

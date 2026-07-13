@@ -11,7 +11,7 @@ export type DetectedToken = {
   // The parser's key, e.g. "kalos-token".
   tokenName: string;
   // The human name, e.g. "Kalos's Residual Determination". Resolved server-side
-  // from the catalog -- it is NOT derivable from tokenName, and assuming it was
+  // from the catalog, it is NOT derivable from tokenName, and assuming it was
   // is exactly what silently broke token persistence.
   displayName: string;
   // The catalog row's id. Lets the preview line this count up against what is already stored

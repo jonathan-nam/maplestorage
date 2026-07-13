@@ -24,7 +24,7 @@ resource "aws_security_group" "alb" {
   }
 }
 
-# ECS tasks sit in public subnets (no NAT Gateway -- see network.tf) but this
+# ECS tasks sit in public subnets (no NAT Gateway. See network.tf) but this
 # is what actually keeps them locked down: inbound only from the ALB's
 # security group, never directly from the internet, despite having a public IP.
 resource "aws_security_group" "ecs_tasks" {
@@ -41,7 +41,7 @@ resource "aws_security_group" "ecs_tasks" {
   }
 
   egress {
-    description = "Outbound to internet (Claude API, Clerk JWKS, S3, Nexon)"
+    description = "Outbound to internet (Clerk JWKS, S3, Nexon)"
     from_port   = 0
     to_port     = 0
     protocol    = "-1"

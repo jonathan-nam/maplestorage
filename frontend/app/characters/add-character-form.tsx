@@ -87,7 +87,7 @@ export function AddCharacterForm({ onAdded }: { onAdded: (character: Character) 
         [cancel]
       </a>
       <p className="hint">
-        Level, job, and sprite are looked up automatically from the name — no need to enter them.
+        Level, job, and sprite are looked up automatically from the name. No need to enter them.
       </p>
       {error && <p className="hint">{error}</p>}
     </div>

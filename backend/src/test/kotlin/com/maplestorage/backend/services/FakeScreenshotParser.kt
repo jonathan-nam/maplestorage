@@ -1,10 +1,8 @@
 package com.maplestorage.backend.services
 
-// Hand-written fake rather than mocking the Anthropic Java SDK's OkHttp
-// transport -- that transport isn't swappable the way ktor-client-mock swaps
-// Ktor's engine, so ScreenshotIngestion's orchestration logic is exercised
-// against this instead. Queue outcomes in call order; each parseScreenshot
-// call consumes the next one.
+// Drives ScreenshotIngestion's orchestration through any parse outcome without a real parser.
+// (The parser itself is a Ktor client and IS mocked properly, in VisionServiceClientTest.)
+// Queue outcomes in call order; each parseScreenshot call consumes the next.
 class FakeScreenshotParser(
     private val outcomes: MutableList<ScreenshotParseOutcome>,
 ) : ScreenshotParser {

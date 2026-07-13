@@ -7,7 +7,6 @@ val postgresDriverVersion = "42.7.4"
 val kotlinxSerializationVersion = "1.8.0"
 val logbackVersion = "1.5.12"
 val hikariVersion = "6.2.1"
-val anthropicVersion = "2.48.0"
 
 plugins {
     kotlin("jvm") version "2.4.0"
@@ -54,10 +53,6 @@ dependencies {
 
     implementation("org.flywaydb:flyway-core:$flywayVersion")
     implementation("org.flywaydb:flyway-database-postgresql:$flywayVersion")
-
-    // Official Anthropic SDK -- structured outputs via outputConfig(Class),
-    // not hand-rolled HTTP or forced tool-use.
-    implementation("com.anthropic:anthropic-java:$anthropicVersion")
 
     implementation("ch.qos.logback:logback-classic:$logbackVersion")
 

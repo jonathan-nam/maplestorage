@@ -1,5 +1,5 @@
 output "alb_dns_name" {
-  description = "Public DNS name of the ALB -- this is the backend's base URL until a real domain is set up."
+  description = "Public DNS name of the ALB, this is the backend's base URL until a real domain is set up."
   value       = aws_lb.main.dns_name
 }
 

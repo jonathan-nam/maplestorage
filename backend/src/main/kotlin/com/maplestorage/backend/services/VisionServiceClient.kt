@@ -22,7 +22,7 @@ import org.slf4j.LoggerFactory
 private val log = LoggerFactory.getLogger(VisionServiceClient::class.java)
 
 // The vision service is a second container in the same ECS task, so this is a
-// loopback call -- there is no network to be slow or flaky, and no retry logic
+// loopback call. There is no network to be slow or flaky, and no retry logic
 // worth writing. A parse is ~0.3s of CPU; the timeout only exists to stop a
 // wedged vision container from holding a request thread forever.
 private const val PARSE_TIMEOUT_MS = 15_000L
@@ -105,9 +105,9 @@ class VisionServiceClient(
         return when (response.status) {
             HttpStatusCode.OK -> parsed(response.body())
 
-            // The vision service refuses any capture it cannot read reliably --
-            // shrunk before upload, or taken at a scaled display resolution --
-            // rather than returning a plausible wrong count. Its message tells
+            // The vision service refuses any capture it cannot read reliably.
+            // Shrunk before upload, or taken at a scaled display resolution.
+            // Rather than returning a plausible wrong count. Its message tells
             // the user how to fix the capture, so pass it straight through
             // instead of flattening it to a generic failure.
             HttpStatusCode.UnprocessableEntity -> ScreenshotParseOutcome.Failed(detail(response.bodyAsText()))

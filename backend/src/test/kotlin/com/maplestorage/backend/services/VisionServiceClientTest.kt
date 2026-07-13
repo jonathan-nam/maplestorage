@@ -73,7 +73,7 @@ class VisionServiceClientTest {
             val parsed = assertIs<ScreenshotParseOutcome.Parsed>(outcome)
         }
 
-    // A cropped upload has no HUD in frame. Null, not an error -- ingestion
+    // A cropped upload has no HUD in frame. Null, not an error. Ingestion
     // already routes that to NEEDS_REVIEW.
     @Test
     fun `a missing hud is null, not a failure`() =
@@ -106,7 +106,7 @@ class VisionServiceClientTest {
 
     // The vision service refuses any capture it cannot read reliably, and its
     // message tells the user how to fix the capture. That message must reach
-    // them intact -- "parsing failed" is not actionable; "set display scaling to
+    // them intact. "parsing failed" is not actionable; "set display scaling to
     // 100%" is.
     @Test
     fun `an unreadable capture fails with the service's own explanation`() =

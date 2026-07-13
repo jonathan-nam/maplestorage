@@ -2,7 +2,7 @@
 
 The count is drawn in a small proportional bitmap font ('1' is 5px wide, '0' is
 8px) with a hard black outline, and its light fill (~235) is nearly the same
-value as the slot background (226) -- so no threshold separates fill from
+value as the slot background (226), so no threshold separates fill from
 background, and adjacent digits' outlines touch. The outline is the one reliable
 signal, and the only place a glyph appears in isolation is a slot whose count is
 a single digit. This panel happens to contain a single-digit count for nine of
@@ -41,7 +41,7 @@ EXEMPLARS = [
 MANUAL = [
     ("0", 3, 4, (14, 3, 8, 11)),  # middle '0' of "1000"
     ("2", 2, 4, (2, 3, 8, 11)),  # leading '2' of "25"
-    ("7", 1, 8, (4, 3, 8, 11)),  # "7" -- the diagonal to its right is icon art
+    ("7", 1, 8, (4, 3, 8, 11)),  # "7", the diagonal to its right is icon art
 ]
 
 

@@ -14,7 +14,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
     <ClerkProvider>
       <html lang="en" suppressHydrationWarning>
         <head>
-          {/* Applied BEFORE first paint, or the page renders in the wrong theme and then snaps --
+          {/* Applied BEFORE first paint, or the page renders in the wrong theme and then snaps,
               which is the same flash we spent this branch removing everywhere else. It runs from
               the <head> so it lands before the body exists to be painted. */}
           <script

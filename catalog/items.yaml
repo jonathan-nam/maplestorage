@@ -1,7 +1,7 @@
 # The item catalog. This file is the source of truth.
 #
-# An item used to live in four places at once -- the vision template, the backend's
-# icon asset, the V2 seed migration, and the V4 vision_key mapping -- and nothing
+# An item used to live in four places at once, the vision template, the backend's
+# icon asset, the V2 seed migration, and the V4 vision_key mapping, and nothing
 # checked that the four agreed. They didn't: the parser emitted slugs while the
 # lookup matched display names, so every token count was silently dropped for days.
 # The bug was not the mismatch. The bug was that a mismatch was *possible*.
@@ -14,17 +14,17 @@
 # `key` is the identifier. It names the vision template (vision/app/cv/templates/
 # token-<key>.png), the icon asset (backend/.../seed-assets/tokens/<key>.png), and the
 # token_catalog.vision_key column. It must never change without renaming those with it
-# -- which is exactly what build.py checks.
+#, which is exactly what build.py checks.
 #
 # `name` is prose for humans, and can be reworded freely.
 #
 # `redeem_slots` is which Eternal pieces a token can be traded for. It is not cosmetic: the two
-# sets do not overlap, so ten Kalos pieces and ten Limbo pieces are not "twenty pieces" -- they
+# sets do not overlap, so ten Kalos pieces and ten Limbo pieces are not "twenty pieces". They
 # buy different things. It lived only in the V7 migration, which meant the manifest did not own it
 # and the names had already drifted apart ("Shoes, Gloves" in one row, "Shoe, Glove" in another).
 # That is exactly the four-places-one-truth drift this file exists to prevent.
 #
-# `group` is how the inventory is SECTIONED in the UI -- "Eternal Pieces", "Symbols",
+# `group` is how the inventory is SECTIONED in the UI. "Eternal Pieces", "Symbols",
 # "Consumables". It is a real field rather than something the frontend infers from the key,
 # because inference would quietly mis-sort the first item whose name did not fit the pattern,
 # and it would do so silently. It is also NOT the same axis as `category`: category says what an
@@ -37,7 +37,7 @@ items:
     boss: Malefic Star
     category: REDEMPTION_TOKEN
     group: Eternal Pieces
-    sort: 10
+    sort: 13
     redeem_threshold: 10
     redeem_slots: [Hat, Top, Bottom, Shoulder]
 
@@ -46,7 +46,7 @@ items:
     boss: Limbo
     category: REDEMPTION_TOKEN
     group: Eternal Pieces
-    sort: 11
+    sort: 14
     redeem_threshold: 10
     redeem_slots: [Cape, Glove, Shoe]
 
@@ -64,7 +64,7 @@ items:
     boss: Kaling
     category: REDEMPTION_TOKEN
     group: Eternal Pieces
-    sort: 13
+    sort: 11
     redeem_threshold: 10
     redeem_slots: [Hat, Top, Bottom, Shoulder]
 
@@ -76,7 +76,7 @@ items:
     boss: Kalos the Guardian
     category: REDEMPTION_TOKEN
     group: Eternal Pieces
-    sort: 14
+    sort: 10
     redeem_threshold: 10
     redeem_slots: [Hat, Top, Bottom, Shoulder]
 
@@ -153,12 +153,12 @@ items:
   #
   # Shape does NOT sort them into Arcane and Sacred. Six of the thirteen icons in the
   # reference capture are round orbs and seven are hexagons, which looks like exactly that
-  # split until you notice Shangri-La -- a SACRED symbol -- is one of the orbs. The families
+  # split until you notice Shangri-La (a SACRED symbol) is one of the orbs. The families
   # are a naming fact, not a visual one, and the only reason this catalog is right is that a
   # human read the names off the tooltips.
   #
   # Each coupon exists in a tradeable and an untradeable version, and they share one icon.
-  # They differ only by the cyan untradeable bar along the bottom of the slot -- which the
+  # They differ only by the cyan untradeable bar along the bottom of the slot, which the
   # template mask excludes as per-item state rather than identity, so ONE entry matches both
   # (verified: a template cut from the untradeable Tallahart scores 1.000 against the
   # tradeable one). That is why the parser sums an item found in more than one slot.

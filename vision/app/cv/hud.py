@@ -3,7 +3,7 @@
 This is a different problem from the stack counts, and it wants the opposite
 tool. The counts are an 11px bitmap font over icon art, where Tesseract scores
 2/12 and matching the client's own glyphs scores 100%. The HUD is ~20px
-anti-aliased proportional text on a dark plate -- ordinary rendered text, which
+anti-aliased proportional text on a dark plate. Ordinary rendered text, which
 is exactly what Tesseract is for. It reads the raw crop exactly, and every
 binarisation we tried made it *worse* ("acornacom", "Lv.28/7"), so we feed it
 the pixels as they are.
@@ -42,7 +42,7 @@ LINE_UP, LINE_DOWN = 6, 18
 LINE_RIGHT = 175
 
 # The prefix is already confirmed by the template match, so this only has to pull
-# the level and name back out -- it tolerates a garbled "Lv" rather than rejecting
+# the level and name back out, it tolerates a garbled "Lv" rather than rejecting
 # a HUD we have positively identified.
 #
 # The name is bounded by CHARSET, not by "everything to the end of the line". That
@@ -51,7 +51,7 @@ LINE_RIGHT = 175
 # it and Tesseract reads them as trailing glyphs. `acornacorn` came back as
 # `acornacorn?. ©` and got saved as a character by that name.
 #
-# A MapleStory IGN is alphanumeric -- no spaces, no punctuation, no symbols. So
+# A MapleStory IGN is alphanumeric. No spaces, no punctuation, no symbols. So
 # anything outside [A-Za-z0-9] is, by construction, not part of the name: stop there
 # rather than trying to guess where the crop should have ended. Widening the crop
 # would still overrun on a 4-character name; narrowing it would truncate a
@@ -100,7 +100,7 @@ def _tesseract(img: np.ndarray) -> str:
 
 
 # Sliding a masked template over the whole frame is expensive: 763ms on a 2359x1095
-# screenshot, which was 45% of the entire parse -- more than every other stage put
+# screenshot, which was 45% of the entire parse. More than every other stage put
 # together. The mask is what costs; the same match without one runs in 211ms.
 #
 # So search a quarter-scale copy first and only refine the winner at full resolution.
@@ -109,7 +109,7 @@ def _tesseract(img: np.ndarray) -> str:
 # The coarse pass can be wrong, and the design assumes it: the refined score is checked
 # against the same threshold as before, and anything that fails falls back to the full
 # frame. So the fast path is an optimisation, never a new way to be wrong. (Empirically
-# 1/2 and 1/4 both land exactly; 1/3 misses badly -- a 25x18 template does not survive
+# 1/2 and 1/4 both land exactly; 1/3 misses badly, a 25x18 template does not survive
 # an odd rescale. Powers of two only, and the fallback catches the rest.)
 COARSE_FACTOR = 4
 REFINE_PAD = 2 * COARSE_FACTOR
@@ -154,7 +154,7 @@ def find_hud(img: np.ndarray, scale: float = 1.0) -> Hud | None:
     """Locate and read the HUD. None when no HUD is in frame.
 
     A cropped inventory upload has no HUD at all, and that is a legitimate
-    answer -- not an error.
+    answer, not an error.
     """
     tpl = cv2.imread(str(TEMPLATE), cv2.IMREAD_UNCHANGED)
     if tpl is None or tpl.shape[2] != 4:

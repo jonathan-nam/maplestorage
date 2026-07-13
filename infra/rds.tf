@@ -3,7 +3,7 @@ resource "random_password" "db" {
   special = false # simplifies passing through env vars / JDBC URLs without escaping
 }
 
-# Secrets Manager, not a plaintext tfvar or Terraform output -- the password
+# Secrets Manager, not a plaintext tfvar or Terraform output, the password
 # never appears in state-adjacent files a human reads, only in state itself
 # (which is why the S3 backend note in versions.tf matters once this is shared).
 resource "aws_secretsmanager_secret" "db_credentials" {

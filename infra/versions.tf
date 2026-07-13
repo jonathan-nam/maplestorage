@@ -20,7 +20,7 @@ terraform {
   # use_lockfile (a .tflock object beside the state), and dynamodb_table is
   # deprecated.
   #
-  # bucket/region come from backend.hcl (gitignored -- it names the bucket, and
+  # bucket/region come from backend.hcl (gitignored, it names the bucket, and
   # this repo is public). Bootstrap the bucket and generate that file with:
   #   ./bootstrap-state-backend.sh
   # then:

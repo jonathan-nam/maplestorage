@@ -32,15 +32,15 @@ class Undersampled(ValueError):
 # We can undo that, because the grid measures the pitch rather than assuming it:
 # resample so the pitch lands back on 46 and everything downstream runs at native
 # scale. That recovers an *upscaled* capture. It cannot recover a downscaled one
-# -- detail the capture threw away is gone, and the 11px count font is the first
-# casualty -- so undersampled input is rejected rather than quietly returning
+# . Detail the capture threw away is gone, and the 11px count font is the first
+# casualty, so undersampled input is rejected rather than quietly returning
 # nulls.
 MIN_PITCH = 44.0
 
 
 # When find_grid fails we have to say something, and "this isn't a MapleStory inventory" is
-# often a lie. A capture taken with Windows display scaling on is an inventory -- the client
-# drew it perfectly -- it has just been upscaled and smeared on the way out, so the slot
+# often a lie. A capture taken with Windows display scaling on is an inventory, the client
+# drew it perfectly, it has just been upscaled and smeared on the way out, so the slot
 # boundaries no longer resolve and the detector finds 6 boxes instead of 128. Telling that
 # user their screenshot "isn't an inventory" sends them to fix the wrong thing entirely.
 #
@@ -68,18 +68,18 @@ def looks_like_inventory_window(img) -> bool:
 
 
 def normalize(img, g):
-    """Undo an INTEGER upscale -- the one resample that reverses without loss.
+    """Undo an INTEGER upscale, the one resample that reverses without loss.
 
     MapleStory's UI Optimization, and Windows DPI scaling at 200%, both enlarge by exact
     pixel replication. Averaging each 2x2 block back down returns the client's original
     pixels bit for bit, so there is nothing to be gained by reading such a capture at its
-    inflated scale -- and something to be lost. Scaling a template up interpolates it
+    inflated scale, and something to be lost. Scaling a template up interpolates it
     smoothly, while the capture was enlarged blockily, and correlating a smooth glyph against
     a blocky one is a worse comparison than correlating the originals: at exact 2x it read a
     stack of 10 as 18, mistaking the '0' for an '8'.
 
-    A FRACTIONAL scale has no such inverse -- resampling it to native is a lossy guess that
-    destroys the count font -- so those are read where they lie. See scale_templates().
+    A FRACTIONAL scale has no such inverse. Resampling it to native is a lossy guess that
+    destroys the count font, so those are read where they lie. See scale_templates().
     """
     ratio = g.pitch / NATIVE_PITCH
     if abs(ratio - round(ratio)) > 0.05 or round(ratio) < 2:
@@ -92,7 +92,7 @@ def parse(img, strict: bool = True):
     """Parse at the CAPTURE's own scale, unless that scale is losslessly reversible.
 
     normalize() used to resample EVERY non-native capture to 46px, and counts_trustworthy()
-    then refused any capture whose scale was not an integer multiple -- which is to say, it
+    then refused any capture whose scale was not an integer multiple, which is to say, it
     refused precisely the captures that the resample had just ruined. The refusal was
     calibrated against damage the parser was doing to itself.
 
@@ -105,7 +105,7 @@ def parse(img, strict: bool = True):
     if strict and g.pitch < MIN_PITCH:
         raise Undersampled(
             f"slot pitch is {g.pitch:.1f}px, below the client's native "
-            f"{NATIVE_PITCH:.0f}px -- this capture was downscaled and the stack "
+            f"{NATIVE_PITCH:.0f}px, this capture was downscaled and the stack "
             "counts are no longer legible; upload at original resolution"
         )
 

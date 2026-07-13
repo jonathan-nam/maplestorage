@@ -28,7 +28,7 @@ export function applyTheme(theme: Theme) {
 //
 // Seeding state in an effect instead (setTheme on mount) works and lints as an error, correctly:
 // it renders once with the wrong value and again with the right one. useSyncExternalStore renders
-// the server's answer on the server and the browser's in the browser, with no second pass -- and
+// the server's answer on the server and the browser's in the browser, with no second pass, and
 // the inline script in layout.tsx has already put the right theme on <html> before any of this
 // runs, so nothing is ever painted wrong.
 const listeners = new Set<() => void>();
@@ -59,7 +59,7 @@ export function ThemeToggle() {
       type="button"
       className="theme-toggle"
       onClick={cycle}
-      title={`Theme: ${LABEL[theme]} — click for ${LABEL[NEXT[theme]].toLowerCase()}`}
+      title={`Theme: ${LABEL[theme]}. Click for ${LABEL[NEXT[theme]].toLowerCase()}`}
       aria-label={`Theme: ${LABEL[theme]}. Click to switch to ${LABEL[NEXT[theme]]}.`}
     >
       <span aria-hidden="true">{ICON[theme]}</span>

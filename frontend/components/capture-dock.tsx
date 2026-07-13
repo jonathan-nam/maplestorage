@@ -9,13 +9,13 @@ import type { Character } from "@/types/character";
 import type { ScreenshotResult } from "@/types/screenshot";
 
 // Upload lives here, on the character you are already looking at, rather than on a page of its
-// own -- and that is not just one page fewer.
+// own, and that is not just one page fewer.
 //
 // The old flow could not know who a screenshot belonged to. It parsed the image, OCR'd the
 // character's name out of the HUD, and GUESSED; the whole review step existed to let you correct
 // the guess. Uploading from a character's own page removes the ambiguity at source: you have
 // already said who it is for. The HUD stops being the answer and becomes a CHECK on the answer,
-// which is a much stronger thing to be -- if the name in the picture disagrees with the character
+// which is a much stronger thing to be, if the name in the picture disagrees with the character
 // you dropped it on, that is now a contradiction rather than a shrug, and it is worth shouting
 // about.
 //
@@ -44,8 +44,7 @@ export function CaptureDock({
   onToggleGeneric,
 }: {
   characters: Character[];
-  // null = no character selected (the "All characters" tile), so we fall back to reading the
-  // name out of the HUD, exactly as the old upload page always did.
+  // null = no character selected, so the character is read from the screenshot's HUD instead.
   pinnedCharacterId: string | null;
   // What we already hold for the pinned character, so the preview can show the DIFFERENCE
   // rather than just the numbers. Keyed by catalog id.
@@ -61,7 +60,7 @@ export function CaptureDock({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const counter = useRef(0);
 
-  // "Generic" is not a second piece of state that can disagree with the carousel -- it IS having
+  // "Generic" is not a second piece of state that can disagree with the carousel, it IS having
   // no character selected. One truth, so the eye and the carousel can never contradict each other.
   const generic = pinnedCharacterId === null;
   const pinned = characters.find((c) => c.id === pinnedCharacterId);
@@ -108,7 +107,7 @@ export function CaptureDock({
         imageBase64: base64,
         mediaType,
       };
-      // Pinning is the point of uploading from a character's page -- unless you have said this
+      // Pinning is the point of uploading from a character's page, unless you have said this
       // screenshot is not theirs, in which case we are back to reading the HUD.
       if (pinnedCharacterId) body.characterId = pinnedCharacterId;
 
@@ -192,8 +191,8 @@ export function CaptureDock({
         </span>
         <span className="dock-drop-sub">
           {pinned
-            ? "or paste it — it will be saved to this character"
-            : "or paste it — we'll read the character's name from the screenshot"}
+            ? "or paste it, it will be saved to this character"
+            : "or paste it. We'll read the character's name from the screenshot"}
         </span>
         <input
           ref={fileInputRef}
@@ -282,7 +281,7 @@ function CaptureCard({
 
   const items: SlotItem[] = (result?.tokenCounts ?? []).map((t) => {
     // tokenCatalogId is null when the parser knows an item the catalog does not. That should not
-    // happen -- both are generated from catalog/items.yaml -- but if it ever does, show the item
+    // happen (both are generated from catalog/items.yaml) but if it ever does, show the item
     // and skip the comparison rather than dropping it. A silently missing item is the failure
     // this whole app exists to prevent.
     const before = t.tokenCatalogId === null ? undefined : stored.get(t.tokenCatalogId);
@@ -292,7 +291,7 @@ function CaptureCard({
       iconUrl: t.iconUrl,
       quantity: t.quantity,
       itemGroup: t.itemGroup,
-      // null means "we hold none of this yet", which reads as `new` rather than `+n` -- a first
+      // null means "we hold none of this yet", which reads as `new` rather than `+n`, a first
       // sighting is a different thing from a gain. undefined means we cannot say.
       delta:
         t.tokenCatalogId === null ? undefined : before === undefined ? null : t.quantity - before,
@@ -442,8 +441,7 @@ function describe(capture: Capture, pinned: Character | undefined): { text: stri
         tone: "warn",
       };
 
-    // Only reachable with no character selected. Uploading from a character's page is what
-    // makes this impossible -- which is the whole point of moving it here.
+    // Only reachable with no character selected. Pick one and there is nothing to resolve.
     case "UNRESOLVABLE":
       return {
         text: "No character name is visible in this screenshot. Pick a character, or select one above before uploading.",

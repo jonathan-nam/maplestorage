@@ -4,8 +4,8 @@ Terraform: VPC, ALB, ECS (Fargate), ECR (two repositories), RDS.
 
 ## Two bootstrap scripts, and the order matters
 
-Both exist for the same reason — a **chicken-and-egg** Terraform cannot resolve on
-its own — but they solve different ones, and running them out of order wastes a
+Both exist for the same reason, a **chicken-and-egg** Terraform cannot resolve on
+its own, but they solve different ones, and running them out of order wastes a
 deploy attempt.
 
 | # | Script | Solves |
@@ -28,7 +28,7 @@ neither.
 rest.
 
 After that, `.github/workflows/deploy-backend.yml` owns image pushes. It builds
-**both** images and tags them with the same commit SHA — the vision service's wire
+**both** images and tags them with the same commit SHA, the vision service's wire
 format is a contract the backend compiles against, so shipping one without the
 other yields a task that starts and then fails every upload.
 
@@ -40,7 +40,7 @@ From then on the field belongs to the deploy workflow, which registers a
 SHA-tagged revision per deploy.
 
 Without it the two fight: Terraform sees the service on a revision it did not
-create, decides that is drift, and reverts — so a `terraform apply` run for an
+create, decides that is drift, and reverts, so a `terraform apply` run for an
 entirely unrelated reason (a security-group tweak, say) would **silently roll back
 whatever was last deployed**, onto `:latest` images.
 
@@ -49,7 +49,7 @@ whatever was last deployed**, onto `:latest` images.
 ## Two containers, one task
 
 The backend and the vision service run in the same ECS task. Under `awsvpc` they
-share a network namespace, so the backend reaches the parser on `127.0.0.1` — no
+share a network namespace, so the backend reaches the parser on `127.0.0.1`. No
 service discovery, no load balancer, no network hop, and the vision port is not
 reachable from outside the task. They share a lifecycle too: one deploy, one
 rollback, and the circuit breaker covers both.
@@ -68,7 +68,7 @@ task, 24/7) ~$10.60, ECR + Secrets Manager + CloudWatch ~$1–3. RDS on top (fre
 12 months, ~$15/mo after).
 
 Task memory went 512 MiB → 1 GiB when the vision container was added (~+$1.60/mo).
-CPU stays at 256 units, now shared by both containers — a parse is ~0.3s of CPU, so
+CPU stays at 256 units, now shared by both containers, a parse is ~0.3s of CPU, so
 it competes with the JVM and an upload may take a couple of seconds. Raising
 `task_cpu` to 512 roughly halves that, for about $9/month more. Worth it only if
 upload latency turns out to matter.

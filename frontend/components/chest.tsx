@@ -4,7 +4,7 @@
 // image.png is a reference for the idiom (wooden body, gold bands, red gem, heavy
 // dark outline), not an asset to ship. Nothing of Nexon's is redistributed.
 //
-// What makes a chest read as a chest at 16px is not the wood -- it's the two side
+// What makes a chest read as a chest at 16px is not the wood, it's the two side
 // straps and a lock straddling the lid/body seam. Everything else is detail.
 //
 // `open` swings the lid back and lights the inside, which is what a screenshot

@@ -5,11 +5,11 @@ import { apiAssetUrl } from "@/lib/api";
 // The count, drawn from the client's own digit sprites rather than set in a web font.
 //
 // The in-game count is an 11px bitmap face with a hard black outline, and no web font is that
-// font -- every approximation of it sits directly beneath a pixel-exact icon and gives itself
+// font, every approximation of it sits directly beneath a pixel-exact icon and gives itself
 // away. We already own the real glyphs: they are the templates the parser reads counts WITH
 // (vision/app/cv/templates/digit_*.png), cut from the client, and the backend now serves them.
 // So the number below each icon is the same picture the game would draw. `1` is 5px wide and the
-// rest are 8px, which is the font's own proportional spacing -- laying them out in a row
+// rest are 8px, which is the font's own proportional spacing. Laying them out in a row
 // reproduces it for free.
 function Count({ value }: { value: number }) {
   return (
@@ -23,7 +23,7 @@ function Count({ value }: { value: number }) {
   );
 }
 
-// The real inventory is 16 wide -- the same lattice the parser locks onto
+// The real inventory is 16 wide, the same lattice the parser locks onto
 // (vision/app/cv/grid.py), and the same 128 the client's own "SLOT 112 / 128" readout counts
 // against. The preview shows the same 16 columns over fewer rows, so a screenshot's items land
 // in the same shape they will occupy once they are saved.

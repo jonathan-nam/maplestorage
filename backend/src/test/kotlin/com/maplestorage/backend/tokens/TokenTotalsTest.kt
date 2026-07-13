@@ -21,7 +21,7 @@ import kotlin.test.assertTrue
 import kotlin.time.Clock
 import kotlin.uuid.Uuid
 
-// Exercises tokenTotalsFor() -- the aggregate behind /api/tokens -- against a real
+// Exercises tokenTotalsFor() (the aggregate behind /api/tokens) against a real
 // Postgres, because the two things most likely to be wrong about it are things
 // only a database can tell you: whether the GROUP BY is valid SQL at all, and
 // whether the ownership filter actually excludes other users' characters.

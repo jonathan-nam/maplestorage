@@ -15,7 +15,7 @@ import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 
-// Single client instance for the app's lifetime -- constructed once in
+// Single client instance for the app's lifetime. Constructed once in
 // Application.kt's module() and passed into NexonLookupService, not
 // rebuilt per-request. ignoreUnknownKeys since Nexon's response carries
 // ~10 fields (exp, gap, legionLevel, raidPower, tierID, score, characterID,
@@ -28,14 +28,14 @@ fun createNexonHttpClient(): HttpClient =
     }
 
 // Live-verified 2026-07-11: the nexon.com no-auth ranking endpoint's
-// type=world requires a specific numeric world id -- there is no
+// type=world requires a specific numeric world id. There is no
 // single-call "search by name across all worlds." Probing ids 0-120 found
 // only these 4 currently non-empty (modern GMS has consolidated into very
 // few merged worlds). No human-readable world name is ever returned by
 // this endpoint (only numeric worldID), so Characters.worldName is left
-// null by this service -- see CharacterRoutes.kt.
+// null by this service. See CharacterRoutes.kt.
 // Names are deliberately just ordinal placeholders, not real GMS world
-// names -- Nexon's own name for each of these 4 IDs was never confirmed
+// names. Nexon's own name for each of these 4 IDs was never confirmed
 // (see the class doc above), so naming these after guessed real worlds
 // would misrepresent this as a verified mapping to a future reader.
 private const val KNOWN_WORLD_ID_A = 1
@@ -58,7 +58,7 @@ data class NexonLookupResult(
 class NexonLookupService(
     private val client: HttpClient,
 ) {
-    // Never throws -- a failed/timed-out/malformed lookup is indistinguishable
+    // Never throws, a failed/timed-out/malformed lookup is indistinguishable
     // from "character not found" to callers, both falling through to manual
     // entry (POST /api/characters never errors because of this lookup).
     suspend fun lookup(characterName: String): NexonLookupResult? =
@@ -68,7 +68,7 @@ class NexonLookupService(
                 .awaitAll()
                 .filterNotNull()
                 // Defensive: the same name matching >1 world simultaneously is
-                // possible in principle -- take the first rather than crash.
+                // possible in principle. Take the first rather than crash.
                 .firstOrNull()
         }
 

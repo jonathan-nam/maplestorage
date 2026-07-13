@@ -1,4 +1,4 @@
--- GENERATED FROM catalog/items.yaml -- DO NOT EDIT BY HAND.
+-- GENERATED FROM catalog/items.yaml. DO NOT EDIT BY HAND.
 -- Regenerate with:  python catalog/build.py
 --
 -- Repeatable (R__) on purpose: Flyway re-applies it whenever its checksum changes, so
@@ -13,11 +13,11 @@ SELECT
     COALESCE(existing.id, gen_random_uuid()),
     v.vision_key, v.name, v.boss, v.icon, v.item_group, v.sort_order
 FROM (VALUES
-    ('blissful-fantasy-shard', 'Blissful Fantasy Shard', 'Malefic Star', 'blissful-fantasy-shard.png', 'Eternal Pieces', 10),
-    ('distorted-ambition', 'Distorted Ambition', 'Limbo', 'distorted-ambition.png', 'Eternal Pieces', 11),
+    ('blissful-fantasy-shard', 'Blissful Fantasy Shard', 'Malefic Star', 'blissful-fantasy-shard.png', 'Eternal Pieces', 13),
+    ('distorted-ambition', 'Distorted Ambition', 'Limbo', 'distorted-ambition.png', 'Eternal Pieces', 14),
     ('echo-ancient-resolve', 'Echo of Ancient Resolve', 'First Adversary', 'echo-ancient-resolve.png', 'Eternal Pieces', 12),
-    ('ferocious-beast-ring', 'Ferocious Beast Entanglement Ring', 'Kaling', 'ferocious-beast-ring.png', 'Eternal Pieces', 13),
-    ('kalos-token', 'Kalos''s Residual Determination', 'Kalos the Guardian', 'kalos-token.png', 'Eternal Pieces', 14),
+    ('ferocious-beast-ring', 'Ferocious Beast Entanglement Ring', 'Kaling', 'ferocious-beast-ring.png', 'Eternal Pieces', 11),
+    ('kalos-token', 'Kalos''s Residual Determination', 'Kalos the Guardian', 'kalos-token.png', 'Eternal Pieces', 10),
     ('trace-eternal-loyalty', 'Trace of Eternal Loyalty', 'Baldrix', 'trace-eternal-loyalty.png', 'Eternal Pieces', 15),
     ('sayram-elixir', 'Sayram''s Elixir', 'The Collector', 'sayram-elixir.png', 'Consumables', 40),
     ('aurelia-elixir', 'Aurelia''s Elixir', 'The Collector', 'aurelia-elixir.png', 'Consumables', 41),
@@ -48,7 +48,7 @@ ON CONFLICT (vision_key) DO UPDATE SET
     item_group       = EXCLUDED.item_group,
     sort_order       = EXCLUDED.sort_order;
 
--- An item is redeemable if a rule exists for it -- there is no flag to keep in step with
+-- An item is redeemable if a rule exists for it. There is no flag to keep in step with
 -- the fields it governs. So a manifest entry that stops being a REDEMPTION_TOKEN must have
 -- its rule removed, not merely have its threshold nulled.
 DELETE FROM redemption_rule

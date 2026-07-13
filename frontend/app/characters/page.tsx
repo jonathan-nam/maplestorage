@@ -23,14 +23,14 @@ export default function CharactersPage() {
 
   // Seed from cache so a repeat visit paints immediately instead of flashing a
   // loading state while it re-fetches data it already had. The fetch below still
-  // runs and overwrites this -- the cache decides what you see FIRST, not what is
+  // runs and overwrites this, the cache decides what you see FIRST, not what is
   // true.
   const seededCharacters = peek<Character[]>(CHARACTERS_KEY);
 
   const [characters, setCharacters] = useState<Character[]>(seededCharacters ?? []);
   const [state, setState] = useState<LoadState>(seededCharacters ? "loaded" : "loading");
 
-  // null = no character selected, which is what you land on.
+  // null until the roster loads; then the first character. null again only via the eye toggle.
   const [selectedId, setSelectedId] = useState<Selection>(null);
 
   const [query, setQuery] = useState("");
@@ -48,7 +48,7 @@ export default function CharactersPage() {
   // character blanked the inventory (its tokens were "not for this id yet"), the panel collapsed
   // to nothing, and then snapped back a moment later when the fetch landed. Keeping what we
   // already know for each character means a revisit paints instantly, with no empty frame in
-  // between -- the fetch still runs and still overwrites, it just no longer decides what you see
+  // between, the fetch still runs and still overwrites, it just no longer decides what you see
   // FIRST.
   const [tokensByChar, setTokensByChar] = useState<Record<string, CharacterToken[]>>(
     peek<Record<string, CharacterToken[]>>(ALL_TOKENS_KEY) ?? {},
@@ -58,7 +58,7 @@ export default function CharactersPage() {
   const [revision, setRevision] = useState(0);
 
   useEffect(() => {
-    // Every character's inventory is fetched HERE, on load, alongside the roster -- not lazily
+    // Every character's inventory is fetched HERE, on load, alongside the roster, not lazily
     // when you click one. The page already knows you are about to look at one of these; it just
     // does not know which. Waiting to find out puts a network round-trip between the click and
     // the pixels, and that gap is the flicker: the panel renders empty, then fills.
@@ -68,16 +68,16 @@ export default function CharactersPage() {
     ])
       .then(([characterResult, allTokens]) => {
         // The bulk query only returns characters that HAVE something. A character with an empty
-        // inventory comes back absent, which is indistinguishable from "not fetched yet" -- so it
+        // inventory comes back absent, which is indistinguishable from "not fetched yet", so it
         // would sit on a loading state forever. Say so explicitly: no tokens is an answer.
         const seeded: Record<string, CharacterToken[]> = { ...allTokens };
         for (const c of characterResult) seeded[c.id] ??= [];
 
         setCharacters(characterResult);
         setTokensByChar(seeded);
-        // Land on a character rather than on nothing. There is no "everyone" view any more -- the
+        // Land on a character rather than on nothing. There is no "everyone" view any more, the
         // aggregate was summing items that cannot be moved between characters, which is a number
-        // with no meaning -- and "who has what" is now a search, not a landing page.
+        // with no meaning, and "who has what" is now a search, not a landing page.
         setSelectedId((current) => current ?? characterResult[0]?.id ?? null);
         put(CHARACTERS_KEY, characterResult);
         put(ALL_TOKENS_KEY, seeded);
@@ -89,7 +89,7 @@ export default function CharactersPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [revision]);
 
-  // A selected character is re-fetched on its own, but only as a REFRESH -- the bulk load above
+  // A selected character is re-fetched on its own, but only as a REFRESH, the bulk load above
   // has already supplied something to draw, so this never decides what you see first, and a
   // failure never blanks what is on screen.
   useEffect(() => {
@@ -199,7 +199,7 @@ export default function CharactersPage() {
             <p className="finder-empty">Add a character to start tracking.</p>
           ) : (
             <p className="finder-empty">
-              No character selected — a screenshot dropped above will be filed by the name read from
+              No character selected, a screenshot dropped above will be filed by the name read from
               it. Pick a character to see their inventory.
             </p>
           )}
