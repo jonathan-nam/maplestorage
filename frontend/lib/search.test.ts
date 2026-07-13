@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { matchesQuery, queryTerms } from "@/components/item-search";
+import { matchesQuery, queryTerms, search } from "@/components/item-search";
+import type { Character } from "@/types/character";
 import type { CharacterToken } from "@/types/character-token";
 
 // The catalog facts a query is matched against. Kept as a fixture rather than mocked away,
@@ -41,6 +42,30 @@ const CATALOG = [
 
 const found = (q: string) =>
   CATALOG.filter((t) => matchesQuery(t, queryTerms(q))).map((t) => t.name);
+
+const character = (id: string, name: string): Character => ({ id, name }) as Character;
+
+const LUMI = character("1", "Lumidrill");
+const HAYATO = character("2", "Hayatoast");
+
+// Lumi holds the Kalos token; Hayato holds the Cernium coupon. So a query naming one character
+// must never surface the other's items.
+const ROSTER = [LUMI, HAYATO];
+const byName = (name: string): CharacterToken => {
+  const t = CATALOG.find((c) => c.name === name);
+  if (!t) throw new Error(`no such fixture item: ${name}`);
+  return t;
+};
+
+const HELD: Record<string, CharacterToken[]> = {
+  "1": [byName("Kalos's Residual Determination")],
+  "2": [byName("Sacred Symbol: Cernium Coupon")],
+};
+
+const whoHas = (q: string) =>
+  search(q, ROSTER, HELD).map(
+    (m) => `${m.character.name}: ${m.items.map((i) => i.name).join(", ")}`,
+  );
 
 describe("search", () => {
   it("finds a piece by the BOSS, which is what people actually say", () => {
@@ -91,6 +116,24 @@ describe("search", () => {
     // It was an alias for Shoulder, so it returned the four ARMOUR tokens: the opposite of the
     // Cape/Glove/Shoe set the word means.
     expect(found("accessory")).toEqual([]);
+  });
+
+  it("finds a CHARACTER by name, and shows what they are holding", () => {
+    // Typing your own character's name used to answer "nobody is holding anything matching
+    // Lumidrill", which is true of the items and useless to the person asking.
+    expect(whoHas("lumidrill")).toEqual(["Lumidrill: Kalos's Residual Determination"]);
+    expect(whoHas("hayatoast")).toEqual(["Hayatoast: Sacred Symbol: Cernium Coupon"]);
+  });
+
+  it("narrows by character AND item, because the terms are independent facts", () => {
+    expect(whoHas("lumidrill kalos")).toEqual(["Lumidrill: Kalos's Residual Determination"]);
+    // Lumi does not hold a symbol, so this is nobody. The character matching is not a shortcut
+    // that lets an item through.
+    expect(whoHas("lumidrill cernium")).toEqual([]);
+  });
+
+  it("tolerates a typo in a character's name too", () => {
+    expect(whoHas("lumidril")).toEqual(["Lumidrill: Kalos's Residual Determination"]);
   });
 
   it("knows a slot by the names the game actually uses", () => {
