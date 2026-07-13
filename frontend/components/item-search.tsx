@@ -101,21 +101,23 @@ export function SearchBar({ query, onQuery }: { query: string; onQuery: (q: stri
 export function SearchResults({ query, matches }: { query: string; matches: Match[] }) {
   const grandTotal = matches.reduce((n, m) => n + m.total, 0);
 
-  // How many Eternal armours are ACTUALLY redeemable -- counted per character, then added up.
+  // What is ACTUALLY redeemable, counted per character AND per piece-set, then added up.
   //
-  // This is the number the piece count cannot give you, and the reason the old aggregate was
-  // worse than useless. Forty pieces spread four-a-piece across ten characters is forty pieces
-  // and ZERO armours; ten on one character is ten pieces and one armour. The pieces cannot be
-  // moved, so the total says what you own and this says what you can do with it.
-  const armours = matches.reduce(
-    (sets, m) =>
-      sets +
-      m.items.reduce(
-        (n, t) => n + (t.redeemThreshold ? Math.floor(t.quantity / t.redeemThreshold) : 0),
-        0,
-      ),
-    0,
-  );
+  // Two lies are being avoided here, and they compound. Pieces cannot be pooled across characters
+  // (forty spread four-apiece over ten characters is forty pieces and ZERO armours), and the two
+  // piece-SETS do not buy the same thing -- Kalos / Kaling / First Adversary / Malefic Star make a
+  // Hat, Top, Bottom or Shoulder, while Limbo and Baldrix make a Cape, Glove or Shoe. Ten of each
+  // is one armour and one accessory. There is no way to combine them into two of anything, so a
+  // single "2 sets" would be wrong twice over.
+  const redeemable = new Map<string, number>();
+  for (const m of matches) {
+    for (const t of m.items) {
+      if (!t.redeemThreshold || t.redeemSlots.length === 0) continue;
+      const set = t.redeemSlots.join(" / ");
+      redeemable.set(set, (redeemable.get(set) ?? 0) + Math.floor(t.quantity / t.redeemThreshold));
+    }
+  }
+  const ready = [...redeemable.entries()].filter(([, n]) => n > 0);
   return (
     <section className="finder">
       <div className="finder-results">

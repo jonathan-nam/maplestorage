@@ -142,7 +142,7 @@ export default function CharactersPage() {
     quantity: token.quantity,
     itemGroup: token.itemGroup,
     note: token.redeemThreshold
-      ? redemptionNote(token.quantity, token.redeemThreshold)
+      ? `${redemptionNote(token.quantity, token.redeemThreshold)}\nbuys: ${token.redeemSlots.join(" / ")}`
       : `${token.quantity} in total`,
   }));
 

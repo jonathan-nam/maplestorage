@@ -73,6 +73,12 @@ object TokenCatalog : Table("token_catalog") {
 object RedemptionRule : Table("redemption_rule") {
     val itemId = reference("item_id", TokenCatalog.id)
     val redeemThreshold = integer("redeem_threshold")
+
+    // What the token BUYS. The two sets do not overlap: Kalos / Kaling / First Adversary /
+    // Malefic Star pieces make a Hat, Top, Bottom or Shoulder; Limbo and Baldrix pieces make a
+    // Cape, Glove or Shoe. So ten of one plus ten of the other is not twenty pieces -- it is one
+    // armour and one accessory, and a UI that adds them is lying.
+    val slotGroup = array<String>("slot_group")
     val bonusItemName = text("bonus_item_name").nullable()
 
     override val primaryKey = PrimaryKey(itemId)

@@ -31,6 +31,10 @@ data class CharacterTokenResponse(
     // Null for a consumable. There is no flag: an item is redeemable exactly when it has
     // a redemption rule, so a null threshold IS the answer to "is this redeemable?".
     val redeemThreshold: Int?,
+    // Which Eternal pieces this token buys. Empty for a consumable. The two sets do not overlap,
+    // so "how many pieces do I have" is a question with two different answers depending on which
+    // one you mean.
+    val redeemSlots: List<String> = emptyList(),
     val capturedAt: String,
 )
 

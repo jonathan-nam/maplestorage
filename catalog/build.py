@@ -78,6 +78,16 @@ def load() -> list[dict]:
             sys.exit(f"{key}: a REDEMPTION_TOKEN needs a redeem_threshold")
         if cat == "CONSUMABLE" and has:
             sys.exit(f"{key}: a CONSUMABLE must not have a redeem_threshold -- you drink it")
+
+        # What the token actually BUYS. The two sets do not overlap -- Kalos/Kaling/Adversary/
+        # Star pieces make a Hat, Top, Bottom or Shoulder; Limbo/Baldrix pieces make a Cape,
+        # Glove or Shoe -- so ten of one and ten of the other are not "twenty pieces". A
+        # redeemable token without this is a token whose progress bar means nothing.
+        slots = it.get("redeem_slots")
+        if cat == "REDEMPTION_TOKEN" and not slots:
+            sys.exit(f"{key}: a REDEMPTION_TOKEN needs redeem_slots -- what does it buy?")
+        if cat != "REDEMPTION_TOKEN" and slots:
+            sys.exit(f"{key}: only a REDEMPTION_TOKEN can have redeem_slots")
     return items
 
 
@@ -114,8 +124,12 @@ def sql(items: list[dict]) -> str:
         for it in items
     )
     redeemable = [it for it in items if it["category"] == "REDEMPTION_TOKEN"]
+    def arr(slots):
+        return "ARRAY[" + ", ".join(q(x) for x in slots) + "]::TEXT[]"
+
     rules = ",\n".join(
-        f"    ({q(it['key'])}, {int(it['redeem_threshold'])})" for it in redeemable
+        f"    ({q(it['key'])}, {int(it['redeem_threshold'])}, {arr(it['redeem_slots'])})"
+        for it in redeemable
     )
     return f"""-- GENERATED FROM catalog/items.yaml -- DO NOT EDIT BY HAND.
 -- Regenerate with:  python catalog/build.py
@@ -151,14 +165,15 @@ WHERE item_id IN (
     WHERE vision_key NOT IN ({", ".join(q(it["key"]) for it in redeemable) or "NULL"})
 );
 
-INSERT INTO redemption_rule (item_id, redeem_threshold)
-SELECT c.id, v.redeem_threshold
+INSERT INTO redemption_rule (item_id, redeem_threshold, slot_group)
+SELECT c.id, v.redeem_threshold, v.slot_group
 FROM (VALUES
 {rules}
-) AS v (vision_key, redeem_threshold)
+) AS v (vision_key, redeem_threshold, slot_group)
 JOIN token_catalog c ON c.vision_key = v.vision_key
 ON CONFLICT (item_id) DO UPDATE SET
-    redeem_threshold = EXCLUDED.redeem_threshold;
+    redeem_threshold = EXCLUDED.redeem_threshold,
+    slot_group       = EXCLUDED.slot_group;
 """
 
 

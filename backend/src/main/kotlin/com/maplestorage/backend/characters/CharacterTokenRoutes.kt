@@ -102,5 +102,6 @@ private fun ResultRow.toCharacterTokenResponse(): CharacterTokenResponse =
         itemGroup = this[TokenCatalog.itemGroup],
         sourceBoss = this[TokenCatalog.sourceBossName],
         redeemThreshold = this[RedemptionRule.redeemThreshold],
+        redeemSlots = this.getOrNull(RedemptionRule.slotGroup) ?: emptyList(),
         capturedAt = this[CharacterTokenCount.capturedAt].toString(),
     )

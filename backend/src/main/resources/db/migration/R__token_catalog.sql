@@ -57,16 +57,17 @@ WHERE item_id IN (
     WHERE vision_key NOT IN ('blissful-fantasy-shard', 'distorted-ambition', 'echo-ancient-resolve', 'ferocious-beast-ring', 'kalos-token', 'trace-eternal-loyalty')
 );
 
-INSERT INTO redemption_rule (item_id, redeem_threshold)
-SELECT c.id, v.redeem_threshold
+INSERT INTO redemption_rule (item_id, redeem_threshold, slot_group)
+SELECT c.id, v.redeem_threshold, v.slot_group
 FROM (VALUES
-    ('blissful-fantasy-shard', 10),
-    ('distorted-ambition', 10),
-    ('echo-ancient-resolve', 10),
-    ('ferocious-beast-ring', 10),
-    ('kalos-token', 10),
-    ('trace-eternal-loyalty', 10)
-) AS v (vision_key, redeem_threshold)
+    ('blissful-fantasy-shard', 10, ARRAY['Hat', 'Top', 'Bottom', 'Shoulder']::TEXT[]),
+    ('distorted-ambition', 10, ARRAY['Cape', 'Glove', 'Shoe']::TEXT[]),
+    ('echo-ancient-resolve', 10, ARRAY['Hat', 'Top', 'Bottom', 'Shoulder']::TEXT[]),
+    ('ferocious-beast-ring', 10, ARRAY['Hat', 'Top', 'Bottom', 'Shoulder']::TEXT[]),
+    ('kalos-token', 10, ARRAY['Hat', 'Top', 'Bottom', 'Shoulder']::TEXT[]),
+    ('trace-eternal-loyalty', 10, ARRAY['Cape', 'Glove', 'Shoe']::TEXT[])
+) AS v (vision_key, redeem_threshold, slot_group)
 JOIN token_catalog c ON c.vision_key = v.vision_key
 ON CONFLICT (item_id) DO UPDATE SET
-    redeem_threshold = EXCLUDED.redeem_threshold;
+    redeem_threshold = EXCLUDED.redeem_threshold,
+    slot_group       = EXCLUDED.slot_group;
