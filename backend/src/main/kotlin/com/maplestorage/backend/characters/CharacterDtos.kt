@@ -22,6 +22,8 @@ data class CharacterTokenResponse(
     val name: String,
     val iconUrl: String?,
     val quantity: Int,
+    // Which section of the inventory this belongs in. See TokenCatalog.itemGroup.
+    val itemGroup: String?,
     // Null for a consumable. There is no flag: an item is redeemable exactly when it has
     // a redemption rule, so a null threshold IS the answer to "is this redeemable?".
     val redeemThreshold: Int?,

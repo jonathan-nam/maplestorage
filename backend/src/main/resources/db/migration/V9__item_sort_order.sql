@@ -1,0 +1,11 @@
+-- The order items appear in within their section.
+--
+-- Alphabetical is wrong for the symbols, and wrongly enough to be confusing: they follow the
+-- AREAS' progression -- Vanishing Journey, Chu Chu, Lachelein, Arcana, Morass, Esfera, then
+-- Cernium, Hotel Arcus, Odium, Shangri-La, Arteria, Carcion, Tallahart -- which is the order a
+-- player unlocks and grows them in, and the order they sit in inside the game's own Symbol UI.
+-- Sorting them by name interleaves the two rivers and puts Arcana before Vanishing Journey.
+--
+-- That order is not derivable from anything else we store, so it is stated. Seeded from
+-- catalog/items.yaml.
+ALTER TABLE token_catalog ADD COLUMN sort_order INT;

@@ -1,0 +1,11 @@
+-- How the inventory is SECTIONED in the UI.
+--
+-- Not the same axis as redemption. `redemption_rule` says what an item DOES (it is traded in at
+-- a threshold); this says where a human expects to FIND it. The symbols and the elixirs are both
+-- consumables and nobody looks for them in the same place.
+--
+-- Deliberately a column rather than something the frontend derives from vision_key: a rule like
+-- "starts with arcane- or sacred-" works right up until an item arrives whose name does not fit
+-- the pattern, and then it mis-sorts it silently. R__token_catalog.sql (generated from
+-- catalog/items.yaml) fills it.
+ALTER TABLE token_catalog ADD COLUMN item_group TEXT;

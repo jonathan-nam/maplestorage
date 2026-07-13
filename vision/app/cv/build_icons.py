@@ -1,18 +1,22 @@
-"""Re-cut the 6 token icon templates from a real screenshot.
+"""Build the two kinds of picture we keep of an item, from the client's own pixels.
 
-The icons we started with came from the web prototype's assets. They work, but
-they are not what the client actually draws -- Distorted Ambition only reaches
-0.61 against a 0.55 threshold, and it is the first token to disappear once JPEG
-artefacts are added. Templates lifted from the client's own rendering do not have
-that gap.
+They are different jobs and they want opposite things from the same slot:
 
-Two regions of a slot must be excluded from the template's mask, or we would be
-baking one screenshot's incidentals into the catalog:
+  * The MATCHING template (`--cut`, `templates/token-<key>.png`) is the item's IDENTITY. The
+    stack-count digits and the cyan slot-lock bar belong to one screenshot rather than to the
+    item, so both are masked out -- otherwise an item would stop matching itself the moment its
+    count changed or the player locked its slot.
 
-  * the stack-count digits, which differ per screenshot, and
-  * the cyan slot-lock bar along the bottom, which is per-SLOT state.
+  * The DISPLAY icon (`--display`, the backend's seed-assets) is the item's PICTURE. It needs
+    the digits and the bar gone too, but everything else kept -- including the art *underneath*
+    them, which a single screenshot never captured. That art is recovered by compositing across
+    captures rather than invented; see composite_display_icon().
 
-Run against a screenshot holding all six tokens; writes templates/token-*.png.
+Both must be cut from a NATIVE-scale capture. Parsing tolerates a rescaled screenshot, but
+authoring from one bakes a blurred guess into the catalog forever -- see cut().
+
+    python -m app.cv.build_icons <shot.png> --cut kalos-token=r7c12 ...
+    python -m app.cv.build_icons --display <shot.png> <shot2.png> ...
 """
 
 import re
@@ -22,8 +26,9 @@ from pathlib import Path
 import cv2
 import numpy as np
 
-from .grid import NATIVE_PITCH, find_grid
+from .grid import COLS, NATIVE_PITCH, ROWS, Grid, find_grid
 from .match import find_tokens, load_templates
+from .ocr import count_spans, load_font
 
 TEMPLATE_DIR = Path(__file__).parent / "templates"
 
@@ -33,11 +38,21 @@ BOTTOM_BAR = 40  # rows below this carry the slot-lock bar
 
 BG_LO, BG_HI = 214, 238  # the slot's flat grey backing
 
-# The slot's raised border ridge, measured: 202..242, wider than the flat backing on both
-# sides. Only the display mask uses this -- the matching mask deliberately keeps the tighter
-# band, because there the ridge is a stable, identical feature of every slot and excluding it
-# would cost correlation for nothing.
-RIDGE_LO, RIDGE_HI = 200, 245
+# The slot's raised border ridge lives in the outermost ring of pixels. The display mask drops
+# it by position, not by brightness -- see _cut_out(). The icon art does not reach the very
+# edge, so this costs nothing.
+BORDER = 2
+
+# An icon is one connected shape (plus, sometimes, a detached sparkle or a ring segment worth
+# keeping). Anything smaller than this is slot noise rather than art, and it reads as dirt
+# floating next to the item in the inventory grid.
+MIN_ISLAND = 12
+
+# Columns of blank the count is allowed to contain before we call it finished. The client leaves
+# about a pixel between digits; anything wider is not part of the number.
+# The count reader widens its band a few px LEFT of the cell; a bare cell has nothing there to
+# widen into, so we hand it that margin explicitly. See _occluded().
+BAND_PAD = 6
 BG_FLAT = (226, 226, 226)  # the backing colour, for painting over the slot-lock bar
 
 
@@ -68,79 +83,347 @@ def icon_mask(cell: np.ndarray) -> np.ndarray:
     return mask
 
 
-def display_icon(cell: np.ndarray, font: dict) -> np.ndarray:
-    """The icon as a picture for the UI -- a different job, and it needs the opposite mask.
+def _occluded(cell: np.ndarray, font: dict) -> np.ndarray:
+    """Which pixels of this slot are hidden by something that is not the item.
 
-    icon_mask() amputates the digit zone, which is right for matching and badly wrong here:
-    an icon tall enough to reach the count band loses most of itself. The Extreme Blue Potion's
-    seed asset was the potion's CAP and a stray fragment of slot corner -- alpha on 16% of its
-    pixels -- and every elixir and potion in the catalog shipped like that. It is only the six
-    original tokens, whose art happens to sit above the band, that looked right and hid it.
-
-    So keep the whole icon, and remove the digits rather than the region they sit in. Their
-    exact pixels are knowable -- we own the font and can find the glyphs -- so they are matched,
-    masked and inpainted, and the art underneath is reconstructed instead of thrown away.
-
-    The alpha is taken AFTER inpainting, which makes it self-correcting: a digit drawn over the
-    backing inpaints to backing and drops out of the mask, while a digit drawn over the art
-    inpaints to art and stays. The slot-lock bar is still dropped -- it is the slot's state,
-    not the item's picture.
+    Two things cover the art: the stack-count digits, and the slot-lock bar. Both belong to
+    this screenshot rather than to the item, and neither can be seen through.
     """
-    bgr = cell[:, :, :3].copy()
+    # ASK THE READER where the count is. Do not re-derive it.
+    #
+    # This used to run its own glyph matcher over the count band at a slack threshold, and every
+    # attempt to make that work failed in a new way. Masking the matched shapes left the ghost of
+    # a digit behind (a near-miss glyph counts as "visible", and its dark outline goes into the
+    # icon). Masking everything left of the rightmost match was worse: the matcher fires happily
+    # on the ARTWORK, so one spurious hit out in the icon swallowed everything to its left.
+    # Walking out from the left edge instead was defeated by the Extreme Blue Potion, whose dark
+    # bottle outline produces digit-like hits contiguously across the entire band -- so the walk
+    # never found a gap, declared all 46 columns hidden, and the bottle came back as a smear.
+    #
+    # The thing that actually knows where the digits are is the count reader, which has the
+    # outline-agreement gate that rejects artwork -- and it is the same code, so the answer here
+    # cannot drift away from the number we report. It reads this potion as '8'. Take its decode
+    # and occlude exactly the span it consumed.
+    # The reader takes its band with a few pixels of margin to the LEFT of the cell, because the
+    # count is drawn hard against that edge and the grid is only good to a pixel. A bare cell has
+    # no left margin to take, so the band comes back clipped and the decode finds nothing. Give it
+    # the margin it expects, filled with the slot's own backing.
+    pad = np.full((cell.shape[0], BAND_PAD, 3), BG_FLAT, np.uint8)
+    padded = np.hstack([pad, cell[:, :, :3]])
+    grid = Grid(x=float(BAND_PAD), y=0.0, pitch=NATIVE_PITCH, n_cells=1)
+    spans = count_spans(padded, grid, 0, 0, font)
 
-    # Flatten the slot-lock bar to the slot backing BEFORE inpainting. Not cosmetic:
-    # INPAINT_TELEA reconstructs a hole from the colours around it, the digit zone runs right
-    # down to the bar, and so every icon came out with a cyan smear along its bottom edge --
-    # the bar leaking upward into the very pixels we were repairing. Masking the bar out
-    # afterwards does not help, because by then its colour is already inside the artwork.
-    bgr[BOTTOM_BAR:, :] = BG_FLAT
-
-    # Where are the digits? Match the font over the count band, exactly as the reader does.
     y0, y1, x0, x1 = DIGIT_ZONE
-    band = bgr[y0:y1, x0:x1]
-    digits = np.zeros(band.shape[:2], np.uint8)
-    for glyph in font.values():
-        gh, gw = glyph.shape[:2]
-        if gh > band.shape[0] or gw > band.shape[1]:
+    occ = np.zeros(cell.shape[:2], np.uint8)
+    if spans:
+        right = max(x + w for x, w in spans) + 2
+        occ[y0:y1, x0 : x0 + min(right, x1 - x0)] = 1
+    else:
+        # A count we could not locate is NOT a slot with no count. Erring towards "visible" here
+        # bakes the digits into the artwork permanently; erring towards "hidden" costs this
+        # instance a strip that some other capture of the same item will almost certainly supply.
+        # The asymmetry is the whole point -- one is a permanent defect in the catalog, the other
+        # is a pixel we go and fetch from elsewhere.
+        occ[y0:y1, x0:x1] = 1
+
+    occ[BOTTOM_BAR:, :] = 1
+    return occ.astype(bool)
+
+
+MAX_SHIFT = 3  # px; the grid origin is never further out than this
+EMPTY_SLOT_SCORE = 0.90  # how well a slot must match the empty-slot template to vote on the fit
+
+# How closely a donor capture must agree with the base one, over the pixels both can see, before
+# it is allowed to fill in the pixels the base cannot.
+#
+# The tolerance is not zero, and cannot be: the SAME sprite is not the same pixels in different
+# slots. The slot's grey backing carries a faint per-row gradient (the same fact that defeated
+# exact pixel-hashing in classify.py), and the icons' glow is antialiased OVER that backing -- so
+# an identical icon a few rows down genuinely differs by a few levels. What we are ruling out is
+# a donor that is MISALIGNED, which shows up as wholesale disagreement, not as a few levels.
+DONOR_TOLERANCE = 24
+DONOR_AGREEMENT = 0.90
+
+
+def _shift(a: np.ndarray, dy: int, dx: int) -> np.ndarray:
+    out = np.zeros_like(a)
+    ys, yd = (slice(dy, 46), slice(0, 46 - dy)) if dy >= 0 else (slice(0, 46 + dy), slice(-dy, 46))
+    xs, xd = (slice(dx, 46), slice(0, 46 - dx)) if dx >= 0 else (slice(0, 46 + dx), slice(-dx, 46))
+    out[yd, xd] = a[ys, xs]
+    return out
+
+
+def _best_shift(ref: np.ndarray, other: np.ndarray, both_visible: np.ndarray) -> tuple[int, int]:
+    """Integer offset that best registers `other` onto `ref`, judged only where both are art."""
+    best, best_d = None, (0, 0)
+    for dy in range(-MAX_SHIFT, MAX_SHIFT + 1):
+        for dx in range(-MAX_SHIFT, MAX_SHIFT + 1):
+            m = _shift(both_visible.astype(np.float32), dy, dx) > 0.5
+            if m.sum() < 200:
+                continue
+            d = float(np.abs(_shift(other, dy, dx)[m] - ref[m]).mean())
+            if best is None or d < best:
+                best, best_d = d, (dy, dx)
+    return best_d
+
+
+def composite_display_icon(cells: list[np.ndarray], font: dict) -> np.ndarray:
+    """One item's true artwork, assembled from every slot we have ever seen it in.
+
+    The stack count is drawn ON TOP of the icon, so the pixels beneath it were never captured
+    and cannot be recovered from a single screenshot. The previous version inpainted them --
+    reconstructing plausible art from the surrounding colours -- and it looked like exactly
+    what it was: a guess, soft and smeared across the bottom-left of every tall icon.
+
+    But the same item turns up in several captures with DIFFERENT counts, and a different count
+    hides different pixels. A '1' covers five columns; a '2655' covers forty. Cernium appears as
+    1, 340, 786 and 2655. So instead of inventing the hidden pixels, take them from a capture
+    where they are not hidden. Every pixel of the result is a verbatim client pixel, CHOSEN from
+    one capture -- never blended between several, which is just blur by another name.
+
+    Measured over the corpus, the number of pixels still hidden in EVERY instance falls to 45
+    (Cernium) - 317 (Vanishing Journey, whose counts are all four digits and so always cover the
+    same place) out of the 1840 above the bar. Only those get inpainted.
+
+    Returns the FULL 46x46 slot, not a crop: the icon's position within the slot is part of how
+    the client draws it, and the UI now renders these 1:1 at the client's own slot size.
+    """
+    # The cells arriving here are already pinned to the client's true slot boundaries, because
+    # build_display_icons corrects each capture's grid origin against the empty-slot template
+    # before cutting anything. So every instance of an item is registered to every other by
+    # construction, and the median below combines like with like.
+    #
+    # There WAS a per-instance alignment search here, and removing it was the fix rather than a
+    # simplification. Registering each instance against a reference instance sounds harmless and
+    # is not: the icons are glowing, near-symmetric blobs, so "best overlap" has spurious minima
+    # a few pixels off true, and the search happily found them. It shifted half the catalog by 2
+    # to 5 pixels and blurred the artwork it was supposed to be sharpening -- the symbols ended
+    # up matching their own raw slot at 0.45. Correcting the ORIGIN, once per capture, against a
+    # landmark that is identical in every screenshot, is the reliable thing; asking the artwork
+    # to align itself is not.
+    occs = [_occluded(c, font) for c in cells]
+    stack = np.stack([c[:, :, :3].astype(np.float32) for c in cells])
+    visible = np.stack([~o for o in occs])
+
+    # CHOOSE a pixel; do not average pixels.
+    #
+    # This took the per-pixel MEDIAN across every instance in which the pixel was visible, on the
+    # reasoning that a median would also wash out JPEG noise. It washes out the artwork. With two
+    # instances a median IS the mean, so the Extreme Blue Potion -- which we only ever see in two
+    # captures -- was literally an average of two pictures, and it looked exactly as soft as that
+    # sounds. Even with five, any residual disagreement between captures gets blended rather than
+    # resolved.
+    #
+    # There is nothing to average. Every instance is the client drawing the same sprite, so any
+    # pixel visible in any instance is already the exact pixel we want. Prefer the instance with
+    # the least occlusion (its unhidden region is the largest and the most trustworthy) and fall
+    # through to the next only where that one is covered. Every pixel in the result is then a
+    # verbatim client pixel, not a blend of several.
+    order = np.argsort([o.sum() for o in occs])
+    base = int(order[0])
+
+    bgr = np.full((46, 46, 3), BG_FLAT, np.uint8)
+    filled = visible[base].copy()
+    bgr[filled] = stack[base][filled].astype(np.uint8)
+
+    for i in order[1:]:
+        # TRUST, BUT VERIFY. A donor is only allowed to contribute pixels the base could not see
+        # if it demonstrably lines up with the base where they BOTH can see.
+        #
+        # The alternative -- pasting every donor in on the strength of the per-capture origin
+        # correction alone -- is what wrecked the Extreme Blue Potion. It has only two captures,
+        # both showing a single-digit count, so the same strip is hidden in both and the second
+        # was doing all the filling; the correction was a pixel out for that capture, and the
+        # bottle's whole lower body came back as a misaligned smear. One bad donor is worse than
+        # no donor: the hole would merely have been inpainted.
+        overlap = visible[base] & visible[i]
+        if overlap.sum() < 200:
             continue
-        m = cv2.cvtColor(glyph[:, :, 3], cv2.COLOR_GRAY2BGR)
-        res = cv2.matchTemplate(band, glyph[:, :, :3], cv2.TM_CCOEFF_NORMED, mask=m)
-        res[~np.isfinite(res)] = -1.0
-        for gy, gx in zip(*np.where(res >= DISPLAY_DIGIT_THRESHOLD)):
-            digits[gy : gy + gh, gx : gx + gw] |= glyph[:, :, 3] > 0
+        agree = (
+            np.abs(stack[base][overlap] - stack[i][overlap]).max(axis=-1) <= DONOR_TOLERANCE
+        ).mean()
+        if agree < DONOR_AGREEMENT:
+            continue
 
-    ink = np.zeros(bgr.shape[:2], np.uint8)
-    ink[y0:y1, x0:x1] = digits * 255
-    # Dilate: the glyphs carry a dark outline and a drop shadow a pixel beyond their alpha,
-    # and leaving that behind reads as dirt on the icon.
-    ink = cv2.dilate(ink, np.ones((3, 3), np.uint8))
-    if ink.any():
-        bgr = cv2.inpaint(bgr, ink, 3, cv2.INPAINT_TELEA)
+        take = visible[i] & ~filled
+        bgr[take] = stack[i][take].astype(np.uint8)
+        filled |= take
 
-    # The slot's raised border ridge runs from about 202 to 242, straddling the matching
-    # mask's 214-238 background band -- so its darker flanks read as "not background" and the
-    # corner brackets of the slot were being cut out and shipped as part of the item. Widen the
-    # band for display so the whole ridge falls inside it. The icons' own bright pixels are
-    # near-white (250+) or saturated, and stay.
+    seen = filled
+
+    # Whatever no capture ever showed us -- reconstruct, but now it is a handful of pixels
+    # rather than the whole count band.
+    hole = (~seen).astype(np.uint8)
+    hole[BOTTOM_BAR:, :] = 0  # the bar is not a hole in the art; there is simply nothing there
+    if hole.any():
+        bgr = cv2.inpaint(bgr, hole, 3, cv2.INPAINT_TELEA)
+
+    return _cut_out(bgr, hole)
+
+
+def _cut_out(bgr: np.ndarray, hole: np.ndarray | None = None) -> np.ndarray:
+    """Alpha the slot backing away, leaving the item on transparency. Full 46x46, uncropped.
+
+    `hole` marks pixels no capture ever showed, because the stack count covered them in every
+    one. Their COLOUR has been inpainted, but their alpha must not be decided by thresholding
+    that inpainted colour: where the reconstruction leans towards the backing grey, the pixel
+    drops out of the silhouette and the icon loses a piece of itself.
+
+    That is not a cosmetic loss. The digits sit at the slot's bottom-LEFT, so the missing pixels
+    all sit on one side, and every icon's bounding box -- and with it its apparent centre --
+    slid to the RIGHT. The Arcane symbols, whose counts are four digits wide in every capture we
+    have and so hide the same 300 pixels every time, ended up 5px off centre and visibly clipped.
+    Everything looked subtly, inexplicably misaligned.
+
+    So the SHAPE across a hole is reconstructed as a shape: inpaint the alpha channel too, and
+    let the silhouette flow across the gap instead of being re-derived from a guessed colour.
+    """
     grey = cv2.cvtColor(bgr, cv2.COLOR_BGR2GRAY)
     sat = cv2.cvtColor(bgr, cv2.COLOR_BGR2HSV)[:, :, 1]
-    chrome = (grey >= RIDGE_LO) & (grey <= RIDGE_HI) & (sat < 40)
+    chrome = (grey >= BG_LO) & (grey <= BG_HI) & (sat < 40)
 
     mask = (~chrome).astype(np.uint8) * 255
+    if hole is not None and hole.any():
+        known = mask.copy()
+        known[hole > 0] = 0
+        mask = cv2.inpaint(known, hole, 3, cv2.INPAINT_TELEA)
+        mask = np.where(mask >= 128, 255, 0).astype(np.uint8)
     mask[BOTTOM_BAR:, :] = 0
+    mask[:BORDER, :] = 0
+    mask[-BORDER:, :] = 0
+    mask[:, :BORDER] = 0
+    mask[:, -BORDER:] = 0
     mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, np.ones((2, 2), np.uint8))
-    # Close the pinholes the digits used to punch through the art.
     mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, np.ones((3, 3), np.uint8))
 
-    rgba = cv2.merge([*cv2.split(bgr), mask])
-    ys, xs = np.where(mask > 0)
-    if len(xs) == 0:
-        return rgba
-    return rgba[ys.min() : ys.max() + 1, xs.min() : xs.max() + 1]
+    n, labels, stats, _ = cv2.connectedComponentsWithStats((mask > 0).astype(np.uint8), 8)
+    if n > 1:
+        keep = np.zeros_like(mask)
+        biggest = 1 + int(np.argmax(stats[1:, cv2.CC_STAT_AREA]))
+        for i in range(1, n):
+            if i == biggest or stats[i, cv2.CC_STAT_AREA] >= MIN_ISLAND:
+                keep[labels == i] = 255
+        mask = keep
+
+    return cv2.merge([*cv2.split(bgr), mask])
 
 
-# Lower than the reader's 0.60: a false positive here costs a few inpainted pixels, while a
-# miss leaves a digit burned into the catalog's artwork forever.
+def slot_offsets(img: np.ndarray, g: Grid) -> dict[tuple[int, int], tuple[int, int]]:
+    """Per-slot (dy, dx) to add to g.cell(), bringing each cell onto the client's real boundary.
+
+    find_grid's lattice is good to a pixel or two, which is ample for matching -- the matcher
+    slides -- and not nearly enough for authoring a picture. But the error is NOT a constant
+    offset, which is what makes this subtle: measured against the empty-slot template, some slots
+    in a single capture land at x=0 and others at x=+2. The pitch is fractionally off 46.0 and the
+    error ACCUMULATES across the sixteen columns, so no single correction can straighten it -- a
+    per-capture nudge just moves which columns are wrong.
+
+    So fit, rather than nudge. The empty slot is the same pixels in every capture, so every empty
+    slot in the frame is a measurement of where the lattice really is. Least-squares a line through
+    them (x = x0 + pitch*col, and the same down the rows) and the whole grid comes into register,
+    including the busy cells that could not be measured directly.
+    """
+    tpl = cv2.imread(str(TEMPLATE_DIR / "slot_empty.png"), cv2.IMREAD_COLOR)
+    if tpl is None:
+        return {}
+
+    n = int(NATIVE_PITCH)
+    pad = MAX_SHIFT
+    xs: list[tuple[int, float]] = []
+    ys: list[tuple[int, float]] = []
+    for row in range(ROWS):
+        for col in range(COLS):
+            x, y, w, _ = g.cell(row, col)
+            win = img[y - pad : y + w + pad, x - pad : x + w + pad]
+            if win.shape[:2] != (n + 2 * pad, n + 2 * pad):
+                continue
+            res = cv2.matchTemplate(win, tpl, cv2.TM_CCOEFF_NORMED)
+            _, score, _, loc = cv2.minMaxLoc(res)
+            # Only a genuinely empty slot gets a vote. A slot full of icon art has nothing useful
+            # to say about where its own boundary is.
+            if score >= EMPTY_SLOT_SCORE:
+                xs.append((col, x + loc[0] - pad))
+                ys.append((row, y + loc[1] - pad))
+
+    if len(xs) < 6:
+        return {}
+
+    # Per COLUMN and per ROW, not one line through everything.
+    #
+    # Fitting a single lattice (origin + pitch) was the obvious move and it made things worse. Grid
+    # carries ONE pitch for both axes, so the x-fit and the y-fit had to be averaged into it -- and
+    # since only x drifts (y measured dead-on in every capture), averaging in a y-pitch it did not
+    # need dragged x off by 1-3px in every column at once. A global fit also assumes the drift is
+    # linear, which is an assumption we do not need to make and cannot check.
+    #
+    # The drift is per-column, so measure it per-column. Every empty slot in a column is a direct
+    # reading of where that column really starts; take the median. Columns with no empty slot in
+    # them inherit the frame's overall median, which is the best we can say about them.
+    def offsets(points: list[tuple[int, float]], predicted) -> dict[int, int]:
+        by: dict[int, list[float]] = {}
+        for i, measured in points:
+            by.setdefault(i, []).append(measured - predicted(i))
+        overall = int(round(np.median([d for ds in by.values() for d in ds])))
+        return {i: int(round(np.median(ds))) for i, ds in by.items()}, overall
+
+    dx_by_col, dx_all = offsets(xs, lambda c: g.cell(0, c)[0])
+    dy_by_row, dy_all = offsets(ys, lambda r: g.cell(r, 0)[1])
+
+    return {
+        (r, c): (
+            dy_by_row.get(r, dy_all),
+            dx_by_col.get(c, dx_all),
+        )
+        for r in range(ROWS)
+        for c in range(COLS)
+    }
+
+
+def build_display_icons(capture_paths: list[str], out_dir: Path) -> dict[str, int]:
+    """Regenerate every seed icon the UI shows, from every capture we have.
+
+    Kept separate from cut(), which builds the MATCHING template, because the two want opposite
+    things from the same slot. The matcher wants the item's identity, so it throws away the count
+    digits and the slot-lock bar. The UI wants the item's picture, so it needs them gone but
+    everything else kept -- including the art underneath them.
+
+    Returns {key: number of slot instances it was built from}.
+    """
+    # Imported here rather than at module scope: match.py imports this module, and classify is
+    # only needed for the offline regeneration path.
+    from .classify import classify
+
+    templates = load_templates()
+    font = load_font()
+
+    instances: dict[str, list[np.ndarray]] = {}
+    for path in capture_paths:
+        img = cv2.imread(path)
+        if img is None:
+            raise FileNotFoundError(path)
+        g = find_grid(img)
+        if abs(g.pitch - NATIVE_PITCH) > 0.5:
+            raise NotNativeScale(f"{path}: pitch {g.pitch:.1f}, not native -- see cut()")
+
+        # Cut from a lattice re-fitted to the client's real slot boundaries. find_grid's is good
+        # to a pixel or two -- fine for matching, not for authoring a picture -- and the error is
+        # not even constant across one capture, because the pitch is fractionally off and drifts
+        # across the columns. See refine_grid().
+        offs = slot_offsets(img, g)
+        for hit in classify(img, g, templates):
+            x, y, w, _ = g.cell(hit.row, hit.col)
+            dy, dx = offs.get((hit.row, hit.col), (0, 0))
+            x, y = x + dx, y + dy
+            cell = img[y : y + w, x : x + w]
+            if cell.shape[:2] == (int(NATIVE_PITCH), int(NATIVE_PITCH)):
+                instances.setdefault(hit.name, []).append(cell)
+
+    out_dir.mkdir(parents=True, exist_ok=True)
+    for key, cells in instances.items():
+        cv2.imwrite(str(out_dir / f"{key}.png"), composite_display_icon(cells, font))
+    return {k: len(v) for k, v in instances.items()}
+
+
 DISPLAY_DIGIT_THRESHOLD = 0.45
 
 
@@ -188,7 +471,30 @@ def cut(img: np.ndarray, g, row: int, col: int, key: str) -> float:
     return float((mask > 0).mean())
 
 
+SEED_ASSETS = Path(__file__).resolve().parents[3] / (
+    "backend/src/main/resources/seed-assets/tokens"
+)
+
+
 def main():
+    # `--display <capture>...` regenerates the seed icons the UI shows, from every capture
+    # given. Every item in the catalog must appear in at least one of them.
+    if "--display" in sys.argv:
+        i = sys.argv.index("--display")
+        caps = [a for a in sys.argv[i + 1 :] if not a.startswith("-")]
+        if not caps:
+            print("--display needs at least one screenshot")
+            return 1
+        built = build_display_icons(caps, SEED_ASSETS)
+        missing = set(load_templates()) - set(built)
+        for k in sorted(built):
+            print(f"  {k:<26} composited from {built[k]} slot(s)")
+        if missing:
+            print(f"\n  no capture contains: {sorted(missing)} -- their icons are unchanged")
+            return 1
+        print(f"\nwrote {len(built)} icons to {SEED_ASSETS}")
+        return 0
+
     # `--cut key=rXcY ...` cuts named slots; with no --cut, re-cuts the 6 known tokens by
     # finding them, which is what this script originally did.
     args = [a for a in sys.argv[1:] if not a.startswith("-")]

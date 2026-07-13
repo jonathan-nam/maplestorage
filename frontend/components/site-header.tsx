@@ -19,11 +19,10 @@ export function SiteHeader() {
 
       <SignedIn>
         <nav className="site-nav">
+          {/* No Upload link any more: uploading is not a destination, it is something you do
+              to a character, and it now lives on the character you are already looking at. */}
           <Link href="/characters" className={pathname.startsWith("/characters") ? "active" : ""}>
             Characters
-          </Link>
-          <Link href="/upload" className={pathname.startsWith("/upload") ? "active" : ""}>
-            Upload
           </Link>
         </nav>
         <div className="site-user">

@@ -123,9 +123,32 @@ OVERSAMPLE = 3
 
 def read_count(img: np.ndarray, g: Grid, row: int, col: int, font: dict) -> tuple[str, float]:
     """Return (digits, mean confidence). Empty string if no count is drawn."""
+    chosen, _ = _decode(img, g, row, col, font)
+    if not chosen:
+        return "", 0.0
+    return "".join(d for _, d, _, _ in chosen), float(np.mean([s for _, _, s, _ in chosen]))
+
+
+def count_spans(img: np.ndarray, g: Grid, row: int, col: int, font: dict) -> list[tuple[int, int]]:
+    """Where the count's glyphs sit in the slot, as (x, width) in the slot's own pixels.
+
+    Exists so build_icons can blank the count out of an icon without re-deriving where it is.
+    Deriving it separately is exactly what kept going wrong -- a second, slacker glyph matcher
+    fires on the artwork -- and the answer must not be allowed to disagree with the number we
+    actually report. Same decode, same gates, one source of truth.
+    """
+    chosen, k = _decode(img, g, row, col, font)
+    x0 = max(int(round(BAND_MARGIN * g.scale)), BAND_MARGIN)
+    # `chosen` is in the band's own (possibly oversampled) coordinates, and the band starts
+    # x0 to the LEFT of the cell. Bring both back to slot pixels.
+    return [(int(round(x / k)) - x0, int(round(w / k))) for x, _, _, w in chosen]
+
+
+def _decode(img: np.ndarray, g: Grid, row: int, col: int, font: dict):
+    """The shared decode. Returns ([(x, digit, score, width)], scale) in band coordinates."""
     band = cell_band(img, g, row, col)
     if band.size == 0:
-        return "", 0.0
+        return [], 1.0
 
     k = g.scale
     if abs(k - 1.0) >= 0.01:
@@ -189,7 +212,7 @@ def read_count(img: np.ndarray, g: Grid, row: int, col: int, font: dict) -> tupl
             x += 1
             continue
         px, d, s = pick
-        chosen.append((px, d, s))
+        chosen.append((px, d, s, font[d].shape[1]))
         # Advance past what we just took, less ONE NATIVE PIXEL of slack -- the glyphs' boxes
         # are a touch wider than the font's true advance, so consuming the full width steps
         # over the start of the next digit. That slack is a native-pixel quantity like JITTER,
@@ -198,8 +221,4 @@ def read_count(img: np.ndarray, g: Grid, row: int, col: int, font: dict) -> tupl
         # it, where the only glyph still scoring was '8'.
         x = px + font[d].shape[1] - max(int(round(k)), 1)
 
-    if not chosen:
-        return "", 0.0
-    digits = "".join(d for _, d, _ in chosen)
-    conf = float(np.mean([s for _, _, s in chosen]))
-    return digits, conf
+    return chosen, k

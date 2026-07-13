@@ -27,6 +27,13 @@ fun Application.configureRouting(
         // the <img> tags that load them can't attach a Bearer token.
         staticResources("/token-icons", "seed-assets/tokens")
 
+        // The stack-count digits, as the CLIENT draws them -- the very same glyph sprites the
+        // parser reads counts with (vision/app/cv/templates/digit_*.png). The inventory renders
+        // its counts from these rather than setting a number in a web font, because no web font
+        // is that font: it is an 11px bitmap face with a hard black outline, and any approximation
+        // of it sits next to the real sprites and looks like an approximation.
+        staticResources("/digit-icons", "seed-assets/digits")
+
         // Unauthenticated on purpose -- this is what the ALB target group polls
         // (see infra/alb.tf's health_check block). No DB touch here: a slow or
         // briefly-unavailable RDS shouldn't flip the target group unhealthy.

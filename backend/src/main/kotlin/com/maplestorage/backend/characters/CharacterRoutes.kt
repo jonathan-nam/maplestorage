@@ -189,7 +189,7 @@ private suspend fun RoutingContext.getCharacterTokens() {
                         otherColumn = RedemptionRule.itemId,
                     ).selectAll()
                     .where { CharacterTokenCount.characterId eq characterId }
-                    .orderBy(TokenCatalog.name)
+                    .orderBy(TokenCatalog.sortOrder)
                     .map { it.toCharacterTokenResponse() }
             }
         }
@@ -210,6 +210,7 @@ private fun ResultRow.toCharacterTokenResponse(): CharacterTokenResponse =
         // base URL (lib/api.ts's apiAssetUrl).
         iconUrl = this[TokenCatalog.iconRefKey]?.let { "/token-icons/$it" },
         quantity = this[CharacterTokenCount.quantity],
+        itemGroup = this[TokenCatalog.itemGroup],
         redeemThreshold = this[RedemptionRule.redeemThreshold],
         capturedAt = this[CharacterTokenCount.capturedAt].toString(),
     )

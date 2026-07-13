@@ -8,43 +8,45 @@
 -- Upserts rather than replaces: token_catalog.id is referenced by character_token_count,
 -- so deleting and reinserting would take every user's counts with it.
 
-INSERT INTO token_catalog (id, vision_key, name, source_boss_name, icon_ref_key)
+INSERT INTO token_catalog (id, vision_key, name, source_boss_name, icon_ref_key, item_group, sort_order)
 SELECT
     COALESCE(existing.id, gen_random_uuid()),
-    v.vision_key, v.name, v.boss, v.icon
+    v.vision_key, v.name, v.boss, v.icon, v.item_group, v.sort_order
 FROM (VALUES
-    ('blissful-fantasy-shard', 'Blissful Fantasy Shard', 'Malefic Star', 'blissful-fantasy-shard.png'),
-    ('distorted-ambition', 'Distorted Ambition', 'Limbo', 'distorted-ambition.png'),
-    ('echo-ancient-resolve', 'Echo of Ancient Resolve', 'First Adversary', 'echo-ancient-resolve.png'),
-    ('ferocious-beast-ring', 'Ferocious Beast Entanglement Ring', 'Kaling', 'ferocious-beast-ring.png'),
-    ('kalos-token', 'Kalos''s Residual Determination', 'Kalos the Guardian', 'kalos-token.png'),
-    ('trace-eternal-loyalty', 'Trace of Eternal Loyalty', 'Baldrix', 'trace-eternal-loyalty.png'),
-    ('sayram-elixir', 'Sayram''s Elixir', 'The Collector', 'sayram-elixir.png'),
-    ('aurelia-elixir', 'Aurelia''s Elixir', 'The Collector', 'aurelia-elixir.png'),
-    ('honorable-elixir', 'Honorable Elixir', 'The Collector', 'honorable-elixir.png'),
-    ('collector-elixir', 'Collector''s Elixir', 'The Collector', 'collector-elixir.png'),
-    ('extreme-red-potion', 'Extreme Red Potion', 'Monster Park', 'extreme-red-potion.png'),
-    ('extreme-blue-potion', 'Extreme Blue Potion', 'Monster Park', 'extreme-blue-potion.png'),
-    ('extreme-green-potion', 'Extreme Green Potion', 'Monster Park', 'extreme-green-potion.png'),
-    ('arcane-vanishing-journey', 'Arcane Symbol: Vanishing Journey Coupon', 'Daily', 'arcane-vanishing-journey.png'),
-    ('arcane-chu-chu-island', 'Arcane Symbol: Chu Chu Island Coupon', 'Daily', 'arcane-chu-chu-island.png'),
-    ('arcane-lachelein', 'Arcane Symbol: Lachelein Coupon', 'Daily', 'arcane-lachelein.png'),
-    ('arcane-arcana', 'Arcane Symbol: Arcana Coupon', 'Daily', 'arcane-arcana.png'),
-    ('arcane-morass', 'Arcane Symbol: Morass Coupon', 'Daily', 'arcane-morass.png'),
-    ('arcane-esfera', 'Arcane Symbol: Esfera Coupon', 'Daily', 'arcane-esfera.png'),
-    ('sacred-cernium', 'Sacred Symbol: Cernium Coupon', 'Daily', 'sacred-cernium.png'),
-    ('sacred-hotel-arcus', 'Sacred Symbol: Hotel Arcus Coupon', 'Daily', 'sacred-hotel-arcus.png'),
-    ('sacred-odium', 'Sacred Symbol: Odium Coupon', 'Daily', 'sacred-odium.png'),
-    ('sacred-shangri-la', 'Sacred Symbol: Shangri-La Coupon', 'Daily', 'sacred-shangri-la.png'),
-    ('sacred-arteria', 'Sacred Symbol: Arteria Coupon', 'Daily', 'sacred-arteria.png'),
-    ('sacred-carcion', 'Sacred Symbol: Carcion Coupon', 'Daily', 'sacred-carcion.png'),
-    ('sacred-tallahart', 'Sacred Symbol: Tallahart Coupon', 'Daily', 'sacred-tallahart.png')
-) AS v (vision_key, name, boss, icon)
+    ('blissful-fantasy-shard', 'Blissful Fantasy Shard', 'Malefic Star', 'blissful-fantasy-shard.png', 'Eternal Pieces', 10),
+    ('distorted-ambition', 'Distorted Ambition', 'Limbo', 'distorted-ambition.png', 'Eternal Pieces', 11),
+    ('echo-ancient-resolve', 'Echo of Ancient Resolve', 'First Adversary', 'echo-ancient-resolve.png', 'Eternal Pieces', 12),
+    ('ferocious-beast-ring', 'Ferocious Beast Entanglement Ring', 'Kaling', 'ferocious-beast-ring.png', 'Eternal Pieces', 13),
+    ('kalos-token', 'Kalos''s Residual Determination', 'Kalos the Guardian', 'kalos-token.png', 'Eternal Pieces', 14),
+    ('trace-eternal-loyalty', 'Trace of Eternal Loyalty', 'Baldrix', 'trace-eternal-loyalty.png', 'Eternal Pieces', 15),
+    ('sayram-elixir', 'Sayram''s Elixir', 'The Collector', 'sayram-elixir.png', 'Consumables', 40),
+    ('aurelia-elixir', 'Aurelia''s Elixir', 'The Collector', 'aurelia-elixir.png', 'Consumables', 41),
+    ('honorable-elixir', 'Honorable Elixir', 'The Collector', 'honorable-elixir.png', 'Consumables', 42),
+    ('collector-elixir', 'Collector''s Elixir', 'The Collector', 'collector-elixir.png', 'Consumables', 43),
+    ('extreme-red-potion', 'Extreme Red Potion', 'Monster Park', 'extreme-red-potion.png', 'Consumables', 50),
+    ('extreme-blue-potion', 'Extreme Blue Potion', 'Monster Park', 'extreme-blue-potion.png', 'Consumables', 51),
+    ('extreme-green-potion', 'Extreme Green Potion', 'Monster Park', 'extreme-green-potion.png', 'Consumables', 52),
+    ('arcane-vanishing-journey', 'Arcane Symbol: Vanishing Journey Coupon', 'Daily', 'arcane-vanishing-journey.png', 'Symbols', 20),
+    ('arcane-chu-chu-island', 'Arcane Symbol: Chu Chu Island Coupon', 'Daily', 'arcane-chu-chu-island.png', 'Symbols', 21),
+    ('arcane-lachelein', 'Arcane Symbol: Lachelein Coupon', 'Daily', 'arcane-lachelein.png', 'Symbols', 22),
+    ('arcane-arcana', 'Arcane Symbol: Arcana Coupon', 'Daily', 'arcane-arcana.png', 'Symbols', 23),
+    ('arcane-morass', 'Arcane Symbol: Morass Coupon', 'Daily', 'arcane-morass.png', 'Symbols', 24),
+    ('arcane-esfera', 'Arcane Symbol: Esfera Coupon', 'Daily', 'arcane-esfera.png', 'Symbols', 25),
+    ('sacred-cernium', 'Sacred Symbol: Cernium Coupon', 'Daily', 'sacred-cernium.png', 'Symbols', 30),
+    ('sacred-hotel-arcus', 'Sacred Symbol: Hotel Arcus Coupon', 'Daily', 'sacred-hotel-arcus.png', 'Symbols', 31),
+    ('sacred-odium', 'Sacred Symbol: Odium Coupon', 'Daily', 'sacred-odium.png', 'Symbols', 32),
+    ('sacred-shangri-la', 'Sacred Symbol: Shangri-La Coupon', 'Daily', 'sacred-shangri-la.png', 'Symbols', 33),
+    ('sacred-arteria', 'Sacred Symbol: Arteria Coupon', 'Daily', 'sacred-arteria.png', 'Symbols', 34),
+    ('sacred-carcion', 'Sacred Symbol: Carcion Coupon', 'Daily', 'sacred-carcion.png', 'Symbols', 35),
+    ('sacred-tallahart', 'Sacred Symbol: Tallahart Coupon', 'Daily', 'sacred-tallahart.png', 'Symbols', 36)
+) AS v (vision_key, name, boss, icon, item_group, sort_order)
 LEFT JOIN token_catalog existing ON existing.vision_key = v.vision_key
 ON CONFLICT (vision_key) DO UPDATE SET
     name             = EXCLUDED.name,
     source_boss_name = EXCLUDED.source_boss_name,
-    icon_ref_key     = EXCLUDED.icon_ref_key;
+    icon_ref_key     = EXCLUDED.icon_ref_key,
+    item_group       = EXCLUDED.item_group,
+    sort_order       = EXCLUDED.sort_order;
 
 -- An item is redeemable if a rule exists for it -- there is no flag to keep in step with
 -- the fields it governs. So a manifest entry that stops being a REDEMPTION_TOKEN must have

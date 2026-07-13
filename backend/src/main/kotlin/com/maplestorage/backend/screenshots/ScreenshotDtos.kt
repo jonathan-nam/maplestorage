@@ -49,6 +49,12 @@ data class DetectedTokenResponse(
     // token persistence -- so the server resolves it from the catalog and sends
     // both rather than letting the client guess.
     val displayName: String,
+    // The catalog row's id, so the preview can line a parsed count up against what is already
+    // stored and show the DIFFERENCE. Matching on displayName instead would work until two items
+    // shared a name, and would fail silently when they did.
+    val tokenCatalogId: String?,
+    // Which section of the inventory this belongs in. See TokenCatalog.itemGroup.
+    val itemGroup: String?,
     val iconUrl: String?,
     val quantity: Int,
 )

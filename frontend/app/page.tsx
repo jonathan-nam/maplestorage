@@ -27,8 +27,8 @@ export default function Home() {
           <Chest size={64} open />
           <h1>Welcome back</h1>
           <p>
-            <Link href="/characters">See where you stand</Link>, or{" "}
-            <Link href="/upload">drop in a new screenshot</Link>.
+            <Link href="/characters">See where you stand</Link>, and drop a screenshot on whichever
+            character it belongs to.
           </p>
         </section>
       </SignedIn>

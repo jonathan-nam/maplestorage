@@ -1,28 +1,20 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { apiAssetUrl } from "@/lib/api";
+import { COLS, SlotGrid, type SlotItem } from "@/components/slot-grid";
 
-// The real inventory is 16x8 -- the same lattice the parser locks onto
-// (vision/app/cv/grid.py), and the same 128 the client's own "SLOT 112 / 128"
-// readout counts against.
-const COLS = 16;
-const ROWS = 8;
-const SLOTS = COLS * ROWS;
-
-// The client's tab row, in its order and with its spelling ("Etc." and "Set-up"
-// carry their punctuation in-game). Tokens are consumables, so everything we
-// track lives in Use.
+// The client's tab row, in its order and with its spelling ("Etc." and "Set-up" carry their
+// punctuation in-game). Everything we track is a consumable, so it all lives in Use.
 const CATEGORIES = ["Equip", "Use", "Etc.", "Set-up", "Cash", "Dec."] as const;
 type Category = (typeof CATEGORIES)[number];
 
-export type InventoryItem = {
-  id: string;
-  name: string;
-  iconUrl: string | null;
-  quantity: number;
-  note?: string;
-};
+// The order the sections appear in. An item whose group we do not recognise falls to the end
+// under "Other" rather than vanishing: an item you cannot see is an item you will not notice is
+// missing, and not losing track of things is the entire job.
+const SECTION_ORDER = ["Eternal Pieces", "Symbols", "Consumables"] as const;
+const OTHER = "Other";
+
+export type InventoryItem = SlotItem & { itemGroup?: string | null };
 
 export function InventoryPanel({
   title,
@@ -39,9 +31,9 @@ export function InventoryPanel({
   const [focused, setFocused] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
 
-  // Tab cycles tabs, as it does in-game. Only while the panel holds focus, so Tab
-  // keeps meaning "next element" everywhere else on the page -- and Escape hands
-  // focus back, so a keyboard user is never stuck inside the panel.
+  // Tab cycles tabs, as it does in-game. Only while the panel holds focus, so Tab keeps meaning
+  // "next element" everywhere else on the page -- and Escape hands focus back, so a keyboard
+  // user is never stuck inside the panel.
   useEffect(() => {
     const panel = panelRef.current;
     if (!panel) return;
@@ -67,6 +59,16 @@ export function InventoryPanel({
 
   const shown = category === "Use" ? items : [];
 
+  const known = (g: string | null | undefined) =>
+    !!g && (SECTION_ORDER as readonly string[]).includes(g);
+
+  const sections = [...SECTION_ORDER, OTHER]
+    .map((name) => ({
+      name,
+      items: shown.filter((i) => (name === OTHER ? !known(i.itemGroup) : i.itemGroup === name)),
+    }))
+    .filter((s) => s.items.length > 0);
+
   return (
     <div
       ref={panelRef}
@@ -81,6 +83,11 @@ export function InventoryPanel({
           {title}
           {subtitle ? ` · ${subtitle}` : ""}
         </span>
+        {/* The keyboard hint belongs next to the window controls, where you look when you are
+            thinking about the window. It used to sit in a footer beneath the grid, alongside an
+            "N items tracked" readout that told you a number you can see by looking -- so the
+            footer is gone and the hint has moved up. */}
+        <span className="ms-title-hint">{focused ? "Tab · Esc" : "Click to focus"}</span>
         <span className="ms-window-buttons" aria-hidden="true">
           <i>&#8211;</i>
           <i>+</i>
@@ -102,43 +109,37 @@ export function InventoryPanel({
         ))}
       </div>
 
-      <div className="ms-toolbar">
-        <span className="ms-btn primary">Sort</span>
-        <span className="ms-btn">Lock</span>
-        <span className="ms-slot-readout">
-          <span className="ms-slot-label">SLOT</span>
-          <span className="ms-slot-pill">
-            {shown.length} / {SLOTS}
-          </span>
-        </span>
-      </div>
-
-      <div className="ms-grid" style={{ gridTemplateColumns: `repeat(${COLS}, 1fr)` }}>
-        {Array.from({ length: SLOTS }, (_, i) => {
-          const item = shown[i];
-          if (!item) return <div key={i} className="ms-slot" />;
-          return (
-            <div
-              key={i}
-              className="ms-slot filled"
-              title={`${item.name}\n${item.quantity}${item.note ? `\n${item.note}` : ""}`}
-            >
-              {item.iconUrl && <img src={apiAssetUrl(item.iconUrl)} alt={item.name} />}
-              <span className="ms-qty">{item.quantity}</span>
-            </div>
-          );
-        })}
-      </div>
-
-      <div className="ms-footer">
-        <span className="ms-footer-note">
-          {shown.length === 0 && category === "Use" && (emptyHint ?? "Nothing here yet.")}
-          {shown.length === 0 && category !== "Use" && `No ${category} items.`}
-        </span>
-        <span className="ms-hint">
-          {focused ? "Tab to switch · Esc to leave" : "Click to focus"}
-        </span>
-      </div>
+      {/* Sections, not the bag.
+       *
+       * This used to render all 128 slots, faithfully to the client. Faithful, and useless: a
+       * grid that is nine-tenths empty makes you hunt for the twenty things you actually track,
+       * and it gives the six boss tokens -- the point of the whole app -- exactly the same weight
+       * as a stack of potions. The game has to draw empty slots because you can put things in
+       * them. We never can; we only ever show what you already HAVE.
+       *
+       * So: one block per group, sized to its contents, in a fixed order. The slot lattice stays
+       * -- same 16 columns, same 46px sprites drawn 1:1 -- because that is what makes this read
+       * as an inventory rather than a spreadsheet. */}
+      {sections.length > 0 ? (
+        sections.map((section) => (
+          <section key={section.name} className="ms-section">
+            <header className="ms-section-head">
+              <h3>{section.name}</h3>
+              <span className="ms-section-count">
+                {section.items.length} {section.items.length === 1 ? "item" : "items"}
+              </span>
+            </header>
+            <SlotGrid
+              items={section.items}
+              rows={Math.max(1, Math.ceil(section.items.length / COLS))}
+            />
+          </section>
+        ))
+      ) : (
+        <div className="ms-empty">
+          {category === "Use" ? (emptyHint ?? "Nothing here yet.") : `No ${category} items.`}
+        </div>
+      )}
     </div>
   );
 }
