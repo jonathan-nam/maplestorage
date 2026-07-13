@@ -1,12 +1,11 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { apiAssetUrl } from "@/lib/api";
+import { COLS, SlotGrid, type SlotItem } from "@/components/slot-grid";
 
 // The real inventory is 16x8 -- the same lattice the parser locks onto
 // (vision/app/cv/grid.py), and the same 128 the client's own "SLOT 112 / 128"
 // readout counts against.
-const COLS = 16;
 const ROWS = 8;
 const SLOTS = COLS * ROWS;
 
@@ -16,13 +15,7 @@ const SLOTS = COLS * ROWS;
 const CATEGORIES = ["Equip", "Use", "Etc.", "Set-up", "Cash", "Dec."] as const;
 type Category = (typeof CATEGORIES)[number];
 
-export type InventoryItem = {
-  id: string;
-  name: string;
-  iconUrl: string | null;
-  quantity: number;
-  note?: string;
-};
+export type InventoryItem = SlotItem;
 
 export function InventoryPanel({
   title,
@@ -113,22 +106,7 @@ export function InventoryPanel({
         </span>
       </div>
 
-      <div className="ms-grid" style={{ gridTemplateColumns: `repeat(${COLS}, 1fr)` }}>
-        {Array.from({ length: SLOTS }, (_, i) => {
-          const item = shown[i];
-          if (!item) return <div key={i} className="ms-slot" />;
-          return (
-            <div
-              key={i}
-              className="ms-slot filled"
-              title={`${item.name}\n${item.quantity}${item.note ? `\n${item.note}` : ""}`}
-            >
-              {item.iconUrl && <img src={apiAssetUrl(item.iconUrl)} alt={item.name} />}
-              <span className="ms-qty">{item.quantity}</span>
-            </div>
-          );
-        })}
-      </div>
+      <SlotGrid items={shown} rows={ROWS} />
 
       <div className="ms-footer">
         <span className="ms-footer-note">

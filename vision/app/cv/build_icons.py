@@ -26,7 +26,7 @@ from pathlib import Path
 import cv2
 import numpy as np
 
-from .grid import NATIVE_PITCH, find_grid
+from .grid import COLS, NATIVE_PITCH, ROWS, find_grid
 from .match import find_tokens, load_templates
 from .ocr import load_font
 
@@ -99,10 +99,21 @@ def _occluded(cell: np.ndarray, font: dict) -> np.ndarray:
             digits[gy : gy + gh, gx : gx + gw] |= glyph[:, :, 3] > 0
 
     occ = np.zeros(bgr.shape[:2], np.uint8)
-    occ[y0:y1, x0:x1] = digits
-    # The glyphs carry a dark outline and a drop shadow a pixel beyond their own alpha, and
-    # leaving that behind reads as dirt on the icon.
-    occ = cv2.dilate(occ, np.ones((3, 3), np.uint8))
+    if digits.any():
+        # Occlude the whole EXTENT of the count, not the glyphs we happened to match.
+        #
+        # Masking the matched glyph shapes (dilated) is precise and it is precision in the wrong
+        # direction: a glyph that scores just under the bar, or an antialiased edge outside the
+        # glyph's own alpha, is then treated as "visible" -- and its dark outline goes straight
+        # into the median. Every icon came out with the ghost of a digit smeared across its
+        # bottom-left.
+        #
+        # The count is drawn left-aligned in a fixed band, so its bounding extent is all we need:
+        # hide the band from the left edge to just past the last digit. This hides MORE per
+        # instance, which is fine, because the counts differ between captures -- a slot showing
+        # '7' hides a narrow strip and hands back everything a '1096' was covering.
+        right = int(np.where(digits.any(axis=0))[0].max()) + 2
+        occ[y0:y1, x0 : x0 + min(right, x1 - x0)] = 1
     occ[BOTTOM_BAR:, :] = 1
     return occ.astype(bool)
 
@@ -153,24 +164,22 @@ def composite_display_icon(cells: list[np.ndarray], font: dict) -> np.ndarray:
     Returns the FULL 46x46 slot, not a crop: the icon's position within the slot is part of how
     the client draws it, and the UI now renders these 1:1 at the client's own slot size.
     """
-    # ALIGN FIRST. The grid origin is only good to a pixel or two, and it lands differently in
-    # each screenshot, so the same icon sits at a slightly different offset in each cell. Taking
-    # a median of misregistered copies does not average noise away, it smears the artwork -- it
-    # punched holes clean through kalos-token and left half the catalog blotchy. So register
-    # every instance against the least-occluded one before combining them.
+    # The cells arriving here are already pinned to the client's true slot boundaries, because
+    # build_display_icons corrects each capture's grid origin against the empty-slot template
+    # before cutting anything. So every instance of an item is registered to every other by
+    # construction, and the median below combines like with like.
+    #
+    # There WAS a per-instance alignment search here, and removing it was the fix rather than a
+    # simplification. Registering each instance against a reference instance sounds harmless and
+    # is not: the icons are glowing, near-symmetric blobs, so "best overlap" has spurious minima
+    # a few pixels off true, and the search happily found them. It shifted half the catalog by 2
+    # to 5 pixels and blurred the artwork it was supposed to be sharpening -- the symbols ended
+    # up matching their own raw slot at 0.45. Correcting the ORIGIN, once per capture, against a
+    # landmark that is identical in every screenshot, is the reliable thing; asking the artwork
+    # to align itself is not.
     occs = [_occluded(c, font) for c in cells]
-    ref_i = int(np.argmin([o.sum() for o in occs]))
-    ref = cells[ref_i][:, :, :3].astype(np.float32)
-
-    aligned, visible = [], []
-    for cell, occ in zip(cells, occs):
-        bgr = cell[:, :, :3].astype(np.float32)
-        dy, dx = _best_shift(ref, bgr, ~occ & ~occs[ref_i])
-        aligned.append(_shift(bgr, dy, dx))
-        visible.append(_shift((~occ).astype(np.float32), dy, dx) > 0.5)
-
-    stack = np.stack(aligned)
-    visible = np.stack(visible)
+    stack = np.stack([c[:, :, :3].astype(np.float32) for c in cells])
+    visible = np.stack([~o for o in occs])
 
     seen = visible.any(axis=0)
     out = np.zeros((46, 46, 3), np.float32)
@@ -190,16 +199,36 @@ def composite_display_icon(cells: list[np.ndarray], font: dict) -> np.ndarray:
     if hole.any():
         bgr = cv2.inpaint(bgr, hole, 3, cv2.INPAINT_TELEA)
 
-    return _cut_out(bgr)
+    return _cut_out(bgr, hole)
 
 
-def _cut_out(bgr: np.ndarray) -> np.ndarray:
-    """Alpha the slot backing away, leaving the item on transparency. Full 46x46, uncropped."""
+def _cut_out(bgr: np.ndarray, hole: np.ndarray | None = None) -> np.ndarray:
+    """Alpha the slot backing away, leaving the item on transparency. Full 46x46, uncropped.
+
+    `hole` marks pixels no capture ever showed, because the stack count covered them in every
+    one. Their COLOUR has been inpainted, but their alpha must not be decided by thresholding
+    that inpainted colour: where the reconstruction leans towards the backing grey, the pixel
+    drops out of the silhouette and the icon loses a piece of itself.
+
+    That is not a cosmetic loss. The digits sit at the slot's bottom-LEFT, so the missing pixels
+    all sit on one side, and every icon's bounding box -- and with it its apparent centre --
+    slid to the RIGHT. The Arcane symbols, whose counts are four digits wide in every capture we
+    have and so hide the same 300 pixels every time, ended up 5px off centre and visibly clipped.
+    Everything looked subtly, inexplicably misaligned.
+
+    So the SHAPE across a hole is reconstructed as a shape: inpaint the alpha channel too, and
+    let the silhouette flow across the gap instead of being re-derived from a guessed colour.
+    """
     grey = cv2.cvtColor(bgr, cv2.COLOR_BGR2GRAY)
     sat = cv2.cvtColor(bgr, cv2.COLOR_BGR2HSV)[:, :, 1]
     chrome = (grey >= BG_LO) & (grey <= BG_HI) & (sat < 40)
 
     mask = (~chrome).astype(np.uint8) * 255
+    if hole is not None and hole.any():
+        known = mask.copy()
+        known[hole > 0] = 0
+        mask = cv2.inpaint(known, hole, 3, cv2.INPAINT_TELEA)
+        mask = np.where(mask >= 128, 255, 0).astype(np.uint8)
     mask[BOTTOM_BAR:, :] = 0
     mask[:BORDER, :] = 0
     mask[-BORDER:, :] = 0
@@ -218,6 +247,37 @@ def _cut_out(bgr: np.ndarray) -> np.ndarray:
         mask = keep
 
     return cv2.merge([*cv2.split(bgr), mask])
+
+
+def _origin_error(img: np.ndarray, g) -> tuple[int, int]:
+    """How far this capture's fitted lattice sits from the client's real slot boundaries.
+
+    Returned as (dy, dx) to ADD to a cell's top-left. Measured against the empty-slot template,
+    which is the one thing that looks identical in every screenshot.
+    """
+    tpl = cv2.imread(str(TEMPLATE_DIR / "slot_empty.png"), cv2.IMREAD_COLOR)
+    if tpl is None:
+        return (0, 0)
+
+    n = int(NATIVE_PITCH)
+    pad = MAX_SHIFT
+    votes = []
+    for row in range(ROWS):
+        for col in range(COLS):
+            x, y, w, _ = g.cell(row, col)
+            win = img[y - pad : y + w + pad, x - pad : x + w + pad]
+            if win.shape[:2] != (n + 2 * pad, n + 2 * pad):
+                continue
+            res = cv2.matchTemplate(win, tpl, cv2.TM_CCOEFF_NORMED)
+            _, score, _, loc = cv2.minMaxLoc(res)
+            # Only slots that really do look like an empty slot get a vote; a slot full of icon
+            # art has nothing useful to say about where its own boundary is.
+            if score >= 0.90:
+                votes.append((loc[1] - pad, loc[0] - pad))
+    if not votes:
+        return (0, 0)
+    v = np.array(votes)
+    return (int(np.median(v[:, 0])), int(np.median(v[:, 1])))
 
 
 def build_display_icons(capture_paths: list[str], out_dir: Path) -> dict[str, int]:
@@ -245,8 +305,21 @@ def build_display_icons(capture_paths: list[str], out_dir: Path) -> dict[str, in
         g = find_grid(img)
         if abs(g.pitch - NATIVE_PITCH) > 0.5:
             raise NotNativeScale(f"{path}: pitch {g.pitch:.1f}, not native -- see cut()")
+
+        # Pin this capture's cells to the TRUE slot origin before cutting anything out of them.
+        #
+        # find_grid fits a lattice to within a pixel or two, which is ample for matching (the
+        # matcher slides) but not for authoring a picture. The error is constant across one
+        # screenshot and different between screenshots -- so each item, composited from whichever
+        # capture happened to contain it, inherited a different offset, and the icons did not
+        # agree with EACH OTHER. Rendered 1:1 they looked inexplicably off-centre, some by 5px.
+        #
+        # The empty slot is the fixed landmark: it is the same pixels in every capture, so
+        # matching it says exactly where the lattice really sits.
+        dy, dx = _origin_error(img, g)
         for hit in classify(img, g, templates):
             x, y, w, _ = g.cell(hit.row, hit.col)
+            x, y = x + dx, y + dy
             cell = img[y : y + w, x : x + w]
             if cell.shape[:2] == (int(NATIVE_PITCH), int(NATIVE_PITCH)):
                 instances.setdefault(hit.name, []).append(cell)
