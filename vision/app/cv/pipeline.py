@@ -68,38 +68,38 @@ def looks_like_inventory_window(img) -> bool:
 
 
 def normalize(img, g):
-    """Undo an INTEGER upscale -- the one resample that reverses without loss.
-
-    MapleStory's UI Optimization, and Windows DPI scaling at 200%, both enlarge by exact
-    pixel replication. Averaging each 2x2 block back down returns the client's original
-    pixels bit for bit, so there is nothing to be gained by reading such a capture at its
-    inflated scale -- and something to be lost. Scaling a template up interpolates it
-    smoothly, while the capture was enlarged blockily, and correlating a smooth glyph against
-    a blocky one is a worse comparison than correlating the originals: at exact 2x it read a
-    stack of 10 as 18, mistaking the '0' for an '8'.
-
-    A FRACTIONAL scale has no such inverse -- resampling it to native is a lossy guess that
-    destroys the count font -- so those are read where they lie. See scale_templates().
-    """
-    ratio = g.pitch / NATIVE_PITCH
-    if abs(ratio - round(ratio)) > 0.05 or round(ratio) < 2:
+    """Resample so the slot pitch is back at the client's native 46px."""
+    if abs(g.pitch - NATIVE_PITCH) <= 0.5:
         return img, g
-    img = cv2.resize(img, None, fx=1 / ratio, fy=1 / ratio, interpolation=cv2.INTER_AREA)
+    k = NATIVE_PITCH / g.pitch
+    # LANCZOS4 beats AREA/CUBIC here: it is the only kernel that keeps the count
+    # font legible through a fractional rescale.
+    img = cv2.resize(img, None, fx=k, fy=k, interpolation=cv2.INTER_LANCZOS4)
     return img, find_grid(img)
 
 
-def parse(img, strict: bool = True):
-    """Parse at the CAPTURE's own scale, unless that scale is losslessly reversible.
+def counts_trustworthy(pitch: float) -> bool:
+    """Whether the counts read off this capture can be believed without review.
 
-    normalize() used to resample EVERY non-native capture to 46px, and counts_trustworthy()
-    then refused any capture whose scale was not an integer multiple -- which is to say, it
-    refused precisely the captures that the resample had just ruined. The refusal was
-    calibrated against damage the parser was doing to itself.
+    Icon detection survives any rescale -- the icons are large and distinctive.
+    The counts do not. Measured on a synthetically rescaled screenshot:
 
-    Now the frame is only resampled when that is lossless (an integer upscale), and otherwise
-    the catalog is scaled up to meet it. A real Parsec capture at 1.33x, previously refused
-    outright, yields every item and every count correctly.
+        native (46px)     100%   any game resolution lands here
+        1.5x / 2.0x       96-100%  HiDPI / integer scaling, recovers cleanly
+        1.1x / 1.25x      70-77%   fractional Windows DPI scaling -- NOT reliable
+        below native      rejected outright
+
+    A fractional rescale interpolates the 11px font into mush and no resampling
+    kernel brings it back, so rather than emit a plausible wrong number we mark
+    the read as needing confirmation.
     """
+    if abs(pitch - NATIVE_PITCH) <= 0.5:
+        return True
+    ratio = pitch / NATIVE_PITCH
+    return abs(ratio - round(ratio)) <= 0.05 and round(ratio) >= 1
+
+
+def parse(img, strict: bool = True):
     g = find_grid(img)
 
     if strict and g.pitch < MIN_PITCH:
@@ -109,6 +109,7 @@ def parse(img, strict: bool = True):
             "counts are no longer legible; upload at original resolution"
         )
 
+    trusted = counts_trustworthy(g.pitch)
     img, g = normalize(img, g)
     tokens = load_templates()
     font = load_font()
@@ -121,7 +122,7 @@ def parse(img, strict: bool = True):
             "slot": [hit.row, hit.col],
             "icon_score": round(hit.score, 3),
             "count_confidence": round(conf, 3),
-            "needs_review": not digits,
+            "needs_review": not trusted or not digits,
         }
     return g, out
 

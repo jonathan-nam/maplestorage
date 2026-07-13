@@ -25,20 +25,7 @@ FROM (VALUES
     ('collector-elixir', 'Collector''s Elixir', 'The Collector', 'collector-elixir.png'),
     ('extreme-red-potion', 'Extreme Red Potion', 'Monster Park', 'extreme-red-potion.png'),
     ('extreme-blue-potion', 'Extreme Blue Potion', 'Monster Park', 'extreme-blue-potion.png'),
-    ('extreme-green-potion', 'Extreme Green Potion', 'Monster Park', 'extreme-green-potion.png'),
-    ('arcane-vanishing-journey', 'Arcane Symbol: Vanishing Journey Coupon', 'Daily', 'arcane-vanishing-journey.png'),
-    ('arcane-chu-chu-island', 'Arcane Symbol: Chu Chu Island Coupon', 'Daily', 'arcane-chu-chu-island.png'),
-    ('arcane-lachelein', 'Arcane Symbol: Lachelein Coupon', 'Daily', 'arcane-lachelein.png'),
-    ('arcane-arcana', 'Arcane Symbol: Arcana Coupon', 'Daily', 'arcane-arcana.png'),
-    ('arcane-morass', 'Arcane Symbol: Morass Coupon', 'Daily', 'arcane-morass.png'),
-    ('arcane-esfera', 'Arcane Symbol: Esfera Coupon', 'Daily', 'arcane-esfera.png'),
-    ('sacred-cernium', 'Sacred Symbol: Cernium Coupon', 'Daily', 'sacred-cernium.png'),
-    ('sacred-hotel-arcus', 'Sacred Symbol: Hotel Arcus Coupon', 'Daily', 'sacred-hotel-arcus.png'),
-    ('sacred-odium', 'Sacred Symbol: Odium Coupon', 'Daily', 'sacred-odium.png'),
-    ('sacred-shangri-la', 'Sacred Symbol: Shangri-La Coupon', 'Daily', 'sacred-shangri-la.png'),
-    ('sacred-arteria', 'Sacred Symbol: Arteria Coupon', 'Daily', 'sacred-arteria.png'),
-    ('sacred-carcion', 'Sacred Symbol: Carcion Coupon', 'Daily', 'sacred-carcion.png'),
-    ('sacred-tallahart', 'Sacred Symbol: Tallahart Coupon', 'Daily', 'sacred-tallahart.png')
+    ('extreme-green-potion', 'Extreme Green Potion', 'Monster Park', 'extreme-green-potion.png')
 ) AS v (vision_key, name, boss, icon)
 LEFT JOIN token_catalog existing ON existing.vision_key = v.vision_key
 ON CONFLICT (vision_key) DO UPDATE SET

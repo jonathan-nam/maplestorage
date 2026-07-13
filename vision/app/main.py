@@ -26,11 +26,11 @@ from fastapi import FastAPI, HTTPException, Request, Response
 from pydantic import BaseModel
 
 from app.cv.classify import classify
-from app.cv.grid import find_grid
+from app.cv.grid import NATIVE_PITCH, find_grid
 from app.cv.hud import find_hud
 from app.cv.match import load_templates
 from app.cv.ocr import load_font, read_count
-from app.cv.pipeline import MIN_PITCH, looks_like_inventory_window, normalize
+from app.cv.pipeline import counts_trustworthy, looks_like_inventory_window, normalize
 
 log = logging.getLogger("vision")
 
@@ -64,20 +64,39 @@ class ScreenshotParseResult(BaseModel):
     tokenCounts: list[DetectedToken] | None = None
 
 
-def _downscaled_message() -> str:
-    """The one rescale we genuinely cannot undo.
+def _rescaled_message(pitch: float) -> str:
+    """Why we cannot read this capture, in terms of what the user can change.
 
-    An upscale interpolates: it adds no information, but it destroys none either, and the
-    parser now reads the capture at whatever scale it arrives in rather than squeezing it
-    back to native first. A DOWNSCALE actually discards pixels, and the 11px count font is
-    the first thing to go -- there is nothing to recover and no kernel that invents it back.
+    Every cause here is a RESAMPLE. MapleStory draws its UI at a fixed pixel size, so the
+    game's own resolution never matters -- what matters is whether anything stretched the
+    picture between the client drawing it and us seeing it. A fractional stretch smears the
+    one-pixel slot ridges into gradients and turns the 11px count font into mush, and no
+    kernel brings either back.
 
-    So this is the only rescale left that we refuse, and unlike the old blanket refusal it
-    asks the user for something they can always do: send the file they already have, whole.
+    Remote play is named explicitly because it is invisible as a cause and increasingly
+    common. A Parsec frame arrived scaled 1.326x, and the previous message told the user to
+    check their *display scaling* -- which is not what was wrong and would not have fixed it.
+
+    Measured, so the advice is not a guess: a Parsec-style H.264 stream at NATIVE resolution
+    parses 12/12 items perfectly at crf 18 and crf 23. Video compression does us no harm at
+    all -- MapleStory's UI is flat colour with hard edges, which H.264 handles well. It is
+    only the rescale that destroys it. So remote play is fine; remote play that resizes the
+    stream is not.
     """
+    if pitch < NATIVE_PITCH:
+        return (
+            "This screenshot was shrunk before upload, and the stack-count digits are no "
+            "longer readable. Upload the original file at its full resolution."
+        )
     return (
-        "This screenshot was shrunk before upload, and the stack-count digits did not "
-        "survive it. Upload the original file at its full resolution."
+        "This screenshot was stretched from its original size, which blurs the stack-count "
+        "digits past reading. Something resized the picture between the game drawing it and "
+        "the file being saved. The usual causes: Windows display scaling above 100%; a "
+        "remote-play session (Parsec, Moonlight, Steam Remote Play) whose window does not "
+        "match the host's resolution, so the stream is being resized; or the image being "
+        "resized after capture. Fix whichever applies -- for remote play, set the client to "
+        "the host's resolution -- and take the screenshot again. MapleStory's own UI "
+        "Optimization is fine: it scales by exactly 2x, which we handle."
     )
 
 
@@ -134,68 +153,51 @@ async def parse(request: Request, response: Response) -> ScreenshotParseResult:
         with stage("grid"):
             g = find_grid(img)
     except ValueError as e:
-        # No slot lattice, by either segmentation or correlation. Two very different reasons,
-        # and telling the user the wrong one sends them to fix the wrong thing:
+        # No slot lattice. Two very different reasons, and telling the user the wrong one
+        # sends them to fix the wrong thing:
         #
         #   * It really is not an inventory (a login screen, the character select).
-        #   * It IS an inventory we still could not read. This is now rare -- the smeared
-        #     boundaries of a rescaled capture are handled by find_grid's correlation path --
-        #     so if we land here the cause is something we have not seen, and the honest thing
-        #     is to say so rather than to guess at a cause and send the user off to fix it.
+        #   * It IS an inventory, but the capture was scaled -- Windows display scaling
+        #     upscales and smears it, so the slot boundaries stop resolving. The client drew
+        #     it perfectly; the screenshot ruined it. Saying "not an inventory" there is a lie
+        #     that costs the user an afternoon.
         log.info("no grid: %s", e)
         if looks_like_inventory_window(img):
-            raise HTTPException(
-                422,
-                "This looks like an inventory window, but the slot grid could not be located "
-                "in it. Upload the original screenshot file, unedited and uncropped.",
-            ) from e
+            raise HTTPException(422, _rescaled_message(NATIVE_PITCH * 1.5)) from e
         return ScreenshotParseResult(screenshotType="UNRECOGNIZED")
 
-    # A capture with LESS detail than the client drew is still refused: the 11px count font
-    # is the first casualty of a downscale and no amount of cleverness invents it back.
+    # Any capture that is not at the client's native scale gets refused, and the
+    # message tells the user how to fix it.
     #
-    # An UPSCALED capture is a different matter, and used to be refused here too. That was
-    # wrong, and the reason it was wrong is worth keeping: the reliability figures that
-    # justified the refusal were all measured through a pipeline that resampled the frame
-    # down to native before reading it -- so what they actually measured was the damage the
-    # parser was doing to itself, not the damage in the capture. Read at its own scale, a
-    # real Parsec frame at 1.33x gives up all five of its items and all five stack counts.
-    if g.pitch < MIN_PITCH:
-        raise HTTPException(422, _downscaled_message())
+    # We used to return these counts with a "needsReview" flag instead. That was
+    # a half-measure: the review UI can only re-attribute a screenshot to a
+    # different character, it has no way to correct a *count*, so the dubious
+    # number was written to the database regardless. And the reliability figure
+    # for a fractionally-rescaled capture (~70-77%) comes from a synthetic model
+    # -- we have never seen a real one -- so we do not actually know how wrong it
+    # gets.
+    #
+    # For an app whose whole value is accurate counts, "you have 8" when you have
+    # 9 is worse than "we could not read this". The fix on the user's side is a
+    # one-time display setting, after which every upload works.
+    if not counts_trustworthy(g.pitch):
+        raise HTTPException(422, _rescaled_message(g.pitch))
 
-    # Only an integer upscale is undone, because only that one reverses without loss.
-    # Everything else is read at the scale it arrived in: the templates and digit glyphs are
-    # scaled up to meet the frame rather than the frame being squeezed down to meet them.
     with stage("normalize"):
         img, g = normalize(img, g)
 
+    # normalize() resamples the whole frame to the client's native pitch, so the
+    # HUD is at native scale here too and needs no scale of its own.
     with stage("hud"):
-        hud = find_hud(img, scale=g.scale)
+        hud = find_hud(img)
 
+    counts = []
     # Two-stage: shortlist every slot with a cheap descriptor, verify the top
     # candidates exactly. Flat in catalog size, so this still holds up when the
     # catalog grows past the 6 tokens (see app/cv/classify.py).
     with stage("classify"):
         hits = classify(img, g, TOKENS)
 
-    # One item can occupy SEVERAL slots, so results are summed per item rather than emitted
-    # per slot.
-    #
-    # This is not a hypothetical. Every symbol coupon exists in a tradeable and an untradeable
-    # version. They are different items to the client, they sit in different slots, and they are
-    # drawn with THE SAME ICON -- there is no pixel anywhere in the slot that tells them apart.
-    # (The cyan bar along the bottom is not it: that marks a slot the player has locked against
-    # the in-game auto-sort, and is a property of the slot, not of what is in it.)
-    #
-    # So summing is not a convenience, it is the only honest answer available. We cannot say how
-    # many of a player's 1427 Tallahart coupons are tradeable, and any split we reported would be
-    # invented. The total is true regardless of which slot is which.
-    #
-    # Emitting one result per slot and letting the backend upsert them would have quietly kept
-    # whichever arrived last and discarded the other: 630 reported against 1427 held. A silent
-    # undercount -- precisely the failure the rest of this pipeline exists to prevent -- and it
-    # would have looked entirely plausible on screen.
-    totals: dict[str, list] = {}
     with stage("counts"):
         for hit in hits:
             digits, conf = read_count(img, g, hit.row, hit.col, FONT)
@@ -204,14 +206,13 @@ async def parse(request: Request, response: Response) -> ScreenshotParseResult:
                 # a fabricated quantity would be worse than reporting nothing.
                 log.info("unreadable count for %s at r%dc%d", hit.name, hit.row, hit.col)
                 continue
-            slot = totals.setdefault(hit.name, [0, 0.0])
-            slot[0] += int(digits)
-            slot[1] = max(slot[1], hit.score)
-
-    counts = [
-        DetectedToken(tokenName=name, quantity=qty, iconScore=round(score, 3))
-        for name, (qty, score) in totals.items()
-    ]
+            counts.append(
+                DetectedToken(
+                    tokenName=hit.name,
+                    quantity=int(digits),
+                    iconScore=round(hit.score, 3),
+                )
+            )
 
     # The backend forwards this straight through to the browser, so a slow upload can
     # be attributed to a stage from the Network panel, without a profiler or a log dive.

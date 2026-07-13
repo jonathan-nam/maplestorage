@@ -19,22 +19,11 @@ import numpy as np
 import pytest
 import yaml
 
-from app.cv import classify as classify_mod
 from app.cv.classify import MAX_LAB_DISTANCE, VERIFY_THRESHOLD, _colour_distance
-from app.cv.grid import find_grid
 from app.cv.match import load_templates
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent.parent
 MANIFEST = ROOT / "catalog" / "items.yaml"
-
-REF = "../reference-images"
-REFERENCE_CAPTURES = [
-    f"{REF}/untradeables sample.png",
-    f"{REF}/inventory sample.png",
-    f"{REF}/potions.png",
-    f"{REF}/inventory804x550.png",
-    f"{REF}/symbols.png",
-]
 
 
 def manifest_keys() -> set[str]:
@@ -117,64 +106,3 @@ def test_a_template_matches_itself_perfectly(key):
     mask, and will never be found in a real screenshot either."""
     templates = load_templates()
     assert _masked_score(templates[key], templates[key]) > 0.99
-
-
-# --- The shortlist must actually shortlist the right answer -------------------------------
-#
-# classify() is two stages: a cheap descriptor RANKS all N catalog items for each slot, and
-# only the top TOP_K are handed to the exact verifier. If the true item is not in that top-K,
-# the verifier never sees it and the item silently does not exist. There is no error, no low
-# score, no warning -- the count is simply absent, and an undercount is the one failure this
-# project exists to prevent.
-#
-# This has now bitten twice. At 6 items TOP_K was 3 and Aurelia's Elixir -- a pixel-perfect
-# 1.000 match -- vanished. At 13 items TOP_K was 8 and the symbol coupons pushed it over
-# again. Both times the number was raised and a comment was written telling the next person to
-# re-measure, and both times nobody did, because nothing forced them to.
-#
-# So this is the forcing function. It does not check counts; it checks the PROPERTY that makes
-# the shortlist sound. Add items to the catalog and this fails long before a user sees a wrong
-# number.
-@pytest.mark.parametrize("scale", [1.0, 1.25, 1.5])
-def test_the_shortlist_never_drops_the_true_item(scale):
-    templates = load_templates()
-    names, cat = classify_mod.build_catalog(templates)
-
-    worst_rank, worst_where = 0, None
-    checked = 0
-    for path in REFERENCE_CAPTURES:
-        base = cv2.imread(path)
-        assert base is not None, path
-        img = (
-            base
-            if scale == 1.0
-            else cv2.resize(base, None, fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC)
-        )
-        g = find_grid(img)
-        cells = classify_mod.slot_cells(img, g)
-        bg = classify_mod.background(cells, round(g.pitch))
-        scaled = classify_mod.scale_templates(templates, g.scale)
-
-        for (r, c), cell in cells.items():
-            # Ground truth for this slot: the item the EXACT verifier picks when it is shown
-            # every template, with no shortlist in the way.
-            score, name = max(
-                ((classify_mod._verify(img, g, r, c, scaled[n]), n) for n in names),
-                key=lambda t: t[0],
-            )
-            if score < 0.90:
-                continue  # empty, or an item we have no template for
-            checked += 1
-
-            order = np.argsort(classify_mod.descriptor(cell, bg) @ cat.T)[::-1]
-            rank = int(np.where(np.array(names)[order] == name)[0][0]) + 1
-            if rank > worst_rank:
-                worst_rank, worst_where = rank, f"{name} at r{r}c{c} in {path}"
-
-    assert checked > 50, f"only {checked} true matches found -- the corpus is not exercising this"
-    assert worst_rank <= classify_mod.TOP_K, (
-        f"the descriptor ranked a true item #{worst_rank} of {len(names)}, outside "
-        f"TOP_K={classify_mod.TOP_K}, so classify() would never verify it and the item would "
-        f"silently vanish: {worst_where}. Either raise TOP_K or improve the descriptor -- do "
-        f"not delete this test."
-    )

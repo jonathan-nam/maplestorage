@@ -59,28 +59,11 @@ DESC = 16  # descriptor is DESC x DESC; large enough to rank, small enough to bl
 #     TOP_K=13  0/16 wrong     965ms   (exhaustive -- no better, just slower)
 #
 # The real lesson is about the descriptor, not the number: its ranking degrades as the
-# catalog grows, and the true item can fall to rank 5 or beyond. A shortlist that drops the
-# right answer produces a silent undercount, which is the one failure this project exists to
-# prevent.
-#
-# It happened again at 26 items, exactly as predicted, and the number was raised again -- but
-# a number that has to be re-guessed on every catalog change is not a design, it is a trap
-# with a comment on it. So TOP_K is now pinned by a TEST: test_catalog.py measures, over every
-# reference capture at every scale, where the descriptor ranks the item that is actually in
-# each slot, and fails if the true item ever falls outside TOP_K. Growing the catalog cannot
-# silently erode recall any more; it breaks the build instead.
-#
-# Measured over 660 true matches (5 captures x native + 5 rescales, 26 items):
-#
-#     recall@8   97.1%     <- 19 items would have silently vanished
-#     recall@12  98.8%
-#     recall@16 100.0%     worst observed rank: 15
-#
-# Note this is O(1) in catalog size, not O(N): the shortlist is a fixed budget of candidates
-# per slot, so a 100-item catalog costs the same verify time as a 26-item one. What grows with
-# N is the RISK that the descriptor's ranking pushes the true item out of the budget -- which
-# is precisely what the guard test watches.
-TOP_K = 16
+# catalog grows, and the true item can fall to rank 5 or beyond. 8 is comfortable at 13
+# items and buys headroom, but this is THE thing to re-measure when the catalog grows --
+# a shortlist that drops the right answer produces a silent undercount, which is the one
+# failure this project exists to prevent.
+TOP_K = 8
 # A true match scores ~1.000, because the client renders every icon pixel-identically and
 # the templates are cut from that rendering. Measured floor across the corpus from PNG down
 # to JPEG q=75: 0.899.
@@ -115,74 +98,17 @@ VERIFY_THRESHOLD = 0.80
 #   a false NEGATIVE here loses a token, silently, and an undercount is the one failure
 #                                       this whole project exists to prevent
 #
-# This was 0.65, on a measurement that said "real matches never scored below 0.762 unmasked,
-# non-matches never above 0.583". Both halves of that stopped being true the moment the catalog
-# stopped being six small token icons, and the failure was exactly the one the paragraph above
-# warns about. Re-measured over the whole corpus at PNG/q92/q85 with 26 items:
-#
-#     real matches      min 0.492   median 0.880
-#     non-matches       max 0.876   p99    0.626
-#
-# The two distributions now OVERLAP -- an unmasked score of 0.7 could be either -- so this can
-# only ever be a cheap "definitely not", never a decision. And at 0.65 it was throwing away 55
-# of 405 real matches: one item in eight, silently, before the verifier ever saw it. Sacred
-# Symbol: Odium sat in `untradeables sample.png` matching its template at a perfect 1.000 and
-# was reported as absent, because the prefilter had already binned it.
-#
-# Why symbols broke it: the unmasked correlation includes the slot backing AND the stack-count
-# digits drawn ON TOP of the art. A small token icon leaves most of the slot as flat backing,
-# which correlates strongly; a symbol fills the slot and has four digits stamped across it, so
-# its unmasked score is far lower even when the masked score is 1.000.
-#
-# 0.40 is below every real match observed (0.492) with margin, and still skips 83% of the
-# masked checks. The compute it gives back is worth less than one silently-missing item.
-PREFILTER_THRESHOLD = 0.40
-
-# Stop checking the shortlist once a candidate scores this well: a true match is ~1.000, so
-# nothing below it in the ranking can win. Raising TOP_K from 8 to 16 (for recall) doubled the
-# work per slot, and this hands most of it back -- 3026ms -> 2395ms per parse across the corpus,
-# with the results bit-for-bit identical. Deliberately set well above VERIFY_THRESHOLD: this is
-# an "obviously it" shortcut, not a decision, and it must never pre-empt a closer match.
-CERTAIN = 0.995
-
-NATIVE = 46  # the client's own slot size, and the size every template is cut at
+# Measured across the corpus at native and 2x: real matches never scored below 0.762
+# unmasked, non-matches never above 0.583. 0.65 sits below every real match with room to
+# spare, and lets a few non-matches through to be rejected properly -- which is exactly
+# the direction to err in.
+PREFILTER_THRESHOLD = 0.65
 
 # Regions that are not the item: the stack count (differs per screenshot) and
-# the cyan slot-lock bar (per-SLOT state -- it marks a slot held back from the in-game
-# auto-sort -- and so says nothing about which item is in it).
-_KEEP = np.ones((NATIVE, NATIVE), np.float32)
+# the untradeable bar (per-item state, not identity).
+_KEEP = np.ones((46, 46), np.float32)
 _KEEP[26:41, 0:44] = 0
 _KEEP[40:, :] = 0
-
-
-def _keep_mask(size: int) -> np.ndarray:
-    if size == NATIVE:
-        return _KEEP
-    return cv2.resize(_KEEP, (size, size), interpolation=cv2.INTER_NEAREST)
-
-
-def scale_templates(templates: dict, scale: float) -> dict:
-    """Resize the catalog to the capture's scale, preserving alpha.
-
-    This is the whole reason the parser now survives a rescaled capture, and the direction
-    matters enormously. The old pipeline resampled the FRAME down to the native 46px pitch,
-    which meant that on a capture arriving at 1.33x we threw away a third of every pixel we
-    had been given -- and the 11px count font is the first thing to die. Measured on a real
-    Parsec frame: matching at the captured scale identifies five items at 0.84-0.93 and reads
-    all five stack counts correctly, while resampling the same frame to native drops two of
-    those items below the 0.80 bar and reads no counts at all.
-
-    Scaling the templates up instead costs one resize of ~13 small PNGs per parse and leaves
-    the evidence intact. Interpolating a template is lossless in the way that matters: we are
-    inventing detail in the thing we are searching FOR, not destroying detail in the thing we
-    are searching IN.
-    """
-    if abs(scale - 1.0) < 0.01:
-        return templates
-    return {
-        n: cv2.resize(t, None, fx=scale, fy=scale, interpolation=cv2.INTER_CUBIC)
-        for n, t in templates.items()
-    }
 
 
 @dataclass
@@ -195,58 +121,34 @@ class SlotItem:
 
 def _busy(cell: np.ndarray) -> float:
     """How much of a slot's interior is not backing. Near zero for an empty slot."""
-    m = max(int(round(cell.shape[0] * 6 / NATIVE)), 1)
-    g = cv2.cvtColor(cell[m:-m, m:-m], cv2.COLOR_BGR2GRAY)
+    g = cv2.cvtColor(cell[6:40, 6:40], cv2.COLOR_BGR2GRAY)
     return float(((g < 214) | (g > 238)).mean())
 
 
-def background(cells: dict, size: int = NATIVE) -> np.ndarray:
+def background(cells: dict) -> np.ndarray:
     """The slot backing, taken as the median of the empty slots in this frame."""
     empties = [c.astype(np.float32) for c in cells.values() if _busy(c) < 0.02]
     if not empties:
         # A completely full inventory: fall back to the flat backing colour.
-        return np.full((size, size, 3), 226.0, np.float32)
+        return np.full((46, 46, 3), 226.0, np.float32)
     return np.median(np.stack(empties), axis=0)
 
 
 def descriptor(cell: np.ndarray, bg: np.ndarray) -> np.ndarray:
-    """A DESC x DESC x 3 thumbnail of the background-subtracted icon, unit-normalised.
-
-    Collapsing to DESC x DESC is what makes this scale-free: a 61px slot and a 46px template
-    land in the same space, so the shortlist compares them directly without either being
-    resampled to the other.
-
-    KEEPING COLOUR is what makes it *rank*. This used to average the channels away and rank on
-    a greyscale thumbnail, which is a reasonable thing to do right up until the catalog contains
-    items that are the same picture in a different colour -- and MapleStory's is full of them.
-    The thirteen symbol coupons are all round glows or hexagons; in greyscale at 16x16 they are
-    very nearly the same image, so they crowded each other out of the shortlist and the true
-    item fell as far as rank 24 of 26. The verifier never saw it, and the item silently vanished.
-    Measured over every true match in the corpus:
-
-        greyscale   recall@8  96.7%   worst rank 24
-        colour      recall@8 100.0%   worst rank  7
-
-    This is the same lesson the colour gate in _verify already learned -- shape alone cannot
-    tell an Extreme Blue Potion from a green one -- arriving a second time, in the stage that
-    decides what the gate is even allowed to look at. Cost is a 3x wider vector in one matmul:
-    still ~12ms at 500 items, i.e. nothing.
-    """
-    d = (cell.astype(np.float32) - bg) * _keep_mask(cell.shape[0])[:, :, None]
-    d = cv2.resize(d, (DESC, DESC), interpolation=cv2.INTER_AREA).reshape(-1)
+    d = (cell.astype(np.float32) - bg).mean(axis=2) * _KEEP
+    d = cv2.resize(d, (DESC, DESC), interpolation=cv2.INTER_AREA).ravel()
     d -= d.mean()
     n = np.linalg.norm(d)
     return d / n if n > 1e-6 else d
 
 
 def slot_cells(img: np.ndarray, g: Grid) -> dict:
-    p = round(g.pitch)
     out = {}
     for r in range(ROWS):
         for c in range(COLS):
             x, y, w, h = g.cell(r, c)
             cell = img[max(y, 0) : y + h, max(x, 0) : x + w]
-            if cell.shape[:2] == (p, p):
+            if cell.shape[:2] == (46, 46):
                 out[(r, c)] = cell
     return out
 
@@ -254,18 +156,16 @@ def slot_cells(img: np.ndarray, g: Grid) -> dict:
 def build_catalog(templates: dict) -> tuple[list[str], np.ndarray]:
     """Descriptors for the catalog. Templates are full-slot RGBA crops."""
     names = sorted(templates)
-    size = templates[names[0]].shape[0]
-    bg = np.full((size, size, 3), 226.0, np.float32)
+    bg = np.full((46, 46, 3), 226.0, np.float32)
     mat = np.stack([descriptor(templates[n][:, :, :3], bg) for n in names])
     return names, mat
 
 
 def _slot_window(img, g, r, c):
     """The slot, padded -- icon art bleeds a couple of pixels outside its cell, and a
-    template confined strictly within the cell can never line up. The pad also absorbs the
-    grid origin being a pixel or two out, which it routinely is on a rescaled capture."""
+    template confined strictly within the cell can never line up."""
     x, y, w, h = g.cell(r, c)
-    pad = max(int(round(6 * g.scale)), 6)
+    pad = 6
     return img[max(y - pad, 0) : y + h + pad, max(x - pad, 0) : x + w + pad]
 
 
@@ -372,14 +272,9 @@ def _verify(img, g, r, c, tpl) -> float:
 
 
 def classify(img: np.ndarray, g: Grid, templates: dict) -> list[SlotItem]:
-    # The catalog is brought to the capture's scale, never the other way round. The
-    # descriptor shortlist is scale-free (everything collapses to 16x16), but the verify
-    # stage is a pixel correlation and needs the template to be the size of the thing in
-    # the frame.
-    templates = scale_templates(templates, g.scale)
     names, cat = build_catalog(templates)
     cells = slot_cells(img, g)
-    bg = background(cells, round(g.pitch))
+    bg = background(cells)
 
     keys = [k for k, cell in cells.items() if _busy(cell) >= 0.02]  # skip empty slots
     if not keys:
@@ -396,13 +291,6 @@ def classify(img: np.ndarray, g: Grid, templates: dict) -> list[SlotItem]:
             s = _verify(img, g, r, c, templates[names[j]])
             if s > best[0]:
                 best = (s, names[j])
-            if s >= CERTAIN:
-                # The client renders every icon pixel-identically and the templates are cut
-                # from that rendering, so a true match scores ~1.000. Nothing further down the
-                # shortlist can beat this, and checking the rest is pure waste -- which TOP_K=16
-                # made expensive: most slots find their item in the first two or three
-                # candidates and were then grinding through thirteen more for nothing.
-                break
         if best[0] >= VERIFY_THRESHOLD:
             found.append(SlotItem(name=best[1], row=r, col=c, score=best[0]))
     return found

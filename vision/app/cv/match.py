@@ -16,7 +16,6 @@ from pathlib import Path
 import cv2
 import numpy as np
 
-from .classify import scale_templates
 from .grid import COLS, NATIVE_PITCH, ROWS, Grid
 
 TEMPLATE_DIR = Path(__file__).parent / "templates"
@@ -121,9 +120,6 @@ def find_tokens(img: np.ndarray, g: Grid, templates: dict) -> list[Hit]:
     argmax per token rather than thresholding every cell -- that alone kills most
     would-be false positives.
     """
-    # The frame is never resampled to meet the catalog any more; the catalog is resampled to
-    # meet the frame. See classify.scale_templates for why that direction is the whole trick.
-    templates = scale_templates(templates, g.scale)
     names = sorted(templates)
     s = score_grid(img, g, templates)
     hits = []
