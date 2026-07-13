@@ -35,6 +35,11 @@ export default function CharactersPage() {
 
   const [query, setQuery] = useState("");
 
+  // Which character to come back to when you turn the generic upload back off. Without it, the
+  // eye is a one-way door: deselecting is easy, and getting back means hunting for the tile you
+  // were on.
+  const [lastSelectedId, setLastSelectedId] = useState<string | null>(null);
+
   // Tokens are kept PER CHARACTER, not as a single "the tokens" slot.
   //
   // Two reasons, and the second one is what you see. Overlapping requests: clicking down the
@@ -167,6 +172,14 @@ export default function CharactersPage() {
             getToken={getToken}
             onCharacterAdded={handleAdded}
             onSaved={() => setRevision((n) => n + 1)}
+            onToggleGeneric={() => {
+              if (selectedId) {
+                setLastSelectedId(selectedId);
+                setSelectedId(null);
+              } else {
+                setSelectedId(lastSelectedId ?? characters[0]?.id ?? null);
+              }
+            }}
           />
 
           {/* Searching answers a question the inventory cannot, so it takes over while you are
@@ -182,8 +195,13 @@ export default function CharactersPage() {
               }
               items={characterItems}
             />
-          ) : (
+          ) : characters.length === 0 ? (
             <p className="finder-empty">Add a character to start tracking.</p>
+          ) : (
+            <p className="finder-empty">
+              No character selected — a screenshot dropped above will be filed by the name read from
+              it. Pick a character to see their inventory.
+            </p>
           )}
         </>
       )}

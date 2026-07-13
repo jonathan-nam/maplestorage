@@ -100,6 +100,7 @@ private fun ResultRow.toCharacterTokenResponse(): CharacterTokenResponse =
         iconUrl = this[TokenCatalog.iconRefKey]?.let { "/token-icons/$it" },
         quantity = this[CharacterTokenCount.quantity],
         itemGroup = this[TokenCatalog.itemGroup],
+        sourceBoss = this[TokenCatalog.sourceBossName],
         redeemThreshold = this[RedemptionRule.redeemThreshold],
         capturedAt = this[CharacterTokenCount.capturedAt].toString(),
     )
