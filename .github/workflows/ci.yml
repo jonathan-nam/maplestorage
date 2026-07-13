@@ -67,6 +67,9 @@ jobs:
       - run: npm ci
       - run: npm run lint
       - run: npx prettier --check .
+      # The redemption rules. Three ways to produce a confidently wrong number, each of which
+      # looks like arithmetic -- see lib/redemption.test.ts.
+      - run: npm test
 
   infra:
     needs: changes
