@@ -1,36 +1,27 @@
-output "alb_dns_name" {
-  description = "Public DNS name of the ALB, this is the backend's base URL until a real domain is set up."
-  value       = aws_lb.main.dns_name
+output "static_ip" {
+  description = "Point the api.<domain> A record at this. Caddy cannot get a certificate until it resolves."
+  value       = aws_lightsail_static_ip.app.ip_address
 }
 
-output "ecr_repository_url" {
-  description = "Push the Ktor image here (docker push <this>:latest) before the ECS service can start healthy."
-  value       = aws_ecr_repository.backend.repository_url
+output "ssh_command" {
+  description = "How to get onto the box. The key is downloaded from the Lightsail console."
+  value       = "ssh -i <your-lightsail-key.pem> ubuntu@${aws_lightsail_static_ip.app.ip_address}"
 }
 
-output "rds_endpoint" {
-  description = "RDS connection address (host:port). Only reachable from inside the VPC."
-  value       = aws_db_instance.main.endpoint
+output "backup_bucket" {
+  description = "BACKUP_BUCKET for scripts/backup-db.sh."
+  value       = aws_s3_bucket.backups.id
 }
 
-output "db_credentials_secret_arn" {
-  description = "Secrets Manager ARN holding the generated DB username/password."
-  value       = aws_secretsmanager_secret.db_credentials.arn
+output "backup_access_key_id" {
+  description = "AWS_ACCESS_KEY_ID for the box's .env. Put-only, scoped to the backup bucket."
+  value       = aws_iam_access_key.backup.id
 }
 
-output "github_actions_deploy_role_arn" {
-  description = "Paste into the GitHub repo's Actions Variables as AWS_DEPLOY_ROLE_ARN."
-  value       = aws_iam_role.github_actions_deploy.arn
-}
-
-output "ecs_cluster_name" {
-  value = aws_ecs_cluster.main.name
-}
-
-output "ecs_service_name" {
-  value = aws_ecs_service.backend.name
-}
-
-output "ecs_task_family" {
-  value = aws_ecs_task_definition.backend.family
+# `terraform output -raw backup_secret_access_key` to read it. Never echoed by a plain
+# `terraform output`, and it is the reason state belongs in the encrypted S3 backend.
+output "backup_secret_access_key" {
+  description = "AWS_SECRET_ACCESS_KEY for the box's .env."
+  value       = aws_iam_access_key.backup.secret
+  sensitive   = true
 }

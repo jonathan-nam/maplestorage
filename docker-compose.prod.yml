@@ -1,0 +1,57 @@
+# Production overlay for the single box. Never used locally.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+#
+# Caddy is the only thing the internet can reach. It terminates TLS (certificates from Let's
+# Encrypt, obtained and renewed on its own) and proxies to the backend. Everything else loses the
+# ports the base file publishes for local development.
+#
+# `ports: !reset []` is the load-bearing line here, not decoration. Compose MERGES `ports` across
+# files rather than replacing them. Without the reset, the base file's 5432 and 8000 stay published
+# on the host, which puts the database and the parser on the public internet behind nothing at all.
+# Requires Compose v2.24+ for the !reset tag.
+services:
+  postgres:
+    ports: !reset []
+    restart: unless-stopped
+    environment:
+      # The base file's password is the literal "maplestorage", which is correct for a throwaway
+      # local database and unacceptable for one holding somebody's account data.
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?set a real one in .env on the box}
+
+  vision:
+    ports: !reset []
+    # The base file mounts ./reference-images so the local smoke test can POST a screenshot from
+    # inside the container. Production has no such need, and no reason to carry the images.
+    volumes: !reset []
+    restart: unless-stopped
+
+  backend:
+    restart: unless-stopped
+    environment:
+      DB_USERNAME: ${DB_USERNAME:?set it in .env on the box}
+      DB_PASSWORD: ${DB_PASSWORD:?set it in .env on the box}
+      FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:?the frontend's origin, e.g. https://maplestorage.com}
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp" # HTTP/3
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # Certificates live here. Lose this volume and Caddy re-requests from Let's Encrypt, which
+      # rate-limits (5 failures per account per hostname per hour), so a restart loop can lock you
+      # out of your own certificate. It is a named volume for exactly that reason.
+      - caddy-data:/data
+      - caddy-config:/config
+    environment:
+      API_DOMAIN: ${API_DOMAIN:?the API hostname, e.g. api.maplestorage.com}
+    depends_on:
+      - vision
+
+volumes:
+  caddy-data:
+  caddy-config:

@@ -1,6 +1,15 @@
-# Copy to terraform.tfvars (gitignored) and fill in real values.
+# Copy to terraform.tfvars (gitignored). Every value below already has a default in variables.tf,
+# so this file is only for overriding them.
 
-aws_region      = "us-east-1"
-environment     = "dev"
-clerk_jwks_url  = "https://your-clerk-instance.clerk.accounts.dev/.well-known/jwks.json"
-frontend_origin = "https://your-app.vercel.app"
+aws_region        = "us-east-1"
+availability_zone = "us-east-1a"
+environment       = "prod"
+
+# small_3_0: $12/mo, 2 vCPU, 2 GB. See variables.tf for why not micro_3_0 and not the ipv6 bundles.
+bundle_id = "small_3_0"
+
+# Narrow this if you have a fixed IP. SSH is the only port on the box not meant to be public.
+# ssh_allowed_cidrs = ["203.0.113.4/32"]
+
+# Clerk and the frontend origin are NOT here any more. They are runtime config for the containers,
+# not infrastructure, and they live in the .env on the box (.env.prod.example).
