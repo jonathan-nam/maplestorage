@@ -18,12 +18,13 @@ export type InventoryItem = SlotItem & { itemGroup?: string | null };
 
 export function InventoryPanel({
   title,
-  subtitle,
   items,
   emptyHint,
 }: {
+  // The character's name, and nothing else. The level used to hang off it as "· Lv.287", which
+  // repeated what the tile directly above already says and gave the window's title bar a second
+  // job. The title bar names the window.
   title: string;
-  subtitle?: string;
   items: InventoryItem[];
   emptyHint?: string;
 }) {
@@ -79,10 +80,7 @@ export function InventoryPanel({
     >
       <div className="ms-titlebar">
         <span className="ms-title">INVENTORY</span>
-        <span className="ms-title-sub">
-          {title}
-          {subtitle ? ` · ${subtitle}` : ""}
-        </span>
+        <span className="ms-title-sub">{title}</span>
         {/* The keyboard hint belongs next to the window controls, where you look when you are
             thinking about the window. It used to sit in a footer beneath the grid, alongside an
             "N items tracked" readout that told you a number you can see by looking, so the

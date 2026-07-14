@@ -195,7 +195,6 @@ export default function CharactersPage() {
           ) : selected ? (
             <InventoryPanel
               title={selected.name}
-              subtitle={`Lv.${selected.level ?? "?"}`}
               emptyHint={
                 tokensReady ? "No tokens here yet. Upload an inventory screenshot." : "Loading…"
               }
