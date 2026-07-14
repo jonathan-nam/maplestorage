@@ -154,7 +154,13 @@ export default function CharactersPage() {
 
       {state === "loaded" && (
         <>
-          <SearchBar query={query} onQuery={setQuery} />
+          <SearchBar
+            query={query}
+            onQuery={setQuery}
+            characters={characters}
+            tokensByChar={tokensByChar}
+            onSelectCharacter={setSelectedId}
+          />
 
           <CharacterCarousel
             characters={characters}

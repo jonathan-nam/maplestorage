@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { matchesQuery, queryTerms, search } from "@/components/item-search";
+import { matchesQuery, queryTerms, search, suggest } from "@/components/item-search";
 import type { Character } from "@/types/character";
 import type { CharacterToken } from "@/types/character-token";
 
@@ -134,6 +134,28 @@ describe("search", () => {
 
   it("tolerates a typo in a character's name too", () => {
     expect(whoHas("lumidril")).toEqual(["Lumidrill: Kalos's Residual Determination"]);
+  });
+
+  it("suggests the best match first, and offers characters as well as items", () => {
+    const labels = suggest("lumi", ROSTER, HELD).map((s) => `${s.kind}:${s.label}`);
+    expect(labels).toEqual(["character:Lumidrill"]);
+
+    // The dropdown must not offer what the results below would then refuse to show. Same matcher,
+    // so the two cannot drift apart.
+    expect(suggest("kalos", ROSTER, HELD).map((s) => s.label)).toContain(
+      "Kalos's Residual Determination",
+    );
+  });
+
+  it("ranks a whole-label match above one buried in the middle", () => {
+    const roster = [character("1", "Kalos"), character("2", "Kalosaurus")];
+    const held = { "1": [byName("Kalos's Residual Determination")], "2": [] };
+    // Exact first, then prefix, and the item (which only contains the term) last.
+    expect(suggest("kalos", roster, held).map((s) => s.label)).toEqual([
+      "Kalos",
+      "Kalosaurus",
+      "Kalos's Residual Determination",
+    ]);
   });
 
   it("knows a slot by the names the game actually uses", () => {

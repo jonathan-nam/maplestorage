@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef, useState } from "react";
 import { apiAssetUrl } from "@/lib/api";
 import type { Character } from "@/types/character";
 import { redeemableBySet, redemptionNote } from "@/lib/redemption";
@@ -125,22 +126,194 @@ export function search(
   );
 }
 
+// What the dropdown offers while you type. A character, or an item you actually hold.
+export type Suggestion =
+  | { kind: "character"; key: string; id: string; label: string; sub: string }
+  | { kind: "item"; key: string; label: string; sub: string; iconUrl: string | null };
+
+const MAX_SUGGESTIONS = 8;
+
+// How well the whole label matches, as opposed to whether it matches at all.
+//
+// This is a RANK, not a score: four ordered buckets, and ties are broken by the shorter label. It
+// is deliberately not an edit-distance scorer, for the same reason the matcher is not one (see the
+// note above `subsequence`): at 26 items, a ranker clever enough to be interesting is clever enough
+// to put a confident wrong answer at the top, and the top is the one people press Enter on.
+function rank(label: string, term: string): number {
+  const l = label.toLowerCase();
+  if (l === term) return 0;
+  if (l.startsWith(term)) return 1;
+  if (l.includes(term)) return 2;
+  return 3; // matched, but only via the fuzzy fallback
+}
+
+export function suggest(
+  query: string,
+  characters: Character[],
+  tokensByChar: Record<string, CharacterToken[]>,
+): Suggestion[] {
+  const terms = queryTerms(query);
+  if (terms.length === 0) return [];
+  const first = terms[0] ?? "";
+
+  const out: { s: Suggestion; r: number }[] = [];
+
+  for (const c of characters) {
+    // Reuse the matcher rather than re-deriving one. A second, subtly different notion of "matches"
+    // is how the dropdown ends up offering something the results below then refuse to show.
+    const hit = terms.every(
+      (t) =>
+        c.name.toLowerCase().includes(t) ||
+        (t.length >= FUZZY_MIN && fuzzyMatchesField(t, c.name.toLowerCase())),
+    );
+    if (!hit) continue;
+    const held = (tokensByChar[c.id] ?? []).length;
+    out.push({
+      s: {
+        kind: "character",
+        key: `c:${c.id}`,
+        id: c.id,
+        label: c.name,
+        sub: held === 1 ? "1 item" : `${held} items`,
+      },
+      r: rank(c.name, first),
+    });
+  }
+
+  // One entry per item, not one per holding: the same token on nine mules is one thing to suggest.
+  const seen = new Set<string>();
+  for (const tokens of Object.values(tokensByChar)) {
+    for (const t of tokens) {
+      if (seen.has(t.tokenCatalogId)) continue;
+      if (!matchesQuery(t, terms)) continue;
+      seen.add(t.tokenCatalogId);
+      out.push({
+        s: {
+          kind: "item",
+          key: `i:${t.tokenCatalogId}`,
+          label: t.name,
+          sub: t.sourceBoss ?? t.itemGroup ?? "",
+          iconUrl: t.iconUrl,
+        },
+        r: rank(t.name, first),
+      });
+    }
+  }
+
+  return out
+    .sort((a, b) => a.r - b.r || a.s.label.length - b.s.label.length)
+    .slice(0, MAX_SUGGESTIONS)
+    .map((x) => x.s);
+}
+
+// Bold the part you typed, so the row says WHY it is here. Only for a real substring: highlighting
+// a fuzzy match means scattering bold letters across a word, which reads as a rendering fault.
+function Highlight({ text, term }: { text: string; term: string }) {
+  const at = term ? text.toLowerCase().indexOf(term) : -1;
+  if (at < 0) return <>{text}</>;
+  return (
+    <>
+      {text.slice(0, at)}
+      <mark>{text.slice(at, at + term.length)}</mark>
+      {text.slice(at + term.length)}
+    </>
+  );
+}
+
 // Deliberately two components, not one with a flag. The BAR belongs at the top of the page, above
 // the character strip; the RESULTS belong where the inventory is, because they are what you are
 // looking at instead of it. Rendering one component in both places put two search boxes on screen.
-export function SearchBar({ query, onQuery }: { query: string; onQuery: (q: string) => void }) {
+export function SearchBar({
+  query,
+  onQuery,
+  characters,
+  tokensByChar,
+  onSelectCharacter,
+}: {
+  query: string;
+  onQuery: (q: string) => void;
+  characters: Character[];
+  tokensByChar: Record<string, CharacterToken[]>;
+  onSelectCharacter: (id: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [active, setActive] = useState(0);
+  const boxRef = useRef<HTMLDivElement>(null);
+
+  const suggestions = suggest(query, characters, tokensByChar);
+  const term = queryTerms(query)[0] ?? "";
+
+  // Clamp rather than reset: retyping narrows the list, and an active index left pointing past the
+  // end would make Enter do nothing at all, which reads as a broken key.
+  const activeIndex = Math.min(active, Math.max(0, suggestions.length - 1));
+
+  useEffect(() => {
+    function onDown(e: MouseEvent) {
+      if (!boxRef.current?.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, []);
+
+  function choose(s: Suggestion) {
+    setOpen(false);
+    if (s.kind === "character") {
+      // Naming a character is asking to LOOK at them, not to filter by them. Clear the query so
+      // the inventory comes back rather than leaving a search that hides it.
+      onQuery("");
+      onSelectCharacter(s.id);
+    } else {
+      onQuery(s.label);
+    }
+  }
+
+  function onKeyDown(e: React.KeyboardEvent) {
+    if (e.key === "Escape") {
+      setOpen(false);
+      return;
+    }
+    if (!open || suggestions.length === 0) return;
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setActive((i) => (i + 1) % suggestions.length);
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setActive((i) => (i - 1 + suggestions.length) % suggestions.length);
+    } else if (e.key === "Enter") {
+      const s = suggestions[activeIndex];
+      // Enter with nothing highlighted means "search for what I typed", which is what the results
+      // below already do. Only intercept it when there is a row to take.
+      if (s) {
+        e.preventDefault();
+        choose(s);
+      }
+    }
+  }
+
   return (
-    <section className="finder">
+    <section className="finder" ref={boxRef}>
       <div className="finder-bar">
         <input
           type="search"
           className="finder-input"
           placeholder="Search every character. “kaling”, “eternal hat”, “symbol”, or a character’s name"
           value={query}
-          onChange={(e) => onQuery(e.target.value)}
+          onChange={(e) => {
+            onQuery(e.target.value);
+            setOpen(true);
+            setActive(0);
+          }}
+          onFocus={() => setOpen(true)}
+          onKeyDown={onKeyDown}
           autoComplete="off"
           spellCheck={false}
           aria-label="Find an item across every character"
+          role="combobox"
+          aria-expanded={open && suggestions.length > 0}
+          aria-controls="finder-suggestions"
+          aria-activedescendant={
+            open && suggestions[activeIndex] ? `sug-${suggestions[activeIndex].key}` : undefined
+          }
         />
         {query && (
           <button className="link finder-clear" onClick={() => onQuery("")}>
@@ -148,6 +321,38 @@ export function SearchBar({ query, onQuery }: { query: string; onQuery: (q: stri
           </button>
         )}
       </div>
+
+      {open && suggestions.length > 0 && (
+        <ul className="finder-suggest" id="finder-suggestions" role="listbox">
+          {suggestions.map((s, i) => (
+            <li
+              key={s.key}
+              id={`sug-${s.key}`}
+              role="option"
+              aria-selected={i === activeIndex}
+              className={`finder-suggest-row${i === activeIndex ? " active" : ""}`}
+              // mousedown, not click: the input's blur would close the list before a click lands.
+              onMouseDown={(e) => {
+                e.preventDefault();
+                choose(s);
+              }}
+              onMouseEnter={() => setActive(i)}
+            >
+              {s.kind === "item" && s.iconUrl ? (
+                <img src={apiAssetUrl(s.iconUrl)} alt="" aria-hidden="true" />
+              ) : (
+                <span className="finder-suggest-mark" aria-hidden="true">
+                  {s.kind === "character" ? "◆" : "·"}
+                </span>
+              )}
+              <span className="finder-suggest-label">
+                <Highlight text={s.label} term={term} />
+              </span>
+              <span className="finder-suggest-sub">{s.sub}</span>
+            </li>
+          ))}
+        </ul>
+      )}
     </section>
   );
 }
