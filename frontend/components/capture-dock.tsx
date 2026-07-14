@@ -6,7 +6,16 @@ import { apiFetch } from "@/lib/api";
 import { invalidate } from "@/lib/cache";
 import { compressImage } from "@/lib/compress-image";
 import type { Character } from "@/types/character";
+import type { CharacterToken } from "@/types/character-token";
 import type { ScreenshotResult } from "@/types/screenshot";
+
+// What a write changed, handed to the page so the inventory can animate from it.
+export type Saved = {
+  characterId: string;
+  // The counts held BEFORE this screenshot, keyed by catalog id. An item absent from the map is
+  // one the character did not have, which the grid draws as `new`.
+  before: Map<string, number>;
+};
 
 // Upload lives here, on the character you are already looking at, rather than on a page of its
 // own, and that is not just one page fewer.
@@ -21,7 +30,14 @@ import type { ScreenshotResult } from "@/types/screenshot";
 //
 // The preview grid is the other half. An upload used to be a leap of faith: it parsed, it wrote,
 // and you learned what it did afterwards. Now the parse is shown in the same 16-wide lattice as
-// the inventory below it, with what CHANGED called out, before it is committed.
+// the inventory below it, before it is committed.
+//
+// The preview shows the SCREENSHOT, faithfully: the counts it read, and nothing else. It used to
+// carry +n/-n badges as well, and that was the wrong place for them twice over. They were computed
+// from live state, so saving refetched the counts, folded them back into "before", and the badges
+// silently vanished at the exact moment they were worth reading. And the preview is supposed to
+// answer "did it read the picture correctly", which is a question about the picture. What CHANGED
+// is a question about the character, and the inventory below now answers it, by animating.
 
 type Phase = "reading" | "read" | "error";
 type Capture = {
@@ -37,7 +53,7 @@ const PREVIEW_ROWS = 2;
 export function CaptureDock({
   characters,
   pinnedCharacterId,
-  stored,
+  tokensByChar,
   getToken,
   onCharacterAdded,
   onSaved,
@@ -46,12 +62,17 @@ export function CaptureDock({
   characters: Character[];
   // null = no character selected, so the character is read from the screenshot's HUD instead.
   pinnedCharacterId: string | null;
-  // What we already hold for the pinned character, so the preview can show the DIFFERENCE
-  // rather than just the numbers. Keyed by catalog id.
-  stored: Map<string, number>;
+  // Every character's holdings, not just the selected one's. The screenshot may be written to a
+  // character other than the selected one (generic upload, resolved mismatch), and the "before"
+  // snapshot has to come from the character it was actually WRITTEN to. Reading it from whoever
+  // happened to be selected is how you get a confident, wrong diff.
+  tokensByChar: Record<string, CharacterToken[]>;
   getToken: () => Promise<string | null>;
   onCharacterAdded: (character: Character) => void;
-  onSaved: () => void;
+  // Carries the counts held BEFORE the write, so the inventory can animate from them. Passed even
+  // though the page could recompute it, because by the time the page hears about this the refetch
+  // is already in flight and the old numbers are gone.
+  onSaved: (change?: Saved) => void;
   onToggleGeneric: () => void;
 }) {
   const [captures, setCaptures] = useState<Capture[]>([]);
@@ -60,28 +81,33 @@ export function CaptureDock({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const counter = useRef(0);
 
+  // Read inside async callbacks, where the prop captured at render time may already be stale: the
+  // snapshot has to be the counts as they were when the screenshot was written. Written in an
+  // effect rather than during render, which React forbids.
+  const tokensRef = useRef(tokensByChar);
+  useEffect(() => {
+    tokensRef.current = tokensByChar;
+  }, [tokensByChar]);
+
+  // Who this screenshot's counts were written to. The pin if there is one, otherwise the character
+  // the HUD named, which is what the backend matched on.
+  function ownerOf(result: ScreenshotResult): string | null {
+    if (pinnedCharacterId) return pinnedCharacterId;
+    const name = result.detectedCharacterName?.toLowerCase();
+    if (!name) return null;
+    return characters.find((c) => c.name.toLowerCase() === name)?.id ?? null;
+  }
+
+  function snapshot(characterId: string): Map<string, number> {
+    return new Map(
+      (tokensRef.current[characterId] ?? []).map((t) => [t.tokenCatalogId, t.quantity]),
+    );
+  }
+
   // "Generic" is not a second piece of state that can disagree with the carousel, it IS having
   // no character selected. One truth, so the eye and the carousel can never contradict each other.
   const generic = pinnedCharacterId === null;
   const pinned = characters.find((c) => c.id === pinnedCharacterId);
-
-  useEffect(() => {
-    function onPaste(e: ClipboardEvent) {
-      const items = e.clipboardData?.items;
-      if (!items) return;
-      const files: File[] = [];
-      for (const item of items) {
-        if (item.kind === "file" && item.type.startsWith("image/")) {
-          const file = item.getAsFile();
-          if (file) files.push(file);
-        }
-      }
-      if (files.length > 0) add(files);
-    }
-    document.addEventListener("paste", onPaste);
-    return () => document.removeEventListener("paste", onPaste);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pinnedCharacterId]);
 
   function add(files: File[]) {
     for (const file of files.filter((f) => f.type.startsWith("image/"))) {
@@ -118,10 +144,15 @@ export function CaptureDock({
       );
       patch({ phase: "read", result });
       if (result.outcome === "MATCHED") {
+        // Take the snapshot BEFORE onSaved, which refetches. A moment later these counts are the
+        // new ones and there is nothing left to diff against.
+        const owner = ownerOf(result);
+        const before = owner ? snapshot(owner) : null;
+
         // Counts were written. Anything cached from before is now a wrong number that looks
         // right.
         invalidate("/api/");
-        onSaved();
+        onSaved(owner && before ? { characterId: owner, before } : undefined);
       }
     } catch {
       patch({ phase: "error" });
@@ -130,13 +161,16 @@ export function CaptureDock({
 
   async function resolveTo(capture: Capture, characterId: string) {
     if (!capture.result) return;
+    // Same snapshot, same reason, and for the character you just NAMED rather than the one that
+    // happens to be selected.
+    const before = snapshot(characterId);
     await apiFetch(
       `/api/screenshots/${capture.result.screenshotId}/resolve`,
       { method: "POST", body: JSON.stringify({ characterId }) },
       getToken,
     );
     invalidate("/api/");
-    onSaved();
+    onSaved({ characterId, before });
     dismiss(capture.id);
   }
 
@@ -167,6 +201,25 @@ export function CaptureDock({
       return prev.filter((c) => c.id !== id);
     });
   }
+
+  // Declared after `add` on purpose: referencing it from above trips the hooks lint.
+  useEffect(() => {
+    function onPaste(e: ClipboardEvent) {
+      const items = e.clipboardData?.items;
+      if (!items) return;
+      const files: File[] = [];
+      for (const item of items) {
+        if (item.kind === "file" && item.type.startsWith("image/")) {
+          const file = item.getAsFile();
+          if (file) files.push(file);
+        }
+      }
+      if (files.length > 0) add(files);
+    }
+    document.addEventListener("paste", onPaste);
+    return () => document.removeEventListener("paste", onPaste);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pinnedCharacterId]);
 
   return (
     <section className="dock">
@@ -237,7 +290,6 @@ export function CaptureDock({
           capture={capture}
           characters={characters}
           pinned={pinned}
-          stored={stored}
           onResolve={(id) => resolveTo(capture, id)}
           onIgnore={() => ignore(capture)}
           onAddAndResolve={(name) => addAndResolve(capture, name)}
@@ -252,7 +304,6 @@ function CaptureCard({
   capture,
   characters,
   pinned,
-  stored,
   onResolve,
   onIgnore,
   onAddAndResolve,
@@ -261,7 +312,6 @@ function CaptureCard({
   capture: Capture;
   characters: Character[];
   pinned: Character | undefined;
-  stored: Map<string, number>;
   onResolve: (characterId: string) => void;
   onIgnore: () => void;
   onAddAndResolve: (name: string) => void;
@@ -279,24 +329,19 @@ function CaptureCard({
     }
   }
 
-  const items: SlotItem[] = (result?.tokenCounts ?? []).map((t) => {
+  // The screenshot, verbatim. No `previous`, so no badges and no ticking: this grid answers "did
+  // it read the picture right", and the only honest answer to that is the number it read.
+  const items: SlotItem[] = (result?.tokenCounts ?? []).map((t) => ({
     // tokenCatalogId is null when the parser knows an item the catalog does not. That should not
     // happen (both are generated from catalog/items.yaml) but if it ever does, show the item
-    // and skip the comparison rather than dropping it. A silently missing item is the failure
-    // this whole app exists to prevent.
-    const before = t.tokenCatalogId === null ? undefined : stored.get(t.tokenCatalogId);
-    return {
-      id: t.tokenCatalogId ?? t.tokenName,
-      name: t.displayName,
-      iconUrl: t.iconUrl,
-      quantity: t.quantity,
-      itemGroup: t.itemGroup,
-      // null means "we hold none of this yet", which reads as `new` rather than `+n`, a first
-      // sighting is a different thing from a gain. undefined means we cannot say.
-      delta:
-        t.tokenCatalogId === null ? undefined : before === undefined ? null : t.quantity - before,
-    };
-  });
+    // rather than dropping it. A silently missing item is the failure this whole app exists to
+    // prevent.
+    id: t.tokenCatalogId ?? t.tokenName,
+    name: t.displayName,
+    iconUrl: t.iconUrl,
+    quantity: t.quantity,
+    itemGroup: t.itemGroup,
+  }));
 
   const { text, tone } = describe(capture, pinned);
   const saved = result?.outcome === "MATCHED";

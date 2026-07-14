@@ -9,7 +9,7 @@ import { redemptionNote } from "@/lib/redemption";
 import type { Character } from "@/types/character";
 import type { CharacterToken } from "@/types/character-token";
 import { AddCharacterForm } from "./add-character-form";
-import { CaptureDock } from "@/components/capture-dock";
+import { CaptureDock, type Saved } from "@/components/capture-dock";
 import { SearchBar, SearchResults, search } from "@/components/item-search";
 import { CharacterCarousel, type Selection } from "@/components/character-carousel";
 
@@ -17,6 +17,12 @@ type LoadState = "loading" | "loaded" | "error";
 
 const CHARACTERS_KEY = "/api/characters";
 const ALL_TOKENS_KEY = "/api/characters/tokens";
+
+// How long the "what just changed" snapshot stays live. Long enough to survive the refetch that
+// follows a save (the animation cannot start until the NEW counts land), short enough that it is
+// clearly about the upload you just did. If the refetch somehow takes longer than this, the
+// animation is skipped and the correct number is simply shown, which is the right way to fail.
+const CHANGE_LINGER_MS = 4000;
 
 export default function CharactersPage() {
   const { getToken } = useAuth();
@@ -56,6 +62,20 @@ export default function CharactersPage() {
 
   // Bumped after an upload writes counts, to re-pull the inventory it just changed.
   const [revision, setRevision] = useState(0);
+
+  // What the character held before the last upload, so the inventory can animate INTO the new
+  // numbers instead of just displaying them. Held here rather than in the dock because the dock's
+  // capture is dismissed while the panel is still telling the story.
+  //
+  // Cleared on a timer. The animation is a one-shot: without this, switching away and back would
+  // remount the panel and replay a change from ten minutes ago as if it had just happened.
+  const [lastSaved, setLastSaved] = useState<Saved | null>(null);
+
+  useEffect(() => {
+    if (!lastSaved) return;
+    const t = setTimeout(() => setLastSaved(null), CHANGE_LINGER_MS);
+    return () => clearTimeout(t);
+  }, [lastSaved]);
 
   useEffect(() => {
     // Every character's inventory is fetched HERE, on load, alongside the roster, not lazily
@@ -135,12 +155,20 @@ export default function CharactersPage() {
 
   const selectedTokens = selectedId ? tokensByChar[selectedId] : undefined;
   const tokensReady = selectedTokens !== undefined;
+
+  // Only for the character the screenshot was actually written to. Looking at Bob while Alice's
+  // upload lands must not animate Bob's numbers.
+  const before = lastSaved && lastSaved.characterId === selectedId ? lastSaved.before : null;
+
   const characterItems: InventoryItem[] = (selectedTokens ?? []).map((token) => ({
     id: token.tokenCatalogId,
     name: token.name,
     iconUrl: token.iconUrl,
     quantity: token.quantity,
     itemGroup: token.itemGroup,
+    // undefined = no recent write, so nothing to animate. null = the character did not hold this
+    // before, which reads as `new`, and is a different event from a gain.
+    previous: before ? (before.get(token.tokenCatalogId) ?? null) : undefined,
     note: token.redeemThreshold
       ? `${redemptionNote(token.quantity, token.redeemThreshold)}\nbuys: ${token.redeemSlots.join(" / ")}`
       : `${token.quantity} in total`,
@@ -168,10 +196,13 @@ export default function CharactersPage() {
           <CaptureDock
             characters={characters}
             pinnedCharacterId={selectedId}
-            stored={new Map((selectedTokens ?? []).map((t) => [t.tokenCatalogId, t.quantity]))}
+            tokensByChar={tokensByChar}
             getToken={getToken}
             onCharacterAdded={handleAdded}
-            onSaved={() => setRevision((n) => n + 1)}
+            onSaved={(change) => {
+              if (change) setLastSaved(change);
+              setRevision((n) => n + 1);
+            }}
             onToggleGeneric={() => {
               if (selectedId) {
                 setLastSelectedId(selectedId);

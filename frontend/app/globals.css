@@ -642,6 +642,86 @@ a:hover {
   background: var(--accent);
 }
 
+/* A slot whose count just changed, because a screenshot was saved.
+ *
+ * One-shot, and it cleans up after itself: the tint and the badge fade to nothing, so a moment
+ * later the inventory is just the inventory. Nothing here dims or hides the slots that did NOT
+ * change, since the point is to draw the eye to a change, not to hide the rest of the answer.
+ *
+ * `forwards` on the badge so it ends invisible rather than snapping back to full opacity before
+ * React unmounts it. The tint has no fill mode, it returns the slot to its own background. */
+.ms-slot.changed {
+  animation: ms-slot-flash 1.5s ease-out;
+}
+
+.ms-slot.changed .ms-delta {
+  animation: ms-badge-fade 1.5s ease-out forwards;
+}
+
+@keyframes ms-slot-flash {
+  0% {
+    background: var(--ms-slot);
+  }
+  12% {
+    background: color-mix(in srgb, var(--good) 35%, var(--ms-slot));
+  }
+  100% {
+    background: var(--ms-slot);
+  }
+}
+
+.ms-slot.changed.down {
+  animation-name: ms-slot-flash-down;
+}
+
+@keyframes ms-slot-flash-down {
+  0% {
+    background: var(--ms-slot);
+  }
+  12% {
+    background: color-mix(in srgb, var(--bad) 35%, var(--ms-slot));
+  }
+  100% {
+    background: var(--ms-slot);
+  }
+}
+
+.ms-slot.changed.new {
+  animation-name: ms-slot-flash-new;
+}
+
+@keyframes ms-slot-flash-new {
+  0% {
+    background: var(--ms-slot);
+  }
+  12% {
+    background: color-mix(in srgb, var(--accent) 35%, var(--ms-slot));
+  }
+  100% {
+    background: var(--ms-slot);
+  }
+}
+
+@keyframes ms-badge-fade {
+  0%,
+  55% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+/* Motion is the whole mechanism here, so when it is refused there is nothing to soften: show the
+ * final state and say it with colour alone. The count still lands on the right number, because
+ * useCountUp checks this too and skips straight to it. */
+@media (prefers-reduced-motion: reduce) {
+  .ms-slot.changed,
+  .ms-slot.changed .ms-delta {
+    animation: none;
+  }
+}
+
 /* --- Capture dock ----------------------------------------------------------------------- */
 
 /* Width and centring come from .page now. Centring itself here is what made it drift away from
