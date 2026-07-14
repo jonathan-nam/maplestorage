@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { Character } from "@/types/character";
 import { CharacterTile } from "@/components/character-tile";
+import { AddCharacterTile } from "@/components/add-character-tile";
 
 // `null` is the no-character-selected slot at the head of the strip. It means two
 // different things on the two pages that use this, and both are the natural reading:
@@ -19,12 +20,14 @@ export function CharacterCarousel({
   onSelect,
   onUpdated,
   onDeleted,
+  onAdded,
 }: {
   characters: Character[];
   selectedId: Selection;
   onSelect: (id: Selection) => void;
   onUpdated: (character: Character) => void;
   onDeleted: (id: string) => void;
+  onAdded: (character: Character) => void;
 }) {
   const trackRef = useRef<HTMLDivElement>(null);
   const [atStart, setAtStart] = useState(true);
@@ -81,6 +84,9 @@ export function CharacterCarousel({
             onDeleted={onDeleted}
           />
         ))}
+        {/* Last, always. With no characters it is the only card, so the empty state is this same
+            control rather than a separate screen telling you to go and find one. */}
+        <AddCharacterTile onAdded={onAdded} />
       </div>
 
       <button

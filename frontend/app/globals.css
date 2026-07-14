@@ -162,6 +162,62 @@ a:hover {
   opacity: 1;
 }
 
+/* The add control, shaped like the tile it makes and sitting last in the strip. */
+.add-tile {
+  justify-content: center;
+  gap: 6px;
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  opacity: 0.8;
+}
+
+.add-tile:hover {
+  border-color: var(--accent);
+  color: var(--ink);
+  opacity: 1;
+}
+
+.add-tile-plus {
+  font-size: 34px;
+  line-height: 1;
+}
+
+.add-tile.open {
+  cursor: default;
+  border-style: solid;
+  border-color: var(--accent);
+  opacity: 1;
+}
+
+.add-tile-input {
+  width: 92%;
+  padding: 4px 6px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  text-align: center;
+}
+
+.add-tile-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 6px;
+}
+
+.add-tile-hint {
+  margin-top: 4px;
+  padding: 0 4px;
+  color: var(--muted-2);
+  font-size: 10px;
+  line-height: 1.3;
+  text-align: center;
+}
+
 .tile-sprite {
   width: 116px;
   height: 116px;
