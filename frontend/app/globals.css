@@ -95,6 +95,15 @@
   --bad: #e0706a;
 }
 
+/* theme-toggle.tsx adds this for one reflow while it swaps data-theme. A theme change rewrites
+   every colour variable at once, and any element with a transition on a colour (the capture dock,
+   the eye toggle) would otherwise animate old palette -> new, cross-fading the whole UI. */
+.theme-instant *,
+.theme-instant *::before,
+.theme-instant *::after {
+  transition: none !important;
+}
+
 /* Every page's root. Nothing inside it sets its own max-width or centres itself. */
 .page {
   max-width: var(--measure);
@@ -923,7 +932,7 @@ button.link:disabled {
   font-variant-numeric: tabular-nums;
 }
 
-/* Theme toggle. Cycles system -> dark -> light. */
+/* Theme toggle. Flips between dark and light. */
 .theme-toggle {
   border: 1px solid var(--line);
   background: var(--surface);
