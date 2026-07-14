@@ -8,7 +8,6 @@ import { invalidate, peek, put } from "@/lib/cache";
 import { redemptionNote } from "@/lib/redemption";
 import type { Character } from "@/types/character";
 import type { CharacterToken } from "@/types/character-token";
-import { AddCharacterForm } from "./add-character-form";
 import { CaptureDock } from "@/components/capture-dock";
 import { SearchBar, SearchResults, search } from "@/components/item-search";
 import { CharacterCarousel, type Selection } from "@/components/character-carousel";
@@ -163,6 +162,7 @@ export default function CharactersPage() {
             onSelect={setSelectedId}
             onUpdated={handleUpdated}
             onDeleted={handleDeleted}
+            onAdded={handleAdded}
           />
 
           <CaptureDock
@@ -196,7 +196,7 @@ export default function CharactersPage() {
               items={characterItems}
             />
           ) : characters.length === 0 ? (
-            <p className="finder-empty">Add a character to start tracking.</p>
+            <p className="finder-empty">Add a character above to start tracking.</p>
           ) : (
             <p className="finder-empty">
               No character selected, a screenshot dropped above will be filed by the name read from
@@ -205,8 +205,6 @@ export default function CharactersPage() {
           )}
         </>
       )}
-
-      <AddCharacterForm onAdded={handleAdded} />
     </main>
   );
 }
