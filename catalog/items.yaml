@@ -47,6 +47,7 @@ items:
     category: REDEMPTION_TOKEN
     group: Eternal Pieces
     sort: 14
+    icon_id: 2638063
     redeem_threshold: 10
     redeem_slots: [Cape, Glove, Shoe]
 
@@ -56,6 +57,7 @@ items:
     category: REDEMPTION_TOKEN
     group: Eternal Pieces
     sort: 12
+    icon_id: 2830304
     redeem_threshold: 10
     redeem_slots: [Hat, Top, Bottom, Shoulder]
 
@@ -65,6 +67,7 @@ items:
     category: REDEMPTION_TOKEN
     group: Eternal Pieces
     sort: 11
+    icon_id: 2635747
     redeem_threshold: 10
     redeem_slots: [Hat, Top, Bottom, Shoulder]
 
@@ -77,6 +80,7 @@ items:
     category: REDEMPTION_TOKEN
     group: Eternal Pieces
     sort: 10
+    icon_id: 2634472
     redeem_threshold: 10
     redeem_slots: [Hat, Top, Bottom, Shoulder]
 
@@ -86,6 +90,7 @@ items:
     category: REDEMPTION_TOKEN
     group: Eternal Pieces
     sort: 15
+    icon_id: 2639252
     redeem_threshold: 10
     redeem_slots: [Cape, Glove, Shoe]
 
@@ -103,6 +108,7 @@ items:
     category: CONSUMABLE
     group: Consumables
     sort: 40
+    icon_id: 2024234
 
   - key: aurelia-elixir
     name: Aurelia's Elixir
@@ -110,6 +116,7 @@ items:
     category: CONSUMABLE
     group: Consumables
     sort: 41
+    icon_id: 2024235
 
   - key: honorable-elixir
     name: Honorable Elixir
@@ -124,6 +131,7 @@ items:
     category: CONSUMABLE
     group: Consumables
     sort: 43
+    icon_id: 2024290
 
   - key: extreme-red-potion
     name: Extreme Red Potion
@@ -131,6 +139,7 @@ items:
     category: CONSUMABLE
     group: Consumables
     sort: 50
+    icon_id: 2023125
 
   - key: extreme-blue-potion
     name: Extreme Blue Potion
@@ -138,6 +147,7 @@ items:
     category: CONSUMABLE
     group: Consumables
     sort: 51
+    icon_id: 2023127
 
   - key: extreme-green-potion
     name: Extreme Green Potion
@@ -145,6 +155,7 @@ items:
     category: CONSUMABLE
     group: Consumables
     sort: 52
+    icon_id: 2023126
 
   # Symbol coupons, earned from dailies and spent to grow a symbol. They are consumables,
   # not redemption tokens: nothing is traded in at a threshold, so there is no rule for them.
@@ -169,6 +180,7 @@ items:
     category: CONSUMABLE
     group: Symbols
     sort: 20
+    icon_id: 2635509
 
   - key: arcane-chu-chu-island
     name: "Arcane Symbol: Chu Chu Island Coupon"
@@ -176,6 +188,7 @@ items:
     category: CONSUMABLE
     group: Symbols
     sort: 21
+    icon_id: 2635510
 
   - key: arcane-lachelein
     name: "Arcane Symbol: Lachelein Coupon"
@@ -183,6 +196,7 @@ items:
     category: CONSUMABLE
     group: Symbols
     sort: 22
+    icon_id: 2635511
 
   - key: arcane-arcana
     name: "Arcane Symbol: Arcana Coupon"
@@ -190,6 +204,7 @@ items:
     category: CONSUMABLE
     group: Symbols
     sort: 23
+    icon_id: 2635512
 
   - key: arcane-morass
     name: "Arcane Symbol: Morass Coupon"
@@ -197,6 +212,7 @@ items:
     category: CONSUMABLE
     group: Symbols
     sort: 24
+    icon_id: 2635513
 
   - key: arcane-esfera
     name: "Arcane Symbol: Esfera Coupon"
@@ -204,6 +220,7 @@ items:
     category: CONSUMABLE
     group: Symbols
     sort: 25
+    icon_id: 2635514
 
   - key: sacred-cernium
     name: "Sacred Symbol: Cernium Coupon"
@@ -211,6 +228,7 @@ items:
     category: CONSUMABLE
     group: Symbols
     sort: 30
+    icon_id: 2636137
 
   - key: sacred-hotel-arcus
     name: "Sacred Symbol: Hotel Arcus Coupon"
@@ -218,6 +236,7 @@ items:
     category: CONSUMABLE
     group: Symbols
     sort: 31
+    icon_id: 2636138
 
   - key: sacred-odium
     name: "Sacred Symbol: Odium Coupon"
@@ -225,6 +244,7 @@ items:
     category: CONSUMABLE
     group: Symbols
     sort: 32
+    icon_id: 2636318
 
   - key: sacred-shangri-la
     name: "Sacred Symbol: Shangri-La Coupon"
@@ -232,6 +252,7 @@ items:
     category: CONSUMABLE
     group: Symbols
     sort: 33
+    icon_id: 2636319
 
   - key: sacred-arteria
     name: "Sacred Symbol: Arteria Coupon"
@@ -239,6 +260,7 @@ items:
     category: CONSUMABLE
     group: Symbols
     sort: 34
+    icon_id: 2636394
 
   - key: sacred-carcion
     name: "Sacred Symbol: Carcion Coupon"
@@ -246,6 +268,7 @@ items:
     category: CONSUMABLE
     group: Symbols
     sort: 35
+    icon_id: 2636552
 
   - key: sacred-tallahart
     name: "Sacred Symbol: Tallahart Coupon"
@@ -253,3 +276,4 @@ items:
     category: CONSUMABLE
     group: Symbols
     sort: 36
+    icon_id: 2638104
