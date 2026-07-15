@@ -33,6 +33,9 @@ object Characters : Table("characters") {
     val createdAt = timestamp("created_at")
     val updatedAt = timestamp("updated_at")
 
+    // The user's chosen order in the carousel, 0-based and dense per user (V11). Reads sort by it.
+    val position = integer("position")
+
     override val primaryKey = PrimaryKey(id)
 }
 

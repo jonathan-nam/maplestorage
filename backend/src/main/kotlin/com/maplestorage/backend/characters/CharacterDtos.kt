@@ -48,3 +48,10 @@ data class UpdateCharacterRequest(
     val name: String? = null,
     val level: Int? = null,
 )
+
+// The full set of the caller's character ids in their new order. It must be exactly that set,
+// no more, no fewer: a partial reorder would leave holes or duplicates in position.
+@Serializable
+data class ReorderCharactersRequest(
+    val orderedIds: List<String>,
+)
