@@ -154,7 +154,13 @@ export default function CharactersPage() {
 
       {state === "loaded" && (
         <>
-          <SearchBar query={query} onQuery={setQuery} />
+          <SearchBar
+            query={query}
+            onQuery={setQuery}
+            characters={characters}
+            tokensByChar={tokensByChar}
+            onSelectCharacter={setSelectedId}
+          />
 
           <CharacterCarousel
             characters={characters}
@@ -189,7 +195,6 @@ export default function CharactersPage() {
           ) : selected ? (
             <InventoryPanel
               title={selected.name}
-              subtitle={`Lv.${selected.level ?? "?"}`}
               emptyHint={
                 tokensReady ? "No tokens here yet. Upload an inventory screenshot." : "Loading…"
               }

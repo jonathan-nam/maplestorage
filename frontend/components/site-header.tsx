@@ -25,7 +25,13 @@ export function SiteHeader() {
           <nav className="site-nav">
             {/* No Upload link any more: uploading is not a destination, it is something you do
                 to a character, and it now lives on the character you are already looking at. */}
-            <Link href="/characters" className={pathname.startsWith("/characters") ? "active" : ""}>
+            {/* data-label feeds the invisible bold copy in the CSS that reserves this link's
+                width, so going active cannot resize it. Keep the two in step. */}
+            <Link
+              href="/characters"
+              data-label="Characters"
+              className={pathname.startsWith("/characters") ? "active" : ""}
+            >
               Characters
             </Link>
           </nav>

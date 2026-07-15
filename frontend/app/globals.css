@@ -602,8 +602,26 @@ a:hover {
 }
 
 .site-nav a {
+  position: relative;
+  display: inline-block;
   color: var(--muted);
   text-decoration: none;
+}
+
+/* Reserve the BOLD width, always, so becoming active does not resize the link.
+   Bold glyphs are wider than regular ones, so `font-weight: 700` on .active made the nav text
+   physically grow when you navigated to that page, and the label visibly shifted under the cursor.
+   This lays an invisible bold copy of the label in the same box (zero height, so it costs no
+   vertical space) and lets it set the width. The link is then the same size in both states, and
+   only its weight and colour change. */
+.site-nav a::after {
+  content: attr(data-label);
+  display: block;
+  height: 0;
+  overflow: hidden;
+  font-weight: 700;
+  visibility: hidden;
+  pointer-events: none;
 }
 
 .site-nav a:hover {
@@ -705,6 +723,73 @@ a:hover {
 }
 .ms-delta.new {
   background: var(--accent);
+}
+
+/* --- Search suggestions ------------------------------------------------------------------ */
+
+/* The dropdown answers a different question from the results below it. The results say WHO HAS
+   what. This says "did you mean", and it is how you get to a character by name in one keystroke
+   instead of reading a list. */
+.finder-suggest {
+  position: absolute;
+  z-index: 5;
+  left: 0;
+  right: 0;
+  margin: 2px 0 0;
+  padding: 4px;
+  list-style: none;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 35%);
+}
+
+/* The dropdown is positioned against this, so it must establish a containing block. */
+.finder {
+  position: relative;
+}
+
+.finder-suggest-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 8px;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+.finder-suggest-row.active {
+  background: var(--surface-2);
+}
+
+.finder-suggest-row img {
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
+  image-rendering: pixelated;
+}
+
+.finder-suggest-mark {
+  width: 22px;
+  color: var(--accent);
+  text-align: center;
+}
+
+.finder-suggest-label {
+  color: var(--ink);
+}
+
+/* Bold, not a highlighter. A yellow block behind the matched letters fights the icons beside it. */
+.finder-suggest-label mark {
+  background: none;
+  color: var(--ink-strong);
+  font-weight: 700;
+}
+
+.finder-suggest-sub {
+  margin-left: auto;
+  color: var(--muted-2);
+  font-size: 11px;
 }
 
 /* --- Capture dock ----------------------------------------------------------------------- */
