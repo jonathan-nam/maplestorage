@@ -43,10 +43,11 @@ ICONS = ROOT / "backend" / "src" / "main" / "resources" / "seed-assets" / "token
 SQL_OUT = ROOT / "backend" / "src" / "main" / "resources" / "db" / "migration" / "R__token_catalog.sql"
 
 # The boss catalog. Unlike items, a boss has no image asset: the planner reader identifies it by
-# reading its name, so build emits the name catalog the reader loads. No backend seed yet, the
-# boss_catalog table arrives with the /parse PLANNER wiring.
+# reading its name. build emits two artifacts from the one manifest: the name catalog the reader
+# loads, and the backend seed for the boss_catalog table.
 BOSS_MANIFEST = ROOT / "catalog" / "bosses.yaml"
 BOSS_OUT = ROOT / "vision" / "app" / "cv" / "boss_catalog.json"
+BOSS_SQL_OUT = ROOT / "backend" / "src" / "main" / "resources" / "db" / "migration" / "R__boss_catalog.sql"
 BOSS_RESETS = {"WEEKLY", "DAILY", "MONTHLY"}
 
 # The display icons are the official item sprites from maplestory.io, keyed by Nexon item id.
@@ -145,6 +146,31 @@ def boss_json(bosses: list[dict]) -> str:
     """The name catalog the planner reader loads. Generated so it cannot drift from the manifest."""
     data = [{"key": b["key"], "name": b["name"], "reset": b["reset"]} for b in bosses]
     return json.dumps(data, indent=2, ensure_ascii=False) + "\n"
+
+
+def boss_sql(bosses: list[dict]) -> str:
+    """The boss_catalog seed. Upserts by boss_key and keeps each id (boss_clear references it)."""
+
+    def q(s: str) -> str:
+        return "'" + s.replace("'", "''") + "'"
+
+    rows = ",\n".join(f"    ({q(b['key'])}, {q(b['name'])}, {q(b['reset'])})" for b in bosses)
+    return f"""-- GENERATED FROM catalog/bosses.yaml. DO NOT EDIT BY HAND.
+-- Regenerate with:  python catalog/build.py
+--
+-- Repeatable (R__): editing bosses.yaml reseeds boss_catalog on the next boot. Upserts by
+-- boss_key and keeps an existing row's id, which boss_clear references, so it is never churned.
+
+INSERT INTO boss_catalog (id, boss_key, name, reset)
+SELECT COALESCE(existing.id, gen_random_uuid()), v.boss_key, v.name, v.reset
+FROM (VALUES
+{rows}
+) AS v (boss_key, name, reset)
+LEFT JOIN boss_catalog existing ON existing.boss_key = v.boss_key
+ON CONFLICT (boss_key) DO UPDATE SET
+    name  = EXCLUDED.name,
+    reset = EXCLUDED.reset;
+"""
 
 
 def check_art(items: list[dict]) -> list[str]:
@@ -320,7 +346,11 @@ def main() -> None:
             print(f"  - {p}", file=sys.stderr)
         sys.exit(1)
 
-    outputs = [(SQL_OUT, sql(items)), (BOSS_OUT, boss_json(bosses))]
+    outputs = [
+        (SQL_OUT, sql(items)),
+        (BOSS_OUT, boss_json(bosses)),
+        (BOSS_SQL_OUT, boss_sql(bosses)),
+    ]
 
     if args.check:
         stale = [path for path, want in outputs if (path.read_text() if path.exists() else "") != want]
