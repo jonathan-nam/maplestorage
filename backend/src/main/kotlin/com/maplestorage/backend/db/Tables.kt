@@ -3,6 +3,7 @@ package com.maplestorage.backend.db
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import org.jetbrains.exposed.v1.core.Table
+import org.jetbrains.exposed.v1.datetime.date
 import org.jetbrains.exposed.v1.datetime.timestamp
 import org.jetbrains.exposed.v1.json.jsonb
 
@@ -116,4 +117,28 @@ object CharacterTokenCount : Table("character_token_count") {
     val sourceScreenshotId = optReference("source_screenshot_id", Screenshots.id)
 
     override val primaryKey = PrimaryKey(characterId, tokenCatalogId)
+}
+
+object BossCatalog : Table("boss_catalog") {
+    // No auto-default, seeded by R__boss_catalog.sql (generated from catalog/bosses.yaml),
+    // which keeps an existing row's id across re-seeds since boss_clear references it.
+    val id = uuid("id")
+    val bossKey = text("boss_key").uniqueIndex()
+    val name = text("name")
+    val reset = text("reset")
+}
+
+object BossClear : Table("boss_clear") {
+    // Composite PK gives "unique per character+boss+period" and matches the latest-capture
+    // upsert access pattern (INSERT ... ON CONFLICT (character_id, boss_catalog_id,
+    // period_start) DO UPDATE). Rows with cleared=false are the character's routine for the
+    // period, so pending bosses are known, not just clears.
+    val characterId = reference("character_id", Characters.id)
+    val bossCatalogId = reference("boss_catalog_id", BossCatalog.id)
+    val periodStart = date("period_start")
+    val cleared = bool("cleared")
+    val capturedAt = timestamp("captured_at")
+    val sourceScreenshotId = optReference("source_screenshot_id", Screenshots.id)
+
+    override val primaryKey = PrimaryKey(characterId, bossCatalogId, periodStart)
 }

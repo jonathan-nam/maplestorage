@@ -1,0 +1,84 @@
+# The boss catalog. Source of truth for weekly boss-clear tracking.
+#
+# The planner reader (vision/app/cv/planner.py) identifies a boss by reading its NAME off the
+# Maple Planner and matching it here, so the name list must not live in the reader. `build.py`
+# generates vision/app/cv/boss_catalog.json from this file; the reader loads that. Adding a boss
+# is one entry here, no image asset (identity is text, not a portrait).
+#
+#     python catalog/build.py            regenerate
+#     python catalog/build.py --check    fail if the generated catalog is stale
+#
+# `key` is the stable identifier (lowercase kebab-case): it becomes the boss_catalog value the
+# backend will key clears on. Rename it and you rename that, so treat it as permanent.
+#
+# `name` is the exact in-game display name, what the OCR is matched against. Truncated reads
+# ("Guardian Angel Sli..") still resolve by best overlap, so the full name belongs here.
+#
+# `reset` is the boss's own reset cadence, WEEKLY / DAILY / MONTHLY. It is a game fact (it decides
+# which period a clear counts against), and it matches how the planner groups these under its
+# MONTHLY/WEEKLY/DAILY headers. It is NOT difficulty: difficulty is deliberately not tracked, a
+# player sets a planner difficulty independent of what they actually clear.
+
+bosses:
+  # --- Weekly -----------------------------------------------------------------------
+  - key: lotus
+    name: Lotus
+    reset: WEEKLY
+  - key: damien
+    name: Damien
+    reset: WEEKLY
+  - key: guardian-angel-slime
+    name: Guardian Angel Slime
+    reset: WEEKLY
+  - key: lucid
+    name: Lucid
+    reset: WEEKLY
+  - key: will
+    name: Will
+    reset: WEEKLY
+  - key: gloom
+    name: Gloom
+    reset: WEEKLY
+  - key: verus-hilla
+    name: Verus Hilla
+    reset: WEEKLY
+  - key: darknell
+    name: Darknell
+    reset: WEEKLY
+  - key: chosen-seren
+    name: Chosen Seren
+    reset: WEEKLY
+  - key: kalos-the-guardian
+    name: Kalos the Guardian
+    reset: WEEKLY
+  - key: first-adversary
+    name: First Adversary
+    reset: WEEKLY
+  - key: kaling
+    name: Kaling
+    reset: WEEKLY
+  - key: malefic-star
+    name: Malefic Star
+    reset: WEEKLY
+  - key: limbo
+    name: Limbo
+    reset: WEEKLY
+  - key: baldrix
+    name: Baldrix
+    reset: WEEKLY
+  - key: akechi-mitsuhide
+    name: Akechi Mitsuhide
+    reset: WEEKLY
+
+  # --- Monthly ----------------------------------------------------------------------
+  - key: black-mage
+    name: Black Mage
+    reset: MONTHLY
+
+  # --- Daily ------------------------------------------------------------------------
+  - key: zakum
+    name: Zakum
+    reset: DAILY
+  - key: gollux
+    name: Gollux
+    reset: DAILY

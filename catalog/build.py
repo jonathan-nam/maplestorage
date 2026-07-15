@@ -30,6 +30,7 @@ screenshot is what build_icons.py is for.
 """
 
 import argparse
+import json
 import pathlib
 import sys
 
@@ -40,6 +41,14 @@ MANIFEST = ROOT / "catalog" / "items.yaml"
 TEMPLATES = ROOT / "vision" / "app" / "cv" / "templates"
 ICONS = ROOT / "backend" / "src" / "main" / "resources" / "seed-assets" / "tokens"
 SQL_OUT = ROOT / "backend" / "src" / "main" / "resources" / "db" / "migration" / "R__token_catalog.sql"
+
+# The boss catalog. Unlike items, a boss has no image asset: the planner reader identifies it by
+# reading its name. build emits two artifacts from the one manifest: the name catalog the reader
+# loads, and the backend seed for the boss_catalog table.
+BOSS_MANIFEST = ROOT / "catalog" / "bosses.yaml"
+BOSS_OUT = ROOT / "vision" / "app" / "cv" / "boss_catalog.json"
+BOSS_SQL_OUT = ROOT / "backend" / "src" / "main" / "resources" / "db" / "migration" / "R__boss_catalog.sql"
+BOSS_RESETS = {"WEEKLY", "DAILY", "MONTHLY"}
 
 # The display icons are the official item sprites from maplestory.io, keyed by Nexon item id.
 # `icon_id` in items.yaml pins the one a human validated against the in-game art. The version is
@@ -114,6 +123,54 @@ def load() -> list[dict]:
         if cat != "REDEMPTION_TOKEN" and slots:
             sys.exit(f"{key}: only a REDEMPTION_TOKEN can have redeem_slots")
     return items
+
+
+def load_bosses() -> list[dict]:
+    bosses = yaml.safe_load(BOSS_MANIFEST.read_text())["bosses"]
+    seen: set[str] = set()
+    for b in bosses:
+        key = b["key"]
+        if set(key) - KEY_CHARS:
+            sys.exit(f"boss key {key!r} must be lowercase kebab-case, it becomes a DB value")
+        if key in seen:
+            sys.exit(f"duplicate boss key {key!r}")
+        seen.add(key)
+        if not b.get("name"):
+            sys.exit(f"{key}: needs a name, it is what the planner OCR is matched against")
+        if b.get("reset") not in BOSS_RESETS:
+            sys.exit(f"{key}: reset must be one of {sorted(BOSS_RESETS)}, got {b.get('reset')!r}")
+    return bosses
+
+
+def boss_json(bosses: list[dict]) -> str:
+    """The name catalog the planner reader loads. Generated so it cannot drift from the manifest."""
+    data = [{"key": b["key"], "name": b["name"], "reset": b["reset"]} for b in bosses]
+    return json.dumps(data, indent=2, ensure_ascii=False) + "\n"
+
+
+def boss_sql(bosses: list[dict]) -> str:
+    """The boss_catalog seed. Upserts by boss_key and keeps each id (boss_clear references it)."""
+
+    def q(s: str) -> str:
+        return "'" + s.replace("'", "''") + "'"
+
+    rows = ",\n".join(f"    ({q(b['key'])}, {q(b['name'])}, {q(b['reset'])})" for b in bosses)
+    return f"""-- GENERATED FROM catalog/bosses.yaml. DO NOT EDIT BY HAND.
+-- Regenerate with:  python catalog/build.py
+--
+-- Repeatable (R__): editing bosses.yaml reseeds boss_catalog on the next boot. Upserts by
+-- boss_key and keeps an existing row's id, which boss_clear references, so it is never churned.
+
+INSERT INTO boss_catalog (id, boss_key, name, reset)
+SELECT COALESCE(existing.id, gen_random_uuid()), v.boss_key, v.name, v.reset
+FROM (VALUES
+{rows}
+) AS v (boss_key, name, reset)
+LEFT JOIN boss_catalog existing ON existing.boss_key = v.boss_key
+ON CONFLICT (boss_key) DO UPDATE SET
+    name  = EXCLUDED.name,
+    reset = EXCLUDED.reset;
+"""
 
 
 def check_art(items: list[dict]) -> list[str]:
@@ -277,6 +334,7 @@ def main() -> None:
     args = ap.parse_args()
 
     items = load()
+    bosses = load_bosses()
 
     if args.fetch_icons:
         fetch_icons(items)
@@ -288,17 +346,23 @@ def main() -> None:
             print(f"  - {p}", file=sys.stderr)
         sys.exit(1)
 
-    want = sql(items)
-    have = SQL_OUT.read_text() if SQL_OUT.exists() else ""
+    outputs = [
+        (SQL_OUT, sql(items)),
+        (BOSS_OUT, boss_json(bosses)),
+        (BOSS_SQL_OUT, boss_sql(bosses)),
+    ]
 
     if args.check:
-        if want != have:
-            sys.exit(f"{SQL_OUT.relative_to(ROOT)} is stale. Run: python catalog/build.py")
-        print(f"catalog is in sync ({len(items)} items)")
+        stale = [path for path, want in outputs if (path.read_text() if path.exists() else "") != want]
+        if stale:
+            names = ", ".join(str(p.relative_to(ROOT)) for p in stale)
+            sys.exit(f"stale, run python catalog/build.py: {names}")
+        print(f"catalog is in sync ({len(items)} items, {len(bosses)} bosses)")
         return
 
-    SQL_OUT.write_text(want)
-    print(f"wrote {SQL_OUT.relative_to(ROOT)} ({len(items)} items)")
+    for path, want in outputs:
+        path.write_text(want)
+    print(f"wrote {len(items)} items and {len(bosses)} bosses")
 
 
 if __name__ == "__main__":
