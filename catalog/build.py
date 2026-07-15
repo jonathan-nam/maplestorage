@@ -41,6 +41,16 @@ TEMPLATES = ROOT / "vision" / "app" / "cv" / "templates"
 ICONS = ROOT / "backend" / "src" / "main" / "resources" / "seed-assets" / "tokens"
 SQL_OUT = ROOT / "backend" / "src" / "main" / "resources" / "db" / "migration" / "R__token_catalog.sql"
 
+# The display icons are the official item sprites from maplestory.io, keyed by Nexon item id.
+# `icon_id` in items.yaml pins the one a human validated against the in-game art. The version is
+# pinned, not "latest": "latest" is whatever got extracted last and can regress an id out from
+# under us, and a brand-new item is simply absent until the mirror ingests its patch. 268 was the
+# newest COMPLETE GMS dataset at adoption. Bump it deliberately and re-validate; do not float it.
+# An item with no icon_id has no official source (too new, or named differently) and keeps the
+# hand-cut art already in the tree.
+ICON_VERSION = 268
+ICON_URL = "https://maplestory.io/api/GMS/{version}/item/{icon_id}/icon"
+
 KEY_CHARS = set("abcdefghijklmnopqrstuvwxyz0123456789-")
 
 
@@ -58,6 +68,10 @@ def load() -> list[dict]:
         if key in seen:
             sys.exit(f"duplicate key {key!r}")
         seen.add(key)
+
+        icon_id = it.get("icon_id")
+        if icon_id is not None and not isinstance(icon_id, int):
+            sys.exit(f"{key}: icon_id must be an integer maplestory.io item id, got {icon_id!r}")
 
         if it.get("sort") is None:
             sys.exit(f"{key}: needs a sort, it decides the order within its section")
@@ -177,12 +191,50 @@ ON CONFLICT (item_id) DO UPDATE SET
 """
 
 
+def fetch_icons(items: list[dict]) -> None:
+    """Download the official sprite for every item with an icon_id, overwriting its seed asset.
+
+    Items without an icon_id are left alone: their hand-cut art is the only source there is. A
+    fetch that returns anything but a PNG is a hard error, a wrong or half-written icon is exactly
+    the confident-wrong-picture this catalog exists to prevent, so refuse rather than ship it.
+    """
+    import urllib.request
+
+    got = 0
+    for it in items:
+        icon_id = it.get("icon_id")
+        if icon_id is None:
+            continue
+        version = it.get("icon_version", ICON_VERSION)
+        url = ICON_URL.format(version=version, icon_id=icon_id)
+        req = urllib.request.Request(url, headers={"User-Agent": "maplestorage-build"})
+        try:
+            with urllib.request.urlopen(req, timeout=30) as r:
+                data = r.read()
+        except Exception as e:
+            sys.exit(f"{it['key']}: could not fetch icon {icon_id} (v{version}): {e}")
+        if not data.startswith(b"\x89PNG\r\n\x1a\n"):
+            sys.exit(f"{it['key']}: icon {icon_id} (v{version}) did not return a PNG")
+        (ICONS / f"{it['key']}.png").write_bytes(data)
+        got += 1
+        print(f"  {it['key']:26} <- {icon_id} (v{version})")
+    print(f"fetched {got} official icons into {ICONS.relative_to(ROOT)}")
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--check", action="store_true", help="fail if generated output is stale")
+    ap.add_argument(
+        "--fetch-icons",
+        action="store_true",
+        help="download official icons from maplestory.io for items with an icon_id",
+    )
     args = ap.parse_args()
 
     items = load()
+
+    if args.fetch_icons:
+        fetch_icons(items)
 
     problems = check_art(items)
     if problems:
