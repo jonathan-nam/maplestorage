@@ -57,12 +57,15 @@ export function SlotGrid({ items, rows }: { items: SlotItem[]; rows: number }) {
         if (!item) return <div key={i} className="ms-slot" />;
 
         const badge = deltaLabel(item.delta);
+        // The count is already on the tile (the digit sprites), so the tooltip repeats it only
+        // where it anchors context: the delta and the "new" line read as information, not an echo.
         const title =
-          `${item.name}\n${item.quantity}` +
-          (item.delta === null ? "\nnot tracked for this character yet" : "") +
-          (typeof item.delta === "number" && item.delta !== 0
-            ? `\n${item.delta > 0 ? "up" : "down"} ${Math.abs(item.delta)} since the last screenshot`
-            : "") +
+          item.name +
+          (item.delta === null
+            ? `\n${item.quantity}, not tracked for this character yet`
+            : typeof item.delta === "number" && item.delta !== 0
+              ? `\n${item.quantity}, ${item.delta > 0 ? "up" : "down"} ${Math.abs(item.delta)} since the last screenshot`
+              : "") +
           (item.note ? `\n${item.note}` : "");
 
         return (
