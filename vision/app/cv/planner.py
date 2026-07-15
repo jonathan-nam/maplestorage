@@ -28,6 +28,7 @@ Content has boss rows beneath it.
 """
 
 import difflib
+import json
 import re
 import subprocess
 import tempfile
@@ -38,6 +39,7 @@ import cv2
 import numpy as np
 
 TEMPLATE_DIR = Path(__file__).parent / "templates"
+BOSS_CATALOG = Path(__file__).parent / "boss_catalog.json"
 
 # "Boss Content" header: a wide, short, saturated cyan bar. Aspect (not absolute size)
 # keeps this scale-tolerant; the exact panel is then confirmed by finding rows below it.
@@ -62,29 +64,14 @@ OCR_TARGET_H = 64  # upscale the name line to this before Tesseract (see hud.py)
 # slip "Darien" -> Damien), empty reads score 0; 0.62 sits in the gap with margin.
 NAME_MATCH_MIN = 0.62
 
-# Canonical boss names. TODO: source from catalog/bosses.yaml once that manifest exists, so
-# the name list is not a second source of truth (see the boss-clears direction note).
-BOSS_NAMES = [
-    "Lotus",
-    "Damien",
-    "Guardian Angel Slime",
-    "Lucid",
-    "Will",
-    "Gloom",
-    "Verus Hilla",
-    "Darknell",
-    "Chosen Seren",
-    "Kalos the Guardian",
-    "First Adversary",
-    "Kaling",
-    "Malefic Star",
-    "Limbo",
-    "Baldrix",
-    "Akechi Mitsuhide",
-    "Black Mage",
-    "Zakum",
-    "Gollux",
-]
+
+def load_boss_names(path: Path = BOSS_CATALOG) -> list[str]:
+    """Canonical boss names, generated from catalog/bosses.yaml by build.py (one source of truth)."""
+    return [b["name"] for b in json.loads(path.read_text())]
+
+
+# Loaded once at import, like the templates. build.py regenerates the catalog from the manifest.
+BOSS_NAMES = load_boss_names()
 
 
 @dataclass

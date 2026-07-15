@@ -1,0 +1,97 @@
+[
+  {
+    "key": "lotus",
+    "name": "Lotus",
+    "reset": "WEEKLY"
+  },
+  {
+    "key": "damien",
+    "name": "Damien",
+    "reset": "WEEKLY"
+  },
+  {
+    "key": "guardian-angel-slime",
+    "name": "Guardian Angel Slime",
+    "reset": "WEEKLY"
+  },
+  {
+    "key": "lucid",
+    "name": "Lucid",
+    "reset": "WEEKLY"
+  },
+  {
+    "key": "will",
+    "name": "Will",
+    "reset": "WEEKLY"
+  },
+  {
+    "key": "gloom",
+    "name": "Gloom",
+    "reset": "WEEKLY"
+  },
+  {
+    "key": "verus-hilla",
+    "name": "Verus Hilla",
+    "reset": "WEEKLY"
+  },
+  {
+    "key": "darknell",
+    "name": "Darknell",
+    "reset": "WEEKLY"
+  },
+  {
+    "key": "chosen-seren",
+    "name": "Chosen Seren",
+    "reset": "WEEKLY"
+  },
+  {
+    "key": "kalos-the-guardian",
+    "name": "Kalos the Guardian",
+    "reset": "WEEKLY"
+  },
+  {
+    "key": "first-adversary",
+    "name": "First Adversary",
+    "reset": "WEEKLY"
+  },
+  {
+    "key": "kaling",
+    "name": "Kaling",
+    "reset": "WEEKLY"
+  },
+  {
+    "key": "malefic-star",
+    "name": "Malefic Star",
+    "reset": "WEEKLY"
+  },
+  {
+    "key": "limbo",
+    "name": "Limbo",
+    "reset": "WEEKLY"
+  },
+  {
+    "key": "baldrix",
+    "name": "Baldrix",
+    "reset": "WEEKLY"
+  },
+  {
+    "key": "akechi-mitsuhide",
+    "name": "Akechi Mitsuhide",
+    "reset": "WEEKLY"
+  },
+  {
+    "key": "black-mage",
+    "name": "Black Mage",
+    "reset": "MONTHLY"
+  },
+  {
+    "key": "zakum",
+    "name": "Zakum",
+    "reset": "DAILY"
+  },
+  {
+    "key": "gollux",
+    "name": "Gollux",
+    "reset": "DAILY"
+  }
+]
