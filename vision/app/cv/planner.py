@@ -68,6 +68,7 @@ class BossRow:
 class PlannerResult:
     rows: list[BossRow]
     reached_list_end: bool  # did the capture reach the bottom of the scroll?
+    panel: tuple[int, int, int, int]  # Boss Content panel box (x, y, w, h) in image coords
 
 
 def _cyan_bars(img: np.ndarray) -> list[tuple[int, int, int, int]]:
@@ -193,4 +194,4 @@ def parse_planner(img: np.ndarray, glyphs: dict, portraits: dict) -> PlannerResu
         last = bands[-1][1]
         pitch = int(np.median([b - a for a, b in bands])) or MIN_ROW_H
         reached_end = (panel.shape[0] - last) > pitch
-    return PlannerResult(rows, reached_end)
+    return PlannerResult(rows, reached_end, box)
