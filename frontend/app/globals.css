@@ -509,7 +509,7 @@ a:hover {
   flex: 1;
   gap: 16px;
   overflow-x: auto;
-  scroll-snap-type: x proximity;
+  scroll-snap-type: x mandatory;
   scrollbar-width: none;
 }
 

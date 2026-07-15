@@ -57,9 +57,14 @@ export function CharacterCarousel({
   function page(direction: -1 | 1) {
     const el = trackRef.current;
     if (!el) return;
-    // Scroll by most of a viewport rather than a fixed tile count, so it still
-    // behaves on a narrow window where only one tile fits.
-    el.scrollBy({ left: direction * Math.max(206, el.clientWidth * 0.8), behavior: "smooth" });
+    // Page by a whole number of tiles so the strip lands on a tile edge, never mid-tile.
+    // Measured from the first tile so it tracks the real tile width, with a fallback for
+    // before the first tile has mounted. At least one tile per page on a narrow window.
+    const tile = el.firstElementChild as HTMLElement | null;
+    const gap = parseFloat(getComputedStyle(el).columnGap) || 16;
+    const stride = tile ? tile.offsetWidth + gap : 206;
+    const perPage = Math.max(1, Math.floor(el.clientWidth / stride));
+    el.scrollBy({ left: direction * perPage * stride, behavior: "smooth" });
   }
 
   return (
