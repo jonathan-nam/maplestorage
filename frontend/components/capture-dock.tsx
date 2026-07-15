@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { SlotGrid, type SlotItem } from "@/components/slot-grid";
+import { COLS, SlotGrid, type SlotItem } from "@/components/slot-grid";
 import { apiFetch } from "@/lib/api";
 import { invalidate } from "@/lib/cache";
 import { compressImage } from "@/lib/compress-image";
@@ -21,7 +21,9 @@ import type { ScreenshotResult } from "@/types/screenshot";
 //
 // The preview grid is the other half. An upload used to be a leap of faith: it parsed, it wrote,
 // and you learned what it did afterwards. Now the parse is shown in the same 16-wide lattice as
-// the inventory below it, with what CHANGED called out, before it is committed.
+// the inventory below it before it is committed, and ONLY the items that changed: the panel below
+// already holds the full count, so echoing every unchanged item here would bury the one or two
+// lines that actually moved.
 
 type Phase = "reading" | "read" | "error";
 type Capture = {
@@ -30,9 +32,11 @@ type Capture = {
   thumbUrl: string;
   phase: Phase;
   result: ScreenshotResult | null;
+  // The held counts as they were the instant this screenshot was dropped, frozen. The diff is
+  // against THIS, not the live `stored`: a successful save refetches and pushes `stored` up to the
+  // new counts, at which point every delta would collapse to 0 and the preview would show nothing.
+  baseline: Map<string, number>;
 };
-
-const PREVIEW_ROWS = 2;
 
 export function CaptureDock({
   characters,
@@ -46,8 +50,8 @@ export function CaptureDock({
   characters: Character[];
   // null = no character selected, so the character is read from the screenshot's HUD instead.
   pinnedCharacterId: string | null;
-  // What we already hold for the pinned character, so the preview can show the DIFFERENCE
-  // rather than just the numbers. Keyed by catalog id.
+  // What we already hold for the pinned character, keyed by catalog id. Each capture snapshots
+  // this at drop time (see Capture.baseline) so its preview can show the DIFFERENCE.
   stored: Map<string, number>;
   getToken: () => Promise<string | null>;
   onCharacterAdded: (character: Character) => void;
@@ -92,6 +96,8 @@ export function CaptureDock({
         thumbUrl: URL.createObjectURL(file),
         phase: "reading",
         result: null,
+        // Snapshot now, before read()'s POST writes the new counts and the refetch moves `stored`.
+        baseline: new Map(stored),
       };
       setCaptures((prev) => [capture, ...prev]);
       read(capture);
@@ -237,7 +243,6 @@ export function CaptureDock({
           capture={capture}
           characters={characters}
           pinned={pinned}
-          stored={stored}
           onResolve={(id) => resolveTo(capture, id)}
           onIgnore={() => ignore(capture)}
           onAddAndResolve={(name) => addAndResolve(capture, name)}
@@ -252,7 +257,6 @@ function CaptureCard({
   capture,
   characters,
   pinned,
-  stored,
   onResolve,
   onIgnore,
   onAddAndResolve,
@@ -261,7 +265,6 @@ function CaptureCard({
   capture: Capture;
   characters: Character[];
   pinned: Character | undefined;
-  stored: Map<string, number>;
   onResolve: (characterId: string) => void;
   onIgnore: () => void;
   onAddAndResolve: (name: string) => void;
@@ -284,7 +287,7 @@ function CaptureCard({
     // happen (both are generated from catalog/items.yaml) but if it ever does, show the item
     // and skip the comparison rather than dropping it. A silently missing item is the failure
     // this whole app exists to prevent.
-    const before = t.tokenCatalogId === null ? undefined : stored.get(t.tokenCatalogId);
+    const before = t.tokenCatalogId === null ? undefined : capture.baseline.get(t.tokenCatalogId);
     return {
       id: t.tokenCatalogId ?? t.tokenName,
       name: t.displayName,
@@ -298,8 +301,17 @@ function CaptureCard({
     };
   });
 
+  // Only the differences. delta === 0 is the sole "definitely unchanged" case, so it is the only
+  // thing dropped: `null` (first sighting, reads as "new") and `undefined` (an item the parser
+  // knows but the catalog does not, which must never be silently hidden, that is the failure this
+  // app exists to prevent) both stay. On a character's first upload nothing is stored yet, so
+  // every item is new and the whole parse still shows, which is exactly right.
+  const changed = items.filter((i) => i.delta !== 0);
+  const rows = Math.max(1, Math.ceil(changed.length / COLS));
+
   const { text, tone } = describe(capture, pinned);
   const saved = result?.outcome === "MATCHED";
+  const note = previewNote(saved, changed.length, items.length);
 
   return (
     <article className={`capture${busy ? " busy" : ""}`}>
@@ -325,12 +337,8 @@ function CaptureCard({
 
       {capture.phase === "read" && items.length > 0 && (
         <div className={`capture-preview${saved ? " saved" : " pending"}`}>
-          <SlotGrid items={items} rows={PREVIEW_ROWS} />
-          <p className="capture-preview-note">
-            {saved
-              ? `${items.length} ${items.length === 1 ? "item" : "items"} read and saved.`
-              : `${items.length} ${items.length === 1 ? "item" : "items"} read. Nothing has been saved yet.`}
-          </p>
+          {changed.length > 0 && <SlotGrid items={changed} rows={rows} />}
+          <p className="capture-preview-note">{note}</p>
         </div>
       )}
     </article>
@@ -413,6 +421,18 @@ function Actions({
       </button>
     </>
   );
+}
+
+// The note counts CHANGES, not items read, because the grid now shows only changes. `total` is
+// still named so "no changes" can say how many were checked, otherwise it reads as "nothing was
+// in the screenshot" rather than "nothing moved".
+function previewNote(saved: boolean, changed: number, total: number): string {
+  const n = `${changed} ${changed === 1 ? "change" : "changes"}`;
+  if (changed === 0) {
+    const checked = `${total} ${total === 1 ? "item" : "items"}`;
+    return saved ? `No changes. ${checked} already up to date.` : "No changes to save.";
+  }
+  return saved ? `${n} saved.` : `${n} to save. Nothing has been saved yet.`;
 }
 
 function describe(capture: Capture, pinned: Character | undefined): { text: string; tone: string } {
