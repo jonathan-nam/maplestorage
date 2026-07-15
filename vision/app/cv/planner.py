@@ -3,25 +3,34 @@
 Unlike the inventory (a square 16x8 lattice, see grid.py), the planner is a vertical list
 of variable rows: [portrait | difficulty badge | name | state]. Rows sit under grey
 MONTHLY/WEEKLY/DAILY headers. Two things per row are read and nothing else: WHICH BOSS
-(by portrait) and CLEARED-OR-NOT (a checkmark vs an arrow glyph).
+(by its name) and CLEARED-OR-NOT (a checkmark vs an arrow glyph).
 
 Difficulty is shown but deliberately NOT read. A player sets the planner difficulty
 independent of what they actually clear (a Normal badge over a Hard clear), so it is not
 trustworthy, and with income out of scope it is not needed either.
 
-Two things make the read tractable:
+Three things make the read tractable:
 
   * The state glyph is a fixed bitmap. The checkmark and the arrow are drawn pixel-identical
     on every row, so, like the digit font in ocr.py, they are read by correlating the two
     known glyphs rather than by any threshold.
   * Boss rows carry a saturated difficulty badge in a fixed column; the grey section headers
     do not. Thresholding that column both FINDS the rows and severs them from the headers.
+  * The boss NAME is ordinary rendered text, which Tesseract reads well (unlike the tiny
+    count font in ocr.py). The read is matched to the known boss list, so it needs no
+    per-boss image asset: a new boss is a new name in the catalog, nothing to cut. This is
+    why identity is the name and not the portrait. Truncated names ("Guardian Angel Sli..")
+    still resolve because the match is by best overlap against the list.
 
 The panel is found by its cyan "Boss Content" header. Several cyan headers can share a screen
 (Daily/Weekly Content look identical), so the right one is chosen by content: only Boss
 Content has boss rows beneath it.
 """
 
+import difflib
+import re
+import subprocess
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -44,23 +53,47 @@ BADGE_SAT_MIN = 50.0  # mean saturation over the badge column marking a boss row
 MIN_ROW_H = 12  # px; shorter saturated runs are noise, not a row
 
 # Sub-regions of a row, as fractions of panel width.
-PORTRAIT_X0, PORTRAIT_X1 = 0.01, 0.11
+NAME_X0, NAME_X1 = 0.34, 0.84
 STATE_X0, STATE_X1 = 0.85, 0.99
+NAME_PAD = 5  # px; the badge band is shorter than the row, pad it to catch the full name
+OCR_TARGET_H = 64  # upscale the name line to this before Tesseract (see hud.py)
 
-# Portrait match below this is UNKNOWN, never a guess. Set from the observed gap between
-# true matches (>=0.95) and the worst false match among the dark, mutually-similar portraits
-# (Black Mage / Zakum / Gollux, ~0.66). PROVISIONAL: tuned on same-source captures only;
-# cross-account robustness needs different-character fixtures before this is trusted.
-IDENTITY_MIN = 0.80
+# Name match below this is UNKNOWN, never a guess. True reads score >=0.83 (incl. an OCR
+# slip "Darien" -> Damien), empty reads score 0; 0.62 sits in the gap with margin.
+NAME_MATCH_MIN = 0.62
+
+# Canonical boss names. TODO: source from catalog/bosses.yaml once that manifest exists, so
+# the name list is not a second source of truth (see the boss-clears direction note).
+BOSS_NAMES = [
+    "Lotus",
+    "Damien",
+    "Guardian Angel Slime",
+    "Lucid",
+    "Will",
+    "Gloom",
+    "Verus Hilla",
+    "Darknell",
+    "Chosen Seren",
+    "Kalos the Guardian",
+    "First Adversary",
+    "Kaling",
+    "Malefic Star",
+    "Limbo",
+    "Baldrix",
+    "Akechi Mitsuhide",
+    "Black Mage",
+    "Zakum",
+    "Gollux",
+]
 
 
 @dataclass
 class BossRow:
-    boss: str | None  # catalog key, or None if the portrait matched nothing
+    boss: str | None  # canonical boss name, or None if the name matched nothing
     cleared: bool
     y0: int
     y1: int
-    identity_score: float
+    name_score: float
     state_score: float
 
 
@@ -130,14 +163,6 @@ def load_state_glyphs(path: Path = TEMPLATE_DIR) -> dict:
     return g
 
 
-def load_portraits(path: Path = TEMPLATE_DIR) -> dict:
-    lib = {}
-    for f in sorted(path.glob("boss-*.png")):
-        key = f.name[len("boss-") : -len(".png")]
-        lib[key] = cv2.imread(str(f))
-    return lib
-
-
 def _crop(panel: np.ndarray, band: tuple[int, int], x0f: float, x1f: float) -> np.ndarray:
     pw = panel.shape[1]
     a, b = band
@@ -168,15 +193,57 @@ def read_state(panel, band, glyphs) -> tuple[bool, float]:
     return name == "cleared", score
 
 
-def read_identity(panel, band, portraits) -> tuple[str | None, float]:
-    if not portraits:
+def _ocr_line(crop: np.ndarray) -> str:
+    """OCR one name line. Binarise to dark text on white, upscale, then Tesseract psm 7."""
+    grey = cv2.cvtColor(crop, cv2.COLOR_BGR2GRAY)
+    _, th = cv2.threshold(grey, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+    if th.mean() < 127:  # the name text is light on a dark row; keep background white
+        th = 255 - th
+    k = OCR_TARGET_H / th.shape[0]
+    if k > 1.0:
+        th = cv2.resize(th, None, fx=k, fy=k, interpolation=cv2.INTER_CUBIC)
+    with tempfile.NamedTemporaryFile(suffix=".png") as f:
+        cv2.imwrite(f.name, th)
+        out = subprocess.run(
+            ["tesseract", f.name, "stdout", "--psm", "7"],
+            capture_output=True,
+            text=True,
+            timeout=15,
+        )
+    return out.stdout.strip()
+
+
+def _norm(s: str) -> str:
+    return re.sub(r"[^a-z]", "", s.lower())
+
+
+def match_boss(text: str, names: list[str]) -> tuple[str | None, float]:
+    """Best canonical boss for an OCR'd name. Prefix (for truncation) beats plain overlap."""
+    o = _norm(text)
+    if not o:
         return None, 0.0
-    cell = _crop(panel, band, PORTRAIT_X0, PORTRAIT_X1)
-    name, score, _ = _best_match(cell, portraits)
-    return (name, score) if score >= IDENTITY_MIN else (None, score)
+    best, best_score = None, 0.0
+    for name in names:
+        c = _norm(name)
+        r = difflib.SequenceMatcher(None, o, c).ratio()
+        if c.startswith(o) or o.startswith(c):
+            r = max(r, 0.85 + 0.1 * min(len(o), len(c)) / max(len(c), 1))
+        if r > best_score:
+            best, best_score = name, r
+    return (best, best_score) if best_score >= NAME_MATCH_MIN else (None, best_score)
 
 
-def parse_planner(img: np.ndarray, glyphs: dict, portraits: dict) -> PlannerResult | None:
+def read_name(panel, band, names) -> tuple[str | None, float]:
+    a, b = band
+    ph = panel.shape[0]
+    padded = (max(a - NAME_PAD, 0), min(b + NAME_PAD, ph))
+    text = _ocr_line(_crop(panel, padded, NAME_X0, NAME_X1))
+    return match_boss(text, names)
+
+
+def parse_planner(
+    img: np.ndarray, glyphs: dict, names: list[str] = BOSS_NAMES
+) -> PlannerResult | None:
     box = find_panel(img)
     if box is None:
         return None
@@ -186,8 +253,8 @@ def parse_planner(img: np.ndarray, glyphs: dict, portraits: dict) -> PlannerResu
     rows = []
     for band in bands:
         cleared, ss = read_state(panel, band, glyphs)
-        boss, ids = read_identity(panel, band, portraits)
-        rows.append(BossRow(boss, cleared, y + band[0], y + band[1], ids, ss))
+        boss, ns = read_name(panel, band, names)
+        rows.append(BossRow(boss, cleared, y + band[0], y + band[1], ns, ss))
     # Reached the end if there is at least one row of empty panel below the last row.
     reached_end = False
     if bands:

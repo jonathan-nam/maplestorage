@@ -7,8 +7,8 @@ see exactly which rows and states were read.
 Run from vision/:
     python -m app.cv.read_planner "path/to/planner.png" [more.png ...]
 
-Bosses outside the committed portrait library read as UNKNOWN (by design, it refuses rather
-than guesses). Grow the library by adding them to build_boss_planner.py and re-running it.
+A boss whose name is not in the catalog list, or that could not be read, shows as UNKNOWN
+(by design, it refuses rather than guesses).
 """
 
 import sys
@@ -20,7 +20,6 @@ from . import planner as P
 
 GREEN = (60, 170, 60)
 RED = (40, 40, 210)
-GREY = (150, 150, 150)
 
 
 def annotate(img, result):
@@ -29,7 +28,7 @@ def annotate(img, result):
     label_x = min(px + pw + 12, img.shape[1] - 260)  # in the margin, clear of the panel text
     for r in result.rows:
         colour = GREEN if r.cleared else RED
-        label = r.boss if r.boss else f"UNKNOWN {r.identity_score:.2f}"
+        label = r.boss if r.boss else f"UNKNOWN {r.name_score:.2f}"
         mark = "cleared" if r.cleared else "pending"
         cv2.rectangle(out, (px, r.y0), (px + pw, r.y1), colour, 2)
         cv2.putText(
@@ -45,12 +44,12 @@ def annotate(img, result):
     return out
 
 
-def run(path: str, glyphs, portraits) -> bool:
+def run(path: str, glyphs) -> bool:
     img = cv2.imread(path)
     if img is None:
         print(f"{path}: cannot read image")
         return False
-    result = P.parse_planner(img, glyphs, portraits)
+    result = P.parse_planner(img, glyphs)
     name = Path(path).name
     if result is None:
         print(f"{name}: no Boss Content panel found")
@@ -58,9 +57,9 @@ def run(path: str, glyphs, portraits) -> bool:
     end = "yes" if result.reached_list_end else "no (scroll for more)"
     print(f"\n{name}  ·  {len(result.rows)} rows  ·  reached list end: {end}")
     for i, r in enumerate(result.rows, 1):
-        boss = r.boss if r.boss else f"<UNKNOWN {r.identity_score:.2f}>"
+        boss = r.boss if r.boss else f"<UNKNOWN {r.name_score:.2f}>"
         state = "cleared" if r.cleared else "pending"
-        print(f"  {i:2d}  {boss:22s} {state}")
+        print(f"  {i:2d}  {boss:24s} {state}")
     out_path = str(Path(path).with_suffix(".annotated.png"))
     cv2.imwrite(out_path, annotate(img, result))
     print(f"  annotated -> {out_path}")
@@ -72,11 +71,7 @@ def main(argv: list[str]) -> int:
         print(__doc__)
         return 2
     glyphs = P.load_state_glyphs()
-    portraits = P.load_portraits()
-    if not portraits:
-        print("no boss portraits found; run: python -m app.cv.build_boss_planner")
-        return 1
-    ok = all(run(p, glyphs, portraits) for p in argv)
+    ok = all(run(p, glyphs) for p in argv)
     return 0 if ok else 1
 
 
