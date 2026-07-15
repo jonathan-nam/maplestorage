@@ -30,20 +30,24 @@ SAMPLE2_TRUTH = [
     ("Gollux", False),
 ]
 
-# Names visible on the full-screen shot. Includes bosses (Lotus, Damien, Lucid, Will, Verus
-# Hilla) that no fixed portrait library was seeded with, the point of reading the name.
-SAMPLE_EXPECTED = {
+# Every boss visible on the full-screen shot, top to bottom. Guardian Angel Slime and Gloom are
+# CHAOS bosses whose dark badge the saturation pass misses; they must still be read (rows are
+# found by the state glyph, not the badge) or they are a silent drop. The list is also scrolled
+# to the top, so more bosses sit below the capture: reached_list_end must be False.
+SAMPLE_EXPECTED = [
     "Lotus",
     "Damien",
+    "Guardian Angel Slime",
     "Lucid",
     "Will",
+    "Gloom",
     "Verus Hilla",
     "Darknell",
     "Chosen Seren",
     "Kalos the Guardian",
     "First Adversary",
     "Kaling",
-}
+]
 
 
 @pytest.fixture(scope="module")
@@ -72,6 +76,10 @@ def test_sample2_reached_end(glyphs):
 
 def test_cross_capture_reads_roster(glyphs):
     res = _parse("boss clear menu sample.png", glyphs)
-    named = {r.boss for r in res.rows if r.boss is not None}
-    missing = SAMPLE_EXPECTED - named
-    assert not missing, f"names not read on the full-screen shot: {missing}"
+    # No row silently dropped and none left UNKNOWN, exact roster in order.
+    assert [r.boss for r in res.rows] == SAMPLE_EXPECTED
+
+
+def test_cross_capture_not_ended(glyphs):
+    # Scrolled to the top with more bosses below, so the list end is not reached.
+    assert not _parse("boss clear menu sample.png", glyphs).reached_list_end

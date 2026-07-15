@@ -9,18 +9,20 @@ Difficulty is shown but deliberately NOT read. A player sets the planner difficu
 independent of what they actually clear (a Normal badge over a Hard clear), so it is not
 trustworthy, and with income out of scope it is not needed either.
 
-Three things make the read tractable:
+Two mechanisms carry the read:
 
-  * The state glyph is a fixed bitmap. The checkmark and the arrow are drawn pixel-identical
-    on every row, so, like the digit font in ocr.py, they are read by correlating the two
-    known glyphs rather than by any threshold.
-  * Boss rows carry a saturated difficulty badge in a fixed column; the grey section headers
-    do not. Thresholding that column both FINDS the rows and severs them from the headers.
+  * The state glyph both FINDS the rows and reads their state. The checkmark and arrow are
+    pixel-identical bitmaps on every row (like the digit font in ocr.py), so sliding the two
+    known glyphs down the state column locates each boss row and says cleared-or-not at once.
+    It is colour-agnostic, which matters: enumerating rows by the difficulty badge's colour
+    silently drops the dark CHAOS/EXTREME rows (Gloom, Guardian Angel Slime and the like). The
+    glyph also skips the section headers and the game world below the panel, which carry none.
+    Badge saturation is still used, but only coarsely, to let find_panel pick the right column.
   * The boss NAME is ordinary rendered text, which Tesseract reads well (unlike the tiny
-    count font in ocr.py). The read is matched to the known boss list, so it needs no
-    per-boss image asset: a new boss is a new name in the catalog, nothing to cut. This is
-    why identity is the name and not the portrait. Truncated names ("Guardian Angel Sli..")
-    still resolve because the match is by best overlap against the list.
+    count font in ocr.py). The read is matched to the known boss list, so it needs no per-boss
+    image asset: a new boss is a new name in the catalog, nothing to cut. This is why identity
+    is the name and not the portrait. Truncated names ("Guardian Angel Sli..") still resolve
+    because the match is by best overlap against the list.
 
 The panel is found by its cyan "Boss Content" header. Several cyan headers can share a screen
 (Daily/Weekly Content look identical), so the right one is chosen by content: only Boss
@@ -53,6 +55,16 @@ HEADER_MIN_WIDTH_FRAC = 0.06  # of image width
 BADGE_X0, BADGE_X1 = 0.12, 0.32
 BADGE_SAT_MIN = 50.0  # mean saturation over the badge column marking a boss row
 MIN_ROW_H = 12  # px; shorter saturated runs are noise, not a row
+
+# Every boss row, at any difficulty, carries a state glyph (checkmark or arrow); the grey section
+# headers and the game world below the panel do not. So rows are enumerated by sliding the two
+# glyphs down the state column, which is colour-agnostic. This is why the badge-saturation pass
+# is NOT used to enumerate rows: a dark CHAOS/EXTREME badge scores under BADGE_SAT_MIN and its row
+# would be silently dropped. Badge saturation only has to be good enough for find_panel to pick
+# the Boss Content column out of the identical-looking Daily/Weekly ones.
+STATE_ROW_MIN = 0.62  # a slot is a boss row if a state glyph matches at least this
+ROW_MIN_SEP_FACTOR = 1.0  # min row spacing as a multiple of glyph height (dedupe match peaks)
+EMPTY_SAT_MAX = 30.0  # below the last row, mean saturation under this reads as blank panel (end)
 
 # Sub-regions of a row, as fractions of panel width.
 NAME_X0, NAME_X1 = 0.34, 0.84
@@ -156,28 +168,36 @@ def _crop(panel: np.ndarray, band: tuple[int, int], x0f: float, x1f: float) -> n
     return panel[a:b, int(pw * x0f) : int(pw * x1f)]
 
 
-def _best_match(cell: np.ndarray, templates: dict) -> tuple[str, float, float]:
-    scores = {}
-    for name, t in templates.items():
-        if t is None or cell.size == 0:
-            scores[name] = -1.0
+def _detect_rows(panel: np.ndarray, glyphs: dict) -> list[tuple[int, int, bool, float]]:
+    """Boss rows, found by the state glyph. Returns (y0, y1, cleared, score), top to bottom.
+
+    Slides each glyph down the state column and keeps every strong peak, deduped to one per row.
+    Colour-agnostic, so it catches the dark CHAOS/EXTREME rows that badge saturation misses, and
+    ignores the section headers and the game world below the panel (neither has a state glyph).
+    """
+    ph, pw = panel.shape[:2]
+    col = panel[:, int(pw * STATE_X0) : int(pw * STATE_X1)]
+    dets: list[tuple[int, bool, float, int]] = []  # (y, cleared, score, glyph_h)
+    for name, t in glyphs.items():
+        th = min(t.shape[0], col.shape[0])
+        tw = min(t.shape[1], col.shape[1])
+        if th < 1 or tw < 1:
             continue
-        # Slide the template across the cell. The template is cut a touch smaller than
-        # the cell it is matched against, so clamp it (never the cell) down to fit, then
-        # let matchTemplate find the aligning offset. Clamping the cell instead would pin
-        # both to the top-left and correlate misaligned glyphs.
-        h = min(cell.shape[0], t.shape[0])
-        w = min(cell.shape[1], t.shape[1])
-        res = cv2.matchTemplate(cell, t[:h, :w], cv2.TM_CCOEFF_NORMED)
-        scores[name] = float(res.max())
-    ranked = sorted(scores.items(), key=lambda kv: -kv[1])
-    top, second = ranked[0], (ranked[1] if len(ranked) > 1 else (None, -1.0))
-    return top[0], top[1], top[1] - second[1]
-
-
-def read_state(panel, band, glyphs) -> tuple[bool, float]:
-    name, score, _ = _best_match(_crop(panel, band, STATE_X0, STATE_X1), glyphs)
-    return name == "cleared", score
+        # The winning glyph scores ~1.0 at its row and the losing one ~0.45, so at STATE_ROW_MIN
+        # only the true state clears the bar; each row yields one detection.
+        per_y = cv2.matchTemplate(col, t[:th, :tw], cv2.TM_CCOEFF_NORMED).max(axis=1)
+        for yy in np.where(per_y >= STATE_ROW_MIN)[0]:
+            dets.append((int(yy), name == "cleared", float(per_y[yy]), th))
+    if not dets:
+        return []
+    sep = int(dets[0][3] * ROW_MIN_SEP_FACTOR)
+    dets.sort(key=lambda d: -d[2])  # strongest first, so NMS keeps the best per row
+    kept: list[tuple[int, bool, float, int]] = []
+    for d in dets:
+        if all(abs(d[0] - k[0]) >= sep for k in kept):
+            kept.append(d)
+    kept.sort()
+    return [(y, y + h, cleared, sc) for (y, cleared, sc, h) in kept]
 
 
 def _ocr_line(crop: np.ndarray) -> str:
@@ -236,16 +256,30 @@ def parse_planner(
         return None
     x, y, w, h = box
     panel = img[y : y + h, x : x + w]
-    bands = _row_bands(panel)
+    dets = _detect_rows(panel, glyphs)
+
     rows = []
-    for band in bands:
-        cleared, ss = read_state(panel, band, glyphs)
-        boss, ns = read_name(panel, band, names)
-        rows.append(BossRow(boss, cleared, y + band[0], y + band[1], ns, ss))
-    # Reached the end if there is at least one row of empty panel below the last row.
+    for a, b, cleared, ss in dets:
+        boss, ns = read_name(panel, (a, b), names)
+        rows.append(BossRow(boss, cleared, y + a, y + b, ns, ss))
+
+    # End reached only if the panel is blank just below the last row. Content there (another row,
+    # or the game world when the panel runs off a full screenshot) means the list was cut off.
+    # Best-effort: the reliable completeness guard is backend routine-reconciliation across weeks.
     reached_end = False
-    if bands:
-        last = bands[-1][1]
-        pitch = int(np.median([b - a for a, b in bands])) or MIN_ROW_H
-        reached_end = (panel.shape[0] - last) > pitch
+    if dets:
+        last_b = dets[-1][1]
+        starts = [a for a, *_ in dets]
+        pitch = int(np.median(np.diff(starts))) if len(starts) > 1 else (dets[0][1] - dets[0][0])
+        # Look two rows past the last one: a genuine list-end leaves blank panel there, whereas a
+        # capture cut off mid-list has the next row or (on a full screenshot) the game world close
+        # below. Require the whole window blank, so game world nearby reads as "more to scroll".
+        below = panel[last_b : min(last_b + 2 * pitch, panel.shape[0])]
+        blank = (
+            below.size
+            and float(cv2.cvtColor(below, cv2.COLOR_BGR2HSV)[:, :, 1].mean()) < EMPTY_SAT_MAX
+        )
+        reached_end = bool(blank)
+        box = (x, y, w, min(last_b + pitch, h))
+
     return PlannerResult(rows, reached_end, box)
