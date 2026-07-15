@@ -127,6 +127,18 @@ export default function CharactersPage() {
     invalidate("/api/");
   }
 
+  // Reorder optimistically so the strip moves the instant you click, then persist. The cache is
+  // updated to match what is shown; a failed save drops it so the next load re-fetches the truth.
+  function handleReorder(ordered: Character[]) {
+    setCharacters(ordered);
+    put(CHARACTERS_KEY, ordered);
+    apiFetch<Character[]>(
+      "/api/characters/order",
+      { method: "PUT", body: JSON.stringify({ orderedIds: ordered.map((c) => c.id) }) },
+      getToken,
+    ).catch(() => invalidate("/api/"));
+  }
+
   const selected = characters.find((c) => c.id === selectedId);
 
   const searching = query.trim().length > 0;
@@ -169,6 +181,7 @@ export default function CharactersPage() {
             onUpdated={handleUpdated}
             onDeleted={handleDeleted}
             onAdded={handleAdded}
+            onReorder={handleReorder}
           />
 
           <CaptureDock
