@@ -51,6 +51,17 @@ SQL_OUT = ROOT / "backend" / "src" / "main" / "resources" / "db" / "migration" /
 ICON_VERSION = 268
 ICON_URL = "https://maplestory.io/api/GMS/{version}/item/{icon_id}/icon"
 
+# The inventory draws every icon in one 46x46 frame at 1:1 (globals.css `.ms-slot > img`), which
+# was written when every asset WAS a 46x46 client-slot frame. The official sprites arrive trimmed
+# to the art and vary from 26 to 40 px. So each is trimmed to its art, DOWNSCALED (never up) so its
+# longer side is at most ICON_CONTENT, and centred on a 46x46 canvas. Down-only is the point: an
+# orb sprite is 33 px and a hexagon is 38, and scaling the small ones UP is what made the potions
+# and arcane orbs balloon past everything else. The cap equalises the big ones; the already-small
+# ones keep their true size, which is what makes the set read as one. Scaled once with a quality
+# filter; the frontend paints the result 1:1.
+ICON_CANVAS = 46
+ICON_CONTENT = 32
+
 KEY_CHARS = set("abcdefghijklmnopqrstuvwxyz0123456789-")
 
 
@@ -191,6 +202,27 @@ ON CONFLICT (item_id) DO UPDATE SET
 """
 
 
+def _normalize_icon(data: bytes) -> bytes:
+    """Trim to the art, cap the longer side at ICON_CONTENT (never enlarge), centre on 46x46."""
+    import io
+
+    from PIL import Image
+
+    im = Image.open(io.BytesIO(data)).convert("RGBA")
+    bbox = im.getbbox()  # the real art, without the transparent margin maplestory.io leaves
+    if bbox:
+        im = im.crop(bbox)
+    longest = max(im.width, im.height)
+    if longest > ICON_CONTENT:
+        scale = ICON_CONTENT / longest
+        im = im.resize((max(1, round(im.width * scale)), max(1, round(im.height * scale))), Image.LANCZOS)
+    canvas = Image.new("RGBA", (ICON_CANVAS, ICON_CANVAS), (0, 0, 0, 0))
+    canvas.paste(im, ((ICON_CANVAS - im.width) // 2, (ICON_CANVAS - im.height) // 2))
+    out = io.BytesIO()
+    canvas.save(out, "PNG")
+    return out.getvalue()
+
+
 def fetch_icons(items: list[dict]) -> None:
     """Download the official sprite for every item with an icon_id, overwriting its seed asset.
 
@@ -215,10 +247,23 @@ def fetch_icons(items: list[dict]) -> None:
             sys.exit(f"{it['key']}: could not fetch icon {icon_id} (v{version}): {e}")
         if not data.startswith(b"\x89PNG\r\n\x1a\n"):
             sys.exit(f"{it['key']}: icon {icon_id} (v{version}) did not return a PNG")
-        (ICONS / f"{it['key']}.png").write_bytes(data)
+        (ICONS / f"{it['key']}.png").write_bytes(_normalize_icon(data))
         got += 1
         print(f"  {it['key']:26} <- {icon_id} (v{version})")
     print(f"fetched {got} official icons into {ICONS.relative_to(ROOT)}")
+
+    # The hand-cut placeholders (no icon_id) go through the same footprint, or they would stay at
+    # their original size and tower over the fetched ones. Idempotent: down-only, so a second run
+    # finds them already within the cap and leaves them be.
+    normed = 0
+    for it in items:
+        if it.get("icon_id") is not None:
+            continue
+        p = ICONS / f"{it['key']}.png"
+        if p.exists():
+            p.write_bytes(_normalize_icon(p.read_bytes()))
+            normed += 1
+    print(f"normalized {normed} hand-cut icons to the same footprint")
 
 
 def main() -> None:
