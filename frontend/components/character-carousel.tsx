@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { Character } from "@/types/character";
 import { CharacterTile } from "@/components/character-tile";
 import { AddCharacterTile } from "@/components/add-character-tile";
@@ -34,6 +34,18 @@ export function CharacterCarousel({
   const trackRef = useRef<HTMLDivElement>(null);
   const [atStart, setAtStart] = useState(true);
   const [atEnd, setAtEnd] = useState(true);
+
+  // Reordering swaps two tiles, which makes scroll-snap re-snap and jumps the view a tile over
+  // (move a character and the strip slides from showing 1-4 to 2-5). Pin the scroll across the
+  // reorder: capture it at the click, restore it once the new order has painted.
+  const scrollToKeep = useRef<number | null>(null);
+  useLayoutEffect(() => {
+    const el = trackRef.current;
+    if (el && scrollToKeep.current !== null) {
+      el.scrollLeft = scrollToKeep.current;
+      scrollToKeep.current = null;
+    }
+  }, [characters]);
 
   // Arrows are disabled at the ends rather than hidden, so the strip doesn't
   // change width as you page through it.
@@ -81,6 +93,7 @@ export function CharacterCarousel({
     if (!moved || !displaced) return;
     next[index] = displaced;
     next[target] = moved;
+    scrollToKeep.current = trackRef.current?.scrollLeft ?? null;
     onReorder(next);
   }
 
