@@ -5,8 +5,16 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
 // Public, unauthenticated assets: the item icons and the client's digit sprites. that don't go through
 // apiFetch's Bearer-token JSON flow, just resolves a backend-relative path
 // (e.g. "/token-icons/foo.png") to an absolute URL.
+//
+// Stamped with a build version (see next.config.ts) so a regenerated icon or digit sprite gets a
+// fresh URL and cannot be masked by the day-long cache the backend sets on these, without which a
+// changed asset silently serves stale for up to 24h.
+const ASSET_VERSION = process.env.NEXT_PUBLIC_ASSET_VERSION;
+
 export function apiAssetUrl(path: string): string {
-  return `${API_BASE_URL ?? ""}${path}`;
+  const url = `${API_BASE_URL ?? ""}${path}`;
+  if (!ASSET_VERSION) return url;
+  return `${url}${path.includes("?") ? "&" : "?"}v=${ASSET_VERSION}`;
 }
 
 export class ApiError extends Error {
