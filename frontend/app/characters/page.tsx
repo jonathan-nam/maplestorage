@@ -184,6 +184,28 @@ export default function CharactersPage() {
             onReorder={handleReorder}
           />
 
+          {/* The selected character's inventory sits directly under the carousel: pick a
+              character, see their stuff. Searching answers a question the inventory cannot, so it
+              takes over this same slot while you are asking it. */}
+          {searching ? (
+            <SearchResults query={query} matches={matches} />
+          ) : selected ? (
+            <InventoryPanel
+              title={selected.name}
+              emptyHint={
+                tokensReady ? "No tokens here yet. Upload an inventory screenshot." : "Loading…"
+              }
+              items={characterItems}
+            />
+          ) : characters.length === 0 ? (
+            <p className="finder-empty">Add a character above to start tracking.</p>
+          ) : (
+            <p className="finder-empty">
+              No character selected, a screenshot dropped below will be filed by the name read from
+              it. Pick a character to see their inventory.
+            </p>
+          )}
+
           <CaptureDock
             characters={characters}
             pinnedCharacterId={selectedId}
@@ -200,27 +222,6 @@ export default function CharactersPage() {
               }
             }}
           />
-
-          {/* Searching answers a question the inventory cannot, so it takes over while you are
-              asking it. Typing anything replaces the panel with WHERE the item is. */}
-          {searching ? (
-            <SearchResults query={query} matches={matches} />
-          ) : selected ? (
-            <InventoryPanel
-              title={selected.name}
-              emptyHint={
-                tokensReady ? "No tokens here yet. Upload an inventory screenshot." : "Loading…"
-              }
-              items={characterItems}
-            />
-          ) : characters.length === 0 ? (
-            <p className="finder-empty">Add a character above to start tracking.</p>
-          ) : (
-            <p className="finder-empty">
-              No character selected, a screenshot dropped above will be filed by the name read from
-              it. Pick a character to see their inventory.
-            </p>
-          )}
         </>
       )}
     </main>
