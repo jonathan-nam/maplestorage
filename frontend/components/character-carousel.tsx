@@ -21,6 +21,7 @@ export function CharacterCarousel({
   onUpdated,
   onDeleted,
   onAdded,
+  onReorder,
 }: {
   characters: Character[];
   selectedId: Selection;
@@ -28,6 +29,7 @@ export function CharacterCarousel({
   onUpdated: (character: Character) => void;
   onDeleted: (id: string) => void;
   onAdded: (character: Character) => void;
+  onReorder: (ordered: Character[]) => void;
 }) {
   const trackRef = useRef<HTMLDivElement>(null);
   const [atStart, setAtStart] = useState(true);
@@ -67,6 +69,21 @@ export function CharacterCarousel({
     el.scrollBy({ left: direction * perPage * stride, behavior: "smooth" });
   }
 
+  // Swap a character with its neighbour and hand the whole new order up to persist. The parent
+  // keeps the source of truth, so it also decides how to save it.
+  function moveCharacter(index: number, direction: -1 | 1) {
+    const target = index + direction;
+    if (target < 0 || target >= characters.length) return;
+    const next = characters.slice();
+    const moved = next[index];
+    const displaced = next[target];
+    // Bounds already guarantee both exist; the guard is what tells the type checker so.
+    if (!moved || !displaced) return;
+    next[index] = displaced;
+    next[target] = moved;
+    onReorder(next);
+  }
+
   return (
     <div className="carousel">
       <button
@@ -79,7 +96,7 @@ export function CharacterCarousel({
       </button>
 
       <div className="carousel-track" ref={trackRef}>
-        {characters.map((character) => (
+        {characters.map((character, index) => (
           <CharacterTile
             key={character.id}
             character={character}
@@ -87,6 +104,9 @@ export function CharacterCarousel({
             onSelect={() => onSelect(character.id)}
             onUpdated={onUpdated}
             onDeleted={onDeleted}
+            onMove={(direction) => moveCharacter(index, direction)}
+            canMoveLeft={index > 0}
+            canMoveRight={index < characters.length - 1}
           />
         ))}
         {/* Last, always. With no characters it is the only card, so the empty state is this same

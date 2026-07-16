@@ -276,10 +276,14 @@ a:hover {
   margin-top: 6px;
   min-height: 18px;
   visibility: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
 }
 
-.char-tile:hover .tile-actions,
-.char-tile.selected .tile-actions {
+/* Hover only. The selected tile no longer keeps these pinned open. */
+.char-tile:hover .tile-actions {
   visibility: visible;
 }
 
@@ -291,6 +295,26 @@ a:hover {
 
 .tile-actions a:hover {
   color: var(--ink-strong);
+}
+
+/* Reorder chevrons flanking the actions; disabled at the ends of the strip. */
+.tile-move {
+  border: none;
+  background: none;
+  padding: 0 2px;
+  color: var(--muted-2);
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.tile-move:hover:not(:disabled) {
+  color: var(--ink-strong);
+}
+
+.tile-move:disabled {
+  opacity: 0.35;
+  cursor: default;
 }
 
 /* ---------------------------------------------------------------------------

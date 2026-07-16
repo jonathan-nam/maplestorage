@@ -9,42 +9,28 @@ type Props = {
   character: Character;
   onUpdated: (character: Character) => void;
   onDeleted: (id: string) => void;
-  // When the tile is being used to pick whose inventory to show, clicking it
-  // selects rather than navigates. Without onSelect it keeps its original
-  // behaviour and opens the character's page.
+  // When the tile is being used to pick whose inventory to show, clicking it selects.
   selected?: boolean;
   onSelect: () => void;
+  // Reorder within the carousel. Disabled at the ends.
+  onMove: (direction: -1 | 1) => void;
+  canMoveLeft: boolean;
+  canMoveRight: boolean;
 };
 
-export function CharacterTile({ character, onUpdated, onDeleted, selected, onSelect }: Props) {
+export function CharacterTile({
+  character,
+  onUpdated,
+  onDeleted,
+  selected,
+  onSelect,
+  onMove,
+  canMoveLeft,
+  canMoveRight,
+}: Props) {
   const { getToken } = useAuth();
-  const [editing, setEditing] = useState(false);
-  const [editName, setEditName] = useState(character.name);
-  const [editLevel, setEditLevel] = useState(character.level?.toString() ?? "");
   const [refreshing, setRefreshing] = useState(false);
   const [busy, setBusy] = useState(false);
-
-  async function saveEdit() {
-    if (busy) return;
-    setBusy(true);
-    try {
-      const updated = await apiFetch<Character>(
-        `/api/characters/${character.id}`,
-        {
-          method: "PUT",
-          body: JSON.stringify({
-            name: editName.trim() || undefined,
-            level: editLevel.trim() ? Number(editLevel) : undefined,
-          }),
-        },
-        getToken,
-      );
-      onUpdated(updated);
-      setEditing(false);
-    } finally {
-      setBusy(false);
-    }
-  }
 
   async function refresh() {
     if (refreshing) return;
@@ -88,71 +74,45 @@ export function CharacterTile({ character, onUpdated, onDeleted, selected, onSel
         </div>
       </div>
 
-      {editing ? (
-        <div onClick={(e) => e.stopPropagation()}>
-          <input value={editName} disabled={busy} onChange={(e) => setEditName(e.target.value)} />
-          <br />
-          <input
-            value={editLevel}
-            disabled={busy}
-            placeholder="level"
-            onChange={(e) => setEditLevel(e.target.value)}
-          />
-          <div className="tile-actions">
-            <a
-              href="#"
-              onClick={(e) => {
-                e.preventDefault();
-                saveEdit();
-              }}
-            >
-              {busy ? "saving…" : "[save]"}
-            </a>
-            <a
-              href="#"
-              onClick={(e) => {
-                e.preventDefault();
-                setEditing(false);
-              }}
-            >
-              [cancel]
-            </a>
-          </div>
-        </div>
-      ) : (
-        <div className="tile-actions">
-          <a
-            href="#"
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              setEditing(true);
-            }}
-          >
-            [edit]
-          </a>
-          <a
-            href="#"
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              refresh();
-            }}
-          >
-            {refreshing ? "refreshing…" : "[refresh]"}
-          </a>
-          <a
-            href="#"
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              remove();
-            }}
-          >
-            [delete]
-          </a>
-        </div>
-      )}
+      {/* Clicks here manage the tile, they must not also select it. */}
+      <div className="tile-actions" onClick={(e) => e.stopPropagation()}>
+        <button
+          type="button"
+          className="tile-move"
+          onClick={() => onMove(-1)}
+          disabled={!canMoveLeft}
+          aria-label={`Move ${character.name} left`}
+        >
+          ‹
+        </button>
+        <a
+          href="#"
+          onClick={(e) => {
+            e.preventDefault();
+            refresh();
+          }}
+        >
+          {refreshing ? "refreshing…" : "[refresh]"}
+        </a>
+        <a
+          href="#"
+          onClick={(e) => {
+            e.preventDefault();
+            remove();
+          }}
+        >
+          [delete]
+        </a>
+        <button
+          type="button"
+          className="tile-move"
+          onClick={() => onMove(1)}
+          disabled={!canMoveRight}
+          aria-label={`Move ${character.name} right`}
+        >
+          ›
+        </button>
+      </div>
     </div>
   );
 }

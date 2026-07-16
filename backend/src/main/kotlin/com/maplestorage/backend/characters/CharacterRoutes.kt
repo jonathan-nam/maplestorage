@@ -31,6 +31,8 @@ fun Route.characterRoutes(nexonLookupService: NexonLookupService) {
     get { listCharacters() }
     // Registered BEFORE /{id}, or the parameter route swallows the literal.
     get("/tokens") { getAllCharacterTokens() }
+    // Literal before /{id}, or the parameter route swallows it (same as /tokens above).
+    put("/order") { reorderCharacters() }
     get("/{id}") { getCharacter() }
     put("/{id}") { updateCharacter() }
     post("/{id}/refresh") { refreshCharacter(nexonLookupService) }
@@ -53,6 +55,14 @@ private suspend fun RoutingContext.createCharacter(nexonLookupService: NexonLook
     val created =
         transaction {
             ensureUser(userId, email)
+            // Append to the end of this user's carousel. position is dense, so the count is
+            // the next free slot.
+            val nextPosition =
+                Characters
+                    .selectAll()
+                    .where { Characters.userId eq userId }
+                    .count()
+                    .toInt()
             Characters.insert {
                 it[id] = newId
                 it[Characters.userId] = userId
@@ -63,6 +73,7 @@ private suspend fun RoutingContext.createCharacter(nexonLookupService: NexonLook
                 it[spriteRefreshedAt] = if (lookup != null) now else null
                 it[createdAt] = now
                 it[updatedAt] = now
+                it[position] = nextPosition
             }
             findOwnedCharacter(newId, userId)
         }
@@ -78,10 +89,54 @@ private suspend fun RoutingContext.listCharacters() {
             Characters
                 .selectAll()
                 .where { Characters.userId eq userId }
-                .orderBy(Characters.createdAt)
+                .orderBy(Characters.position)
                 .map { it.toCharacterResponse() }
         }
     call.respond(characters)
+}
+
+private suspend fun RoutingContext.reorderCharacters() {
+    val (userId, email) = call.principalIdAndEmail()
+    val request = call.receive<ReorderCharactersRequest>()
+
+    val parsed = request.orderedIds.map { runCatching { Uuid.parse(it) }.getOrNull() }
+    if (parsed.any { it == null }) {
+        call.respond(HttpStatusCode.BadRequest, "orderedIds contains an invalid id")
+        return
+    }
+    val order = parsed.filterNotNull()
+
+    val reordered =
+        transaction {
+            ensureUser(userId, email)
+            val owned =
+                Characters
+                    .selectAll()
+                    .where { Characters.userId eq userId }
+                    .map { it[Characters.id] }
+                    .toSet()
+            // Must be exactly this user's set, no missing, extra or duplicate ids, or position
+            // would end up with holes or collisions.
+            if (order.size != owned.size || order.toSet() != owned) {
+                return@transaction null
+            }
+            order.forEachIndexed { index, characterId ->
+                Characters.update({ (Characters.id eq characterId) and (Characters.userId eq userId) }) {
+                    it[position] = index
+                }
+            }
+            Characters
+                .selectAll()
+                .where { Characters.userId eq userId }
+                .orderBy(Characters.position)
+                .map { it.toCharacterResponse() }
+        }
+
+    if (reordered == null) {
+        call.respond(HttpStatusCode.BadRequest, "orderedIds must be exactly your characters, once each")
+    } else {
+        call.respond(reordered)
+    }
 }
 
 private suspend fun RoutingContext.getCharacter() {
