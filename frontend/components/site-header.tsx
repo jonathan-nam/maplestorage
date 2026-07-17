@@ -3,10 +3,10 @@
 import { SignedIn, UserButton } from "@clerk/nextjs";
 import Link from "next/link";
 import { SectionMenu } from "@/components/section-menu";
-import { Chest } from "./chest";
+import { SharpEyesMark } from "./sharp-eyes-mark";
 
 // Every page used to restate the app's name in its own <h1> and link to the others
-// by hand. One header instead, with the chest as the mark.
+// by hand. One header instead, with the Sharp Eyes mark.
 export function SiteHeader() {
   return (
     <header className="site-header">
@@ -19,8 +19,8 @@ export function SiteHeader() {
         </SignedIn>
 
         <Link href="/" className="brand">
-          <Chest size={28} />
-          <span className="brand-name">MapleStorage</span>
+          <SharpEyesMark size={28} />
+          <span className="brand-name">SharpEyes</span>
         </Link>
 
         <SignedIn>
