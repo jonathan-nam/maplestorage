@@ -1,6 +1,6 @@
 "use client";
 
-import { useAuth } from "@clerk/nextjs";
+import { useAuth, useUser } from "@clerk/nextjs";
 import { useState } from "react";
 import { apiFetch } from "@/lib/api";
 import type { Character } from "@/types/character";
@@ -29,8 +29,25 @@ export function CharacterTile({
   canMoveRight,
 }: Props) {
   const { getToken } = useAuth();
+  const { user } = useUser();
   const [refreshing, setRefreshing] = useState(false);
   const [busy, setBusy] = useState(false);
+
+  // The main character is stored on the Clerk user (unsafeMetadata, so it is writable from here
+  // without a backend of its own). The sprite is denormalised alongside the id so the header avatar
+  // can draw it without re-fetching the roster. See UserAvatar.
+  const isMain = user?.unsafeMetadata?.mainCharacterId === character.id;
+
+  async function setMain() {
+    if (!user || isMain) return;
+    await user.update({
+      unsafeMetadata: {
+        ...user.unsafeMetadata,
+        mainCharacterId: character.id,
+        mainCharacterSprite: character.spriteImgUrl ?? null,
+      },
+    });
+  }
 
   async function refresh() {
     if (refreshing) return;
@@ -60,6 +77,22 @@ export function CharacterTile({
 
   return (
     <div className={`char-tile${selected ? " selected" : ""}`} onClick={onSelect}>
+      {/* Star to make this character the profile avatar. Always shows on the current main so you can
+          see which it is; filled when this tile is it. Clicking must not also select the tile. */}
+      <button
+        type="button"
+        className={`tile-star${isMain ? " is-main" : ""}`}
+        aria-label={isMain ? `${character.name} is your main` : `Make ${character.name} your main`}
+        aria-pressed={isMain}
+        title={isMain ? "Your main" : "Set as main"}
+        onClick={(e) => {
+          e.stopPropagation();
+          setMain();
+        }}
+      >
+        {isMain ? "★" : "☆"}
+      </button>
+
       {character.spriteImgUrl ? (
         <img className="tile-sprite" src={character.spriteImgUrl} alt="" />
       ) : (

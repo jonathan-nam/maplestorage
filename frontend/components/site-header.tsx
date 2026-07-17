@@ -1,8 +1,9 @@
 "use client";
 
-import { SignedIn, UserButton } from "@clerk/nextjs";
+import { SignedIn } from "@clerk/nextjs";
 import Link from "next/link";
 import { SectionMenu } from "@/components/section-menu";
+import { UserAvatar } from "@/components/user-avatar";
 import { Chest } from "./chest";
 
 // Every page used to restate the app's name in its own <h1> and link to the others
@@ -25,7 +26,7 @@ export function SiteHeader() {
 
         <SignedIn>
           <div className="site-user">
-            <UserButton />
+            <UserAvatar />
           </div>
         </SignedIn>
       </div>

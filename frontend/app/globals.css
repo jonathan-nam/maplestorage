@@ -161,6 +161,7 @@ a:hover {
    attention. Selection is shown by lifting the name to white, not by drawing
    another rectangle. */
 .char-tile {
+  position: relative;
   width: 150px;
   padding: 4px;
   display: flex;
@@ -172,6 +173,33 @@ a:hover {
   transition:
     opacity 0.12s ease,
     transform 0.12s ease;
+}
+
+/* Set-as-main star, top-left of the tile. Hidden until the tile is hovered, even on the current
+   main, so it never clutters the strip; on hover it shows filled (--warn gold) for the main and an
+   outline for the others. */
+.tile-star {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  z-index: 2;
+  border: 0;
+  background: none;
+  padding: 2px;
+  line-height: 1;
+  font-size: 16px;
+  cursor: pointer;
+  color: var(--warn);
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+
+.char-tile:hover .tile-star {
+  opacity: 1;
+}
+
+.tile-star:hover {
+  color: var(--ink-strong);
 }
 
 .char-tile:hover {
@@ -682,6 +710,86 @@ a:hover {
 
 .site-user {
   margin-left: auto;
+}
+
+/* The account button: the user's main character in a fixed circle, with a small menu under it. */
+.user-avatar {
+  position: relative;
+  display: flex;
+}
+
+.user-avatar-btn {
+  position: relative;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  overflow: hidden;
+  background: var(--surface-2);
+  cursor: pointer;
+}
+
+.user-avatar-btn:hover {
+  border-color: var(--muted);
+}
+
+.user-avatar-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.user-avatar-img {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* The OAuth photo just fills the circle. */
+img.user-avatar-img {
+  object-fit: cover;
+}
+
+/* A character sprite is full-body pixel art, so filling the circle with it shows a tiny body. Draw
+   it as a background zoomed and positioned to frame the face. These two numbers are the crop; they
+   come from the avatar tuner, calibrated against the Nexon render. */
+.user-avatar-img.sprite {
+  background-repeat: no-repeat;
+  background-size: 260% auto;
+  background-position: 50% 39%;
+  image-rendering: pixelated;
+}
+
+.user-avatar-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 40;
+  min-width: 150px;
+  display: flex;
+  flex-direction: column;
+  padding: 6px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+
+.user-avatar-menu button {
+  text-align: left;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  font-size: 14px;
+  padding: 7px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.user-avatar-menu button:hover {
+  background: var(--surface-2);
+  color: var(--ink-strong);
 }
 
 .hero {
