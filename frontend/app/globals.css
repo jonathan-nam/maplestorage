@@ -46,58 +46,89 @@
   padding: 2rem;
 }
 
-/* The account view: a section rail on the left, the section's content on the right. The content
-   keeps the same --measure column .page gives every other page; the rail is extra width beside it,
-   so the reading column does not shrink when a section is added. */
-/* The content column is centred at --measure, exactly like .page and the header inner, so it lines
-   up with them on every screen. The section rail is NOT part of that column: it floats in the left
-   margin, so adding it did not shove the content off-centre. */
-.account {
-  position: relative;
-  max-width: var(--measure);
-  margin: 0 auto;
-  padding: 2rem;
-}
-
-.section-nav {
-  position: absolute;
-  top: 8rem; /* below the header, not riding it (the header is not sticky) */
-  right: 100%; /* sit in the left margin, just left of the content column */
-  margin-right: 8px;
-  width: 160px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px; /* room for the list of sections to come */
-}
-
-/* A section, not a link yet: Characters is the only one. No box and no bold, just the label, one
-   size up from body so the rail reads as primary navigation. A future boss-clears section matches
-   this: inactive sections sit at --muted, the current one at --ink-strong, so the list stays
-   legible without a box. */
-.section-nav-item {
-  font-size: 18px;
-  color: var(--muted);
-  padding: 0 2px;
-}
-
-.section-nav-item.active {
+/* The section's own title, at the top-left of its content. The hamburger says which sections exist;
+   this says which one you are on. */
+.page-title {
+  margin: 0 0 20px;
+  font-size: 20px;
   color: var(--ink-strong);
 }
 
-.section-body {
-  min-width: 0; /* let the carousel track scroll inside instead of widening the column */
+/* Sections open from a hamburger at the far left of the header. The content itself stays on .page,
+   centred like every other page, so navigation and content no longer fight over the layout. */
+.section-menu {
+  position: relative;
 }
 
-/* Below this the left margin is too narrow to hold the rail beside the centred content, so it
-   drops back into flow above the content, like a row of tabs. */
-@media (max-width: 1200px) {
-  .section-nav {
-    position: static;
-    width: 100%;
-    margin: 0 0 16px;
-    flex-direction: row;
-    gap: 16px;
-  }
+.section-menu-btn {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid transparent;
+  background: none;
+  color: var(--ink);
+  padding: 6px;
+  border-radius: 7px;
+  cursor: pointer;
+}
+
+.section-menu-btn:hover {
+  background: var(--surface-2);
+}
+
+.section-menu-btn[aria-expanded="true"] {
+  background: var(--surface-2);
+  border-color: var(--line-soft);
+}
+
+/* The hamburger bars, drawn rather than a glyph so they match the ink and line up cleanly. */
+.section-menu-icon {
+  width: 16px;
+  height: 10px;
+  border-top: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  position: relative;
+}
+.section-menu-icon::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  left: 0;
+  right: 0;
+  border-top: 2px solid currentColor;
+}
+
+/* The dropdown. Anchored under the button, a plain list of sections. */
+.section-menu-panel {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 40;
+  min-width: 160px;
+  display: flex;
+  flex-direction: column;
+  padding: 6px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+
+.section-menu-panel a {
+  text-decoration: none;
+  color: var(--muted);
+  font-size: 15px;
+  padding: 7px 10px;
+  border-radius: 6px;
+}
+
+.section-menu-panel a:hover {
+  color: var(--ink);
+  background: var(--surface-2);
+}
+
+.section-menu-panel a.active {
+  color: var(--ink-strong);
 }
 
 body {
