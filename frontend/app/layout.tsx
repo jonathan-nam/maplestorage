@@ -12,17 +12,9 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <ClerkProvider>
-      <html lang="en" suppressHydrationWarning>
-        <head>
-          {/* Applied BEFORE first paint, or the page renders in the wrong theme and then snaps,
-              which is the same flash we spent this branch removing everywhere else. It runs from
-              the <head> so it lands before the body exists to be painted. */}
-          <script
-            dangerouslySetInnerHTML={{
-              __html: `(function(){try{var t=localStorage.getItem('maplestorage-theme');if(t==='dark'||t==='light')document.documentElement.setAttribute('data-theme',t);}catch(e){}})();`,
-            }}
-          />
-        </head>
+      {/* Dark only: the palette is fixed in :root, so there is no theme to read before paint and
+          nothing to flash. */}
+      <html lang="en">
         <body>
           <SiteHeader />
           {children}

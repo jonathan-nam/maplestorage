@@ -7,10 +7,10 @@
  *
  * The INVENTORY WINDOW is deliberately not themed. It is the game's own window, and the game draws
  * it light; a dark MapleStory inventory would be a MapleStory inventory that does not exist. It
- * keeps its --ms-* palette in both themes, and the shell changes around it.
+ * keeps its own --ms-* palette, and the dark shell changes around it.
  *
- * Dark is the default (the app was born dark and most people use it at night), but the OS
- * preference is honoured, and the toggle in the header wins over both. */
+ * The app is dark only. It was born dark and that is how it is used; a light theme and its header
+ * toggle were tried and removed, so there is one shell palette here now, not three. */
 :root {
   color-scheme: dark;
 
@@ -37,71 +37,6 @@
   --good: #5cbf87;
   --warn: #e0a24e;
   --bad: #e0706a;
-}
-
-@media (prefers-color-scheme: light) {
-  :root:not([data-theme]) {
-    color-scheme: light;
-
-    --bg: #f2f5f6;
-    --surface: #fff;
-    --surface-2: #f7f9fa;
-    --line: #d8dee1;
-    --line-soft: #e9eef0;
-    --ink: #1c2024;
-    --ink-strong: #000;
-    --muted: #616b72;
-    --muted-2: #6a7076;
-    --accent: #2ba3ba;
-    --good: #2f8f5b;
-    --warn: #b3701a;
-    --bad: #c1544a;
-  }
-}
-
-:root[data-theme="light"] {
-  color-scheme: light;
-
-  --bg: #f2f5f6;
-  --surface: #fff;
-  --surface-2: #f7f9fa;
-  --line: #d8dee1;
-  --line-soft: #e9eef0;
-  --ink: #1c2024;
-  --ink-strong: #000;
-  --muted: #616b72;
-  --muted-2: #6a7076;
-  --accent: #2ba3ba;
-  --good: #2f8f5b;
-  --warn: #b3701a;
-  --bad: #c1544a;
-}
-
-:root[data-theme="dark"] {
-  color-scheme: dark;
-
-  --bg: #111;
-  --surface: #1a1a1a;
-  --surface-2: #202020;
-  --line: #3a3a3a;
-  --line-soft: #262626;
-  --ink: #ddd;
-  --ink-strong: #fff;
-  --muted: #999;
-  --muted-2: #8a8a8a;
-  --accent: #36b8d0;
-  --good: #5cbf87;
-  --warn: #e0a24e;
-  --bad: #e0706a;
-}
-
-/* theme-toggle.tsx adds this for one reflow while it swaps data-theme. A theme change rewrites
-   every colour variable at once, and any element with a transition on a colour (the capture dock,
-   the eye toggle) would otherwise animate old palette -> new, cross-fading the whole UI. */
-.theme-instant *,
-.theme-instant *::before,
-.theme-instant *::after {
-  transition: none !important;
 }
 
 /* Every page's root. Nothing inside it sets its own max-width or centres itself. */
@@ -1152,29 +1087,6 @@ button.link:disabled {
   font-size: 11px;
   color: var(--muted-2);
   font-variant-numeric: tabular-nums;
-}
-
-/* Theme toggle. Flips between dark and light. */
-.theme-toggle {
-  border: 1px solid var(--line);
-  background: var(--surface);
-  color: var(--ink);
-  border-radius: 7px;
-  width: 30px;
-  height: 30px;
-  font-size: 14px;
-  line-height: 1;
-  cursor: pointer;
-  display: grid;
-  place-items: center;
-}
-.theme-toggle:hover {
-  color: var(--ink-strong);
-  border-color: var(--muted);
-}
-.theme-toggle:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
 }
 
 /* The "not this character's" eye. Bigger and inside the box rather than tucked in a corner:
