@@ -158,72 +158,80 @@ export default function CharactersPage() {
   }));
 
   return (
-    <main className="page">
-      <h1>Characters</h1>
+    <main className="account">
+      {/* Section rail. Only Characters exists today; it is a list, not a heading, so a future
+          view (boss clears, and so on) is one more item here rather than a re-layout. */}
+      <nav className="section-nav" aria-label="Sections">
+        <span className="section-nav-item active" aria-current="page">
+          Characters
+        </span>
+      </nav>
 
-      {state === "loading" && <p>loading…</p>}
-      {state === "error" && <p>Couldn&apos;t load your characters.</p>}
+      <div className="section-body">
+        {state === "loading" && <p>loading…</p>}
+        {state === "error" && <p>Couldn&apos;t load your characters.</p>}
 
-      {state === "loaded" && (
-        <>
-          <SearchBar
-            query={query}
-            onQuery={setQuery}
-            characters={characters}
-            tokensByChar={tokensByChar}
-            onSelectCharacter={setSelectedId}
-          />
+        {state === "loaded" && (
+          <>
+            <SearchBar
+              query={query}
+              onQuery={setQuery}
+              characters={characters}
+              tokensByChar={tokensByChar}
+              onSelectCharacter={setSelectedId}
+            />
 
-          <CharacterCarousel
-            characters={characters}
-            selectedId={selectedId}
-            onSelect={setSelectedId}
-            onUpdated={handleUpdated}
-            onDeleted={handleDeleted}
-            onAdded={handleAdded}
-            onReorder={handleReorder}
-          />
+            <CharacterCarousel
+              characters={characters}
+              selectedId={selectedId}
+              onSelect={setSelectedId}
+              onUpdated={handleUpdated}
+              onDeleted={handleDeleted}
+              onAdded={handleAdded}
+              onReorder={handleReorder}
+            />
 
-          {/* The selected character's inventory sits directly under the carousel: pick a
+            {/* The selected character's inventory sits directly under the carousel: pick a
               character, see their stuff. Searching answers a question the inventory cannot, so it
               takes over this same slot while you are asking it. */}
-          {searching ? (
-            <SearchResults query={query} matches={matches} />
-          ) : selected ? (
-            <InventoryPanel
-              title={selected.name}
-              emptyHint={
-                tokensReady ? "No tokens here yet. Upload an inventory screenshot." : "Loading…"
-              }
-              items={characterItems}
-            />
-          ) : characters.length === 0 ? (
-            <p className="finder-empty">Add a character above to start tracking.</p>
-          ) : (
-            <p className="finder-empty">
-              No character selected, a screenshot dropped below will be filed by the name read from
-              it. Pick a character to see their inventory.
-            </p>
-          )}
+            {searching ? (
+              <SearchResults query={query} matches={matches} />
+            ) : selected ? (
+              <InventoryPanel
+                title={selected.name}
+                emptyHint={
+                  tokensReady ? "No tokens here yet. Upload an inventory screenshot." : "Loading…"
+                }
+                items={characterItems}
+              />
+            ) : characters.length === 0 ? (
+              <p className="finder-empty">Add a character above to start tracking.</p>
+            ) : (
+              <p className="finder-empty">
+                No character selected, a screenshot dropped below will be filed by the name read
+                from it. Pick a character to see their inventory.
+              </p>
+            )}
 
-          <CaptureDock
-            characters={characters}
-            pinnedCharacterId={selectedId}
-            stored={new Map((selectedTokens ?? []).map((t) => [t.tokenCatalogId, t.quantity]))}
-            getToken={getToken}
-            onCharacterAdded={handleAdded}
-            onSaved={() => setRevision((n) => n + 1)}
-            onToggleGeneric={() => {
-              if (selectedId) {
-                setLastSelectedId(selectedId);
-                setSelectedId(null);
-              } else {
-                setSelectedId(lastSelectedId ?? characters[0]?.id ?? null);
-              }
-            }}
-          />
-        </>
-      )}
+            <CaptureDock
+              characters={characters}
+              pinnedCharacterId={selectedId}
+              stored={new Map((selectedTokens ?? []).map((t) => [t.tokenCatalogId, t.quantity]))}
+              getToken={getToken}
+              onCharacterAdded={handleAdded}
+              onSaved={() => setRevision((n) => n + 1)}
+              onToggleGeneric={() => {
+                if (selectedId) {
+                  setLastSelectedId(selectedId);
+                  setSelectedId(null);
+                } else {
+                  setSelectedId(lastSelectedId ?? characters[0]?.id ?? null);
+                }
+              }}
+            />
+          </>
+        )}
+      </div>
     </main>
   );
 }
