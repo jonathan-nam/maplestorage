@@ -405,7 +405,8 @@ a:hover {
   display: inline-block;
   width: max-content;
   max-width: 100%;
-  margin: 16px 0;
+  /* top 8 pairs with .carousel's 8px bottom (the two collapse); bottom 16 keeps the dock spaced. */
+  margin: 8px 0 16px;
   padding-bottom: 6px;
   border: 1px solid var(--ms-edge);
   border-radius: 8px;
@@ -579,7 +580,9 @@ a:hover {
   display: flex;
   align-items: stretch;
   gap: 8px;
-  margin: 16px 0;
+  /* 8px below, not 16: the carousel and the inventory window it drives read as one unit. Their
+     margins collapse, so BOTH sides must drop to 8 for the gap to change (see .ms-window). */
+  margin: 16px 0 8px;
 }
 
 .carousel-track {
