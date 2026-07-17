@@ -360,8 +360,13 @@ def test_digit_template_has_a_real_alpha_mask(f):
 
 @pytest.mark.parametrize("f", sorted(glob.glob(str(_DIGITS / "*.png"))))
 def test_display_digit_draws_no_ground(f):
+    # A digit only occupies part of its box: the rest (holes, concavities, margins) must be
+    # transparent so the slot shows through, not a white block. `.any()` is too weak, a hole-filled
+    # glyph is still ~95% opaque with a few transparent corners and would pass. The real digits sit
+    # at 52-72% opaque; a boxed one at 94-100%, so the gap is wide. Pin it below the gap.
     alpha = cv2.imread(f, cv2.IMREAD_UNCHANGED)[:, :, 3]
-    assert (alpha < 80).any(), f"{Path(f).name}: fully opaque, a white box would draw behind it"
+    opaque = (alpha > 250).mean()
+    assert opaque < 0.85, f"{Path(f).name}: {opaque:.0%} opaque, a white box draws behind the count"
 
 
 # --- catalog scaling -------------------------------------------------------
