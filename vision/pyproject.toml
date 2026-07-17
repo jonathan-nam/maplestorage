@@ -3,6 +3,13 @@
 # VS Code extension a given person happened to have installed, to a standard
 # nothing checked and nobody had agreed to.
 
+[tool.pytest.ini_options]
+# `pytest tests`, which is what CI runs, could not import `app` at all, so the vision job has been
+# failing since the tests moved under tests/. `python -m pytest` masked it: that form puts the
+# working directory on sys.path and the console script does not. Pinning it here fixes both forms
+# at once, rather than in a CI env var that local runs would not get.
+pythonpath = ["."]
+
 [tool.ruff]
 line-length = 100
 target-version = "py312"
