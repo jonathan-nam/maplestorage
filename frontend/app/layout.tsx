@@ -5,7 +5,7 @@ import { SiteHeader } from "@/components/site-header";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "MapleStorage",
+  title: "SharpEyes",
   description: "Your boss tokens, every character, counted in one place.",
 };
 
