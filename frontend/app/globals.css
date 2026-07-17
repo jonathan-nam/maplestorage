@@ -111,6 +111,64 @@
   padding: 2rem;
 }
 
+/* The account view: a section rail on the left, the section's content on the right. The content
+   keeps the same --measure column .page gives every other page; the rail is extra width beside it,
+   so the reading column does not shrink when a section is added. */
+.account {
+  max-width: calc(var(--measure) + 188px);
+  margin: 0 auto;
+  padding: 2rem;
+  display: flex;
+  align-items: flex-start;
+  gap: 28px;
+}
+
+.section-nav {
+  flex: none;
+  width: 160px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  position: sticky;
+  top: 1.25rem; /* the site header is not sticky, so the rail rides the top of the viewport */
+}
+
+/* A section, not a link yet: Characters is the only one. Styled as the row a future boss-clears
+   section will match, and carrying the weight the old <h1> did so the page still has a clear title. */
+.section-nav-item {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--muted);
+  padding: 7px 10px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+}
+
+.section-nav-item.active {
+  color: var(--ink-strong);
+  background: var(--surface-2);
+  border-color: var(--line-soft);
+}
+
+.section-body {
+  flex: 1 1 auto;
+  min-width: 0; /* let flex children (the carousel track) shrink instead of overflowing */
+  max-width: var(--measure);
+}
+
+/* Under the rail's breakpoint the section list lies flat above the content, like a row of tabs. */
+@media (max-width: 760px) {
+  .account {
+    flex-direction: column;
+    gap: 14px;
+  }
+  .section-nav {
+    position: static;
+    width: 100%;
+    flex-direction: row;
+  }
+}
+
 body {
   margin: 0;
   background: var(--bg);
