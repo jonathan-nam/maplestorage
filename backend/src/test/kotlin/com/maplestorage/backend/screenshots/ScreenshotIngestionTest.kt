@@ -287,12 +287,21 @@ class ScreenshotIngestionTest {
         val id = Uuid.random()
         val now = Clock.System.now()
         transaction {
+            // position is NOT NULL and app-assigned (no DB default), dense per user. Mirror the
+            // route's append: the count of this user's rows is the next free slot. See CharacterRoutes.
+            val nextPosition =
+                Characters
+                    .selectAll()
+                    .where { Characters.userId eq TEST_USER_ID }
+                    .count()
+                    .toInt()
             Characters.insert {
                 it[Characters.id] = id
                 it[Characters.userId] = TEST_USER_ID
                 it[Characters.name] = name
                 it[createdAt] = now
                 it[updatedAt] = now
+                it[position] = nextPosition
             }
         }
         createdCharacterIds += id
