@@ -114,58 +114,54 @@
 /* The account view: a section rail on the left, the section's content on the right. The content
    keeps the same --measure column .page gives every other page; the rail is extra width beside it,
    so the reading column does not shrink when a section is added. */
+/* The content column is centred at --measure, exactly like .page and the header inner, so it lines
+   up with them on every screen. The section rail is NOT part of that column: it floats in the left
+   margin, so adding it did not shove the content off-centre. */
 .account {
-  max-width: calc(var(--measure) + 188px);
+  position: relative;
+  max-width: var(--measure);
   margin: 0 auto;
   padding: 2rem;
-  display: flex;
-  align-items: flex-start;
-  gap: 28px;
 }
 
 .section-nav {
-  flex: none;
+  position: absolute;
+  top: 8rem; /* below the header, not riding it (the header is not sticky) */
+  right: 100%; /* sit in the left margin, just left of the content column */
+  margin-right: 8px;
   width: 160px;
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  position: sticky;
-  top: 1.25rem; /* the site header is not sticky, so the rail rides the top of the viewport */
+  gap: 10px; /* room for the list of sections to come */
 }
 
-/* A section, not a link yet: Characters is the only one. Styled as the row a future boss-clears
-   section will match, and carrying the weight the old <h1> did so the page still has a clear title. */
+/* A section, not a link yet: Characters is the only one. No box and no bold, just the label, one
+   size up from body so the rail reads as primary navigation. A future boss-clears section matches
+   this: inactive sections sit at --muted, the current one at --ink-strong, so the list stays
+   legible without a box. */
 .section-nav-item {
-  font-size: 14px;
-  font-weight: 700;
+  font-size: 18px;
   color: var(--muted);
-  padding: 7px 10px;
-  border-radius: 6px;
-  border: 1px solid transparent;
+  padding: 0 2px;
 }
 
 .section-nav-item.active {
   color: var(--ink-strong);
-  background: var(--surface-2);
-  border-color: var(--line-soft);
 }
 
 .section-body {
-  flex: 1 1 auto;
-  min-width: 0; /* let flex children (the carousel track) shrink instead of overflowing */
-  max-width: var(--measure);
+  min-width: 0; /* let the carousel track scroll inside instead of widening the column */
 }
 
-/* Under the rail's breakpoint the section list lies flat above the content, like a row of tabs. */
-@media (max-width: 760px) {
-  .account {
-    flex-direction: column;
-    gap: 14px;
-  }
+/* Below this the left margin is too narrow to hold the rail beside the centred content, so it
+   drops back into flow above the content, like a row of tabs. */
+@media (max-width: 1200px) {
   .section-nav {
     position: static;
     width: 100%;
+    margin: 0 0 16px;
     flex-direction: row;
+    gap: 16px;
   }
 }
 
