@@ -74,8 +74,15 @@ def glyph_mask(patch, box):
 
     # Fill = light pixels the outline encloses. Flood from outside the outline;
     # whatever the flood cannot reach is interior, i.e. the digit's fill.
-    ff = dark.copy()
-    cv2.floodFill(ff, np.zeros((h + 2, w + 2), np.uint8), (0, 0), 1)
+    #
+    # Seed the flood from a padded background border, NOT from (0,0). A '5' or '7' has its top
+    # stroke on the top-left corner, so (0,0) lands on the outline; floodFill seeded on an
+    # already-set pixel fills nothing, and then every non-outline pixel reads as enclosed, so the
+    # mask swallows the whole patch (a fully opaque glyph). That broke both the matchTemplate mask
+    # for those two digits and the recoloured display copy, which drew a white box behind the count.
+    bordered = cv2.copyMakeBorder(dark, 1, 1, 1, 1, cv2.BORDER_CONSTANT, value=0)
+    cv2.floodFill(bordered, np.zeros((h + 4, w + 4), np.uint8), (0, 0), 1)
+    ff = bordered[1:-1, 1:-1]
     enclosed = (ff == 0).astype(np.uint8)
     return ((dark | enclosed) * 255).astype(np.uint8), sub
 
