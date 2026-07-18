@@ -5,5 +5,5 @@ import { redirect } from "next/navigation";
 // looking at, where there is nothing to guess. Kept as a redirect rather than deleted: the old
 // path is in people's history and bookmarks, and a 404 is a worse answer than the right page.
 export default function UploadPage() {
-  redirect("/characters");
+  redirect("/inventory");
 }
