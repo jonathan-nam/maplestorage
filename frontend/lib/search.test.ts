@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { matchesQuery, queryTerms, search, suggest } from "@/components/item-search";
+import { matchesQuery, nextActive, queryTerms, search, suggest } from "@/components/item-search";
 import type { Character } from "@/types/character";
 import type { CharacterToken } from "@/types/character-token";
 
@@ -171,5 +171,29 @@ describe("search", () => {
     expect(found("bandana")).toEqual(armour);
     expect(found("helm")).toEqual(armour);
     expect(found("boots")).toEqual(["Distorted Ambition", "Trace of Eternal Loyalty"]);
+  });
+});
+
+describe("arrowing through the suggestions", () => {
+  // The bar is position -1. Enter there searches for what you typed instead of taking a row you
+  // never chose, so it has to be reachable both by arrowing down past the end and up past the top.
+  it("starts in the bar and steps into the list", () => {
+    expect(nextActive(-1, 3, 1)).toBe(0);
+    expect(nextActive(0, 3, 1)).toBe(1);
+    expect(nextActive(1, 3, 1)).toBe(2);
+  });
+
+  it("returns to the bar off either end, not to the far row", () => {
+    expect(nextActive(2, 3, 1)).toBe(-1);
+    expect(nextActive(0, 3, -1)).toBe(-1);
+  });
+
+  it("wraps from the bar to the last row going up", () => {
+    expect(nextActive(-1, 3, -1)).toBe(2);
+  });
+
+  it("stays in the bar when there is nothing to take", () => {
+    expect(nextActive(-1, 0, 1)).toBe(-1);
+    expect(nextActive(-1, 0, -1)).toBe(-1);
   });
 });

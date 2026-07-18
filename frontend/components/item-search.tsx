@@ -138,7 +138,7 @@ const MAX_SUGGESTIONS = 8;
 // This is a RANK, not a score: four ordered buckets, and ties are broken by the shorter label. It
 // is deliberately not an edit-distance scorer, for the same reason the matcher is not one (see the
 // note above `subsequence`): at 26 items, a ranker clever enough to be interesting is clever enough
-// to put a confident wrong answer at the top, and the top is the one people press Enter on.
+// to put a confident wrong answer at the top, and the top is the row one ArrowDown away.
 function rank(label: string, term: string): number {
   const l = label.toLowerCase();
   if (l === term) return 0;
@@ -206,6 +206,14 @@ export function suggest(
     .map((x) => x.s);
 }
 
+// Where an arrow key moves the highlight. The rows are 0..count-1 and the BAR is -1, a real
+// position on the ring rather than "unset", so arrowing off either end lands back in the bar
+// instead of wrapping last-to-first.
+export function nextActive(current: number, count: number, delta: number): number {
+  const ring = count + 1;
+  return ((current + 1 + delta + ring) % ring) - 1;
+}
+
 // Bold the part you typed, so the row says WHY it is here. Only for a real substring: highlighting
 // a fuzzy match means scattering bold letters across a word, which reads as a rendering fault.
 function Highlight({ text, term }: { text: string; term: string }) {
@@ -242,7 +250,10 @@ export function SearchBar({
   focusSignal?: number;
 }) {
   const [open, setOpen] = useState(false);
-  const [active, setActive] = useState(0);
+  // -1 is a real position, not "unset": it means the bar itself, with no row taken. Enter there
+  // searches for what you typed. Starting at 0 made Enter select the top suggestion instead, so
+  // typing a name and pressing Enter jumped to a character you never chose.
+  const [active, setActive] = useState(-1);
   const boxRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -263,9 +274,9 @@ export function SearchBar({
   const suggestions = suggest(query, characters, tokensByChar);
   const term = queryTerms(query)[0] ?? "";
 
-  // Clamp rather than reset: retyping narrows the list, and an active index left pointing past the
-  // end would make Enter do nothing at all, which reads as a broken key.
-  const activeIndex = Math.min(active, Math.max(0, suggestions.length - 1));
+  // Retyping narrows the list, so an index left pointing past the end falls back to the bar rather
+  // than to some row you never arrowed onto.
+  const activeIndex = active < suggestions.length ? active : -1;
 
   useEffect(() => {
     function onDown(e: MouseEvent) {
@@ -298,10 +309,10 @@ export function SearchBar({
     if (!open || suggestions.length === 0) return;
     if (e.key === "ArrowDown") {
       e.preventDefault();
-      setActive((i) => (i + 1) % suggestions.length);
+      setActive(nextActive(activeIndex, suggestions.length, 1));
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
-      setActive((i) => (i - 1 + suggestions.length) % suggestions.length);
+      setActive(nextActive(activeIndex, suggestions.length, -1));
     } else if (e.key === "Enter") {
       const s = suggestions[activeIndex];
       // Enter with nothing highlighted means "search for what I typed", which is what the results
@@ -325,7 +336,7 @@ export function SearchBar({
           onChange={(e) => {
             onQuery(e.target.value);
             setOpen(true);
-            setActive(0);
+            setActive(-1);
           }}
           onFocus={() => setOpen(true)}
           onKeyDown={onKeyDown}
