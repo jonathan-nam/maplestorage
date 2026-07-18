@@ -1,7 +1,7 @@
 // A tiny stale-while-revalidate cache for GETs.
 //
 // The backend answers in ~1-8ms, so nothing here is about server load. It is about
-// what the user sees. Navigating to /characters mounted a fresh component that showed
+// what the user sees. Navigating to /inventory mounted a fresh component that showed
 // "loading…", called getToken(), then fetched, and it did all of that again every
 // time you came back to a page you had just left. The data was almost always identical.
 //

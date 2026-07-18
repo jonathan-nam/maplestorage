@@ -7,8 +7,8 @@ import { useEffect, useRef, useState } from "react";
 // Account sections live behind a hamburger in the top-left. Only the inventory view exists today;
 // the point of the menu is that the next section (boss clears, and so on) is one more entry here,
 // not a re-layout. A single-item menu is deliberate scaffolding, not over-engineering.
-// Route stays /characters so existing links keep working; only the label reads "Inventory".
-const SECTIONS = [{ href: "/characters", label: "Inventory" }];
+// /characters redirects here (see next.config), so old links keep working.
+const SECTIONS = [{ href: "/inventory", label: "Inventory" }];
 
 export function SectionMenu() {
   const [open, setOpen] = useState(false);
