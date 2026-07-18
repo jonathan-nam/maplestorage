@@ -10,7 +10,9 @@ infra/.tflint.d/
 infra/backend.hcl
 
 # Node / Next.js
-frontend/node_modules/
+# No trailing slash: also ignore a node_modules SYMLINK, not just a directory (a
+# symlink here once got committed and clobbered the real one on checkout).
+frontend/node_modules
 frontend/.next/
 frontend/out/
 frontend/.env*.local
