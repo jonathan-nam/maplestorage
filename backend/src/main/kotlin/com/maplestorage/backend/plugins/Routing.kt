@@ -37,11 +37,12 @@ fun Application.configureRouting(
         // the <img> tags that load them can't attach a Bearer token.
         staticResources("/token-icons", "seed-assets/tokens") { cacheControl(iconCache) }
 
-        // The stack-count digits, as the CLIENT draws them, the very same glyph sprites the
-        // parser reads counts with (vision/app/cv/templates/digit_*.png). The inventory renders
-        // its counts from these rather than setting a number in a web font, because no web font
-        // is that font: it is an 11px bitmap face with a hard black outline, and any approximation
-        // of it sits next to the real sprites and looks like an approximation.
+        // The stack-count digits as the CLIENT draws them: an 11px bitmap face with a hard black
+        // outline that no web font matches, so the inventory renders counts from these sprites
+        // rather than styling a number (an approximation sits next to the real thing and looks like
+        // one). Hand-maintained PNGs. They began as a recolour of the parser's matching templates
+        // (vision/app/cv/templates/digit_*.png), the same face, but have since been hand-tuned and
+        // are no longer identical to them.
         staticResources("/digit-icons", "seed-assets/digits") { cacheControl(iconCache) }
 
         // Unauthenticated on purpose, this is what the ALB target group polls
