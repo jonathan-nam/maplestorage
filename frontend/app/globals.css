@@ -476,6 +476,22 @@ a:hover {
   cursor: help;
 }
 
+.ms-slot.filled.clickable {
+  cursor: pointer;
+}
+
+/* Filled slots render as a <button> when clickable (clicking searches every character for the
+   item). Strip the button chrome so they lay out exactly like the <div> slots: with no global
+   box-sizing the slot is content-box 42x42, so any default button padding would break the grid. */
+button.ms-slot {
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  text-align: inherit;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
 /* Draw the sprite 1:1, at exactly the size the client draws it. Nothing is scaled.
  *
  * `> img` and not `img`: the count is now drawn from the client's digit sprites, which are also
