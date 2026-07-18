@@ -48,7 +48,18 @@ function deltaLabel(delta: number | null | undefined): string | null {
   return delta > 0 ? `+${delta}` : `${delta}`;
 }
 
-export function SlotGrid({ items, rows }: { items: SlotItem[]; rows: number }) {
+export function SlotGrid({
+  items,
+  rows,
+  onSelectItem,
+}: {
+  items: SlotItem[];
+  rows: number;
+  // When set, each filled slot is a button that hands its item name back, so the page can
+  // search every character for it. Left unset by the capture preview, whose slots are a parse
+  // to look at, not holdings to search.
+  onSelectItem?: (name: string) => void;
+}) {
   const slots = COLS * rows;
   return (
     <div className="ms-grid" style={{ gridTemplateColumns: `repeat(${COLS}, 1fr)` }}>
@@ -57,16 +68,10 @@ export function SlotGrid({ items, rows }: { items: SlotItem[]; rows: number }) {
         if (!item) return <div key={i} className="ms-slot" />;
 
         const badge = deltaLabel(item.delta);
-        const title =
-          `${item.name}\n${item.quantity}` +
-          (item.delta === null ? "\nnot tracked for this character yet" : "") +
-          (typeof item.delta === "number" && item.delta !== 0
-            ? `\n${item.delta > 0 ? "up" : "down"} ${Math.abs(item.delta)} since the last screenshot`
-            : "") +
-          (item.note ? `\n${item.note}` : "");
-
-        return (
-          <div key={i} className="ms-slot filled" title={title}>
+        // The tooltip is the item name and nothing else. The count is drawn under the icon
+        // already, and the delta/redemption detail lives in the search view a click away.
+        const contents = (
+          <>
             {item.iconUrl && <img src={apiAssetUrl(item.iconUrl)} alt={item.name} />}
             <Count value={item.quantity} />
             {badge && (
@@ -76,6 +81,26 @@ export function SlotGrid({ items, rows }: { items: SlotItem[]; rows: number }) {
                 {badge}
               </span>
             )}
+          </>
+        );
+
+        if (onSelectItem) {
+          return (
+            <button
+              key={i}
+              type="button"
+              className="ms-slot filled clickable"
+              title={item.name}
+              onClick={() => onSelectItem(item.name)}
+            >
+              {contents}
+            </button>
+          );
+        }
+
+        return (
+          <div key={i} className="ms-slot filled" title={item.name}>
+            {contents}
           </div>
         );
       })}

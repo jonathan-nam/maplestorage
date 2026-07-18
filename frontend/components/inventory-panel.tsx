@@ -20,6 +20,7 @@ export function InventoryPanel({
   title,
   items,
   emptyHint,
+  onSelectItem,
 }: {
   // The character's name, and nothing else. The level used to hang off it as "· Lv.287", which
   // repeated what the tile directly above already says and gave the window's title bar a second
@@ -27,6 +28,8 @@ export function InventoryPanel({
   title: string;
   items: InventoryItem[];
   emptyHint?: string;
+  // Clicking an item searches every character for it (see the page).
+  onSelectItem?: (name: string) => void;
 }) {
   const [category, setCategory] = useState<Category>("Use");
   const [focused, setFocused] = useState(false);
@@ -130,6 +133,7 @@ export function InventoryPanel({
             <SlotGrid
               items={section.items}
               rows={Math.max(1, Math.ceil(section.items.length / COLS))}
+              onSelectItem={onSelectItem}
             />
           </section>
         ))

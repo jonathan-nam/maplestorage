@@ -196,6 +196,9 @@ export default function CharactersPage() {
                 tokensReady ? "No tokens here yet. Upload an inventory screenshot." : "Loading…"
               }
               items={characterItems}
+              // Clicking an item searches every character for it: the query fills the bar above
+              // (bound to this same state) and the results take over this slot.
+              onSelectItem={setQuery}
             />
           ) : characters.length === 0 ? (
             <p className="finder-empty">Add a character above to start tracking.</p>
