@@ -52,6 +52,12 @@ fun Application.configureRouting(
             call.respond(mapOf("status" to "ok"))
         }
 
+        // Real User Monitoring: browsers beacon their page-load metrics here. Unauthenticated
+        // on purpose, it is a fire-and-forget sendBeacon that carries no credentials and no PII.
+        route("/api/vitals") {
+            vitalsRoutes()
+        }
+
         // M0's actual round-trip proof: a signed-in user's JWT verifies against
         // Clerk's JWKS, and the response value comes from a real RDS query, not
         // a hardcoded string.
