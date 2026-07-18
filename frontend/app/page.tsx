@@ -1,13 +1,13 @@
 import { SignedIn, SignedOut, SignInButton } from "@clerk/nextjs";
 import Link from "next/link";
-import { Chest } from "@/components/chest";
+import { SharpEyesMark } from "@/components/sharp-eyes-mark";
 
 export default function Home() {
   return (
     <main className="page">
       <SignedOut>
         <section className="hero">
-          <Chest size={96} />
+          <SharpEyesMark size={96} />
           <h1>A greater view of your whole MapleStory account.</h1>
           <p>
             Farming the same Grandis boss across a stable of mules is normal. Working out how close
@@ -24,7 +24,7 @@ export default function Home() {
 
       <SignedIn>
         <section className="hero">
-          <Chest size={64} open />
+          <SharpEyesMark size={64} />
           <h1>Welcome back</h1>
           <p>
             <Link href="/characters">See where you stand</Link>, and drop a screenshot on whichever
