@@ -289,11 +289,10 @@ export function SearchBar({
 
   function onKeyDown(e: React.KeyboardEvent) {
     if (e.key === "Escape") {
-      // Escape peels one layer at a time: an open suggestion list first, then the query itself.
-      // Clearing in the same press the list is dismissed would yank the query out from under
-      // someone who only meant to dismiss the dropdown.
-      if (open && suggestions.length > 0) setOpen(false);
-      else if (query) onQuery("");
+      // One press clears everything: close the suggestion list AND wipe the query. The query
+      // drives the results below, so a single Escape returns you to the inventory in one go.
+      setOpen(false);
+      if (query) onQuery("");
       return;
     }
     if (!open || suggestions.length === 0) return;
