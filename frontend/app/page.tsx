@@ -27,7 +27,7 @@ export default function Home() {
           <SharpEyesMark size={64} />
           <h1>Welcome back</h1>
           <p>
-            <Link href="/characters">See where you stand</Link>, and drop a screenshot on whichever
+            <Link href="/inventory">See where you stand</Link>, and drop a screenshot on whichever
             character it belongs to.
           </p>
         </section>

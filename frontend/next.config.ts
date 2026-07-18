@@ -39,6 +39,16 @@ const nextConfig: NextConfig = {
   distDir: process.env.NEXT_DIST_DIR || ".next",
 
   env: { NEXT_PUBLIC_ASSET_VERSION: assetVersion },
+
+  // The section moved from /characters to /inventory. Keep old bookmarks and in-flight
+  // sessions working with a permanent redirect. The API routes (/api/characters) are the
+  // data resource and are unaffected.
+  async redirects() {
+    return [
+      { source: "/characters", destination: "/inventory", permanent: true },
+      { source: "/characters/:path*", destination: "/inventory/:path*", permanent: true },
+    ];
+  },
 };
 
 export default nextConfig;
