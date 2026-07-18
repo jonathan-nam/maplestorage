@@ -8,15 +8,15 @@ export default function Home() {
       <SignedOut>
         <section className="hero">
           <Chest size={96} />
-          <h1>Your storage room</h1>
+          <h1>A greater view of your whole MapleStory account.</h1>
           <p>
             Farming the same Grandis boss across a stable of mules is normal. Working out how close
             you actually are to a full Eternal set is not, because the game only ever shows you one
             character at a time.
           </p>
           <p>
-            Screenshot each character with their inventory open, drop the lot in, and MapleStorage
-            reads the counts and adds them up. One room, everything in it.
+            Screenshot each character with their inventory open, drop the lot in, and SharpEyes
+            reads the counts and adds them up. Every character, in one view.
           </p>
           <SignInButton />
         </section>
