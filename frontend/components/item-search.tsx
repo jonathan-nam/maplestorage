@@ -229,16 +229,36 @@ export function SearchBar({
   characters,
   tokensByChar,
   onSelectCharacter,
+  focusSignal = 0,
 }: {
   query: string;
   onQuery: (q: string) => void;
   characters: Character[];
   tokensByChar: Record<string, CharacterToken[]>;
   onSelectCharacter: (id: string) => void;
+  // Bumped by the page each time an inventory item is clicked into the bar, to pull focus here
+  // so the query can be edited straight away. A counter, not a boolean: clicking the same item
+  // twice must re-focus, and a boolean would not change.
+  focusSignal?: number;
 }) {
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(0);
   const boxRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // Focus the bar when an item is clicked into it, caret at the end so typing appends and a
+  // Backspace trims. Skipped on touch: there, focusing pops the on-screen keyboard up over the
+  // results that just replaced the inventory, which is the opposite of helpful. `focusSignal` is
+  // 0 on first render (no click yet), so the initial mount never steals focus.
+  useEffect(() => {
+    if (focusSignal === 0) return;
+    if (window.matchMedia?.("(pointer: coarse)").matches) return;
+    const input = inputRef.current;
+    if (!input) return;
+    input.focus();
+    const end = input.value.length;
+    input.setSelectionRange(end, end);
+  }, [focusSignal]);
 
   const suggestions = suggest(query, characters, tokensByChar);
   const term = queryTerms(query)[0] ?? "";
@@ -269,7 +289,10 @@ export function SearchBar({
 
   function onKeyDown(e: React.KeyboardEvent) {
     if (e.key === "Escape") {
+      // One press clears everything: close the suggestion list AND wipe the query. The query
+      // drives the results below, so a single Escape returns you to the inventory in one go.
       setOpen(false);
+      if (query) onQuery("");
       return;
     }
     if (!open || suggestions.length === 0) return;
@@ -294,6 +317,7 @@ export function SearchBar({
     <section className="finder" ref={boxRef}>
       <div className="finder-bar">
         <input
+          ref={inputRef}
           type="search"
           className="finder-input"
           placeholder="Search every character. “kaling”, “eternal hat”, “symbol”, or a character’s name"
@@ -315,11 +339,17 @@ export function SearchBar({
             open && suggestions[activeIndex] ? `sug-${suggestions[activeIndex].key}` : undefined
           }
         />
-        {query && (
-          <button className="link finder-clear" onClick={() => onQuery("")}>
-            clear
-          </button>
-        )}
+        {/* Always in the layout, hidden when empty: rendering it only with a query would let the
+            input (flex: 1) reclaim the button's slot, so the field visibly narrowed the moment you
+            typed. Keeping the slot holds the field one width. */}
+        <button
+          className={`link finder-clear${query ? "" : " is-empty"}`}
+          onClick={() => onQuery("")}
+          aria-hidden={!query}
+          tabIndex={query ? 0 : -1}
+        >
+          clear
+        </button>
       </div>
 
       {open && suggestions.length > 0 && (

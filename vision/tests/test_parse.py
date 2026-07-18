@@ -338,10 +338,9 @@ def test_hud_is_null_when_not_in_frame():
 
 
 # --- digit glyph masks -----------------------------------------------------
-# Every digit glyph carries an alpha mask covering only its own pixels. It is load-bearing twice:
-# ocr.py correlates through it (so background/icon art behind the count is ignored), and
-# build_display_digits.py recolours through it (so the inventory count draws no ground behind the
-# number). '5' and '7' once shipped fully opaque, because glyph_mask flood-filled from (0,0) where
+# Every digit glyph carries an alpha mask covering only its own pixels: ocr.py correlates through
+# it, so background/icon art behind the count is ignored. '5' and '7' once shipped fully opaque,
+# because glyph_mask flood-filled from (0,0) where
 # those two have an outline pixel, so the fill leaked to the whole patch: it drew a white box behind
 # any count with a 5 or 7, and widened their matchTemplate mask. A fully opaque glyph can never be
 # right, so pin the invariant rather than the pixels.

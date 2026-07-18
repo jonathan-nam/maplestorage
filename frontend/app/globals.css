@@ -19,10 +19,11 @@
      themselves at 792px, the carousel stretched to the viewport, and the inventory window and the
      headings stayed hard left, so widening the window slid them apart.
 
-     792px is inherited from the dock and finder, which is where it already was. It is NOT the
-     inventory window's width: that is ~762px (16 slots, 42px on a 46px pitch, plus grid padding,
-     grid margins and the border), so the window sits inside this column rather than filling it. */
-  --measure: 792px;
+     794px is the inventory window's measured border-box width (16 slots at 42px + 1px borders, 4px
+     gaps, 6px grid padding, 8px grid margins, 1px window border). The column is set to exactly that
+     so the search bar, the results and the game window share both edges. Any less and the window
+     overflowed the column by 2px; any more and the search bar overhung the window. */
+  --measure: 794px;
 
   --bg: #111;
   --surface: #1a1a1a;
@@ -129,6 +130,13 @@
 
 .section-menu-panel a.active {
   color: var(--ink-strong);
+}
+
+/* Reserve the scrollbar's width always. Otherwise typing a query makes the results tall enough to
+   need a scrollbar, its arrival narrows the viewport, and the centred .page (and everything in it)
+   jumps sideways. */
+html {
+  scrollbar-gutter: stable;
 }
 
 body {
@@ -976,14 +984,6 @@ img.user-avatar-img {
   background: linear-gradient(90deg, transparent, rgb(255 255 255 / 60%), transparent);
 }
 
-/* The inventory window is nearly as wide as the page measure, so the default 2rem side padding
-   leaves the search bar and carousel visibly narrower than it, and the window overhangs them. Trim
-   the horizontal padding on this page so all three line up at the same width; the column stays
-   centred via .page's margin auto. */
-.chars-page {
-  padding-inline: 1rem;
-}
-
 /* The real UI fades in over the skeleton it replaces. */
 .chars-ready {
   animation: chars-fade-in 0.28s ease-out;
@@ -1265,14 +1265,15 @@ button.link:disabled {
 .finder-bar {
   display: flex;
   align-items: center;
-  gap: 8px;
+  position: relative;
 }
 
 .finder-input {
   flex: 1;
   font: inherit;
   font-size: 14px;
-  padding: 9px 12px;
+  /* Right padding clears the overlaid button (see .finder-clear). */
+  padding: 9px 52px 9px 12px;
   border-radius: 8px;
   border: 1px solid var(--line);
   background: var(--surface);
@@ -1283,8 +1284,22 @@ button.link:disabled {
   outline-offset: 1px;
   border-color: transparent;
 }
+/* The input's own clear affordance; hide the browser's so the two do not overlap. */
+.finder-input::-webkit-search-cancel-button {
+  appearance: none;
+  -webkit-appearance: none;
+}
+/* Overlaid on the input's right edge, NOT a flex sibling. As a sibling it stole ~48px of width,
+   so the field ended short of the inventory window below it; overlaid, the field spans the full
+   column and lines up with the window. Hidden (not removed) when empty so nothing shifts. */
 .finder-clear {
-  flex: none;
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+.finder-clear.is-empty {
+  visibility: hidden;
 }
 
 .finder-results {

@@ -1,10 +1,11 @@
 "use client";
 
 import { useAuth } from "@clerk/nextjs";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { InventoryPanel, type InventoryItem } from "@/components/inventory-panel";
 import { CharactersSkeleton } from "@/components/loading-skeleton";
 import { apiFetch } from "@/lib/api";
+import { reportVital } from "@/lib/rum";
 import { invalidate, peek, put } from "@/lib/cache";
 import { redemptionNote } from "@/lib/redemption";
 import type { Character } from "@/types/character";
@@ -21,6 +22,19 @@ const ALL_TOKENS_KEY = "/api/characters/tokens";
 export default function CharactersPage() {
   const { getToken } = useAuth();
 
+  // The app-level "initial load" number: how long from arriving on this page to the
+  // inventory actually being on screen. Web vitals measure the document (LCP, TTFB);
+  // this measures the fetch-to-paint gap that is ours to control. Reported once per
+  // visit, whether the page was hard-loaded or navigated to from the landing page.
+  const arrivedAt = useRef(0);
+  const reportedReady = useRef(false);
+
+  // Stamp the arrival time in an effect, not during render (performance.now() is impure).
+  // Declared before the report effect below, so it always runs first on the same commit.
+  useEffect(() => {
+    arrivedAt.current = performance.now();
+  }, []);
+
   // Seed from cache so a repeat visit paints immediately instead of flashing a
   // loading state while it re-fetches data it already had. The fetch below still
   // runs and overwrites this, the cache decides what you see FIRST, not what is
@@ -34,6 +48,16 @@ export default function CharactersPage() {
   const [selectedId, setSelectedId] = useState<Selection>(null);
 
   const [query, setQuery] = useState("");
+
+  // Bumped when an inventory item is clicked into the bar, so the SearchBar knows to pull focus.
+  // Separate from `query` because clicking the same item twice leaves the query unchanged but
+  // should still re-focus.
+  const [searchFocusSignal, setSearchFocusSignal] = useState(0);
+
+  function handleSelectItem(name: string) {
+    setQuery(name);
+    setSearchFocusSignal((n) => n + 1);
+  }
 
   // Which character to come back to when you turn the generic upload back off. Without it, the
   // eye is a one-way door: deselecting is easy, and getting back means hunting for the tile you
@@ -157,6 +181,13 @@ export default function CharactersPage() {
 
   const selectedTokens = selectedId ? tokensByChar[selectedId] : undefined;
   const tokensReady = selectedTokens !== undefined;
+
+  useEffect(() => {
+    if (reportedReady.current) return;
+    if (state !== "loaded" || !tokensReady) return;
+    reportedReady.current = true;
+    reportVital({ name: "inventory-ready", value: performance.now() - arrivedAt.current });
+  }, [state, tokensReady]);
   const characterItems: InventoryItem[] = (selectedTokens ?? []).map((token) => ({
     id: token.tokenCatalogId,
     name: token.name,
@@ -169,8 +200,8 @@ export default function CharactersPage() {
   }));
 
   return (
-    <main className="page chars-page">
-      <h1 className="page-title">Characters</h1>
+    <main className="page">
+      <h1 className="page-title">Inventory</h1>
 
       {state === "error" && <p>Couldn&apos;t load your characters.</p>}
 
@@ -187,6 +218,7 @@ export default function CharactersPage() {
             characters={characters}
             tokensByChar={tokensByChar}
             onSelectCharacter={setSelectedId}
+            focusSignal={searchFocusSignal}
           />
 
           <CharacterCarousel
@@ -211,8 +243,9 @@ export default function CharactersPage() {
               emptyHint="No tokens here yet. Upload an inventory screenshot."
               items={characterItems}
               // Clicking an item searches every character for it: the query fills the bar above
-              // (bound to this same state) and the results take over this slot.
-              onSelectItem={setQuery}
+              // (bound to this same state), focus moves there so it can be edited (see SearchBar),
+              // and the results take over this slot.
+              onSelectItem={handleSelectItem}
             />
           ) : characters.length === 0 ? (
             <p className="finder-empty">Add a character above to start tracking.</p>

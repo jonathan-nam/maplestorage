@@ -140,3 +140,31 @@ jobs:
           tflint_version: "v0.63.1"
       - run: tflint --init
       - run: tflint --recursive
+
+  # The single required status check. Branch protection requires this one job, not the matrix
+  # jobs above. Each of those runs only when its paths change (a frontend-only PR skips backend,
+  # vision, etc.), so requiring them individually is unsafe: a check that was skipped rather than
+  # run is not a guaranteed pass, and that gap is how backend/verify sat red-but-hidden from #36.
+  # This gate always runs and fails only when a job that ACTUALLY ran came back failed or
+  # cancelled; a skipped upstream job counts as a pass. Add every new CI job to `needs`, or it
+  # merges unenforced.
+  required-checks:
+    needs: [changes, backend, frontend, vision, catalog, infra]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fail if any required job failed or was cancelled
+        # RESULTS is one word per needs job, from the fixed set success/failure/cancelled/skipped.
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "upstream job results: $RESULTS"
+          for r in $RESULTS; do
+            case "$r" in
+              failure|cancelled)
+                echo "::error::A required CI job did not pass: $RESULTS"
+                exit 1
+                ;;
+            esac
+          done
+          echo "All required CI jobs passed or were skipped."
