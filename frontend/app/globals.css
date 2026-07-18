@@ -76,6 +76,13 @@
   background: var(--surface-2);
 }
 
+/* Header controls Clerk has not resolved yet: same box, no ink, no hover. The real control fades
+   into space that was already reserved rather than shoving the brand across. See SiteHeader. */
+.section-menu-btn.is-reserved,
+.user-avatar-btn.is-reserved {
+  visibility: hidden;
+}
+
 .section-menu-btn[aria-expanded="true"] {
   background: var(--surface-2);
   border-color: var(--line-soft);
@@ -922,25 +929,45 @@ img.user-avatar-img {
   border-radius: 8px;
 }
 
-/* Carousel placeholders: same 150px width and stacked layout as .char-tile, at its idle opacity. */
-.sk-tile {
-  flex: 0 0 auto;
-  width: 150px;
-  padding: 4px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
+/* Carousel placeholders reuse .char-tile itself, so width, padding and the whole text stack come
+   from one place. Only the interaction is switched off: there is nothing here to click or reveal. */
+.char-tile.is-skeleton {
+  cursor: default;
+}
+
+.char-tile.is-skeleton:hover {
   opacity: 0.65;
 }
 
+.char-tile.is-skeleton:hover .tile-actions {
+  visibility: hidden;
+}
+
+/* The sprite BOX is 116px square (.tile-sprite), but the character inside it is not. The source
+   avatars are 96x96 PNGs whose opaque figure measured 50-75 wide by 71-83 tall, resting a few px
+   off the bottom edge (three live nexon avatars, 2026-07-18). Filling the whole square with
+   shimmer advertises a sprite far bigger than the one that replaces it, so the box keeps the
+   layout and the shimmer takes the figure's shape, scaled by 116/96. */
 .sk-sprite {
   width: 116px;
   height: 116px;
-  border-radius: 8px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
 }
 
+.sk-sprite-figure {
+  width: 68px;
+  height: 94px;
+  margin-bottom: 7px;
+  border-radius: 9px 9px 4px 4px;
+}
+
+/* Inline-block, so the line box around it keeps its strut and the placeholder text occupies the
+   same height as the real text would. As a block it would collapse each row to 11px. */
 .sk-line {
+  display: inline-block;
+  vertical-align: middle;
   height: 11px;
   border-radius: 4px;
 }

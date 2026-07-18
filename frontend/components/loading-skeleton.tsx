@@ -21,11 +21,31 @@ export function CharactersSkeleton() {
           &#8249;
         </button>
         <div className="carousel-track">
+          {/* The tile IS .char-tile, with shimmer standing in for the sprite and the text. As its
+              own .sk-tile it measured 158px against the real tile's 188.5px: the name/level
+              metrics were re-guessed and the hover-only actions row was left out entirely, so the
+              inventory window below sat 30px high and dropped when the data landed. */}
           {Array.from({ length: TILE_COUNT }).map((_, i) => (
-            <div className="sk-tile" key={i}>
-              <div className="skeleton sk-sprite" />
-              <div className="skeleton sk-line" style={{ width: "70%" }} />
-              <div className="skeleton sk-line" style={{ width: "45%" }} />
+            <div className="char-tile is-skeleton" key={i}>
+              <div className="sk-sprite">
+                <div className="skeleton sk-sprite-figure" />
+              </div>
+              <div className="tile-plate">
+                <div className="tile-name">
+                  <span className="skeleton sk-line" style={{ width: "70%" }} />
+                </div>
+                <div className="tile-meta">
+                  <span className="tile-level">
+                    <span className="skeleton sk-line" style={{ width: "34px" }} />
+                  </span>
+                  <span className="tile-job">
+                    <span className="skeleton sk-line" style={{ width: "52px" }} />
+                  </span>
+                </div>
+              </div>
+              {/* Empty, but .tile-actions is visibility-hidden and min-height'd in the real tile
+                  too, so this reserves exactly what the loaded tile reserves. */}
+              <div className="tile-actions" />
             </div>
           ))}
         </div>
