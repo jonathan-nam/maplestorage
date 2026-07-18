@@ -888,7 +888,8 @@ img.user-avatar-img {
 }
 
 .skeleton::after,
-.sk-slot::after {
+.sk-slot::after,
+.sk-inv-line::after {
   content: "";
   position: absolute;
   inset: 0;
@@ -936,13 +937,15 @@ img.user-avatar-img {
   border-radius: 4px;
 }
 
-/* Inventory placeholder grid: the same lattice as .ms-grid / SlotGrid, inside the always-light
-   inventory window, so its base is the slot colour and the sweep is a brighter highlight. */
+/* Inventory placeholder: stacked section blocks, matching a loaded inventory. Each grid is the
+   same lattice as .ms-grid / SlotGrid; .ms-section (reused) puts the real 10px gap between them.
+   These live in the always-light inventory window, so their base is the slot colour and the sweep
+   is a brighter highlight than the dark-shell placeholders above. */
 .ms-grid-skeleton {
   display: grid;
   grid-template-columns: repeat(16, 42px);
   gap: 4px;
-  margin: 10px 8px;
+  margin: 0;
   padding: 6px;
   width: max-content;
   border-radius: 6px;
@@ -959,7 +962,17 @@ img.user-avatar-img {
   background: var(--ms-slot);
 }
 
-.sk-slot::after {
+/* Section-header placeholder (title + count), sized like .ms-section-head's text. */
+.sk-inv-line {
+  position: relative;
+  overflow: hidden;
+  height: 9px;
+  border-radius: 4px;
+  background: var(--ms-slot-edge);
+}
+
+.sk-slot::after,
+.sk-inv-line::after {
   background: linear-gradient(90deg, transparent, rgb(255 255 255 / 60%), transparent);
 }
 
@@ -978,7 +991,8 @@ img.user-avatar-img {
    drop the fade so nothing moves that the user asked not to. */
 @media (prefers-reduced-motion: reduce) {
   .skeleton::after,
-  .sk-slot::after {
+  .sk-slot::after,
+  .sk-inv-line::after {
     animation-duration: 2.6s;
   }
 

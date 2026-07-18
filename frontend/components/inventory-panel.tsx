@@ -17,15 +17,29 @@ const OTHER = "Other";
 
 export type InventoryItem = SlotItem & { itemGroup?: string | null };
 
-// The content area as a shimmer of empty slots, in the same 16-column, 42px lattice as SlotGrid so
-// the real grid replaces it without a size jump. Used both by the panel's own `loading` state and
-// by the full-page characters skeleton. Three rows reads as an inventory without pretending to a
-// full 128-slot bag. Styles live in globals.css (.ms-grid-skeleton / .sk-slot).
+// The content area as a placeholder, shaped like a loaded inventory: stacked section blocks (a
+// header, then a rounded grid of the 16-column, 42px lattice), spaced apart the same way the real
+// sections are, so the real content replaces it without the layout jumping. Rows per section evoke
+// the real SECTION_ORDER (Eternal Pieces, Symbols, Consumables) rather than one solid slab. Used
+// by the panel's own `loading` state and by the full-page characters skeleton. Styles live in
+// globals.css (.ms-grid-skeleton / .sk-slot / .sk-inv-line).
+const SKELETON_SECTION_ROWS = [1, 1, 2];
+
 export function InventoryGridSkeleton() {
   return (
-    <div className="ms-grid-skeleton" aria-hidden="true">
-      {Array.from({ length: COLS * 3 }).map((_, i) => (
-        <span key={i} className="sk-slot" />
+    <div aria-hidden="true">
+      {SKELETON_SECTION_ROWS.map((rows, s) => (
+        <section className="ms-section" key={s}>
+          <header className="ms-section-head">
+            <span className="sk-inv-line" style={{ width: 96 }} />
+            <span className="sk-inv-line ms-section-count" style={{ width: 34 }} />
+          </header>
+          <div className="ms-grid-skeleton">
+            {Array.from({ length: COLS * rows }).map((_, i) => (
+              <span key={i} className="sk-slot" />
+            ))}
+          </div>
+        </section>
       ))}
     </div>
   );
