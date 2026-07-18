@@ -879,41 +879,133 @@ img.user-avatar-img {
   text-align: center;
 }
 
-/* Shown in the content area while a character's tokens are still loading. Sized to a full
-   16-column Use-tab grid (16*42 slot + 15*4 gap + 2*6 pad = 744) so the loading window is the
-   inventory's real footprint rather than a tiny box that then jumps out to full width. The
-   spinner sits dead centre. At <=900px the window scrolls this the same way a populated grid
-   scrolls (see the .ms-window media query). */
-.ms-loading {
-  margin: 10px 8px;
-  width: 744px;
-  min-height: 260px;
+/* ---------------------------------------------------------------------------
+   Loading skeletons
+
+   A designed loading state: placeholder shapes that mirror the real layout, so
+   the finished UI crossfades in as one piece rather than assembling itself from
+   empty chrome (a lone "add character" tile, a bare inventory window). The
+   shapes match the real ones (150px tiles, the 16x42 slot lattice) so the swap
+   to real content does not shift the layout.
+   --------------------------------------------------------------------------- */
+.skeleton {
+  position: relative;
+  overflow: hidden;
+  background: var(--surface-2);
+  border-radius: 6px;
+}
+
+.skeleton::after,
+.sk-slot::after,
+.sk-inv-line::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  animation: skeleton-sweep 1.3s ease-in-out infinite;
+}
+
+/* Page-level placeholders sit on the dark shell; the sweep is a pale highlight. */
+.skeleton::after {
+  background: linear-gradient(90deg, transparent, rgb(255 255 255 / 6%), transparent);
+}
+
+@keyframes skeleton-sweep {
+  to {
+    transform: translateX(100%);
+  }
+}
+
+/* Search bar placeholder: .finder-input's height (14px line + 9px*2 pad + 1px*2 border) and radius. */
+.sk-search {
+  height: 39px;
+  border-radius: 8px;
+}
+
+/* Carousel placeholders: same 150px width and stacked layout as .char-tile, at its idle opacity. */
+.sk-tile {
+  flex: 0 0 auto;
+  width: 150px;
+  padding: 4px;
   display: flex;
+  flex-direction: column;
   align-items: center;
-  justify-content: center;
+  gap: 6px;
+  opacity: 0.65;
+}
+
+.sk-sprite {
+  width: 116px;
+  height: 116px;
+  border-radius: 8px;
+}
+
+.sk-line {
+  height: 11px;
+  border-radius: 4px;
+}
+
+/* Inventory placeholder: stacked section blocks, matching a loaded inventory. Each grid mirrors
+   .ms-grid / SlotGrid exactly, 16 columns of 1fr, so it fills the window and lines up with the
+   search bar and carousel above instead of overhanging; .ms-section (reused) puts the real 10px
+   gap between them. These live in the always-light inventory window, so their base is the slot
+   colour and the sweep is a brighter highlight than the dark-shell placeholders above. */
+.ms-grid-skeleton {
+  display: grid;
+  grid-template-columns: repeat(16, 1fr);
+  gap: 4px;
+  margin: 0;
+  padding: 6px;
   border-radius: 6px;
   background: var(--ms-grid-bg);
 }
 
-.ms-spinner {
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  border: 3px solid var(--ms-slot-edge);
-  border-top-color: var(--ms-accent);
-  animation: ms-spin 0.7s linear infinite;
+.sk-slot {
+  position: relative;
+  overflow: hidden;
+  width: 42px;
+  height: 42px;
+  border: 1px solid var(--ms-slot-edge);
+  border-radius: 5px;
+  background: var(--ms-slot);
 }
 
-@keyframes ms-spin {
-  to {
-    transform: rotate(360deg);
+/* Section-header placeholder (title + count), sized like .ms-section-head's text. */
+.sk-inv-line {
+  position: relative;
+  overflow: hidden;
+  height: 9px;
+  border-radius: 4px;
+  background: var(--ms-slot-edge);
+}
+
+.sk-slot::after,
+.sk-inv-line::after {
+  background: linear-gradient(90deg, transparent, rgb(255 255 255 / 60%), transparent);
+}
+
+/* The real UI fades in over the skeleton it replaces. */
+.chars-ready {
+  animation: chars-fade-in 0.28s ease-out;
+}
+
+@keyframes chars-fade-in {
+  from {
+    opacity: 0;
   }
 }
 
-/* A frozen ring reads as broken, not loading, so slow the spin rather than stopping it. */
+/* A sweep that never rests reads as frozen under reduced motion; slow it rather than stop it, and
+   drop the fade so nothing moves that the user asked not to. */
 @media (prefers-reduced-motion: reduce) {
-  .ms-spinner {
-    animation-duration: 1.8s;
+  .skeleton::after,
+  .sk-slot::after,
+  .sk-inv-line::after {
+    animation-duration: 2.6s;
+  }
+
+  .chars-ready {
+    animation: none;
   }
 }
 

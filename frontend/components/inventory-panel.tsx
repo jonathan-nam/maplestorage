@@ -16,6 +16,33 @@ const OTHER = "Other";
 
 export type InventoryItem = SlotItem & { itemGroup?: string | null };
 
+// The content area the panel shows while `loading`, shaped like a loaded inventory: stacked
+// section blocks (a header, then a rounded grid of the 16-column, 42px lattice), spaced apart the
+// same way the real sections are, so the real content replaces it without the layout jumping. Rows
+// per section evoke the real SECTION_ORDER (Eternal Pieces, Symbols, Consumables) rather than one
+// solid slab. Styles live in globals.css (.ms-grid-skeleton / .sk-slot / .sk-inv-line).
+const SKELETON_SECTION_ROWS = [1, 1, 1];
+
+function InventoryGridSkeleton() {
+  return (
+    <div aria-hidden="true">
+      {SKELETON_SECTION_ROWS.map((rows, s) => (
+        <section className="ms-section" key={s}>
+          <header className="ms-section-head">
+            <span className="sk-inv-line" style={{ width: 96 }} />
+            <span className="sk-inv-line ms-section-count" style={{ width: 34 }} />
+          </header>
+          <div className="ms-grid-skeleton">
+            {Array.from({ length: COLS * rows }).map((_, i) => (
+              <span key={i} className="sk-slot" />
+            ))}
+          </div>
+        </section>
+      ))}
+    </div>
+  );
+}
+
 export function InventoryPanel({
   title,
   items,
@@ -30,8 +57,10 @@ export function InventoryPanel({
   items: InventoryItem[];
   emptyHint?: string;
   // The window frame stays mounted while the tokens are still in flight; this fills its content
-  // area with a spinner rather than an empty box, so the items fade in where the spinner was
-  // instead of the whole panel appearing at once.
+  // area with a placeholder slot grid rather than an empty box, so the real items crossfade in
+  // where the grid was instead of the panel appearing at once. Used for a character whose tokens
+  // are not in the browser yet (e.g. one added mid-session); the initial page load uses the
+  // full-page skeleton instead.
   loading?: boolean;
   // Clicking an item searches every character for it (see the page).
   onSelectItem?: (name: string) => void;
@@ -127,9 +156,7 @@ export function InventoryPanel({
        * (same 16 columns, same 46px sprites drawn 1:1) because that is what makes this read
        * as an inventory rather than a spreadsheet. */}
       {loading ? (
-        <div className="ms-loading" role="status" aria-label="Loading inventory">
-          <span className="ms-spinner" aria-hidden="true" />
-        </div>
+        <InventoryGridSkeleton />
       ) : sections.length > 0 ? (
         sections.map((section) => (
           <section key={section.name} className="ms-section">
