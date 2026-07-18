@@ -1186,6 +1186,10 @@ button.link:disabled {
 .finder-clear {
   flex: none;
 }
+/* Occupies its slot even with nothing to clear, so the input keeps one width. */
+.finder-clear.is-empty {
+  visibility: hidden;
+}
 
 .finder-results {
   margin-top: 12px;

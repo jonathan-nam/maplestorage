@@ -339,11 +339,17 @@ export function SearchBar({
             open && suggestions[activeIndex] ? `sug-${suggestions[activeIndex].key}` : undefined
           }
         />
-        {query && (
-          <button className="link finder-clear" onClick={() => onQuery("")}>
-            clear
-          </button>
-        )}
+        {/* Always in the layout, hidden when empty: rendering it only with a query would let the
+            input (flex: 1) reclaim the button's slot, so the field visibly narrowed the moment you
+            typed. Keeping the slot holds the field one width. */}
+        <button
+          className={`link finder-clear${query ? "" : " is-empty"}`}
+          onClick={() => onQuery("")}
+          aria-hidden={!query}
+          tabIndex={query ? 0 : -1}
+        >
+          clear
+        </button>
       </div>
 
       {open && suggestions.length > 0 && (
