@@ -871,11 +871,15 @@ img.user-avatar-img {
   text-align: center;
 }
 
-/* Shown in the content area while a character's tokens are still loading. min-height keeps the
-   panel a stable size so the items flow in where the spinner was, not below a collapsed box. */
+/* Shown in the content area while a character's tokens are still loading. Sized to a full
+   16-column Use-tab grid (16*42 slot + 15*4 gap + 2*6 pad = 744) so the loading window is the
+   inventory's real footprint rather than a tiny box that then jumps out to full width. The
+   spinner sits dead centre. At <=900px the window scrolls this the same way a populated grid
+   scrolls (see the .ms-window media query). */
 .ms-loading {
   margin: 10px 8px;
-  min-height: 96px;
+  width: 744px;
+  min-height: 260px;
   display: flex;
   align-items: center;
   justify-content: center;
