@@ -1,9 +1,10 @@
 "use client";
 
 import { useAuth } from "@clerk/nextjs";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { InventoryPanel, type InventoryItem } from "@/components/inventory-panel";
 import { apiFetch } from "@/lib/api";
+import { reportVital } from "@/lib/rum";
 import { invalidate, peek, put } from "@/lib/cache";
 import { redemptionNote } from "@/lib/redemption";
 import type { Character } from "@/types/character";
@@ -19,6 +20,19 @@ const ALL_TOKENS_KEY = "/api/characters/tokens";
 
 export default function CharactersPage() {
   const { getToken } = useAuth();
+
+  // The app-level "initial load" number: how long from arriving on this page to the
+  // inventory actually being on screen. Web vitals measure the document (LCP, TTFB);
+  // this measures the fetch-to-paint gap that is ours to control. Reported once per
+  // visit, whether the page was hard-loaded or navigated to from the landing page.
+  const arrivedAt = useRef(0);
+  const reportedReady = useRef(false);
+
+  // Stamp the arrival time in an effect, not during render (performance.now() is impure).
+  // Declared before the report effect below, so it always runs first on the same commit.
+  useEffect(() => {
+    arrivedAt.current = performance.now();
+  }, []);
 
   // Seed from cache so a repeat visit paints immediately instead of flashing a
   // loading state while it re-fetches data it already had. The fetch below still
@@ -156,6 +170,13 @@ export default function CharactersPage() {
 
   const selectedTokens = selectedId ? tokensByChar[selectedId] : undefined;
   const tokensReady = selectedTokens !== undefined;
+
+  useEffect(() => {
+    if (reportedReady.current) return;
+    if (state !== "loaded" || !tokensReady) return;
+    reportedReady.current = true;
+    reportVital({ name: "inventory-ready", value: performance.now() - arrivedAt.current });
+  }, [state, tokensReady]);
   const characterItems: InventoryItem[] = (selectedTokens ?? []).map((token) => ({
     id: token.tokenCatalogId,
     name: token.name,
