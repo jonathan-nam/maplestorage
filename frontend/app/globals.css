@@ -654,10 +654,10 @@ button.ms-slot {
 /* ---------------------------------------------------------------------------
    Site header and brand
 
-   The chest is the mark: MapleStory's Storage Room is a chest you can open from
-   any town without walking to an NPC, which is exactly what this app is. The
-   sprite is drawn from scratch (components/chest.tsx). Reference-images/storage
-   image.png is a reference for the idiom, not an asset we ship.
+   The mark is the Sharp Eyes skill icon (components/sharp-eyes-mark.tsx), a 32x32
+   sprite inlined as a data URI. Size it at 32 or a multiple: it is drawn with
+   image-rendering pixelated, so anything else resamples and the shape changes with
+   the viewer's zoom.
    --------------------------------------------------------------------------- */
 
 /* The bar spans the window; its CONTENTS sit on the shared column, so the brand's left edge lines
