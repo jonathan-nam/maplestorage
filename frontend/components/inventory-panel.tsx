@@ -5,7 +5,8 @@ import { COLS, SlotGrid, type SlotItem } from "@/components/slot-grid";
 
 // The client's tab row, in its order and with its spelling ("Etc." and "Set-up" carry their
 // punctuation in-game). Everything we track is a consumable, so it all lives in Use.
-const CATEGORIES = ["Equip", "Use", "Etc.", "Set-up", "Cash", "Dec."] as const;
+// Exported so the loading skeleton draws the same tabs and cannot drift from these.
+export const CATEGORIES = ["Equip", "Use", "Etc.", "Set-up", "Cash", "Dec."] as const;
 type Category = (typeof CATEGORIES)[number];
 
 // The order the sections appear in. An item whose group we do not recognise falls to the end
@@ -15,6 +16,20 @@ const SECTION_ORDER = ["Eternal Pieces", "Symbols", "Consumables"] as const;
 const OTHER = "Other";
 
 export type InventoryItem = SlotItem & { itemGroup?: string | null };
+
+// The content area as a shimmer of empty slots, in the same 16-column, 42px lattice as SlotGrid so
+// the real grid replaces it without a size jump. Used both by the panel's own `loading` state and
+// by the full-page characters skeleton. Three rows reads as an inventory without pretending to a
+// full 128-slot bag. Styles live in globals.css (.ms-grid-skeleton / .sk-slot).
+export function InventoryGridSkeleton() {
+  return (
+    <div className="ms-grid-skeleton" aria-hidden="true">
+      {Array.from({ length: COLS * 3 }).map((_, i) => (
+        <span key={i} className="sk-slot" />
+      ))}
+    </div>
+  );
+}
 
 export function InventoryPanel({
   title,
@@ -30,8 +45,10 @@ export function InventoryPanel({
   items: InventoryItem[];
   emptyHint?: string;
   // The window frame stays mounted while the tokens are still in flight; this fills its content
-  // area with a spinner rather than an empty box, so the items fade in where the spinner was
-  // instead of the whole panel appearing at once.
+  // area with a placeholder slot grid rather than an empty box, so the real items crossfade in
+  // where the grid was instead of the panel appearing at once. Used for a character whose tokens
+  // are not in the browser yet (e.g. one added mid-session); the initial page load uses the
+  // full-page skeleton instead.
   loading?: boolean;
   // Clicking an item searches every character for it (see the page).
   onSelectItem?: (name: string) => void;
@@ -127,9 +144,7 @@ export function InventoryPanel({
        * (same 16 columns, same 46px sprites drawn 1:1) because that is what makes this read
        * as an inventory rather than a spreadsheet. */}
       {loading ? (
-        <div className="ms-loading" role="status" aria-label="Loading inventory">
-          <span className="ms-spinner" aria-hidden="true" />
-        </div>
+        <InventoryGridSkeleton />
       ) : sections.length > 0 ? (
         sections.map((section) => (
           <section key={section.name} className="ms-section">
