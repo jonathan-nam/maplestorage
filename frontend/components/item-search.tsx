@@ -260,6 +260,40 @@ export function SearchBar({
     input.setSelectionRange(end, end);
   }, [focusSignal]);
 
+  // Type anywhere on the page and the letter lands in the search bar. The keypress is swallowed and
+  // re-applied by hand: focusing during keydown does not reliably redirect the character that
+  // triggered it, so the first letter you type would otherwise be dropped.
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.ctrlKey || e.metaKey || e.altKey || e.isComposing) return;
+      // Printable, single character. Space is excluded: it is the scroll/activate key on whatever
+      // has focus, and it would open a search for nothing.
+      if (e.key.length !== 1 || e.key === " ") return;
+      const t = e.target as HTMLElement | null;
+      if (
+        t &&
+        (t.isContentEditable ||
+          t.tagName === "INPUT" ||
+          t.tagName === "TEXTAREA" ||
+          t.tagName === "SELECT")
+      ) {
+        return;
+      }
+      const input = inputRef.current;
+      if (!input) return;
+      e.preventDefault();
+      input.focus();
+      // Caret to the end before the append lands, or focusing a bar that already has a query can
+      // leave it at position 0 and the new letter reads as inserted in the wrong place.
+      input.setSelectionRange(input.value.length, input.value.length);
+      onQuery(query + e.key);
+      setOpen(true);
+      setActive(0);
+    }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [query, onQuery]);
+
   const suggestions = suggest(query, characters, tokensByChar);
   const term = queryTerms(query)[0] ?? "";
 
