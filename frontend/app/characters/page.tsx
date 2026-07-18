@@ -34,6 +34,16 @@ export default function CharactersPage() {
 
   const [query, setQuery] = useState("");
 
+  // Bumped when an inventory item is clicked into the bar, so the SearchBar knows to pull focus.
+  // Separate from `query` because clicking the same item twice leaves the query unchanged but
+  // should still re-focus.
+  const [searchFocusSignal, setSearchFocusSignal] = useState(0);
+
+  function handleSelectItem(name: string) {
+    setQuery(name);
+    setSearchFocusSignal((n) => n + 1);
+  }
+
   // Which character to come back to when you turn the generic upload back off. Without it, the
   // eye is a one-way door: deselecting is easy, and getting back means hunting for the tile you
   // were on.
@@ -181,6 +191,7 @@ export default function CharactersPage() {
             characters={characters}
             tokensByChar={tokensByChar}
             onSelectCharacter={setSelectedId}
+            focusSignal={searchFocusSignal}
           />
 
           <CharacterCarousel
@@ -211,8 +222,9 @@ export default function CharactersPage() {
               emptyHint="No tokens here yet. Upload an inventory screenshot."
               items={characterItems}
               // Clicking an item searches every character for it: the query fills the bar above
-              // (bound to this same state) and the results take over this slot.
-              onSelectItem={setQuery}
+              // (bound to this same state), focus moves there so it can be edited (see SearchBar),
+              // and the results take over this slot.
+              onSelectItem={handleSelectItem}
             />
           ) : characters.length === 0 ? (
             <p className="finder-empty">Add a character above to start tracking.</p>
