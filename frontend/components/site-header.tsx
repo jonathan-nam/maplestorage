@@ -31,7 +31,10 @@ export function SiteHeader({ reserveControls }: { reserveControls: boolean }) {
         </SignedIn>
 
         <Link href="/" className="brand">
-          <SharpEyesMark size={28} />
+          {/* 32, not 28: the sprite is 32x32 and drawn with image-rendering pixelated, so a
+              non-multiple size drops whole rows and columns, and which ones it drops shifts with
+              zoom and display scaling. At 28 the mark visibly alternated between two shapes. */}
+          <SharpEyesMark size={32} />
           <span className="brand-name">SharpEyes</span>
         </Link>
 
