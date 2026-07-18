@@ -169,7 +169,7 @@ export default function CharactersPage() {
   }));
 
   return (
-    <main className="page">
+    <main className="page chars-page">
       <h1 className="page-title">Characters</h1>
 
       {state === "error" && <p>Couldn&apos;t load your characters.</p>}

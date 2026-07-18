@@ -1,4 +1,4 @@
-import { CATEGORIES, InventoryGridSkeleton } from "@/components/inventory-panel";
+import { InventoryPanel } from "@/components/inventory-panel";
 
 // Placeholder shapes shown while the characters page loads. They mirror the real layout (search
 // bar, a strip of character tiles, the inventory window) so the finished UI crossfades in as one
@@ -34,26 +34,10 @@ export function CharactersSkeleton() {
         </button>
       </div>
 
-      {/* Real window chrome (title bar + tabs) with a placeholder grid inside: the frame is
-          identical to the loaded panel, so only the grid crossfades. */}
-      <div className="ms-window" aria-hidden="true">
-        <div className="ms-titlebar">
-          <span className="ms-title">INVENTORY</span>
-          <span className="ms-window-buttons">
-            <i>&#8211;</i>
-            <i>+</i>
-            <i>&#215;</i>
-          </span>
-        </div>
-        <div className="ms-tabs">
-          {CATEGORIES.map((c) => (
-            <span key={c} className={`ms-tab${c === "Use" ? " active" : ""}`}>
-              {c}
-            </span>
-          ))}
-        </div>
-        <InventoryGridSkeleton />
-      </div>
+      {/* The inventory window IS the real InventoryPanel in its loading state, so its title bar,
+          tabs and section grid are the same component the loaded UI renders. Nothing to keep in
+          sync, and the loading and loaded windows are guaranteed identical. */}
+      <InventoryPanel loading title="" items={[]} />
     </div>
   );
 }

@@ -937,17 +937,17 @@ img.user-avatar-img {
   border-radius: 4px;
 }
 
-/* Inventory placeholder: stacked section blocks, matching a loaded inventory. Each grid is the
-   same lattice as .ms-grid / SlotGrid; .ms-section (reused) puts the real 10px gap between them.
-   These live in the always-light inventory window, so their base is the slot colour and the sweep
-   is a brighter highlight than the dark-shell placeholders above. */
+/* Inventory placeholder: stacked section blocks, matching a loaded inventory. Each grid mirrors
+   .ms-grid / SlotGrid exactly, 16 columns of 1fr, so it fills the window and lines up with the
+   search bar and carousel above instead of overhanging; .ms-section (reused) puts the real 10px
+   gap between them. These live in the always-light inventory window, so their base is the slot
+   colour and the sweep is a brighter highlight than the dark-shell placeholders above. */
 .ms-grid-skeleton {
   display: grid;
-  grid-template-columns: repeat(16, 42px);
+  grid-template-columns: repeat(16, 1fr);
   gap: 4px;
   margin: 0;
   padding: 6px;
-  width: max-content;
   border-radius: 6px;
   background: var(--ms-grid-bg);
 }
@@ -974,6 +974,14 @@ img.user-avatar-img {
 .sk-slot::after,
 .sk-inv-line::after {
   background: linear-gradient(90deg, transparent, rgb(255 255 255 / 60%), transparent);
+}
+
+/* The inventory window is nearly as wide as the page measure, so the default 2rem side padding
+   leaves the search bar and carousel visibly narrower than it, and the window overhangs them. Trim
+   the horizontal padding on this page so all three line up at the same width; the column stays
+   centred via .page's margin auto. */
+.chars-page {
+  padding-inline: 1rem;
 }
 
 /* The real UI fades in over the skeleton it replaces. */

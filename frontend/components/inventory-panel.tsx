@@ -5,8 +5,7 @@ import { COLS, SlotGrid, type SlotItem } from "@/components/slot-grid";
 
 // The client's tab row, in its order and with its spelling ("Etc." and "Set-up" carry their
 // punctuation in-game). Everything we track is a consumable, so it all lives in Use.
-// Exported so the loading skeleton draws the same tabs and cannot drift from these.
-export const CATEGORIES = ["Equip", "Use", "Etc.", "Set-up", "Cash", "Dec."] as const;
+const CATEGORIES = ["Equip", "Use", "Etc.", "Set-up", "Cash", "Dec."] as const;
 type Category = (typeof CATEGORIES)[number];
 
 // The order the sections appear in. An item whose group we do not recognise falls to the end
@@ -17,15 +16,14 @@ const OTHER = "Other";
 
 export type InventoryItem = SlotItem & { itemGroup?: string | null };
 
-// The content area as a placeholder, shaped like a loaded inventory: stacked section blocks (a
-// header, then a rounded grid of the 16-column, 42px lattice), spaced apart the same way the real
-// sections are, so the real content replaces it without the layout jumping. Rows per section evoke
-// the real SECTION_ORDER (Eternal Pieces, Symbols, Consumables) rather than one solid slab. Used
-// by the panel's own `loading` state and by the full-page characters skeleton. Styles live in
-// globals.css (.ms-grid-skeleton / .sk-slot / .sk-inv-line).
-const SKELETON_SECTION_ROWS = [1, 1, 2];
+// The content area the panel shows while `loading`, shaped like a loaded inventory: stacked
+// section blocks (a header, then a rounded grid of the 16-column, 42px lattice), spaced apart the
+// same way the real sections are, so the real content replaces it without the layout jumping. Rows
+// per section evoke the real SECTION_ORDER (Eternal Pieces, Symbols, Consumables) rather than one
+// solid slab. Styles live in globals.css (.ms-grid-skeleton / .sk-slot / .sk-inv-line).
+const SKELETON_SECTION_ROWS = [1, 1, 1];
 
-export function InventoryGridSkeleton() {
+function InventoryGridSkeleton() {
   return (
     <div aria-hidden="true">
       {SKELETON_SECTION_ROWS.map((rows, s) => (
