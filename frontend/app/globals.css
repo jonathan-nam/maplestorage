@@ -871,6 +871,40 @@ img.user-avatar-img {
   text-align: center;
 }
 
+/* Shown in the content area while a character's tokens are still loading. min-height keeps the
+   panel a stable size so the items flow in where the spinner was, not below a collapsed box. */
+.ms-loading {
+  margin: 10px 8px;
+  min-height: 96px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  background: var(--ms-grid-bg);
+}
+
+.ms-spinner {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 3px solid var(--ms-slot-edge);
+  border-top-color: var(--ms-accent);
+  animation: ms-spin 0.7s linear infinite;
+}
+
+@keyframes ms-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* A frozen ring reads as broken, not loading, so slow the spin rather than stopping it. */
+@media (prefers-reduced-motion: reduce) {
+  .ms-spinner {
+    animation-duration: 1.8s;
+  }
+}
+
 /* What changed. The whole reason a parse is shown before it is written. */
 .ms-delta {
   position: absolute;

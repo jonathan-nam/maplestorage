@@ -20,6 +20,7 @@ export function InventoryPanel({
   title,
   items,
   emptyHint,
+  loading = false,
   onSelectItem,
 }: {
   // The character's name, and nothing else. The level used to hang off it as "· Lv.287", which
@@ -28,6 +29,10 @@ export function InventoryPanel({
   title: string;
   items: InventoryItem[];
   emptyHint?: string;
+  // The window frame stays mounted while the tokens are still in flight; this fills its content
+  // area with a spinner rather than an empty box, so the items fade in where the spinner was
+  // instead of the whole panel appearing at once.
+  loading?: boolean;
   // Clicking an item searches every character for it (see the page).
   onSelectItem?: (name: string) => void;
 }) {
@@ -121,7 +126,11 @@ export function InventoryPanel({
        * So: one block per group, sized to its contents, in a fixed order. The slot lattice stays
        * (same 16 columns, same 46px sprites drawn 1:1) because that is what makes this read
        * as an inventory rather than a spreadsheet. */}
-      {sections.length > 0 ? (
+      {loading ? (
+        <div className="ms-loading" role="status" aria-label="Loading inventory">
+          <span className="ms-spinner" aria-hidden="true" />
+        </div>
+      ) : sections.length > 0 ? (
         sections.map((section) => (
           <section key={section.name} className="ms-section">
             <header className="ms-section-head">

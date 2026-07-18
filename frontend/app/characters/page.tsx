@@ -161,10 +161,9 @@ export default function CharactersPage() {
     <main className="page">
       <h1 className="page-title">Characters</h1>
 
-      {state === "loading" && <p>loading…</p>}
       {state === "error" && <p>Couldn&apos;t load your characters.</p>}
 
-      {state === "loaded" && (
+      {state !== "error" && (
         <>
           <SearchBar
             query={query}
@@ -186,15 +185,20 @@ export default function CharactersPage() {
 
           {/* The selected character's inventory sits directly under the carousel: pick a
               character, see their stuff. Searching answers a question the inventory cannot, so it
-              takes over this same slot while you are asking it. */}
-          {searching ? (
+              takes over this same slot while you are asking it.
+
+              The inventory window is mounted from the first paint (spinner inside) rather than
+              held back until the roster fetch lands, so the items fade in where the spinner was
+              instead of the whole panel appearing at once. */}
+          {state === "loading" ? (
+            <InventoryPanel title="" items={[]} loading />
+          ) : searching ? (
             <SearchResults query={query} matches={matches} />
           ) : selected ? (
             <InventoryPanel
               title={selected.name}
-              emptyHint={
-                tokensReady ? "No tokens here yet. Upload an inventory screenshot." : "Loading…"
-              }
+              loading={!tokensReady}
+              emptyHint="No tokens here yet. Upload an inventory screenshot."
               items={characterItems}
               // Clicking an item searches every character for it: the query fills the bar above
               // (bound to this same state) and the results take over this slot.
@@ -209,22 +213,24 @@ export default function CharactersPage() {
             </p>
           )}
 
-          <CaptureDock
-            characters={characters}
-            pinnedCharacterId={selectedId}
-            stored={new Map((selectedTokens ?? []).map((t) => [t.tokenCatalogId, t.quantity]))}
-            getToken={getToken}
-            onCharacterAdded={handleAdded}
-            onSaved={() => setRevision((n) => n + 1)}
-            onToggleGeneric={() => {
-              if (selectedId) {
-                setLastSelectedId(selectedId);
-                setSelectedId(null);
-              } else {
-                setSelectedId(lastSelectedId ?? characters[0]?.id ?? null);
-              }
-            }}
-          />
+          {state === "loaded" && (
+            <CaptureDock
+              characters={characters}
+              pinnedCharacterId={selectedId}
+              stored={new Map((selectedTokens ?? []).map((t) => [t.tokenCatalogId, t.quantity]))}
+              getToken={getToken}
+              onCharacterAdded={handleAdded}
+              onSaved={() => setRevision((n) => n + 1)}
+              onToggleGeneric={() => {
+                if (selectedId) {
+                  setLastSelectedId(selectedId);
+                  setSelectedId(null);
+                } else {
+                  setSelectedId(lastSelectedId ?? characters[0]?.id ?? null);
+                }
+              }}
+            />
+          )}
         </>
       )}
     </main>
