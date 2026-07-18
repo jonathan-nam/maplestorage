@@ -61,10 +61,17 @@ export default function CharactersPage() {
     // when you click one. The page already knows you are about to look at one of these; it just
     // does not know which. Waiting to find out puts a network round-trip between the click and
     // the pixels, and that gap is the flicker: the panel renders empty, then fills.
-    Promise.all([
-      apiFetch<Character[]>(CHARACTERS_KEY, { method: "GET" }, getToken),
-      apiFetch<Record<string, CharacterToken[]>>(ALL_TOKENS_KEY, { method: "GET" }, getToken),
-    ])
+    // One token for the whole burst. getToken() can round-trip to Clerk, and that cost is paid
+    // BEFORE each request goes out (see lib/api.ts), so the roster and the bulk tokens loading
+    // together would each pay it. Mint once and share.
+    getToken()
+      .then((token) => {
+        const withToken = () => Promise.resolve(token);
+        return Promise.all([
+          apiFetch<Character[]>(CHARACTERS_KEY, { method: "GET" }, withToken),
+          apiFetch<Record<string, CharacterToken[]>>(ALL_TOKENS_KEY, { method: "GET" }, withToken),
+        ]);
+      })
       .then(([characterResult, allTokens]) => {
         // The bulk query only returns characters that HAVE something. A character with an empty
         // inventory comes back absent, which is indistinguishable from "not fetched yet", so it
@@ -88,12 +95,15 @@ export default function CharactersPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [revision]);
 
-  // A selected character is re-fetched on its own, but only as a REFRESH, the bulk load above
-  // has already supplied something to draw, so this never decides what you see first, and a
-  // failure never blanks what is on screen.
+  // The bulk load above already holds the selected character's tokens, and it re-runs on every
+  // upload (via `revision`), so it is the single source of freshness. This only fetches when we
+  // genuinely hold nothing for the id yet, e.g. a character added mid-session before the next
+  // bulk load. Refetching data we already have was a wasted round-trip on first paint (right
+  // after the bulk load seeded it) and on every selection.
   useEffect(() => {
     if (selectedId === null) return;
     const id = selectedId;
+    if (tokensByChar[id] !== undefined) return;
     let cancelled = false;
     apiFetch<CharacterToken[]>(`/api/characters/${id}/tokens`, { method: "GET" }, getToken)
       .then((tokens) => {

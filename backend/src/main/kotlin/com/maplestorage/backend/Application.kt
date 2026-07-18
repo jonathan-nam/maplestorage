@@ -1,6 +1,7 @@
 package com.maplestorage.backend
 
 import com.maplestorage.backend.config.Env
+import com.maplestorage.backend.plugins.configureCompression
 import com.maplestorage.backend.plugins.configureCors
 import com.maplestorage.backend.plugins.configureDatabase
 import com.maplestorage.backend.plugins.configureRouting
@@ -24,6 +25,7 @@ fun main() {
 fun Application.module() {
     configureTiming()
     configureSerialization()
+    configureCompression()
     configureCors()
     configureSecurity()
     configureDatabase()
