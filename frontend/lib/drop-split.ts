@@ -56,7 +56,7 @@ export type Split = {
   grossSale: number | null;
   /** What the seller has to hand out. */
   sellerReceives: number;
-  /** What the seller is left holding. Carries the rounding dust, see below. */
+  /** What the seller is left holding, after absorbing the rounding dust. */
   sellerKeeps: number;
   members: MemberShare[];
   /** Lost to the AH: both hops when the listed price is known, the payouts alone when it is not. */
@@ -92,8 +92,8 @@ export function parseMesos(input: string): number | null {
  * act on. A rate of 1 would mean the AH takes everything, and dividing by what is left is where an
  * Infinity would enter and be rendered as a payout.
  *
- * Mesos are integers, so each payout is floored and the few mesos of dust land in `sellerKeeps`.
- * The drift is under one meso per member, which is not worth an equalisation pass.
+ * Mesos are integers, so each payout is rounded UP and the seller absorbs the dust. It is a meso
+ * per member at most, and it is the distributor's to eat rather than the party's.
  */
 export function splitDrop({ amount, amountIs, sellerFee, memberFees, method }: SplitInput): Split {
   // The seller's own rate is unused on a `received` basis, so a nonsense value there must not
@@ -121,9 +121,22 @@ export function splitDrop({ amount, amountIs, sellerFee, memberFees, method }: S
   const equalNet = sellerReceives / (1 + memberFees.reduce((sum, fee) => sum + 1 / (1 - fee), 0));
 
   const partySize = memberFees.length + 1;
-  const members = memberFees.map((fee) => {
-    const pay =
-      method === "fair" ? Math.floor(equalNet / (1 - fee)) : Math.floor(sellerReceives / partySize);
+  const exact = (fee: number) =>
+    method === "fair" ? equalNet / (1 - fee) : sellerReceives / partySize;
+  const payouts = (round: (n: number) => number) => memberFees.map((fee) => round(exact(fee)));
+
+  // Round payouts UP, so the seller absorbs the rounding dust rather than the party. It is a meso
+  // or two, but it is the distributor's to eat, and it matches the split bot people already
+  // cross-check against.
+  //
+  // Rounding up can OVERSHOOT what the seller is holding, though only on amounts too small to
+  // divide: 1 meso across a party of 6 rounds to 1 each and pays out 5 from a purse of 1. Falling
+  // back to floor is the only branch where the invariant would otherwise break.
+  let pays = payouts(Math.ceil);
+  if (pays.reduce((sum, p) => sum + p, 0) > sellerReceives) pays = payouts(Math.floor);
+
+  const members = memberFees.map((fee, i) => {
+    const pay = pays[i] ?? 0;
     return { fee, pay, nets: Math.floor(pay * (1 - fee)) };
   });
 
@@ -141,113 +154,96 @@ export function splitDrop({ amount, amountIs, sellerFee, memberFees, method }: S
   };
 }
 
-/** One line of the worked derivation. */
+/** One line of the working: a name, and the arithmetic that produced it. */
 export type MathStep = {
-  /** What this step establishes. */
-  title: string;
-  /** The general form. */
-  formula: string;
-  /** The same with this split's own numbers in it. */
-  substituted: string;
+  /** What is being computed. */
+  label: string;
+  /** The arithmetic, with this split's own numbers and its result. */
+  expression: string;
 };
 
 const n = (value: number) => value.toLocaleString("en-US");
-const pct = (fee: number) => `${(fee * 100).toFixed(0)}%`;
+const keptOf = (fee: number) => (1 - fee).toFixed(2);
 
 /**
- * The derivation behind a split, worked with its own numbers.
+ * The arithmetic behind a split, in the order it was done.
  *
- * Reads every figure it quotes off the `Split` it is given rather than recomputing them. A
- * hand-written explanation beside a computed number is two sources of truth, and the one nobody
- * runs is the one that goes wrong. A test pins that every payout it computed appears in here.
+ * Reads every figure off the `Split` it is given rather than recomputing them. A hand-written
+ * explanation beside a computed number is two sources of truth, and the one nobody runs is the
+ * one that goes wrong. A test pins that every payout it computed appears in here.
  */
 export function explainSplit(input: SplitInput, split: Split): MathStep[] {
   const { sellerFee, memberFees, method } = input;
+  const others = memberFees.length;
   const steps: MathStep[] = [
-    split.grossSale !== null
-      ? {
-          title: "What the sale actually paid you",
-          formula: "received = listed x (1 - your fee)",
-          substituted: `${n(split.grossSale)} x (1 - ${pct(sellerFee)}) = ${n(split.sellerReceives)}`,
-        }
-      : {
-          title: "What you have to hand out",
-          formula: "received = what you entered",
-          substituted: `${n(split.sellerReceives)}, so your own fee never enters the split`,
-        },
+    {
+      label: "received",
+      expression:
+        split.grossSale !== null
+          ? `${n(split.grossSale)} x ${keptOf(sellerFee)} = ${n(split.sellerReceives)}`
+          : `${n(split.sellerReceives)} (entered)`,
+    },
   ];
 
-  if (memberFees.length === 0) {
-    steps.push({
-      title: "Nobody to pay",
-      formula: "you keep = received",
-      substituted: n(split.sellerKeeps),
-    });
+  if (others === 0) {
+    steps.push({ label: "you keep", expression: n(split.sellerKeeps) });
     return steps;
   }
 
-  if (method === "fair") {
-    const terms = memberFees.map((fee) => 1 / (1 - fee));
-    const divisor = 1 + terms.reduce((sum, t) => sum + t, 0);
-    const equalNet = Math.floor(split.sellerReceives / divisor);
+  const uniform = memberFees.every((fee) => fee === memberFees[0]);
+  const fee = memberFees[0] ?? 0;
+  const paidOut = split.members.reduce((sum, m) => sum + m.pay, 0);
+  const netted = split.members.reduce((sum, m) => sum + m.nets, 0);
 
+  if (method === "fair") {
+    const divisor = 1 + memberFees.reduce((sum, f) => sum + 1 / (1 - f), 0);
+    steps.push({
+      label: "X",
+      expression: uniform
+        ? `${n(split.sellerReceives)} / (1 + ${others} / ${keptOf(fee)}) = ${n(
+            Math.floor(split.sellerReceives / divisor),
+          )}`
+        : `${n(split.sellerReceives)} / ${divisor.toFixed(4)} = ${n(
+            Math.floor(split.sellerReceives / divisor),
+          )}`,
+    });
+  }
+
+  // One line for the party when they all pay the same, which is the usual case. Only a mixed
+  // party needs a line each, and then the rate has to be in it or the numbers look arbitrary.
+  if (uniform) {
     steps.push(
       {
-        title: "Everyone is to end up holding the same amount, call it X",
-        formula: "X + SUM X / (1 - fee_i) = received",
-        substituted:
-          "you keep X, and each member must be SENT enough that X survives their own fee",
+        label: "send each",
+        expression:
+          method === "fair"
+            ? `${n(Math.floor(split.sellerReceives / (1 + memberFees.reduce((sum, f) => sum + 1 / (1 - f), 0))))} / ${keptOf(fee)} = ${n(split.members[0]?.pay ?? 0)}`
+            : `${n(split.sellerReceives)} / ${others + 1} = ${n(split.members[0]?.pay ?? 0)}`,
       },
       {
-        title: "So solve that for X",
-        formula: "X = received / (1 + SUM 1 / (1 - fee_i))",
-        substituted: `${n(split.sellerReceives)} / (1 + ${terms
-          .map((t) => t.toFixed(4))
-          .join(" + ")}) = ${n(equalNet)}`,
+        label: "they keep",
+        expression: `${n(split.members[0]?.pay ?? 0)} x ${keptOf(fee)} = ${n(split.members[0]?.nets ?? 0)}`,
       },
     );
-
-    split.members.forEach((m, i) => {
-      steps.push({
-        title: `Send member ${i + 1}, who pays ${pct(m.fee)}`,
-        formula: "send = X / (1 - fee_i)",
-        substituted: `${n(equalNet)} / (1 - ${pct(m.fee)}) = ${n(m.pay)}, of which they keep ${n(m.nets)}`,
-      });
-    });
-
-    steps.push({
-      title: "You keep whatever is left, including the rounding dust",
-      formula: "you keep = received - everything sent",
-      substituted: `${n(split.sellerReceives)} - ${n(
-        split.members.reduce((sum, m) => sum + m.pay, 0),
-      )} = ${n(split.sellerKeeps)}`,
-    });
   } else {
-    const partySize = memberFees.length + 1;
-    steps.push({
-      title: "Divide what you received by the party, and send that",
-      formula: "share = received / party size",
-      substituted: `${n(split.sellerReceives)} / ${partySize} = ${n(split.members[0]?.pay ?? 0)}`,
-    });
-
     split.members.forEach((m, i) => {
       steps.push({
-        title: `Member ${i + 1} is taxed a second time, at ${pct(m.fee)}`,
-        formula: "they keep = share x (1 - fee_i)",
-        substituted: `${n(m.pay)} x (1 - ${pct(m.fee)}) = ${n(m.nets)}, which is ${n(
-          split.sellerKeeps - m.nets,
-        )} less than you keep`,
+        label: `member ${i + 1}`,
+        expression: `send ${n(m.pay)} x ${keptOf(m.fee)} = ${n(m.nets)}`,
       });
     });
   }
 
-  const received = split.members.reduce((sum, m) => sum + m.nets, 0);
   steps.push({
-    title: "Check: nothing was invented and nothing was lost",
-    formula: split.totalFeeCoversSale
-      ? "you + everyone else + fees = listed"
-      : "you + everyone else + payout fees = received",
-    substituted: `${n(split.sellerKeeps)} + ${n(received)} + ${n(split.totalFee)} = ${n(
+    label: "you keep",
+    expression: uniform
+      ? `${n(split.sellerReceives)} - ${others} x ${n(split.members[0]?.pay ?? 0)} = ${n(split.sellerKeeps)}`
+      : `${n(split.sellerReceives)} - ${n(paidOut)} = ${n(split.sellerKeeps)}`,
+  });
+
+  steps.push({
+    label: "check",
+    expression: `${n(split.sellerKeeps)} + ${n(netted)} + ${n(split.totalFee)} = ${n(
       split.grossSale ?? split.sellerReceives,
     )}`,
   });

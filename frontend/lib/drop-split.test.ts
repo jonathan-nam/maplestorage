@@ -178,15 +178,14 @@ describe("reading a price the way a player types it", () => {
 });
 
 describe("the worked math cannot disagree with the numbers", () => {
-  // The whole reason explainSplit derives from the split rather than restating the formula. An
-  // explanation that drifts from the figures above it is worse than no explanation: it is a
-  // confident wrong number with a proof attached.
+  // The whole reason explainSplit reads off the split rather than restating the formula. Working
+  // that drifts from the figures above it is worse than none: a wrong number with a proof attached.
   const cases: SplitInput[] = [
     {
       amount: 9_500_000_000,
       amountIs: "listed",
-      sellerFee: FEE_MVP,
-      memberFees: [FEE_MVP, FEE_STANDARD, FEE_MVP],
+      sellerFee: FEE_STANDARD,
+      memberFees: [FEE_STANDARD, FEE_STANDARD],
       method: "fair",
     },
     {
@@ -194,25 +193,24 @@ describe("the worked math cannot disagree with the numbers", () => {
       amountIs: "listed",
       sellerFee: FEE_STANDARD,
       memberFees: [FEE_MVP, FEE_STANDARD],
-      method: "lazy",
-    },
-    { amount: B, amountIs: "listed", sellerFee: FEE_MVP, memberFees: [], method: "fair" },
-    {
-      amount: 7,
-      amountIs: "listed",
-      sellerFee: FEE_STANDARD,
-      memberFees: [FEE_MVP, FEE_MVP],
       method: "fair",
     },
+    {
+      amount: 9_500_000_000,
+      amountIs: "received",
+      sellerFee: FEE_STANDARD,
+      memberFees: [FEE_STANDARD, FEE_STANDARD],
+      method: "lazy",
+    },
+    { amount: B, amountIs: "listed", sellerFee: FEE_STANDARD, memberFees: [], method: "fair" },
   ];
 
   it.each(cases)("quotes every figure it computed ($method)", (input) => {
     const split = splitDrop(input);
     const text = explainSplit(input, split)
-      .map((s) => s.substituted)
+      .map((s) => s.expression)
       .join(" | ");
 
-    // Every payout, every net and the seller's keep must literally appear in the working.
     expect(text).toContain(split.sellerReceives.toLocaleString("en-US"));
     expect(text).toContain(split.sellerKeeps.toLocaleString("en-US"));
     for (const m of split.members) {
@@ -221,26 +219,31 @@ describe("the worked math cannot disagree with the numbers", () => {
     }
   });
 
-  it("shows the fair payout as X divided by what the member's fee leaves", () => {
-    const input: SplitInput = {
-      amount: 9_500_000_000,
-      amountIs: "listed",
-      sellerFee: FEE_MVP,
-      memberFees: [FEE_STANDARD],
-      method: "fair",
-    };
-    const split = splitDrop(input);
-    const steps = explainSplit(input, split);
-    const payout = steps.find((s) => s.title.startsWith("Send member 1"));
-    expect(payout?.formula).toBe("send = X / (1 - fee_i)");
-    expect(payout?.substituted).toContain(split.members[0]?.pay.toLocaleString("en-US"));
+  it("collapses a same-rate party to one line each for send and keep", () => {
+    const input = cases[0] as SplitInput;
+    const labels = explainSplit(input, splitDrop(input)).map((s) => s.label);
+    expect(labels).toEqual(["received", "X", "send each", "they keep", "you keep", "check"]);
   });
 
-  it("always ends on a check that balances against the listed price", () => {
+  it("gives a mixed party a line per member instead", () => {
+    const input = cases[1] as SplitInput;
+    const labels = explainSplit(input, splitDrop(input)).map((s) => s.label);
+    expect(labels).toContain("member 1");
+    expect(labels).toContain("member 2");
+    expect(labels).not.toContain("send each");
+  });
+
+  it("skips the X line for a lazy split, which never solves for one", () => {
+    const input = cases[2] as SplitInput;
+    const labels = explainSplit(input, splitDrop(input)).map((s) => s.label);
+    expect(labels).not.toContain("X");
+  });
+
+  it("always ends on a check that balances against what came in", () => {
     const input = cases[0] as SplitInput;
     const steps = explainSplit(input, splitDrop(input));
-    expect(steps.at(-1)?.title).toContain("Check");
-    expect(steps.at(-1)?.substituted).toContain(input.amount.toLocaleString("en-US"));
+    expect(steps.at(-1)?.label).toBe("check");
+    expect(steps.at(-1)?.expression).toContain(input.amount.toLocaleString("en-US"));
   });
 });
 
@@ -309,7 +312,56 @@ describe("entering what you received instead of the listed price", () => {
       method: "fair",
     };
     const steps = explainSplit(input, splitDrop(input));
-    expect(steps[0]?.substituted).toContain("your own fee never enters the split");
-    expect(steps.at(-1)?.formula).toContain("payout fees = received");
+    expect(steps[0]?.expression).toContain("(entered)");
+    expect(steps.at(-1)?.expression).toContain((970_000_000).toLocaleString("en-US"));
+  });
+});
+
+describe("rounding matches the split bot people cross-check against", () => {
+  // A real transcript: net sale 9,689,980,888 across a party of 3 at the standard rate. The bot
+  // says to list at 3,284,739,285, which is received / (3 - 0.05) rounded UP.
+  it("reproduces the bot's figure exactly", () => {
+    const s = splitDrop({
+      amount: 9_689_980_888,
+      amountIs: "received",
+      sellerFee: FEE_STANDARD,
+      memberFees: [FEE_STANDARD, FEE_STANDARD],
+      method: "fair",
+    });
+    expect(s.members.map((m) => m.pay)).toEqual([3_284_739_285, 3_284_739_285]);
+    expect(s.sellerKeeps).toBe(3_120_502_318);
+    expect(s.members.map((m) => m.nets)).toEqual([3_120_502_320, 3_120_502_320]);
+  });
+
+  it("gives the dust to the party, not the seller", () => {
+    const s = splitDrop({
+      amount: 9_689_980_888,
+      amountIs: "received",
+      sellerFee: FEE_STANDARD,
+      memberFees: [FEE_STANDARD, FEE_STANDARD],
+      method: "fair",
+    });
+    expect(s.sellerKeeps).toBeLessThanOrEqual(s.members[0]?.nets ?? 0);
+  });
+
+  // Rounding up can overshoot a purse too small to divide. This is the branch that falls back.
+  it.each([
+    [1, 6],
+    [3, 6],
+    [5, 2],
+    [0, 4],
+  ])("never pays out more than is held, at %i mesos across %i", (amount, partySize) => {
+    for (const method of ["fair", "lazy"] as const) {
+      const s = splitDrop({
+        amount,
+        amountIs: "received",
+        sellerFee: FEE_MVP,
+        memberFees: Array.from({ length: partySize - 1 }, () => FEE_STANDARD),
+        method,
+      });
+      const paidOut = s.members.reduce((sum, m) => sum + m.pay, 0);
+      expect(s.sellerKeeps).toBeGreaterThanOrEqual(0);
+      expect(s.sellerKeeps + paidOut).toBe(s.sellerReceives);
+    }
   });
 });

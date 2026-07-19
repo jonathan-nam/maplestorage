@@ -1804,53 +1804,6 @@ button.link:disabled {
   line-height: 1.4;
 }
 
-.fee-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 4px 0;
-}
-
-.fee-who {
-  color: var(--muted);
-}
-
-.fee-choice {
-  display: inline-flex;
-  gap: 4px;
-}
-
-.fee-option {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 4px 9px;
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  background: var(--surface);
-  color: var(--muted);
-  font-variant-numeric: tabular-nums;
-  cursor: pointer;
-}
-.fee-option.active {
-  border-color: var(--accent);
-  color: var(--ink-strong);
-}
-
-.fee-toggle {
-  align-self: flex-start;
-  margin-top: 6px;
-  padding: 0;
-  border: 0;
-  background: none;
-  color: var(--accent);
-  font: inherit;
-  font-size: 12px;
-  cursor: pointer;
-  text-decoration: underline;
-}
-
 .split-table {
   width: 100%;
   border-collapse: collapse;
@@ -1937,41 +1890,40 @@ button.link:disabled {
 }
 
 .math-steps {
-  margin: 14px 0 0;
-  padding: 0 0 0 22px;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 5px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
 }
 
 .math-steps li {
-  color: var(--muted);
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
 }
 
-.math-steps p {
-  margin: 0;
-}
-
-.math-title {
-  color: var(--ink);
-  font-size: 13px;
-}
-
-/* The general form, then the same thing with this split's own numbers under it. */
-.math-formula {
-  margin-top: 3px !important;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 12px;
+/* Fixed column so the expressions line up down the left rather than stepping in and out. */
+.math-label {
+  flex: 0 0 68px;
   color: var(--muted-2);
 }
 
-.math-substituted {
-  margin-top: 2px !important;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 12px;
+.math-expression {
   color: var(--ink-strong);
   font-variant-numeric: tabular-nums;
   overflow-wrap: anywhere;
+}
+
+.split-caveat {
+  margin: 22px 0 0;
+  max-width: 60ch;
+  color: var(--muted-2);
+  font-size: 11px;
+  line-height: 1.6;
 }
 
 .split-error {
