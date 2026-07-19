@@ -39,7 +39,7 @@ services:
       # Dev only. The vision service binds 127.0.0.1 (as it does in ECS), so it
       # is deliberately unreachable from the host, the smoke test POSTs a
       # screenshot from inside the container instead, and needs the file there.
-      - ./reference-images:/screenshots:ro
+      - ./test-fixtures:/screenshots:ro
     # Owns the shared namespace, so both services' ports are published here.
     ports:
       - "8080:8080" # backend (Ktor)

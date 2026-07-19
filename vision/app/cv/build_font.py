@@ -88,7 +88,7 @@ def glyph_mask(patch, box):
 
 
 def main():
-    img = cv2.imread("../../reference-images/untradeables sample.png")
+    img = cv2.imread("../../test-fixtures/untradeables sample.png")
     g = find_grid(img)
 
     found = []

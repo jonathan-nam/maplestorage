@@ -49,3 +49,8 @@ symbol-candidates.png
 
 # stray build output if next is run from the wrong cwd
 **/.next/
+
+# Scratch drop zone for reference captures. Nothing here is a fixture until a
+# test reads it, at which point it moves up into test-fixtures/ proper.
+test-fixtures/scratch/*
+!test-fixtures/scratch/README.md

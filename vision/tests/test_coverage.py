@@ -14,7 +14,7 @@ import pytest
 
 from app.cv.grid import COLS, MIN_SLOT_GREY, ROWS, coverage, find_grid
 
-REF = "../reference-images"
+REF = "../test-fixtures"
 
 # Every capture in the corpus that IS a readable inventory. Each must read as complete:
 # if a genuine capture cannot clear this gate, the feature never fires for anyone.

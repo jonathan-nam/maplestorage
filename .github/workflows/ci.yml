@@ -51,7 +51,7 @@ jobs:
             vision:
               - 'vision/**'
               - 'catalog/**'
-              - 'reference-images/**'
+              - 'test-fixtures/**'
             catalog:
               - 'catalog/**'
               - 'backend/src/main/resources/db/migration/R__token_catalog.sql'

@@ -15,7 +15,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 KEEP="${1:-}"
-SHOT="reference-images/untradeables sample.png"
+SHOT="test-fixtures/untradeables sample.png"
 PASS=0
 FAIL=0
 

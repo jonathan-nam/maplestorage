@@ -44,7 +44,7 @@ fun Application.configureRouting(
         // one). Hand-maintained PNGs. They began as a recolour of the parser's matching templates
         // (vision/app/cv/templates/digit_*.png), the same face, but have since been hand-tuned and
         // are no longer identical to them. Ground truth for a glyph's shape is the client itself,
-        // in reference-images/untradeables sample.png: hand-tuning once removed background bleed by
+        // in test-fixtures/untradeables sample.png: hand-tuning once removed background bleed by
         // grey value and took the real fill with it, because the fill fades to 195 at the baseline
         // and the slot background is 226.
         staticResources("/digit-icons", "seed-assets/digits") { cacheControl(iconCache) }

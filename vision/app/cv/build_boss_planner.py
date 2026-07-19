@@ -15,7 +15,7 @@ import cv2
 from . import planner as P
 
 REPO = Path(__file__).resolve().parents[3]
-SOURCE = REPO / "reference-images" / "boss clear menu sample 2.png"
+SOURCE = REPO / "test-fixtures" / "boss clear menu sample 2.png"
 
 CHECK_ROW, ARROW_ROW = 0, 3  # a known cleared row and a known not-cleared row in SOURCE
 GLYPH_X0, GLYPH_X1 = 0.86, 0.98  # cut the state glyph a touch inside its cell so it can slide

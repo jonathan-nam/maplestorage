@@ -27,7 +27,7 @@ from app.cv.match import load_templates
 ROOT = pathlib.Path(__file__).resolve().parent.parent.parent
 MANIFEST = ROOT / "catalog" / "items.yaml"
 
-REF = "../reference-images"
+REF = "../test-fixtures"
 REFERENCE_CAPTURES = [
     f"{REF}/untradeables sample.png",
     f"{REF}/inventory sample.png",
