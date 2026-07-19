@@ -94,8 +94,8 @@ export default function DropSplitPage() {
           <span className="basis-row">
             {(
               [
-                ["listed", "Listed price"],
-                ["received", "What I received"],
+                ["listed", "Gross sale amount"],
+                ["received", "Net sale amount"],
               ] as const
             ).map(([value, label]) => (
               <label key={value} className={amountIs === value ? "basis-tab active" : "basis-tab"}>
@@ -115,7 +115,7 @@ export default function DropSplitPage() {
             onChange={(e) => setPrice(e.target.value)}
             placeholder="e.g. 9.5b, 970m, 1,000,000,000"
             inputMode="text"
-            aria-label={amountIs === "listed" ? "Listed price" : "Amount received"}
+            aria-label={amountIs === "listed" ? "Gross sale amount" : "Net sale amount"}
             autoFocus
           />
           <span className="split-hint">
@@ -151,8 +151,8 @@ export default function DropSplitPage() {
           <legend>Split</legend>
           {(
             [
-              ["fair", "Fair", "Everyone ends up holding the same amount."],
-              ["lazy", "Lazy", "Divide what you received. Simpler, and you keep more."],
+              ["fair", "Fair", "All party members receive the same net amount."],
+              ["lazy", "Lazy", "Seller divides the net amount received by the party member size."],
             ] as const
           ).map(([value, label, hint]) => (
             <label
