@@ -32,7 +32,11 @@ const SKELETON_BOSSES: Boss[] = [
   ...Array.from({ length: 2 }, (_, i) => ({ bossKey: `sk-daily-${i}`, name: "", reset: "DAILY" })),
 ];
 
-const SKELETON_CHARACTERS = Array.from({ length: 4 }, (_, i) => ({ id: `sk-char-${i}`, name: "" }));
+const SKELETON_CHARACTERS = Array.from({ length: 4 }, (_, i) => ({
+  id: `sk-char-${i}`,
+  name: "",
+  spriteImgUrl: null,
+}));
 
 export function BossMatrix({
   bosses,
@@ -41,7 +45,7 @@ export function BossMatrix({
   loading,
 }: {
   bosses: Boss[];
-  characters: Pick<Character, "id" | "name">[];
+  characters: Pick<Character, "id" | "name" | "spriteImgUrl">[];
   clearsByCharacter: BossClearsByCharacter;
   loading?: boolean;
 }) {
@@ -83,6 +87,19 @@ export function BossMatrix({
             </th>
             {columns.map((character) => (
               <th key={character.id} className="boss-char-head" scope="col" title={character.name}>
+                {/* The slot is drawn whether or not there is a sprite, so a roster where only some
+                    characters have one does not end up with ragged column heads. */}
+                {loading ? (
+                  <span className="skeleton sk-face" />
+                ) : character.spriteImgUrl ? (
+                  <span
+                    className="boss-char-sprite sprite-face"
+                    style={{ backgroundImage: `url("${character.spriteImgUrl}")` }}
+                    aria-hidden="true"
+                  />
+                ) : (
+                  <span className="boss-char-sprite is-empty" aria-hidden="true" />
+                )}
                 {loading ? <span className="skeleton sk-line" /> : character.name}
               </th>
             ))}

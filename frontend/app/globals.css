@@ -834,10 +834,11 @@ img.user-avatar-img {
   object-fit: cover;
 }
 
-/* A character sprite is full-body pixel art, so filling the circle with it shows a tiny body. Draw
-   it as a background zoomed and positioned to frame the face. These two numbers are the crop; they
-   come from the avatar tuner, calibrated against the Nexon render. */
-.user-avatar-img.sprite {
+/* A character sprite is full-body pixel art, so filling a small circle with it shows a tiny body.
+   Draw it as a background zoomed and positioned to frame the face. These two numbers are the crop;
+   they come from the avatar tuner, calibrated against the Nexon render. Shared with the boss
+   matrix's column heads, so the same character is cropped the same way in both places. */
+.sprite-face {
   background-repeat: no-repeat;
   background-size: 260% auto;
   background-position: 50% 39%;
@@ -1598,6 +1599,25 @@ button.link:disabled {
   text-overflow: ellipsis;
 }
 
+/* The face above the IGN. Circular and the same size as the header's account button, so the
+   character you are signed in as reads as the same character here. */
+.boss-char-sprite {
+  display: block;
+  width: 32px;
+  height: 32px;
+  margin: 0 auto 4px;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  overflow: hidden;
+  background-color: var(--surface-2);
+}
+
+/* No sprite yet (a character added before the Nexon lookup answered). The slot still occupies its
+   space; see the note in boss-matrix.tsx. */
+.boss-char-sprite.is-empty {
+  opacity: 0.5;
+}
+
 /* The cadence band. A row of its own rather than a caption per boss: it is the
    answer to "which period is this?" for everything beneath it. */
 .boss-cadence {
@@ -1694,6 +1714,16 @@ button.link:disabled {
   width: 12px;
   height: 12px;
   border-radius: 3px;
+}
+
+/* Matches .boss-char-sprite exactly, or the header row changes height when the roster lands. */
+.sk-face {
+  display: block;
+  width: 32px;
+  height: 32px;
+  margin: 0 auto 4px;
+  border: 1px solid var(--line);
+  border-radius: 50%;
 }
 
 /* Available to any component: text for a screen reader, no pixels. The matrix

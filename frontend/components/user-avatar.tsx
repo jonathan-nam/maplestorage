@@ -44,11 +44,11 @@ export function UserAvatar() {
         onClick={() => setOpen((o) => !o)}
       >
         {/* A character sprite is full-body pixel art. It is drawn as a background so it can be zoomed
-            and positioned to frame the face (see .user-avatar-img.sprite); the OAuth photo is a plain
+            and positioned to frame the face (see .sprite-face); the OAuth photo is a plain
             image that just fills the circle. */}
         {sprite ? (
           <span
-            className="user-avatar-img sprite"
+            className="user-avatar-img sprite-face"
             style={{ backgroundImage: `url("${sprite}")` }}
             aria-hidden="true"
           />
