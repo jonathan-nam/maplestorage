@@ -41,6 +41,17 @@ before reading it.
 So: prefer refusing to answer over guessing, prefer a missing item over a wrong count, and never
 trust an accuracy figure measured through a step you also control.
 
+## Test fixtures
+
+`test-fixtures/` is the vision corpus, not a pile of screenshots. Every file in it is read by a
+test in `vision/tests/`, by a build script in `vision/app/cv/`, or by `scripts/smoke.sh`, and
+`docker-compose.yml` mounts the directory into the vision container as `/screenshots`. Deleting
+one breaks CI, so check who reads it first.
+
+`test-fixtures/scratch/` is the opposite: gitignored, disposable, the place to drop a capture
+that illustrates a feature or a bug. A capture graduates by moving up one level and gaining a
+test that reads it, in the same commit. If it never gets a test it stays scratch.
+
 ## Source of truth
 
 `catalog/items.yaml` defines every item. `catalog/build.py` generates the SQL seed and validates

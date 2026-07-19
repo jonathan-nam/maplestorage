@@ -21,7 +21,7 @@ services:
 
   vision:
     ports: !reset []
-    # The base file mounts ./reference-images so the local smoke test can POST a screenshot from
+    # The base file mounts ./test-fixtures so the local smoke test can POST a screenshot from
     # inside the container. Production has no such need, and no reason to carry the images.
     volumes: !reset []
     restart: unless-stopped

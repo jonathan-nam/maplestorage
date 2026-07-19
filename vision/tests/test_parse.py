@@ -24,7 +24,7 @@ from app.main import app
 
 client = TestClient(app)
 
-REF = "../reference-images"
+REF = "../test-fixtures"
 
 # Hand-verified by reading the digits off each screenshot.
 #
@@ -662,7 +662,7 @@ def test_display_zero_shares_its_bowl_with_eight():
     0 is the one glyph drawn by hand rather than cut by the generator, and the hand-drawn version
     left (2,2), (5,2), (2,8) and (5,8) white. That reopened the counter at both shoulders, so 0 read
     a size larger than the digits beside it. All four are outline in the client's own pixels, in
-    every occurrence of 0 in reference-images/untradeables sample.png."""
+    every occurrence of 0 in test-fixtures/untradeables sample.png."""
     zero = cv2.imread(str(_DIGITS / "0.png"), cv2.IMREAD_UNCHANGED)
     eight = cv2.imread(str(_DIGITS / "8.png"), cv2.IMREAD_UNCHANGED)
     for rows in (slice(0, 3), slice(8, 11)):

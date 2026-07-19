@@ -27,7 +27,7 @@ Consequences that ripple through the rest of this plan: **$0 per screenshot** in
 
 You're also explicitly using this project to build resume-relevant AWS skills, which is why several choices below favor the more resume-weighty AWS-native option over a simpler/cheaper alternative, with real recurring cost (~$25-45/month for backend infra) accepted deliberately.
 
-Sample screenshots in `reference-images/` were used to ground this plan:
+Sample screenshots in `test-fixtures/` were used to ground this plan:
 - `untradeables sample.png`, a plain inventory grid (icons + stack-count numbers, no item names visible)
 - `untradebles description sample.png`. Hover tooltips confirming the exact reward template: *"[flavor text]. Collect 10 and double-click to obtain one [slots] from the Eternal set."*
 - `character selection screen.png`, the in-game character-select screen (sprite + name-plate per character), which the Characters page's tile-grid layout is modeled on (see `WEB-UI-SPEC.md`)
@@ -77,7 +77,7 @@ maplestorage/
   frontend/       # Next.js project (Vercel deploys from this subdir)
   infra/          # Terraform: VPC, ECS, ALB, ECR (x2), RDS
   scripts/        # smoke.sh. Brings the whole stack up locally and proves it works
-  reference-images/   # the sample screenshots; now the CV pipeline's regression corpus
+  test-fixtures/  # the sample screenshots; now the CV pipeline's regression corpus
   docker-compose.yml  # the full stack locally: postgres + vision + backend
 ```
 
@@ -224,7 +224,7 @@ It earned its keep on the first run, finding a bug that **would have failed ever
 - `backend/Dockerfile`. Ships the `application` distribution, **not** a fat jar (see "Local development")
 - `docker-compose.yml` + `scripts/smoke.sh`, the full stack locally; the closest thing to a staging environment
 - `frontend/app/...`. Next.js pages/components calling the Ktor API
-- Reference: `reference-images/`. Ground truth for the CV pipeline, and its regression corpus
+- Reference: `test-fixtures/`. Ground truth for the CV pipeline, and its regression corpus
 
 ## Verification
 

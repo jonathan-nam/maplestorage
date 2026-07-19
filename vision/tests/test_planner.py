@@ -13,7 +13,7 @@ import pytest
 
 from app.cv import planner as P
 
-REF = Path(__file__).resolve().parents[2] / "reference-images"
+REF = Path(__file__).resolve().parents[2] / "test-fixtures"
 
 # (boss name, cleared) top-to-bottom. First nine verified by Jonathan; last two parser-proposed.
 SAMPLE2_TRUTH = [
