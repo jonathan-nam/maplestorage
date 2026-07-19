@@ -2021,12 +2021,16 @@ button.link:disabled {
   border-color: var(--line);
 }
 
-/* Nothing will be accepted until a character is chosen, so the mark must not light up and
-   promise otherwise. */
+/* Held at the resting look and no further: nothing will be accepted until a character is
+   chosen, so the mark must not light up on hover and promise otherwise.
+
+   It is NOT dimmed past resting either. This is the state /bosses lands in, so dimming it is
+   dimming the page's first and only "you can upload here" signal. The faded border, the muted
+   text and "Choose a character first" already carry the not-yet. */
 .dock-drop.disabled .dock-drop-mark,
 .dock-drop.disabled:hover .dock-drop-mark {
-  opacity: 0.25;
-  filter: saturate(0);
+  opacity: 0.55;
+  filter: saturate(0.5);
 }
 
 .planner-refused {
