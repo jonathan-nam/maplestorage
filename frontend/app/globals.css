@@ -151,10 +151,6 @@
   letter-spacing: 0.06em;
 }
 
-.section-menu-group a {
-  padding-left: 20px;
-}
-
 .section-menu-panel a {
   text-decoration: none;
   color: var(--muted);
@@ -170,6 +166,30 @@
 
 .section-menu-panel a.active {
   color: var(--ink-strong);
+}
+
+/* Indent the nested entries, and run a rule down the group so the nesting reads at a glance
+   rather than from 10px of whitespace.
+   MUST stay after `.section-menu-panel a`: that rule sets `padding` shorthand at the same
+   specificity, so an earlier padding-left here is reset to the flush value and the indent
+   silently disappears. */
+.section-menu-group a {
+  padding-left: 26px;
+  position: relative;
+}
+
+.section-menu-group a::before {
+  content: "";
+  position: absolute;
+  left: 13px;
+  top: 4px;
+  bottom: 4px;
+  border-left: 1px solid var(--line);
+}
+
+.section-menu-group a:hover::before,
+.section-menu-group a.active::before {
+  border-color: var(--accent);
 }
 
 /* Reserve the scrollbar's width always. Otherwise typing a query makes the results tall enough to
@@ -1773,6 +1793,12 @@ button.link:disabled {
 /* Second row, under the radio rather than beside it. */
 .split-method-hint {
   grid-column: 2;
+  color: var(--muted-2);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.split-hint {
   color: var(--muted-2);
   font-size: 11px;
   line-height: 1.4;
