@@ -20,7 +20,9 @@ import kotlinx.serialization.json.decodeFromJsonElement
 import kotlinx.serialization.json.encodeToJsonElement
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.core.inList
 import org.jetbrains.exposed.v1.core.lowerCase
+import org.jetbrains.exposed.v1.jdbc.deleteWhere
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
@@ -102,7 +104,13 @@ private fun insertParsedScreenshot(
     }
 
     if (decision.outcome == ScreenshotOutcome.MATCHED) {
-        upsertTokenCounts(decision.characterId!!, result.tokenCounts.orEmpty(), screenshotId, now)
+        upsertTokenCounts(
+            decision.characterId!!,
+            result.tokenCounts.orEmpty(),
+            screenshotId,
+            now,
+            inventoryComplete = result.inventoryComplete == true,
+        )
         upsertBossClears(decision.characterId, result.bossClears.orEmpty(), screenshotId, now)
     }
 
@@ -219,16 +227,48 @@ private fun describeBossClears(clears: List<DetectedBossClear>): List<DetectedBo
     }
 }
 
+// `inventoryComplete` is what licenses the delete below, and it is deliberately narrow: the
+// parser only sets it when all 128 slots were in frame, none obscured, and every count read.
+// Absent that, an item missing from `tokens` might merely have been off-screen or covered, and
+// deleting it would destroy a real stack. This is why the flag is not simply "did we parse ok".
 private fun upsertTokenCounts(
     characterId: Uuid,
     tokens: List<DetectedToken>,
     screenshotId: Uuid,
     capturedAt: Instant,
+    inventoryComplete: Boolean,
 ) {
     val catalogIdsByVisionKey =
         TokenCatalog.selectAll().associate {
             it[TokenCatalog.visionKey] to it[TokenCatalog.id]
         }
+
+    if (inventoryComplete) {
+        // The player spent the stack. A row kept here outlives the item and reads as a
+        // confident wrong number: mechyfechy showed 50 Kaling pieces held for 37 minutes after
+        // a capture that plainly had none, because nothing could ever clear it.
+        //
+        // Deleted rather than zeroed, because "no row" is already how an item the player has
+        // never held behaves. The read path inner-joins the catalog (CharacterTokenRoutes.kt),
+        // so a zero row would instead render a literal 0 in the grid.
+        val seen = tokens.mapNotNull { catalogIdsByVisionKey[it.tokenName] }.toSet()
+        // Selected then deleted by an explicit inList, rather than one notInList against `seen`,
+        // because `seen` is empty for a complete capture of an empty inventory and an empty
+        // notInList is exactly the kind of silent all-or-nothing this must not be guessing at.
+        val stale =
+            CharacterTokenCount
+                .selectAll()
+                .where { CharacterTokenCount.characterId eq characterId }
+                .map { it[CharacterTokenCount.tokenCatalogId] }
+                .filterNot { it in seen }
+        if (stale.isNotEmpty()) {
+            CharacterTokenCount.deleteWhere {
+                (CharacterTokenCount.characterId eq characterId) and
+                    (CharacterTokenCount.tokenCatalogId inList stale)
+            }
+        }
+    }
+
     for (token in tokens) {
         // The parser can only ever emit a key it has a template for, so an
         // unmatched one means the catalog and the templates have drifted apart.
@@ -279,7 +319,13 @@ fun resolveScreenshot(
         findOwnedCharacter(newCharacterId, userId) ?: return@transaction false
 
         val capturedAt = Clock.System.now()
-        upsertTokenCounts(newCharacterId, parsed.tokenCounts.orEmpty(), screenshotId, capturedAt)
+        upsertTokenCounts(
+            newCharacterId,
+            parsed.tokenCounts.orEmpty(),
+            screenshotId,
+            capturedAt,
+            inventoryComplete = parsed.inventoryComplete == true,
+        )
         upsertBossClears(newCharacterId, parsed.bossClears.orEmpty(), screenshotId, capturedAt)
         Screenshots.update({ Screenshots.id eq screenshotId }) {
             it[characterId] = newCharacterId

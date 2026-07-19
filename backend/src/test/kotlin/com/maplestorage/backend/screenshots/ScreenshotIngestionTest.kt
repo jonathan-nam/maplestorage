@@ -4,6 +4,7 @@ import com.maplestorage.backend.config.Env
 import com.maplestorage.backend.db.CharacterTokenCount
 import com.maplestorage.backend.db.Characters
 import com.maplestorage.backend.db.Screenshots
+import com.maplestorage.backend.db.TokenCatalog
 import com.maplestorage.backend.services.CharacterHud
 import com.maplestorage.backend.services.DetectedToken
 import com.maplestorage.backend.services.FakeScreenshotParser
@@ -42,6 +43,10 @@ import kotlin.uuid.Uuid
 // Keep this as the parser's key. If it ever drifts from vision/app/cv/templates/,
 // these tests must fail.
 private const val DISTORTED_AMBITION = "distorted-ambition"
+
+// A second real vision_key, so the clear-on-complete tests can watch one item vanish while
+// another survives in the same write.
+private const val KALOS_TOKEN = "kalos-token"
 private const val TEST_USER_ID = "user_test_screenshots"
 
 // Exercises ScreenshotIngestion's outcome-branching (the actually-novel logic
@@ -264,11 +269,153 @@ class ScreenshotIngestionTest {
         assertEquals("IGNORED", screenshotParseStatus(result.screenshotId))
     }
 
+    // A count can only ever be OVERWRITTEN by a new sighting, never cleared, unless the capture
+    // is known to have shown the whole inventory. These four pin both halves of that.
+    //
+    // The bug: mechyfechy kept 50 Kaling pieces for 37 minutes after a capture that had none,
+    // because absence carried no information. The trap on the way to fixing it: two captures of
+    // that same character each detected 24 items and each missed one the other found, so a naive
+    // absence-means-zero would have deleted a real 830-symbol stack.
+
+    @Test
+    fun `a complete capture clears an item it no longer sees`() {
+        val characterId = insertCharacter("Spender")
+        runBlocking {
+            ingest(
+                FakeScreenshotParser(
+                    parsedOutcome(
+                        CharacterHud("Spender", 1),
+                        listOf(DetectedToken(DISTORTED_AMBITION, 3), DetectedToken(KALOS_TOKEN, 50)),
+                        inventoryComplete = true,
+                    ),
+                ),
+                pinnedCharacterId = characterId,
+            )
+        }
+        assertEquals(50, tokenCountFor(characterId, KALOS_TOKEN))
+
+        runBlocking {
+            ingest(
+                FakeScreenshotParser(
+                    parsedOutcome(
+                        CharacterHud("Spender", 1),
+                        listOf(DetectedToken(DISTORTED_AMBITION, 3)),
+                        inventoryComplete = true,
+                    ),
+                ),
+                pinnedCharacterId = characterId,
+            )
+        }
+
+        assertNull(tokenCountFor(characterId, KALOS_TOKEN), "spent stack should be gone")
+        assertEquals(3, tokenCountFor(characterId, DISTORTED_AMBITION), "seen item is untouched")
+    }
+
+    @Test
+    fun `an incomplete capture leaves an item it did not see alone`() {
+        val characterId = insertCharacter("Cropped")
+        runBlocking {
+            ingest(
+                FakeScreenshotParser(
+                    parsedOutcome(
+                        CharacterHud("Cropped", 1),
+                        listOf(DetectedToken(DISTORTED_AMBITION, 3), DetectedToken(KALOS_TOKEN, 830)),
+                        inventoryComplete = true,
+                    ),
+                ),
+                pinnedCharacterId = characterId,
+            )
+        }
+
+        // The item is off-frame or covered, not gone. Deleting here is the data loss this
+        // whole flag exists to prevent.
+        runBlocking {
+            ingest(
+                FakeScreenshotParser(
+                    parsedOutcome(
+                        CharacterHud("Cropped", 1),
+                        listOf(DetectedToken(DISTORTED_AMBITION, 3)),
+                        inventoryComplete = false,
+                    ),
+                ),
+                pinnedCharacterId = characterId,
+            )
+        }
+
+        assertEquals(830, tokenCountFor(characterId, KALOS_TOKEN), "unseen item must survive")
+    }
+
+    @Test
+    fun `a parser that reports no completeness at all never clears`() {
+        val characterId = insertCharacter("OldParser")
+        runBlocking {
+            ingest(
+                FakeScreenshotParser(
+                    parsedOutcome(
+                        CharacterHud("OldParser", 1),
+                        listOf(DetectedToken(KALOS_TOKEN, 12)),
+                        inventoryComplete = true,
+                    ),
+                ),
+                pinnedCharacterId = characterId,
+            )
+        }
+
+        // Null, as a vision service that predates the flag would send. Absence of evidence
+        // is not evidence of absence, so this must behave like the incomplete case.
+        runBlocking {
+            ingest(
+                FakeScreenshotParser(
+                    parsedOutcome(
+                        CharacterHud("OldParser", 1),
+                        listOf(DetectedToken(DISTORTED_AMBITION, 1)),
+                        inventoryComplete = null,
+                    ),
+                ),
+                pinnedCharacterId = characterId,
+            )
+        }
+
+        assertEquals(12, tokenCountFor(characterId, KALOS_TOKEN))
+    }
+
+    @Test
+    fun `a complete capture of an emptied inventory clears every count`() {
+        val characterId = insertCharacter("Emptied")
+        runBlocking {
+            ingest(
+                FakeScreenshotParser(
+                    parsedOutcome(
+                        CharacterHud("Emptied", 1),
+                        listOf(DetectedToken(DISTORTED_AMBITION, 3), DetectedToken(KALOS_TOKEN, 4)),
+                        inventoryComplete = true,
+                    ),
+                ),
+                pinnedCharacterId = characterId,
+            )
+        }
+
+        // Empty payload, so there is no "seen" list to exclude against. Pinned because the
+        // obvious notInList spelling of the delete is a no-op on an empty list.
+        runBlocking {
+            ingest(
+                FakeScreenshotParser(
+                    parsedOutcome(CharacterHud("Emptied", 1), emptyList(), inventoryComplete = true),
+                ),
+                pinnedCharacterId = characterId,
+            )
+        }
+
+        assertNull(tokenCountFor(characterId, DISTORTED_AMBITION))
+        assertNull(tokenCountFor(characterId, KALOS_TOKEN))
+    }
+
     private fun parsedOutcome(
         hud: CharacterHud?,
         tokens: List<DetectedToken>,
+        inventoryComplete: Boolean? = null,
     ) = ScreenshotParseOutcome.Parsed(
-        result = ScreenshotParseResult(ScreenshotType.INVENTORY, hud, tokens),
+        result = ScreenshotParseResult(ScreenshotType.INVENTORY, hud, tokens, inventoryComplete = inventoryComplete),
     )
 
     private suspend fun ingest(
@@ -307,6 +454,19 @@ class ScreenshotIngestionTest {
         createdCharacterIds += id
         return id
     }
+
+    private fun tokenCountFor(
+        characterId: Uuid,
+        visionKey: String,
+    ): Int? =
+        transaction {
+            CharacterTokenCount
+                .innerJoin(TokenCatalog)
+                .selectAll()
+                .where { (CharacterTokenCount.characterId eq characterId) and (TokenCatalog.visionKey eq visionKey) }
+                .singleOrNull()
+                ?.get(CharacterTokenCount.quantity)
+        }
 
     private fun tokenCountFor(characterId: Uuid): Int? =
         transaction {

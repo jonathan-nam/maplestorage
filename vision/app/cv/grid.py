@@ -51,6 +51,13 @@ NATIVE_PITCH = 46.0  # slot pitch on an unscaled client screenshot
 MIN_CELL, MAX_CELL = 10, 200
 MIN_CELLS = 12  # fewer detected slots than this and we don't trust the fit
 
+# A cell holding less interior grey than this is not an inventory slot we can read.
+# The two ends are measured, not chosen: over the whole reference corpus at JPEG q70-q100 the
+# worst genuine slot scores 0.199, and the brightest cell under four real MapleStory windows
+# pasted across the lattice scores 0.112 (the Boss Matrix, which is mostly light grey itself).
+# 0.15 is the midpoint. test_coverage.py re-measures both ends, so this cannot drift silently.
+MIN_SLOT_GREY = 0.15
+
 
 @dataclass
 class Grid:
@@ -66,6 +73,41 @@ class Grid:
     @property
     def scale(self) -> float:
         return self.pitch / NATIVE_PITCH
+
+
+@dataclass
+class Coverage:
+    """Which of the lattice's 128 slots the frame actually shows.
+
+    This is what licenses the backend to treat an item's ABSENCE as a zero. Without it,
+    absence is ambiguous between "the player has none", "it scrolled out of frame" and
+    "a window was covering it", and only the first of those is a zero. Guessing wrong
+    deletes a real stack.
+    """
+
+    off_frame: int  # cells the lattice puts outside the image
+    occluded: int  # cells in frame that do not look like a slot
+
+    @property
+    def complete(self) -> bool:
+        return self.off_frame == 0 and self.occluded == 0
+
+
+def coverage(img: np.ndarray, g: Grid) -> Coverage:
+    """Account for every cell of the lattice, so absence can mean zero."""
+    h_img, w_img = img.shape[:2]
+    grey = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    band = cv2.inRange(grey, INTERIOR_LO, INTERIOR_HI)
+
+    off_frame = occluded = 0
+    for r in range(ROWS):
+        for c in range(COLS):
+            x, y, w, h = g.cell(r, c)
+            if x < 0 or y < 0 or x + w > w_img or y + h > h_img:
+                off_frame += 1
+            elif band[y : y + h, x : x + w].mean() / 255.0 < MIN_SLOT_GREY:
+                occluded += 1
+    return Coverage(off_frame=off_frame, occluded=occluded)
 
 
 def _cell_boxes(img: np.ndarray) -> list[tuple[int, int, int, int]]:
