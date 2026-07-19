@@ -43,11 +43,14 @@ export function BossMatrix({
   characters,
   clearsByCharacter,
   loading,
+  historyWeek,
 }: {
   bosses: Boss[];
   characters: Pick<Character, "id" | "name" | "spriteImgUrl">[];
   clearsByCharacter: BossClearsByCharacter;
   loading?: boolean;
+  // Set when showing a past week rather than the current period. See the cadence filter below.
+  historyWeek?: string | null;
 }) {
   // Same table either way, so the loading and loaded layouts cannot drift apart.
   const rows = loading && bosses.length === 0 ? SKELETON_BOSSES : bosses;
@@ -71,7 +74,14 @@ export function BossMatrix({
     }
   }
 
-  const cadences = CADENCE_ORDER.filter((c) => rows.some((b) => b.reset === c));
+  // A past week can only answer for weekly bosses. Seven daily periods sit inside one week, so
+  // there is no single "was Zakum cleared that week" to put in a cell, and a week can straddle two
+  // months. Drawing one of several true answers as if it were the only one is the confident wrong
+  // number this project exists to avoid, so the other two cadences are absent instead. The backend
+  // returns weekly rows only for these views (see weeklyClearsFor); this keeps the empty MONTHLY
+  // and DAILY bands off the table to match.
+  const shown = historyWeek ? CADENCE_ORDER.filter((c) => c === "WEEKLY") : CADENCE_ORDER;
+  const cadences = shown.filter((c) => rows.some((b) => b.reset === c));
 
   return (
     <div
@@ -158,12 +168,26 @@ export function BossMatrix({
         ))}
       </table>
 
+      {!loading && historyWeek && cadences.length === 0 && (
+        <p className="boss-empty-week">No planner was captured this week.</p>
+      )}
+
       {!loading && (
-        <p className="boss-legend">
-          <span className="boss-key is-cleared">✓</span> cleared
-          <span className="boss-key is-pending">·</span> not yet
-          <span className="boss-key is-unseen" /> no capture this period
-        </p>
+        <>
+          <p className="boss-legend">
+            <span className="boss-key is-cleared">✓</span> cleared
+            <span className="boss-key is-pending">·</span> not yet
+            <span className="boss-key is-unseen" /> no capture this period
+          </p>
+          {/* Said out loud rather than left as an absence: a reader who knows Zakum is in the
+              catalog should find out why it is missing here, not assume the week lost it. */}
+          {historyWeek && (
+            <p className="boss-history-note">
+              Weekly bosses only. A past week holds seven daily resets and can span two months, so
+              neither has a single answer for it.
+            </p>
+          )}
+        </>
       )}
     </div>
   );

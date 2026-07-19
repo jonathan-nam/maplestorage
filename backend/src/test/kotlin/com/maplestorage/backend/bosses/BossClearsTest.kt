@@ -6,6 +6,7 @@ import com.maplestorage.backend.db.Characters
 import com.maplestorage.backend.db.Screenshots
 import com.maplestorage.backend.services.DetectedBossClear
 import com.maplestorage.backend.users.ensureUser
+import kotlinx.datetime.LocalDate
 import org.flywaydb.core.Flyway
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.or
@@ -19,6 +20,7 @@ import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlin.time.Clock
 import kotlin.time.Instant
@@ -214,6 +216,83 @@ class BossClearsTest {
 
             val clears = currentBossClearsFor(userOneId, midWeek).getValue(character.toString())
             assertEquals(listOf("lotus", "lucid", "kaling"), clears.map { it.bossKey })
+        }
+
+    @Test
+    fun `a past week comes back as the week it was captured in, not as now`() =
+        transaction {
+            val character = addCharacter(userOneId, "Historian")
+            val lastWeek = Instant.parse("2026-07-09T12:00:00Z")
+            upsertBossClears(character, listOf(DetectedBossClear("lotus", true)), addScreenshot(userOneId), lastWeek)
+            upsertBossClears(character, listOf(DetectedBossClear("damien", true)), addScreenshot(userOneId), midWeek)
+
+            val previous = weeklyClearsFor(userOneId, LocalDate(2026, 7, 9)).getValue(character.toString())
+            assertEquals(listOf("lotus"), previous.map { it.bossKey }, "this week's clear must not leak back")
+            val current = weeklyClearsFor(userOneId, LocalDate(2026, 7, 16)).getValue(character.toString())
+            assertEquals(listOf("damien"), current.map { it.bossKey })
+        }
+
+    @Test
+    fun `a past week answers for weekly bosses only`() =
+        transaction {
+            // Not a shortcut: seven daily periods sit inside one week, so a daily boss has no single
+            // answer for it, and a week can straddle two months. See weeklyClearsFor.
+            val character = addCharacter(userOneId, "Cadences")
+            upsertBossClears(
+                character,
+                listOf(
+                    DetectedBossClear("lotus", true), // WEEKLY
+                    DetectedBossClear("zakum", true), // DAILY
+                    DetectedBossClear("black-mage", true), // MONTHLY
+                ),
+                addScreenshot(userOneId),
+                midWeek,
+            )
+
+            val week = weeklyClearsFor(userOneId, LocalDate(2026, 7, 16)).getValue(character.toString())
+            assertEquals(listOf("lotus"), week.map { it.bossKey })
+        }
+
+    @Test
+    fun `a week nobody captured is empty rather than borrowed from a neighbour`() =
+        transaction {
+            val character = addCharacter(userOneId, "Gap")
+            upsertBossClears(character, listOf(DetectedBossClear("lotus", true)), addScreenshot(userOneId), midWeek)
+
+            assertTrue(weeklyClearsFor(userOneId, LocalDate(2026, 7, 9)).isEmpty())
+        }
+
+    @Test
+    fun `the earliest week bounds the back arrow`() =
+        transaction {
+            val character = addCharacter(userOneId, "Bounded")
+            upsertBossClears(
+                character,
+                listOf(DetectedBossClear("lotus", true)),
+                addScreenshot(userOneId),
+                Instant.parse("2026-06-25T12:00:00Z"),
+            )
+            upsertBossClears(character, listOf(DetectedBossClear("damien", true)), addScreenshot(userOneId), midWeek)
+
+            assertEquals(LocalDate(2026, 6, 25), earliestWeekStartFor(userOneId))
+        }
+
+    @Test
+    fun `a user with no clears has no history to step into`() =
+        transaction {
+            addCharacter(userOneId, "Fresh")
+            assertNull(earliestWeekStartFor(userOneId))
+        }
+
+    @Test
+    fun `another user's history is neither readable nor counted as mine`() =
+        transaction {
+            val theirs = addCharacter(userTwoId, "Theirs")
+            addCharacter(userOneId, "Mine")
+            upsertBossClears(theirs, listOf(DetectedBossClear("lotus", true)), addScreenshot(userTwoId), midWeek)
+
+            assertTrue(weeklyClearsFor(userOneId, LocalDate(2026, 7, 16)).isEmpty())
+            assertNull(earliestWeekStartFor(userOneId), "their week must not bound my back arrow")
         }
 
     @Test
