@@ -7,9 +7,9 @@ const HOUR = 60 * MINUTE;
 const DAY = 24 * HOUR;
 
 describe("formatCountdown", () => {
-  it("gets coarser the further off the reset is", () => {
-    expect(formatCountdown(2 * DAY + 14 * HOUR + 32 * MINUTE)).toBe("2d 14h");
-    expect(formatCountdown(14 * HOUR + 32 * MINUTE + 9 * SECOND)).toBe("14h 32m");
+  it("counts seconds at every distance, dropping only the leading zero units", () => {
+    expect(formatCountdown(2 * DAY + 14 * HOUR + 32 * MINUTE + 9 * SECOND)).toBe("2d 14h 32m 9s");
+    expect(formatCountdown(14 * HOUR + 32 * MINUTE + 9 * SECOND)).toBe("14h 32m 9s");
     expect(formatCountdown(32 * MINUTE + 9 * SECOND)).toBe("32m 9s");
     expect(formatCountdown(9 * SECOND)).toBe("9s");
   });
@@ -24,14 +24,15 @@ describe("formatCountdown", () => {
   it("does not round a nearly-elapsed unit up into the next one", () => {
     // 1d 23h 59m is still one day away, not two. Rounding here would show a countdown that reads
     // longer than the time actually left.
-    expect(formatCountdown(DAY + 23 * HOUR + 59 * MINUTE)).toBe("1d 23h");
+    expect(formatCountdown(DAY + 23 * HOUR + 59 * MINUTE)).toBe("1d 23h 59m 0s");
     expect(formatCountdown(59 * MINUTE + 59 * SECOND)).toBe("59m 59s");
   });
 
-  it("keeps the zero units rather than dropping to one figure", () => {
-    // A flat "7d" beside a "6d 23h" reads as a rounding, so the second unit stays even at zero.
-    expect(formatCountdown(7 * DAY)).toBe("7d 0h");
-    expect(formatCountdown(HOUR)).toBe("1h 0m");
+  it("keeps the trailing zero units rather than dropping to one figure", () => {
+    // A flat "7d" beside a "6d 23h 59m 59s" reads as a rounding, so the smaller units stay on at
+    // zero. Only units above the largest non-zero one are dropped.
+    expect(formatCountdown(7 * DAY)).toBe("7d 0h 0m 0s");
+    expect(formatCountdown(HOUR)).toBe("1h 0m 0s");
   });
 });
 

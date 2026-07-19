@@ -9,10 +9,11 @@ const HOUR = 60 * MINUTE;
 const DAY = 24 * HOUR;
 
 /**
- * Two units, coarse when the reset is far off and precise when it is close.
+ * A live countdown, down to the second at every distance.
  *
- * Seconds only appear under an hour. Showing them on a five-day weekly countdown would be a digit
- * changing every second that nobody is reading, and it would make the header twitch.
+ * Leading zero units are dropped so a five-hour wait does not read "0d". Seconds stay on even a
+ * five-day countdown: it is the ticking that makes it a timer rather than a date, which is what
+ * this is for.
  */
 export function formatCountdown(ms: number): string {
   // Between the reset instant passing and the next poll landing, the honest answer is that it has
@@ -24,8 +25,8 @@ export function formatCountdown(ms: number): string {
   const minutes = Math.floor((ms % HOUR) / MINUTE);
   const seconds = Math.floor((ms % MINUTE) / SECOND);
 
-  if (days > 0) return `${days}d ${hours}h`;
-  if (hours > 0) return `${hours}h ${minutes}m`;
+  if (days > 0) return `${days}d ${hours}h ${minutes}m ${seconds}s`;
+  if (hours > 0) return `${hours}h ${minutes}m ${seconds}s`;
   if (minutes > 0) return `${minutes}m ${seconds}s`;
   return `${seconds}s`;
 }

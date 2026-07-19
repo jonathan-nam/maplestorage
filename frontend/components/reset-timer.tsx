@@ -3,15 +3,14 @@
 import { useEffect, useState } from "react";
 import { formatCountdown, msUntil, serverNowMs } from "@/lib/reset-countdown";
 
-// Weekly leads because 16 of the 19 bosses are weekly; the other two cadences follow it, smaller.
-// The order is deliberate and not CADENCE_ORDER's: that one runs MONTHLY -> DAILY to match the
-// planner's own layout, which is about grouping rows, not about which clock you are watching.
-const TIMER_ORDER = ["WEEKLY", "DAILY", "MONTHLY"] as const;
+// Weekly leads because 16 of the 19 bosses are weekly; monthly follows it, smaller. Daily is
+// deliberately absent: it rolls over every night, so a clock on it tells you nothing you would
+// plan around.
+const TIMER_ORDER = ["WEEKLY", "MONTHLY"] as const;
 
 const LABELS: Record<string, string> = {
   WEEKLY: "Weekly reset",
-  DAILY: "Daily",
-  MONTHLY: "Monthly",
+  MONTHLY: "Monthly reset",
 };
 
 const TICK_MS = 1000;
