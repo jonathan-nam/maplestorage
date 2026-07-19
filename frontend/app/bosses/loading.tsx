@@ -1,0 +1,15 @@
+import { BossMatrix } from "@/components/boss-matrix";
+
+// See app/inventory/loading.tsx for why these boundaries exist.
+//
+// The empty arrays are deliberate, not a placeholder: BossMatrix substitutes its own
+// SKELETON_BOSSES/SKELETON_CHARACTERS when asked to load with nothing to lay out, so this is the
+// same shimmer table the page itself shows. Nothing to seed from here, this renders on the server.
+export default function Loading() {
+  return (
+    <main className="page">
+      <h1 className="page-title">Boss Clears</h1>
+      <BossMatrix loading bosses={[]} characters={[]} clearsByCharacter={{}} />
+    </main>
+  );
+}
