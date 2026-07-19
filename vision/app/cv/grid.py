@@ -254,27 +254,59 @@ SLOT_PEAK_THRESHOLD = 0.50
 PITCH_SEARCH = (40.0, 90.0)
 
 
-def _pitch_by_periodicity(img: np.ndarray) -> float:
-    """The lattice period, from the autocorrelation of the slot ridges.
+# How many lags per axis to carry forward as candidates. The true pitch is not always an
+# axis's argmax: on a windowed capture the column profile is contaminated by the tab bar,
+# search box and button row, which are periodic too and can outscore the lattice.
+PITCH_CANDIDATES = 6
 
-    Blur lowers the ridges' contrast but cannot change their SPACING, so periodicity
+# A lattice is square, so its peaks share one phase on both axes. Anything below this is a
+# pitch that found peaks without finding a grid. The gap is wide: on the reference corpus a
+# true pitch scores 0.88-0.99 and the nearest wrong one 0.33.
+MIN_PHASE_COHERENCE = 0.60
+
+
+def _pitch_candidates(img: np.ndarray) -> list[float]:
+    """Plausible lattice periods, best-scoring lag first, from both axes' autocorrelation.
+
+    Blur lowers the slot ridges' contrast but cannot change their SPACING, so periodicity
     survives a rescale that destroys segmentation entirely.
+
+    Both axes are returned as candidates rather than combined. Averaging them (what this
+    did until a 1600x851 Parsec capture arrived) manufactures a pitch supported by neither:
+    the rows read 61 and the contaminated columns 48, and the mean, 54.5, drifted the
+    lattice off the panel by row 6. The caller picks between these by phase coherence.
     """
     grey = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY).astype(np.float32)
-    best = None
+    scored: dict[int, float] = {}
     for axis in (0, 1):
         d = cv2.Sobel(grey, cv2.CV_32F, 1 - axis, axis, ksize=3)
         prof = np.abs(d).mean(axis=axis)
         prof = prof - prof.mean()
         ac = np.correlate(prof, prof, "full")[len(prof) - 1 :]
         lo, hi = int(PITCH_SEARCH[0]), int(min(PITCH_SEARCH[1], len(ac) - 1))
-        if hi <= lo:
+        if hi <= lo or ac[0] <= 0:
             continue
-        p = lo + int(np.argmax(ac[lo:hi]))
-        best = p if best is None else (best + p) / 2
-    if best is None:
+        norm = ac[lo:hi] / ac[0]
+        for i in np.argsort(norm)[::-1][:PITCH_CANDIDATES]:
+            lag = lo + int(i)
+            scored[lag] = max(scored.get(lag, 0.0), float(norm[i]))
+    if not scored:
         raise ValueError("no periodic structure")
-    return float(best)
+    return [float(p) for p in sorted(scored, key=lambda k: -scored[k])]
+
+
+def _phase_coherence(xs: np.ndarray, ys: np.ndarray, pitch: float) -> float:
+    """How tightly the peaks agree on one lattice phase, per axis, worst axis wins.
+
+    Circular concentration of (position mod pitch): 1.0 is a perfect lattice, 0.0 is
+    positions scattered uniformly across the period. Peak COUNT cannot do this job, a
+    too-small pitch always matches more places, just incoherently.
+    """
+    out = []
+    for v in (xs, ys):
+        phase = (v.astype(float) % pitch) / pitch * 2.0 * np.pi
+        out.append(float(abs(np.exp(1j * phase).mean())))
+    return min(out) if out else 0.0
 
 
 def _slot_peaks(img: np.ndarray, pitch: float) -> tuple[np.ndarray, np.ndarray]:
@@ -299,16 +331,75 @@ def _slot_peaks(img: np.ndarray, pitch: float) -> tuple[np.ndarray, np.ndarray]:
 
 
 def _grid_by_correlation(img: np.ndarray) -> Grid:
-    pitch = _pitch_by_periodicity(img)
-    xs, ys = _slot_peaks(img, pitch)
-    if len(xs) < MIN_CELLS:
-        raise ValueError(f"only {len(xs)} slots correlate with an empty slot")
+    # Try each candidate period and keep the one whose slot peaks actually form a lattice.
+    # Trusting the strongest autocorrelation lag alone is what let a contaminated column
+    # profile pick the pitch on a windowed capture.
+    best: tuple[float, float, np.ndarray, np.ndarray] | None = None
+    for pitch in _pitch_candidates(img):
+        try:
+            xs, ys = _slot_peaks(img, pitch)
+        except ValueError:
+            continue
+        if len(xs) < MIN_CELLS:
+            continue
+        c = _phase_coherence(xs, ys, pitch)
+        if best is None or c > best[0]:
+            best = (c, pitch, xs, ys)
+        if c >= 0.95:  # unambiguous, no point paying for the rest
+            break
+
+    if best is None:
+        raise ValueError("no slots correlate with an empty slot")
+    coherence, pitch, xs, ys = best
+    if coherence < MIN_PHASE_COHERENCE:
+        raise ValueError(f"slot peaks share no lattice phase (coherence {coherence:.2f})")
 
     # The peaks are cell CORNERS; the lattice fit below is written in terms of centres.
     cx = xs.astype(float) + pitch / 2
     cy = ys.astype(float) + pitch / 2
     ox, oy, n = _largest_lattice_block(cx, cy, pitch)
-    return Grid(x=ox, y=oy, pitch=pitch, n_cells=n)
+    return _snap_to_panel(img, Grid(x=ox, y=oy, pitch=pitch, n_cells=n))
+
+
+def _snap_to_panel(img: np.ndarray, g: Grid) -> Grid:
+    """Slide the fitted window a whole number of slots onto the panel.
+
+    _largest_lattice_block anchors on EMPTY-slot peaks, so on a nearly-full inventory it
+    drifts toward whatever empty space it can find. A 95/128 capture whose left column was
+    fully occupied put the window one column right: the leftmost eight items fell outside
+    the lattice entirely and an extra column of dead space came in on the right.
+
+    Phase and pitch are already correct here, only which 16x8 window is in question, so the
+    search is over whole-slot offsets and scores the thing coverage() will ask about anyway.
+    """
+    grey = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    band = cv2.inRange(grey, INTERIOR_LO, INTERIOR_HI)
+    h, w = grey.shape
+    p = g.pitch
+
+    def score(dx: int, dy: int) -> float:
+        total = 0.0
+        for r in range(ROWS):
+            for c in range(COLS):
+                x = round(g.x + (c + dx) * p)
+                y = round(g.y + (r + dy) * p)
+                if x < 0 or y < 0 or x + round(p) > w or y + round(p) > h:
+                    return -1.0  # any cell off-frame disqualifies the placement
+                total += band[y : y + round(p), x : x + round(p)].mean()
+        return total / (ROWS * COLS)
+
+    span = 2
+    best, shift = score(0, 0), (0, 0)
+    for dy in range(-span, span + 1):
+        for dx in range(-span, span + 1):
+            if dx == 0 and dy == 0:
+                continue
+            s = score(dx, dy)
+            if s > best:
+                best, shift = s, (dx, dy)
+
+    dx, dy = shift
+    return Grid(x=g.x + dx * p, y=g.y + dy * p, pitch=p, n_cells=g.n_cells)
 
 
 def find_grid(img: np.ndarray) -> Grid:

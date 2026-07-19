@@ -36,6 +36,17 @@ JITTER = 2  # px of slack when looking for the next digit's left edge
 MIN_OUTLINE_AGREEMENT = 0.75
 OUTLINE_FRACTION = 0.45  # of the band's own intensity range
 
+# When two glyphs in one jitter window score within this of each other, the LEFTMOST wins
+# rather than the higher-scoring one. Digits run left to right, so a glyph further right
+# cannot be this same digit, but only a near-tie licenses overriding the score.
+#
+# Both ends are measured. A blurred Parsec '0' scored 0.641 at x=50 against an '8' at 0.648
+# four pixels on, and the 0.007 gap read "20" as "28"; blur fills the '0' counter until
+# correlation genuinely cannot tell them apart. On a native capture the same pairing is not
+# close at all, the '8' of "187" scores 0.993 against a '0' 0.709 one pixel left, and
+# ranking THAT by position reads "107". 0.05 sits in the gap between 0.007 and 0.284.
+NEAR_TIE = 0.05
+
 
 def load_font(path: str | Path = TEMPLATE_DIR) -> dict:
     font = {}
@@ -198,7 +209,7 @@ def _decode(img: np.ndarray, g: Grid, row: int, col: int, font: dict):
     chosen = []
     x, width = 0, band.shape[1]
     while x < width:
-        pick = None
+        cands = []
         for dx in range(jitter + 1):
             xi = x + dx
             for d, (scores, _) in best.items():
@@ -206,11 +217,16 @@ def _decode(img: np.ndarray, g: Grid, row: int, col: int, font: dict):
                     continue
                 if agreement(d, xi) < MIN_OUTLINE_AGREEMENT:
                     continue
-                if pick is None or scores[xi] > pick[2]:
-                    pick = (xi, d, float(scores[xi]))
-        if pick is None:
+                cands.append((xi, d, float(scores[xi])))
+        if not cands:
             x += 1
             continue
+        # Best score in the window, then the leftmost candidate that ties with it. See NEAR_TIE.
+        top = max(s for _, _, s in cands)
+        pick = min(
+            (c for c in cands if c[2] >= top - NEAR_TIE),
+            key=lambda c: (c[0], -c[2]),
+        )
         px, d, s = pick
         chosen.append((px, d, s, font[d].shape[1]))
         # Advance past what we just took, less ONE NATIVE PIXEL of slack, the glyphs' boxes
