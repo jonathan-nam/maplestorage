@@ -304,3 +304,53 @@ def draw(img: np.ndarray, g: Grid) -> np.ndarray:
             x, y, w, h = g.cell(r, c)
             cv2.rectangle(vis, (x, y), (x + w, y + h), (0, 220, 0), 1)
     return vis
+
+
+class OccludedInventory(ValueError):
+    """Part of the fitted lattice is not inventory at all.
+
+    Either another window is sitting over the grid, or the fit landed on the slots that were
+    still visible and ran off the window's edge. Both produce the same silent damage: the slots
+    underneath are never read, and the counts taken from what is left are an undercount that
+    looks exactly like a real one. A player with a Maple Planner open over their inventory read
+    16 items instead of 23, and one item's second stack (340 + 1) lost its 1.
+    """
+
+
+# How much of a cell must sit in the interior grey band for it to count as a real slot.
+#
+# Not every filled slot passes: a dense icon covers most of its cell. That is why the test below
+# asks whether a whole ROW OR COLUMN is devoid of slots, rather than whether every cell is one.
+# Eight chances per column is what makes it robust to individual crowded slots.
+#
+# 0.20 is mid-band, not tuned to the failing capture. Swept across the reference corpus, every
+# capture that parses correctly has zero dead lines for any threshold in 0.05-0.30, and only
+# starts producing one at 0.40. The occluded capture has 6 dead lines at 0.20 and 9 at 0.30.
+SLOT_INTERIOR_MIN = 0.20
+
+
+def assert_unoccluded(img: np.ndarray, g: Grid) -> None:
+    """Refuse a lattice that is not sitting on a whole inventory.
+
+    Deliberately NOT a count of how many cells look like slots. A blurred rescaled capture has
+    mushy slot boundaries and correlates far fewer cells than a clean one (22 of 128 against 127
+    on the real 1.326x fixture), so a completeness threshold would refuse the blurriest capture we
+    own while passing the occluded one. What separates them is WHERE the misses fall: blur
+    scatters them, an overlapping window wipes out whole columns at once.
+    """
+    grey = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    mask = cv2.inRange(grey, INTERIOR_LO, INTERIOR_HI)
+
+    slotlike = np.zeros((ROWS, COLS), bool)
+    for r in range(ROWS):
+        for c in range(COLS):
+            x, y, w, h = g.cell(r, c)
+            cell = mask[max(y, 0) : y + h, max(x, 0) : x + w]
+            slotlike[r, c] = cell.size > 0 and cell.mean() / 255.0 > SLOT_INTERIOR_MIN
+
+    dead_cols = int((~slotlike.any(axis=0)).sum())
+    dead_rows = int((~slotlike.any(axis=1)).sum())
+    if dead_cols or dead_rows:
+        raise OccludedInventory(
+            f"{dead_cols} of {COLS} columns and {dead_rows} of {ROWS} rows hold no inventory slot"
+        )

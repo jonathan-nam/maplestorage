@@ -594,3 +594,70 @@ def test_hud_reads_at_every_capture_scale(capture_scale):
     assert hud is not None, f"no HUD found at {capture_scale}x"
     assert hud.name == "acornacorn", f"misread at {capture_scale}x: {hud.name!r}"
     assert hud.level == 287
+
+
+# --- occlusion -------------------------------------------------------------
+#
+# A window sitting over the inventory used to cost items in total silence. `boss clear menu
+# sample.png` and `untradeables sample.png` are the SAME character's inventory minutes apart,
+# one with the Maple Planner over it and one without, which is what makes the damage measurable
+# rather than assumed: 16 items against 23, and sacred-cernium 340 against its real 341 (it is
+# two stacks, 340 + 1, and the 1 was behind the planner).
+
+
+def test_a_covered_inventory_is_not_counted():
+    """The whole point: no item counts at all, rather than 16 of 23 that look like 23.
+
+    The comparison is against the same inventory uncovered, so the shortfall is a fact about
+    this pair of captures and not a number anyone chose.
+    """
+    covered = _parse(f"{REF}/boss clear menu sample.png").json()
+    assert covered["tokenCounts"] is None
+
+    clear = _parse(f"{REF}/untradeables sample.png").json()
+    assert len(clear["tokenCounts"]) == 23
+    assert {t["tokenName"]: t["quantity"] for t in clear["tokenCounts"]}["sacred-cernium"] == 341
+
+
+def test_a_covered_inventory_still_gives_up_its_boss_clears():
+    """Refusing the grid must not throw away the planner that was covering it.
+
+    This is the normal shape of a planner capture, not a corner case: the window has to be open
+    to be read, and it lands on top of the inventory. Answering 422 for the whole upload would
+    make the boss workflow unusable.
+    """
+    body = _parse(f"{REF}/boss clear menu sample.png").json()
+    assert body["screenshotType"] == "PLANNER"
+    assert [c["bossKey"] for c in body["bossClears"]][:3] == [
+        "lotus",
+        "damien",
+        "guardian-angel-slime",
+    ]
+    assert body["unreadableBossRows"] == 0
+
+
+def test_a_covered_inventory_with_no_planner_says_what_to_do():
+    """Cropped to the inventory alone, there is no planner to fall back on, so it must 422 and
+    the message has to name the real problem. The generic no-grid message sends the user off to
+    re-export a file that was never at fault."""
+    img = cv2.imread(f"{REF}/boss clear menu sample.png")
+    # Keep the whole inventory and the planner EDGE lying over its left columns, while cutting
+    # away the boss list itself (which sits left of x=1000), so there is no planner payload to
+    # fall back on and the refusal has to speak for itself.
+    cropped = img[150:780, 1000:1900]
+    r = client.post("/parse", content=cv2.imencode(".png", cropped)[1].tobytes())
+    assert r.status_code == 422
+    assert "covering" in r.json()["detail"]
+
+
+def test_a_blurred_capture_is_not_mistaken_for_a_covered_one():
+    """The reason this is not a completeness threshold.
+
+    symbols-parsec.png is the one real rescaled capture in the corpus, and its mushy boundaries
+    correlate 22 of 128 cells against a clean capture's 127. Fewer than the occluded capture's
+    55. Any rule counting how MANY cells look like slots refuses this file, which reads perfectly.
+    What separates them is where the misses fall.
+    """
+    body = _parse(f"{REF}/symbols-parsec.png").json()
+    assert body["screenshotType"] == "INVENTORY"
+    assert body["tokenCounts"], "a blurred but unobstructed capture must still be read"

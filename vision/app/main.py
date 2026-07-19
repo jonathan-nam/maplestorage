@@ -36,7 +36,7 @@ from fastapi import FastAPI, HTTPException, Request, Response
 from pydantic import BaseModel
 
 from app.cv.classify import classify
-from app.cv.grid import find_grid
+from app.cv.grid import OccludedInventory, assert_unoccluded, find_grid
 from app.cv.hud import find_hud
 from app.cv.match import load_templates
 from app.cv.ocr import load_font, read_count
@@ -208,6 +208,8 @@ async def parse(request: Request, response: Response) -> ScreenshotParseResult:
     try:
         with stage("grid"):
             g = find_grid(img)
+            # A lattice that fits is not yet a lattice worth reading from. See OccludedInventory.
+            assert_unoccluded(img, g)
     except ValueError as e:
         # No slot lattice, by either segmentation or correlation. Two very different reasons,
         # and telling the user the wrong one sends them to fix the wrong thing:
@@ -234,6 +236,14 @@ async def parse(request: Request, response: Response) -> ScreenshotParseResult:
                 reachedListEnd=planner.reached_list_end,
                 unreadableBossRows=unreadable,
             )
+        # Occlusion has its own message, because the generic one above sends the user to
+        # re-export a file that was never the problem. What they have to do is move the window.
+        if isinstance(e, OccludedInventory):
+            raise HTTPException(
+                422,
+                "Another window is covering part of the inventory, so some slots could not be "
+                "read. Move it clear of the inventory and take the screenshot again.",
+            ) from e
         if looks_like_inventory_window(img):
             raise HTTPException(
                 422,
