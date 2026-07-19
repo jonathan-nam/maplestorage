@@ -1,5 +1,6 @@
 package com.maplestorage.backend.plugins
 
+import com.maplestorage.backend.bosses.bossRoutes
 import com.maplestorage.backend.characters.characterRoutes
 import com.maplestorage.backend.screenshots.screenshotRoutes
 import com.maplestorage.backend.services.NexonLookupService
@@ -87,6 +88,10 @@ fun Application.configureRouting(
 
             route("/api/tokens") {
                 tokenRoutes()
+            }
+
+            route("/api/bosses") {
+                bossRoutes()
             }
         }
     }

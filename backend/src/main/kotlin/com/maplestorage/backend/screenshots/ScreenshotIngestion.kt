@@ -1,11 +1,14 @@
 package com.maplestorage.backend.screenshots
 
+import com.maplestorage.backend.bosses.upsertBossClears
 import com.maplestorage.backend.characters.CharacterResponse
 import com.maplestorage.backend.characters.findOwnedCharacter
+import com.maplestorage.backend.db.BossCatalog
 import com.maplestorage.backend.db.CharacterTokenCount
 import com.maplestorage.backend.db.Characters
 import com.maplestorage.backend.db.Screenshots
 import com.maplestorage.backend.db.TokenCatalog
+import com.maplestorage.backend.services.DetectedBossClear
 import com.maplestorage.backend.services.DetectedToken
 import com.maplestorage.backend.services.ScreenshotParseOutcome
 import com.maplestorage.backend.services.ScreenshotParseResult
@@ -100,6 +103,7 @@ private fun insertParsedScreenshot(
 
     if (decision.outcome == ScreenshotOutcome.MATCHED) {
         upsertTokenCounts(decision.characterId!!, result.tokenCounts.orEmpty(), screenshotId, now)
+        upsertBossClears(decision.characterId, result.bossClears.orEmpty(), screenshotId, now)
     }
 
     return ScreenshotResultResponse(
@@ -109,6 +113,9 @@ private fun insertParsedScreenshot(
         detectedLevel = result.characterHud?.level,
         pinnedCharacterName = pinnedCharacter?.name,
         tokenCounts = describeTokens(result.tokenCounts.orEmpty()),
+        bossClears = describeBossClears(result.bossClears.orEmpty()),
+        unreadableBossRows = result.unreadableBossRows,
+        reachedBossListEnd = result.reachedListEnd,
     )
 }
 
@@ -198,6 +205,20 @@ private fun describeTokens(tokens: List<DetectedToken>): List<DetectedTokenRespo
     }
 }
 
+// As describeTokens, and for the same reason: the key is what the reader emits, the prose name is
+// what a human reads, and neither is derivable from the other.
+private fun describeBossClears(clears: List<DetectedBossClear>): List<DetectedBossClearResponse> {
+    if (clears.isEmpty()) return emptyList()
+    val catalog = BossCatalog.selectAll().associateBy { it[BossCatalog.bossKey] }
+    return clears.map { clear ->
+        DetectedBossClearResponse(
+            bossKey = clear.bossKey,
+            displayName = catalog[clear.bossKey]?.get(BossCatalog.name) ?: clear.bossKey,
+            cleared = clear.cleared,
+        )
+    }
+}
+
 private fun upsertTokenCounts(
     characterId: Uuid,
     tokens: List<DetectedToken>,
@@ -248,11 +269,18 @@ fun resolveScreenshot(
                 .singleOrNull() ?: return@transaction false
         if (row[Screenshots.parseStatus] != "NEEDS_REVIEW") return@transaction false
         val rawResponse = row[Screenshots.rawParseResult] ?: return@transaction false
-        val tokens =
-            Json.decodeFromJsonElement<ScreenshotParseResult>(rawResponse).tokenCounts ?: return@transaction false
+        val parsed = Json.decodeFromJsonElement<ScreenshotParseResult>(rawResponse)
+        // Either payload alone is a real result to file: a planner-only capture has no
+        // tokenCounts, and an inventory with no planner in frame has no bossClears. Testing
+        // tokenCounts alone (as this did) would refuse to resolve every planner capture, which is
+        // the one kind of upload most likely to need review, since a planner has no grid to
+        // attribute from.
+        if (parsed.tokenCounts == null && parsed.bossClears == null) return@transaction false
         findOwnedCharacter(newCharacterId, userId) ?: return@transaction false
 
-        upsertTokenCounts(newCharacterId, tokens, screenshotId, Clock.System.now())
+        val capturedAt = Clock.System.now()
+        upsertTokenCounts(newCharacterId, parsed.tokenCounts.orEmpty(), screenshotId, capturedAt)
+        upsertBossClears(newCharacterId, parsed.bossClears.orEmpty(), screenshotId, capturedAt)
         Screenshots.update({ Screenshots.id eq screenshotId }) {
             it[characterId] = newCharacterId
             it[parseStatus] = "SUCCESS"

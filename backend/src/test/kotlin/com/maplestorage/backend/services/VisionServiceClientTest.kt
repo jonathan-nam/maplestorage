@@ -92,6 +92,76 @@ class VisionServiceClientTest {
             assertEquals(1, parsed.result.tokenCounts?.size)
         }
 
+    // Body trimmed from a real /parse of reference-images/boss clear menu sample 2.png against the
+    // running service (11 rows, 3 cleared, reachedListEnd true, 0 unreadable). The fields this
+    // pins are the ones that silently become null if the DTO and the service drift: an absent
+    // bossClears reads exactly like a capture with no planner in it.
+    @Test
+    fun `parses a planner screenshot into boss clears`() =
+        runTest {
+            val outcome =
+                ok(
+                    """
+                    {"screenshotType":"PLANNER","characterHud":null,"tokenCounts":null,
+                     "bossClears":[{"bossKey":"darknell","cleared":true},
+                                   {"bossKey":"chosen-seren","cleared":true},
+                                   {"bossKey":"first-adversary","cleared":false}],
+                     "reachedListEnd":true,"unreadableBossRows":0}
+                    """.trimIndent(),
+                ).parseScreenshot(ByteArray(8), "image/png")
+
+            val parsed = assertIs<ScreenshotParseOutcome.Parsed>(outcome)
+            assertEquals(ScreenshotType.PLANNER, parsed.result.screenshotType)
+            assertEquals(
+                listOf(
+                    DetectedBossClear("darknell", true),
+                    DetectedBossClear("chosen-seren", true),
+                    DetectedBossClear("first-adversary", false),
+                ),
+                parsed.result.bossClears,
+            )
+            assertEquals(true, parsed.result.reachedListEnd)
+            assertEquals(0, parsed.result.unreadableBossRows)
+            assertNull(parsed.result.tokenCounts)
+        }
+
+    // One capture holding both panels is the normal case, not a corner one, so the two payloads
+    // have to survive the same response. Picking one would silently drop the other's real data.
+    @Test
+    fun `one capture can carry both an inventory and a planner`() =
+        runTest {
+            val outcome =
+                ok(
+                    """
+                    {"screenshotType":"INVENTORY","characterHud":null,
+                     "tokenCounts":[{"tokenName":"kalos-token","quantity":21,"iconScore":0.96}],
+                     "bossClears":[{"bossKey":"lotus","cleared":true}],
+                     "reachedListEnd":false,"unreadableBossRows":0}
+                    """.trimIndent(),
+                ).parseScreenshot(ByteArray(8), "image/png")
+
+            val parsed = assertIs<ScreenshotParseOutcome.Parsed>(outcome)
+            assertEquals(ScreenshotType.INVENTORY, parsed.result.screenshotType)
+            assertEquals(listOf(DetectedToken("kalos-token", 21)), parsed.result.tokenCounts)
+            assertEquals(listOf(DetectedBossClear("lotus", true)), parsed.result.bossClears)
+            assertEquals(false, parsed.result.reachedListEnd)
+        }
+
+    // An inventory with no planner in frame. Null rather than empty, and ingestion must not write
+    // a routine of zero bosses off the back of it.
+    @Test
+    fun `an inventory with no planner carries no clears`() =
+        runTest {
+            val outcome =
+                ok("""{"screenshotType":"INVENTORY","characterHud":null,"tokenCounts":[]}""")
+                    .parseScreenshot(ByteArray(8), "image/png")
+
+            val parsed = assertIs<ScreenshotParseOutcome.Parsed>(outcome)
+            assertNull(parsed.result.bossClears)
+            assertNull(parsed.result.reachedListEnd)
+            assertNull(parsed.result.unreadableBossRows)
+        }
+
     @Test
     fun `a non-inventory upload is UNRECOGNIZED, not a failure`() =
         runTest {
