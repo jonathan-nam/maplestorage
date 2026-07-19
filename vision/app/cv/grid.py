@@ -51,7 +51,10 @@ NATIVE_PITCH = 46.0  # slot pitch on an unscaled client screenshot
 MIN_CELL, MAX_CELL = 10, 200
 MIN_CELLS = 12  # fewer detected slots than this and we don't trust the fit
 
-# A cell holding less interior grey than this is not an inventory slot we can read.
+# A cell holding less interior grey than this is not an inventory slot we can read. Both gates
+# hang off it: assert_unoccluded refuses a capture with any such cell, and coverage refuses to
+# call the view complete, which is what licenses the backend to clear a count.
+#
 # The two ends are measured, not chosen: over the whole reference corpus at JPEG q70-q100 the
 # worst genuine slot scores 0.199, and the brightest cell under four real MapleStory windows
 # pasted across the lattice scores 0.112 (the Boss Matrix, which is mostly light grey itself).
@@ -359,40 +362,25 @@ class OccludedInventory(ValueError):
     """
 
 
-# How much of a cell must sit in the interior grey band for it to count as a real slot.
-#
-# Not every filled slot passes: a dense icon covers most of its cell. That is why the test below
-# asks whether a whole ROW OR COLUMN is devoid of slots, rather than whether every cell is one.
-# Eight chances per column is what makes it robust to individual crowded slots.
-#
-# 0.20 is mid-band, not tuned to the failing capture. Swept across the reference corpus, every
-# capture that parses correctly has zero dead lines for any threshold in 0.05-0.30, and only
-# starts producing one at 0.40. The occluded capture has 6 dead lines at 0.20 and 9 at 0.30.
-SLOT_INTERIOR_MIN = 0.20
-
-
 def assert_unoccluded(img: np.ndarray, g: Grid) -> None:
-    """Refuse a lattice that is not sitting on a whole inventory.
+    """Refuse a lattice with any cell that is not an inventory slot.
 
-    Deliberately NOT a count of how many cells look like slots. A blurred rescaled capture has
-    mushy slot boundaries and correlates far fewer cells than a clean one (22 of 128 against 127
-    on the real 1.326x fixture), so a completeness threshold would refuse the blurriest capture we
-    own while passing the occluded one. What separates them is WHERE the misses fall: blur
-    scatters them, an overlapping window wipes out whole columns at once.
+    Every covered slot is an item that can go missing from the count, so the bar is one cell,
+    not one row. An earlier version asked whether a whole ROW OR COLUMN was devoid of slots,
+    which sounds equivalent and is not: a 4x8 block parked mid-grid leaves every row with eight
+    live columns and every column with four live rows, so nothing reads as dead and 32 covered
+    slots pass. That is the same silent undercount by a different route.
+
+    The reason the per-cell test is safe is NOT that per-cell tests generally are. Counting how
+    many cells CORRELATE with an empty slot would refuse the blurriest capture we own: the real
+    1.326x Parsec frame correlates 22 of 128 against a clean capture's 127, fewer than the
+    occluded capture's 55. Interior grey behaves nothing like that. It does not care about
+    boundary sharpness, so the same Parsec frame's worst cell still scores 0.259, well above
+    MIN_SLOT_GREY, while a covered cell scores near zero. See test_a_blurred_capture_is_not
+    _mistaken_for_a_covered_one, which pins exactly that.
     """
-    grey = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    mask = cv2.inRange(grey, INTERIOR_LO, INTERIOR_HI)
-
-    slotlike = np.zeros((ROWS, COLS), bool)
-    for r in range(ROWS):
-        for c in range(COLS):
-            x, y, w, h = g.cell(r, c)
-            cell = mask[max(y, 0) : y + h, max(x, 0) : x + w]
-            slotlike[r, c] = cell.size > 0 and cell.mean() / 255.0 > SLOT_INTERIOR_MIN
-
-    dead_cols = int((~slotlike.any(axis=0)).sum())
-    dead_rows = int((~slotlike.any(axis=1)).sum())
-    if dead_cols or dead_rows:
+    cov = coverage(img, g)
+    if cov.occluded:
         raise OccludedInventory(
-            f"{dead_cols} of {COLS} columns and {dead_rows} of {ROWS} rows hold no inventory slot"
+            f"{cov.occluded} of {ROWS * COLS} slots are covered by something that is not the inventory"
         )

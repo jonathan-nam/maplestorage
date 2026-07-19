@@ -12,7 +12,15 @@ missing one the other found. Treating absence as zero on either would have wiped
 import cv2
 import pytest
 
-from app.cv.grid import COLS, MIN_SLOT_GREY, ROWS, coverage, find_grid
+from app.cv.grid import (
+    COLS,
+    MIN_SLOT_GREY,
+    ROWS,
+    OccludedInventory,
+    assert_unoccluded,
+    coverage,
+    find_grid,
+)
 
 REF = "../reference-images"
 
@@ -119,6 +127,45 @@ def test_a_crop_into_the_lattice_is_not_complete(slots):
     cov = coverage(narrow, find_grid(narrow))
     assert not cov.complete
     assert cov.off_frame == slots * ROWS
+
+
+@pytest.mark.parametrize(
+    ("rows", "cols", "at"),
+    [
+        (1, 1, (3, 3)),  # one slot
+        (2, 2, (3, 3)),  # four
+        (4, 8, (2, 2)),  # 32, and not touching any edge
+    ],
+)
+def test_a_block_covering_no_whole_row_or_column_is_still_refused(rows, cols, at):
+    """A mid-grid block leaves every row and column with live slots.
+
+    The earlier row/column rule passed all three of these, the 4x8 case hiding 32 slots. Each
+    covered slot is an item that can vanish from the count, so the refusal is per cell.
+    """
+    base = _load(f"{REF}/inventory sample.png")
+    img = _occlude(base, find_grid(base), OCCLUDERS[0], rows=rows, cols=cols, at=at)
+    g = find_grid(img)
+
+    # The fixture only makes its point if the old row/column rule would have let it through,
+    # so assert that first: no line of the lattice is entirely covered.
+    covered = [[False] * COLS for _ in range(ROWS)]
+    for r in range(at[0], at[0] + rows):
+        for c in range(at[1], at[1] + cols):
+            covered[r][c] = True
+    assert not any(all(row) for row in covered), "a fully covered row would fail the old rule too"
+    assert not any(all(covered[r][c] for r in range(ROWS)) for c in range(COLS)), (
+        "a fully covered column would fail the old rule too"
+    )
+
+    with pytest.raises(OccludedInventory):
+        assert_unoccluded(img, g)
+
+
+def test_a_clean_capture_is_not_refused():
+    for path in COMPLETE_CAPTURES:
+        img = _load(path)
+        assert_unoccluded(img, find_grid(img))  # must not raise
 
 
 def test_the_threshold_keeps_its_margin():
