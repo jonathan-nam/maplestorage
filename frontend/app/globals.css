@@ -89,6 +89,14 @@
   visibility: hidden;
 }
 
+/* Whether to reserve at all. The inline script in RootLayout sets .has-session from Clerk's
+   __client_uat cookie before first paint; signed out there is nothing coming, so holding the space
+   would leave a gap that closes when Clerk resolves, which is the same 54px shift inverted.
+   display, not visibility: the boxes must not occupy the bar at all. */
+html:not(.has-session) .header-reserved {
+  display: none;
+}
+
 .section-menu-btn[aria-expanded="true"] {
   background: var(--surface-2);
   border-color: var(--line-soft);
