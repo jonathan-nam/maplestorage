@@ -139,25 +139,47 @@ def load_bosses() -> list[dict]:
             sys.exit(f"{key}: needs a name, it is what the planner OCR is matched against")
         if b.get("reset") not in BOSS_RESETS:
             sys.exit(f"{key}: reset must be one of {sorted(BOSS_RESETS)}, got {b.get('reset')!r}")
+        if not isinstance(b.get("tracked", True), bool):
+            sys.exit(f"{key}: tracked must be true or false, got {b.get('tracked')!r}")
     return bosses
 
 
+def _boss_summary(bosses: list[dict]) -> str:
+    """Tracked count first: it is the one that matches boss_catalog and the matrix."""
+    tracked = sum(1 for b in bosses if b.get("tracked", True))
+    untracked = len(bosses) - tracked
+    return f"{tracked} bosses" + (f" (+{untracked} untracked)" if untracked else "")
+
+
 def boss_json(bosses: list[dict]) -> str:
-    """The name catalog the planner reader loads. Generated so it cannot drift from the manifest."""
-    data = [{"key": b["key"], "name": b["name"], "reset": b["reset"]} for b in bosses]
+    """The name catalog the planner reader loads. Generated so it cannot drift from the manifest.
+
+    Carries untracked bosses too: the reader needs every name that can appear on the planner,
+    and `tracked` is what tells it which of those to report. See catalog/bosses.yaml.
+    """
+    data = [
+        {"key": b["key"], "name": b["name"], "reset": b["reset"], "tracked": b.get("tracked", True)}
+        for b in bosses
+    ]
     return json.dumps(data, indent=2, ensure_ascii=False) + "\n"
 
 
 def boss_sql(bosses: list[dict]) -> str:
-    """The boss_catalog seed. Upserts by boss_key and keeps each id (boss_clear references it)."""
+    """The boss_catalog seed. Upserts by boss_key and keeps each id (boss_clear references it).
+
+    Untracked bosses are omitted: boss_catalog is the set of bosses the tracker keeps clears for.
+    This seed does not DELETE, so untracking a boss that is already seeded needs a versioned
+    migration to remove its row and its clears (see V14__drop_daily_bosses.sql).
+    """
 
     def q(s: str) -> str:
         return "'" + s.replace("'", "''") + "'"
 
+    tracked = [b for b in bosses if b.get("tracked", True)]
     # Manifest position IS the sort order, so reordering bosses.yaml reorders the matrix and
     # nothing else has to be touched. See V12__boss_sort_order.sql.
     rows = ",\n".join(
-        f"    ({q(b['key'])}, {q(b['name'])}, {q(b['reset'])}, {i})" for i, b in enumerate(bosses)
+        f"    ({q(b['key'])}, {q(b['name'])}, {q(b['reset'])}, {i})" for i, b in enumerate(tracked)
     )
     return f"""-- GENERATED FROM catalog/bosses.yaml. DO NOT EDIT BY HAND.
 -- Regenerate with:  python catalog/build.py
@@ -362,12 +384,12 @@ def main() -> None:
         if stale:
             names = ", ".join(str(p.relative_to(ROOT)) for p in stale)
             sys.exit(f"stale, run python catalog/build.py: {names}")
-        print(f"catalog is in sync ({len(items)} items, {len(bosses)} bosses)")
+        print(f"catalog is in sync ({len(items)} items, {_boss_summary(bosses)})")
         return
 
     for path, want in outputs:
         path.write_text(want)
-    print(f"wrote {len(items)} items and {len(bosses)} bosses")
+    print(f"wrote {len(items)} items and {_boss_summary(bosses)}")
 
 
 if __name__ == "__main__":

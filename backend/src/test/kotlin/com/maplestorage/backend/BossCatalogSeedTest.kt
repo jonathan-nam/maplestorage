@@ -32,12 +32,18 @@ class BossCatalogSeedTest {
         )
     }
 
+    // Tracked bosses only. An untracked entry (the dailies) is listed in the manifest so the
+    // planner reader can still name its row, but it is seeded into no table, so counting it here
+    // would assert the catalog holds a boss the tracker deliberately dropped.
     private fun manifestKeys(): List<String> {
         val manifest = File("../catalog/bosses.yaml")
         assertTrue(manifest.exists(), "catalog/bosses.yaml not found at ${manifest.absolutePath}")
-        return manifest
-            .readLines()
-            .mapNotNull { Regex("""^\s*-\s*key:\s*(\S+)""").find(it)?.groupValues?.get(1) }
+        val keys = mutableListOf<String>()
+        for (line in manifest.readLines()) {
+            Regex("""^\s*-\s*key:\s*(\S+)""").find(line)?.let { keys.add(it.groupValues[1]) }
+            if (Regex("""^\s*tracked:\s*false\b""").containsMatchIn(line)) keys.removeLastOrNull()
+        }
+        return keys
     }
 
     @Test

@@ -87,12 +87,15 @@ def load_boss_names(path: Path = BOSS_CATALOG) -> list[str]:
 
 
 # Loaded once at import, like the templates. build.py regenerates the catalog from the manifest.
+# Every name the planner can show, tracked or not: an untracked boss still has a row on screen,
+# and a name that matches nothing counts as an unreadable row rather than an ignored one.
 BOSS_NAMES = load_boss_names()
 
 # The reader identifies a boss by NAME (that is what is on screen), but `key` is the stable
 # identifier the backend keys clears on, so the name -> key resolution belongs here, next to the
-# catalog both sides come from, rather than in a second hand-kept mapping.
-BOSS_KEY_BY_NAME = {b["name"]: b["key"] for b in load_boss_catalog()}
+# catalog both sides come from, rather than in a second hand-kept mapping. Tracked bosses only,
+# so a name missing from this map is a row to ignore, not a row that failed to read.
+TRACKED_BOSS_KEY_BY_NAME = {b["name"]: b["key"] for b in load_boss_catalog() if b["tracked"]}
 
 
 @dataclass

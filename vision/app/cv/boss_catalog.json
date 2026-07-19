@@ -2,96 +2,115 @@
   {
     "key": "lotus",
     "name": "Lotus",
-    "reset": "WEEKLY"
+    "reset": "WEEKLY",
+    "tracked": true
   },
   {
     "key": "damien",
     "name": "Damien",
-    "reset": "WEEKLY"
+    "reset": "WEEKLY",
+    "tracked": true
   },
   {
     "key": "guardian-angel-slime",
     "name": "Guardian Angel Slime",
-    "reset": "WEEKLY"
+    "reset": "WEEKLY",
+    "tracked": true
   },
   {
     "key": "lucid",
     "name": "Lucid",
-    "reset": "WEEKLY"
+    "reset": "WEEKLY",
+    "tracked": true
   },
   {
     "key": "will",
     "name": "Will",
-    "reset": "WEEKLY"
+    "reset": "WEEKLY",
+    "tracked": true
   },
   {
     "key": "gloom",
     "name": "Gloom",
-    "reset": "WEEKLY"
+    "reset": "WEEKLY",
+    "tracked": true
   },
   {
     "key": "verus-hilla",
     "name": "Verus Hilla",
-    "reset": "WEEKLY"
+    "reset": "WEEKLY",
+    "tracked": true
   },
   {
     "key": "darknell",
     "name": "Darknell",
-    "reset": "WEEKLY"
+    "reset": "WEEKLY",
+    "tracked": true
   },
   {
     "key": "chosen-seren",
     "name": "Chosen Seren",
-    "reset": "WEEKLY"
+    "reset": "WEEKLY",
+    "tracked": true
   },
   {
     "key": "kalos-the-guardian",
     "name": "Kalos the Guardian",
-    "reset": "WEEKLY"
+    "reset": "WEEKLY",
+    "tracked": true
   },
   {
     "key": "first-adversary",
     "name": "First Adversary",
-    "reset": "WEEKLY"
+    "reset": "WEEKLY",
+    "tracked": true
   },
   {
     "key": "kaling",
     "name": "Kaling",
-    "reset": "WEEKLY"
+    "reset": "WEEKLY",
+    "tracked": true
   },
   {
     "key": "malefic-star",
     "name": "Malefic Star",
-    "reset": "WEEKLY"
+    "reset": "WEEKLY",
+    "tracked": true
   },
   {
     "key": "limbo",
     "name": "Limbo",
-    "reset": "WEEKLY"
+    "reset": "WEEKLY",
+    "tracked": true
   },
   {
     "key": "baldrix",
     "name": "Baldrix",
-    "reset": "WEEKLY"
+    "reset": "WEEKLY",
+    "tracked": true
   },
   {
     "key": "akechi-mitsuhide",
     "name": "Akechi Mitsuhide",
-    "reset": "WEEKLY"
+    "reset": "WEEKLY",
+    "tracked": true
   },
   {
     "key": "black-mage",
     "name": "Black Mage",
-    "reset": "MONTHLY"
+    "reset": "MONTHLY",
+    "tracked": true
   },
   {
     "key": "zakum",
     "name": "Zakum",
-    "reset": "DAILY"
+    "reset": "DAILY",
+    "tracked": false
   },
   {
     "key": "gollux",
     "name": "Gollux",
-    "reset": "DAILY"
+    "reset": "DAILY",
+    "tracked": false
   }
 ]
