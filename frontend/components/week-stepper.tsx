@@ -1,6 +1,6 @@
 "use client";
 
-import { formatPeriod } from "@/lib/boss-clears";
+import { formatWeekStart } from "@/lib/boss-clears";
 import type { BossClearsView } from "@/types/boss";
 
 /**
@@ -45,7 +45,7 @@ export function WeekStepper({
       {/* aria-live so stepping announces the week that arrived; the arrows themselves say nothing
           about where you landed. */}
       <span className="week-label" aria-live="polite">
-        {isCurrent ? "This week" : `Week of ${formatPeriod(weekStart)}`}
+        {`Week of ${formatWeekStart(isCurrent ? currentWeekStart : weekStart)}`}
       </span>
 
       <button

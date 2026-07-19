@@ -32,3 +32,31 @@ export function formatPeriod(iso: string): string {
   if (!month || !day || month < 1 || month > MONTHS.length) return iso;
   return `${day} ${MONTHS[month - 1]}`;
 }
+
+const MONTH_NAMES = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+];
+
+/**
+ * "2026-07-16" -> "July 16", the day the week reset.
+ *
+ * The date is UTC (midnight Thursday, see BossPeriod.kt) and is shown unconverted, so a viewer
+ * behind UTC reads the week's real start rather than their own local one. Hand-parsed for the same
+ * reason as formatPeriod.
+ */
+export function formatWeekStart(iso: string): string {
+  const [, month, day] = iso.split("-").map(Number);
+  if (!month || !day || month < 1 || month > MONTH_NAMES.length) return iso;
+  return `${MONTH_NAMES[month - 1]} ${day}`;
+}

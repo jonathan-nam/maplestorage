@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cellState, formatPeriod, indexClears } from "./boss-clears";
+import { cellState, formatPeriod, formatWeekStart, indexClears } from "./boss-clears";
 import type { BossClear } from "@/types/boss";
 
 const clear = (bossKey: string, cleared: boolean): BossClear => ({
@@ -42,5 +42,19 @@ describe("formatPeriod", () => {
     expect(formatPeriod("")).toBe("");
     expect(formatPeriod("not-a-date")).toBe("not-a-date");
     expect(formatPeriod("2026-13-01")).toBe("2026-13-01");
+  });
+});
+
+describe("formatWeekStart", () => {
+  it("reads the date as written rather than through a timezone", () => {
+    expect(formatWeekStart("2026-07-16")).toBe("July 16");
+    expect(formatWeekStart("2026-01-01")).toBe("January 1");
+    expect(formatWeekStart("2026-12-31")).toBe("December 31");
+  });
+
+  it("passes anything it cannot parse straight through rather than inventing a date", () => {
+    expect(formatWeekStart("not-a-date")).toBe("not-a-date");
+    expect(formatWeekStart("")).toBe("");
+    expect(formatWeekStart("2026-13-01")).toBe("2026-13-01");
   });
 });
