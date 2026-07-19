@@ -205,4 +205,102 @@ def find_hud(img: np.ndarray, scale: float = 1.0) -> Hud | None:
     m = HUD_RE.match(text)
     if not m:
         return None
-    return Hud(name=m.group(2), level=int(m.group(1)), score=float(score))
+    return Hud(name=_fix_bars(line, m.group(2)), level=int(m.group(1)), score=float(score))
+
+
+# '1', 'l' and 'i' are one vertical stroke each at this size and Tesseract cannot separate
+# them: `morebuff12` came back as `morebuffl2`, and as `morebuffi2` at a different scale.
+# Retuning the crop does not help, that fixed `mechyfechy` and this broke on the very next
+# name.
+#
+# But the client's glyphs are not actually ambiguous, only Tesseract's reading of them is:
+#
+#     'i'  dot over a stem, so TWO vertical components with a gap
+#     'l'  a bare bar, as wide at the top as in the middle
+#     '1'  a bar with a flag at the top left, so the top is clearly wider
+#
+# Measured on the real capture at 1.33x: the '1' is 4px wide at the top and 2px in the
+# middle. So decide it from the pixels rather than from the language model, but ONLY for
+# these three characters. Everything else Tesseract says is left exactly as it was.
+BAR_CHARS = "1lI|i"
+NARROW = 0.55  # of the median glyph width; a bar is far narrower than a letter
+FLAG_RATIO = 1.5  # top wider than middle by this much is the '1' flag, measured 2.0
+
+
+def _glyph_boxes(ink: np.ndarray) -> list[tuple[int, int]]:
+    cols = np.where(ink.sum(0) > 0)[0]
+    if not len(cols):
+        return []
+    out, start, prev = [], int(cols[0]), int(cols[0])
+    for i in cols[1:]:
+        i = int(i)
+        if i - prev > 1:
+            out.append((start, prev + 1))
+            start = i
+        prev = i
+    out.append((start, prev + 1))
+    return out
+
+
+def _classify_bar(glyph: np.ndarray) -> str:
+    rows = np.where(glyph.sum(1) > 0)[0]
+    if not len(rows):
+        return "l"
+    g = glyph[rows.min() : rows.max() + 1]
+    filled = (g.sum(1) > 0).astype(int)
+    if int(np.sum(np.abs(np.diff(np.r_[0, filled, 0])))) // 2 >= 2:
+        return "i"  # a gap between dot and stem
+    h = g.shape[0]
+    top = int(g[: max(h // 3, 1)].sum(1).max())
+    mid = int(g[h // 3 : 2 * h // 3].sum(1).max())
+    return "1" if mid and top >= FLAG_RATIO * mid else "l"
+
+
+def _fix_bars(line: np.ndarray, name: str) -> str:
+    """Re-decide the 1/l/i characters of `name` from the pixels. Unchanged if unsure.
+
+    Alignment is deliberately partial. Segmenting the name does not always yield one box per
+    letter ('ff' merges into one on the very capture this was written for), so matching the
+    whole string box-for-box would simply never fire. Only the BARS are aligned: they are the
+    narrowest boxes on the line, and if their count matches the number of 1/l/i characters
+    Tesseract reported, the correspondence is unambiguous even when other letters have run
+    together. Any other outcome leaves the name alone.
+    """
+    hits = [i for i, c in enumerate(name) if c in BAR_CHARS]
+    if not hits:
+        return name
+
+    grey = cv2.cvtColor(line, cv2.COLOR_BGR2GRAY).astype(np.float32)
+    lo, hi = float(grey.min()), float(grey.max())
+    if hi - lo < 30:
+        return name
+    ink = (grey >= lo + 0.55 * (hi - lo)).astype(np.uint8)
+
+    # The name is the last WORD on the line; "Lv.295" sits in front of it, past a wide gap.
+    cols = np.where(ink.sum(0) > 0)[0]
+    if not len(cols):
+        return name
+    words, start, prev = [], int(cols[0]), int(cols[0])
+    for i in cols[1:]:
+        i = int(i)
+        if i - prev > 4:
+            words.append((start, prev + 1))
+            start = i
+        prev = i
+    words.append((start, prev + 1))
+    if len(words) < 2:
+        return name
+    x0, x1 = words[-1]
+
+    boxes = _glyph_boxes(ink[:, x0:x1])
+    if not boxes:
+        return name
+    widths = [b - a for a, b in boxes]
+    bars = [(a, b) for a, b in boxes if (b - a) <= NARROW * float(np.median(widths))]
+    if len(bars) != len(hits):
+        return name  # cannot say which box is which; leave Tesseract's answer alone
+
+    out = list(name)
+    for idx, (a, b) in zip(hits, bars):
+        out[idx] = _classify_bar(ink[:, x0 + a : x0 + b])
+    return "".join(out)
