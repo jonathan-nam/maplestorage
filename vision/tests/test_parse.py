@@ -16,9 +16,10 @@ from fastapi.testclient import TestClient
 
 from app import main as main_mod
 from app.cv import planner as planner_mod
-from app.cv.grid import NATIVE_PITCH, find_grid
+from app.cv.grid import NATIVE_PITCH, Coverage, coverage, find_grid
 from app.cv.hud import HUD_RE, find_hud
 from app.cv.match import load_templates
+from app.cv.ocr import load_font, read_count
 from app.main import app
 
 client = TestClient(app)
@@ -276,6 +277,53 @@ def test_parsec_capture_is_read():
         "sacred-shangri-la": 1352,
         "sacred-tallahart": 437,
     }
+
+
+def test_a_windowed_parsec_capture_finds_the_right_lattice():
+    """A 1600x851 Parsec capture that was refused outright, and misread before that.
+
+    Three separate faults, worth keeping apart because each has its own regression here:
+
+      * PITCH. The period was taken as the MEAN of the two axes' autocorrelation. On a
+        WINDOWED capture the column profile also carries the tab bar, search box and button
+        row, which are periodic too: the rows read 61 and the columns 48, and the mean, 54.5,
+        matched neither. The lattice drifted a slot every two columns and had walked off the
+        panel by row 6, so 29 cells failed the grey check and the whole inventory came back
+        "covered or out of frame" with nothing covering it. Phase coherence picks between the
+        candidates instead, and the true 62 scores 0.947 against 54.5's 0.239.
+      * ANCHOR. _largest_lattice_block maximises EMPTY-slot peaks, so at 95/128 full with a
+        fully-occupied left column the window slid one column right, dropping that column out
+        of the grid entirely and taking in dead space beyond the panel. Both edge columns are
+        asserted below because that is the fault's signature.
+      * The '0' of "20" read as an '8'. See NEAR_TIE in ocr.py.
+
+    Only eye-verified numbers are asserted. The four-digit counts on this capture are the same
+    mush described in test_parsec_capture_is_read and are deliberately NOT pinned here.
+    """
+    img = cv2.imread(f"{REF}/parsec-ss.png")
+    assert img is not None
+
+    g = find_grid(img)
+    assert round(g.pitch) == 62, f"pitch {g.pitch}, the axis-averaging bug gives 54.5"
+    assert coverage(img, g) == Coverage(off_frame=0, occluded=0)
+
+    # The anchor bug is pinned by GEOMETRY, not by the counts in the columns it dropped.
+    # Those are four-digit and genuinely unreadable by eye at this blur (I could not settle
+    # 2985 against 2935), and a truth table is the last place to put a number I guessed at.
+    # Where the lattice sits, on the other hand, was checked against all 128 slots by eye.
+    assert 20 <= g.x <= 30, f"left edge {g.x}, one pitch right (86) is the anchor bug"
+    # Column 0 is fully occupied on this capture, so every row of it must carry a count.
+    # If the window slides a column, this is what stops being true.
+    font = load_font()
+    assert all(read_count(img, g, r, 0, font)[0] for r in range(8))
+    # The stack that read 28. The '0' is filled by the stream's blur, not by an 8.
+    assert read_count(img, g, 7, 14, font)[0] == "20"
+
+    r = client.post("/parse", content=cv2.imencode(".png", img)[1].tobytes())
+    assert r.status_code == 200, r.json()
+    assert r.json()["inventoryComplete"] is True
+    got = {t["tokenName"]: t["quantity"] for t in r.json()["tokenCounts"]}
+    assert got["trace-eternal-loyalty"] == 20
 
 
 def test_ui_optimization_2x_is_accepted():
