@@ -725,6 +725,32 @@ def test_hud_name_stops_at_the_ign_charset(text, level, name):
 # fractional-scale captures outright", which is no longer true, and was never as sound as it
 # sounded: those captures are now read at their own scale, HUD included.
 @pytest.mark.parametrize("quality", [None, 92])
+def test_a_one_in_a_name_is_not_read_as_a_letter(quality):
+    """`morebuff12` came back as `morebuffl2`, and as `morebuffi2` at a different scale.
+
+    '1', 'l' and 'i' are one vertical stroke each at this size and Tesseract cannot separate
+    them. Retuning the crop does not help: that fixed `mechyfechy` and broke on the very
+    next name uploaded. The client's glyphs are not ambiguous though, only Tesseract's
+    reading of them is, so these three are decided from the pixels instead ('1' carries a
+    flag, measured 4px across the top against 2px in the middle).
+
+    Both encodings, because the two wrong answers came from the same image read two ways.
+    """
+    img = cv2.imread(f"{REF}/morebuff12.png")
+    assert img is not None
+    if quality is not None:
+        img = cv2.imdecode(
+            cv2.imencode(".jpg", img, [cv2.IMWRITE_JPEG_QUALITY, quality])[1], cv2.IMREAD_COLOR
+        )
+
+    g = find_grid(img)
+    hud = find_hud(img, scale=g.pitch / NATIVE_PITCH)
+    assert hud is not None
+    assert hud.name == "morebuff12"
+    assert hud.level == 295
+
+
+@pytest.mark.parametrize("quality", [None, 92])
 def test_a_descender_is_not_cropped_off_the_name(quality):
     """`mechyfechy` read as `mechufechy`, and the app would have made a character by it.
 
