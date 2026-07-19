@@ -36,7 +36,7 @@ from fastapi import FastAPI, HTTPException, Request, Response
 from pydantic import BaseModel
 
 from app.cv.classify import classify
-from app.cv.grid import find_grid
+from app.cv.grid import coverage, find_grid
 from app.cv.hud import find_hud
 from app.cv.match import load_templates
 from app.cv.ocr import load_font, read_count
@@ -87,6 +87,11 @@ class ScreenshotParseResult(BaseModel):
     # none, and the backend already treats that as NEEDS_REVIEW.
     characterHud: CharacterHud | None = None
     tokenCounts: list[DetectedToken] | None = None
+    # Was every one of the 128 slots in frame, unobscured, and its count readable? Only then
+    # does an item's ABSENCE from tokenCounts mean the player holds none, which is what lets
+    # the backend clear a stale count. False whenever we cannot tell "gone" from "not seen",
+    # and the backend must then leave counts it did not hear about alone. See cv/grid.coverage.
+    inventoryComplete: bool | None = None
     bossClears: list[BossClear] | None = None
     # Did the capture reach the bottom of the boss list? The list needs 1-3 scrolled captures,
     # and without this a capture of the top of an all-cleared list reads as "all clear" while
@@ -288,12 +293,14 @@ async def parse(request: Request, response: Response) -> ScreenshotParseResult:
     # undercount (precisely the failure the rest of this pipeline exists to prevent) and it
     # would have looked entirely plausible on screen.
     totals: dict[str, list] = {}
+    unreadable_counts = 0
     with stage("counts"):
         for hit in hits:
             digits, conf = read_count(img, g, hit.row, hit.col, FONT)
             if not digits:
                 # Icon found but the count is unreadable. Reporting the item with
                 # a fabricated quantity would be worse than reporting nothing.
+                unreadable_counts += 1
                 log.info("unreadable count for %s at r%dc%d", hit.name, hit.row, hit.col)
                 continue
             slot = totals.setdefault(hit.name, [0, 0.0])
@@ -305,6 +312,19 @@ async def parse(request: Request, response: Response) -> ScreenshotParseResult:
         for name, (qty, score) in totals.items()
     ]
 
+    # An item dropped for an unreadable count is absent from `counts` while the player plainly
+    # still holds it, so a single unreadable count is enough to make absence meaningless.
+    with stage("coverage"):
+        cov = coverage(img, g)
+    complete = cov.complete and unreadable_counts == 0
+    if not complete:
+        log.info(
+            "incomplete view: %d off-frame, %d occluded, %d unreadable counts",
+            cov.off_frame,
+            cov.occluded,
+            unreadable_counts,
+        )
+
     # The backend forwards this straight through to the browser, so a slow upload can
     # be attributed to a stage from the Network panel, without a profiler or a log dive.
     response.headers["Server-Timing"] = stage.header()
@@ -315,6 +335,7 @@ async def parse(request: Request, response: Response) -> ScreenshotParseResult:
         screenshotType="INVENTORY",
         characterHud=CharacterHud(name=hud.name, level=hud.level) if hud else None,
         tokenCounts=counts,
+        inventoryComplete=complete,
         bossClears=clears,
         reachedListEnd=planner.reached_list_end if boss_rows else None,
         unreadableBossRows=unreadable,
