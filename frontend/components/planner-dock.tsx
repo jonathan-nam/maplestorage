@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { CharacterPicker } from "@/components/character-picker";
 import { Ellipsis } from "@/components/ellipsis";
+import { SharpEyesMark } from "@/components/sharp-eyes-mark";
 import { apiFetch } from "@/lib/api";
 import { invalidate } from "@/lib/cache";
 import { compressImage } from "@/lib/compress-image";
@@ -159,6 +160,11 @@ export function PlannerDock({
           add(Array.from(e.dataTransfer.files));
         }}
       >
+        {/* Decorative: the text below already says what this is, and the mark repeating
+            "SharpEyes" to a screen reader would only be noise. */}
+        <span className="dock-drop-mark" aria-hidden="true">
+          <SharpEyesMark size={64} />
+        </span>
         <span className="dock-drop-main">
           {selected
             ? `Drop ${selected.name}'s Maple Planner screenshot here`

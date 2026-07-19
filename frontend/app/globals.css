@@ -1256,6 +1256,28 @@ img.user-avatar-img {
   color: var(--muted);
 }
 
+/* The brand mark, sat in the dropzone so the icon in the header and "you can drop a picture
+   here" become the same idea. Held back at rest so it reads as a target rather than as art,
+   and brought up to full colour when the box is live.
+
+   64px only. The mark is a 32x32 sprite scaled by image-rendering: pixelated, so integer
+   multiples stay crisp and anything else fringes (site-header.tsx records the same trap at 28).
+   For that reason the hover state changes colour, never scale. */
+.dock-drop-mark {
+  display: block;
+  margin-bottom: 8px;
+  opacity: 0.55;
+  filter: saturate(0.5);
+  transition:
+    opacity 0.12s,
+    filter 0.12s;
+}
+.dock-drop:hover .dock-drop-mark,
+.dock-drop.dragover .dock-drop-mark {
+  opacity: 1;
+  filter: none;
+}
+
 .capture {
   margin-top: 10px;
   border: 1px solid var(--line);
@@ -1997,6 +2019,18 @@ button.link:disabled {
 
 .dock-drop.disabled:hover {
   border-color: var(--line);
+}
+
+/* Held at the resting look and no further: nothing will be accepted until a character is
+   chosen, so the mark must not light up on hover and promise otherwise.
+
+   It is NOT dimmed past resting either. This is the state /bosses lands in, so dimming it is
+   dimming the page's first and only "you can upload here" signal. The faded border, the muted
+   text and "Choose a character first" already carry the not-yet. */
+.dock-drop.disabled .dock-drop-mark,
+.dock-drop.disabled:hover .dock-drop-mark {
+  opacity: 0.55;
+  filter: saturate(0.5);
 }
 
 .planner-refused {
