@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { CharacterPicker } from "@/components/character-picker";
+import { Ellipsis } from "@/components/ellipsis";
 import { apiFetch } from "@/lib/api";
 import { invalidate } from "@/lib/cache";
 import { compressImage } from "@/lib/compress-image";
@@ -212,7 +213,10 @@ function PlannerCard({ capture, onDismiss }: { capture: Capture; onDismiss: () =
         </div>
         <span className="capture-actions">
           {capture.phase === "reading" ? (
-            <span className="capture-spinner">Reading…</span>
+            <span className="capture-spinner">
+              Reading
+              <Ellipsis />
+            </span>
           ) : (
             <button className="link" onClick={onDismiss}>
               {result?.outcome === "MATCHED" ? "done" : "dismiss"}
@@ -256,8 +260,17 @@ function PlannerCard({ capture, onDismiss }: { capture: Capture; onDismiss: () =
   );
 }
 
-function describe(capture: Capture): { text: string; tone: string } {
-  if (capture.phase === "reading") return { text: "Reading the screenshot…", tone: "pending" };
+function describe(capture: Capture): { text: ReactNode; tone: string } {
+  if (capture.phase === "reading")
+    return {
+      text: (
+        <>
+          Reading the screenshot
+          <Ellipsis />
+        </>
+      ),
+      tone: "pending",
+    };
   if (capture.phase === "error")
     return { text: "The upload didn't reach the server.", tone: "bad" };
 
