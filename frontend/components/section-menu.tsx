@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
 // Account sections live behind a hamburger beside the brand. The menu was built as scaffolding for
@@ -33,6 +33,18 @@ export function SectionMenu() {
     (a, b) => b.length - a.length,
   )[0];
   const ref = useRef<HTMLDivElement>(null);
+  const router = useRouter();
+
+  // The panel below only mounts while the menu is open, and <Link> prefetches on entering the
+  // viewport, so the routes got at most the moment between opening the menu and clicking an item.
+  // Warm them from the header instead, which is mounted on every page. Doing it by hiding a
+  // rendered panel does not work: display:none never intersects so it would not prefetch at all,
+  // and an opacity-hidden panel leaves focusable links inside a closed menu.
+  //
+  // Every section, deduped by the router cache. No effect under `next dev`, which never prefetches.
+  useEffect(() => {
+    for (const href of HREFS) router.prefetch(href);
+  }, [router]);
 
   // Close on an outside click or Escape, the two ways a menu should always be dismissable.
   useEffect(() => {
