@@ -1888,6 +1888,92 @@ button.link:disabled {
   color: var(--muted-2);
 }
 
+.basis-row {
+  display: inline-flex;
+  gap: 4px;
+  margin-bottom: 2px;
+}
+
+.basis-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--muted);
+  cursor: pointer;
+}
+.basis-tab.active {
+  border-color: var(--accent);
+  color: var(--ink-strong);
+}
+
+/* Worked derivation, collapsed by default. The numbers in here are generated from the same split
+   the table above shows, never restated by hand. See explainSplit. */
+.split-math {
+  margin-top: 18px;
+  border-top: 1px solid var(--line-soft);
+  padding-top: 14px;
+}
+
+.split-math > summary {
+  cursor: pointer;
+  color: var(--accent);
+  font-size: 12px;
+  list-style: none;
+}
+.split-math > summary::-webkit-details-marker {
+  display: none;
+}
+.split-math > summary::before {
+  content: "> ";
+  display: inline-block;
+  transition: transform 0.12s ease;
+}
+.split-math[open] > summary::before {
+  transform: rotate(90deg);
+}
+
+.math-steps {
+  margin: 14px 0 0;
+  padding: 0 0 0 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.math-steps li {
+  color: var(--muted);
+}
+
+.math-steps p {
+  margin: 0;
+}
+
+.math-title {
+  color: var(--ink);
+  font-size: 13px;
+}
+
+/* The general form, then the same thing with this split's own numbers under it. */
+.math-formula {
+  margin-top: 3px !important;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  color: var(--muted-2);
+}
+
+.math-substituted {
+  margin-top: 2px !important;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  color: var(--ink-strong);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
 .split-error {
   margin: 16px 0 0;
   color: var(--warn);
