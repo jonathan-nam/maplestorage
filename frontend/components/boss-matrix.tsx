@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+
 import { cellState, formatPeriod, indexClears } from "@/lib/boss-clears";
 import type { Boss, BossClearsByCharacter } from "@/types/boss";
 import type { Character } from "@/types/character";
@@ -57,6 +59,12 @@ export function BossMatrix({
   const rows = loading && bosses.length === 0 ? SKELETON_BOSSES : bosses;
   const columns = loading && characters.length === 0 ? SKELETON_CHARACTERS : characters;
 
+  // The row band alone answers "which boss", but not "which character": the header sits up to 17
+  // rows away, so reading a mark still means tracing a column by eye. CSS can do a row on its own
+  // and cannot do a column, hence the state.
+  const [hoveredColumn, setHoveredColumn] = useState<string | null>(null);
+  const colClass = (characterId: string) => (hoveredColumn === characterId ? " is-col-hover" : "");
+
   // Indexed per character; see lib/boss-clears.ts for why the three cell states are three.
   const byCharacter = new Map<string, Map<string, boolean>>();
   for (const [characterId, clears] of Object.entries(clearsByCharacter)) {
@@ -89,6 +97,9 @@ export function BossMatrix({
       className="boss-matrix"
       role="status"
       aria-label={loading ? "Loading boss clears" : undefined}
+      // Cleared here rather than per cell: leaving one cell for its neighbour would blank the band
+      // between the two events.
+      onMouseLeave={() => setHoveredColumn(null)}
     >
       <table className="boss-table">
         <thead>
@@ -97,7 +108,13 @@ export function BossMatrix({
               Boss
             </th>
             {columns.map((character) => (
-              <th key={character.id} className="boss-char-head" scope="col" title={character.name}>
+              <th
+                key={character.id}
+                className={`boss-char-head${colClass(character.id)}`}
+                scope="col"
+                title={character.name}
+                onMouseEnter={() => setHoveredColumn(character.id)}
+              >
                 {/* The slot is drawn whether or not there is a sprite, so a roster where only some
                     characters have one does not end up with ragged column heads. */}
                 {loading ? (
@@ -136,14 +153,22 @@ export function BossMatrix({
                   {columns.map((character) => {
                     if (loading) {
                       return (
-                        <td key={character.id} className="boss-cell">
+                        <td
+                          key={character.id}
+                          className={`boss-cell${colClass(character.id)}`}
+                          onMouseEnter={() => setHoveredColumn(character.id)}
+                        >
                           <span className="skeleton sk-cell" />
                         </td>
                       );
                     }
                     const state = cellState(byCharacter.get(character.id), boss.bossKey);
                     return (
-                      <td key={character.id} className={`boss-cell is-${state}`}>
+                      <td
+                        key={character.id}
+                        className={`boss-cell is-${state}${colClass(character.id)}`}
+                        onMouseEnter={() => setHoveredColumn(character.id)}
+                      >
                         {/* The glyph is decorative; the text is what a screen reader gets, and
                             "not reported" is deliberately not "not cleared". */}
                         <span aria-hidden="true">
