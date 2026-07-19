@@ -6,6 +6,7 @@ import {
   explainSplit,
   FEE_MVP,
   FEE_STANDARD,
+  formatMesos,
   parseMesos,
   type SplitInput,
   type SplitMethod,
@@ -14,7 +15,6 @@ import {
 
 const MAX_PARTY = 6;
 
-const mesos = (n: number) => n.toLocaleString("en-US");
 const percent = (fee: number) => `${(fee * 100).toFixed(0)}%`;
 
 export default function DropSplitPage() {
@@ -22,6 +22,10 @@ export default function DropSplitPage() {
   const [amountIs, setAmountIs] = useState<AmountBasis>("listed");
   const [partySize, setPartySize] = useState(6);
   const [method, setMethod] = useState<SplitMethod>("fair");
+  // Raw digits by default: these get pasted into the game's price box, which takes nothing else.
+  const [grouped, setGrouped] = useState(false);
+
+  const mesos = (value: number) => formatMesos(value, grouped);
 
   const others = partySize - 1;
 
@@ -154,6 +158,15 @@ export default function DropSplitPage() {
             )}
           </p>
 
+          <button
+            type="button"
+            className="group-toggle"
+            onClick={() => setGrouped((g) => !g)}
+            aria-pressed={grouped}
+          >
+            {grouped ? "Show raw numbers" : "Show comma separators"}
+          </button>
+
           <table className="split-table">
             <thead>
               <tr>
@@ -205,7 +218,7 @@ export default function DropSplitPage() {
           <details className="split-math">
             <summary>Show the math</summary>
             <ol className="math-steps">
-              {explainSplit(input, split).map((step) => (
+              {explainSplit(input, split, { grouped }).map((step) => (
                 <li key={step.label}>
                   <span className="math-label">{step.label}</span>
                   <span className="math-expression">{step.expression}</span>

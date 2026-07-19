@@ -162,7 +162,16 @@ export type MathStep = {
   expression: string;
 };
 
-const n = (value: number) => value.toLocaleString("en-US");
+/**
+ * Mesos as digits, ungrouped by default.
+ *
+ * The figures here get typed or pasted into the game's own price box, which takes digits and
+ * nothing else. Grouping them is a display choice the caller opts into, not the default, because
+ * the default is the one people copy.
+ */
+export function formatMesos(value: number, grouped = false): string {
+  return grouped ? value.toLocaleString("en-US") : String(value);
+}
 const keptOf = (fee: number) => (1 - fee).toFixed(2);
 
 /**
@@ -172,7 +181,12 @@ const keptOf = (fee: number) => (1 - fee).toFixed(2);
  * explanation beside a computed number is two sources of truth, and the one nobody runs is the
  * one that goes wrong. A test pins that every payout it computed appears in here.
  */
-export function explainSplit(input: SplitInput, split: Split): MathStep[] {
+export function explainSplit(
+  input: SplitInput,
+  split: Split,
+  { grouped = false }: { grouped?: boolean } = {},
+): MathStep[] {
+  const n = (value: number) => formatMesos(value, grouped);
   const { sellerFee, memberFees, method } = input;
   const others = memberFees.length;
   const steps: MathStep[] = [

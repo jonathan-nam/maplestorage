@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  formatMesos,
   explainSplit,
   FEE_MVP,
   FEE_STANDARD,
@@ -211,11 +212,11 @@ describe("the worked math cannot disagree with the numbers", () => {
       .map((s) => s.expression)
       .join(" | ");
 
-    expect(text).toContain(split.sellerReceives.toLocaleString("en-US"));
-    expect(text).toContain(split.sellerKeeps.toLocaleString("en-US"));
+    expect(text).toContain(String(split.sellerReceives));
+    expect(text).toContain(String(split.sellerKeeps));
     for (const m of split.members) {
-      expect(text).toContain(m.pay.toLocaleString("en-US"));
-      expect(text).toContain(m.nets.toLocaleString("en-US"));
+      expect(text).toContain(String(m.pay));
+      expect(text).toContain(String(m.nets));
     }
   });
 
@@ -243,7 +244,7 @@ describe("the worked math cannot disagree with the numbers", () => {
     const input = cases[0] as SplitInput;
     const steps = explainSplit(input, splitDrop(input));
     expect(steps.at(-1)?.label).toBe("check");
-    expect(steps.at(-1)?.expression).toContain(input.amount.toLocaleString("en-US"));
+    expect(steps.at(-1)?.expression).toContain(String(input.amount));
   });
 });
 
@@ -313,7 +314,7 @@ describe("entering what you received instead of the listed price", () => {
     };
     const steps = explainSplit(input, splitDrop(input));
     expect(steps[0]?.expression).toContain("(entered)");
-    expect(steps.at(-1)?.expression).toContain((970_000_000).toLocaleString("en-US"));
+    expect(steps.at(-1)?.expression).toContain(String(970_000_000));
   });
 });
 
@@ -363,5 +364,36 @@ describe("rounding matches the split bot people cross-check against", () => {
       expect(s.sellerKeeps).toBeGreaterThanOrEqual(0);
       expect(s.sellerKeeps + paidOut).toBe(s.sellerReceives);
     }
+  });
+});
+
+describe("numbers are raw digits, because they get pasted into the game", () => {
+  const input: SplitInput = {
+    amount: 9_689_980_888,
+    amountIs: "received",
+    sellerFee: FEE_STANDARD,
+    memberFees: [FEE_STANDARD, FEE_STANDARD],
+    method: "fair",
+  };
+
+  it("formats ungrouped by default", () => {
+    expect(formatMesos(3_284_739_285)).toBe("3284739285");
+  });
+
+  it("groups only when asked", () => {
+    expect(formatMesos(3_284_739_285, true)).toBe("3,284,739,285");
+  });
+
+  it("keeps commas out of the working unless asked", () => {
+    const raw = explainSplit(input, splitDrop(input))
+      .map((s) => s.expression)
+      .join(" ");
+    expect(raw).not.toContain(",");
+    expect(raw).toContain("3284739285");
+
+    const grouped = explainSplit(input, splitDrop(input), { grouped: true })
+      .map((s) => s.expression)
+      .join(" ");
+    expect(grouped).toContain("3,284,739,285");
   });
 });

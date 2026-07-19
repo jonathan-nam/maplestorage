@@ -1804,6 +1804,21 @@ button.link:disabled {
   line-height: 1.4;
 }
 
+/* Toggles the result's number grouping. Raw digits are the default because they are what gets
+   pasted into the game; commas are for reading. */
+.group-toggle {
+  float: right;
+  margin: -4px 0 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
 .split-table {
   width: 100%;
   border-collapse: collapse;
