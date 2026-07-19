@@ -93,20 +93,53 @@ class Coverage:
         return self.off_frame == 0 and self.occluded == 0
 
 
+def _selected_mask(img: np.ndarray) -> np.ndarray:
+    """The pale cyan the client paints behind the SELECTED slot.
+
+    A selected slot holds no interior grey at all, so the grey test calls it covered, and one
+    covered slot refuses the whole inventory. A real capture was refused for exactly this: 127
+    slots clean, one selected, "part of the inventory was covered" with nothing covering it.
+
+    Measured BGR at the slot's edge, away from the icon: selected (224, 202, 134) against a
+    normal (229, 228, 228). The separation that matters is against OCCLUDERS, which are other
+    MapleStory windows and near-neutral grey, so blue-minus-red does the work.
+    """
+    b, g, r = (img[:, :, i].astype(np.int16) for i in range(3))
+    return (((b >= 195) & (b - r >= 55) & (g > r) & (g >= 170)) * 255).astype(np.uint8)
+
+
+# A cell this cyan MAY be the selected slot rather than a covered one, but colour alone does
+# not decide it. The client's selection highlight (BGR 227, 204, 85) and the Boss Planner's
+# chrome (211, 180, 54) are 24 grey levels apart and JPEG closes most of that: pasted over the
+# lattice the planner's own cells score 0.435 here, ABOVE the real selected slot's 0.417, so
+# no threshold separates them. What separates them is COUNT. The client selects at most one
+# slot; a window covers a contiguous block. So a cell is forgiven only when it is the ONLY
+# one that failed, which the planner (32 cells) and every other occluder can never satisfy.
+MIN_SLOT_SELECTED = 0.30
+
+
 def coverage(img: np.ndarray, g: Grid) -> Coverage:
     """Account for every cell of the lattice, so absence can mean zero."""
     h_img, w_img = img.shape[:2]
     grey = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     band = cv2.inRange(grey, INTERIOR_LO, INTERIOR_HI)
+    selected = _selected_mask(img)
 
-    off_frame = occluded = 0
+    off_frame = 0
+    failed: list[tuple[int, int, int, int]] = []
     for r in range(ROWS):
         for c in range(COLS):
             x, y, w, h = g.cell(r, c)
             if x < 0 or y < 0 or x + w > w_img or y + h > h_img:
                 off_frame += 1
             elif band[y : y + h, x : x + w].mean() / 255.0 < MIN_SLOT_GREY:
-                occluded += 1
+                failed.append((x, y, w, h))
+
+    occluded = len(failed)
+    if occluded == 1:
+        x, y, w, h = failed[0]
+        if selected[y : y + h, x : x + w].mean() / 255.0 >= MIN_SLOT_SELECTED:
+            occluded = 0
     return Coverage(off_frame=off_frame, occluded=occluded)
 
 
@@ -409,6 +442,16 @@ def find_grid(img: np.ndarray) -> Grid:
     except ValueError:
         # Not "no inventory". Possibly an inventory whose slot boundaries have been
         # smeared past severing. Correlation can still find it.
+        #
+        # Segmentation is trusted whenever it succeeds, and it CAN succeed while wrong: a
+        # remote-play capture at JPEG q85 fitted 17 boxes at pitch 61.67, a whole row high,
+        # and 0.33px of pitch error compounds to five pixels by column 16. Falling back when
+        # its coverage looks poor was tried and is worse, a genuinely occluded inventory
+        # also has poor coverage, so the fallback fires exactly when segmentation was right
+        # and correlation then finds a lattice that DODGES the occluder: 56 slots flagged
+        # instead of the 32 that are really covered, and cropped captures mis-accounted too.
+        # Masking a real occlusion to rescue a compression artefact is the wrong trade, so
+        # this stays as it is until the fallback can tell the two cases apart.
         return _grid_by_correlation(img)
 
 
