@@ -22,3 +22,32 @@ data class BossClearResponse(
     val periodStart: String,
     val capturedAt: String,
 )
+
+/**
+ * One view of the matrix: either the current period or one past week.
+ *
+ * The navigation is served rather than computed client side for the reason the period label already
+ * was: the reset boundary has one implementation (BossPeriod.kt), and "the week before this one" is
+ * that same boundary asked backwards. A frontend doing its own date arithmetic would be a second
+ * copy of the number this feature cannot get wrong.
+ */
+@Serializable
+data class BossClearsViewResponse(
+    val clearsByCharacter: Map<String, List<BossClearResponse>>,
+    // Null for the current view, which spans three cadences and so has no single period. Set to the
+    // week being shown when the user has stepped back.
+    val weekStart: String?,
+    // Null at either end: no stored history before it, or nowhere newer to go than now.
+    val previousWeekStart: String?,
+    val nextWeekStart: String?,
+    // The week now in progress. The client compares nextWeekStart against it to know that stepping
+    // forward once more lands on the live view (all three cadences) rather than on a history slice
+    // of the current week, which would quietly drop the daily and monthly rows.
+    val currentWeekStart: String,
+    // Cadence -> ISO instant of the next rollover, for the countdown. Always about *now*, even when
+    // the matrix is showing an old week.
+    val nextResets: Map<String, String>,
+    // The server's clock at the moment it answered. The countdown ticks against this rather than
+    // the browser's own clock, so a skewed machine does not show a confidently wrong time to reset.
+    val now: String,
+)

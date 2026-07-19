@@ -4,10 +4,13 @@ import com.maplestorage.backend.db.BossCatalog
 import com.maplestorage.backend.db.BossClear
 import com.maplestorage.backend.db.Characters
 import com.maplestorage.backend.services.DetectedBossClear
+import kotlinx.datetime.LocalDate
 import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.core.min
 import org.jetbrains.exposed.v1.core.or
+import org.jetbrains.exposed.v1.jdbc.select
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.upsert
 import kotlin.time.Instant
@@ -51,6 +54,47 @@ internal fun currentBossClearsFor(
                     .reduce { a, b -> a or b }
         }.orderBy(BossCatalog.sortOrder)
         .groupBy({ it[BossClear.characterId].toString() }) { it.toBossClearResponse() }
+}
+
+/**
+ * One past week's clears, weekly bosses only.
+ *
+ * Weekly only, and that is a correctness choice rather than a shortcut. A week contains seven daily
+ * periods, so there is no single answer to "was Zakum cleared that week" to put in a cell; and a
+ * week can straddle two months, so the monthly boss has no unambiguous one either. Returning
+ * something for them would mean picking one of several true answers and drawing it as if it were
+ * the only one. The page hides both cadences when it is showing history.
+ */
+internal fun weeklyClearsFor(
+    userId: String,
+    weekStart: LocalDate,
+): Map<String, List<BossClearResponse>> =
+    BossClear
+        .innerJoin(BossCatalog)
+        .innerJoin(Characters)
+        .selectAll()
+        .where {
+            (Characters.userId eq userId) and
+                (BossCatalog.reset eq WEEKLY_CADENCE) and
+                (BossClear.periodStart eq weekStart)
+        }.orderBy(BossCatalog.sortOrder)
+        .groupBy({ it[BossClear.characterId].toString() }) { it.toBossClearResponse() }
+
+/**
+ * The oldest week this user has any weekly clear stored for, or null if they have none.
+ *
+ * Bounds the back arrow. Without it the picker would step forever into weeks that were never
+ * captured, which read identically to a week where nothing was cleared.
+ */
+internal fun earliestWeekStartFor(userId: String): LocalDate? {
+    val earliest = BossClear.periodStart.min()
+    return BossClear
+        .innerJoin(BossCatalog)
+        .innerJoin(Characters)
+        .select(earliest)
+        .where { (Characters.userId eq userId) and (BossCatalog.reset eq WEEKLY_CADENCE) }
+        .firstOrNull()
+        ?.get(earliest)
 }
 
 private fun ResultRow.toBossClearResponse() =

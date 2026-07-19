@@ -1,12 +1,14 @@
 "use client";
 
 import { useAuth } from "@clerk/nextjs";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { BossMatrix } from "@/components/boss-matrix";
 import { PlannerDock } from "@/components/planner-dock";
+import { ResetTimer } from "@/components/reset-timer";
+import { WeekStepper } from "@/components/week-stepper";
 import { apiFetch } from "@/lib/api";
 import { peek, put } from "@/lib/cache";
-import type { Boss, BossClearsByCharacter } from "@/types/boss";
+import type { Boss, BossClearsView } from "@/types/boss";
 import type { Character } from "@/types/character";
 
 type LoadState = "loading" | "loaded" | "error";
@@ -14,6 +16,10 @@ type LoadState = "loading" | "loaded" | "error";
 const BOSSES_KEY = "/api/bosses";
 const CLEARS_KEY = "/api/bosses/clears";
 const CHARACTERS_KEY = "/api/characters";
+
+// Only the current view is cached. A past week is reached by a deliberate click and is worth a
+// round-trip; caching every week stepped through would grow without bound for no visible gain.
+const clearsUrl = (week: string | null) => (week ? `${CLEARS_KEY}?week=${week}` : CLEARS_KEY);
 
 export default function BossesPage() {
   const { getToken } = useAuth();
@@ -25,24 +31,55 @@ export default function BossesPage() {
 
   const [bosses, setBosses] = useState<Boss[]>(seededBosses ?? []);
   const [characters, setCharacters] = useState<Character[]>(seededCharacters ?? []);
-  const [clears, setClears] = useState<BossClearsByCharacter>(
-    peek<BossClearsByCharacter>(CLEARS_KEY) ?? {},
-  );
+  const [view, setView] = useState<BossClearsView | null>(peek<BossClearsView>(CLEARS_KEY) ?? null);
+  // When the view was received, so the countdown can correct for a browser clock that disagrees
+  // with the server's. See lib/reset-countdown.ts.
+  const [receivedAt, setReceivedAt] = useState<number>(() => Date.now());
   const [state, setState] = useState<LoadState>(
     seededBosses && seededCharacters ? "loaded" : "loading",
   );
+  const [week, setWeek] = useState<string | null>(null);
+  const [stepping, setStepping] = useState(false);
   const [uploadFor, setUploadFor] = useState<string | null>(null);
+
+  // Clicking the arrow twice quickly fires two requests, and they can land in either order. Only
+  // the newest one may write state, or the matrix ends up showing a week the label disagrees with.
+  const latestRequest = useRef(0);
+
+  async function loadClears(target: string | null, token?: string | null) {
+    const ticket = ++latestRequest.current;
+    const result = await apiFetch<BossClearsView>(
+      clearsUrl(target),
+      { method: "GET" },
+      token !== undefined ? () => Promise.resolve(token) : getToken,
+    );
+    if (ticket !== latestRequest.current) return;
+    setView(result);
+    setReceivedAt(Date.now());
+    if (target === null) put(CLEARS_KEY, result);
+  }
 
   // After a capture saves, the matrix is stale. Only the clears can have changed, so only they are
   // refetched; the catalog and the roster are the same as they were a moment ago.
   async function refetchClears() {
     try {
-      const result = await apiFetch<BossClearsByCharacter>(CLEARS_KEY, { method: "GET" }, getToken);
-      setClears(result);
-      put(CLEARS_KEY, result);
+      await loadClears(week);
     } catch {
       // The save itself succeeded, so leaving the old matrix up is better than blanking it. The
       // next load will pick the new clears up.
+    }
+  }
+
+  async function selectWeek(target: string | null) {
+    setStepping(true);
+    try {
+      await loadClears(target);
+      setWeek(target);
+    } catch {
+      // Keep the week that is on screen. Moving the label without the data behind it would label
+      // one week's marks with another week's date.
+    } finally {
+      setStepping(false);
     }
   }
 
@@ -56,16 +93,14 @@ export default function BossesPage() {
         return Promise.all([
           apiFetch<Boss[]>(BOSSES_KEY, { method: "GET" }, withToken),
           apiFetch<Character[]>(CHARACTERS_KEY, { method: "GET" }, withToken),
-          apiFetch<BossClearsByCharacter>(CLEARS_KEY, { method: "GET" }, withToken),
+          loadClears(null, token),
         ]);
       })
-      .then(([bossResult, characterResult, clearResult]) => {
+      .then(([bossResult, characterResult]) => {
         setBosses(bossResult);
         setCharacters(characterResult);
-        setClears(clearResult);
         put(BOSSES_KEY, bossResult);
         put(CHARACTERS_KEY, characterResult);
-        put(CLEARS_KEY, clearResult);
         setState("loaded");
       })
       // Only show the error state if we have nothing at all: a failed refresh behind data we
@@ -94,14 +129,36 @@ export default function BossesPage() {
           </p>
         ) : (
           <>
-            <BossMatrix bosses={bosses} characters={characters} clearsByCharacter={clears} />
-            <PlannerDock
+            {view && (
+              <div className="boss-controls">
+                <WeekStepper view={view} onSelect={selectWeek} busy={stepping} />
+                <ResetTimer
+                  nextResets={view.nextResets}
+                  serverNow={view.now}
+                  receivedAt={receivedAt}
+                />
+              </div>
+            )}
+
+            <BossMatrix
+              bosses={bosses}
               characters={characters}
-              selectedCharacterId={uploadFor}
-              onSelectCharacter={setUploadFor}
-              getToken={getToken}
-              onSaved={refetchClears}
+              clearsByCharacter={view?.clearsByCharacter ?? {}}
+              historyWeek={view?.weekStart ?? null}
             />
+
+            {/* Uploading files a capture against now, so it only makes sense on the live view.
+                Offering it under a past week would invite a capture that silently lands in this
+                week instead of the one on screen. */}
+            {week === null && (
+              <PlannerDock
+                characters={characters}
+                selectedCharacterId={uploadFor}
+                onSelectCharacter={setUploadFor}
+                getToken={getToken}
+                onSaved={refetchClears}
+              />
+            )}
           </>
         ))}
     </main>

@@ -3,8 +3,10 @@ package com.maplestorage.backend.bosses
 import kotlinx.datetime.DateTimeUnit
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
+import kotlinx.datetime.atStartOfDayIn
 import kotlinx.datetime.isoDayNumber
 import kotlinx.datetime.minus
+import kotlinx.datetime.plus
 import kotlinx.datetime.toLocalDateTime
 import kotlin.time.Instant
 
@@ -16,6 +18,10 @@ import kotlin.time.Instant
 // The cadences boss_catalog.reset is CHECK-constrained to. Listed here because the current-period
 // query has to ask for one date per cadence, not one date overall.
 val RESET_CADENCES = listOf("WEEKLY", "DAILY", "MONTHLY")
+
+// The cadence the week picker steps through, and the only one a past week can answer for. See
+// weeklyClearsFor.
+const val WEEKLY_CADENCE = "WEEKLY"
 
 // UTC, because that is when the game resets, not when the player is asleep. A clear captured at
 // 20:00 Wednesday in Los Angeles is already Thursday in UTC and belongs to the NEW week; filing it
@@ -62,3 +68,73 @@ fun periodStartFor(
 // the modulo is what keeps it non-negative for the days that sit before Thursday in the ISO week.
 private fun daysSinceWeeklyReset(date: LocalDate): Int =
     (date.dayOfWeek.isoDayNumber - WEEKLY_RESET_ISO_DAY + DAYS_IN_WEEK) % DAYS_IN_WEEK
+
+/** The period after this one, for a cadence. Stepping the week picker back and forth goes through here. */
+fun periodAfter(
+    reset: String,
+    periodStart: LocalDate,
+): LocalDate =
+    when (reset) {
+        "DAILY" -> periodStart.plus(1, DateTimeUnit.DAY)
+        "WEEKLY" -> periodStart.plus(DAYS_IN_WEEK, DateTimeUnit.DAY)
+        "MONTHLY" -> periodStart.plus(1, DateTimeUnit.MONTH)
+        else -> error("Unknown boss reset cadence '$reset'. See periodStartFor.")
+    }
+
+fun periodBefore(
+    reset: String,
+    periodStart: LocalDate,
+): LocalDate =
+    when (reset) {
+        "DAILY" -> periodStart.minus(1, DateTimeUnit.DAY)
+        "WEEKLY" -> periodStart.minus(DAYS_IN_WEEK, DateTimeUnit.DAY)
+        "MONTHLY" -> periodStart.minus(1, DateTimeUnit.MONTH)
+        else -> error("Unknown boss reset cadence '$reset'. See periodStartFor.")
+    }
+
+/**
+ * When the cadence next rolls over, as an instant.
+ *
+ * Derived from periodStartFor rather than computed separately, so the countdown the page shows and
+ * the boundary a clear is filed against can never disagree. A timer that ticks to zero while the
+ * matrix still reads last week would be the same wrong-number failure wearing a clock.
+ */
+fun nextResetAfter(
+    reset: String,
+    now: Instant,
+): Instant = periodAfter(reset, periodStartFor(reset, now)).atStartOfDayIn(RESET_ZONE)
+
+/** Where the week picker may step from the week it is showing. Null means the arrow is at an end. */
+data class WeekNavigation(
+    val previous: LocalDate?,
+    val next: LocalDate?,
+)
+
+/**
+ * Which way the picker can step.
+ *
+ * Both ends are bounded rather than open. Back stops at the oldest stored week because everything
+ * before it renders as a blank matrix, which is indistinguishable from a week where nothing was
+ * cleared; forward stops at the week in progress because there is nothing to say about a week that
+ * has not happened.
+ */
+fun weekNavigation(
+    shown: LocalDate,
+    currentWeek: LocalDate,
+    earliest: LocalDate?,
+): WeekNavigation =
+    WeekNavigation(
+        previous = periodBefore(WEEKLY_CADENCE, shown).takeIf { earliest != null && it >= earliest },
+        next = periodAfter(WEEKLY_CADENCE, shown).takeIf { it <= currentWeek },
+    )
+
+/**
+ * Whether a date is a real start for this cadence, i.e. it is the period it belongs to.
+ *
+ * The week picker takes a date from the query string. A Tuesday would otherwise select nothing and
+ * render an empty matrix that looks exactly like a week with no captures.
+ */
+fun isPeriodStart(
+    reset: String,
+    date: LocalDate,
+): Boolean = periodStartFor(reset, date.atStartOfDayIn(RESET_ZONE)) == date

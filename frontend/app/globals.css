@@ -1715,6 +1715,124 @@ button.link:disabled {
   border-bottom: 1px solid var(--line);
 }
 
+/* Week picker on the left, reset clocks on the right, above the table. They wrap onto two lines on
+   a narrow viewport rather than squeezing, since both are text that has to stay readable. */
+.boss-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+  margin-bottom: 10px;
+}
+
+.week-stepper {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.week-step {
+  padding: 2px 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 14px;
+  line-height: 1.4;
+  cursor: pointer;
+}
+
+.week-step:hover:not(:disabled) {
+  background: var(--surface-2);
+}
+
+/* Disabled means there is no stored week that way, which is information. Kept visible rather than
+   hidden so the control does not change width at the ends of the history. */
+.week-step:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+/* Fixed width so stepping between "This week" and a date does not shift the arrows under the
+   cursor, which turns a second click into a click on nothing. */
+.week-label {
+  min-width: 122px;
+  color: var(--ink);
+  font-size: 13px;
+  text-align: center;
+}
+
+.week-today {
+  margin-left: 4px;
+  padding: 2px 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.week-today:hover:not(:disabled) {
+  background: var(--surface-2);
+  color: var(--ink);
+}
+
+.reset-timer {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin: 0;
+  font-size: 12px;
+}
+
+.reset-lead,
+.reset-minor {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+}
+
+/* Weekly is the one that matters for 16 of the 19 bosses, so it is the one that reads first. */
+.reset-lead .reset-value {
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.reset-minor .reset-value {
+  color: var(--muted);
+}
+
+.reset-label {
+  color: var(--muted-2);
+}
+
+/* Tabular figures, or the countdown jostles its neighbours every time a digit changes width. */
+.reset-value {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.reset-zone {
+  color: var(--muted-2);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  cursor: help;
+}
+
+.boss-history-note,
+.boss-empty-week {
+  margin: 8px 0 0;
+  color: var(--muted-2);
+  font-size: 11px;
+}
+
+.boss-empty-week {
+  margin: 16px 0 0;
+}
+
 /* Cell placeholder, sized to the tick it stands in for so the loading table and
    the loaded one are the same table. */
 .sk-cell {
