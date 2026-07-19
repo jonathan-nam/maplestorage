@@ -797,6 +797,35 @@ def test_the_bar_fix_does_not_read_the_hud_icons_as_a_letter(quality):
     assert hud.level == 286
 
 
+@pytest.mark.parametrize("capture_scale", [1.1, 1.25, 1.5, 2.0])
+@pytest.mark.parametrize("quality", [None, 92])
+def test_the_bar_fix_holds_at_every_capture_scale(capture_scale, quality):
+    """Native scale was not the only way this one broke.
+
+    Before the boxes fix `warrior2020` also came back `warrlor2020` at 1.1x and 2.0x, and
+    `warr1or2020` at 1.5x, where the 'i' dot merges into the stem and mimics the '1' flag.
+    The scales are not interchangeable here: the crop is upscaled to a fixed height before
+    OCR, so each one hands Tesseract a different resampling of the same glyphs.
+
+    Not asserted to be FOUND at every scale. This capture's anchor is missed at some of
+    them, which predates the bar fix and is safe, no HUD means no character rather than a
+    wrong one. What must never come back is a name that is confidently wrong.
+    """
+    img = cv2.imread(f"{REF}/hud-warrior2020.png")
+    assert img is not None
+    img = cv2.resize(img, None, fx=capture_scale, fy=capture_scale, interpolation=cv2.INTER_CUBIC)
+    if quality is not None:
+        img = cv2.imdecode(
+            cv2.imencode(".jpg", img, [cv2.IMWRITE_JPEG_QUALITY, quality])[1], cv2.IMREAD_COLOR
+        )
+
+    hud = find_hud(img, scale=capture_scale)
+
+    if hud is not None:
+        assert hud.name == "warrior2020", f"misread at {capture_scale}x: {hud.name!r}"
+        assert hud.level == 286
+
+
 @pytest.mark.parametrize("quality", [None, 92])
 def test_a_descender_is_not_cropped_off_the_name(quality):
     """`mechyfechy` read as `mechufechy`, and the app would have made a character by it.
