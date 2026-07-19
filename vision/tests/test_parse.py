@@ -769,6 +769,33 @@ def test_a_one_in_a_name_is_not_read_as_a_letter(quality):
 
 
 @pytest.mark.parametrize("quality", [None, 92])
+def test_the_bar_fix_does_not_read_the_hud_icons_as_a_letter(quality):
+    """`warrior2020` was read correctly and then corrupted to `warrlor2020`.
+
+    Tesseract got this name right. The bar fix broke it: it located the bars by segmenting
+    the crop itself and taking the last word, but the crop is a fixed 175px and overruns into
+    the HUD icons, so the last word was an icon. A 1px slice of it was narrow enough to look
+    like a bar and there was exactly one bar in the name, so the counts agreed and the 'i'
+    was overwritten from icon pixels. Bars are located by Tesseract's own character boxes now.
+
+    This is also the corpus's first lowercase 'i'. `acornacorn`, `morebuff12` and
+    `mechyfechy` have none between them, so that branch of _classify_bar was only ever
+    asserted negatively.
+    """
+    img = cv2.imread(f"{REF}/hud-warrior2020.png")
+    assert img is not None
+    if quality is not None:
+        img = cv2.imdecode(
+            cv2.imencode(".jpg", img, [cv2.IMWRITE_JPEG_QUALITY, quality])[1], cv2.IMREAD_COLOR
+        )
+
+    hud = find_hud(img, scale=1.0)
+    assert hud is not None
+    assert hud.name == "warrior2020"
+    assert hud.level == 286
+
+
+@pytest.mark.parametrize("quality", [None, 92])
 def test_a_descender_is_not_cropped_off_the_name(quality):
     """`mechyfechy` read as `mechufechy`, and the app would have made a character by it.
 
