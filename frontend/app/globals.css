@@ -473,7 +473,7 @@ a:hover {
    page, and it should read as one.
 
    Every colour and dimension below was sampled from a real capture
-   (test-fixtures/inventory804x550.png) rather than eyeballed. No client art is
+   (test-fixtures/inventory/inventory804x550.png) rather than eyeballed. No client art is
    shipped, the chrome is all CSS. The geometry is the game's own: 16x8 slots on
    a 46px pitch, which is both what the client draws and what the parser locks
    onto (vision/app/cv/grid.py).

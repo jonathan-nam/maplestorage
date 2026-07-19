@@ -18,6 +18,7 @@ import cv2
 import numpy as np
 import pytest
 import yaml
+from fixtures import INVENTORY
 
 from app.cv import classify as classify_mod
 from app.cv.classify import MAX_LAB_DISTANCE, VERIFY_THRESHOLD, _colour_distance
@@ -27,13 +28,12 @@ from app.cv.match import load_templates
 ROOT = pathlib.Path(__file__).resolve().parent.parent.parent
 MANIFEST = ROOT / "catalog" / "items.yaml"
 
-REF = "../test-fixtures"
 REFERENCE_CAPTURES = [
-    f"{REF}/untradeables sample.png",
-    f"{REF}/inventory sample.png",
-    f"{REF}/potions.png",
-    f"{REF}/inventory804x550.png",
-    f"{REF}/symbols.png",
+    f"{INVENTORY}/untradeables sample.png",
+    f"{INVENTORY}/inventory sample.png",
+    f"{INVENTORY}/potions.png",
+    f"{INVENTORY}/inventory804x550.png",
+    f"{INVENTORY}/symbols.png",
 ]
 
 

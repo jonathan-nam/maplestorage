@@ -1,6 +1,6 @@
 // The Storage Room chest, drawn as pixel art on a 16x16 grid.
 //
-// Deliberately our own art, not the client's sprite: test-fixtures/storage
+// Deliberately our own art, not the client's sprite: test-fixtures/occluded/storage
 // image.png is a reference for the idiom (wooden body, gold bands, red gem, heavy
 // dark outline), not an asset to ship. Nothing of Nexon's is redistributed.
 //

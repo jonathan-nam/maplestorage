@@ -48,9 +48,23 @@ test in `vision/tests/`, by a build script in `vision/app/cv/`, or by `scripts/s
 `docker-compose.yml` mounts the directory into the vision container as `/screenshots`. Deleting
 one breaks CI, so check who reads it first.
 
+The subdirectories are roles, not file types:
+
+- `inventory/` captures the parser must read correctly.
+- `occluded/` captures it must **refuse**. Filing one of these under `inventory/` turns a
+  refusal test into a parse test that happens to pass, which is the silent-wrong-number failure
+  this repo exists to prevent.
+- `planner/` boss clear menu captures.
+- `hud/` name and level crops.
+
+Tests reach the corpus through `vision/tests/fixtures.py`, never by rebuilding the path. Two
+captures are also build inputs, so moving them silently changes generated templates:
+`inventory/untradeables sample.png` builds the digit font sheet, and
+`planner/boss clear menu sample 2.png` builds the planner state glyphs.
+
 `test-fixtures/scratch/` is the opposite: gitignored, disposable, the place to drop a capture
-that illustrates a feature or a bug. A capture graduates by moving up one level and gaining a
-test that reads it, in the same commit. If it never gets a test it stays scratch.
+that illustrates a feature or a bug. A capture graduates by moving into a role directory and
+gaining a test that reads it, in the same commit. If it never gets a test it stays scratch.
 
 ## Source of truth
 

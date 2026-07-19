@@ -6,14 +6,11 @@ on one character; the full-screen sample pins that the name read identifies a fu
 including bosses that a fixed image library would not have covered.
 """
 
-from pathlib import Path
-
 import cv2
 import pytest
+from fixtures import PLANNER
 
 from app.cv import planner as P
-
-REF = Path(__file__).resolve().parents[2] / "test-fixtures"
 
 # (boss name, cleared) top-to-bottom. First nine verified by Jonathan; last two parser-proposed.
 SAMPLE2_TRUTH = [
@@ -56,7 +53,7 @@ def glyphs():
 
 
 def _parse(name, glyphs):
-    img = cv2.imread(str(REF / name))
+    img = cv2.imread(str(PLANNER / name))
     assert img is not None, f"missing fixture {name}"
     res = P.parse_planner(img, glyphs)
     assert res is not None, "Boss Content panel not found"

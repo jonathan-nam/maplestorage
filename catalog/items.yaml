@@ -96,7 +96,7 @@ items:
 
   # --- Consumables -------------------------------------------------------------------
   # Bought and drunk, not collected and redeemed: no redeem_threshold, and the UI must not
-  # invent one. Templates cut from test-fixtures/potions.png.
+  # invent one. Templates cut from test-fixtures/inventory/potions.png.
   #
   # These are also the reason the classifier now looks at colour. The Extreme potions are one
   # bottle in three (four, once Gold turns up): shape correlates them at 0.925 against a 0.55
