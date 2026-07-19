@@ -11,31 +11,30 @@ missing one the other found. Treating absence as zero on either would have wiped
 
 import cv2
 import pytest
+from fixtures import INVENTORY, OCCLUDED
 
 from app.cv.grid import COLS, MIN_SLOT_GREY, ROWS, coverage, find_grid
-
-REF = "../test-fixtures"
 
 # Every capture in the corpus that IS a readable inventory. Each must read as complete:
 # if a genuine capture cannot clear this gate, the feature never fires for anyone.
 COMPLETE_CAPTURES = [
-    f"{REF}/inventory sample.png",
-    f"{REF}/inventory smaller.png",
-    f"{REF}/inventory804x550.png",
-    f"{REF}/potions.png",
-    f"{REF}/symbols.png",
-    f"{REF}/untradeables sample.png",
-    f"{REF}/untradebles description sample.png",
-    f"{REF}/symbols-parsec.png",
+    f"{INVENTORY}/inventory sample.png",
+    f"{OCCLUDED}/inventory smaller.png",
+    f"{INVENTORY}/inventory804x550.png",
+    f"{INVENTORY}/potions.png",
+    f"{INVENTORY}/symbols.png",
+    f"{INVENTORY}/untradeables sample.png",
+    f"{OCCLUDED}/untradebles description sample.png",
+    f"{INVENTORY}/symbols-parsec.png",
 ]
 
 # Real MapleStory UI, used as occluders. A synthetic grey rectangle would be a softer test
 # than the thing that actually happens, which is another game window over the inventory.
 OCCLUDERS = [
-    f"{REF}/boss planner.png",
-    f"{REF}/boss matrix.png",
-    f"{REF}/login screen.png",
-    f"{REF}/storage image.png",
+    f"{OCCLUDED}/boss planner.png",
+    f"{OCCLUDED}/boss matrix.png",
+    f"{OCCLUDED}/login screen.png",
+    f"{OCCLUDED}/storage image.png",
 ]
 
 
@@ -77,7 +76,7 @@ def test_completeness_survives_jpeg(path, quality):
 @pytest.mark.parametrize("occluder", OCCLUDERS)
 def test_a_window_over_the_inventory_is_not_complete(occluder):
     """The occlusion undercount, caught rather than silently absorbed."""
-    base = _load(f"{REF}/inventory sample.png")
+    base = _load(f"{INVENTORY}/inventory sample.png")
     g = find_grid(base)
     img = _occlude(base, g, occluder, rows=4, cols=8)
     cov = coverage(img, find_grid(img))
@@ -87,7 +86,7 @@ def test_a_window_over_the_inventory_is_not_complete(occluder):
 
 def test_even_one_covered_slot_is_not_complete():
     """One hidden slot is one item that could be wrongly zeroed."""
-    base = _load(f"{REF}/inventory sample.png")
+    base = _load(f"{INVENTORY}/inventory sample.png")
     g = find_grid(base)
     img = _occlude(base, g, OCCLUDERS[0], rows=1, cols=1)
     cov = coverage(img, find_grid(img))
@@ -99,7 +98,7 @@ def test_even_one_covered_slot_is_not_complete():
 def test_a_crop_into_the_lattice_is_not_complete(slots):
     """Cropping to the window is supported and stays complete. Cropping INTO the slots
     is not, and each lost row is 16 slots, each lost column 8."""
-    base = _load(f"{REF}/inventory sample.png")
+    base = _load(f"{INVENTORY}/inventory sample.png")
     g = find_grid(base)
     p = round(g.pitch)
     x0, y0 = g.cell(0, 0)[:2]
@@ -137,7 +136,7 @@ def test_the_threshold_keeps_its_margin():
                 x, y = g.cell(r, c)[:2]
                 worst_genuine = min(worst_genuine, band[y : y + p, x : x + p].mean() / 255.0)
 
-    base = _load(f"{REF}/inventory sample.png")
+    base = _load(f"{INVENTORY}/inventory sample.png")
     g = find_grid(base)
     best_occluded = 0.0
     for occluder in OCCLUDERS:

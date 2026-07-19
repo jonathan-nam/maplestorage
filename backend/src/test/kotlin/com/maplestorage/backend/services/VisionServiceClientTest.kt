@@ -126,7 +126,7 @@ class VisionServiceClientTest {
             assertEquals(1, parsed.result.tokenCounts?.size)
         }
 
-    // Body trimmed from a real /parse of test-fixtures/boss clear menu sample 2.png against the
+    // Body trimmed from a real /parse of test-fixtures/planner/boss clear menu sample 2.png against the
     // running service (11 rows, 3 cleared, reachedListEnd true, 0 unreadable). The fields this
     // pins are the ones that silently become null if the DTO and the service drift: an absent
     // bossClears reads exactly like a capture with no planner in it.
@@ -274,7 +274,7 @@ class VisionServiceClientTest {
             val parsed = assertIs<ScreenshotParseOutcome.Parsed>(outcome)
             assertEquals(ScreenshotType.INVENTORY, parsed.result.screenshotType)
             assertEquals(CharacterHud("acornacorn", 287), parsed.result.characterHud)
-            // The five tokens visible in test-fixtures/untradeables sample.png,
+            // The five tokens visible in test-fixtures/inventory/untradeables sample.png,
             // read off the screenshot by eye.
             assertEquals(
                 mapOf(
