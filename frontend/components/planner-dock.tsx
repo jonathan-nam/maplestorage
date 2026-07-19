@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { CharacterPicker } from "@/components/character-picker";
 import { apiFetch } from "@/lib/api";
 import { invalidate } from "@/lib/cache";
 import { compressImage } from "@/lib/compress-image";
@@ -131,23 +132,17 @@ export function PlannerDock({
 
   return (
     <section className="dock planner-dock">
-      <label className="planner-pick">
+      <div className="planner-pick">
         <span className="planner-pick-label">Whose planner is this?</span>
-        <select
-          value={selectedCharacterId ?? ""}
-          onChange={(e) => {
-            onSelectCharacter(e.target.value || null);
-            if (e.target.value) setRefused(false);
+        <CharacterPicker
+          characters={characters}
+          selectedId={selectedCharacterId}
+          onSelect={(id) => {
+            onSelectCharacter(id);
+            setRefused(false);
           }}
-        >
-          <option value="">Choose a character…</option>
-          {characters.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name}
-            </option>
-          ))}
-        </select>
-      </label>
+        />
+      </div>
 
       <div
         className={`dock-drop${dragOver ? " dragover" : ""}${selected ? "" : " disabled"}`}
