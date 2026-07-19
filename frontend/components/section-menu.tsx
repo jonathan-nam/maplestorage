@@ -10,11 +10,18 @@ import { useEffect, useRef, useState } from "react";
 const SECTIONS = [
   { href: "/inventory", label: "Inventory" },
   { href: "/bosses", label: "Boss clears" },
+  { href: "/bosses/split", label: "Drop split" },
 ];
 
 export function SectionMenu() {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
+
+  // Longest matching href wins, so /bosses/split lights up "Drop split" alone. A plain
+  // startsWith would light up "Boss clears" as well, since one section nests under the other.
+  const active = SECTIONS.map((s) => s.href)
+    .filter((href) => pathname === href || pathname.startsWith(`${href}/`))
+    .sort((a, b) => b.length - a.length)[0];
   const ref = useRef<HTMLDivElement>(null);
 
   // Close on an outside click or Escape, the two ways a menu should always be dismissable.
@@ -54,7 +61,7 @@ export function SectionMenu() {
               key={s.href}
               href={s.href}
               role="menuitem"
-              className={pathname.startsWith(s.href) ? "active" : ""}
+              className={active === s.href ? "active" : ""}
               onClick={() => setOpen(false)}
             >
               {s.label}

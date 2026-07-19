@@ -1667,3 +1667,147 @@ button.link:disabled {
 .boss-char-head .sk-line {
   width: 68px;
 }
+
+/* Drop split
+   ------------------------------------------------------------------------------------------- */
+
+.split-intro {
+  margin: 0 0 20px;
+  max-width: 60ch;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.split-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.split-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.split-field > legend {
+  padding: 0;
+  margin-bottom: 6px;
+}
+
+.split-input {
+  font: inherit;
+  font-size: 14px;
+  padding: 9px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+.split-input:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+  border-color: transparent;
+}
+
+.split-methods {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.split-method {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 2px 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  cursor: pointer;
+}
+.split-method.active {
+  border-color: var(--accent);
+}
+
+.split-method-label {
+  color: var(--ink-strong);
+  font-size: 14px;
+}
+
+/* Second row, under the radio rather than beside it. */
+.split-method-hint {
+  grid-column: 2;
+  color: var(--muted-2);
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.split-error {
+  margin: 16px 0 0;
+  color: var(--warn);
+  font-size: 13px;
+}
+
+.split-result {
+  margin-top: 24px;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.split-headline {
+  margin: 0 0 14px;
+  font-size: 15px;
+  color: var(--ink);
+}
+.split-headline strong {
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+
+.split-lines {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.split-lines > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line-soft);
+}
+
+.split-lines dt {
+  color: var(--muted);
+}
+
+.split-lines dd {
+  margin: 0;
+  color: var(--ink-strong);
+  font-variant-numeric: tabular-nums;
+}
+
+.split-fee dd {
+  color: var(--bad);
+}
+
+.split-note {
+  margin: 14px 0 0;
+  color: var(--warn);
+  font-size: 12px;
+  line-height: 1.5;
+}
