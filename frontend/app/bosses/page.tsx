@@ -61,7 +61,7 @@ export default function BossesPage() {
 
   return (
     <main className="page">
-      <h1 className="page-title">Boss clears</h1>
+      <h1 className="page-title">Boss Clears</h1>
 
       {state === "error" && <p>Couldn&apos;t load your boss clears.</p>}
 
