@@ -6,6 +6,7 @@ guards the service. If a change to the CV breaks a count, it breaks here.
 """
 
 import glob
+import subprocess
 from pathlib import Path
 
 import cv2
@@ -13,6 +14,8 @@ import numpy as np
 import pytest
 from fastapi.testclient import TestClient
 
+from app import main as main_mod
+from app.cv import planner as planner_mod
 from app.cv.grid import NATIVE_PITCH, find_grid
 from app.cv.hud import HUD_RE, find_hud
 from app.cv.match import load_templates
@@ -396,6 +399,50 @@ def test_non_inventory_image_reports_no_clears():
     body = client.post("/parse", content=cv2.imencode(".png", noise)[1].tobytes()).json()
     assert body["screenshotType"] == "UNRECOGNIZED"
     assert body["bossClears"] is None
+
+
+def test_a_planner_blowup_does_not_take_the_inventory_with_it(monkeypatch):
+    """Boss clears are additive, so a planner that raises costs its own rows and nothing else.
+
+    Driven on the capture that holds BOTH panels, because that is where the planner has real
+    data to lose: the inventory counts must survive intact anyway. The read shells out to
+    Tesseract once per row against find_hud's once per frame, so it carries most of the timeout
+    risk in a parse, and it runs ahead of the grid.
+    """
+
+    def boom(*_args, **_kwargs):
+        raise subprocess.TimeoutExpired("tesseract", 15)
+
+    monkeypatch.setattr(main_mod, "parse_planner", boom)
+    r = _parse(f"{REF}/untradeables sample.png")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["screenshotType"] == "INVENTORY"
+    assert {t["tokenName"]: t["quantity"] for t in body["tokenCounts"]} == TRUTH[
+        f"{REF}/untradeables sample.png"
+    ]
+    assert body["bossClears"] is None
+
+
+def test_an_unresolved_row_is_counted_not_dropped(monkeypatch):
+    """The counting is the point, and every other test here sees zero of it.
+
+    A row whose name will not resolve is the one case where the reader has found a boss and
+    cannot say which, and reporting it is what stops it reading as "not cleared". Forced by
+    denying the matcher one name that the clean capture definitely contains, so the response
+    has to come back exactly one clear shorter and say so.
+    """
+    keep = [n for n in planner_mod.BOSS_NAMES if n != "Chosen Seren"]
+    real = planner_mod.parse_planner
+    monkeypatch.setattr(main_mod, "parse_planner", lambda img, glyphs: real(img, glyphs, keep))
+
+    body = _parse(f"{REF}/boss clear menu sample 2.png").json()
+    assert body["unreadableBossRows"] == 1
+    keys = [c["bossKey"] for c in body["bossClears"]]
+    assert "chosen-seren" not in keys
+    # Short by exactly the denied row: the others must not be disturbed by its absence, and in
+    # particular must not fuzzy-match onto the name that is now missing from the catalog.
+    assert keys == [k for k, _ in SAMPLE2_CLEARS if k != "chosen-seren"]
 
 
 # --- HUD -------------------------------------------------------------------

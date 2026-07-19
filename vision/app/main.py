@@ -191,8 +191,18 @@ async def parse(request: Request, response: Response) -> ScreenshotParseResult:
     # Read at the capture's own scale, like everything else here. The state glyphs were cut at
     # native scale and matchTemplate is not scale-invariant, so a rescaled planner finds no rows
     # and reads as "no planner" rather than as a wrong one.
-    with stage("planner"):
-        planner = parse_planner(img, STATE_GLYPHS)
+    #
+    # Never fatal. Boss clears are ADDITIVE to a parse that already worked without them, so a
+    # planner that blows up must cost its own rows and nothing else. The read shells out to
+    # Tesseract once per row (find_hud does it once for the whole frame), so it multiplies the
+    # chances of a TimeoutExpired, and a missing binary would take the inventory path down with
+    # it despite the grid never needing the planner at all.
+    try:
+        with stage("planner"):
+            planner = parse_planner(img, STATE_GLYPHS)
+    except Exception:
+        log.exception("planner read failed, continuing without boss clears")
+        planner = None
     boss_rows = planner.rows if planner else []
 
     try:
