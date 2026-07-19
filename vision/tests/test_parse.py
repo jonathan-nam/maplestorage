@@ -326,6 +326,38 @@ def test_a_windowed_parsec_capture_finds_the_right_lattice():
     assert got["trace-eternal-loyalty"] == 20
 
 
+def test_a_full_screen_capture_still_finds_its_lattice():
+    """A clean, unobstructed inventory that was refused: "the slot grid could not be located".
+
+    Nothing was wrong with the capture. The pitch was picked by phase coherence over ALL slot
+    peaks, and on a FULL-SCREEN frame the game world, quickslot bars and skill icons answer
+    the empty-slot template too: 92 peaks here against 34 on a windowed capture, their
+    scattered phases dragging the score to 0.32 against a 0.60 bar. No threshold fixed it,
+    the true pitch scored 0.32 while a known-WRONG pitch on another capture scored 0.24.
+
+    Kept at FULL SIZE deliberately, unlike the other large fixtures. Cropping to the panel is
+    what the other two do to fit the file-size limit, and it would defeat this test entirely:
+    the strays live outside the inventory, so a crop removes the very thing that caused the
+    bug. It is recompressed losslessly instead, same pixels, 1.8MB.
+
+    The counts are not asserted here, but they are corroborated: this is the same inventory
+    as parsec-ss.png captured separately, and at pitch 61 all eighteen items agree exactly
+    with that fixture's numbers. A wrong pitch cannot produce that.
+    """
+    img = cv2.imread(f"{REF}/morebuff12.png")
+    assert img is not None
+
+    g = find_grid(img)
+    assert round(g.pitch) == 61, f"pitch {g.pitch}"
+    assert coverage(img, g) == Coverage(off_frame=0, occluded=0)
+
+    r = client.post(
+        "/parse", content=cv2.imencode(".jpg", img, [cv2.IMWRITE_JPEG_QUALITY, 92])[1].tobytes()
+    )
+    assert r.status_code == 200, r.json()
+    assert r.json()["inventoryComplete"] is True
+
+
 def test_a_selected_slot_is_not_mistaken_for_an_occluded_one():
     """A full-screen capture with one slot SELECTED, which used to refuse the whole inventory.
 

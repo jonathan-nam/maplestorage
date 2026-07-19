@@ -292,10 +292,22 @@ PITCH_SEARCH = (40.0, 90.0)
 # search box and button row, which are periodic too and can outscore the lattice.
 PITCH_CANDIDATES = 6
 
-# A lattice is square, so its peaks share one phase on both axes. Anything below this is a
-# pitch that found peaks without finding a grid. The gap is wide: on the reference corpus a
-# true pitch scores 0.88-0.99 and the nearest wrong one 0.33.
-MIN_PHASE_COHERENCE = 0.60
+# How far the detected slots may sit from the lattice they are supposed to form, as a
+# fraction of the pitch. This is what picks between candidate periods and what rejects a
+# frame that has none.
+#
+# It replaced a phase-coherence test that measured ALL slot peaks, which was wrong in a way
+# worth recording: on a windowed capture nearly every peak is a real slot, but on a
+# FULL-SCREEN one the game world, the quickslot bars and the skill icons all answer too (92
+# peaks against 34), and their scattered phases drag the score down no matter how good the
+# lattice is. A clean full-screen inventory scored 0.32 against a 0.60 bar and was refused
+# outright, and no threshold could fix it: the true pitch there scored 0.32 while a KNOWN
+# WRONG pitch elsewhere scored 0.24.
+#
+# Measuring the residual only over peaks inside the fitted 16x8 window ignores the strays by
+# construction, and separates cleanly: true pitches score 0.027 to 0.105 across the corpus,
+# wrong ones 0.287 to 0.346.
+MAX_LATTICE_RESIDUAL = 0.20
 
 
 def _pitch_candidates(img: np.ndarray) -> list[float]:
@@ -328,18 +340,37 @@ def _pitch_candidates(img: np.ndarray) -> list[float]:
     return [float(p) for p in sorted(scored, key=lambda k: -scored[k])]
 
 
-def _phase_coherence(xs: np.ndarray, ys: np.ndarray, pitch: float) -> float:
-    """How tightly the peaks agree on one lattice phase, per axis, worst axis wins.
+def _lattice_fit(xs: np.ndarray, ys: np.ndarray, pitch: float):
+    """Fit a 16x8 lattice at this pitch. Returns (residual, origin, n_cells), or None.
 
-    Circular concentration of (position mod pitch): 1.0 is a perfect lattice, 0.0 is
-    positions scattered uniformly across the period. Peak COUNT cannot do this job, a
-    too-small pitch always matches more places, just incoherently.
+    The residual is the RMS distance from each slot inside the fitted window to the lattice
+    node it belongs to, in units of the pitch. A wrong period does not simply score worse,
+    it drifts: one pixel of pitch error is sixteen pixels by the last column, so the peaks
+    cannot all sit near their nodes and the residual rises sharply.
+
+    Peak COUNT cannot do this job (a too-small pitch always matches more places, just
+    incoherently) and neither can coverage(), which passed every pitch from 61 to 64 on the
+    same capture because a slightly wrong lattice still lands mostly on slot grey.
     """
-    out = []
-    for v in (xs, ys):
-        phase = (v.astype(float) % pitch) / pitch * 2.0 * np.pi
-        out.append(float(abs(np.exp(1j * phase).mean())))
-    return min(out) if out else 0.0
+    if len(xs) < MIN_CELLS:
+        return None
+    cx = xs.astype(float) + pitch / 2
+    cy = ys.astype(float) + pitch / 2
+    try:
+        ox, oy, n = _largest_lattice_block(cx, cy, pitch)
+    except ValueError:
+        return None
+
+    ci = np.round((cx - ox - pitch / 2) / pitch)
+    ri = np.round((cy - oy - pitch / 2) / pitch)
+    inside = (ci >= 0) & (ci < COLS) & (ri >= 0) & (ri < ROWS)
+    if int(inside.sum()) < MIN_CELLS:
+        return None
+
+    dx = cx[inside] - (ox + pitch / 2 + ci[inside] * pitch)
+    dy = cy[inside] - (oy + pitch / 2 + ri[inside] * pitch)
+    rms = float(np.sqrt((dx**2 + dy**2).mean()) / pitch)
+    return rms, (ox, oy), n
 
 
 def _slot_peaks(img: np.ndarray, pitch: float) -> tuple[np.ndarray, np.ndarray]:
@@ -367,30 +398,25 @@ def _grid_by_correlation(img: np.ndarray) -> Grid:
     # Try each candidate period and keep the one whose slot peaks actually form a lattice.
     # Trusting the strongest autocorrelation lag alone is what let a contaminated column
     # profile pick the pitch on a windowed capture.
-    best: tuple[float, float, np.ndarray, np.ndarray] | None = None
+    best: tuple[float, float, tuple[float, float], int] | None = None
     for pitch in _pitch_candidates(img):
         try:
             xs, ys = _slot_peaks(img, pitch)
         except ValueError:
             continue
-        if len(xs) < MIN_CELLS:
+        fit = _lattice_fit(xs, ys, pitch)  # peaks are cell CORNERS; the fit works in centres
+        if fit is None:
             continue
-        c = _phase_coherence(xs, ys, pitch)
-        if best is None or c > best[0]:
-            best = (c, pitch, xs, ys)
-        if c >= 0.95:  # unambiguous, no point paying for the rest
-            break
+        rms, origin, n = fit
+        if best is None or rms < best[0]:
+            best = (rms, pitch, origin, n)
 
     if best is None:
         raise ValueError("no slots correlate with an empty slot")
-    coherence, pitch, xs, ys = best
-    if coherence < MIN_PHASE_COHERENCE:
-        raise ValueError(f"slot peaks share no lattice phase (coherence {coherence:.2f})")
+    rms, pitch, (ox, oy), n = best
+    if rms > MAX_LATTICE_RESIDUAL:
+        raise ValueError(f"slots do not form a lattice (residual {rms:.2f} of a pitch)")
 
-    # The peaks are cell CORNERS; the lattice fit below is written in terms of centres.
-    cx = xs.astype(float) + pitch / 2
-    cy = ys.astype(float) + pitch / 2
-    ox, oy, n = _largest_lattice_block(cx, cy, pitch)
     return _snap_to_panel(img, Grid(x=ox, y=oy, pitch=pitch, n_cells=n))
 
 
