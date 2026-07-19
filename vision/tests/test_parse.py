@@ -594,3 +594,62 @@ def test_hud_reads_at_every_capture_scale(capture_scale):
     assert hud is not None, f"no HUD found at {capture_scale}x"
     assert hud.name == "acornacorn", f"misread at {capture_scale}x: {hud.name!r}"
     assert hud.level == 287
+
+
+# --- an obscured inventory -------------------------------------------------
+#
+# Coverage detection itself is pinned in test_coverage.py. These pin what the ROUTE does with it,
+# which is a separate decision: knowing the view is partial is no use if the counts go out anyway.
+#
+# `boss clear menu sample.png` and `untradeables sample.png` are the same character's inventory
+# minutes apart, one with the Maple Planner over it and one clear, so the damage is measurable
+# rather than assumed.
+
+
+def test_an_obscured_inventory_reports_no_counts():
+    """Not a short list, no list.
+
+    Counts are summed per item across slots, so a covered region can hold another stack of an
+    item that WAS read. sacred-cernium is exactly that: 340 + 1 across two slots, the 1 behind
+    the planner, and the visible 340 was reported as the total and upserted over the true 341.
+    A partial view therefore makes no item's total trustworthy, not merely the covered ones.
+    """
+    covered = _parse(f"{REF}/boss clear menu sample.png").json()
+    assert covered["tokenCounts"] is None
+
+    clear = _parse(f"{REF}/untradeables sample.png").json()
+    assert {t["tokenName"]: t["quantity"] for t in clear["tokenCounts"]}["sacred-cernium"] == 341
+
+
+def test_an_obscured_inventory_still_gives_up_its_boss_clears():
+    """A planner has to be OPEN to be read, so it lands on the inventory more often than not.
+    Refusing the whole upload would make the boss workflow unusable."""
+    body = _parse(f"{REF}/boss clear menu sample.png").json()
+    assert body["screenshotType"] == "PLANNER"
+    assert len(body["bossClears"]) == 12
+    assert body["unreadableBossRows"] == 0
+
+
+def test_an_obscured_inventory_with_no_planner_says_what_to_do():
+    """With no boss rows to fall back on there is nothing to return, so it must refuse, and the
+    message has to name the real problem. The generic no-grid text sends the user off to
+    re-export a file that was never at fault."""
+    img = cv2.imread(f"{REF}/boss clear menu sample.png")
+    # Keep the whole inventory and the planner EDGE over its left columns, cutting away the boss
+    # list itself (left of x=1000) so no planner payload remains.
+    cropped = img[150:780, 1000:1900]
+    r = client.post("/parse", content=cv2.imencode(".png", cropped)[1].tobytes())
+    assert r.status_code == 422
+    assert "covered or out of frame" in r.json()["detail"]
+
+
+def test_a_blurred_capture_is_not_mistaken_for_an_obscured_one():
+    """symbols-parsec.png is the one real rescaled capture in the corpus and it reads perfectly,
+    but its mushy boundaries correlate only 22 of 128 cells against a clean capture's 127. Any
+    refusal counting how MANY cells resolve would reject the blurriest file we own. What matters
+    is whether each cell still looks like a slot, which blur leaves intact and a window does not.
+    """
+    body = _parse(f"{REF}/symbols-parsec.png").json()
+    assert body["screenshotType"] == "INVENTORY"
+    assert body["tokenCounts"], "a blurred but unobstructed capture must still be read"
+    assert body["inventoryComplete"] is True

@@ -143,6 +143,28 @@ def _boss_clears(res: PlannerResult) -> tuple[list[BossClear], int]:
     return clears, unreadable
 
 
+def _planner_only(img, planner, stage, response) -> ScreenshotParseResult:
+    """A capture whose planner we trust and whose inventory we do not.
+
+    Reached two ways, and they must answer alike: there was no grid at all, or there was one
+    sitting under another window. Either way the boss rows are still good, and a planner has to
+    be OPEN to be read, so it lands on the inventory more often than not. Refusing the whole
+    upload would make the boss workflow unusable.
+    """
+    clears, unreadable = _boss_clears(planner)
+    with stage("hud"):
+        hud = find_hud(img)
+    response.headers["Server-Timing"] = stage.header()
+    log.info("parsed planner %d rows: %s", len(planner.rows), stage.log())
+    return ScreenshotParseResult(
+        screenshotType="PLANNER",
+        characterHud=CharacterHud(name=hud.name, level=hud.level) if hud else None,
+        bossClears=clears,
+        reachedListEnd=planner.reached_list_end,
+        unreadableBossRows=unreadable,
+    )
+
+
 class Stages:
     """Per-stage timings for one parse, emitted as a Server-Timing header.
 
@@ -227,18 +249,7 @@ async def parse(request: Request, response: Response) -> ScreenshotParseResult:
         # guess below, which is only there to explain a MISSING grid, and has nothing to say
         # about a frame we have already read something from.
         if boss_rows:
-            clears, unreadable = _boss_clears(planner)
-            with stage("hud"):
-                hud = find_hud(img)
-            response.headers["Server-Timing"] = stage.header()
-            log.info("parsed planner %d rows: %s", len(boss_rows), stage.log())
-            return ScreenshotParseResult(
-                screenshotType="PLANNER",
-                characterHud=CharacterHud(name=hud.name, level=hud.level) if hud else None,
-                bossClears=clears,
-                reachedListEnd=planner.reached_list_end,
-                unreadableBossRows=unreadable,
-            )
+            return _planner_only(img, planner, stage, response)
         if looks_like_inventory_window(img):
             raise HTTPException(
                 422,
@@ -316,6 +327,30 @@ async def parse(request: Request, response: Response) -> ScreenshotParseResult:
     # still holds it, so a single unreadable count is enough to make absence meaningless.
     with stage("coverage"):
         cov = coverage(img, g)
+
+    # Hidden slots poison every count, not just the ones under the window.
+    #
+    # Counts are SUMMED per item across slots (see the note above), so a covered region can hold
+    # another stack of an item we did read, and its total then comes back short with nothing to
+    # say so. That is not a partial answer, it is a wrong one: a Maple Planner over this player's
+    # inventory read sacred-cernium as 340 when they held 341, because the second stack of 1 was
+    # behind it, and the backend upserts that 340 straight over the true figure.
+    #
+    # So an obscured or out-of-frame slot means NO count is reportable. An unreadable COUNT is
+    # different and is not refused here: that drops the one item it belongs to and leaves every
+    # other item's total intact, which is why `complete` below still folds it in for the backend's
+    # narrower "may absence be read as zero" question.
+    if not cov.complete:
+        log.info("inventory obscured: %d off-frame, %d occluded", cov.off_frame, cov.occluded)
+        if boss_rows:
+            return _planner_only(img, planner, stage, response)
+        raise HTTPException(
+            422,
+            "Part of the inventory was covered or out of frame, so the counts could not be "
+            "trusted. Bring the whole inventory into view, clear of other windows, and take "
+            "the screenshot again.",
+        )
+
     complete = cov.complete and unreadable_counts == 0
     if not complete:
         log.info(
