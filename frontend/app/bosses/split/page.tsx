@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   type AmountBasis,
   explainSplit,
@@ -16,6 +16,43 @@ import {
 const MAX_PARTY = 6;
 
 const percent = (fee: number) => `${(fee * 100).toFixed(0)}%`;
+
+/**
+ * An amount you can click to copy.
+ *
+ * Copies the RAW digits whatever the display is set to. The grouping toggle is for reading, and a
+ * pasted "3,284,739,285" is not a price the game will accept.
+ */
+function CopyAmount({ value, display }: { value: number; display: string }) {
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    if (!copied) return;
+    const timer = setTimeout(() => setCopied(false), 1200);
+    return () => clearTimeout(timer);
+  }, [copied]);
+
+  return (
+    <button
+      type="button"
+      className={copied ? "copy-amount copied" : "copy-amount"}
+      // Only report success if it actually copied: a silent failure that says "copied" is worse
+      // than one that says nothing, because you paste whatever was in the clipboard before.
+      onClick={() => {
+        navigator.clipboard
+          ?.writeText(String(value))
+          .then(() => setCopied(true))
+          .catch(() => setCopied(false));
+      }}
+      aria-label={`Copy ${value}`}
+    >
+      <span className="copy-value">{display}</span>
+      <span className="copy-mark" aria-hidden="true">
+        {copied ? "copied" : "copy"}
+      </span>
+    </button>
+  );
+}
 
 export default function DropSplitPage() {
   const [price, setPrice] = useState("");
@@ -151,8 +188,12 @@ export default function DropSplitPage() {
               </>
             ) : (
               <>
-                Send <strong>{mesos(split.members[0]?.pay ?? 0)}</strong> to each of the other{" "}
-                {others}
+                Send{" "}
+                <CopyAmount
+                  value={split.members[0]?.pay ?? 0}
+                  display={mesos(split.members[0]?.pay ?? 0)}
+                />{" "}
+                to each of the other {others}
                 {others === 1 ? " member" : " members"}.
               </>
             )}
@@ -187,7 +228,9 @@ export default function DropSplitPage() {
                 // eslint-disable-next-line react/no-array-index-key
                 <tr key={i}>
                   <td>Member {i + 1}</td>
-                  <td>{mesos(m.pay)}</td>
+                  <td>
+                    <CopyAmount value={m.pay} display={mesos(m.pay)} />
+                  </td>
                   <td>{mesos(m.nets)}</td>
                 </tr>
               ))}
