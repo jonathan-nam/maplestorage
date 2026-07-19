@@ -326,6 +326,39 @@ def test_a_windowed_parsec_capture_finds_the_right_lattice():
     assert got["trace-eternal-loyalty"] == 20
 
 
+def test_a_selected_slot_is_not_mistaken_for_an_occluded_one():
+    """A full-screen capture with one slot SELECTED, which used to refuse the whole inventory.
+
+    The client paints the selected slot pale cyan, so it holds no interior grey at all and
+    coverage() called it covered. One covered slot refuses everything (counts are summed
+    across slots, so a partial read cannot be trusted), and the user got "part of the
+    inventory was covered" with 127 clean slots and nothing covering any of them.
+
+    The fixture is CROPPED from the 1918x1105 original, which was 4.2MB and over the repo's
+    large-file limit even recompressed. Cropping resamples nothing, so the slots are the
+    original's own pixels, and the fault reproduces exactly: one cell fails the grey test,
+    scores 0.417 on the selection mask, and is forgiven.
+
+    No token count is asserted, and that is not laziness. The owner confirmed this inventory
+    holds Tallahart TWICE, 811 untradeable and 656 tradeable, summing to 1467. The full frame
+    at JPEG q92 does report 1467, but the same frame as PNG reports 811, and this crop reports
+    811 at either encoding. So the second stack's recall moves with framing and encoding, which
+    is a real open bug, and pinning any single number here would pin whichever way it happens
+    to land rather than what is true. See the note in the PR.
+    """
+    img = cv2.imread(f"{REF}/test.png")
+    assert img is not None
+
+    g = find_grid(img)
+    assert coverage(img, g) == Coverage(off_frame=0, occluded=0)
+
+    r = client.post(
+        "/parse", content=cv2.imencode(".jpg", img, [cv2.IMWRITE_JPEG_QUALITY, 92])[1].tobytes()
+    )
+    assert r.status_code == 200, r.json()
+    assert r.json()["inventoryComplete"] is True
+
+
 def test_ui_optimization_2x_is_accepted():
     """MapleStory's UI Optimization is exact 2x pixel doubling, which downsamples
     back losslessly. It must NOT be caught by the rescale check."""
