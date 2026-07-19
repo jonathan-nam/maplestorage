@@ -84,9 +84,7 @@ export default function DropSplitPage() {
       <h1 className="page-title">Split Utility</h1>
 
       <p className="split-intro">
-        The Auction House takes {percent(FEE_STANDARD)} of every sale. Pay the party through it and
-        their share is taxed twice while yours is taxed once, so dividing what landed in your
-        inventory does not leave everyone equal.
+        A simple utility for calculating bossing splits on GMS Reg Server.
       </p>
 
       <div className="split-form">
