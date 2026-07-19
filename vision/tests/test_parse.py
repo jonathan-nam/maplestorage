@@ -495,6 +495,20 @@ def test_display_digit_draws_no_ground(f):
     assert (alpha < 80).any(), f"{Path(f).name}: fully opaque, a white box would draw behind it"
 
 
+@pytest.mark.parametrize("f", sorted(glob.glob(str(_DIGITS / "*.png"))))
+def test_display_digit_is_filled_to_its_baseline(f):
+    """The bright fill must reach the bottom of the glyph, not just the top.
+
+    Nine of the ten shipped with rows 7-9 stripped back to bare outline, so the lower third of
+    every count drew as navy with the icon showing through the gaps where the fill belonged. The
+    client's fill fades 255 at the cap to 195 at the baseline, which is close enough to the 226
+    slot background that removing background bleed by value takes the real fill with it."""
+    px = cv2.imread(f, cv2.IMREAD_UNCHANGED)
+    lower = px[7:10]
+    white = (lower[:, :, :3] == 255).all(axis=2) & (lower[:, :, 3] == 255)
+    assert white.any(), f"{Path(f).name}: no fill below row 7, the digit tails off into outline"
+
+
 # --- catalog scaling -------------------------------------------------------
 
 
