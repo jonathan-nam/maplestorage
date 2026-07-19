@@ -1,46 +1,54 @@
 // Splitting boss drop money, and the tax that makes it not-division.
 //
-// The Auction House takes 3% of every sale. One person sells the drop and pays that tax once. If
-// they then pay the party through the AH as well, every meso a party member receives has been
-// taxed TWICE and the seller's own share only once. Naive division looks fair and is not.
+// The Auction House takes a cut of every sale: 5%, or 3% for MVP. One person sells the drop and
+// pays that once. If they then pay the party through the AH, every meso a member receives has
+// been taxed TWICE and the seller's own share only once. Naive division looks fair and is not.
 //
 //   lazy  the seller divides what landed in their inventory by the party size and sends that.
-//         Cheap to reason about, and the seller quietly keeps ~3% more than everyone else.
-//   fair  the seller sends more than they keep, sized so that AFTER the second tax every member
-//         nets exactly what the seller kept.
+//         Cheap to reason about, and the seller quietly keeps a whole fee more than everyone else.
+//   fair  the seller sends each member more than they keep, sized so that AFTER the second tax
+//         every member nets exactly what the seller kept.
 //
-// Both are offered because "lazy" is what most parties actually do, and a tool that only shows the
-// fair number cannot tell you what it is costing you.
+// Both are offered because "lazy" is what most parties actually do, and a tool that only showed
+// the fair number could not tell you what it was costing you.
+//
+// The fee on the PAYOUT hop is the RECEIVING member's, not the seller's: to move mesos through the
+// AH the member lists and the seller buys, so it is the member who is selling and the member whose
+// MVP status applies. Hence a rate per member rather than one rate for the room.
 
-/** Auction House cut on every transaction, as a fraction of the sale price. */
-export const AUCTION_HOUSE_FEE = 0.03;
-
-const KEPT = 1 - AUCTION_HOUSE_FEE;
+/** The two rates the Auction House charges. MVP pays the lower one. */
+export const FEE_MVP = 0.03;
+export const FEE_STANDARD = 0.05;
 
 export type SplitMethod = "lazy" | "fair";
 
 export type SplitInput = {
-  /** What the drop sold for on the Auction House, before the fee. */
+  /** What the drop was LISTED at, before any fee. */
   salePrice: number;
-  /** Everyone entitled to a share, INCLUDING the seller. */
-  partySize: number;
+  /** The seller's own rate, charged on the sale. */
+  sellerFee: number;
+  /** One rate per OTHER party member. Its length is the party size less the seller. */
+  memberFees: number[];
   method: SplitMethod;
+};
+
+export type MemberShare = {
+  fee: number;
+  /** Mesos to send this member, before the fee on that transfer. */
+  pay: number;
+  /** What they actually end up holding. */
+  nets: number;
 };
 
 export type Split = {
   /** Sale price less the fee on the sale. This is what the seller has to hand out. */
   sellerReceives: number;
-  /** Mesos to send to each of the other members, before the fee on that transfer. */
-  payEach: number;
-  /** What one of those members actually ends up with. */
-  eachNets: number;
   /** What the seller is left holding. Carries the rounding dust, see below. */
   sellerKeeps: number;
+  members: MemberShare[];
   /** Total lost to the AH across both hops. */
   totalFee: number;
 };
-
-const afterFee = (mesos: number) => Math.floor(mesos * KEPT);
 
 const SUFFIX: Record<string, number> = { k: 1e3, m: 1e6, b: 1e9 };
 
@@ -65,41 +73,44 @@ export function parseMesos(input: string): number | null {
 }
 
 /**
- * Throws on a party size below 1 or a negative price rather than returning a number nobody should
- * act on.
+ * Throws on a rate outside [0, 1) or a negative price rather than returning a number nobody should
+ * act on. A rate of 1 would mean the AH takes everything, and dividing by what is left is where an
+ * Infinity would enter and be rendered as a payout.
  *
- * Mesos are integers, so `payEach` is floored and the few mesos of dust land in `sellerKeeps`. The
- * drift is under one meso per member, which is not worth an equalisation pass.
+ * Mesos are integers, so each payout is floored and the few mesos of dust land in `sellerKeeps`.
+ * The drift is under one meso per member, which is not worth an equalisation pass.
  */
-export function splitDrop({ salePrice, partySize, method }: SplitInput): Split {
-  if (!Number.isInteger(partySize) || partySize < 1) {
-    throw new RangeError(`party size must be a whole number of at least 1, got ${partySize}`);
+export function splitDrop({ salePrice, sellerFee, memberFees, method }: SplitInput): Split {
+  for (const fee of [sellerFee, ...memberFees]) {
+    if (!Number.isFinite(fee) || fee < 0 || fee >= 1) {
+      throw new RangeError(`fee must be at least 0 and below 1, got ${fee}`);
+    }
   }
   if (!Number.isFinite(salePrice) || salePrice < 0) {
     throw new RangeError(`sale price must be zero or more, got ${salePrice}`);
   }
 
-  const sellerReceives = afterFee(Math.floor(salePrice));
-  const others = partySize - 1;
+  const gross = Math.floor(salePrice);
+  const sellerReceives = Math.floor(gross * (1 - sellerFee));
 
-  // Solving `sellerKeeps === eachNets` for the fair case:
-  //   keeps + others * pay = received       (the seller hands out everything they hold)
-  //   keeps = pay * KEPT                    (a member nets the same as the seller keeps)
-  // gives pay = received / (KEPT + others). The lazy case is the division the name promises.
-  const payEach =
-    others === 0
-      ? 0
-      : method === "fair"
-        ? Math.floor(sellerReceives / (KEPT + others))
-        : Math.floor(sellerReceives / partySize);
+  // Fair, with a rate per member. Everyone is to hold the same amount X afterwards, so the seller
+  // keeps X and must send member i enough that X survives THEIR fee, X / (1 - fee_i). Those have
+  // to add up to what the seller is holding:
+  //   X + Σ X / (1 - fee_i) = received
+  // so X = received / (1 + Σ 1 / (1 - fee_i)). With one shared rate this collapses to the flat
+  // formula, which is what the equal-rate tests pin.
+  const equalNet = sellerReceives / (1 + memberFees.reduce((sum, fee) => sum + 1 / (1 - fee), 0));
 
-  const sellerKeeps = sellerReceives - others * payEach;
+  const partySize = memberFees.length + 1;
+  const members = memberFees.map((fee) => {
+    const pay =
+      method === "fair" ? Math.floor(equalNet / (1 - fee)) : Math.floor(sellerReceives / partySize);
+    return { fee, pay, nets: Math.floor(pay * (1 - fee)) };
+  });
 
-  return {
-    sellerReceives,
-    payEach,
-    eachNets: afterFee(payEach),
-    sellerKeeps,
-    totalFee: Math.floor(salePrice) - sellerKeeps - others * afterFee(payEach),
-  };
+  const paidOut = members.reduce((sum, m) => sum + m.pay, 0);
+  const sellerKeeps = sellerReceives - paidOut;
+  const received = members.reduce((sum, m) => sum + m.nets, 0);
+
+  return { sellerReceives, sellerKeeps, members, totalFee: gross - sellerKeeps - received };
 }
