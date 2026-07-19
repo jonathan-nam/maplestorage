@@ -348,13 +348,12 @@ export function SearchBar({
       e.preventDefault();
       setActive(nextActive(activeIndex, suggestions.length, -1));
     } else if (e.key === "Enter") {
+      e.preventDefault();
       const s = suggestions[activeIndex];
-      // Enter with nothing highlighted means "search for what I typed", which is what the results
-      // below already do. Only intercept it when there is a row to take.
-      if (s) {
-        e.preventDefault();
-        choose(s);
-      }
+      // Enter with nothing highlighted means "search for what I typed", which the results below
+      // already show. Dismiss the suggestions so they stop covering them; typing reopens the list.
+      if (s) choose(s);
+      else setOpen(false);
     }
   }
 
