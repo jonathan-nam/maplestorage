@@ -30,7 +30,7 @@ export default function DropSplitPage() {
 
       <div className="split-form">
         <label className="split-field">
-          <span>Sold for</span>
+          <span>Listed price</span>
           <input
             className="split-input"
             value={price}
@@ -39,6 +39,11 @@ export default function DropSplitPage() {
             inputMode="text"
             autoFocus
           />
+          {/* Gross, not net. "Sold for" read either way, and the two differ by 3% of a boss drop. */}
+          <span className="split-hint">
+            What the item was listed at, before the {FEE_PERCENT} fee.
+            {split ? <> You received {mesos(split.sellerReceives)}.</> : null}
+          </span>
         </label>
 
         <label className="split-field">
