@@ -1599,28 +1599,21 @@ button.link:disabled {
 /* 17 rows of small marks, and full width puts the far column ~400px from the name. Striping tells
    you which row you are on at rest; the hover band tracks the one you are reading. Without both,
    crossing the gap means counting rows. */
-/* Hover must be the LIGHTER of the two, or it reads as a dark-out on striped rows. The tokens run
-   --bg < --surface < --surface-2, so the stripe takes the middle and hover the top. */
 .boss-table tbody tr:not(.boss-cadence-row):nth-child(even) {
   background: var(--surface);
 }
 
-.boss-table tbody tr:not(.boss-cadence-row):hover {
-  background: var(--surface-2);
-}
-
-/* The column band, the same weight as the row band so neither reads as the answer on its own: a
-   mark is identified by the pair, and pointing at one is what says which pair. Driven from React
-   (boss-matrix.tsx), since CSS has no selector for "cell in the hovered column". */
+/* The bands are a TINT, not a lighter grey. Grey cannot work: the stripe is --surface #1a1a1a and
+   the lightest surface token is --surface-2 #202020, so a grey band differs by 6/255 on striped
+   rows and 15/255 on the rest. It was reported invisible on the striped half. Hue carries the
+   signal instead, so the band reads the same at either stripe parity.
+   Both bands are semi-transparent and the cell one paints over the row one, so where they cross
+   (the cell under the cursor) composites to ~28% on its own. That is deliberate: no third rule to
+   keep in step with these two. */
+.boss-table tbody tr:not(.boss-cadence-row):hover,
 .boss-table .boss-cell.is-col-hover,
 .boss-table .boss-char-head.is-col-hover {
-  background: var(--surface-2);
-}
-
-/* Where the two bands cross is the cell under the cursor, so it takes a step above both. Using a
-   line token as a surface: it is the next value up from --surface-2 and there is no --surface-3. */
-.boss-table tbody tr:not(.boss-cadence-row):hover .boss-cell.is-col-hover {
-  background: var(--line-soft);
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
 }
 
 .boss-col-head,
