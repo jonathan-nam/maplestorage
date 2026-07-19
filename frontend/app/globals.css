@@ -1804,6 +1804,90 @@ button.link:disabled {
   line-height: 1.4;
 }
 
+.fee-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 4px 0;
+}
+
+.fee-who {
+  color: var(--muted);
+}
+
+.fee-choice {
+  display: inline-flex;
+  gap: 4px;
+}
+
+.fee-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 9px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+.fee-option.active {
+  border-color: var(--accent);
+  color: var(--ink-strong);
+}
+
+.fee-toggle {
+  align-self: flex-start;
+  margin-top: 6px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.split-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 16px;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.split-table th {
+  text-align: right;
+  font-weight: normal;
+  color: var(--muted-2);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 0 0 6px;
+}
+.split-table th:first-child,
+.split-table td:first-child {
+  text-align: left;
+}
+
+.split-table td {
+  text-align: right;
+  padding: 6px 0;
+  border-top: 1px solid var(--line-soft);
+  color: var(--ink-strong);
+}
+
+.split-table tbody tr:first-child td {
+  color: var(--accent);
+}
+
+.split-dash {
+  color: var(--muted-2);
+}
+
 .split-error {
   margin: 16px 0 0;
   color: var(--warn);
