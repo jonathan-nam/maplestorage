@@ -128,6 +128,33 @@
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
 }
 
+/* Each group (and the ungrouped top-level block) is its own column, so the panel's own flex
+   layout does not have to know whether an entry is nested. */
+.section-menu-panel > div {
+  display: flex;
+  flex-direction: column;
+}
+
+.section-menu-group {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--line-soft);
+}
+
+/* A heading, deliberately not a link: there is no /bossing page to send anyone to. */
+.section-menu-group-label {
+  margin: 0 0 2px;
+  padding: 2px 10px;
+  color: var(--muted-2);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.section-menu-group a {
+  padding-left: 20px;
+}
+
 .section-menu-panel a {
   text-decoration: none;
   color: var(--muted);

@@ -20,7 +20,7 @@ export default function DropSplitPage() {
 
   return (
     <main className="page">
-      <h1 className="page-title">Drop split</h1>
+      <h1 className="page-title">Split Utility</h1>
 
       <p className="split-intro">
         The Auction House takes {FEE_PERCENT} of every sale. Pay the party through it and their
