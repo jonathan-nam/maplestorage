@@ -1120,6 +1120,12 @@ img.user-avatar-img {
   .chars-ready {
     animation: none;
   }
+
+  /* Held at all three dots this is just an ordinary ellipsis, so stopping it costs no meaning. */
+  .ellipsis-dot {
+    animation: none;
+    opacity: 1;
+  }
 }
 
 /* What changed. The whole reason a parse is shown before it is written. */
@@ -1317,6 +1323,52 @@ img.user-avatar-img {
 .capture-spinner {
   font-size: 12px;
   color: var(--muted);
+}
+
+/* Each dot holds its opacity once shown, so they accumulate left to right and all clear together
+   when the cycle wraps. Three keyframes rather than one animation with delays: a shared delay
+   would stagger the clear too, which reads as a wave instead of a count. Opacity, not width, so
+   the effect does not depend on how wide a period is in the current font. */
+.ellipsis-dot {
+  animation: 1.6s steps(1, end) infinite;
+}
+.ellipsis-dot:nth-child(1) {
+  animation-name: ellipsis-dot-1;
+}
+.ellipsis-dot:nth-child(2) {
+  animation-name: ellipsis-dot-2;
+}
+.ellipsis-dot:nth-child(3) {
+  animation-name: ellipsis-dot-3;
+}
+@keyframes ellipsis-dot-1 {
+  0% {
+    opacity: 0;
+  }
+  25%,
+  100% {
+    opacity: 1;
+  }
+}
+@keyframes ellipsis-dot-2 {
+  0%,
+  25% {
+    opacity: 0;
+  }
+  50%,
+  100% {
+    opacity: 1;
+  }
+}
+@keyframes ellipsis-dot-3 {
+  0%,
+  50% {
+    opacity: 0;
+  }
+  75%,
+  100% {
+    opacity: 1;
+  }
 }
 
 button.link {

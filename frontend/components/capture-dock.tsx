@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { Ellipsis } from "@/components/ellipsis";
 import { COLS, SlotGrid, type SlotItem } from "@/components/slot-grid";
 import { apiFetch } from "@/lib/api";
 import { invalidate } from "@/lib/cache";
@@ -365,7 +366,13 @@ function Actions({
   onDismiss: () => void;
 }) {
   const result = capture.result;
-  if (capture.phase === "reading") return <span className="capture-spinner">Reading…</span>;
+  if (capture.phase === "reading")
+    return (
+      <span className="capture-spinner">
+        Reading
+        <Ellipsis />
+      </span>
+    );
   if (capture.phase === "error" || !result) {
     return (
       <button className="link" onClick={onDismiss}>
@@ -435,8 +442,20 @@ function previewNote(saved: boolean, changed: number, total: number): string {
   return saved ? `${n} saved.` : `${n} to save. Nothing has been saved yet.`;
 }
 
-function describe(capture: Capture, pinned: Character | undefined): { text: string; tone: string } {
-  if (capture.phase === "reading") return { text: "Reading the screenshot…", tone: "pending" };
+function describe(
+  capture: Capture,
+  pinned: Character | undefined,
+): { text: ReactNode; tone: string } {
+  if (capture.phase === "reading")
+    return {
+      text: (
+        <>
+          Reading the screenshot
+          <Ellipsis />
+        </>
+      ),
+      tone: "pending",
+    };
   if (capture.phase === "error")
     return { text: "The upload didn't reach the server.", tone: "bad" };
 
