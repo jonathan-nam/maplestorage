@@ -77,13 +77,22 @@ OCR_TARGET_H = 64  # upscale the name line to this before Tesseract (see hud.py)
 NAME_MATCH_MIN = 0.62
 
 
+def load_boss_catalog(path: Path = BOSS_CATALOG) -> list[dict]:
+    """The boss catalog, generated from catalog/bosses.yaml by build.py (one source of truth)."""
+    return json.loads(path.read_text())
+
+
 def load_boss_names(path: Path = BOSS_CATALOG) -> list[str]:
-    """Canonical boss names, generated from catalog/bosses.yaml by build.py (one source of truth)."""
-    return [b["name"] for b in json.loads(path.read_text())]
+    return [b["name"] for b in load_boss_catalog(path)]
 
 
 # Loaded once at import, like the templates. build.py regenerates the catalog from the manifest.
 BOSS_NAMES = load_boss_names()
+
+# The reader identifies a boss by NAME (that is what is on screen), but `key` is the stable
+# identifier the backend keys clears on, so the name -> key resolution belongs here, next to the
+# catalog both sides come from, rather than in a second hand-kept mapping.
+BOSS_KEY_BY_NAME = {b["name"]: b["key"] for b in load_boss_catalog()}
 
 
 @dataclass

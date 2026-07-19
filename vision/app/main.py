@@ -10,6 +10,10 @@ The HUD ("Lv.287 acornacorn") is read too. Located by matching the fixed-pixel "
 then OCR'd with Tesseract. It is null when no HUD is in frame, which the backend treats as
 needing review.
 
+Two panels are read, not one: the inventory grid (app/cv/grid.py) and the Maple Planner's boss
+list (app/cv/planner.py). They are read independently because a single capture routinely holds
+both, so the response carries whichever payloads were found rather than one chosen type.
+
 Two things this service will NOT do, both learned the hard way:
 
   * It will not report a count it cannot stand behind. An item whose stack count is unreadable
@@ -37,6 +41,7 @@ from app.cv.hud import find_hud
 from app.cv.match import load_templates
 from app.cv.ocr import load_font, read_count
 from app.cv.pipeline import MIN_PITCH, looks_like_inventory_window, normalize
+from app.cv.planner import BOSS_KEY_BY_NAME, PlannerResult, load_state_glyphs, parse_planner
 
 log = logging.getLogger("vision")
 
@@ -45,6 +50,7 @@ MAX_UPLOAD_BYTES = 20 * 1024 * 1024
 # Loaded once at import: the catalog is fixed and the templates are small.
 TOKENS = load_templates()
 FONT = load_font()
+STATE_GLYPHS = load_state_glyphs()
 
 app = FastAPI(title="maplestorage-vision")
 
@@ -62,12 +68,35 @@ class CharacterHud(BaseModel):
     level: int
 
 
+class BossClear(BaseModel):
+    # The catalog KEY, not the name: the name is what was on screen, the key is what the
+    # backend keys a clear on. Resolved once, against the same generated catalog the reader
+    # matched the name from. See planner.BOSS_KEY_BY_NAME.
+    bossKey: str
+    cleared: bool
+
+
 class ScreenshotParseResult(BaseModel):
-    screenshotType: Literal["INVENTORY", "UNRECOGNIZED"]
+    # What the frame IS, unchanged in meaning for the inventory: a grid was read, or nothing
+    # was. PLANNER means no grid but boss rows. It is NOT a statement about which payloads are
+    # populated: a screenshot can hold both panels at once (Jonathan plays with both open, and
+    # two of the three reference captures are like that), so the two reads are independent and
+    # a dual capture is INVENTORY with bossClears also filled in. Ingest whatever is non-null.
+    screenshotType: Literal["INVENTORY", "PLANNER", "UNRECOGNIZED"]
     # Null when no HUD is in frame, a tightly-cropped inventory upload has
     # none, and the backend already treats that as NEEDS_REVIEW.
     characterHud: CharacterHud | None = None
     tokenCounts: list[DetectedToken] | None = None
+    bossClears: list[BossClear] | None = None
+    # Did the capture reach the bottom of the boss list? The list needs 1-3 scrolled captures,
+    # and without this a capture of the top of an all-cleared list reads as "all clear" while
+    # un-captured bosses below are still pending. Best-effort (see planner.parse_planner); the
+    # backend's reconciliation against a character's known routine is the real guard.
+    reachedListEnd: bool | None = None
+    # Boss rows found whose NAME did not resolve to the catalog. Reported rather than dropped:
+    # a dropped row reads as "not cleared", which is a plausible wrong answer, so the count has
+    # to reach the user as "re-capture". Expected to be 0 on a clean capture.
+    unreadableBossRows: int | None = None
 
 
 def _downscaled_message() -> str:
@@ -89,7 +118,24 @@ def _downscaled_message() -> str:
 
 @app.get("/health")
 def health() -> dict:
-    return {"status": "ok", "tokens": len(TOKENS), "digits": len(FONT)}
+    return {
+        "status": "ok",
+        "tokens": len(TOKENS),
+        "digits": len(FONT),
+        "bosses": len(BOSS_KEY_BY_NAME),
+    }
+
+
+def _boss_clears(res: PlannerResult) -> tuple[list[BossClear], int]:
+    """Planner rows as (clears, unreadable count). A row whose name did not resolve has no key
+    to report, so it is counted rather than emitted, and never simply forgotten."""
+    clears, unreadable = [], 0
+    for row in res.rows:
+        if row.boss is None:
+            unreadable += 1
+            continue
+        clears.append(BossClear(bossKey=BOSS_KEY_BY_NAME[row.boss], cleared=row.cleared))
+    return clears, unreadable
 
 
 class Stages:
@@ -136,6 +182,29 @@ async def parse(request: Request, response: Response) -> ScreenshotParseResult:
     if img is None:
         raise HTTPException(400, "not a decodable image")
 
+    # Read the planner BEFORE the grid, and independently of it, because one capture can hold
+    # both panels. Choosing a single type by precedence would silently drop the other panel's
+    # real data. Cheap when there is no planner: find_panel is a colour mask, milliseconds
+    # against a multi-second parse, and the per-row Tesseract (which is the actual cost, one
+    # subprocess per row) only runs once rows have been found.
+    #
+    # Read at the capture's own scale, like everything else here. The state glyphs were cut at
+    # native scale and matchTemplate is not scale-invariant, so a rescaled planner finds no rows
+    # and reads as "no planner" rather than as a wrong one.
+    #
+    # Never fatal. Boss clears are ADDITIVE to a parse that already worked without them, so a
+    # planner that blows up must cost its own rows and nothing else. The read shells out to
+    # Tesseract once per row (find_hud does it once for the whole frame), so it multiplies the
+    # chances of a TimeoutExpired, and a missing binary would take the inventory path down with
+    # it despite the grid never needing the planner at all.
+    try:
+        with stage("planner"):
+            planner = parse_planner(img, STATE_GLYPHS)
+    except Exception:
+        log.exception("planner read failed, continuing without boss clears")
+        planner = None
+    boss_rows = planner.rows if planner else []
+
     try:
         with stage("grid"):
             g = find_grid(img)
@@ -149,6 +218,22 @@ async def parse(request: Request, response: Response) -> ScreenshotParseResult:
         #     so if we land here the cause is something we have not seen, and the honest thing
         #     is to say so rather than to guess at a cause and send the user off to fix it.
         log.info("no grid: %s", e)
+        # No grid but real boss rows: a planner capture. Checked before the inventory-window
+        # guess below, which is only there to explain a MISSING grid, and has nothing to say
+        # about a frame we have already read something from.
+        if boss_rows:
+            clears, unreadable = _boss_clears(planner)
+            with stage("hud"):
+                hud = find_hud(img)
+            response.headers["Server-Timing"] = stage.header()
+            log.info("parsed planner %d rows: %s", len(boss_rows), stage.log())
+            return ScreenshotParseResult(
+                screenshotType="PLANNER",
+                characterHud=CharacterHud(name=hud.name, level=hud.level) if hud else None,
+                bossClears=clears,
+                reachedListEnd=planner.reached_list_end,
+                unreadableBossRows=unreadable,
+            )
         if looks_like_inventory_window(img):
             raise HTTPException(
                 422,
@@ -225,8 +310,12 @@ async def parse(request: Request, response: Response) -> ScreenshotParseResult:
     response.headers["Server-Timing"] = stage.header()
     log.info("parsed %dx%d: %s", img.shape[1], img.shape[0], stage.log())
 
+    clears, unreadable = _boss_clears(planner) if boss_rows else (None, None)
     return ScreenshotParseResult(
         screenshotType="INVENTORY",
         characterHud=CharacterHud(name=hud.name, level=hud.level) if hud else None,
         tokenCounts=counts,
+        bossClears=clears,
+        reachedListEnd=planner.reached_list_end if boss_rows else None,
+        unreadableBossRows=unreadable,
     )

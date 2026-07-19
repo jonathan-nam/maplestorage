@@ -6,6 +6,7 @@ guards the service. If a change to the CV breaks a count, it breaks here.
 """
 
 import glob
+import subprocess
 from pathlib import Path
 
 import cv2
@@ -13,6 +14,8 @@ import numpy as np
 import pytest
 from fastapi.testclient import TestClient
 
+from app import main as main_mod
+from app.cv import planner as planner_mod
 from app.cv.grid import NATIVE_PITCH, find_grid
 from app.cv.hud import HUD_RE, find_hud
 from app.cv.match import load_templates
@@ -311,6 +314,135 @@ def test_non_inventory_image_is_unrecognized():
 def test_garbage_body_is_a_400():
     r = client.post("/parse", content=b"this is not an image")
     assert r.status_code == 400
+
+
+# --- planner ---------------------------------------------------------------
+#
+# The read itself is pinned in test_planner.py, against truth Jonathan verified. These pin the
+# ROUTE: the type, that the contract carries keys rather than names, and that a capture holding
+# both panels gives up both. Truth here is the same hand-verified list, not the parser's output.
+
+# sample 2 is a planner alone, no inventory behind it.
+SAMPLE2_CLEARS = [
+    ("darknell", True),
+    ("chosen-seren", True),
+    ("kalos-the-guardian", True),
+    ("first-adversary", False),
+    ("kaling", False),
+    ("malefic-star", False),
+    ("limbo", True),
+    ("akechi-mitsuhide", False),
+    ("black-mage", False),
+    ("zakum", False),
+    ("gollux", False),
+]
+
+
+def test_planner_alone_is_read_as_planner():
+    r = _parse(f"{REF}/boss clear menu sample 2.png")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["screenshotType"] == "PLANNER"
+    assert [(c["bossKey"], c["cleared"]) for c in body["bossClears"]] == SAMPLE2_CLEARS
+    # No grid in frame, so nothing to report, and nothing invented either.
+    assert body["tokenCounts"] is None
+
+
+def test_planner_rows_all_resolve_to_a_key():
+    # An unresolved row is reported, never dropped. A clean capture should have none, and if
+    # this starts failing the catalog and the reader have drifted.
+    body = _parse(f"{REF}/boss clear menu sample 2.png").json()
+    assert body["unreadableBossRows"] == 0
+
+
+def test_planner_isolated_panel_reaches_the_list_end():
+    assert _parse(f"{REF}/boss clear menu sample 2.png").json()["reachedListEnd"] is True
+
+
+def test_one_capture_gives_up_both_panels():
+    """Both windows open at once is the normal case, not a corner one.
+
+    Picking a single type by precedence would silently drop whichever panel lost, so the
+    inventory truth and the boss clears must BOTH survive the same upload.
+    """
+    body = _parse(f"{REF}/untradeables sample.png").json()
+    assert body["screenshotType"] == "INVENTORY"
+    counts = {t["tokenName"]: t["quantity"] for t in body["tokenCounts"]}
+    assert counts == TRUTH[f"{REF}/untradeables sample.png"]
+    assert [c["bossKey"] for c in body["bossClears"]] == [
+        "lotus",
+        "damien",
+        "guardian-angel-slime",
+        "lucid",
+        "will",
+        "gloom",
+        "verus-hilla",
+        "darknell",
+        "chosen-seren",
+        "kalos-the-guardian",
+        "first-adversary",
+        "kaling",
+    ]
+    # Scrolled to the top, so bosses sit below the capture: not the end of the list.
+    assert body["reachedListEnd"] is False
+
+
+def test_inventory_without_a_planner_reports_no_clears():
+    body = _parse(f"{REF}/inventory sample.png").json()
+    assert body["screenshotType"] == "INVENTORY"
+    assert body["bossClears"] is None
+    assert body["reachedListEnd"] is None
+
+
+def test_non_inventory_image_reports_no_clears():
+    noise = np.random.randint(0, 255, (600, 800, 3), dtype=np.uint8)
+    body = client.post("/parse", content=cv2.imencode(".png", noise)[1].tobytes()).json()
+    assert body["screenshotType"] == "UNRECOGNIZED"
+    assert body["bossClears"] is None
+
+
+def test_a_planner_blowup_does_not_take_the_inventory_with_it(monkeypatch):
+    """Boss clears are additive, so a planner that raises costs its own rows and nothing else.
+
+    Driven on the capture that holds BOTH panels, because that is where the planner has real
+    data to lose: the inventory counts must survive intact anyway. The read shells out to
+    Tesseract once per row against find_hud's once per frame, so it carries most of the timeout
+    risk in a parse, and it runs ahead of the grid.
+    """
+
+    def boom(*_args, **_kwargs):
+        raise subprocess.TimeoutExpired("tesseract", 15)
+
+    monkeypatch.setattr(main_mod, "parse_planner", boom)
+    r = _parse(f"{REF}/untradeables sample.png")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["screenshotType"] == "INVENTORY"
+    assert {t["tokenName"]: t["quantity"] for t in body["tokenCounts"]} == TRUTH[
+        f"{REF}/untradeables sample.png"
+    ]
+    assert body["bossClears"] is None
+
+
+def test_an_unresolved_row_is_counted_not_dropped(monkeypatch):
+    """The counting is the point, and every other test here sees zero of it.
+
+    A row whose name will not resolve is the one case where the reader has found a boss and
+    cannot say which, and reporting it is what stops it reading as "not cleared". Forced by
+    denying the matcher one name that the clean capture definitely contains, so the response
+    has to come back exactly one clear shorter and say so.
+    """
+    keep = [n for n in planner_mod.BOSS_NAMES if n != "Chosen Seren"]
+    real = planner_mod.parse_planner
+    monkeypatch.setattr(main_mod, "parse_planner", lambda img, glyphs: real(img, glyphs, keep))
+
+    body = _parse(f"{REF}/boss clear menu sample 2.png").json()
+    assert body["unreadableBossRows"] == 1
+    keys = [c["bossKey"] for c in body["bossClears"]]
+    assert "chosen-seren" not in keys
+    # Short by exactly the denied row: the others must not be disturbed by its absence, and in
+    # particular must not fuzzy-match onto the name that is now missing from the catalog.
+    assert keys == [k for k, _ in SAMPLE2_CLEARS if k != "chosen-seren"]
 
 
 # --- HUD -------------------------------------------------------------------
