@@ -1852,6 +1852,59 @@ button.link:disabled {
   color: var(--accent);
 }
 
+/* A copyable amount. Reads as text until hovered, so the table does not turn into a wall of
+   buttons, but it is a real button for keyboard and screen readers. */
+.copy-amount {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 1px 5px;
+  margin: -1px -5px;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+
+.copy-amount:hover,
+.copy-amount:focus-visible {
+  border-color: var(--line);
+  background: var(--surface-2);
+}
+
+.copy-amount.copied {
+  border-color: var(--good);
+}
+
+/* Reserved, not hidden: revealing it on hover would reflow the row under the cursor. */
+.copy-mark {
+  font-size: 10px;
+  color: var(--muted-2);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  opacity: 0;
+  transition: opacity 0.1s ease;
+}
+
+.copy-amount:hover .copy-mark,
+.copy-amount:focus-visible .copy-mark {
+  opacity: 1;
+}
+
+.copy-amount.copied .copy-mark {
+  opacity: 1;
+  color: var(--good);
+}
+
+/* The headline's amount keeps its accent, the table's inherits the cell colour. */
+.split-headline .copy-value {
+  color: var(--accent);
+  font-weight: 600;
+}
+
 .split-dash {
   color: var(--muted-2);
 }
