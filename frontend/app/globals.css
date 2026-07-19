@@ -77,7 +77,7 @@
 }
 
 /* Header controls Clerk has not resolved yet: same box, so the real control fades into space that
-   was already reserved rather than shoving the brand across. See SiteHeader.
+   was already reserved rather than shifting the rest of the bar. See SiteHeader.
    The avatar is per-user and cannot be drawn before it is known, so it stays an empty box. The
    hamburger is identical for every signed-in user, so it is drawn: hiding it read as the icon
    vanishing for the length of the loading state. Inert until the real button replaces it. */

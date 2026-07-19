@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
-// Account sections live behind a hamburger in the top-left. The menu was built as scaffolding for
+// Account sections live behind a hamburger beside the brand. The menu was built as scaffolding for
 // exactly this: a new section is one more entry, not a re-layout.
 // /characters redirects to /inventory (see next.config), so old links keep working.
 //
