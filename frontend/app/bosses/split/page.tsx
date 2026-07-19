@@ -17,66 +17,35 @@ const MAX_PARTY = 6;
 const mesos = (n: number) => n.toLocaleString("en-US");
 const percent = (fee: number) => `${(fee * 100).toFixed(0)}%`;
 
-/** The 3% / 5% pair. MVP is the cheaper rate, so the intro says which is which once. */
-function FeeChoice({
-  name,
-  value,
-  onChange,
-}: {
-  name: string;
-  value: number;
-  onChange: (fee: number) => void;
-}) {
-  return (
-    <span className="fee-choice">
-      {[FEE_MVP, FEE_STANDARD].map((fee) => (
-        <label key={fee} className={value === fee ? "fee-option active" : "fee-option"}>
-          <input type="radio" name={name} checked={value === fee} onChange={() => onChange(fee)} />
-          {percent(fee)}
-        </label>
-      ))}
-    </span>
-  );
-}
-
 export default function DropSplitPage() {
   const [price, setPrice] = useState("");
   const [amountIs, setAmountIs] = useState<AmountBasis>("listed");
   const [partySize, setPartySize] = useState(6);
   const [method, setMethod] = useState<SplitMethod>("fair");
-  const [sellerFee, setSellerFee] = useState(FEE_MVP);
-  const [sharedFee, setSharedFee] = useState(FEE_MVP);
-  const [individual, setIndividual] = useState(false);
-  // Kept at full length so toggling party size back up does not forget what was set.
-  const [overrides, setOverrides] = useState<number[]>(() =>
-    Array.from({ length: MAX_PARTY - 1 }, () => FEE_MVP),
-  );
 
   const others = partySize - 1;
-  const memberFees = Array.from({ length: others }, (_, i) =>
-    individual ? (overrides[i] ?? sharedFee) : sharedFee,
-  );
+
+  // Everyone at the standard rate. splitDrop still takes a rate PER PERSON, because the payout
+  // hop is charged to whoever receives it and MVP members are genuinely cheaper. Asking for that
+  // per member was a form demanding what the person handing out loot rarely knows, so the caller
+  // assumes the common case and the note below says so.
+  const memberFees = Array.from({ length: others }, () => FEE_STANDARD);
 
   // Null while the price is empty or unreadable. Showing nothing beats showing a split derived
   // from half a typed number.
   const amount = parseMesos(price);
   const input: SplitInput | null =
-    amount === null ? null : { amount, amountIs, sellerFee, memberFees, method };
+    amount === null ? null : { amount, amountIs, sellerFee: FEE_STANDARD, memberFees, method };
   const split = input === null ? null : splitDrop(input);
-
-  const uniformPay =
-    split !== null &&
-    split.members.length > 0 &&
-    split.members.every((m) => m.pay === split.members[0]?.pay);
 
   return (
     <main className="page">
       <h1 className="page-title">Split Utility</h1>
 
       <p className="split-intro">
-        The Auction House takes a cut of every sale, {percent(FEE_STANDARD)} or {percent(FEE_MVP)}{" "}
-        with MVP. Pay the party through it and their share is taxed twice while yours is taxed once,
-        so dividing what landed in your inventory does not leave everyone equal.
+        The Auction House takes {percent(FEE_STANDARD)} of every sale. Pay the party through it and
+        their share is taxed twice while yours is taxed once, so dividing what landed in your
+        inventory does not leave everyone equal.
       </p>
 
       <div className="split-form">
@@ -137,53 +106,6 @@ export default function DropSplitPage() {
           />
         </label>
 
-        <fieldset className="split-field">
-          <legend>Auction House fee</legend>
-          {/* Only shown on a listed price: on a received figure there is nothing for it to do. */}
-          {amountIs === "listed" && (
-            <div className="fee-row">
-              <span className="fee-who">Yours, on the sale</span>
-              <FeeChoice name="seller-fee" value={sellerFee} onChange={setSellerFee} />
-            </div>
-          )}
-
-          {others > 0 && !individual && (
-            <div className="fee-row">
-              <span className="fee-who">Theirs, on the payout</span>
-              <FeeChoice name="member-fee" value={sharedFee} onChange={setSharedFee} />
-            </div>
-          )}
-
-          {others > 0 &&
-            individual &&
-            memberFees.map((fee, i) => (
-              // Members are positions in a party, not entities: there is nothing else to key on
-              // until this is wired to real characters.
-              // eslint-disable-next-line react/no-array-index-key
-              <div className="fee-row" key={i}>
-                <span className="fee-who">Member {i + 1}</span>
-                <FeeChoice
-                  name={`member-fee-${i}`}
-                  value={fee}
-                  onChange={(next) =>
-                    setOverrides((prev) => prev.map((f, j) => (j === i ? next : f)))
-                  }
-                />
-              </div>
-            ))}
-
-          {others > 0 && (
-            <button
-              type="button"
-              className="fee-toggle"
-              onClick={() => setIndividual((v) => !v)}
-              aria-expanded={individual}
-            >
-              {individual ? "Use one rate for everyone" : "Set each member's rate"}
-            </button>
-          )}
-        </fieldset>
-
         <fieldset className="split-field split-methods">
           <legend>Split</legend>
           {(
@@ -223,14 +145,12 @@ export default function DropSplitPage() {
               <>
                 Nobody to pay. You keep <strong>{mesos(split.sellerKeeps)}</strong>.
               </>
-            ) : uniformPay ? (
+            ) : (
               <>
                 Send <strong>{mesos(split.members[0]?.pay ?? 0)}</strong> to each of the other{" "}
                 {others}
                 {others === 1 ? " member" : " members"}.
               </>
-            ) : (
-              <>Send each member the amount below. They differ because their fees do.</>
             )}
           </p>
 
@@ -238,7 +158,6 @@ export default function DropSplitPage() {
             <thead>
               <tr>
                 <th>Who</th>
-                <th>Fee</th>
                 <th>You send</th>
                 <th>They end up with</th>
               </tr>
@@ -246,15 +165,15 @@ export default function DropSplitPage() {
             <tbody>
               <tr>
                 <td>You</td>
-                <td>{amountIs === "listed" ? percent(sellerFee) : "—"}</td>
                 <td className="split-dash">&mdash;</td>
                 <td>{mesos(split.sellerKeeps)}</td>
               </tr>
               {split.members.map((m, i) => (
+                // Members are positions in a party, not entities: there is nothing else to key on
+                // until this is wired to real characters.
                 // eslint-disable-next-line react/no-array-index-key
                 <tr key={i}>
                   <td>Member {i + 1}</td>
-                  <td>{percent(m.fee)}</td>
                   <td>{mesos(m.pay)}</td>
                   <td>{mesos(m.nets)}</td>
                 </tr>
@@ -270,8 +189,7 @@ export default function DropSplitPage() {
             <div className="split-fee">
               {/* Says which hops it covers: on a received figure the sale's fee is unknown. */}
               <dt>
-                Lost to the Auction House
-                {split.totalFeeCoversSale ? "" : " (on the payouts)"}
+                Lost to the Auction House{split.totalFeeCoversSale ? "" : " (on the payouts)"}
               </dt>
               <dd>{mesos(split.totalFee)}</dd>
             </div>
@@ -288,16 +206,21 @@ export default function DropSplitPage() {
             <summary>Show the math</summary>
             <ol className="math-steps">
               {explainSplit(input, split).map((step) => (
-                <li key={step.title}>
-                  <p className="math-title">{step.title}</p>
-                  <p className="math-formula">{step.formula}</p>
-                  <p className="math-substituted">{step.substituted}</p>
+                <li key={step.label}>
+                  <span className="math-label">{step.label}</span>
+                  <span className="math-expression">{step.expression}</span>
                 </li>
               ))}
             </ol>
           </details>
         </div>
       )}
+
+      <p className="split-caveat">
+        Assumes the standard {percent(FEE_STANDARD)} Auction House fee throughout. MVP pays{" "}
+        {percent(FEE_MVP)}, so anyone on MVP keeps a little more than shown here. Treat the figures
+        as the fair share to aim for, not to the meso.
+      </p>
     </main>
   );
 }
