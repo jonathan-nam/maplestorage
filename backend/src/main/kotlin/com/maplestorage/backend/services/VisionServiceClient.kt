@@ -56,10 +56,19 @@ private data class VisionHud(
 )
 
 @Serializable
+private data class VisionBossClear(
+    val bossKey: String,
+    val cleared: Boolean,
+)
+
+@Serializable
 private data class VisionResult(
     val screenshotType: String,
     val characterHud: VisionHud? = null,
     val tokenCounts: List<VisionToken>? = null,
+    val bossClears: List<VisionBossClear>? = null,
+    val reachedListEnd: Boolean? = null,
+    val unreadableBossRows: Int? = null,
 )
 
 @Serializable
@@ -125,6 +134,7 @@ class VisionServiceClient(
         val type =
             when (body.screenshotType) {
                 "INVENTORY" -> ScreenshotType.INVENTORY
+                "PLANNER" -> ScreenshotType.PLANNER
                 else -> ScreenshotType.UNRECOGNIZED
             }
 
@@ -133,6 +143,9 @@ class VisionServiceClient(
                 screenshotType = type,
                 characterHud = body.characterHud?.let { CharacterHud(name = it.name, level = it.level) },
                 tokenCounts = body.tokenCounts?.map { DetectedToken(it.tokenName, it.quantity) },
+                bossClears = body.bossClears?.map { DetectedBossClear(it.bossKey, it.cleared) },
+                reachedListEnd = body.reachedListEnd,
+                unreadableBossRows = body.unreadableBossRows,
             )
         return ScreenshotParseOutcome.Parsed(result = result)
     }

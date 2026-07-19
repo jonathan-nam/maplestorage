@@ -4,30 +4,31 @@
 -- Repeatable (R__): editing bosses.yaml reseeds boss_catalog on the next boot. Upserts by
 -- boss_key and keeps an existing row's id, which boss_clear references, so it is never churned.
 
-INSERT INTO boss_catalog (id, boss_key, name, reset)
-SELECT COALESCE(existing.id, gen_random_uuid()), v.boss_key, v.name, v.reset
+INSERT INTO boss_catalog (id, boss_key, name, reset, sort_order)
+SELECT COALESCE(existing.id, gen_random_uuid()), v.boss_key, v.name, v.reset, v.sort_order
 FROM (VALUES
-    ('lotus', 'Lotus', 'WEEKLY'),
-    ('damien', 'Damien', 'WEEKLY'),
-    ('guardian-angel-slime', 'Guardian Angel Slime', 'WEEKLY'),
-    ('lucid', 'Lucid', 'WEEKLY'),
-    ('will', 'Will', 'WEEKLY'),
-    ('gloom', 'Gloom', 'WEEKLY'),
-    ('verus-hilla', 'Verus Hilla', 'WEEKLY'),
-    ('darknell', 'Darknell', 'WEEKLY'),
-    ('chosen-seren', 'Chosen Seren', 'WEEKLY'),
-    ('kalos-the-guardian', 'Kalos the Guardian', 'WEEKLY'),
-    ('first-adversary', 'First Adversary', 'WEEKLY'),
-    ('kaling', 'Kaling', 'WEEKLY'),
-    ('malefic-star', 'Malefic Star', 'WEEKLY'),
-    ('limbo', 'Limbo', 'WEEKLY'),
-    ('baldrix', 'Baldrix', 'WEEKLY'),
-    ('akechi-mitsuhide', 'Akechi Mitsuhide', 'WEEKLY'),
-    ('black-mage', 'Black Mage', 'MONTHLY'),
-    ('zakum', 'Zakum', 'DAILY'),
-    ('gollux', 'Gollux', 'DAILY')
-) AS v (boss_key, name, reset)
+    ('lotus', 'Lotus', 'WEEKLY', 0),
+    ('damien', 'Damien', 'WEEKLY', 1),
+    ('guardian-angel-slime', 'Guardian Angel Slime', 'WEEKLY', 2),
+    ('lucid', 'Lucid', 'WEEKLY', 3),
+    ('will', 'Will', 'WEEKLY', 4),
+    ('gloom', 'Gloom', 'WEEKLY', 5),
+    ('verus-hilla', 'Verus Hilla', 'WEEKLY', 6),
+    ('darknell', 'Darknell', 'WEEKLY', 7),
+    ('chosen-seren', 'Chosen Seren', 'WEEKLY', 8),
+    ('kalos-the-guardian', 'Kalos the Guardian', 'WEEKLY', 9),
+    ('first-adversary', 'First Adversary', 'WEEKLY', 10),
+    ('kaling', 'Kaling', 'WEEKLY', 11),
+    ('malefic-star', 'Malefic Star', 'WEEKLY', 12),
+    ('limbo', 'Limbo', 'WEEKLY', 13),
+    ('baldrix', 'Baldrix', 'WEEKLY', 14),
+    ('akechi-mitsuhide', 'Akechi Mitsuhide', 'WEEKLY', 15),
+    ('black-mage', 'Black Mage', 'MONTHLY', 16),
+    ('zakum', 'Zakum', 'DAILY', 17),
+    ('gollux', 'Gollux', 'DAILY', 18)
+) AS v (boss_key, name, reset, sort_order)
 LEFT JOIN boss_catalog existing ON existing.boss_key = v.boss_key
 ON CONFLICT (boss_key) DO UPDATE SET
-    name  = EXCLUDED.name,
-    reset = EXCLUDED.reset;
+    name       = EXCLUDED.name,
+    reset      = EXCLUDED.reset,
+    sort_order = EXCLUDED.sort_order;

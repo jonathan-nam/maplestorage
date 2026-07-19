@@ -38,6 +38,25 @@ data class ScreenshotResultResponse(
     // looks like nothing happened. (It looked like nothing happened, because the
     // response dropped them.)
     val tokenCounts: List<DetectedTokenResponse> = emptyList(),
+    // Same rule as tokenCounts: what we read, on every outcome. One capture can hold the inventory
+    // and the Maple Planner at once, so these are additional to the tokens above, not instead of.
+    val bossClears: List<DetectedBossClearResponse> = emptyList(),
+    // Rows the reader found and could not name, and whether the capture reached the bottom of the
+    // boss list. Both are reasons to re-capture rather than to trust what came back, and both are
+    // invisible unless the response says so: a truncated list looks exactly like a short one, and
+    // a dropped row looks exactly like a boss that was not cleared.
+    val unreadableBossRows: Int? = null,
+    val reachedBossListEnd: Boolean? = null,
+)
+
+@Serializable
+data class DetectedBossClearResponse(
+    // The catalog key, e.g. "chosen-seren".
+    val bossKey: String,
+    // Resolved server-side from boss_catalog, for the reason DetectedTokenResponse carries a
+    // displayName: the prose name is not derivable from the key.
+    val displayName: String,
+    val cleared: Boolean,
 )
 
 @Serializable

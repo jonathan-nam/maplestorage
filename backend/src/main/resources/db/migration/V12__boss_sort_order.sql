@@ -1,0 +1,14 @@
+-- The order bosses appear in, mirroring V9 for token_catalog.
+--
+-- Alphabetical is wrong here for the same reason it was wrong for the symbols: bosses are read
+-- in PROGRESSION order -- Lotus, Damien, Guardian Angel Slime, Lucid, Will, Gloom, Verus Hilla,
+-- Darknell, Chosen Seren, Kalos, First Adversary, Kaling, Limbo -- which is the order a player
+-- unlocks them in, the order the Maple Planner itself lists them in, and the order the clear
+-- matrix has to draw its columns in. Sorting by name opens the matrix on Akechi Mitsuhide.
+--
+-- That order is not derivable from anything else we store (it is not difficulty, and it is not
+-- the reset cadence), so it is stated. Seeded from catalog/bosses.yaml.
+--
+-- Nullable and not backfilled here: R__boss_catalog.sql is repeatable, so it reseeds on the next
+-- boot once its checksum changes, and that is what fills this in.
+ALTER TABLE boss_catalog ADD COLUMN sort_order INT;

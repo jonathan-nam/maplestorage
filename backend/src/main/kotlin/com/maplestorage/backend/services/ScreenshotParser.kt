@@ -15,7 +15,11 @@ import kotlinx.serialization.Serializable
 
 // UNRECOGNIZED means the image has no inventory grid in it at all, a login screen,
 // a desktop, a cat. Distinct from "an inventory with nothing we track in it."
-enum class ScreenshotType { INVENTORY, UNRECOGNIZED }
+//
+// PLANNER means no grid but a Maple Planner boss list. It is NOT a statement about which payloads
+// arrived: one capture routinely holds both panels, so an INVENTORY result can carry bossClears
+// too. Read the payloads, not the type.
+enum class ScreenshotType { INVENTORY, PLANNER, UNRECOGNIZED }
 
 @Serializable
 data class CharacterHud(
@@ -30,12 +34,31 @@ data class DetectedToken(
 )
 
 @Serializable
+data class DetectedBossClear(
+    // The catalog key, not the name the planner rendered. Resolved vision-side against the same
+    // generated catalog that feeds boss_catalog, so there is no second mapping to keep.
+    val bossKey: String,
+    val cleared: Boolean,
+)
+
+@Serializable
 data class ScreenshotParseResult(
     val screenshotType: ScreenshotType,
     // Null when no HUD is in frame, e.g. a tightly-cropped inventory. Attribution
     // then falls to the user's pin (see ScreenshotIngestion.decideOutcome).
     val characterHud: CharacterHud?,
     val tokenCounts: List<DetectedToken>?,
+    // Null when no planner was in frame. Empty is different: a planner WAS read and every row in
+    // it was unreadable, which unreadableBossRows then explains.
+    val bossClears: List<DetectedBossClear>? = null,
+    // Did the capture reach the bottom of the boss list? The list takes 1-3 scrolled captures, so
+    // without this the top of an all-cleared list reads as "everything cleared" while the bosses
+    // below the fold are still pending. Best-effort, see vision's planner.parse_planner.
+    val reachedListEnd: Boolean? = null,
+    // Rows the reader found but could not name. Never silently dropped: a dropped row would read
+    // as "not cleared", which is a plausible wrong answer of exactly the kind this project exists
+    // to prevent, so it reaches the user as "re-capture".
+    val unreadableBossRows: Int? = null,
 )
 
 sealed interface ScreenshotParseOutcome {

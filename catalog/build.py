@@ -154,22 +154,27 @@ def boss_sql(bosses: list[dict]) -> str:
     def q(s: str) -> str:
         return "'" + s.replace("'", "''") + "'"
 
-    rows = ",\n".join(f"    ({q(b['key'])}, {q(b['name'])}, {q(b['reset'])})" for b in bosses)
+    # Manifest position IS the sort order, so reordering bosses.yaml reorders the matrix and
+    # nothing else has to be touched. See V12__boss_sort_order.sql.
+    rows = ",\n".join(
+        f"    ({q(b['key'])}, {q(b['name'])}, {q(b['reset'])}, {i})" for i, b in enumerate(bosses)
+    )
     return f"""-- GENERATED FROM catalog/bosses.yaml. DO NOT EDIT BY HAND.
 -- Regenerate with:  python catalog/build.py
 --
 -- Repeatable (R__): editing bosses.yaml reseeds boss_catalog on the next boot. Upserts by
 -- boss_key and keeps an existing row's id, which boss_clear references, so it is never churned.
 
-INSERT INTO boss_catalog (id, boss_key, name, reset)
-SELECT COALESCE(existing.id, gen_random_uuid()), v.boss_key, v.name, v.reset
+INSERT INTO boss_catalog (id, boss_key, name, reset, sort_order)
+SELECT COALESCE(existing.id, gen_random_uuid()), v.boss_key, v.name, v.reset, v.sort_order
 FROM (VALUES
 {rows}
-) AS v (boss_key, name, reset)
+) AS v (boss_key, name, reset, sort_order)
 LEFT JOIN boss_catalog existing ON existing.boss_key = v.boss_key
 ON CONFLICT (boss_key) DO UPDATE SET
-    name  = EXCLUDED.name,
-    reset = EXCLUDED.reset;
+    name       = EXCLUDED.name,
+    reset      = EXCLUDED.reset,
+    sort_order = EXCLUDED.sort_order;
 """
 
 

@@ -129,6 +129,10 @@ object BossCatalog : Table("boss_catalog") {
     val bossKey = text("boss_key").uniqueIndex()
     val name = text("name")
     val reset = text("reset")
+
+    // Manifest position, so the matrix draws its columns in progression order rather than
+    // alphabetically. See V12__boss_sort_order.sql.
+    val sortOrder = integer("sort_order").nullable()
 }
 
 object BossClear : Table("boss_clear") {
