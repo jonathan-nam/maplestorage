@@ -3,6 +3,7 @@
 import { useAuth } from "@clerk/nextjs";
 import { useEffect, useState } from "react";
 import { BossMatrix } from "@/components/boss-matrix";
+import { PlannerDock } from "@/components/planner-dock";
 import { apiFetch } from "@/lib/api";
 import { peek, put } from "@/lib/cache";
 import type { Boss, BossClearsByCharacter } from "@/types/boss";
@@ -30,6 +31,20 @@ export default function BossesPage() {
   const [state, setState] = useState<LoadState>(
     seededBosses && seededCharacters ? "loaded" : "loading",
   );
+  const [uploadFor, setUploadFor] = useState<string | null>(null);
+
+  // After a capture saves, the matrix is stale. Only the clears can have changed, so only they are
+  // refetched; the catalog and the roster are the same as they were a moment ago.
+  async function refetchClears() {
+    try {
+      const result = await apiFetch<BossClearsByCharacter>(CLEARS_KEY, { method: "GET" }, getToken);
+      setClears(result);
+      put(CLEARS_KEY, result);
+    } catch {
+      // The save itself succeeded, so leaving the old matrix up is better than blanking it. The
+      // next load will pick the new clears up.
+    }
+  }
 
   useEffect(() => {
     // One token for the whole burst. getToken() can round-trip to Clerk and that cost is paid
@@ -80,10 +95,13 @@ export default function BossesPage() {
         ) : (
           <>
             <BossMatrix bosses={bosses} characters={characters} clearsByCharacter={clears} />
-            <p className="hint">
-              Clears come from Maple Planner screenshots. Upload one per character to fill this in;
-              the list needs a capture per scroll position to be complete.
-            </p>
+            <PlannerDock
+              characters={characters}
+              selectedCharacterId={uploadFor}
+              onSelectCharacter={setUploadFor}
+              getToken={getToken}
+              onSaved={refetchClears}
+            />
           </>
         ))}
     </main>
