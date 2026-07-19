@@ -238,14 +238,14 @@ class BossClearsTest {
     @Test
     fun `a past week answers for weekly bosses only`() =
         transaction {
-            // Not a shortcut: seven daily periods sit inside one week, so a daily boss has no single
-            // answer for it, and a week can straddle two months. See weeklyClearsFor.
+            // Not a shortcut: a week can straddle two months, so a monthly boss has no single answer
+            // for it. See weeklyClearsFor. The daily case cannot be constructed here any more, since
+            // V14 left no DAILY row in boss_catalog for a clear to reference.
             val character = addCharacter(userOneId, "Cadences")
             upsertBossClears(
                 character,
                 listOf(
                     DetectedBossClear("lotus", true), // WEEKLY
-                    DetectedBossClear("zakum", true), // DAILY
                     DetectedBossClear("black-mage", true), // MONTHLY
                 ),
                 addScreenshot(userOneId),

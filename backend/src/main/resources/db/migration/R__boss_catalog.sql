@@ -22,8 +22,7 @@ FROM (VALUES
     ('malefic-star', 'Malefic Star', 'WEEKLY', 12),
     ('limbo', 'Limbo', 'WEEKLY', 13),
     ('baldrix', 'Baldrix', 'WEEKLY', 14),
-    ('akechi-mitsuhide', 'Akechi Mitsuhide', 'WEEKLY', 15),
-    ('black-mage', 'Black Mage', 'MONTHLY', 16)
+    ('black-mage', 'Black Mage', 'MONTHLY', 15)
 ) AS v (boss_key, name, reset, sort_order)
 LEFT JOIN boss_catalog existing ON existing.boss_key = v.boss_key
 ON CONFLICT (boss_key) DO UPDATE SET
