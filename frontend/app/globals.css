@@ -1552,21 +1552,28 @@ button.link:disabled {
   overflow-x: auto;
 }
 
-/* Sized to its content, NOT to the column. Stretched to 100% the character columns spread to
-   the far edge and reading one boss's row meant tracking a tick across ~400px of empty space.
-   Hugging the content puts the marks beside the names; a wide roster grows it back out and the
-   container scrolls. */
+/* Fills the column, so this page's block ends on the same edge as the inventory window and the
+   header's profile icon. Hugging its content instead left a ragged right edge that read as a
+   different page. The cost is real: on a small roster the marks sit far from the boss name, which
+   is why the striping and hover band below are not decoration. */
 .boss-table {
-  width: auto;
+  width: 100%;
   min-width: min(100%, 420px);
   border-collapse: collapse;
   font-size: 13px;
 }
 
-/* 19 rows of small marks: the hover band is what keeps your eye on one boss while crossing to the
-   character you care about. */
-.boss-table tbody tr:not(.boss-cadence-row):hover {
+/* 19 rows of small marks, and full width puts the far column ~400px from the name. Striping tells
+   you which row you are on at rest; the hover band tracks the one you are reading. Without both,
+   crossing the gap means counting rows. */
+/* Hover must be the LIGHTER of the two, or it reads as a dark-out on striped rows. The tokens run
+   --bg < --surface < --surface-2, so the stripe takes the middle and hover the top. */
+.boss-table tbody tr:not(.boss-cadence-row):nth-child(even) {
   background: var(--surface);
+}
+
+.boss-table tbody tr:not(.boss-cadence-row):hover {
+  background: var(--surface-2);
 }
 
 .boss-col-head,
@@ -1609,10 +1616,10 @@ button.link:disabled {
   text-transform: none;
 }
 
-/* Fixed, so the table is the same width before and after the data lands. Content-sized, the
-   loading table measured 520px against the loaded 463px and every column slid left when the
-   fetch resolved. 180px clears the longest name in the catalog ("Guardian Angel Slime"); a longer
-   one in future simply widens the cell, since a table width is a suggestion. */
+/* 180px clears the longest name in the catalog ("Guardian Angel Slime"). It is a floor, not a cap:
+   the table is width:100% under auto layout, so the slack is shared out and this column ends up
+   somewhat wider. Do not reach for table-layout:fixed to pin it, that also drops .boss-cell's
+   min-width and a wide roster would squeeze instead of scrolling. */
 .boss-col-head,
 .boss-name {
   width: 180px;
