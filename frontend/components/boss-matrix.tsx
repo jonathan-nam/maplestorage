@@ -10,10 +10,10 @@ import type { Character } from "@/types/character";
 //
 // The other way round does not fit: 16 bosses against a 794px column leaves ~47px per boss, which
 // is not enough for a name and forces rotated headers. Characters are the smaller axis for almost
-// everyone, and it is also how the same information is kept by hand today (test-fixtures/boss
-// matrix.png), so the layout matches how it is already read.
+// everyone, and it is also how the same information is kept by hand today
+// (test-fixtures/occluded/boss matrix.png), so the layout matches how it is already read.
 
-// The planner itself groups by cadence (MONTHLY / WEEKLY / DAILY, see test-fixtures/boss
+// The planner itself groups by cadence (MONTHLY / WEEKLY / DAILY, see test-fixtures/occluded/boss
 // planner.png), and the grouping is load-bearing here rather than decorative: two bosses in one
 // matrix are not counting the same span of time, and a check under MONTHLY means something quite
 // different from a check under WEEKLY. DAILY stays in the order though the tracker no longer keeps

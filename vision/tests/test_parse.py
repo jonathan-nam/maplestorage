@@ -13,6 +13,7 @@ import cv2
 import numpy as np
 import pytest
 from fastapi.testclient import TestClient
+from fixtures import HUD, INVENTORY, PLANNER
 
 from app import main as main_mod
 from app.cv import planner as planner_mod
@@ -24,7 +25,6 @@ from app.main import app
 
 client = TestClient(app)
 
-REF = "../test-fixtures"
 
 # Hand-verified by reading the digits off each screenshot.
 #
@@ -33,7 +33,7 @@ REF = "../test-fixtures"
 # and the digits ARE the number. Pasting the parser's own output in here would make the test
 # assert that the parser agrees with itself.
 TRUTH = {
-    f"{REF}/untradeables sample.png": {
+    f"{INVENTORY}/untradeables sample.png": {
         "blissful-fantasy-shard": 6,
         "distorted-ambition": 10,
         "echo-ancient-resolve": 6,
@@ -66,7 +66,7 @@ TRUTH = {
         "sacred-arteria": 38,
         "sacred-odium": 19,
     },
-    f"{REF}/inventory sample.png": {
+    f"{INVENTORY}/inventory sample.png": {
         "distorted-ambition": 9,
         "echo-ancient-resolve": 14,
         "ferocious-beast-ring": 4,
@@ -90,7 +90,7 @@ TRUTH = {
     # The only screenshot carrying all SIX tokens, and a cropped panel rather than
     # a full desktop, so it also proves the grid detector does not depend on the
     # surrounding game window being in frame.
-    f"{REF}/inventory804x550.png": {
+    f"{INVENTORY}/inventory804x550.png": {
         "blissful-fantasy-shard": 48,
         "distorted-ambition": 17,
         "echo-ancient-resolve": 51,
@@ -122,7 +122,7 @@ TRUTH = {
         "sacred-tallahart": 1423,
     },
     # The screenshot the elixir and potion templates were cut from.
-    f"{REF}/potions.png": {
+    f"{INVENTORY}/potions.png": {
         "blissful-fantasy-shard": 18,
         "distorted-ambition": 10,
         "echo-ancient-resolve": 6,
@@ -194,7 +194,7 @@ def test_counts_survive_jpeg(path, truth):
 
 def test_downscaled_upload_is_rejected_loudly():
     """A shrunk screenshot must 422, not return silently-wrong counts."""
-    img = cv2.imread(f"{REF}/untradeables sample.png")
+    img = cv2.imread(f"{INVENTORY}/untradeables sample.png")
     small = cv2.resize(img, None, fx=0.9, fy=0.9, interpolation=cv2.INTER_AREA)
     r = client.post("/parse", content=cv2.imencode(".png", small)[1].tobytes())
     assert r.status_code == 422
@@ -213,12 +213,12 @@ def test_fractionally_rescaled_capture_is_read_not_refused(factor):
     session delivered, and it was refused outright while every item and every count sat
     legible in the file.
     """
-    img = cv2.imread(f"{REF}/untradeables sample.png")
+    img = cv2.imread(f"{INVENTORY}/untradeables sample.png")
     scaled = cv2.resize(img, None, fx=factor, fy=factor, interpolation=cv2.INTER_CUBIC)
     r = client.post("/parse", content=cv2.imencode(".png", scaled)[1].tobytes())
     assert r.status_code == 200, r.json()
     got = {t["tokenName"]: t["quantity"] for t in r.json()["tokenCounts"]}
-    assert got == TRUTH[f"{REF}/untradeables sample.png"]
+    assert got == TRUTH[f"{INVENTORY}/untradeables sample.png"]
 
 
 def test_parsec_capture_is_read():
@@ -253,7 +253,7 @@ def test_parsec_capture_is_read():
         and the slot holding sayram-elixir natively holds a completely different item here.
         None of these is a misclassification; the player had simply been playing.
     """
-    img = cv2.imread(f"{REF}/symbols-parsec.png")
+    img = cv2.imread(f"{INVENTORY}/symbols-parsec.png")
     r = client.post("/parse", content=cv2.imencode(".png", img)[1].tobytes())
     assert r.status_code == 200, r.json()
     got = {t["tokenName"]: t["quantity"] for t in r.json()["tokenCounts"]}
@@ -300,7 +300,7 @@ def test_a_windowed_parsec_capture_finds_the_right_lattice():
     Only eye-verified numbers are asserted. The four-digit counts on this capture are the same
     mush described in test_parsec_capture_is_read and are deliberately NOT pinned here.
     """
-    img = cv2.imread(f"{REF}/parsec-ss.png")
+    img = cv2.imread(f"{INVENTORY}/parsec-ss.png")
     assert img is not None
 
     g = find_grid(img)
@@ -344,7 +344,7 @@ def test_a_full_screen_capture_still_finds_its_lattice():
     as parsec-ss.png captured separately, and at pitch 61 all eighteen items agree exactly
     with that fixture's numbers. A wrong pitch cannot produce that.
     """
-    img = cv2.imread(f"{REF}/morebuff12.png")
+    img = cv2.imread(f"{INVENTORY}/morebuff12.png")
     assert img is not None
 
     g = find_grid(img)
@@ -378,7 +378,7 @@ def test_a_selected_slot_is_not_mistaken_for_an_occluded_one():
     is a real open bug, and pinning any single number here would pin whichever way it happens
     to land rather than what is true. See the note in the PR.
     """
-    img = cv2.imread(f"{REF}/test.png")
+    img = cv2.imread(f"{INVENTORY}/test.png")
     assert img is not None
 
     g = find_grid(img)
@@ -394,18 +394,18 @@ def test_a_selected_slot_is_not_mistaken_for_an_occluded_one():
 def test_ui_optimization_2x_is_accepted():
     """MapleStory's UI Optimization is exact 2x pixel doubling, which downsamples
     back losslessly. It must NOT be caught by the rescale check."""
-    img = cv2.imread(f"{REF}/untradeables sample.png")
+    img = cv2.imread(f"{INVENTORY}/untradeables sample.png")
     doubled = cv2.resize(img, None, fx=2, fy=2, interpolation=cv2.INTER_NEAREST)
     r = client.post("/parse", content=cv2.imencode(".png", doubled)[1].tobytes())
     assert r.status_code == 200
     got = {t["tokenName"]: t["quantity"] for t in r.json()["tokenCounts"]}
-    assert got == TRUTH[f"{REF}/untradeables sample.png"]
+    assert got == TRUTH[f"{INVENTORY}/untradeables sample.png"]
 
 
 def test_a_real_downscaled_upload_is_rejected():
     """inventory377x275.png is a real shrunk capture (from the M3 vision-LLM era,
     when downscaling was the plan). It is now exactly the input we must refuse."""
-    img = cv2.imread(f"{REF}/inventory377x275.png")
+    img = cv2.imread(f"{INVENTORY}/inventory377x275.png")
     assert img is not None
     r = client.post("/parse", content=cv2.imencode(".png", img)[1].tobytes())
     # No inventory lattice survives at that size, so it cannot even be recognised
@@ -454,7 +454,7 @@ SAMPLE2_CLEARS = [
 
 
 def test_planner_alone_is_read_as_planner():
-    r = _parse(f"{REF}/boss clear menu sample 2.png")
+    r = _parse(f"{PLANNER}/boss clear menu sample 2.png")
     assert r.status_code == 200
     body = r.json()
     assert body["screenshotType"] == "PLANNER"
@@ -466,7 +466,7 @@ def test_planner_alone_is_read_as_planner():
 def test_planner_rows_all_resolve_to_a_key():
     # An unresolved row is reported, never dropped. A clean capture should have none, and if
     # this starts failing the catalog and the reader have drifted.
-    body = _parse(f"{REF}/boss clear menu sample 2.png").json()
+    body = _parse(f"{PLANNER}/boss clear menu sample 2.png").json()
     assert body["unreadableBossRows"] == 0
 
 
@@ -478,7 +478,7 @@ def test_untracked_rows_are_ignored_not_unreadable():
     it here would raise that warning on every clean planner shot. So the rows must vanish from
     bossClears while unreadableBossRows stays 0.
     """
-    body = _parse(f"{REF}/boss clear menu sample 2.png").json()
+    body = _parse(f"{PLANNER}/boss clear menu sample 2.png").json()
     keys = [c["bossKey"] for c in body["bossClears"]]
     assert "zakum" not in keys and "gollux" not in keys
     assert "akechi-mitsuhide" not in keys
@@ -489,7 +489,7 @@ def test_untracked_rows_are_ignored_not_unreadable():
 
 
 def test_planner_isolated_panel_reaches_the_list_end():
-    assert _parse(f"{REF}/boss clear menu sample 2.png").json()["reachedListEnd"] is True
+    assert _parse(f"{PLANNER}/boss clear menu sample 2.png").json()["reachedListEnd"] is True
 
 
 def test_one_capture_gives_up_both_panels():
@@ -498,10 +498,10 @@ def test_one_capture_gives_up_both_panels():
     Picking a single type by precedence would silently drop whichever panel lost, so the
     inventory truth and the boss clears must BOTH survive the same upload.
     """
-    body = _parse(f"{REF}/untradeables sample.png").json()
+    body = _parse(f"{INVENTORY}/untradeables sample.png").json()
     assert body["screenshotType"] == "INVENTORY"
     counts = {t["tokenName"]: t["quantity"] for t in body["tokenCounts"]}
-    assert counts == TRUTH[f"{REF}/untradeables sample.png"]
+    assert counts == TRUTH[f"{INVENTORY}/untradeables sample.png"]
     assert [c["bossKey"] for c in body["bossClears"]] == [
         "lotus",
         "damien",
@@ -521,7 +521,7 @@ def test_one_capture_gives_up_both_panels():
 
 
 def test_inventory_without_a_planner_reports_no_clears():
-    body = _parse(f"{REF}/inventory sample.png").json()
+    body = _parse(f"{INVENTORY}/inventory sample.png").json()
     assert body["screenshotType"] == "INVENTORY"
     assert body["bossClears"] is None
     assert body["reachedListEnd"] is None
@@ -547,12 +547,12 @@ def test_a_planner_blowup_does_not_take_the_inventory_with_it(monkeypatch):
         raise subprocess.TimeoutExpired("tesseract", 15)
 
     monkeypatch.setattr(main_mod, "parse_planner", boom)
-    r = _parse(f"{REF}/untradeables sample.png")
+    r = _parse(f"{INVENTORY}/untradeables sample.png")
     assert r.status_code == 200
     body = r.json()
     assert body["screenshotType"] == "INVENTORY"
     assert {t["tokenName"]: t["quantity"] for t in body["tokenCounts"]} == TRUTH[
-        f"{REF}/untradeables sample.png"
+        f"{INVENTORY}/untradeables sample.png"
     ]
     assert body["bossClears"] is None
 
@@ -569,7 +569,7 @@ def test_an_unresolved_row_is_counted_not_dropped(monkeypatch):
     real = planner_mod.parse_planner
     monkeypatch.setattr(main_mod, "parse_planner", lambda img, glyphs: real(img, glyphs, keep))
 
-    body = _parse(f"{REF}/boss clear menu sample 2.png").json()
+    body = _parse(f"{PLANNER}/boss clear menu sample 2.png").json()
     assert body["unreadableBossRows"] == 1
     keys = [c["bossKey"] for c in body["bossClears"]]
     assert "chosen-seren" not in keys
@@ -584,22 +584,22 @@ def test_an_unresolved_row_is_counted_not_dropped(monkeypatch):
 
 
 def test_hud_is_read_when_in_frame():
-    r = _parse(f"{REF}/untradeables sample.png")
+    r = _parse(f"{INVENTORY}/untradeables sample.png")
     assert r.json()["characterHud"] == {"name": "acornacorn", "level": 287}
 
 
 def test_hud_survives_the_jpeg_the_frontend_sends():
-    r = _parse(f"{REF}/untradeables sample.png", quality=92)
+    r = _parse(f"{INVENTORY}/untradeables sample.png", quality=92)
     assert r.json()["characterHud"] == {"name": "acornacorn", "level": 287}
 
 
 def test_hud_is_null_when_not_in_frame():
     """A cropped inventory upload has no HUD. Null, not an error, the backend
     already routes this to NEEDS_REVIEW."""
-    r = _parse(f"{REF}/inventory sample.png")
+    r = _parse(f"{INVENTORY}/inventory sample.png")
     assert r.json()["characterHud"] is None
     # ...and the token counts are still read fine without it.
-    assert len(r.json()["tokenCounts"]) == len(TRUTH[f"{REF}/inventory sample.png"])
+    assert len(r.json()["tokenCounts"]) == len(TRUTH[f"{INVENTORY}/inventory sample.png"])
 
 
 # --- digit glyph masks -----------------------------------------------------
@@ -664,7 +664,7 @@ def test_display_zero_shares_its_bowl_with_eight():
     0 is the one glyph drawn by hand rather than cut by the generator, and the hand-drawn version
     left (2,2), (5,2), (2,8) and (5,8) white. That reopened the counter at both shoulders, so 0 read
     a size larger than the digits beside it. All four are outline in the client's own pixels, in
-    every occurrence of 0 in test-fixtures/untradeables sample.png."""
+    every occurrence of 0 in test-fixtures/inventory/untradeables sample.png."""
     zero = cv2.imread(str(_DIGITS / "0.png"), cv2.IMREAD_UNCHANGED)
     eight = cv2.imread(str(_DIGITS / "8.png"), cv2.IMREAD_UNCHANGED)
     for rows in (slice(0, 3), slice(8, 11)):
@@ -687,7 +687,7 @@ def test_classify_is_flat_in_catalog_size():
     from app.cv.grid import find_grid
     from app.cv.match import load_templates
 
-    img = cv2.imread(f"{REF}/inventory sample.png")
+    img = cv2.imread(f"{INVENTORY}/inventory sample.png")
     g = find_grid(img)
     base = load_templates()
 
@@ -756,7 +756,7 @@ def test_a_one_in_a_name_is_not_read_as_a_letter(quality):
 
     Both encodings, because the two wrong answers came from the same image read two ways.
     """
-    img = cv2.imread(f"{REF}/morebuff12.png")
+    img = cv2.imread(f"{INVENTORY}/morebuff12.png")
     assert img is not None
     if quality is not None:
         img = cv2.imdecode(
@@ -784,7 +784,7 @@ def test_the_bar_fix_does_not_read_the_hud_icons_as_a_letter(quality):
     `mechyfechy` have none between them, so that branch of _classify_bar was only ever
     asserted negatively.
     """
-    img = cv2.imread(f"{REF}/hud-warrior2020.png")
+    img = cv2.imread(f"{HUD}/hud-warrior2020.png")
     assert img is not None
     if quality is not None:
         img = cv2.imdecode(
@@ -811,7 +811,7 @@ def test_the_bar_fix_holds_at_every_capture_scale(capture_scale, quality):
     them, which predates the bar fix and is safe, no HUD means no character rather than a
     wrong one. What must never come back is a name that is confidently wrong.
     """
-    img = cv2.imread(f"{REF}/hud-warrior2020.png")
+    img = cv2.imread(f"{HUD}/hud-warrior2020.png")
     assert img is not None
     img = cv2.resize(img, None, fx=capture_scale, fy=capture_scale, interpolation=cv2.INTER_CUBIC)
     if quality is not None:
@@ -838,7 +838,7 @@ def test_a_descender_is_not_cropped_off_the_name(quality):
     Two 'y's in one name is why this capture is worth keeping: `acornacorn`, the only other
     HUD fixture, has no descender in it at all and cannot fail this way.
     """
-    img = cv2.imread(f"{REF}/hud-mechyfechy.png")
+    img = cv2.imread(f"{HUD}/hud-mechyfechy.png")
     assert img is not None
     if quality is not None:
         img = cv2.imdecode(
@@ -853,7 +853,7 @@ def test_a_descender_is_not_cropped_off_the_name(quality):
 
 @pytest.mark.parametrize("capture_scale", [1.0, 1.1, 1.25, 1.5, 2.0])
 def test_hud_reads_at_every_capture_scale(capture_scale):
-    img = cv2.imread(f"{REF}/untradeables sample.png")
+    img = cv2.imread(f"{INVENTORY}/untradeables sample.png")
     if capture_scale != 1.0:
         img = cv2.resize(
             img, None, fx=capture_scale, fy=capture_scale, interpolation=cv2.INTER_CUBIC
@@ -885,17 +885,17 @@ def test_an_obscured_inventory_reports_no_counts():
     the planner, and the visible 340 was reported as the total and upserted over the true 341.
     A partial view therefore makes no item's total trustworthy, not merely the covered ones.
     """
-    covered = _parse(f"{REF}/boss clear menu sample.png").json()
+    covered = _parse(f"{PLANNER}/boss clear menu sample.png").json()
     assert covered["tokenCounts"] is None
 
-    clear = _parse(f"{REF}/untradeables sample.png").json()
+    clear = _parse(f"{INVENTORY}/untradeables sample.png").json()
     assert {t["tokenName"]: t["quantity"] for t in clear["tokenCounts"]}["sacred-cernium"] == 341
 
 
 def test_an_obscured_inventory_still_gives_up_its_boss_clears():
     """A planner has to be OPEN to be read, so it lands on the inventory more often than not.
     Refusing the whole upload would make the boss workflow unusable."""
-    body = _parse(f"{REF}/boss clear menu sample.png").json()
+    body = _parse(f"{PLANNER}/boss clear menu sample.png").json()
     assert body["screenshotType"] == "PLANNER"
     assert len(body["bossClears"]) == 12
     assert body["unreadableBossRows"] == 0
@@ -905,7 +905,7 @@ def test_an_obscured_inventory_with_no_planner_says_what_to_do():
     """With no boss rows to fall back on there is nothing to return, so it must refuse, and the
     message has to name the real problem. The generic no-grid text sends the user off to
     re-export a file that was never at fault."""
-    img = cv2.imread(f"{REF}/boss clear menu sample.png")
+    img = cv2.imread(f"{PLANNER}/boss clear menu sample.png")
     # Keep the whole inventory and the planner EDGE over its left columns, cutting away the boss
     # list itself (left of x=1000) so no planner payload remains.
     cropped = img[150:780, 1000:1900]
@@ -920,7 +920,7 @@ def test_a_blurred_capture_is_not_mistaken_for_an_obscured_one():
     refusal counting how MANY cells resolve would reject the blurriest file we own. What matters
     is whether each cell still looks like a slot, which blur leaves intact and a window does not.
     """
-    body = _parse(f"{REF}/symbols-parsec.png").json()
+    body = _parse(f"{INVENTORY}/symbols-parsec.png").json()
     assert body["screenshotType"] == "INVENTORY"
     assert body["tokenCounts"], "a blurred but unobstructed capture must still be read"
     assert body["inventoryComplete"] is True

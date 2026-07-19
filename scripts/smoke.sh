@@ -15,7 +15,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 KEEP="${1:-}"
-SHOT="test-fixtures/untradeables sample.png"
+SHOT="test-fixtures/inventory/untradeables sample.png"
 PASS=0
 FAIL=0
 
@@ -79,7 +79,7 @@ check "backend reaches vision over 127.0.0.1 (the ECS assumption)" \
 #    inside the container, over the same loopback the backend uses.
 RESULT="$(docker compose exec -T vision python - <<'PYEOF' 2>/dev/null || echo '{}'
 import json, urllib.request
-body = open("/screenshots/untradeables sample.png", "rb").read()
+body = open("/screenshots/inventory/untradeables sample.png", "rb").read()
 req = urllib.request.Request(
     "http://127.0.0.1:8000/parse", data=body, headers={"Content-Type": "image/png"}
 )

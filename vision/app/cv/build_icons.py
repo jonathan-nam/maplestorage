@@ -492,7 +492,7 @@ def main():
             cuts.append((key, int(m.group(1)), int(m.group(2))))
             args = [a for a in args if a != spec]
 
-    path = args[0] if args else "../../test-fixtures/inventory sample.png"
+    path = args[0] if args else "../../test-fixtures/inventory/inventory sample.png"
     img = cv2.imread(path)
     if img is None:
         print(f"cannot read {path}")
