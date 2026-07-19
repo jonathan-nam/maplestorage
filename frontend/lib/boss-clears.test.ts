@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cellState, formatPeriod, indexClears } from "./boss-clears";
+import { cellState, formatPeriod, formatWeekStart, indexClears } from "./boss-clears";
 import type { BossClear } from "@/types/boss";
 
 const clear = (bossKey: string, cleared: boolean): BossClear => ({
@@ -42,5 +42,16 @@ describe("formatPeriod", () => {
     expect(formatPeriod("")).toBe("");
     expect(formatPeriod("not-a-date")).toBe("not-a-date");
     expect(formatPeriod("2026-13-01")).toBe("2026-13-01");
+  });
+});
+
+describe("formatWeekStart", () => {
+  it("names the zone, so the date is not read as local", () => {
+    expect(formatWeekStart("2026-07-16")).toBe("16 Jul 00:00 UTC");
+  });
+
+  it("does not stamp a reset time onto something it could not parse", () => {
+    expect(formatWeekStart("not-a-date")).toBe("not-a-date");
+    expect(formatWeekStart("")).toBe("");
   });
 });

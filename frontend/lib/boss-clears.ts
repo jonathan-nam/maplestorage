@@ -32,3 +32,16 @@ export function formatPeriod(iso: string): string {
   if (!month || !day || month < 1 || month > MONTHS.length) return iso;
   return `${day} ${MONTHS[month - 1]}`;
 }
+
+/**
+ * "2026-07-16" -> "16 Jul 00:00 UTC", the instant the week actually began.
+ *
+ * A week start is a date in UTC, and for a viewer in another zone that date alone is ambiguous:
+ * "16 Jul" starts on the 15th in Los Angeles. Naming the zone is the difference between a label you
+ * can check a clear against and one you have to guess at. The time is a constant because the weekly
+ * reset is midnight UTC (see BossPeriod.kt), so if that ever moves this string moves with it.
+ */
+export function formatWeekStart(iso: string): string {
+  const formatted = formatPeriod(iso);
+  return formatted === iso ? iso : `${formatted} 00:00 UTC`;
+}

@@ -1780,10 +1780,10 @@ button.link:disabled {
   cursor: default;
 }
 
-/* Fixed width so stepping between "This week" and a date does not shift the arrows under the
-   cursor, which turns a second click into a click on nothing. */
+/* Fixed width so stepping between weeks does not shift the arrows under the cursor, which turns a
+   second click into a click on nothing. Wide enough for "Week of 30 Sep 00:00 UTC". */
 .week-label {
-  min-width: 122px;
+  min-width: 178px;
   color: var(--ink);
   font-size: 13px;
   text-align: center;
