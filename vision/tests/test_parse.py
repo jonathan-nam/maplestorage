@@ -692,6 +692,31 @@ def test_hud_name_stops_at_the_ign_charset(text, level, name):
 # test of the HUD reader. It once carried a note explaining that /parse "rightly rejects
 # fractional-scale captures outright", which is no longer true, and was never as sound as it
 # sounded: those captures are now read at their own scale, HUD included.
+@pytest.mark.parametrize("quality", [None, 92])
+def test_a_descender_is_not_cropped_off_the_name(quality):
+    """`mechyfechy` read as `mechufechy`, and the app would have made a character by it.
+
+    A 'y' whose tail is cut is a 'u', and LINE_DOWN was one pixel inside the descenders.
+    The name is asserted at both encodings because the frontend sends JPEG q92, and the
+    parameter sweep behind LINE_DOWN/TARGET_LINE_HEIGHT found pairs that pass on PNG and
+    fail on JPEG. Testing the lossless one alone would not have caught those.
+
+    Two 'y's in one name is why this capture is worth keeping: `acornacorn`, the only other
+    HUD fixture, has no descender in it at all and cannot fail this way.
+    """
+    img = cv2.imread(f"{REF}/hud-mechyfechy.png")
+    assert img is not None
+    if quality is not None:
+        img = cv2.imdecode(
+            cv2.imencode(".jpg", img, [cv2.IMWRITE_JPEG_QUALITY, quality])[1], cv2.IMREAD_COLOR
+        )
+
+    hud = find_hud(img, scale=1.0)
+    assert hud is not None
+    assert hud.name == "mechyfechy"
+    assert hud.level == 296
+
+
 @pytest.mark.parametrize("capture_scale", [1.0, 1.1, 1.25, 1.5, 2.0])
 def test_hud_reads_at_every_capture_scale(capture_scale):
     img = cv2.imread(f"{REF}/untradeables sample.png")

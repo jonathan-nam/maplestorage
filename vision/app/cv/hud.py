@@ -38,7 +38,11 @@ MATCH_THRESHOLD = 0.60
 # matched prefix, in native (unscaled) client pixels. LINE_LEFT matters: a crop
 # flush against the "L" clips its left stem and Tesseract reads it as a "t".
 LINE_LEFT = 4
-LINE_UP, LINE_DOWN = 6, 18
+# LINE_DOWN has to clear the DESCENDERS. At 18 the crop cut the tail off a 'y', and a
+# tailless 'y' is a 'u': `mechyfechy` came back as `mechufechy` and the app would have
+# created a character by that name. It pairs with TARGET_LINE_HEIGHT, which normalises this
+# crop's height, so the two were fitted together, see the note there.
+LINE_UP, LINE_DOWN = 6, 22
 LINE_RIGHT = 175
 
 # The prefix is already confirmed by the template match, so this only has to pull
@@ -79,7 +83,25 @@ class Hud:
 #
 # This is not a tweak that happened to help. The failure only appears where the line is
 # small, and it disappears at every scale once the line is big enough to read.
-TARGET_LINE_HEIGHT = 64
+#
+# It normalises the CROP's height, not the text's, so it is coupled to LINE_UP + LINE_DOWN
+# and cannot be read independently of them. Growing the crop to clear descenders without
+# growing this shrank the glyphs by a fifth and brought `acornacorn` -> `acornacom` back.
+#
+# BE CAREFUL CHANGING EITHER. The pair was chosen by sweeping both against 12 cases (five
+# capture scales x PNG/JPEG, plus a real capture whose name has two 'y's), and the values
+# that pass are SCATTERED, not contiguous: at LINE_DOWN 22 this passes at 64, 80, 88 and 104
+# and fails at 72, 92 and 96. That is Tesseract being chaotic on an 18px proportional
+# bitmap font, not a smooth optimum, so a neighbouring value is not a safe substitute and
+# any change needs the whole sweep re-run. Sweeping against PNG alone is not enough either,
+# several pairs that pass there fail on the JPEG the frontend actually sends.
+#
+# The real fix is to stop using Tesseract here and correlate the client's own glyphs, as the
+# stack counts do. That needs a ~62 glyph font at HUD size, and the only multi-name capture
+# we have (the character selection screen) renders the same face LARGER: 19px of ink against
+# the HUD's 15px. Downscaling it would resample a bitmap font, which is the exact mistake
+# cell_band() exists to undo. So it waits on captures of HUD lines covering more letters.
+TARGET_LINE_HEIGHT = 88
 
 
 def _tesseract(img: np.ndarray) -> str:
