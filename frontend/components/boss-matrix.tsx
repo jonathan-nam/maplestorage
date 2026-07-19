@@ -103,11 +103,7 @@ export function BossMatrix({
                 {loading ? (
                   <span className="skeleton sk-face" />
                 ) : character.spriteImgUrl ? (
-                  <span
-                    className="boss-char-sprite sprite-face"
-                    style={{ backgroundImage: `url("${character.spriteImgUrl}")` }}
-                    aria-hidden="true"
-                  />
+                  <img className="boss-char-sprite" src={character.spriteImgUrl} alt="" />
                 ) : (
                   <span className="boss-char-sprite is-empty" aria-hidden="true" />
                 )}
