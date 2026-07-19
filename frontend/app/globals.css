@@ -1760,6 +1760,77 @@ button.link:disabled {
   width: 68px;
 }
 
+/* The planner capture dock. Sits under the matrix, since the matrix is the answer and this is how
+   you feed it. */
+.planner-dock {
+  margin-top: 24px;
+}
+
+/* Choosing the character comes first, and is not optional: the planner panel carries no name, so
+   an unattributed capture cannot be filed. See the note at the top of planner-dock.tsx. */
+.planner-pick {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.planner-pick-label {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+/* Still a click target when disabled, because clicking is how you find out why. It explains
+   itself rather than doing nothing. */
+.dock-drop.disabled {
+  border-style: dashed;
+  border-color: var(--line-soft);
+  background: transparent;
+  color: var(--muted-2);
+}
+
+.dock-drop.disabled:hover {
+  border-color: var(--line);
+}
+
+.planner-refused {
+  margin: 8px 0 0;
+  color: var(--warn);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.planner-clears {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 12px;
+}
+
+.planner-clears li {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+}
+
+.planner-clears .is-cleared {
+  color: var(--ink);
+}
+
+.planner-clears .is-pending {
+  color: var(--muted);
+}
+
+/* A caveat is not decoration: each one is a reason the rows above are not the whole list. */
+.planner-caveat {
+  margin: 6px 0 0;
+  color: var(--warn);
+  font-size: 12px;
+}
+
 /* Drop split
    ------------------------------------------------------------------------------------------- */
 
