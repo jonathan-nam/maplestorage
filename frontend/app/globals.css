@@ -1980,9 +1980,10 @@ button.link:disabled {
   margin: 4px 0 0;
 }
 
+/* Reads as a section title, so it matches .page-title rather than the surrounding small text. */
 .planner-pick-label {
-  font-size: 13px;
-  color: var(--muted);
+  font-size: 20px;
+  color: var(--ink-strong);
 }
 
 /* Still a click target when disabled, because clicking is how you find out why. It explains
