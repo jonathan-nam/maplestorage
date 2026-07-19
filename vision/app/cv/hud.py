@@ -104,21 +104,41 @@ class Hud:
 TARGET_LINE_HEIGHT = 88
 
 
-def _tesseract(img: np.ndarray) -> str:
+def _ocr(img: np.ndarray) -> tuple[str, list[tuple[str, int, int]]]:
+    """The line's text, and each character's x-extent in the CROP's own pixels.
+
+    "txt makebox" is one recognition pass emitting both, so the boxes describe the
+    same reading the text came from. Boxes are scaled back out of the upscale because
+    the bar classifier reads the raw crop, see _fix_bars.
+    """
     k = TARGET_LINE_HEIGHT / img.shape[0]
     if k > 1.0:
         # CUBIC, not LANCZOS: on text this size LANCZOS rings around the strokes.
         img = cv2.resize(img, None, fx=k, fy=k, interpolation=cv2.INTER_CUBIC)
+    else:
+        k = 1.0
 
-    with tempfile.NamedTemporaryFile(suffix=".png") as f:
-        cv2.imwrite(f.name, img)
-        out = subprocess.run(
-            ["tesseract", f.name, "stdout", "--psm", "7"],
+    with tempfile.TemporaryDirectory() as d:
+        src = Path(d) / "line.png"
+        cv2.imwrite(str(src), img)
+        subprocess.run(
+            ["tesseract", str(src), str(Path(d) / "out"), "--psm", "7", "txt", "makebox"],
             capture_output=True,
             text=True,
             timeout=15,
         )
-    return out.stdout.strip()
+        txt = Path(d) / "out.txt"
+        box = Path(d) / "out.box"
+        text = txt.read_text().strip() if txt.exists() else ""
+        raw_boxes = box.read_text().splitlines() if box.exists() else []
+
+    boxes = []
+    for row in raw_boxes:
+        parts = row.split(" ")
+        if len(parts) < 5:
+            continue
+        boxes.append((parts[0], int(int(parts[1]) / k), int(int(parts[3]) / k)))
+    return text, boxes
 
 
 # Sliding a masked template over the whole frame is expensive: 763ms on a 2359x1095
@@ -201,11 +221,16 @@ def find_hud(img: np.ndarray, scale: float = 1.0) -> Hud | None:
     if line.size == 0:
         return None
 
-    text = _tesseract(line)
+    text, boxes = _ocr(line)
     m = HUD_RE.match(text)
     if not m:
         return None
-    return Hud(name=_fix_bars(line, m.group(2)), level=int(m.group(1)), score=float(score))
+
+    # The box file has no entry for whitespace, so the name's index in the box list is
+    # its text offset less the spaces before it.
+    first = len(re.sub(r"\s", "", text[: m.start(2)]))
+    name = _fix_bars(line, m.group(2), boxes[first : first + len(m.group(2))])
+    return Hud(name=name, level=int(m.group(1)), score=float(score))
 
 
 # '1', 'l' and 'i' are one vertical stroke each at this size and Tesseract cannot separate
@@ -215,92 +240,82 @@ def find_hud(img: np.ndarray, scale: float = 1.0) -> Hud | None:
 #
 # But the client's glyphs are not actually ambiguous, only Tesseract's reading of them is:
 #
-#     'i'  dot over a stem, so TWO vertical components with a gap
+#     'i'  dot over a stem, so its brightness dips where the gap is
 #     'l'  a bare bar, as wide at the top as in the middle
 #     '1'  a bar with a flag at the top left, so the top is clearly wider
 #
 # Measured on the real capture at 1.33x: the '1' is 4px wide at the top and 2px in the
 # middle. So decide it from the pixels rather than from the language model, but ONLY for
 # these three characters. Everything else Tesseract says is left exactly as it was.
+#
+# It reads the RAW crop, not the upscale Tesseract gets. The dot-stem gap is about a pixel
+# and INTER_CUBIC closes it: the same 'i' that classifies correctly at native scale comes
+# back 'l' at TARGET_LINE_HEIGHT.
 BAR_CHARS = "1lI|i"
-NARROW = 0.55  # of the median glyph width; a bar is far narrower than a letter
 FLAG_RATIO = 1.5  # top wider than middle by this much is the '1' flag, measured 2.0
 
-
-def _glyph_boxes(ink: np.ndarray) -> list[tuple[int, int]]:
-    cols = np.where(ink.sum(0) > 0)[0]
-    if not len(cols):
-        return []
-    out, start, prev = [], int(cols[0]), int(cols[0])
-    for i in cols[1:]:
-        i = int(i)
-        if i - prev > 1:
-            out.append((start, prev + 1))
-            start = i
-        prev = i
-    out.append((start, prev + 1))
-    return out
+# The gap is one row and it does not go dark, it only dims, so asking whether the row is
+# empty is a coin toss: warrior2020's 'i' gap sits at 0.53 of full ink as PNG and 0.56 as
+# JPEG q92, either side of a 0.55 ink cut, which is exactly how `warrlor2020` was saved.
+# Measure the dip against the stroke's own brightness instead. On the two bars in the corpus
+# that separates cleanly: the 'i' dips to 0.68/0.70 of its stroke, the '1' to 0.96/0.98.
+INK = 0.55
+DIP_RATIO = 0.85
 
 
 def _classify_bar(glyph: np.ndarray) -> str:
-    rows = np.where(glyph.sum(1) > 0)[0]
-    if not len(rows):
+    """Decide one bar from a normalised (0..1) greyscale glyph."""
+    prof = glyph.max(1)
+    core = np.where(prof >= INK)[0]
+    if not len(core):
         return "l"
-    g = glyph[rows.min() : rows.max() + 1]
-    filled = (g.sum(1) > 0).astype(int)
-    if int(np.sum(np.abs(np.diff(np.r_[0, filled, 0])))) // 2 >= 2:
-        return "i"  # a gap between dot and stem
+    seg = prof[core.min() : core.max() + 1]
+
+    # Ends are excluded: antialiasing dims the first and last row of any stroke.
+    interior = seg[1:-1]
+    plateau = float(np.median(seg[seg >= INK]))
+    if len(interior) and plateau and float(interior.min()) <= DIP_RATIO * plateau:
+        return "i"
+
+    g = (glyph[core.min() : core.max() + 1] >= INK).astype(np.uint8)
     h = g.shape[0]
+    if h < 3:
+        return "l"  # too few rows to have a top and a middle
     top = int(g[: max(h // 3, 1)].sum(1).max())
     mid = int(g[h // 3 : 2 * h // 3].sum(1).max())
     return "1" if mid and top >= FLAG_RATIO * mid else "l"
 
 
-def _fix_bars(line: np.ndarray, name: str) -> str:
+def _fix_bars(line: np.ndarray, name: str, boxes: list[tuple[str, int, int]]) -> str:
     """Re-decide the 1/l/i characters of `name` from the pixels. Unchanged if unsure.
 
-    Alignment is deliberately partial. Segmenting the name does not always yield one box per
-    letter ('ff' merges into one on the very capture this was written for), so matching the
-    whole string box-for-box would simply never fire. Only the BARS are aligned: they are the
-    narrowest boxes on the line, and if their count matches the number of 1/l/i characters
-    Tesseract reported, the correspondence is unambiguous even when other letters have run
-    together. Any other outcome leaves the name alone.
+    Each bar is located by Tesseract's own box for that character rather than by segmenting
+    the line ourselves. Segmenting cannot be made to work here: the crop is a fixed 175px and
+    overruns into the HUD icons on all but the longest names, so the trailing ink is not
+    always the name. `warrior2020` read correctly and was then corrupted to `warrlor2020` by
+    a 1px slice of an icon that looked narrow enough to be a bar and happened to match the
+    bar count. Tesseract already knows which pixels it turned into which character, so ask it.
+
+    The boxes must still be trusted only where they agree with the text, so this bails unless
+    they spell the name exactly.
     """
     hits = [i for i, c in enumerate(name) if c in BAR_CHARS]
     if not hits:
+        return name
+    if len(boxes) != len(name) or "".join(c for c, _, _ in boxes) != name:
         return name
 
     grey = cv2.cvtColor(line, cv2.COLOR_BGR2GRAY).astype(np.float32)
     lo, hi = float(grey.min()), float(grey.max())
     if hi - lo < 30:
         return name
-    ink = (grey >= lo + 0.55 * (hi - lo)).astype(np.uint8)
-
-    # The name is the last WORD on the line; "Lv.295" sits in front of it, past a wide gap.
-    cols = np.where(ink.sum(0) > 0)[0]
-    if not len(cols):
-        return name
-    words, start, prev = [], int(cols[0]), int(cols[0])
-    for i in cols[1:]:
-        i = int(i)
-        if i - prev > 4:
-            words.append((start, prev + 1))
-            start = i
-        prev = i
-    words.append((start, prev + 1))
-    if len(words) < 2:
-        return name
-    x0, x1 = words[-1]
-
-    boxes = _glyph_boxes(ink[:, x0:x1])
-    if not boxes:
-        return name
-    widths = [b - a for a, b in boxes]
-    bars = [(a, b) for a, b in boxes if (b - a) <= NARROW * float(np.median(widths))]
-    if len(bars) != len(hits):
-        return name  # cannot say which box is which; leave Tesseract's answer alone
+    norm = (grey - lo) / (hi - lo)
 
     out = list(name)
-    for idx, (a, b) in zip(hits, bars):
-        out[idx] = _classify_bar(ink[:, x0 + a : x0 + b])
+    for idx in hits:
+        _, x0, x1 = boxes[idx]
+        x0, x1 = max(x0, 0), min(x1 + 1, norm.shape[1])
+        if x1 - x0 < 1:
+            continue
+        out[idx] = _classify_bar(norm[:, x0:x1])
     return "".join(out)
