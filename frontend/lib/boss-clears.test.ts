@@ -46,12 +46,15 @@ describe("formatPeriod", () => {
 });
 
 describe("formatWeekStart", () => {
-  it("names the zone, so the date is not read as local", () => {
-    expect(formatWeekStart("2026-07-16")).toBe("16 Jul 00:00 UTC");
+  it("reads the date as written rather than through a timezone", () => {
+    expect(formatWeekStart("2026-07-16")).toBe("July 16");
+    expect(formatWeekStart("2026-01-01")).toBe("January 1");
+    expect(formatWeekStart("2026-12-31")).toBe("December 31");
   });
 
-  it("does not stamp a reset time onto something it could not parse", () => {
+  it("passes anything it cannot parse straight through rather than inventing a date", () => {
     expect(formatWeekStart("not-a-date")).toBe("not-a-date");
     expect(formatWeekStart("")).toBe("");
+    expect(formatWeekStart("2026-13-01")).toBe("2026-13-01");
   });
 });

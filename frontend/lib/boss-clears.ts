@@ -33,15 +33,30 @@ export function formatPeriod(iso: string): string {
   return `${day} ${MONTHS[month - 1]}`;
 }
 
+const MONTH_NAMES = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+];
+
 /**
- * "2026-07-16" -> "16 Jul 00:00 UTC", the instant the week actually began.
+ * "2026-07-16" -> "July 16", the day the week reset.
  *
- * A week start is a date in UTC, and for a viewer in another zone that date alone is ambiguous:
- * "16 Jul" starts on the 15th in Los Angeles. Naming the zone is the difference between a label you
- * can check a clear against and one you have to guess at. The time is a constant because the weekly
- * reset is midnight UTC (see BossPeriod.kt), so if that ever moves this string moves with it.
+ * The date is UTC (midnight Thursday, see BossPeriod.kt) and is shown unconverted, so a viewer
+ * behind UTC reads the week's real start rather than their own local one. Hand-parsed for the same
+ * reason as formatPeriod.
  */
 export function formatWeekStart(iso: string): string {
-  const formatted = formatPeriod(iso);
-  return formatted === iso ? iso : `${formatted} 00:00 UTC`;
+  const [, month, day] = iso.split("-").map(Number);
+  if (!month || !day || month < 1 || month > MONTH_NAMES.length) return iso;
+  return `${MONTH_NAMES[month - 1]} ${day}`;
 }
