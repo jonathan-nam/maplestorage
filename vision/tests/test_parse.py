@@ -811,7 +811,7 @@ def test_the_bar_fix_holds_at_every_capture_scale(capture_scale, quality):
     them, which predates the bar fix and is safe, no HUD means no character rather than a
     wrong one. What must never come back is a name that is confidently wrong.
     """
-    img = cv2.imread(f"{REF}/hud-warrior2020.png")
+    img = cv2.imread(f"{HUD}/hud-warrior2020.png")
     assert img is not None
     img = cv2.resize(img, None, fx=capture_scale, fy=capture_scale, interpolation=cv2.INTER_CUBIC)
     if quality is not None:
