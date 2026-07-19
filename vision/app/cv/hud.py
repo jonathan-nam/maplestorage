@@ -213,18 +213,35 @@ def find_hud(img: np.ndarray, scale: float = 1.0) -> Hud | None:
 # Retuning the crop does not help, that fixed `mechyfechy` and this broke on the very next
 # name.
 #
-# But the client's glyphs are not actually ambiguous, only Tesseract's reading of them is:
+# The only reliable pixel signal is the '1' flag: a '1' carries a flag at the top left, so
+# its top is clearly wider than its middle. Measured on the real capture at 1.33x, 4px
+# across the top against 2px in the middle, a ratio of 2.0.
 #
-#     'i'  dot over a stem, so TWO vertical components with a gap
-#     'l'  a bare bar, as wide at the top as in the middle
-#     '1'  a bar with a flag at the top left, so the top is clearly wider
+# So this ONLY ever rewrites a bar to '1'. It used to also decide 'i' vs 'l' from the gap
+# between an 'i' dot and its stem, and that was wrong in the one direction that matters: a
+# dot which anti-aliasing or JPEG has merged into the stem is pixel-identical to an 'l'. On
+# `warrior2020` Tesseract read the name CORRECTLY at every scale and this function broke it
+# to `warrlor2020`. Absence of a gap is not evidence of an 'l'.
 #
-# Measured on the real capture at 1.33x: the '1' is 4px wide at the top and 2px in the
-# middle. So decide it from the pixels rather than from the language model, but ONLY for
-# these three characters. Everything else Tesseract says is left exactly as it was.
+# The flag alone is not enough either. At 1.5x that same merged dot mimics it exactly, both
+# glyphs measuring 4px across the top against 2px in the middle, so `warrior2020` became
+# `warr1or2020`. The row profiles do differ ('1' rises 2,3,4,3,2 along the diagonal, the
+# merged dot jumps 2,4,3,2) but that is one sample of each, and fitting a discriminator to
+# it would be a guess dressed as a measurement.
+#
+# So a rewrite needs the pixels AND the name to agree: the flag must be there, and the bar
+# must sit next to another digit. A lone '1' amid letters stays whatever Tesseract said.
+# That gives up a real repair rather than risk a wrong name, which is the trade this
+# parser makes everywhere else.
 BAR_CHARS = "1lI|i"
 NARROW = 0.55  # of the median glyph width; a bar is far narrower than a letter
 FLAG_RATIO = 1.5  # top wider than middle by this much is the '1' flag, measured 2.0
+
+# Of the median glyph height. Background specks get segmented as very narrow boxes and so
+# look like bars: on `warrior2020` a 1px-tall speck matched the single 'i' Tesseract had
+# read, passed the count check below, and crashed _is_one on an empty middle band. Real
+# bars measure 1.0 to 1.21 of the median height, specks 0.1.
+MIN_BAR_HEIGHT = 0.5
 
 
 def _glyph_boxes(ink: np.ndarray) -> list[tuple[int, int]]:
@@ -242,22 +259,22 @@ def _glyph_boxes(ink: np.ndarray) -> list[tuple[int, int]]:
     return out
 
 
-def _classify_bar(glyph: np.ndarray) -> str:
+def _is_one(glyph: np.ndarray) -> bool:
+    """True only when the glyph positively carries the '1' flag."""
     rows = np.where(glyph.sum(1) > 0)[0]
     if not len(rows):
-        return "l"
+        return False
     g = glyph[rows.min() : rows.max() + 1]
-    filled = (g.sum(1) > 0).astype(int)
-    if int(np.sum(np.abs(np.diff(np.r_[0, filled, 0])))) // 2 >= 2:
-        return "i"  # a gap between dot and stem
     h = g.shape[0]
-    top = int(g[: max(h // 3, 1)].sum(1).max())
-    mid = int(g[h // 3 : 2 * h // 3].sum(1).max())
-    return "1" if mid and top >= FLAG_RATIO * mid else "l"
+    top, mid = g[: max(h // 3, 1)], g[h // 3 : 2 * h // 3]
+    if not top.size or not mid.size:
+        return False
+    m = int(mid.sum(1).max())
+    return bool(m and int(top.sum(1).max()) >= FLAG_RATIO * m)
 
 
 def _fix_bars(line: np.ndarray, name: str) -> str:
-    """Re-decide the 1/l/i characters of `name` from the pixels. Unchanged if unsure.
+    """Rewrite the 1/l/i characters of `name` to '1' where the pixels say so. Unchanged if unsure.
 
     Alignment is deliberately partial. Segmenting the name does not always yield one box per
     letter ('ff' merges into one on the very capture this was written for), so matching the
@@ -295,12 +312,26 @@ def _fix_bars(line: np.ndarray, name: str) -> str:
     boxes = _glyph_boxes(ink[:, x0:x1])
     if not boxes:
         return name
-    widths = [b - a for a, b in boxes]
-    bars = [(a, b) for a, b in boxes if (b - a) <= NARROW * float(np.median(widths))]
+
+    def height(a: int, b: int) -> int:
+        rows = np.where(ink[:, x0 + a : x0 + b].sum(1) > 0)[0]
+        return int(rows.max() - rows.min() + 1) if len(rows) else 0
+
+    med_w = float(np.median([b - a for a, b in boxes]))
+    med_h = float(np.median([height(a, b) for a, b in boxes]))
+    bars = [
+        (a, b)
+        for a, b in boxes
+        if (b - a) <= NARROW * med_w and height(a, b) >= MIN_BAR_HEIGHT * med_h
+    ]
     if len(bars) != len(hits):
         return name  # cannot say which box is which; leave Tesseract's answer alone
 
     out = list(name)
     for idx, (a, b) in zip(hits, bars):
-        out[idx] = _classify_bar(ink[:, x0 + a : x0 + b])
+        beside_digit = any(
+            name[j].isdigit() for j in (idx - 1, idx + 1) if 0 <= j < len(name) and j not in hits
+        )
+        if beside_digit and _is_one(ink[:, x0 + a : x0 + b]):
+            out[idx] = "1"
     return "".join(out)

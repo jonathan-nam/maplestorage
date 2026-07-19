@@ -809,6 +809,53 @@ def test_hud_reads_at_every_capture_scale(capture_scale):
     assert hud.level == 287
 
 
+@pytest.mark.parametrize("capture_scale", [1.0, 1.1, 1.25, 1.5, 2.0])
+@pytest.mark.parametrize("quality", [None, 92])
+def test_a_correctly_read_name_is_not_broken_by_the_bar_fixer(capture_scale, quality):
+    """`warrior2020` was saved as `warrlor2020`, and Tesseract was not at fault.
+
+    It read the name correctly at every scale here. _fix_bars then rewrote the 'i' to an
+    'l', because it treated "no gap between dot and stem" as evidence of an 'l' when a
+    merged dot is pixel-identical to one. At native scale it did worse and crashed, a 1px
+    background speck having been segmented as the bar.
+
+    So this pins the direction of the repair, not just the answer: the bar fixer may only
+    ever rewrite TO '1', on positive evidence of the flag. Both encodings and every scale,
+    because the crash and the misread appeared at different ones.
+    """
+    img = cv2.imread(f"{REF}/hud-warrior2020.png")
+    assert img is not None
+    if capture_scale != 1.0:
+        img = cv2.resize(
+            img, None, fx=capture_scale, fy=capture_scale, interpolation=cv2.INTER_CUBIC
+        )
+    if quality is not None:
+        img = cv2.imdecode(
+            cv2.imencode(".jpg", img, [cv2.IMWRITE_JPEG_QUALITY, quality])[1], cv2.IMREAD_COLOR
+        )
+
+    hud = find_hud(img, scale=capture_scale)
+
+    # Not asserted to be found at every scale: this capture's anchor is missed at some of
+    # them, which predates the bar fixer and is safe, no HUD means no character rather than
+    # a wrong one. What must never happen is a name that is confidently wrong.
+    if hud is not None:
+        assert hud.name == "warrior2020", f"misread at {capture_scale}x: {hud.name!r}"
+        assert hud.level == 286
+
+
+def test_the_bar_fixer_does_not_break_a_name_at_native_scale():
+    """The scale the crash came in at: _fix_bars died on a 1px speck and the HUD went null."""
+    img = cv2.imread(f"{REF}/hud-warrior2020.png")
+    assert img is not None
+
+    hud = find_hud(img, scale=1.0)
+
+    assert hud is not None
+    assert hud.name == "warrior2020"
+    assert hud.level == 286
+
+
 # --- an obscured inventory -------------------------------------------------
 #
 # Coverage detection itself is pinned in test_coverage.py. These pin what the ROUTE does with it,
