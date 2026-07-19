@@ -133,7 +133,7 @@ export function PlannerDock({
   return (
     <section className="dock planner-dock">
       <div className="planner-pick">
-        <span className="planner-pick-label">Upload Planner</span>
+        <span className="planner-pick-label">Upload your Maple Planner</span>
         <CharacterPicker
           characters={characters}
           selectedId={selectedCharacterId}
