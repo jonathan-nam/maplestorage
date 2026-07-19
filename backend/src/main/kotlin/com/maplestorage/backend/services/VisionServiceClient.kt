@@ -69,6 +69,7 @@ private data class VisionResult(
     val bossClears: List<VisionBossClear>? = null,
     val reachedListEnd: Boolean? = null,
     val unreadableBossRows: Int? = null,
+    val inventoryComplete: Boolean? = null,
 )
 
 @Serializable
@@ -146,6 +147,7 @@ class VisionServiceClient(
                 bossClears = body.bossClears?.map { DetectedBossClear(it.bossKey, it.cleared) },
                 reachedListEnd = body.reachedListEnd,
                 unreadableBossRows = body.unreadableBossRows,
+                inventoryComplete = body.inventoryComplete,
             )
         return ScreenshotParseOutcome.Parsed(result = result)
     }

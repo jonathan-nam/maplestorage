@@ -61,6 +61,40 @@ class VisionServiceClientTest {
             )
         }
 
+    // The flag that lets ingestion clear a vanished item. It was served by
+    // vision and dropped here for want of a DTO field, and ignoreUnknownKeys
+    // meant nothing complained: 50 Kaling pieces survived a capture with none.
+    // Any new field vision serves needs a case like this one.
+    @Test
+    fun `carries inventoryComplete through from the wire`() =
+        runTest {
+            val outcome =
+                ok(
+                    """
+                    {"screenshotType":"INVENTORY",
+                     "characterHud":{"name":"mechyfechy","level":291},
+                     "tokenCounts":[{"tokenName":"kalos-token","quantity":21,"iconScore":0.964}],
+                     "inventoryComplete":true}
+                    """.trimIndent(),
+                ).parseScreenshot(ByteArray(8), "image/jpeg")
+
+            val parsed = assertIs<ScreenshotParseOutcome.Parsed>(outcome)
+            assertEquals(true, parsed.result.inventoryComplete)
+        }
+
+    // Absent means "not known to be complete", which must stay null rather than
+    // collapsing to false, since ingestion distinguishes them.
+    @Test
+    fun `an absent inventoryComplete stays null`() =
+        runTest {
+            val outcome =
+                ok("""{"screenshotType":"INVENTORY","characterHud":null,"tokenCounts":[]}""")
+                    .parseScreenshot(ByteArray(8), "image/png")
+
+            val parsed = assertIs<ScreenshotParseOutcome.Parsed>(outcome)
+            assertNull(parsed.result.inventoryComplete)
+        }
+
     // The parse is deterministic, so cost accounting must land at zero rather
     // than at whatever the last vision call happened to cost.
     @Test
