@@ -6,22 +6,24 @@ import type { Character } from "@/types/character";
 
 // Bosses on the ROWS, characters on the columns.
 //
-// The other way round does not fit: 19 bosses against a 794px column leaves ~36px per boss, which
+// The other way round does not fit: 17 bosses against a 794px column leaves ~47px per boss, which
 // is not enough for a name and forces rotated headers. Characters are the smaller axis for almost
 // everyone, and it is also how the same information is kept by hand today (reference-images/boss
 // matrix.png), so the layout matches how it is already read.
 
 // The planner itself groups by cadence (MONTHLY / WEEKLY / DAILY, see reference-images/boss
 // planner.png), and the grouping is load-bearing here rather than decorative: two bosses in one
-// matrix are not counting the same span of time, and a check under DAILY means something quite
-// different from a check under MONTHLY.
+// matrix are not counting the same span of time, and a check under MONTHLY means something quite
+// different from a check under WEEKLY. DAILY stays in the order though the tracker no longer keeps
+// dailies: the list is filtered to the cadences actually present, so it costs nothing and is what
+// this would need if they ever come back.
 const CADENCE_ORDER = ["MONTHLY", "WEEKLY", "DAILY"];
 
 // On a cold load neither the catalog nor the roster has arrived, so the loading state has nothing
-// real to lay out. These stand in: the shape is right (one monthly, a run of weeklies, two dailies,
-// which is what the catalog actually looks like) even though the exact counts are not known client
-// side until /api/bosses answers. Being a row or two out for one round-trip is a cosmetic
-// difference; rendering an empty table is not.
+// real to lay out. These stand in: the shape is right (one monthly and a run of weeklies, which is
+// what the catalog actually looks like) even though the exact counts are not known client side
+// until /api/bosses answers. Being a row or two out for one round-trip is a cosmetic difference;
+// rendering an empty table is not.
 const SKELETON_BOSSES: Boss[] = [
   { bossKey: "sk-monthly", name: "", reset: "MONTHLY" },
   ...Array.from({ length: 8 }, (_, i) => ({
@@ -29,7 +31,6 @@ const SKELETON_BOSSES: Boss[] = [
     name: "",
     reset: "WEEKLY",
   })),
-  ...Array.from({ length: 2 }, (_, i) => ({ bossKey: `sk-daily-${i}`, name: "", reset: "DAILY" })),
 ];
 
 const SKELETON_CHARACTERS = Array.from({ length: 4 }, (_, i) => ({

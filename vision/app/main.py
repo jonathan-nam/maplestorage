@@ -41,7 +41,7 @@ from app.cv.hud import find_hud
 from app.cv.match import load_templates
 from app.cv.ocr import load_font, read_count
 from app.cv.pipeline import MIN_PITCH, looks_like_inventory_window, normalize
-from app.cv.planner import BOSS_KEY_BY_NAME, PlannerResult, load_state_glyphs, parse_planner
+from app.cv.planner import TRACKED_BOSS_KEY_BY_NAME, PlannerResult, load_state_glyphs, parse_planner
 
 log = logging.getLogger("vision")
 
@@ -71,7 +71,7 @@ class CharacterHud(BaseModel):
 class BossClear(BaseModel):
     # The catalog KEY, not the name: the name is what was on screen, the key is what the
     # backend keys a clear on. Resolved once, against the same generated catalog the reader
-    # matched the name from. See planner.BOSS_KEY_BY_NAME.
+    # matched the name from. See planner.TRACKED_BOSS_KEY_BY_NAME.
     bossKey: str
     cleared: bool
 
@@ -127,19 +127,26 @@ def health() -> dict:
         "status": "ok",
         "tokens": len(TOKENS),
         "digits": len(FONT),
-        "bosses": len(BOSS_KEY_BY_NAME),
+        "bosses": len(TRACKED_BOSS_KEY_BY_NAME),
     }
 
 
 def _boss_clears(res: PlannerResult) -> tuple[list[BossClear], int]:
     """Planner rows as (clears, unreadable count). A row whose name did not resolve has no key
-    to report, so it is counted rather than emitted, and never simply forgotten."""
+    to report, so it is counted rather than emitted, and never simply forgotten.
+
+    A row that resolved to an UNTRACKED boss (the dailies) is neither: it was read fine and the
+    tracker just does not keep it, so it must not inflate the unreadable count, which is what
+    warns the user the parse may have missed something.
+    """
     clears, unreadable = [], 0
     for row in res.rows:
         if row.boss is None:
             unreadable += 1
             continue
-        clears.append(BossClear(bossKey=BOSS_KEY_BY_NAME[row.boss], cleared=row.cleared))
+        key = TRACKED_BOSS_KEY_BY_NAME.get(row.boss)
+        if key is not None:
+            clears.append(BossClear(bossKey=key, cleared=row.cleared))
     return clears, unreadable
 
 

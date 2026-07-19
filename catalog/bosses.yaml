@@ -18,6 +18,12 @@
 # which period a clear counts against), and it matches how the planner groups these under its
 # MONTHLY/WEEKLY/DAILY headers. It is NOT difficulty: difficulty is deliberately not tracked, a
 # player sets a planner difficulty independent of what they actually clear.
+#
+# `tracked` (default true) says whether the tracker keeps clears for this boss. An untracked boss
+# stays listed here on purpose: its row is still ON the planner, so the reader must still be able
+# to name it. Drop the entry outright and that row matches nothing, which counts as an UNREADABLE
+# row rather than an ignored one, and an unreadable row is what makes the parse warn the user that
+# it may have missed something. Untracked bosses are seeded into no table and drawn in no matrix.
 
 bosses:
   # --- Weekly -----------------------------------------------------------------------
@@ -75,10 +81,15 @@ bosses:
     name: Black Mage
     reset: MONTHLY
 
-  # --- Daily ------------------------------------------------------------------------
+  # --- Daily (not tracked) ------------------------------------------------------------
+  # The tracker is weekly-and-up. Dailies reset before a once-a-day capture can say anything
+  # useful about them, so a daily column reports the state of one arbitrary moment. They stay
+  # here, untracked, only so the reader can still name their planner rows. See `tracked` above.
   - key: zakum
     name: Zakum
     reset: DAILY
+    tracked: false
   - key: gollux
     name: Gollux
     reset: DAILY
+    tracked: false

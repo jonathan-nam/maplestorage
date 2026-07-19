@@ -23,9 +23,7 @@ FROM (VALUES
     ('limbo', 'Limbo', 'WEEKLY', 13),
     ('baldrix', 'Baldrix', 'WEEKLY', 14),
     ('akechi-mitsuhide', 'Akechi Mitsuhide', 'WEEKLY', 15),
-    ('black-mage', 'Black Mage', 'MONTHLY', 16),
-    ('zakum', 'Zakum', 'DAILY', 17),
-    ('gollux', 'Gollux', 'DAILY', 18)
+    ('black-mage', 'Black Mage', 'MONTHLY', 16)
 ) AS v (boss_key, name, reset, sort_order)
 LEFT JOIN boss_catalog existing ON existing.boss_key = v.boss_key
 ON CONFLICT (boss_key) DO UPDATE SET

@@ -143,14 +143,18 @@ class BossClearsTest {
     fun `bosses on different cadences are all current at the same instant`() =
         transaction {
             // The bug this guards: filtering on ONE period_start. midWeek is a Saturday, so the
-            // weekly period started on the 16th and the daily one started on the 18th. A single
-            // date would return one cadence and silently drop the other.
+            // weekly period started on the 16th and the monthly one on the 1st. A single date
+            // would return one cadence and silently drop the other.
+            //
+            // Two cadences, not three: the dailies were dropped from the catalog (see
+            // V14__drop_daily_bosses.sql), so there is no DAILY boss to key a clear on. The guard
+            // does not weaken, it needs only that the periods differ. BossPeriodTest still covers
+            // DAILY itself, which BossPeriod keeps resolving.
             val character = addCharacter(userOneId, "Mixed")
             upsertBossClears(
                 character,
                 listOf(
                     DetectedBossClear("lotus", true), // WEEKLY
-                    DetectedBossClear("zakum", true), // DAILY
                     DetectedBossClear("black-mage", false), // MONTHLY
                 ),
                 addScreenshot(userOneId),
@@ -158,10 +162,9 @@ class BossClearsTest {
             )
 
             val clears = currentBossClearsFor(userOneId, midWeek).getValue(character.toString())
-            assertEquals(setOf("lotus", "zakum", "black-mage"), clears.map { it.bossKey }.toSet())
+            assertEquals(setOf("lotus", "black-mage"), clears.map { it.bossKey }.toSet())
             val byKey = clears.associateBy { it.bossKey }
             assertEquals("2026-07-16", byKey.getValue("lotus").periodStart)
-            assertEquals("2026-07-18", byKey.getValue("zakum").periodStart)
             assertEquals("2026-07-01", byKey.getValue("black-mage").periodStart)
         }
 
