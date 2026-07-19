@@ -509,6 +509,37 @@ def test_display_digit_is_filled_to_its_baseline(f):
     assert white.any(), f"{Path(f).name}: no fill below row 7, the digit tails off into outline"
 
 
+def _outline(px):
+    return (px[:, :, 3] > 0) & (px[:, :, :3].sum(axis=2) < 300)
+
+
+# 0 is excluded: its cut template carries background bleed down both edges (51 of 88 pixels differ,
+# and no integer shift fixes it), so it cannot referee anything. See the test below for how 0 is
+# pinned instead.
+@pytest.mark.parametrize("d", "123456789")
+def test_display_digit_outline_matches_the_parser_template(d):
+    """Both are cut from the same client glyph, so their outlines must agree pixel for pixel."""
+    sprite = _outline(cv2.imread(str(_DIGITS / f"{d}.png"), cv2.IMREAD_UNCHANGED))
+    template = cv2.imread(str(_CV / "templates" / f"digit_{d}.png"), cv2.IMREAD_UNCHANGED)
+    template = template[:, :, :3].sum(axis=2) < 300
+    assert np.array_equal(sprite, template), f"{d}.png: outline has drifted from digit_{d}.png"
+
+
+def test_display_zero_shares_its_bowl_with_eight():
+    """0 and 8 are the same round bowl in this face, capped top and bottom identically.
+
+    0 is the one glyph drawn by hand rather than cut by the generator, and the hand-drawn version
+    left (2,2), (5,2), (2,8) and (5,8) white. That reopened the counter at both shoulders, so 0 read
+    a size larger than the digits beside it. All four are outline in the client's own pixels, in
+    every occurrence of 0 in reference-images/untradeables sample.png."""
+    zero = cv2.imread(str(_DIGITS / "0.png"), cv2.IMREAD_UNCHANGED)
+    eight = cv2.imread(str(_DIGITS / "8.png"), cv2.IMREAD_UNCHANGED)
+    for rows in (slice(0, 3), slice(8, 11)):
+        assert np.array_equal(zero[rows], eight[rows]), (
+            f"0.png rows {rows.start}-{rows.stop - 1} differ from 8.png"
+        )
+
+
 # --- catalog scaling -------------------------------------------------------
 
 
