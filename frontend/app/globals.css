@@ -1609,6 +1609,20 @@ button.link:disabled {
   background: var(--surface-2);
 }
 
+/* The column band, the same weight as the row band so neither reads as the answer on its own: a
+   mark is identified by the pair, and pointing at one is what says which pair. Driven from React
+   (boss-matrix.tsx), since CSS has no selector for "cell in the hovered column". */
+.boss-table .boss-cell.is-col-hover,
+.boss-table .boss-char-head.is-col-hover {
+  background: var(--surface-2);
+}
+
+/* Where the two bands cross is the cell under the cursor, so it takes a step above both. Using a
+   line token as a surface: it is the next value up from --surface-2 and there is no --surface-3. */
+.boss-table tbody tr:not(.boss-cadence-row):hover .boss-cell.is-col-hover {
+  background: var(--line-soft);
+}
+
 .boss-col-head,
 .boss-char-head {
   padding: 6px 8px;
