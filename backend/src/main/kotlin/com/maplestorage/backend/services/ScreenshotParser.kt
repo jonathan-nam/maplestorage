@@ -55,6 +55,11 @@ data class ScreenshotParseResult(
     // without this the top of an all-cleared list reads as "everything cleared" while the bosses
     // below the fold are still pending. Best-effort, see vision's planner.parse_planner.
     val reachedListEnd: Boolean? = null,
+    // Was every inventory slot in frame, unobscured, and its count readable? Only then does an
+    // item's absence from tokenCounts mean the player holds none, and only then may ingest clear
+    // a count it did not hear about. Null or false means "cannot tell gone from not seen", and
+    // the safe reading is to leave existing counts alone. See vision's cv/grid.coverage.
+    val inventoryComplete: Boolean? = null,
     // Rows the reader found but could not name. Never silently dropped: a dropped row would read
     // as "not cleared", which is a plausible wrong answer of exactly the kind this project exists
     // to prevent, so it reaches the user as "re-capture".
