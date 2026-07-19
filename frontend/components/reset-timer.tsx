@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { formatCountdown, msUntil, serverNowMs } from "@/lib/reset-countdown";
 
-// Weekly leads because 16 of the 19 bosses are weekly; monthly follows it, smaller. Daily is
+// Weekly leads because 15 of the 16 tracked bosses are weekly; monthly follows it, smaller. Daily is
 // deliberately absent: it rolls over every night, so a clock on it tells you nothing you would
 // plan around.
 const TIMER_ORDER = ["WEEKLY", "MONTHLY"] as const;

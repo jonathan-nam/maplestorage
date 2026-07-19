@@ -437,9 +437,10 @@ def test_garbage_body_is_a_400():
 
 # sample 2 is a planner alone, no inventory behind it.
 #
-# Shorter than the rows the reader finds: the capture ends with a Zakum and a Gollux row, both
-# read fine, and both dropped here because the dailies are untracked. test_planner.SAMPLE2_TRUTH
-# is the full row list. See test_untracked_daily_rows_are_ignored_not_unreadable.
+# Shorter than the rows the reader finds: Akechi Mitsuhide and the trailing Zakum and Gollux rows
+# all read fine, and all three are dropped here because they are untracked.
+# test_planner.SAMPLE2_TRUTH is the full row list. See
+# test_untracked_rows_are_ignored_not_unreadable.
 SAMPLE2_CLEARS = [
     ("darknell", True),
     ("chosen-seren", True),
@@ -448,7 +449,6 @@ SAMPLE2_CLEARS = [
     ("kaling", False),
     ("malefic-star", False),
     ("limbo", True),
-    ("akechi-mitsuhide", False),
     ("black-mage", False),
 ]
 
@@ -470,20 +470,22 @@ def test_planner_rows_all_resolve_to_a_key():
     assert body["unreadableBossRows"] == 0
 
 
-def test_untracked_daily_rows_are_ignored_not_unreadable():
-    """Dropping the dailies must not look like a failed read.
+def test_untracked_rows_are_ignored_not_unreadable():
+    """Dropping an untracked boss must not look like a failed read.
 
-    The two daily rows are still on this capture. An ignored row and an unreadable one are
-    opposite claims: unreadable tells the user to re-capture, and inflating it here would raise
-    that warning on every clean planner shot. So the rows must vanish from bossClears while
-    unreadableBossRows stays 0.
+    The two daily rows and the Akechi Mitsuhide row are still on this capture. An ignored row and
+    an unreadable one are opposite claims: unreadable tells the user to re-capture, and inflating
+    it here would raise that warning on every clean planner shot. So the rows must vanish from
+    bossClears while unreadableBossRows stays 0.
     """
     body = _parse(f"{REF}/boss clear menu sample 2.png").json()
     keys = [c["bossKey"] for c in body["bossClears"]]
     assert "zakum" not in keys and "gollux" not in keys
+    assert "akechi-mitsuhide" not in keys
     assert body["unreadableBossRows"] == 0
     # The reader still FOUND them; they are dropped downstream, not missed.
     assert planner_mod.BOSS_NAMES.count("Zakum") == 1
+    assert planner_mod.BOSS_NAMES.count("Akechi Mitsuhide") == 1
 
 
 def test_planner_isolated_panel_reaches_the_list_end():
