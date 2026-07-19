@@ -8,9 +8,13 @@ import { UserAvatar } from "@/components/user-avatar";
 
 // Every page used to restate the app's name in its own <h1> and link to the others
 // by hand. One header instead, with the Sharp Eyes mark.
-// reserveControls: a session cookie was present at request time, so the signed-in controls are
-// about to appear and their boxes are held open until Clerk confirms it. See RootLayout.
-export function SiteHeader({ reserveControls }: { reserveControls: boolean }) {
+//
+// The .header-reserved boxes hold the signed-in controls' space until Clerk confirms the session,
+// so the real control fades into space that was already there rather than shifting the brand.
+// They are always rendered; CSS decides whether they take space, keyed off the class the inline
+// script in RootLayout sets from the session cookie before first paint. That was a `reserveControls`
+// prop from a cookies() read, which cost the whole app static rendering.
+export function SiteHeader() {
   return (
     <header className="site-header">
       {/* The bar is full-bleed, the inner wrapper carries the shared column, so the brand lines up
@@ -26,28 +30,24 @@ export function SiteHeader({ reserveControls }: { reserveControls: boolean }) {
 
         {/* Sections open from a hamburger just right of the brand. Signed-in only: they are
             account views. */}
-        {reserveControls && (
-          <ClerkLoading>
-            <div className="section-menu" aria-hidden="true">
-              <div className="section-menu-btn is-reserved">
-                <span className="section-menu-icon" />
-              </div>
+        <ClerkLoading>
+          <div className="section-menu header-reserved" aria-hidden="true">
+            <div className="section-menu-btn is-reserved">
+              <span className="section-menu-icon" />
             </div>
-          </ClerkLoading>
-        )}
+          </div>
+        </ClerkLoading>
         <SignedIn>
           <SectionMenu />
         </SignedIn>
 
-        {reserveControls && (
-          <ClerkLoading>
-            <div className="site-user" aria-hidden="true">
-              <div className="user-avatar">
-                <div className="user-avatar-btn is-reserved" />
-              </div>
+        <ClerkLoading>
+          <div className="site-user header-reserved" aria-hidden="true">
+            <div className="user-avatar">
+              <div className="user-avatar-btn is-reserved" />
             </div>
-          </ClerkLoading>
-        )}
+          </div>
+        </ClerkLoading>
         <SignedIn>
           <div className="site-user">
             <UserAvatar />
