@@ -1,14 +1,23 @@
 "use client";
 
 import { useState } from "react";
-import { FEE_MVP, FEE_STANDARD, parseMesos, type SplitMethod, splitDrop } from "@/lib/drop-split";
+import {
+  type AmountBasis,
+  explainSplit,
+  FEE_MVP,
+  FEE_STANDARD,
+  parseMesos,
+  type SplitInput,
+  type SplitMethod,
+  splitDrop,
+} from "@/lib/drop-split";
 
 const MAX_PARTY = 6;
 
 const mesos = (n: number) => n.toLocaleString("en-US");
 const percent = (fee: number) => `${(fee * 100).toFixed(0)}%`;
 
-/** The 3% / 5% pair. MVP is the cheaper rate, so the label says which is which once, up top. */
+/** The 3% / 5% pair. MVP is the cheaper rate, so the intro says which is which once. */
 function FeeChoice({
   name,
   value,
@@ -32,6 +41,7 @@ function FeeChoice({
 
 export default function DropSplitPage() {
   const [price, setPrice] = useState("");
+  const [amountIs, setAmountIs] = useState<AmountBasis>("listed");
   const [partySize, setPartySize] = useState(6);
   const [method, setMethod] = useState<SplitMethod>("fair");
   const [sellerFee, setSellerFee] = useState(FEE_MVP);
@@ -49,8 +59,10 @@ export default function DropSplitPage() {
 
   // Null while the price is empty or unreadable. Showing nothing beats showing a split derived
   // from half a typed number.
-  const salePrice = parseMesos(price);
-  const split = salePrice === null ? null : splitDrop({ salePrice, sellerFee, memberFees, method });
+  const amount = parseMesos(price);
+  const input: SplitInput | null =
+    amount === null ? null : { amount, amountIs, sellerFee, memberFees, method };
+  const split = input === null ? null : splitDrop(input);
 
   const uniformPay =
     split !== null &&
@@ -68,22 +80,48 @@ export default function DropSplitPage() {
       </p>
 
       <div className="split-form">
-        <label className="split-field">
-          <span>Listed price</span>
+        <div className="split-field">
+          <span className="basis-row">
+            {(
+              [
+                ["listed", "Listed price"],
+                ["received", "What I received"],
+              ] as const
+            ).map(([value, label]) => (
+              <label key={value} className={amountIs === value ? "basis-tab active" : "basis-tab"}>
+                <input
+                  type="radio"
+                  name="basis"
+                  checked={amountIs === value}
+                  onChange={() => setAmountIs(value)}
+                />
+                {label}
+              </label>
+            ))}
+          </span>
           <input
             className="split-input"
             value={price}
             onChange={(e) => setPrice(e.target.value)}
             placeholder="e.g. 9.5b, 970m, 1,000,000,000"
             inputMode="text"
+            aria-label={amountIs === "listed" ? "Listed price" : "Amount received"}
             autoFocus
           />
-          {/* Gross, not net. "Sold for" read either way, and the two differ by a whole fee. */}
           <span className="split-hint">
-            What the item was listed at, before the fee.
-            {split ? <> You received {mesos(split.sellerReceives)}.</> : null}
+            {amountIs === "listed" ? (
+              <>
+                What the item was listed at, before the fee.
+                {split ? <> You received {mesos(split.sellerReceives)}.</> : null}
+              </>
+            ) : (
+              <>
+                What actually landed in your inventory. Your own fee is already spent, so it does
+                not affect the split.
+              </>
+            )}
           </span>
-        </label>
+        </div>
 
         <label className="split-field">
           <span>Party size (including you)</span>
@@ -101,10 +139,13 @@ export default function DropSplitPage() {
 
         <fieldset className="split-field">
           <legend>Auction House fee</legend>
-          <div className="fee-row">
-            <span className="fee-who">Yours, on the sale</span>
-            <FeeChoice name="seller-fee" value={sellerFee} onChange={setSellerFee} />
-          </div>
+          {/* Only shown on a listed price: on a received figure there is nothing for it to do. */}
+          {amountIs === "listed" && (
+            <div className="fee-row">
+              <span className="fee-who">Yours, on the sale</span>
+              <FeeChoice name="seller-fee" value={sellerFee} onChange={setSellerFee} />
+            </div>
+          )}
 
           {others > 0 && !individual && (
             <div className="fee-row">
@@ -169,13 +210,13 @@ export default function DropSplitPage() {
         </fieldset>
       </div>
 
-      {price.trim() !== "" && salePrice === null && (
+      {price.trim() !== "" && amount === null && (
         <p className="split-error">
           Couldn&apos;t read that as an amount. Try 9.5b, 970m or 1,000,000,000.
         </p>
       )}
 
-      {split && (
+      {split && input && (
         <div className="split-result">
           <p className="split-headline">
             {others === 0 ? (
@@ -205,7 +246,7 @@ export default function DropSplitPage() {
             <tbody>
               <tr>
                 <td>You</td>
-                <td>{percent(sellerFee)}</td>
+                <td>{amountIs === "listed" ? percent(sellerFee) : "—"}</td>
                 <td className="split-dash">&mdash;</td>
                 <td>{mesos(split.sellerKeeps)}</td>
               </tr>
@@ -227,7 +268,11 @@ export default function DropSplitPage() {
               <dd>{mesos(split.sellerReceives)}</dd>
             </div>
             <div className="split-fee">
-              <dt>Lost to the Auction House</dt>
+              {/* Says which hops it covers: on a received figure the sale's fee is unknown. */}
+              <dt>
+                Lost to the Auction House
+                {split.totalFeeCoversSale ? "" : " (on the payouts)"}
+              </dt>
               <dd>{mesos(split.totalFee)}</dd>
             </div>
           </dl>
@@ -238,6 +283,19 @@ export default function DropSplitPage() {
               a second time. Switch to fair to even it out.
             </p>
           )}
+
+          <details className="split-math">
+            <summary>Show the math</summary>
+            <ol className="math-steps">
+              {explainSplit(input, split).map((step) => (
+                <li key={step.title}>
+                  <p className="math-title">{step.title}</p>
+                  <p className="math-formula">{step.formula}</p>
+                  <p className="math-substituted">{step.substituted}</p>
+                </li>
+              ))}
+            </ol>
+          </details>
         </div>
       )}
     </main>

@@ -1,12 +1,21 @@
 import { describe, expect, it } from "vitest";
-import { FEE_MVP, FEE_STANDARD, parseMesos, type SplitMethod, splitDrop } from "./drop-split";
+import {
+  explainSplit,
+  FEE_MVP,
+  FEE_STANDARD,
+  parseMesos,
+  type SplitInput,
+  type SplitMethod,
+  splitDrop,
+} from "./drop-split";
 
 const B = 1_000_000_000;
 
 /** Everyone on the same rate, the common case. */
 const flat = (salePrice: number, partySize: number, method: SplitMethod, fee = FEE_MVP) =>
   splitDrop({
-    salePrice,
+    amount: salePrice,
+    amountIs: "listed",
     sellerFee: fee,
     memberFees: Array.from({ length: partySize - 1 }, () => fee),
     method,
@@ -43,7 +52,8 @@ describe("a fair split leaves everyone holding the same", () => {
   // The reason rates are per member and not one value for the room.
   it("equalises a party of mixed MVP status", () => {
     const s = splitDrop({
-      salePrice: 9_500_000_000,
+      amount: 9_500_000_000,
+      amountIs: "listed",
       sellerFee: FEE_MVP,
       memberFees: [FEE_MVP, FEE_STANDARD, FEE_STANDARD, FEE_MVP, FEE_STANDARD],
       method: "fair",
@@ -70,7 +80,8 @@ describe("a lazy split quietly favours the seller", () => {
 
   it("shorts a standard-rate member more than an MVP one", () => {
     const s = splitDrop({
-      salePrice: B,
+      amount: B,
+      amountIs: "listed",
       sellerFee: FEE_MVP,
       memberFees: [FEE_MVP, FEE_STANDARD],
       method: "lazy",
@@ -100,7 +111,8 @@ describe("nothing is invented and nothing is lost", () => {
 
   it("accounts for every meso of the sale price, at mixed rates", () => {
     const s = splitDrop({
-      salePrice: B,
+      amount: B,
+      amountIs: "listed",
       sellerFee: FEE_STANDARD,
       memberFees: [FEE_MVP, FEE_STANDARD, FEE_MVP],
       method: "fair",
@@ -113,10 +125,22 @@ describe("nothing is invented and nothing is lost", () => {
 describe("it refuses rather than guesses", () => {
   it.each([1, 1.5, -0.01, Number.NaN])("rejects a fee of %s", (fee) => {
     expect(() =>
-      splitDrop({ salePrice: B, sellerFee: fee, memberFees: [FEE_MVP], method: "fair" }),
+      splitDrop({
+        amount: B,
+        amountIs: "listed",
+        sellerFee: fee,
+        memberFees: [FEE_MVP],
+        method: "fair",
+      }),
     ).toThrow(RangeError);
     expect(() =>
-      splitDrop({ salePrice: B, sellerFee: FEE_MVP, memberFees: [fee], method: "fair" }),
+      splitDrop({
+        amount: B,
+        amountIs: "listed",
+        sellerFee: FEE_MVP,
+        memberFees: [fee],
+        method: "fair",
+      }),
     ).toThrow(RangeError);
   });
 
@@ -151,4 +175,141 @@ describe("reading a price the way a player types it", () => {
       expect(parseMesos(input)).toBeNull();
     },
   );
+});
+
+describe("the worked math cannot disagree with the numbers", () => {
+  // The whole reason explainSplit derives from the split rather than restating the formula. An
+  // explanation that drifts from the figures above it is worse than no explanation: it is a
+  // confident wrong number with a proof attached.
+  const cases: SplitInput[] = [
+    {
+      amount: 9_500_000_000,
+      amountIs: "listed",
+      sellerFee: FEE_MVP,
+      memberFees: [FEE_MVP, FEE_STANDARD, FEE_MVP],
+      method: "fair",
+    },
+    {
+      amount: 9_500_000_000,
+      amountIs: "listed",
+      sellerFee: FEE_STANDARD,
+      memberFees: [FEE_MVP, FEE_STANDARD],
+      method: "lazy",
+    },
+    { amount: B, amountIs: "listed", sellerFee: FEE_MVP, memberFees: [], method: "fair" },
+    {
+      amount: 7,
+      amountIs: "listed",
+      sellerFee: FEE_STANDARD,
+      memberFees: [FEE_MVP, FEE_MVP],
+      method: "fair",
+    },
+  ];
+
+  it.each(cases)("quotes every figure it computed ($method)", (input) => {
+    const split = splitDrop(input);
+    const text = explainSplit(input, split)
+      .map((s) => s.substituted)
+      .join(" | ");
+
+    // Every payout, every net and the seller's keep must literally appear in the working.
+    expect(text).toContain(split.sellerReceives.toLocaleString("en-US"));
+    expect(text).toContain(split.sellerKeeps.toLocaleString("en-US"));
+    for (const m of split.members) {
+      expect(text).toContain(m.pay.toLocaleString("en-US"));
+      expect(text).toContain(m.nets.toLocaleString("en-US"));
+    }
+  });
+
+  it("shows the fair payout as X divided by what the member's fee leaves", () => {
+    const input: SplitInput = {
+      amount: 9_500_000_000,
+      amountIs: "listed",
+      sellerFee: FEE_MVP,
+      memberFees: [FEE_STANDARD],
+      method: "fair",
+    };
+    const split = splitDrop(input);
+    const steps = explainSplit(input, split);
+    const payout = steps.find((s) => s.title.startsWith("Send member 1"));
+    expect(payout?.formula).toBe("send = X / (1 - fee_i)");
+    expect(payout?.substituted).toContain(split.members[0]?.pay.toLocaleString("en-US"));
+  });
+
+  it("always ends on a check that balances against the listed price", () => {
+    const input = cases[0] as SplitInput;
+    const steps = explainSplit(input, splitDrop(input));
+    expect(steps.at(-1)?.title).toContain("Check");
+    expect(steps.at(-1)?.substituted).toContain(input.amount.toLocaleString("en-US"));
+  });
+});
+
+describe("entering what you received instead of the listed price", () => {
+  const received = (amount: number, memberFees: number[], method: SplitMethod = "fair") =>
+    splitDrop({ amount, amountIs: "received", sellerFee: FEE_MVP, memberFees, method });
+
+  it("hands out exactly what was entered, untouched by any sale fee", () => {
+    const s = received(970_000_000, [FEE_MVP, FEE_MVP]);
+    expect(s.sellerReceives).toBe(970_000_000);
+    expect(s.grossSale).toBeNull();
+  });
+
+  it("matches the listed-price path once the sale fee is applied by hand", () => {
+    // 1b listed at 3% IS 970m received, so the two routes must agree exactly.
+    const viaListed = splitDrop({
+      amount: B,
+      amountIs: "listed",
+      sellerFee: FEE_MVP,
+      memberFees: [FEE_MVP, FEE_STANDARD, FEE_MVP],
+      method: "fair",
+    });
+    const viaReceived = received(970_000_000, [FEE_MVP, FEE_STANDARD, FEE_MVP]);
+    expect(viaReceived.sellerKeeps).toBe(viaListed.sellerKeeps);
+    expect(viaReceived.members).toEqual(viaListed.members);
+  });
+
+  it("ignores the seller's own fee entirely, whatever it is set to", () => {
+    const at3 = splitDrop({
+      amount: 970_000_000,
+      amountIs: "received",
+      sellerFee: FEE_MVP,
+      memberFees: [FEE_STANDARD, FEE_MVP],
+      method: "fair",
+    });
+    const at5 = splitDrop({
+      amount: 970_000_000,
+      amountIs: "received",
+      sellerFee: FEE_STANDARD,
+      memberFees: [FEE_STANDARD, FEE_MVP],
+      method: "fair",
+    });
+    expect(at5).toEqual(at3);
+  });
+
+  it("does not invent a gross, and says its fee total covers the payouts only", () => {
+    const s = received(970_000_000, [FEE_MVP, FEE_STANDARD]);
+    expect(s.grossSale).toBeNull();
+    expect(s.totalFeeCoversSale).toBe(false);
+    // The fee it does report is exactly what the payout hop cost.
+    const netted = s.members.reduce((sum, m) => sum + m.nets, 0);
+    expect(s.sellerKeeps + netted + s.totalFee).toBe(s.sellerReceives);
+  });
+
+  it("still equalises a fair split", () => {
+    const s = received(9_215_000_000, [FEE_MVP, FEE_STANDARD, FEE_STANDARD, FEE_MVP, FEE_MVP]);
+    expect(spread(s)).toBeLessThanOrEqual(6);
+  });
+
+  it("says so in the working rather than quoting a sale it was never told about", () => {
+    const input: SplitInput = {
+      amount: 970_000_000,
+      amountIs: "received",
+      sellerFee: FEE_MVP,
+      memberFees: [FEE_MVP],
+      method: "fair",
+    };
+    const steps = explainSplit(input, splitDrop(input));
+    expect(steps[0]?.substituted).toContain("your own fee never enters the split");
+    expect(steps.at(-1)?.formula).toContain("payout fees = received");
+  });
 });
