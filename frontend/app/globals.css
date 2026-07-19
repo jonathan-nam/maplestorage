@@ -1489,3 +1489,181 @@ button.link:disabled {
 .finder-item-boss {
   color: var(--muted-2);
 }
+
+/* ---------------------------------------------------------------------------
+   Boss clears matrix
+
+   Bosses on the rows, characters on the columns. The other way round does not
+   fit: 19 bosses across a 794px column is ~36px each, too narrow for a name.
+   Grouped by reset cadence, the way the game's own planner groups them, because
+   a check under DAILY and a check under MONTHLY do not mean the same thing.
+   --------------------------------------------------------------------------- */
+
+/* The table can outgrow the column once a roster is wide, so it scrolls inside
+   itself rather than pushing the page sideways. */
+.boss-matrix {
+  overflow-x: auto;
+}
+
+/* Sized to its content, NOT to the column. Stretched to 100% the character columns spread to
+   the far edge and reading one boss's row meant tracking a tick across ~400px of empty space.
+   Hugging the content puts the marks beside the names; a wide roster grows it back out and the
+   container scrolls. */
+.boss-table {
+  width: auto;
+  min-width: min(100%, 420px);
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+/* 19 rows of small marks: the hover band is what keeps your eye on one boss while crossing to the
+   character you care about. */
+.boss-table tbody tr:not(.boss-cadence-row):hover {
+  background: var(--surface);
+}
+
+.boss-col-head,
+.boss-char-head {
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--line);
+  color: var(--muted);
+  font-weight: 500;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.boss-col-head {
+  text-align: left;
+}
+
+/* Wide enough for an IGN, capped so a long one cannot push the grid off the
+   column on its own. */
+.boss-char-head {
+  max-width: 110px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* The cadence band. A row of its own rather than a caption per boss: it is the
+   answer to "which period is this?" for everything beneath it. */
+.boss-cadence {
+  padding: 12px 8px 4px;
+  color: var(--muted-2);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-align: left;
+}
+
+.boss-period {
+  margin-left: 8px;
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+/* Fixed, so the table is the same width before and after the data lands. Content-sized, the
+   loading table measured 520px against the loaded 463px and every column slid left when the
+   fetch resolved. 180px clears the longest name in the catalog ("Guardian Angel Slime"); a longer
+   one in future simply widens the cell, since a table width is a suggestion. */
+.boss-col-head,
+.boss-name {
+  width: 180px;
+}
+
+.boss-name {
+  padding: 5px 8px;
+  border-top: 1px solid var(--line-soft);
+  color: var(--ink);
+  font-weight: 400;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.boss-cell {
+  padding: 5px 8px;
+  min-width: 84px;
+  border-top: 1px solid var(--line-soft);
+  text-align: center;
+  line-height: 1;
+}
+
+.boss-cell.is-cleared {
+  color: var(--good);
+}
+
+/* Dimmer than the tick and dimmer than the boss name: "seen, not done" should
+   read as quieter than both, not as a second kind of mark. */
+.boss-cell.is-pending {
+  color: var(--muted-2);
+}
+
+/* Empty on purpose. An unreported boss is NOT a boss that was not cleared, and
+   giving it a glyph of its own would invite reading it as one. The legend says
+   what the blank means. */
+.boss-cell.is-unseen {
+  color: transparent;
+}
+
+.boss-legend {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 14px 0 0;
+  color: var(--muted-2);
+  font-size: 11px;
+}
+
+.boss-key {
+  display: inline-block;
+  min-width: 12px;
+  margin-left: 10px;
+  text-align: center;
+}
+
+.boss-key:first-child {
+  margin-left: 0;
+}
+
+.boss-key.is-cleared {
+  color: var(--good);
+}
+
+.boss-key.is-unseen {
+  border-bottom: 1px solid var(--line);
+}
+
+/* Cell placeholder, sized to the tick it stands in for so the loading table and
+   the loaded one are the same table. */
+.sk-cell {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+}
+
+/* Available to any component: text for a screen reader, no pixels. The matrix
+   needs it because its cells are glyphs, and "not reported" has to reach a
+   reader as something other than "not cleared". */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* The name placeholders need widths of their own. .sk-line is an inline-block standing in for
+   text, so with no content and no width it lays out at zero and the boss and character columns
+   render blank while the cells beside them shimmer. Measured at 0px before this. */
+.boss-name .sk-line {
+  width: 104px;
+}
+
+.boss-char-head .sk-line {
+  width: 68px;
+}
