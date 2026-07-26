@@ -49,20 +49,34 @@ describe("the legend cannot drift from the table it describes", () => {
   });
 });
 
-describe("a finished row goes quiet", () => {
-  it("dims the cleared tint only for a row with nothing left to do", () => {
-    // The lit/dim split is the whole at-a-glance signal: a row still holding an amber cell keeps
-    // full colour. If the dim tint stopped being weaker than the normal one the two would read the
-    // same and the signal would be gone, with nothing erroring.
-    const pct = (declaration: string) =>
-      Number(/var\(--good\)\s*(\d+)%/.exec(declaration)?.[1] ?? NaN);
+// With the hue gone, brightness is the ONLY thing separating the three states, so the order of the
+// three tints is the whole signal rather than a detail of it. Nothing here errors when it breaks:
+// the table just quietly stops answering "what is left".
+describe("the states stay ordered by brightness", () => {
+  const mix = (name: string) =>
+    Number(
+      /var\(--ink-strong\)\s*(\d+)%/.exec(
+        rule(".boss-matrix").match(`${name}:[^;]+`)?.[0] ?? "",
+      )?.[1] ?? NaN,
+    );
 
-    const lit = pct(rule(".boss-matrix").match(/--cell-cleared:[^;]+/)?.[0] ?? "");
-    const dim = pct(rule(".boss-matrix").match(/--cell-cleared-dim:[^;]+/)?.[0] ?? "");
+  it("makes still-to-do the brightest and done the quieter of the two", () => {
+    // Backwards is the dangerous direction: done would shout and the work left would recede, which
+    // is the complaint this whole thing started from.
+    expect(mix("--cell-pending")).toBeGreaterThan(mix("--cell-cleared"));
+  });
 
-    expect(dim).toBeLessThan(lit);
+  it("dims the cleared tint further for a row with nothing left to do", () => {
+    expect(mix("--cell-cleared-dim")).toBeLessThan(mix("--cell-cleared"));
     expect(rule(".boss-table tr.is-row-cleared .boss-cell.is-cleared")).toContain(
       "var(--cell-cleared-dim)",
     );
+  });
+
+  it("keeps a tick on the cleared cell at both brightnesses", () => {
+    // The done and unreported fills are the two darkest and sit close together. The tick is what
+    // separates them, so a rule that stopped setting a legible colour would collapse the two.
+    expect(rule(".boss-cell.is-cleared")).toMatch(/color:\s*var\(--ink\)/);
+    expect(rule(".boss-table tr.is-row-cleared .boss-cell.is-cleared")).toMatch(/color:\s*var\(/);
   });
 });

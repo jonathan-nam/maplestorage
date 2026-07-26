@@ -1661,12 +1661,18 @@ button.link:disabled {
   /* The two clear tints, named once. The cells read them and so does the legend's key, which is
      the point: a key that drifts from the table it describes is worse than no key at all. The dim
      one is for a row with nothing left to do, see .is-row-cleared. */
-  /* Amber sits heavier than green on purpose: what is left is the thing worth looking at. It also
-     needs the weight to read AS amber, since a low mix of --warn over a near-black page comes out
-     brown, which looks like dirt rather than a state. */
-  --cell-cleared: color-mix(in srgb, var(--good) 20%, transparent);
-  --cell-pending: color-mix(in srgb, var(--warn) 32%, transparent);
-  --cell-cleared-dim: color-mix(in srgb, var(--good) 7%, transparent);
+  /* Brightness alone, no hue. Green against amber was a traffic light on a page that is not one,
+     and a low mix of --warn over a near-black page came out brown, which reads as dirt rather than
+     as a state.
+     So the states are ordered by light instead: what is left is the brightest thing in the table,
+     done sits just above the background, and nothing reported is the background. That is the order
+     the game's own planner puts them in, it needs no colour to survive, and it leaves --good and
+     --warn to mean money and trouble everywhere else in the app rather than two more things here.
+     The tick is what separates a done cell from an unreported one. The fills are close together
+     down at this end, so it is carrying the distinction, not decorating it. */
+  --cell-cleared: color-mix(in srgb, var(--ink-strong) 10%, transparent);
+  --cell-pending: color-mix(in srgb, var(--ink-strong) 22%, transparent);
+  --cell-cleared-dim: color-mix(in srgb, var(--ink-strong) 4%, transparent);
 }
 
 /* Fills the column, so this page's block ends on the same edge as the inventory window and the
@@ -1824,14 +1830,15 @@ button.link:disabled {
  * cells here reads as one continuous run of done or still-to-do rather than a line of separate
  * marks.
  *
- * The tick stays on the cleared cell. It is the only part of this that survives greyscale, so it
- * is what tells a green cell from an amber one when the colour does not arrive.
+ * The tick is what tells a done cell from an unreported one. Their fills are the two darkest of
+ * the three and sit close together, so the tick is carrying that distinction rather than
+ * decorating it: it must not be dropped to tidy the grid up.
  *
  * background-COLOR on all three, so the hover band (a background-image, see above) layers over the
  * state instead of replacing it. The tints are named on .boss-matrix. */
 .boss-cell.is-cleared {
   background-color: var(--cell-cleared);
-  color: var(--good);
+  color: var(--ink);
 }
 
 .boss-cell.is-pending {
@@ -1845,13 +1852,15 @@ button.link:disabled {
 }
 
 /* Nothing left to do on this boss, so the whole row goes quiet: the tint drops back, the name
-   mutes and the portrait desaturates. A row still holding an amber cell keeps its full colour, so
-   the table reads as the list of what is left.
+   mutes and the portrait desaturates. A row still holding one bright cell keeps its full weight,
+   so the table reads as the list of what is left.
+   The tick dims with it but does not go: it is still the only thing separating these cells from
+   an unreported one, and this row is the dimmest place in the table for that to be true.
    Only when EVERY cell is cleared, see rowFullyCleared: a row holding an unreported character is
    not a row that is done, and dimming it would be this feature's one unforgivable bug. */
 .boss-table tr.is-row-cleared .boss-cell.is-cleared {
   background-color: var(--cell-cleared-dim);
-  color: color-mix(in srgb, var(--good) 55%, transparent);
+  color: var(--muted);
 }
 
 .boss-table tr.is-row-cleared .boss-name {
@@ -1891,7 +1900,7 @@ button.link:disabled {
 
 .boss-key.is-cleared {
   background-color: var(--cell-cleared);
-  color: var(--good);
+  color: var(--ink);
 }
 
 .boss-key.is-pending {
@@ -1899,7 +1908,7 @@ button.link:disabled {
 }
 
 /* The blank needs an outline here and only here: in the table its emptiness is read against the
-   coloured cells beside it, but a legend entry with no edge is just a gap in a sentence. */
+   filled cells beside it, but a legend entry with no edge is just a gap in a sentence. */
 .boss-key.is-unseen {
   border: 1px dashed var(--line);
 }
@@ -2142,15 +2151,11 @@ button.link:disabled {
    rows. It used to be the other way, which made a capture's readout disagree with the page it
    feeds. */
 .planner-clears .is-cleared {
-  color: var(--muted);
-}
-
-.planner-clears .is-cleared .planner-clear-mark {
-  color: var(--good);
+  color: var(--muted-2);
 }
 
 .planner-clears .is-pending {
-  color: var(--warn);
+  color: var(--ink-strong);
 }
 
 /* A caveat is not decoration: each one is a reason the rows above are not the whole list. */
@@ -3410,18 +3415,21 @@ button.link:disabled {
   letter-spacing: 0.04em;
 }
 
-/* Filled when done, hollow when not, the same language the matrix marks use. Two outlines that
-   differed only in hue read as one shape at arm's length, which is the whole complaint. */
+/* Ordered by brightness, the same way round as the matrix cells: what is left is the loud one and
+   done sits back. No hue, for the reason given on .boss-matrix, and because a green pill next to a
+   monochrome table would read as two different features rather than one.
+   Between them sits the base rule above, which is "not reported". That order is deliberate: a row
+   nobody has answered for still wants an answer, so it should not be quieter than a finished one. */
 .party-clear.is-cleared {
-  border-color: color-mix(in srgb, var(--good) 45%, transparent);
-  background: color-mix(in srgb, var(--good) 20%, transparent);
-  color: var(--good);
+  border-color: var(--line-soft);
+  background: none;
+  color: var(--muted-2);
 }
 
 .party-clear.is-pending {
-  border-color: var(--warn);
-  background: color-mix(in srgb, var(--warn) 8%, transparent);
-  color: var(--warn);
+  border-color: var(--ink);
+  background: color-mix(in srgb, var(--ink-strong) 12%, transparent);
+  color: var(--ink-strong);
   font-weight: 600;
 }
 
