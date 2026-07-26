@@ -76,6 +76,11 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci
+      # Nothing here type-checked until 2026-07-26, so a type error reached master with the job
+      # green: lint does not do it, and `next build` is not run. Test files are the ones that get
+      # away with it, since they are outside the build graph, and that is exactly where the one
+      # that got through was.
+      - run: npm run typecheck
       - run: npm run lint
       - run: npx prettier --check .
       # The redemption rules. Three ways to produce a confidently wrong number, each of which
