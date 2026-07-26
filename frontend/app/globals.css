@@ -2410,3 +2410,260 @@ button.link:disabled {
   font-size: 12px;
   line-height: 1.5;
 }
+
+/* Parties. The roster of who a character runs each boss with, and the editor that maintains it.
+   Cards rather than a table: a party is a small bag of names and bosses, and the number of both
+   varies per row, which is what a table is worst at. */
+.party-group {
+  margin-top: 28px;
+}
+
+.party-group-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.party-group-sprite {
+  width: 32px;
+  height: 32px;
+  object-fit: contain;
+  /* The sprite sheet is drawn for a light window; scaling it down here is display only, the
+     inventory's own window keeps the size the game uses. */
+  image-rendering: pixelated;
+}
+
+.party-group-name {
+  margin: 0;
+  font-size: 15px;
+  color: var(--ink-strong);
+}
+
+.party-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 12px;
+}
+
+.party-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.party-card-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.party-card-name {
+  margin: 0;
+  font-size: 14px;
+  color: var(--ink-strong);
+}
+
+.party-card-size {
+  color: var(--muted);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.party-roster,
+.party-bosses {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.party-seat-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-size: 12px;
+  color: var(--ink);
+}
+
+/* Your own characters are marked, because the point of the page is telling them apart from the
+   five other names in the party. */
+.party-seat-chip.is-mine {
+  border-color: var(--accent);
+  color: var(--ink-strong);
+}
+
+.party-mvp {
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  color: var(--good);
+}
+
+.party-bosses li {
+  padding: 3px 8px;
+  border-radius: 4px;
+  background: var(--surface-2);
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.party-card-actions,
+.party-editor-actions,
+.party-confirm {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.party-confirm {
+  margin-top: 16px;
+  padding: 10px 14px;
+  border: 1px solid var(--warn);
+  border-radius: 8px;
+  font-size: 13px;
+  color: var(--ink);
+}
+
+.party-save,
+.party-cancel,
+.party-delete,
+.party-add-seat {
+  font: inherit;
+  font-size: 13px;
+  padding: 8px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.party-save {
+  border-color: var(--accent);
+  color: var(--ink-strong);
+}
+
+.party-delete {
+  color: var(--bad);
+}
+
+.party-save:hover:not(:disabled),
+.party-cancel:hover:not(:disabled),
+.party-delete:hover:not(:disabled),
+.party-add-seat:hover:not(:disabled) {
+  background: var(--surface-2);
+}
+
+.party-save:disabled,
+.party-cancel:disabled,
+.party-delete:disabled,
+.party-add-seat:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.party-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  margin: 16px 0 8px;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.party-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.party-field-label {
+  padding: 0;
+  color: var(--muted);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.party-seat {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 0.8fr) auto auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.party-seat-mvp {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.party-seat-remove {
+  font: inherit;
+  font-size: 16px;
+  line-height: 1;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.party-seat-remove:hover {
+  color: var(--bad);
+}
+
+.party-add-seat {
+  align-self: flex-start;
+}
+
+.party-boss-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.party-boss-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-size: 12px;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.party-boss-chip.selected {
+  border-color: var(--accent);
+  color: var(--ink-strong);
+}
+
+.party-hint {
+  margin: 0;
+  color: var(--muted-2);
+  font-size: 12px;
+}
