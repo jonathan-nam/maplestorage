@@ -72,7 +72,7 @@ export default function WalletPage() {
   return (
     <main className="page">
       <p className="loot-back">
-        <Link href="/bosses/parties">&larr; Parties</Link>
+        <Link href="/bosses/parties">&larr; Party View</Link>
       </p>
 
       <h1 className="page-title">Wallet</h1>

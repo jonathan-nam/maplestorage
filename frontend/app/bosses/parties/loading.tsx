@@ -3,7 +3,7 @@
 export default function Loading() {
   return (
     <main className="page">
-      <h1 className="page-title">Parties</h1>
+      <h1 className="page-title">Party View</h1>
       <p className="party-hint">Loading...</p>
     </main>
   );

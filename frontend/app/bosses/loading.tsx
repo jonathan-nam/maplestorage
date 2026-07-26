@@ -8,7 +8,7 @@ import { BossMatrix } from "@/components/boss-matrix";
 export default function Loading() {
   return (
     <main className="page">
-      <h1 className="page-title">Boss Clears</h1>
+      <h1 className="page-title">Individual View</h1>
       <BossMatrix loading bosses={[]} characters={[]} clearsByCharacter={{}} />
     </main>
   );

@@ -110,7 +110,7 @@ export default function PartyPage() {
   return (
     <main className="page">
       <p className="loot-back">
-        <Link href="/bosses/parties">&larr; Parties</Link>
+        <Link href="/bosses/parties">&larr; Party View</Link>
       </p>
 
       {state === "error" && <p>Couldn&apos;t load that party.</p>}
