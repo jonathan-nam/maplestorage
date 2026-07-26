@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { type ReactNode, useState } from "react";
 import { RosterStrip } from "@/components/roster-strip";
+import { clearStateLabel } from "@/lib/boss-clears";
 import { poolLabel } from "@/lib/loot";
 import { otherMembers, partySizeLabel } from "@/lib/parties";
 import type { Party } from "@/types/party";
@@ -18,13 +19,9 @@ import type { Party } from "@/types/party";
 //
 // The heading is passed in because it differs per view: the boss when filed by character, the
 // character when filed by boss.
-/** The three states, named once so the button and the read-only span cannot word them apart. */
+/** Named once so the button and the read-only span cannot word the three states apart. */
 function clearClass(cleared: boolean | null): string {
   return cleared === null ? "unseen" : cleared ? "cleared" : "pending";
-}
-
-function clearText(cleared: boolean | null): string {
-  return cleared === null ? "not reported" : cleared ? "cleared" : "not cleared";
 }
 
 export function PartyCard({
@@ -116,11 +113,11 @@ export function PartyCard({
                 : undefined
             }
           >
-            {clearText(clear.cleared)}
+            {clearStateLabel(clear.cleared)}
           </button>
         ) : (
           <span className={`party-clear is-${clearClass(clear.cleared)} is-readonly`}>
-            {clearText(clear.cleared)}
+            {clearStateLabel(clear.cleared)}
           </span>
         )}
       </header>

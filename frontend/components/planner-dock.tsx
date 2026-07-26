@@ -5,6 +5,7 @@ import { CharacterPicker } from "@/components/character-picker";
 import { Ellipsis } from "@/components/ellipsis";
 import { SharpEyesMark } from "@/components/sharp-eyes-mark";
 import { apiFetch } from "@/lib/api";
+import { clearStateLabel } from "@/lib/boss-clears";
 import { invalidate } from "@/lib/cache";
 import { compressImage } from "@/lib/compress-image";
 import { clearedCount, describeCaveat, hasPlanner, plannerCaveats } from "@/lib/planner-capture";
@@ -239,9 +240,7 @@ function PlannerCard({ capture, onDismiss }: { capture: Capture; onDismiss: () =
                 <li key={c.bossKey} className={c.cleared ? "is-cleared" : "is-pending"}>
                   <span aria-hidden="true">{c.cleared ? "✓" : "·"}</span>
                   {c.displayName}
-                  <span className="visually-hidden">
-                    {c.cleared ? " cleared" : " not yet cleared"}
-                  </span>
+                  <span className="visually-hidden">{` ${clearStateLabel(c.cleared)}`}</span>
                 </li>
               ))}
             </ul>

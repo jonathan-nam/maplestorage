@@ -1,6 +1,10 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   cellState,
+  cellStateLabel,
+  clearStateLabel,
   formatPeriod,
   formatWeekStart,
   indexClears,
@@ -34,6 +38,41 @@ describe("cellState", () => {
     expect(cellState(indexClears([]), "lotus")).toBe("unseen");
     expect(cellState(undefined, "lotus")).toBe("unseen");
   });
+});
+
+describe("clearStateLabel", () => {
+  it("names the three states, and never calls silence a clear either way", () => {
+    expect(clearStateLabel(true)).toBe("cleared");
+    expect(clearStateLabel(false)).toBe("not cleared");
+    expect(clearStateLabel(null)).toBe("not reported");
+  });
+
+  it("says the same words for the matrix's cell states", () => {
+    expect(cellStateLabel("cleared")).toBe("cleared");
+    expect(cellStateLabel("pending")).toBe("not cleared");
+    expect(cellStateLabel("unseen")).toBe("not reported");
+  });
+});
+
+// The party view once said "done" and "still to do" for the states the filter tabs above it called
+// "Cleared" and "Not cleared". Nothing broke, so nothing caught it. The words are pinned here
+// because they are the only thing that says which of three states a tick is in.
+describe("the views name clear states through one place", () => {
+  const source = (...parts: string[]) => readFileSync(join(__dirname, "..", ...parts), "utf8");
+  const files = [
+    ["components", "party-card.tsx"],
+    ["components", "boss-matrix.tsx"],
+    ["components", "planner-dock.tsx"],
+    ["app", "bosses", "parties", "page.tsx"],
+  ];
+
+  for (const parts of files) {
+    it(`${parts.at(-1)} labels states from boss-clears`, () => {
+      const text = source(...parts);
+      expect(text).toMatch(/\b(clearStateLabel|cellStateLabel)\(/);
+      expect(text).not.toMatch(/still to do|not yet cleared/);
+    });
+  }
 });
 
 describe("rowFullyCleared", () => {

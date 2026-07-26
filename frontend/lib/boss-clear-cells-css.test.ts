@@ -16,7 +16,7 @@ const rule = (selector: string) => {
 // reading the table can tell. Nothing errors when it happens, the table just starts answering a
 // question it was not asked, which is the failure this project exists to prevent.
 describe("boss clear marks stay visible", () => {
-  it("gives the two marked states a colour and leaves only still-to-do blank", () => {
+  it("gives the two marked states a colour and leaves only not-cleared blank", () => {
     expect(rule(".boss-cell.is-cleared")).toMatch(/color:\s*var\(--ink\)/);
     expect(rule(".boss-cell.is-unseen")).toMatch(/color:\s*var\(--muted-2\)/);
     expect(rule(".boss-cell.is-pending")).toMatch(/color:\s*transparent/);

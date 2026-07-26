@@ -8,6 +8,23 @@ import type { BossClear, BossClearsView } from "@/types/boss";
 // kind this project exists to avoid.
 export type CellState = "cleared" | "pending" | "unseen";
 
+/**
+ * What a clear state is called, everywhere one is named out loud.
+ *
+ * One function because the wording had already split: the party grouping said "done" and "still to
+ * do" for the states the filter tabs directly above it called "Cleared" and "Not cleared", so one
+ * tick answered to two vocabularies on the same screen.
+ */
+export function clearStateLabel(cleared: boolean | null): string {
+  if (cleared === null) return "not reported";
+  return cleared ? "cleared" : "not cleared";
+}
+
+/** The same names, for the matrix, which holds the three states as a CellState. */
+export function cellStateLabel(state: CellState): string {
+  return clearStateLabel(state === "unseen" ? null : state === "cleared");
+}
+
 /** Index one character's clears for lookup. 16 bosses by N characters is a lot of find() scans. */
 export function indexClears(clears: BossClear[] | undefined): Map<string, boolean> {
   return new Map((clears ?? []).map((c) => [c.bossKey, c.cleared]));
