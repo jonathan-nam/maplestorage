@@ -197,11 +197,13 @@ export function BossMatrix({
                         className={`boss-cell is-${state}${colClass(character.id)}`}
                         onMouseEnter={() => setHoveredColumn(character.id)}
                       >
-                        {/* The tick is decorative; the text is what a screen reader gets, and
-                            "not reported" is deliberately not "not cleared". Only cleared carries
-                            a glyph: the cell's own colour says the rest, and the tick is what
-                            still separates the two states with the colour taken away. */}
-                        <span aria-hidden="true">{state === "cleared" ? "✓" : ""}</span>
+                        {/* Decorative; the text below is what a screen reader gets, and "not
+                            reported" is deliberately not "not cleared". Still-to-do carries no
+                            glyph because its fill is already the loudest thing in the row, while
+                            the other two would otherwise both be empty cells. */}
+                        <span aria-hidden="true">
+                          {state === "cleared" ? "✓" : state === "unseen" ? "–" : ""}
+                        </span>
                         <span className="visually-hidden">
                           {state === "cleared"
                             ? `${boss.name} cleared by ${character.name}`
@@ -229,7 +231,7 @@ export function BossMatrix({
                 description of it. */}
             <span className="boss-key is-cleared">✓</span> cleared
             <span className="boss-key is-pending" /> still to do
-            <span className="boss-key is-unseen" /> no capture this period
+            <span className="boss-key is-unseen">–</span> no capture this period
           </p>
           {/* Said out loud rather than left as an absence: a reader who knows Zakum is in the
               catalog should find out why it is missing here, not assume the week lost it. */}
