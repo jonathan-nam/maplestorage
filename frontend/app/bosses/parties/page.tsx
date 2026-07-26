@@ -2,12 +2,13 @@
 
 import { useAuth } from "@clerk/nextjs";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { PartyCard } from "@/components/party-card";
 import { ResetTimer } from "@/components/reset-timer";
+import { WeekStepper } from "@/components/week-stepper";
 import { RosterStrip } from "@/components/roster-strip";
 import { apiAssetUrl, apiFetch } from "@/lib/api";
-import { weekLabel } from "@/lib/boss-clears";
+import { cellState, indexClears } from "@/lib/boss-clears";
 import { peek, put } from "@/lib/cache";
 import { poolSize } from "@/lib/loot";
 import {
@@ -16,7 +17,6 @@ import {
   type ClearFilter,
   consolidate,
   filterByClear,
-  isCleared,
   otherMembers,
   partySizeLabel,
 } from "@/lib/parties";
@@ -37,9 +37,23 @@ type Grouping = "character" | "boss" | "party";
 const PARTIES_KEY = "/api/parties";
 const BOSSES_KEY = "/api/bosses";
 const CHARACTERS_KEY = "/api/characters";
-// Only for the countdown. The clears themselves are already on each config (party.cleared), read
-// from the same boss_clear rows, so this is not a second source for what is done.
+// The countdown, the week being shown, AND the clears for a past week. On the live view a config
+// carries its own answer (party.cleared) and that is what is drawn; only a history view reads the
+// clears out of here, because /api/parties can only ever answer for the period it is in.
 const CLEARS_KEY = "/api/bosses/clears";
+
+// Only the live view is cached. A past week is a deliberate click and worth a round-trip, and
+// caching every week stepped through would grow without bound. Same reasoning as the boss page.
+const clearsUrl = (week: string | null) => (week ? `${CLEARS_KEY}?week=${week}` : CLEARS_KEY);
+
+/**
+ * A past week can only answer for WEEKLY bosses.
+ *
+ * The server returns weekly rows alone for a history view, so a monthly config in a past week has
+ * no row and would draw as "not reported" when the truth is that nobody asked. Dropping those
+ * configs is what the matrix does with its monthly and daily bands, for the same reason.
+ */
+const WEEKLY = "WEEKLY";
 
 export default function PartiesPage() {
   // Before anything is fetched: see lib/preload-boss-art.ts.
@@ -64,6 +78,40 @@ export default function PartiesPage() {
   // When the view was received, so the countdown can correct for a browser clock that disagrees
   // with the server's. See lib/reset-countdown.ts.
   const [receivedAt, setReceivedAt] = useState<number>(() => Date.now());
+  // null is the live view. Anything else is a past week, read-only.
+  const [week, setWeek] = useState<string | null>(null);
+  const [stepping, setStepping] = useState(false);
+
+  // Stepping twice quickly fires two requests that can land in either order. Only the newest may
+  // write state, or the list ends up showing a week the label disagrees with. Same guard as the
+  // boss page.
+  const latestClears = useRef(0);
+
+  async function loadClears(target: string | null, token?: string | null) {
+    const ticket = ++latestClears.current;
+    const result = await apiFetch<BossClearsView>(
+      clearsUrl(target),
+      { method: "GET" },
+      token !== undefined ? () => Promise.resolve(token) : getToken,
+    );
+    if (ticket !== latestClears.current) return;
+    setView(result);
+    setReceivedAt(Date.now());
+    if (target === null) put(CLEARS_KEY, result);
+  }
+
+  async function selectWeek(target: string | null) {
+    setStepping(true);
+    try {
+      await loadClears(target);
+      setWeek(target);
+    } catch {
+      // Keep the week on screen. Moving the label without the clears behind it would label one
+      // week's ticks with another week's date.
+    } finally {
+      setStepping(false);
+    }
+  }
 
   useEffect(() => {
     // One token for the whole burst, as the boss page does: getToken() can round-trip to Clerk,
@@ -75,23 +123,22 @@ export default function PartiesPage() {
           apiFetch<Party[]>(PARTIES_KEY, { method: "GET" }, withToken),
           apiFetch<Boss[]>(BOSSES_KEY, { method: "GET" }, withToken),
           apiFetch<Character[]>(CHARACTERS_KEY, { method: "GET" }, withToken),
-          // Caught on its own: the countdown is the one thing on this page that is not the party
-          // list, and losing it must not take the list down with it.
-          apiFetch<BossClearsView>(CLEARS_KEY, { method: "GET" }, withToken).catch(() => null),
+          // Through loadClears so this first read takes a ticket like any other. Stepping
+          // immediately after opening the page would otherwise have the initial answer land last
+          // and overwrite the week you asked for.
+          //
+          // Caught on its own: the clears are the one thing on this page that is not the party
+          // list, and losing them must not take the list down with it.
+          loadClears(null, token).catch(() => null),
         ]);
       })
-      .then(([partyResult, bossResult, characterResult, clearsResult]) => {
+      .then(([partyResult, bossResult, characterResult]) => {
         setParties(partyResult);
         setBosses(bossResult);
         setCharacters(characterResult);
         put(PARTIES_KEY, partyResult);
         put(BOSSES_KEY, bossResult);
         put(CHARACTERS_KEY, characterResult);
-        if (clearsResult) {
-          setView(clearsResult);
-          setReceivedAt(Date.now());
-          put(CLEARS_KEY, clearsResult);
-        }
         setState("loaded");
       })
       // Only blank the page if there is nothing to show: a failed refresh behind data we already
@@ -127,17 +174,48 @@ export default function PartiesPage() {
 
   const characterById = new Map(characters.map((c) => [c.id, c]));
   const bossByKey = new Map(bosses.map((b) => [b.bossKey, b]));
+  const history = week !== null;
 
-  // Filtered once, then grouped, so all three groupings answer the same question and a group with
-  // nothing left in it drops out rather than sitting there empty.
-  const visible = filterByClear(parties, clearFilter);
-  const clearedCount = parties.filter(isCleared).length;
+  // A history view carries weekly rows only, so the configs it cannot answer for are dropped
+  // rather than drawn as "not reported". See WEEKLY above.
+  const shown = history
+    ? parties.filter((p) => bossByKey.get(p.bossKey)?.reset === WEEKLY)
+    : parties;
+  const hiddenByWeek = parties.length - shown.length;
+
+  const clearsByCharacter = new Map(
+    Object.entries(view?.clearsByCharacter ?? {}).map(([id, clears]) => [id, indexClears(clears)]),
+  );
+
+  /**
+   * What this config's clear tick should say.
+   *
+   * On the live view that is the config's own answer, straight off /api/parties. On a past week it
+   * has to come from the clears the stepper just fetched, because /api/parties only ever answers
+   * for the period it is in: reading party.cleared there would label last week's row with this
+   * week's state. `byHand` is false on a history view rather than guessed, since the clears
+   * endpoint does not carry the provenance the config does.
+   */
+  function clearOf(party: Party): { cleared: boolean | null; byHand: boolean } {
+    if (!history) return { cleared: party.cleared, byHand: party.clearedByHand };
+    const state = cellState(clearsByCharacter.get(party.characterId), party.bossKey);
+    return { cleared: state === "unseen" ? null : state === "cleared", byHand: false };
+  }
+
+  // The clear the page is DRAWING, not the config's own, so the filter and the counts agree with
+  // the ticks on a past week instead of narrowing by this week's state.
+  const showsCleared = (party: Party) => clearOf(party).cleared === true;
+
+  // Filtered by week first, then by clear state, then grouped, so all three groupings answer the
+  // same question and a group with nothing left in it drops out rather than sitting there empty.
+  const visible = filterByClear(shown, clearFilter, showsCleared);
+  const clearedCount = shown.filter(showsCleared).length;
   const filterTabs: { value: ClearFilter; label: string; count: number; title?: string }[] = [
-    { value: "all", label: "All", count: parties.length },
+    { value: "all", label: "All", count: shown.length },
     {
       value: "not-cleared",
       label: "Not cleared",
-      count: parties.length - clearedCount,
+      count: shown.length - clearedCount,
       title: "Includes bosses no planner capture has mentioned this period",
     },
     { value: "cleared", label: "Cleared", count: clearedCount },
@@ -163,27 +241,34 @@ export default function PartiesPage() {
 
       {state === "loaded" && (
         <>
-          {/* The week these ticks are for, and how long is left of it: the same label and the
-              same countdown the Individual View carries, off the same served week and instants.
-              The label is drawn from weekLabel() rather than restated, so the two pages cannot
-              word the same week differently.
+          {/* The same controls the Individual View carries, in the same order and the same row:
+              the stepper on the left, the countdown on the right. The WeekStepper component
+              itself, not a copy of its label, so the two pages cannot drift in wording, spacing
+              or behaviour.
 
-              No ARROWS beside it, unlike the Individual View's. Stepping there refetches the
-              matrix for the week you land on; nothing here can follow, because a config's clear
-              comes off /api/parties, which only ever answers for the period it is in. Arrows
-              would move the label while every tick under it stayed on this week, which is a
-              confidently wrong screen rather than a missing feature. */}
+              Stepping refetches the clears and the ticks follow it, which is the only reason the
+              arrows are allowed to be here: a label that moved while the ticks stayed on this
+              week would be a confidently wrong screen. See clearOf(). */}
           {view && (
             <div className="boss-controls">
-              <span className="week-label" title="Party clears are shown for the current period">
-                {weekLabel(view)}
-              </span>
+              <WeekStepper view={view} onSelect={selectWeek} busy={stepping} />
               <ResetTimer
                 nextResets={view.nextResets}
                 serverNow={view.now}
                 receivedAt={receivedAt}
               />
             </div>
+          )}
+
+          {/* Said out loud rather than left to be noticed: a past week is read-only, and it is
+              short some configs. */}
+          {history && (
+            <p className="boss-history-note">
+              A past week. Clears are read-only here, and only weekly bosses can be answered for
+              {hiddenByWeek > 0 &&
+                `, so ${hiddenByWeek} ${hiddenByWeek === 1 ? "config is" : "configs are"} not shown`}
+              .
+            </p>
           )}
 
           <div className="party-toolbar">
@@ -213,8 +298,10 @@ export default function PartiesPage() {
               </div>
 
               {/* What is left this week, without reading past what is done. "Not cleared" holds
-                  the unreported ones too: see isCleared. The counts are of every config, not of
-                  what is on screen, so switching tabs cannot change them. */}
+                  the unreported ones too. The counts do not move when you switch tabs: they are of
+                  every config the WEEK admits, which on the live view is all of them and on a past
+                  week is the weekly ones. Counting past that would offer a tab that lists less
+                  than it promises. */}
               <div className="basis-row" role="group" aria-label="Filter by clear state">
                 {filterTabs.map((tab) => (
                   <button
@@ -278,7 +365,10 @@ export default function PartiesPage() {
                         key={party.id}
                         party={party}
                         busy={busy}
-                        onToggleClear={(cleared) => toggleClear(party, cleared)}
+                        clear={clearOf(party)}
+                        onToggleClear={
+                          history ? undefined : (cleared) => toggleClear(party, cleared)
+                        }
                         heading={
                           <>
                             {bossByKey.get(party.bossKey)?.iconUrl && (
@@ -341,11 +431,13 @@ export default function PartiesPage() {
                               absence of a label, which is the one state on this page you actually
                               need to spot. Null stays silent: it is not a third answer here, it is
                               no answer. */}
-                          {party.cleared !== null && (
+                          {clearOf(party).cleared !== null && (
                             <span
-                              className={`party-clear is-${party.cleared ? "cleared" : "pending"}`}
+                              className={`party-clear is-${
+                                clearOf(party).cleared ? "cleared" : "pending"
+                              }`}
                             >
-                              {party.cleared ? "done" : "still to do"}
+                              {clearOf(party).cleared ? "done" : "still to do"}
                             </span>
                           )}
                           {/* Every drop, not just the outstanding ones: this is the way in to
@@ -384,7 +476,8 @@ export default function PartiesPage() {
                       key={party.id}
                       party={party}
                       busy={busy}
-                      onToggleClear={(cleared) => toggleClear(party, cleared)}
+                      clear={clearOf(party)}
+                      onToggleClear={history ? undefined : (cleared) => toggleClear(party, cleared)}
                       heading={
                         <>
                           {characterById.get(party.characterId)?.spriteImgUrl && (

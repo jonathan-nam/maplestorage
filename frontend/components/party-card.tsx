@@ -18,15 +18,35 @@ import type { Party } from "@/types/party";
 //
 // The heading is passed in because it differs per view: the boss when filed by character, the
 // character when filed by boss.
+/** The three states, named once so the button and the read-only span cannot word them apart. */
+function clearClass(cleared: boolean | null): string {
+  return cleared === null ? "unseen" : cleared ? "cleared" : "pending";
+}
+
+function clearText(cleared: boolean | null): string {
+  return cleared === null ? "not reported" : cleared ? "cleared" : "not cleared";
+}
+
 export function PartyCard({
   party,
   heading,
   busy,
+  clear,
   onToggleClear,
 }: {
   party: Party;
   heading: ReactNode;
   busy?: boolean;
+  /**
+   * The clear to draw, which is NOT always the config's own.
+   *
+   * On the live view it is party.cleared. On a past week the caller reads it out of that week's
+   * clears instead, because /api/parties only ever answers for the period it is in. The card
+   * takes it rather than reaching for party.cleared itself, so it cannot quietly draw this week's
+   * state under last week's label.
+   */
+  clear: { cleared: boolean | null; byHand: boolean };
+  /** Omitted for a read-only row: a past week is shown, not edited. */
   onToggleClear?: (cleared: boolean) => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -38,7 +58,7 @@ export function PartyCard({
     // Cleared rows step back so the list reads as what is left. Strictly `=== true`: null is "no
     // capture has said anything", which is a row that still needs an answer, not a finished one.
     <article
-      className={`party-row${open ? " is-open" : ""}${party.cleared === true ? " is-cleared" : ""}`}
+      className={`party-row${open ? " is-open" : ""}${clear.cleared === true ? " is-cleared" : ""}`}
     >
       <header className="party-row-head">
         {/* A disclosure of its own rather than the whole header, which already holds two links and
@@ -80,23 +100,28 @@ export function PartyCard({
 
         {/* The clear is boss_clear's own row, the one the matrix draws and a planner capture
             writes, so ticking it here and uploading a planner are two ways of saying the same
-            thing. Three states, not two: nothing said this period, said and not done, done. */}
-        {onToggleClear && (
+            thing. Three states, not two: nothing said this period, said and not done, done.
+
+            Without a handler it is still SHOWN, just not a control. A past week has an answer
+            worth reading; what it does not have is one you may change from here. */}
+        {onToggleClear ? (
           <button
             type="button"
-            className={`party-clear is-${
-              party.cleared === null ? "unseen" : party.cleared ? "cleared" : "pending"
-            }`}
+            className={`party-clear is-${clearClass(clear.cleared)}`}
             disabled={busy}
-            onClick={() => onToggleClear(!party.cleared)}
+            onClick={() => onToggleClear(!clear.cleared)}
             title={
-              party.cleared === null
+              clear.cleared === null
                 ? "No planner capture has mentioned this boss this period"
                 : undefined
             }
           >
-            {party.cleared === null ? "not reported" : party.cleared ? "cleared" : "not cleared"}
+            {clearText(clear.cleared)}
           </button>
+        ) : (
+          <span className={`party-clear is-${clearClass(clear.cleared)} is-readonly`}>
+            {clearText(clear.cleared)}
+          </span>
         )}
       </header>
 

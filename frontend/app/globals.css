@@ -3870,3 +3870,9 @@ button.link:disabled {
 .party-row.is-open .party-row-chevron {
   transform: rotate(90deg);
 }
+
+/* A past week's clear is shown, not offered: no hover, no pointer, nothing that reads as a
+   control. Same three colours as the button, so the state reads identically either way. */
+.party-clear.is-readonly {
+  cursor: default;
+}
