@@ -198,9 +198,9 @@ export function BossMatrix({
                         onMouseEnter={() => setHoveredColumn(character.id)}
                       >
                         {/* Decorative; the text below is what a screen reader gets, and "not
-                            reported" is deliberately not "not cleared". Still-to-do carries no
-                            glyph because its fill is already the loudest thing in the row, while
-                            the other two would otherwise both be empty cells. */}
+                            reported" is deliberately not "not cleared". Still-to-do is the empty
+                            one of the three: it is the only state you find by the gap it leaves,
+                            and the other two have to be marks so that gap means something. */}
                         <span aria-hidden="true">
                           {state === "cleared" ? "✓" : state === "unseen" ? "–" : ""}
                         </span>
