@@ -52,12 +52,19 @@ class PartyLootTest {
 
     @AfterTest
     fun cleanUp() {
+        // Held in a local, and this is not a style choice. Inside deleteWhere {} the TABLE is a
+        // receiver, so a bare `userId` binds to Characters.userId, the COLUMN: the predicate reads
+        // userId = userId, which is true of every row, and the delete takes the whole table. A
+        // function parameter shadows the receiver and hides this; a class property does not. It
+        // emptied the dev database's characters once, and boss_clear and character_token_count
+        // cascaded with them.
+        val owner = userId
         transaction {
             // party_loot and party_member cascade from party, and the payout rows cascade from the
-            // loot. People are referenced by the seats, so they can only go once the parties have.
-            Party.deleteWhere { Party.userId eq userId }
-            Person.deleteWhere { Person.userId eq userId }
-            Characters.deleteWhere { Characters.userId eq userId }
+            // loot. The character a config hangs off goes last.
+            Party.deleteWhere { Party.userId eq owner }
+            Person.deleteWhere { Person.userId eq owner }
+            Characters.deleteWhere { Characters.userId eq owner }
         }
     }
 
