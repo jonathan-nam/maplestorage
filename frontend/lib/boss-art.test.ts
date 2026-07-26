@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { BOSS_ART } from "./boss-art";
+import { BOSS_ART, BOSS_NAMES } from "./boss-art";
 
 // boss-art.ts is generated from catalog/bosses.yaml, and catalog/build.py --check keeps it in
 // step. These guard the shape rather than the contents: a generator that emitted an empty object
@@ -14,5 +14,17 @@ describe("BOSS_ART", () => {
     for (const [key, path] of Object.entries(BOSS_ART)) {
       expect(path).toBe(`/boss-icons/${key}.png`);
     }
+  });
+});
+
+describe("BOSS_NAMES", () => {
+  it("names exactly the bosses there is art for", () => {
+    expect(Object.keys(BOSS_NAMES)).toEqual(Object.keys(BOSS_ART));
+  });
+
+  it("carries the catalog's own spelling rather than one derived from the key", () => {
+    // The derivation this guards against is title-casing the key, which would capitalise the
+    // "the" here. It is the reason the names are generated at all.
+    expect(BOSS_NAMES["kalos-the-guardian"]).toBe("Kalos the Guardian");
   });
 });

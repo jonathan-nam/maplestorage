@@ -477,30 +477,38 @@ def fetch_icons(items: list[dict]) -> None:
 
 
 def boss_art_ts(bosses: list[dict]) -> str:
-    """The frontend's copy of the portrait paths. Paths only, never the art."""
+    """The frontend's copy of the portrait paths and display names. Never the art itself."""
     # Quoted only when the key is not a bare JS identifier, which is prettier's own
     # "quote-props: as-needed" rule. Emitting it that way keeps this file passing
     # `prettier --check` without the generator and the formatter fighting over it.
     def prop(key: str) -> str:
         return key if re.fullmatch(r"[A-Za-z_$][A-Za-z0-9_$]*", key) else f'"{key}"'
 
-    rows = "\n".join(
-        f'  {prop(b["key"])}: "/boss-icons/{b["key"]}.png",'
-        for b in bosses
-        if b.get("tracked", True)
-    )
+    tracked = [b for b in bosses if b.get("tracked", True)]
+    rows = "\n".join(f'  {prop(b["key"])}: "/boss-icons/{b["key"]}.png",' for b in tracked)
+    names = "\n".join(f'  {prop(b["key"])}: "{b["name"]}",' for b in tracked)
     return f"""// GENERATED FROM catalog/bosses.yaml. DO NOT EDIT BY HAND.
 // Regenerate with:  python catalog/build.py
 //
-// Backend-relative paths, resolved with apiAssetUrl() like every other served asset. This exists
-// for ONE reason: the portraits are known before a user is, so the browser can start fetching
-// them at first render rather than after getToken() and /api/bosses have both answered. That
-// waterfall is what made the art appear a beat after the rest of the page.
+// Two things that are known before a USER is, which is the whole reason they are shipped in the
+// bundle rather than read off /api/bosses.
 //
-// Only tracked bosses, matching what boss_catalog is seeded with.
+// BOSS_ART is backend-relative portrait paths, resolved with apiAssetUrl() like every other
+// served asset. It exists so the browser can start fetching the portraits at first render rather
+// than after getToken() and /api/bosses have both answered. That waterfall is what made the art
+// appear a beat after the rest of the page.
+//
+// BOSS_NAMES is the display names, in catalog order. The Run Order tool has to offer a boss list
+// with no account behind it, and deriving one from the keys gets "Kalos The Guardian" wrong.
+//
+// Only tracked bosses in both, matching what boss_catalog is seeded with.
 
 export const BOSS_ART: Record<string, string> = {{
 {rows}
+}};
+
+export const BOSS_NAMES: Record<string, string> = {{
+{names}
 }};
 """
 

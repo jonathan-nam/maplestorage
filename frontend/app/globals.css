@@ -3876,3 +3876,260 @@ button.link:disabled {
 .party-clear.is-readonly {
   cursor: default;
 }
+
+/* --- Run Order ------------------------------------------------------------------------- */
+
+.night-section {
+  margin-top: 26px;
+}
+
+.night-heading {
+  margin: 0 0 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-strong);
+}
+
+/* Who is on. A chip is a switch, not a label, so the off state has to look OFF rather than
+   merely less bright: an absent person changes the whole plan, and reading their name in the
+   list at all is what makes that easy to miss. */
+.night-roster {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.night-person {
+  padding: 4px 11px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--muted-2);
+  font-size: 12px;
+  cursor: pointer;
+  text-decoration: line-through;
+}
+
+.night-person.is-on {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface));
+  color: var(--ink-strong);
+  text-decoration: none;
+}
+
+.night-budget {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.night-custom {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.night-custom .split-input {
+  width: 5.5em;
+}
+
+.night-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+  color: var(--muted);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.night-headline-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.night-headline {
+  margin: 0;
+  color: var(--ink);
+  font-size: 14px;
+}
+
+/* The order itself. Numbered by CSS rather than in the markup: the number is the position in the
+   plan, and a list that renumbers itself cannot disagree with the order it is drawn in. */
+.run-list {
+  margin: 14px 0 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: run;
+}
+
+.run-row {
+  display: grid;
+  grid-template-columns: 3.5em 40px minmax(9em, max-content) 1fr;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 0;
+  border-top: 1px solid var(--line-soft);
+  counter-increment: run;
+}
+
+.run-row:first-child {
+  border-top: none;
+}
+
+.run-time {
+  color: var(--muted-2);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.run-time::before {
+  content: counter(run) ". ";
+  color: var(--line);
+}
+
+.run-art {
+  width: 40px;
+  height: 40px;
+  image-rendering: pixelated;
+}
+
+/* Holds the column open when a hand-typed boss has no portrait, so the names stay in one line. */
+.run-art.is-empty {
+  display: block;
+}
+
+.run-boss {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.run-boss-name {
+  color: var(--ink-strong);
+  font-size: 13px;
+}
+
+.run-boss-minutes {
+  color: var(--muted-2);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.run-seats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.run-seat {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+  padding: 3px 8px;
+  border: 1px solid var(--line-soft);
+  border-radius: 6px;
+  background: var(--surface);
+  font-size: 12px;
+}
+
+/* The one thing the tool exists to minimise, so it is the one thing on the row that is coloured.
+   On the seat that moved rather than summarised at the end: which PERSON relogs is the fact, and
+   a count at the end of the row does not say who. */
+.run-seat.is-switch {
+  border-color: var(--warn);
+  color: var(--warn);
+}
+
+.run-swap {
+  font-size: 11px;
+}
+
+.run-seat-character {
+  color: inherit;
+}
+
+.run-seat:not(.is-switch) .run-seat-character {
+  color: var(--ink);
+}
+
+.run-seat-person {
+  color: var(--muted-2);
+  font-size: 11px;
+}
+
+.night-leftovers,
+.night-rejects {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 12px;
+}
+
+.night-leftovers li,
+.night-rejects li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 4px 0;
+  color: var(--muted);
+}
+
+.night-leftover-seats,
+.night-reject-why {
+  color: var(--muted-2);
+}
+
+.night-reject-boss {
+  color: var(--ink);
+}
+
+/* The standalone side: typing in what a party config already holds. */
+.run-drafts {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 12px 0;
+}
+
+.run-draft {
+  padding: 12px;
+  border: 1px solid var(--line-soft);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.run-draft-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.run-draft-seats {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0 0 8px;
+  padding: 0;
+  list-style: none;
+}
+
+.run-draft-seat {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  gap: 6px;
+}
