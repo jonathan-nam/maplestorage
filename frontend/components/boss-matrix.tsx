@@ -197,13 +197,11 @@ export function BossMatrix({
                         className={`boss-cell is-${state}${colClass(character.id)}`}
                         onMouseEnter={() => setHoveredColumn(character.id)}
                       >
-                        {/* The mark is decorative; the text is what a screen reader gets, and
-                            "not reported" is deliberately not "not cleared". Pending carries no
-                            glyph: the empty slot is the mark, and a dot inside it only competes
-                            with the tick next door. */}
-                        <span className={`boss-cell-mark is-${state}`} aria-hidden="true">
-                          {state === "cleared" ? "✓" : ""}
-                        </span>
+                        {/* The tick is decorative; the text is what a screen reader gets, and
+                            "not reported" is deliberately not "not cleared". Only cleared carries
+                            a glyph: the cell's own colour says the rest, and the tick is what
+                            still separates the two states with the colour taken away. */}
+                        <span aria-hidden="true">{state === "cleared" ? "✓" : ""}</span>
                         <span className="visually-hidden">
                           {state === "cleared"
                             ? `${boss.name} cleared by ${character.name}`
@@ -227,11 +225,11 @@ export function BossMatrix({
       {!loading && (
         <>
           <p className="boss-legend">
-            {/* The same marks the cells use, at the same size, so the key is the thing rather than
-                a description of it. */}
-            <span className="boss-key boss-cell-mark is-cleared">✓</span> cleared
-            <span className="boss-key boss-cell-mark is-pending" /> still to do
-            <span className="boss-key boss-cell-mark is-unseen" /> no capture this period
+            {/* Swatches of the cell tints themselves, so the key is the thing rather than a
+                description of it. */}
+            <span className="boss-key is-cleared">✓</span> cleared
+            <span className="boss-key is-pending" /> still to do
+            <span className="boss-key is-unseen" /> no capture this period
           </p>
           {/* Said out loud rather than left as an absence: a reader who knows Zakum is in the
               catalog should find out why it is missing here, not assume the week lost it. */}

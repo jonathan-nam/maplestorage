@@ -91,15 +91,10 @@ export function PartyCard({
             title={
               party.cleared === null
                 ? "No planner capture has mentioned this boss this period"
-                : party.clearedByHand
-                  ? "Ticked here, not read off a planner"
-                  : "Read off a planner capture"
+                : undefined
             }
           >
             {party.cleared === null ? "not reported" : party.cleared ? "cleared" : "not cleared"}
-            {party.cleared !== null && party.clearedByHand && (
-              <span className="party-clear-hand"> by hand</span>
-            )}
           </button>
         )}
       </header>
