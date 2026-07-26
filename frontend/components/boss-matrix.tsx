@@ -3,7 +3,13 @@
 import { useState } from "react";
 
 import { apiAssetUrl } from "@/lib/api";
-import { cellState, formatPeriod, indexClears, rowFullyCleared } from "@/lib/boss-clears";
+import {
+  cellState,
+  cellStateLabel,
+  formatPeriod,
+  indexClears,
+  rowFullyCleared,
+} from "@/lib/boss-clears";
 import type { Boss, BossClearsByCharacter } from "@/types/boss";
 import type { Character } from "@/types/character";
 
@@ -198,18 +204,16 @@ export function BossMatrix({
                         onMouseEnter={() => setHoveredColumn(character.id)}
                       >
                         {/* Decorative; the text below is what a screen reader gets, and "not
-                            reported" is deliberately not "not cleared". Still-to-do is the empty
+                            reported" is deliberately not "not cleared". Not-cleared is the empty
                             one of the three: it is the only state you find by the gap it leaves,
                             and the other two have to be marks so that gap means something. */}
                         <span aria-hidden="true">
                           {state === "cleared" ? "✓" : state === "unseen" ? "–" : ""}
                         </span>
                         <span className="visually-hidden">
-                          {state === "cleared"
-                            ? `${boss.name} cleared by ${character.name}`
-                            : state === "pending"
-                              ? `${boss.name} not yet cleared by ${character.name}`
-                              : `${boss.name} not reported for ${character.name}`}
+                          {state === "unseen"
+                            ? `${boss.name} ${cellStateLabel(state)} for ${character.name}`
+                            : `${boss.name} ${cellStateLabel(state)} by ${character.name}`}
                         </span>
                       </td>
                     );
@@ -229,9 +233,10 @@ export function BossMatrix({
           <p className="boss-legend">
             {/* Swatches of the cell tints themselves, so the key is the thing rather than a
                 description of it. */}
-            <span className="boss-key is-cleared">✓</span> cleared
-            <span className="boss-key is-pending" /> still to do
-            <span className="boss-key is-unseen">–</span> no capture this period
+            <span className="boss-key is-cleared">✓</span> {cellStateLabel("cleared")}
+            <span className="boss-key is-pending" /> {cellStateLabel("pending")}
+            <span className="boss-key is-unseen">–</span> {cellStateLabel("unseen")}: no capture
+            this period
           </p>
           {/* Said out loud rather than left as an absence: a reader who knows Zakum is in the
               catalog should find out why it is missing here, not assume the week lost it. */}

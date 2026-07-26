@@ -8,7 +8,7 @@ import { ResetTimer } from "@/components/reset-timer";
 import { WeekStepper } from "@/components/week-stepper";
 import { RosterStrip } from "@/components/roster-strip";
 import { apiAssetUrl, apiFetch } from "@/lib/api";
-import { cellState, indexClears } from "@/lib/boss-clears";
+import { cellState, clearStateLabel, indexClears } from "@/lib/boss-clears";
 import { peek, put } from "@/lib/cache";
 import { poolSize } from "@/lib/loot";
 import {
@@ -427,17 +427,17 @@ export default function PartiesPage() {
                             />
                           )}
                           {bossByKey.get(party.bossKey)?.name ?? party.bossKey}
-                          {/* Both states are said out loud. "done" alone left "still to do" as the
-                              absence of a label, which is the one state on this page you actually
-                              need to spot. Null stays silent: it is not a third answer here, it is
-                              no answer. */}
+                          {/* Both states are said out loud. Naming only the cleared one left the
+                              other as the absence of a label, which is the one state on this page
+                              you actually need to spot. Null stays silent: it is not a third answer
+                              here, it is no answer. */}
                           {clearOf(party).cleared !== null && (
                             <span
                               className={`party-clear is-${
                                 clearOf(party).cleared ? "cleared" : "pending"
                               }`}
                             >
-                              {clearOf(party).cleared ? "done" : "still to do"}
+                              {clearStateLabel(clearOf(party).cleared)}
                             </span>
                           )}
                           {/* Every drop, not just the outstanding ones: this is the way in to

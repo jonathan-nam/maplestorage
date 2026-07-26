@@ -66,7 +66,7 @@ describe("filterByClear", () => {
     expect(filterByClear([cleared, notCleared, unreported], "all")).toHaveLength(3);
   });
 
-  it("counts an unreported boss as still to do, not as done", () => {
+  it("counts an unreported boss as not cleared, not as cleared", () => {
     // The failure this guards: a week where nothing has been captured yet reads as a fully
     // cleared week, and the list of what is left comes back empty.
     expect(isCleared(unreported)).toBe(false);

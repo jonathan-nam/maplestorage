@@ -1859,7 +1859,7 @@ button.link:disabled {
   color: var(--ink);
 }
 
-/* Still-to-do is an empty cell, and an empty legend entry is just a gap in a sentence. The outline
+/* Not-cleared is an empty cell, and an empty legend entry is just a gap in a sentence. The outline
    is what says "this space, deliberately", and it belongs here and nowhere else: in the table the
    gap is read against the marks on either side of it. */
 .boss-key.is-pending {
@@ -3393,9 +3393,9 @@ button.link:disabled {
 /* Ordered by brightness, and by brightness only. Three palettes were tried on these states and on
    the matrix's cells, and each one ended up an argument about the colour rather than about the
    list; the matrix is plain marks now and a coloured pill beside it read as a second feature.
-   Light is still to do, dark is done, and between them sits the base rule above, which is "not
-   reported". That order is deliberate: a row nobody has answered for still wants an answer, so it
-   should not be quieter than a finished one. */
+   Light is "not cleared", dark is "cleared", and between them sits the base rule above, which is
+   "not reported". That order is deliberate: a row nobody has answered for still wants an answer, so
+   it should not be quieter than a finished one. */
 .party-clear.is-cleared {
   border-color: var(--line-soft);
   background: none;
@@ -3507,9 +3507,9 @@ button.link:disabled {
   gap: 8px;
 }
 
-/* Done, so the row recedes and the list becomes what is left. Same move the game's planner makes on
-   a cleared row, and the same one .is-row-cleared makes in the matrix. Only on a definite clear:
-   "not reported" keeps its full weight, because it is a row that still needs an answer. */
+/* Cleared, so the row recedes and the list becomes what is left. Same move the game's planner
+   makes on a cleared row, and the same one .is-row-cleared makes in the matrix. Only on a definite
+   clear: "not reported" keeps its full weight, because it is a row that still needs an answer. */
 .party-row.is-cleared {
   border-color: var(--line-soft);
   background: none;
