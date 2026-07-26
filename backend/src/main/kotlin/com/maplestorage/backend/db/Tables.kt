@@ -149,3 +149,40 @@ object BossClear : Table("boss_clear") {
 
     override val primaryKey = PrimaryKey(characterId, bossCatalogId, periodStart)
 }
+
+// The groups a character runs bosses with. A roster only: what was actually killed stays in
+// BossClear, which comes from a planner capture. See V16__party.sql.
+object Party : Table("party") {
+    val id = uuid("id")
+    val userId = reference("user_id", Users.id)
+
+    // Nullable. An unnamed party is labelled from its members, so the label is not stored.
+    val name = text("name").nullable()
+    val createdAt = timestamp("created_at")
+    val updatedAt = timestamp("updated_at")
+
+    override val primaryKey = PrimaryKey(id)
+}
+
+object PartyMember : Table("party_member") {
+    val id = uuid("id")
+    val partyId = reference("party_id", Party.id)
+    val name = text("name")
+
+    // Set when the seat is one of the caller's own characters. Optional, and SET NULL on delete,
+    // so removing a character leaves the seat (and any loot split with it) readable.
+    val characterId = optReference("character_id", Characters.id)
+
+    // MVP status, not a fee rate. See V16__party.sql.
+    val mvp = bool("mvp")
+    val position = integer("position")
+
+    override val primaryKey = PrimaryKey(id)
+}
+
+object PartyBoss : Table("party_boss") {
+    val partyId = reference("party_id", Party.id)
+    val bossCatalogId = reference("boss_catalog_id", BossCatalog.id)
+
+    override val primaryKey = PrimaryKey(partyId, bossCatalogId)
+}
