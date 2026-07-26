@@ -20,6 +20,15 @@ repos:
         files: ^backend/.*\.kts?$
         pass_filenames: false
 
+      # Neither eslint nor the build checks types, so this is the only thing that does. A type
+      # error in a test file rode to master green before it existed.
+      - id: typecheck
+        name: tsc (frontend)
+        entry: bash -c 'cd frontend && npm run typecheck'
+        language: system
+        files: ^frontend/.*\.(ts|tsx)$
+        pass_filenames: false
+
       - id: eslint-prettier
         name: eslint + prettier (frontend)
         entry: bash -c 'cd frontend && npm run lint && npx prettier --check .'
