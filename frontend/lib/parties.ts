@@ -1,23 +1,18 @@
-// Reading a party roster: what to call it, and whose it is.
+// Reading a set of party configs.
 //
-// A party has no owning character column on purpose. It is a set of seats, and a seat may be one
-// of your characters, so "which parties is Rune in" is a question about the seats. That also means
-// one party can appear under two of your characters when both of them are in it, which is right:
-// it IS one party, and hiding it from the second character would be the missing row this repo
-// prefers to avoid.
+// A config is one of your characters, on one boss, with the people that character runs it with:
+// "mechyfechy runs Kalos with CreedBratton". A boss that character solos has no config, so solo
+// runs appear nowhere, which is what makes the list short enough to read.
 
 import type { Boss } from "@/types/boss";
 import type { Party } from "@/types/party";
 
-/** The game's own party limit. Mirrors MAX_PARTY_SIZE in PartyQueries.kt. */
+/** Six seats, the game's own party limit. Mirrors MAX_PARTY_SIZE in PartyQueries.kt. */
 export const MAX_PARTY = 6;
 
-/** A party's display name: what it was called, or who is in it. */
-export function partyLabel(party: Party): string {
-  const named = party.name?.trim();
-  if (named) return named;
-  const roster = party.members.map((m) => m.name.trim()).filter(Boolean);
-  return roster.length > 0 ? roster.join(" + ") : "Empty party";
+/** The others: every seat but your own character's, which is the config itself. */
+export function otherMembers(party: Party) {
+  return party.members.filter((m) => m.characterId !== party.characterId);
 }
 
 /**
@@ -31,41 +26,83 @@ export function partySizeLabel(size: number): string {
   return `${size}-man`;
 }
 
-export type PartyGroup = {
-  // Null for parties with no seat of yours in them: still yours to track, just not a character's.
-  characterId: string | null;
+export type PartyGroup<T> = {
+  key: T;
   parties: Party[];
 };
 
 /**
- * Parties grouped under the character that sits in them, in the caller's character order.
+ * Configs grouped under the character they belong to, in roster order.
  *
- * Characters with no parties are absent rather than shown empty, and the unseated group goes last
- * because it is the exception. Groups are built from `characterOrder` rather than from whatever
- * ids the parties happen to carry, so the page reads in carousel order.
+ * A character with no configs is absent rather than shown empty: they solo everything, or you have
+ * not filled them in, and either way there is nothing to read.
  */
-export function partiesByCharacter(parties: Party[], characterOrder: string[]): PartyGroup[] {
-  const groups: PartyGroup[] = [];
-
-  for (const characterId of characterOrder) {
-    const mine = parties.filter((p) => p.members.some((m) => m.characterId === characterId));
-    if (mine.length > 0) groups.push({ characterId, parties: mine });
-  }
-
-  const unseated = parties.filter((p) => p.members.every((m) => m.characterId === null));
-  if (unseated.length > 0) groups.push({ characterId: null, parties: unseated });
-
-  return groups;
+export function byCharacter(parties: Party[], characterOrder: string[]): PartyGroup<string>[] {
+  return characterOrder
+    .map((characterId) => ({
+      key: characterId,
+      parties: parties.filter((p) => p.characterId === characterId),
+    }))
+    .filter((group) => group.parties.length > 0);
 }
 
-export type PartyBoss = { key: string; name: string; iconUrl: string | null };
+/**
+ * Configs grouped under the boss they are for, in catalog order.
+ *
+ * The other way to read the same list: "who am I doing Kalos with tonight" rather than "what does
+ * this character run".
+ */
+export function byBoss(parties: Party[], bosses: Boss[]): PartyGroup<Boss>[] {
+  return bosses
+    .map((boss) => ({ key: boss, parties: parties.filter((p) => p.bossKey === boss.bossKey) }))
+    .filter((group) => group.parties.length > 0);
+}
 
-/** Which bosses a party covers, in the catalog's order rather than the party's. */
-export function bossesFor(party: Party, bossByKey: Map<string, Boss>): PartyBoss[] {
-  // A key the catalog does not have is shown as the raw key, art-less. Ugly and honest; dropping
-  // it would quietly shorten the list of bosses this party is for.
-  return party.bossKeys.map((key) => {
-    const boss = bossByKey.get(key);
-    return { key, name: boss?.name ?? key, iconUrl: boss?.iconUrl ?? null };
-  });
+export type ConsolidatedParty = {
+  key: string;
+  characterId: string;
+  /** The roster, taken from the first config: they are identical by construction. */
+  members: Party["members"];
+  /** The configs this arrangement covers, one per boss, in the order they arrived (catalog). */
+  parties: Party[];
+};
+
+/**
+ * Configs with the same roster, merged into one entry per arrangement.
+ *
+ * A duo with CreedBratton across Kalos, First Adversary and Baldrix is one arrangement and three
+ * runs. Per boss is the right shape on the night; per arrangement is the right shape when the
+ * question is who you run with rather than what is on tonight.
+ *
+ * A VIEW, not a merge of the underlying configs. Each boss keeps its own config and its own loot
+ * pool, because a drop comes off one boss and a pool that pooled three would be back to the
+ * splitting-what-cannot-be-split problem.
+ */
+export function consolidate(parties: Party[], characterOrder: string[]): ConsolidatedParty[] {
+  const groups = new Map<string, ConsolidatedParty>();
+
+  for (const characterId of characterOrder) {
+    for (const party of parties.filter((p) => p.characterId === characterId)) {
+      // Sorted and lowercased, so the same people in a different order are the same arrangement.
+      const roster = otherMembers(party)
+        .map((m) => m.name.trim().toLowerCase())
+        .sort()
+        .join("|");
+      const key = `${characterId}::${roster}`;
+      const existing = groups.get(key);
+      if (existing) {
+        existing.parties.push(party);
+      } else {
+        groups.set(key, { key, characterId, members: party.members, parties: [party] });
+      }
+    }
+  }
+
+  return [...groups.values()];
+}
+
+/** The bosses this character has no config for: what "add a party" can still be added for. */
+export function bossesWithoutConfig(parties: Party[], bosses: Boss[], characterId: string): Boss[] {
+  const taken = new Set(parties.filter((p) => p.characterId === characterId).map((p) => p.bossKey));
+  return bosses.filter((boss) => !taken.has(boss.bossKey));
 }

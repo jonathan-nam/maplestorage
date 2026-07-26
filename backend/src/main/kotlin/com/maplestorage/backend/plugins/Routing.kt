@@ -3,6 +3,7 @@ package com.maplestorage.backend.plugins
 import com.maplestorage.backend.bosses.bossRoutes
 import com.maplestorage.backend.characters.characterRoutes
 import com.maplestorage.backend.parties.partyRoutes
+import com.maplestorage.backend.parties.peopleRoutes
 import com.maplestorage.backend.screenshots.screenshotRoutes
 import com.maplestorage.backend.services.NexonLookupService
 import com.maplestorage.backend.services.ScreenshotParser
@@ -108,6 +109,10 @@ fun Application.configureRouting(
 
             route("/api/parties") {
                 partyRoutes(nexonLookupService)
+            }
+
+            route("/api/people") {
+                peopleRoutes()
             }
         }
     }

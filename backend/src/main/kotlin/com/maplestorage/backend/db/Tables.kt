@@ -154,16 +154,42 @@ object BossClear : Table("boss_clear") {
     override val primaryKey = PrimaryKey(characterId, bossCatalogId, periodStart)
 }
 
-// The groups a character runs bosses with. A roster only: what was actually killed stays in
-// BossClear, which comes from a planner capture. See V16__party.sql.
+// One of YOUR characters, on one boss, with the people that character runs it with. A roster only:
+// what was actually killed stays in BossClear, which comes from a planner capture.
+// See V16__party.sql and V22__party_config.sql.
 object Party : Table("party") {
     val id = uuid("id")
     val userId = reference("user_id", Users.id)
 
-    // Nullable. An unnamed party is labelled from its members, so the label is not stored.
-    val name = text("name").nullable()
+    // Whose config this is, and for which boss. One config per pair: two would be two answers to
+    // "what does this character run this boss with".
+    val characterId = reference("character_id", Characters.id)
+    val bossCatalogId = reference("boss_catalog_id", BossCatalog.id)
+
     val createdAt = timestamp("created_at")
     val updatedAt = timestamp("updated_at")
+
+    override val primaryKey = PrimaryKey(id)
+}
+
+// The people you run with. See V21__person.sql.
+object Person : Table("person") {
+    val id = uuid("id")
+    val userId = reference("user_id", Users.id)
+    val name = text("name")
+    val createdAt = timestamp("created_at")
+    val updatedAt = timestamp("updated_at")
+
+    override val primaryKey = PrimaryKey(id)
+}
+
+// Which characters somebody else plays. An account-wide fact, stated once: CreedBratton is Chris's
+// wherever that name turns up, rather than once per seat.
+object PersonCharacter : Table("person_character") {
+    val id = uuid("id")
+    val personId = reference("person_id", Person.id)
+    val userId = reference("user_id", Users.id)
+    val name = text("name")
 
     override val primaryKey = PrimaryKey(id)
 }
@@ -177,8 +203,6 @@ object PartyMember : Table("party_member") {
     // so removing a character leaves the seat (and any loot split with it) readable.
     val characterId = optReference("character_id", Characters.id)
 
-    // MVP status, not a fee rate. See V16__party.sql.
-    val mvp = bool("mvp")
     val position = integer("position")
 
     // Only for seats that are NOT one of this account's characters: those read their sprite off
@@ -187,13 +211,6 @@ object PartyMember : Table("party_member") {
     val spriteRefreshedAt = timestamp("sprite_refreshed_at").nullable()
 
     override val primaryKey = PrimaryKey(id)
-}
-
-object PartyBoss : Table("party_boss") {
-    val partyId = reference("party_id", Party.id)
-    val bossCatalogId = reference("boss_catalog_id", BossCatalog.id)
-
-    override val primaryKey = PrimaryKey(partyId, bossCatalogId)
 }
 
 // What a boss can drop, and the art shown beside it. Seeded by R__drop_catalog.sql from

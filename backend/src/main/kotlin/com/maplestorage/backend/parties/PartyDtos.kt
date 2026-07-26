@@ -4,64 +4,92 @@ import kotlinx.serialization.Serializable
 
 // Mirrored by the frontend's types/party.ts field-for-field.
 
+/**
+ * One seat: a character somebody brought.
+ *
+ * `personName` is not stored on the seat. It comes from person_character, matched on the character
+ * name, so "CreedBratton is Chris's" is stated once and every config that names CreedBratton shows
+ * it. Null means that character has not been attributed to anybody yet, which is ordinary.
+ */
 @Serializable
 data class PartyMemberResponse(
     val id: String,
     val name: String,
-    // Set when this seat is one of the caller's characters, null when it is somebody else. The
-    // parties page groups by exactly this, so a character can be shown the parties it is in.
+    val personId: String?,
+    val personName: String?,
+    // Set when the seat is one of YOUR characters, which happens when you bring two of your own.
     val characterId: String?,
-    // Whether this member pays the MVP Auction House rate on a payout. The rate itself lives in
-    // frontend/lib/drop-split.ts; sending a status rather than a number keeps it there.
-    val mvp: Boolean,
-    // The seat's sprite: the linked character's own when there is one, otherwise whatever the
-    // Nexon lookup found for that name. Null is ordinary (a typo, an unranked character), and the
-    // client draws initials for it.
-    val spriteImgUrl: String? = null,
+    val spriteImgUrl: String?,
 )
 
+/**
+ * One config: your character, one boss, and who they run it with.
+ *
+ * A boss your character solos has no config, which is why solo runs do not appear anywhere. The
+ * members are the OTHER characters; your own is `characterId` on the config itself.
+ */
 @Serializable
 data class PartyResponse(
     val id: String,
-    // Null when the party was never named. The client labels it from its members rather than
-    // inventing a name here, which would then have to be maintained as the roster changed.
-    val name: String?,
+    val characterId: String,
+    val bossKey: String,
     val members: List<PartyMemberResponse>,
-    // Which bosses this party is for, as catalog keys in progression order.
-    val bossKeys: List<String>,
-    // The loot pool at a glance: what has dropped and not sold, and what has sold with somebody
-    // still unpaid. Counted server side so the list page does not fetch every party's pool.
+    // The pool at a glance: dropped but unsold, and sold with somebody still unpaid.
     val pendingLoot: Int = 0,
     val awaitingPayout: Int = 0,
+    // Whether this boss is cleared in the period it is currently in, straight out of boss_clear:
+    // the same row the clear matrix draws and a planner capture writes. Null means nobody has said
+    // anything about it this period, which is not the same as "not cleared".
+    val cleared: Boolean? = null,
+    // Ticked here rather than read off a planner. A number you can trace to a capture and one
+    // somebody typed are not equally trustworthy, so the two are not drawn identically.
+    val clearedByHand: Boolean = false,
     val createdAt: String,
     val updatedAt: String,
 )
 
-/**
- * One seat, as submitted.
- *
- * `id` is what separates an edit from a replacement: a seat sent with its id keeps that row, so a
- * rename or an MVP toggle does not delete and re-create the member. Loot payouts reference member
- * rows, and re-creating one would drop the record of who had already been paid.
- */
+/** A person, and the characters of theirs you have named. */
 @Serializable
-data class PartyMemberRequest(
-    val id: String? = null,
+data class PersonResponse(
+    val id: String,
     val name: String,
-    val characterId: String? = null,
-    val mvp: Boolean = false,
+    val characters: List<String>,
 )
 
 /**
- * The whole party, every time. A create and a save take the same body.
+ * A config, as submitted.
  *
- * Deliberately a full replace rather than a patch: the members list and the boss list are sets a
- * user edits as a whole ("this party runs these three bosses"), and a partial update of a set has
- * no unambiguous meaning. Seats absent from `members` are removed.
+ * `members` is the other characters, in the order they should read. Empty is refused: a config
+ * with nobody else in it is a solo run, and a solo run is simply not a config.
  */
 @Serializable
 data class SavePartyRequest(
-    val name: String? = null,
-    val members: List<PartyMemberRequest> = emptyList(),
-    val bossKeys: List<String> = emptyList(),
+    val characterId: String,
+    val bossKey: String,
+    val members: List<String> = emptyList(),
+)
+
+/**
+ * The whole people list, every time.
+ *
+ * A full replace, because it is one screen you edit as a whole. A person absent from the payload
+ * has been removed, and one whose characters shrink has had those attributions taken back; the
+ * configs naming those characters keep the characters and simply stop showing an owner.
+ */
+@Serializable
+data class SavePeopleRequest(
+    val people: List<PersonRequest> = emptyList(),
+)
+
+@Serializable
+data class PersonRequest(
+    val id: String? = null,
+    val name: String,
+    val characters: List<String> = emptyList(),
+)
+
+/** Ticking a config's boss cleared for the period it is in, or un-ticking it. */
+@Serializable
+data class SetClearRequest(
+    val cleared: Boolean,
 )

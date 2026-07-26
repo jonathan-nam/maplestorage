@@ -1,47 +1,56 @@
 // Mirrors backend's parties/PartyDtos.kt field-for-field.
 
+// One seat: a character somebody brought.
 export type PartyMember = {
   id: string;
   name: string;
-  // Set when the seat is one of your characters, null when it is somebody else. This link is what
-  // answers "which parties is this character in".
+  // Whose character this is, from the people list, matched on the character name. Null means it
+  // has not been attributed to anybody yet, which is ordinary.
+  personId: string | null;
+  personName: string | null;
+  // Set when the seat is one of YOUR characters. The config's own character is always the first
+  // seat, so this is set on at least one of them.
   characterId: string | null;
-  // Whether they pay the MVP Auction House rate. A status, not a rate: the rates live in
-  // lib/drop-split.ts and are read from there wherever money is worked out.
-  mvp: boolean;
-  // The linked character's sprite, or whatever the name lookup found. Null is ordinary: a typo or
-  // an unranked character has no portrait, and the seat draws without one.
   spriteImgUrl: string | null;
 };
 
+// One config: your character, one boss, and who they run it with. A boss your character solos has
+// no config, which is why solo runs appear nowhere.
 export type Party = {
   id: string;
-  // Null when never named. Label it with partyLabel(), which falls back to the roster.
-  name: string | null;
+  characterId: string;
+  bossKey: string;
+  // Your character first, then the others.
   members: PartyMember[];
-  // Catalog keys, in progression order. The names come from /api/bosses, the same catalog the
-  // clear matrix draws its rows from.
-  bossKeys: string[];
   // The pool at a glance: dropped but unsold, and sold with somebody still unpaid.
   pendingLoot: number;
   awaitingPayout: number;
+  // Whether this boss is cleared in the period it is currently in, straight out of boss_clear:
+  // the same row the clear matrix draws and a planner capture writes. Null means nobody has said
+  // anything about it this period, which is NOT the same as "not cleared".
+  cleared: boolean | null;
+  // Ticked here rather than read off a planner capture.
+  clearedByHand: boolean;
   createdAt: string;
   updatedAt: string;
 };
 
-// A seat as submitted. `id` keeps an existing seat rather than replacing it, which matters because
-// loot payouts point at seat rows. See PartyMemberRequest.
-export type PartyMemberDraft = {
-  id?: string;
+// A person, and the characters of theirs you have named.
+export type Person = {
+  id: string;
   name: string;
-  characterId: string | null;
-  mvp: boolean;
+  characters: string[];
 };
 
-// The whole party, every time: a save replaces the seats and the boss list rather than patching
-// them. Seats left out are removed.
+// What POST /api/parties and PUT /api/parties/{id} take. `members` is the OTHER characters: the
+// config already knows whose it is.
 export type SavePartyBody = {
-  name: string | null;
-  members: PartyMemberDraft[];
-  bossKeys: string[];
+  characterId: string;
+  bossKey: string;
+  members: string[];
+};
+
+// The whole people list, every time.
+export type SavePeopleBody = {
+  people: { id?: string; name: string; characters: string[] }[];
 };

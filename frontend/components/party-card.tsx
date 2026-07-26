@@ -1,80 +1,81 @@
 "use client";
 
 import Link from "next/link";
-import { SeatChip } from "@/components/seat-chip";
-import { apiAssetUrl } from "@/lib/api";
-import { bossesFor, partyLabel, partySizeLabel } from "@/lib/parties";
-import type { Boss } from "@/types/boss";
+import type { ReactNode } from "react";
+import { RosterStrip } from "@/components/roster-strip";
+import { otherMembers, partySizeLabel } from "@/lib/parties";
 import type { Party } from "@/types/party";
 
+// One config, read only: who this character runs this boss with, and what its pool is up to.
+// Editing lives on /bosses/parties/edit, because a config edited in two places is a config that
+// can be edited into two different shapes.
+//
+// Two lines, and it took three: whatever the row is filed under, then the clear state, then the
+// characters. The heading is passed in because it differs per view (the boss when filed by
+// character, the character when filed by boss), and it shares its line with everything else that
+// is one word long.
 export function PartyCard({
   party,
-  bossByKey,
-  onEdit,
-  onDelete,
+  heading,
   busy,
+  onToggleClear,
 }: {
   party: Party;
-  bossByKey: Map<string, Boss>;
-  onEdit: () => void;
-  onDelete: () => void;
-  busy: boolean;
+  heading: ReactNode;
+  busy?: boolean;
+  onToggleClear?: (cleared: boolean) => void;
 }) {
-  const bosses = bossesFor(party, bossByKey);
-
   return (
-    <article className="party-card">
-      <header className="party-card-head">
-        <h3 className="party-card-name">
-          <Link href={`/bosses/parties/${party.id}`}>{partyLabel(party)}</Link>
-        </h3>
-        <span className="party-card-size">{partySizeLabel(party.members.length)}</span>
+    <article className="party-row">
+      <header className="party-row-head">
+        {heading}
+        <Link className="party-row-label" href={`/bosses/parties/${party.id}`}>
+          {partySizeLabel(party.members.length)}
+        </Link>
+
+        {/* Only what needs doing. A settled pool says nothing, because a row that always shows
+            "0 awaiting payout" is a row nobody reads. */}
+        {(party.pendingLoot > 0 || party.awaitingPayout > 0) && (
+          <Link className="party-loot-summary" href={`/bosses/parties/${party.id}`}>
+            {[
+              party.pendingLoot > 0 ? `${party.pendingLoot} in the pool` : null,
+              party.awaitingPayout > 0 ? `${party.awaitingPayout} awaiting payout` : null,
+            ]
+              .filter(Boolean)
+              .join(" · ")}
+          </Link>
+        )}
+
+        {/* The clear is boss_clear's own row, the one the matrix draws and a planner capture
+            writes, so ticking it here and uploading a planner are two ways of saying the same
+            thing. Three states, not two: nothing said this period, said and not done, done. */}
+        {onToggleClear && (
+          <button
+            type="button"
+            className={`party-clear is-${
+              party.cleared === null ? "unseen" : party.cleared ? "cleared" : "pending"
+            }`}
+            disabled={busy}
+            onClick={() => onToggleClear(!party.cleared)}
+            title={
+              party.cleared === null
+                ? "No planner capture has mentioned this boss this period"
+                : party.clearedByHand
+                  ? "Ticked here, not read off a planner"
+                  : "Read off a planner capture"
+            }
+          >
+            {party.cleared === null ? "not reported" : party.cleared ? "cleared" : "not cleared"}
+            {party.cleared !== null && party.clearedByHand && (
+              <span className="party-clear-hand"> by hand</span>
+            )}
+          </button>
+        )}
       </header>
 
-      <ul className="party-roster">
-        {party.members.map((member) => (
-          <SeatChip key={member.id} member={member} />
-        ))}
-      </ul>
-
-      {/* No bosses is a real state, not an unfinished one: a party can exist before you decide
-          what it runs. Saying so beats an empty row that looks like a failed load. */}
-      {bosses.length > 0 ? (
-        <ul className="party-bosses">
-          {bosses.map((boss) => (
-            <li key={boss.key}>
-              {boss.iconUrl && (
-                <img className="boss-portrait" src={apiAssetUrl(boss.iconUrl)} alt="" />
-              )}
-              {boss.name}
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <p className="party-hint">No bosses assigned yet.</p>
-      )}
-
-      {/* Only what needs doing. A settled pool says nothing, because a card that always shows
-          "0 awaiting payout" is a card nobody reads. */}
-      {(party.pendingLoot > 0 || party.awaitingPayout > 0) && (
-        <p className="party-loot-summary">
-          {[
-            party.pendingLoot > 0 ? `${party.pendingLoot} in the pool` : null,
-            party.awaitingPayout > 0 ? `${party.awaitingPayout} awaiting payout` : null,
-          ]
-            .filter(Boolean)
-            .join(" \u00b7 ")}
-        </p>
-      )}
-
-      <div className="party-card-actions">
-        <button type="button" className="party-cancel" onClick={onEdit} disabled={busy}>
-          Edit
-        </button>
-        <button type="button" className="party-delete" onClick={onDelete} disabled={busy}>
-          Delete
-        </button>
-      </div>
+      {/* The others only. Your own character is what the row is about, named in the heading or in
+          the group above it, and drawing it again in every row is a column of the same sprite. */}
+      <RosterStrip members={otherMembers(party)} />
     </article>
   );
 }

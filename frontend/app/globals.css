@@ -2463,10 +2463,12 @@ button.link:disabled {
   color: var(--ink-strong);
 }
 
+/* One row per party, full width. It was a grid of narrow cards, which made every party the size
+   of the longest name in it and left the sprites nowhere to go. A boss is a row. */
 .party-list {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-  gap: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 
 .party-card {
@@ -2481,8 +2483,7 @@ button.link:disabled {
 
 .party-card-head {
   display: flex;
-  align-items: baseline;
-  justify-content: space-between;
+  align-items: center;
   gap: 10px;
 }
 
@@ -2966,4 +2967,521 @@ button.link:disabled {
   display: inline-flex;
   align-items: center;
   gap: 5px;
+}
+
+/* The party grid: the sheet this feature came from, made editable. A column per person, a row per
+   party, and the character they bring in the cell. Scrolls horizontally on its own, because six
+   people plus a party column is wider than the page column and the page must not stretch. */
+.grid-editor {
+  margin: 16px 0 28px;
+}
+
+/* Scrolls on its own so six people plus a party column cannot stretch the page. No border or
+   fill: the inputs already draw every cell, and a box around them was a second frame around a
+   thing that is all frames. */
+.grid-scroll {
+  overflow-x: auto;
+}
+
+.grid-table {
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.grid-table {
+  margin-left: -6px;
+}
+
+.grid-table th,
+.grid-table td {
+  border-bottom: 1px solid var(--line-soft);
+  border-right: 1px solid var(--line-soft);
+  padding: 6px;
+  vertical-align: top;
+  text-align: left;
+}
+
+.grid-row-head {
+  position: relative;
+  min-width: 190px;
+}
+
+.grid-col-head {
+  min-width: 150px;
+}
+
+.grid-row-name,
+.grid-person-name {
+  width: 100%;
+  font-size: 13px;
+  padding: 5px 8px;
+}
+
+.grid-cell {
+  min-width: 150px;
+}
+
+.grid-cell-label {
+  width: 100%;
+  font-size: 13px;
+  padding: 5px 8px;
+}
+
+/* The IGN sits under the label and reads as secondary, because most of the time the label already
+   is the name and this line is empty. */
+.grid-cell-ign {
+  width: 100%;
+  margin-top: 4px;
+  font-size: 11px;
+  padding: 3px 8px;
+  color: var(--muted);
+  background: var(--surface-2);
+}
+
+.grid-cell.is-spacer {
+  border-right: 0;
+}
+
+.grid-mvp {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.grid-drop {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  font: inherit;
+  font-size: 13px;
+  line-height: 1;
+  padding: 2px 5px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--muted-2);
+  cursor: pointer;
+}
+
+.grid-col-head {
+  position: relative;
+}
+
+.grid-drop:hover {
+  color: var(--bad);
+}
+
+/* Chosen bosses as chips, plus a dropdown that adds another. The full catalog is 17 rows, and
+   putting all of it under every party is a wall of checkboxes to read past. */
+.grid-bosses {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.grid-boss-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 4px 2px 2px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--ink);
+}
+
+.grid-boss-remove {
+  font: inherit;
+  font-size: 12px;
+  line-height: 1;
+  padding: 0 2px;
+  border: 0;
+  background: transparent;
+  color: var(--muted-2);
+  cursor: pointer;
+}
+
+.grid-boss-remove:hover {
+  color: var(--bad);
+}
+
+.grid-boss-add {
+  font-size: 11px;
+  padding: 3px 6px;
+}
+
+.grid-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.grid-problem {
+  color: var(--warn);
+  font-size: 12px;
+}
+
+/* The Parties page's own controls: how to list them, and the way to the editor. */
+.party-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.party-toolbar .party-cancel {
+  text-decoration: none;
+}
+
+/* One card per (party, boss) in the by-boss view. The boss leads, because that is what is being
+   looked up: the party under it is the answer. */
+.boss-run {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.boss-run-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.boss-run-name {
+  margin: 0;
+  font-size: 14px;
+  color: var(--ink-strong);
+}
+
+/* The party inside a boss card is not a card of its own: one border around the other reads as two
+   things. */
+.boss-run .party-card {
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+/* The two splits, as chips that can both be on. Not tabs: they are independent, and tabs would say
+   you have to choose. */
+.party-splits {
+  display: flex;
+  gap: 6px;
+}
+
+.party-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-size: 12px;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.party-chip.is-on {
+  border-color: var(--accent);
+  color: var(--ink-strong);
+}
+
+.boss-run-character {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+/* Editing one character's parties: a row per boss they do not solo. */
+.configs {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.config-row {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.config-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.config-boss {
+  margin: 0;
+  font-size: 14px;
+  color: var(--ink-strong);
+}
+
+.config-label {
+  font-size: 12px;
+  padding: 5px 8px;
+  max-width: 180px;
+}
+
+.config-head .party-delete {
+  margin-left: auto;
+}
+
+.config-members {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.config-member {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.config-member .split-input {
+  font-size: 13px;
+  padding: 6px 8px;
+  width: 160px;
+}
+
+/* Whose character a seat is, said by the People page rather than repeated per party. */
+.party-person {
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  color: var(--muted-2);
+}
+
+/* The People page: one line per person, their characters as a comma-separated list, because that
+   is how they are said out loud and a row of inputs per character is furniture. */
+.people-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 16px 0;
+}
+
+.person-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.person-name {
+  width: 160px;
+  font-size: 13px;
+  padding: 7px 10px;
+}
+
+.person-characters {
+  flex: 1;
+  min-width: 240px;
+  font-size: 13px;
+  padding: 7px 10px;
+}
+
+/* The consolidated view: one card per arrangement, with a chip per boss it runs. Each chip is the
+   way into that boss's own pool, which stays separate. */
+.party-bosses a {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: inherit;
+  text-decoration: none;
+}
+
+.party-bosses a:hover {
+  color: var(--accent);
+}
+
+.party-bosses .party-loot-summary {
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--surface);
+  font-size: 10px;
+}
+
+/* The clear, ticked from a party. Three states, because "nobody has said anything this period" is
+   not "not cleared": the matrix has drawn that distinction since it was built, and a party that
+   collapsed the two would be the page that lies about it. */
+.party-clear {
+  align-self: flex-start;
+  font: inherit;
+  font-size: 11px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  color: var(--muted);
+  cursor: pointer;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.party-clear.is-cleared {
+  border-color: var(--good);
+  color: var(--good);
+}
+
+.party-clear.is-pending {
+  border-color: var(--warn);
+  color: var(--warn);
+}
+
+.party-clear:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* Ticked here rather than read off a capture. Quiet, but there: a figure you can trace to a
+   screenshot and one somebody typed are not equally trustworthy. */
+.party-clear-hand {
+  color: var(--muted-2);
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+/* In the arrangement view the state rides along on the boss chip, where it is a label. */
+.party-bosses .party-clear {
+  padding: 0 6px;
+  border: 0;
+  background: transparent;
+  cursor: inherit;
+}
+
+/* The party as its characters. Same tile as the clear matrix's column heads (48x56, drawn from the
+   sprite's feet up), so a character reads the same on both pages. */
+.roster-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.roster-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 72px;
+  text-align: center;
+}
+
+.roster-sprite {
+  width: 48px;
+  height: 56px;
+  object-fit: contain;
+  object-position: center bottom;
+  image-rendering: pixelated;
+}
+
+/* No sprite found, or the lookup has not run. The frame still occupies its space so a party of
+   five does not go ragged around the one character nobody could find. */
+.roster-sprite.is-empty {
+  border: 1px dashed var(--line);
+  border-radius: 4px;
+  opacity: 0.5;
+}
+
+.roster-name {
+  max-width: 72px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  color: var(--ink);
+}
+
+.roster-person {
+  font-size: 10px;
+  color: var(--muted-2);
+}
+
+/* The row's own header: boss on the left, state on the right, everything on one line. */
+.boss-run {
+  padding: 14px 16px;
+}
+
+.boss-run-head {
+  gap: 10px;
+}
+
+/* On the header line, hard right: the row is wide now, and a state that floats in the middle of
+   it reads as belonging to whatever it happens to sit above. */
+.party-card-head .party-clear {
+  margin-left: auto;
+}
+
+/* A party is two lines: what it is filed under plus its state, then its characters. It was three,
+   and a list of fifteen parties is where a spare line per row is felt. */
+.party-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.party-row-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.party-row-name {
+  margin: 0;
+  font-size: 14px;
+  color: var(--ink-strong);
+}
+
+.party-row-label {
+  color: var(--muted);
+  font-size: 12px;
+  text-decoration: none;
+}
+
+.party-row-label:hover {
+  color: var(--accent);
+}
+
+/* Right of everything on the same line, which is the point: the eye runs down one column of
+   states rather than hunting for them under each row. */
+.party-row-head .party-clear {
+  margin-left: auto;
+}
+
+.party-row .roster-strip {
+  gap: 10px;
+}
+
+.party-row .party-loot-summary {
+  text-decoration: none;
 }

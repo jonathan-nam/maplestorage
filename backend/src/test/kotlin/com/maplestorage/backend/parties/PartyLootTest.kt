@@ -1,13 +1,16 @@
 package com.maplestorage.backend.parties
 
 import com.maplestorage.backend.config.Env
+import com.maplestorage.backend.db.Characters
 import com.maplestorage.backend.db.Party
+import com.maplestorage.backend.db.Person
 import com.maplestorage.backend.users.ensureUser
 import kotlinx.datetime.LocalDate
 import org.flywaydb.core.Flyway
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.Database
 import org.jetbrains.exposed.v1.jdbc.deleteWhere
+import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
@@ -49,19 +52,43 @@ class PartyLootTest {
 
     @AfterTest
     fun cleanUp() {
-        // party_loot and party_member cascade from party; the payout rows cascade from the loot.
-        transaction { Party.deleteWhere { Party.userId eq userId } }
+        // Held in a local, and this is not a style choice. Inside deleteWhere {} the TABLE is a
+        // receiver, so a bare `userId` binds to Characters.userId, the COLUMN: the predicate reads
+        // userId = userId, which is true of every row, and the delete takes the whole table. A
+        // function parameter shadows the receiver and hides this; a class property does not. It
+        // emptied the dev database's characters once, and boss_clear and character_token_count
+        // cascaded with them.
+        val owner = userId
+        transaction {
+            // party_loot and party_member cascade from party, and the payout rows cascade from the
+            // loot. The character a config hangs off goes last.
+            Party.deleteWhere { Party.userId eq owner }
+            Person.deleteWhere { Person.userId eq owner }
+            Characters.deleteWhere { Characters.userId eq owner }
+        }
     }
 
+    /** Your character plus two others, which is three seats: yours is stored as the first. */
     private fun trio(): PartyResponse {
         ensureUser(userId, "$userId@example.com")
-        val members =
-            listOf(
-                PartyMemberRequest(name = "Rune"),
-                PartyMemberRequest(name = "Steve", mvp = true),
-                PartyMemberRequest(name = "Bob"),
-            )
-        return createParty(userId, SavePartyRequest("Limbo trio", members, listOf("limbo")), Clock.System.now())
+        val mine = Uuid.random()
+        val now = Clock.System.now()
+        // Held in a local first: inside insert {} the TABLE is the receiver, so a bare `userId`
+        // resolves to Characters.userId, the column, and the insert asks Postgres to store a
+        // column reference. A function parameter shadows the receiver and hides this; a class
+        // property does not.
+        val owner = userId
+        Characters.insert {
+            it[Characters.id] = mine
+            it[Characters.userId] = owner
+            it[Characters.name] = "Rune"
+            it[createdAt] = now
+            it[updatedAt] = now
+            it[position] = 0
+        }
+        val request = SavePartyRequest(mine.toString(), "limbo", listOf("Steve", "Bob"))
+        val id = createParty(userId, mine, bossIdForKey("limbo")!!, request, now)
+        return findParty(id, userId)!!
     }
 
     private fun addGrindstone(party: PartyResponse): Uuid {
@@ -153,9 +180,10 @@ class PartyLootTest {
             val seller = party.members[0]
             sellLoot(lootId, sale(seller.id), Uuid.parse(seller.id), partyId, Clock.System.now())
 
-            val kept = party.members.map { PartyMemberRequest(id = it.id, name = it.name, mvp = it.mvp) }
-            val grown = SavePartyRequest("Limbo trio", kept + PartyMemberRequest(name = "Cara"), listOf("limbo"))
-            saveParty(partyId, userId, grown, Clock.System.now())
+            // The same config with one more person in it.
+            val others = party.members.drop(1).map { it.name } + "Cara"
+            val grown = SavePartyRequest(party.characterId, "limbo", others)
+            saveParty(userId, partyId, grown, Clock.System.now())
 
             // Still three seats' worth of history: the fourth was not there when it sold.
             val loot = findLoot(lootId, partyId)!!
@@ -173,21 +201,20 @@ class PartyLootTest {
             val seller = party.members[0]
             sellLoot(lootId, sale(seller.id), Uuid.parse(seller.id), partyId, Clock.System.now())
 
+            // Dropping Bob from the roster deletes the seat his payout points at, and the payout
+            // goes with it. That is why the route refuses to delete a config whose pool still has
+            // anything in it: the record has to outlive the editing.
             val withoutBob =
                 party.members
+                    .drop(1)
                     .filter { it.name != "Bob" }
-                    .map { PartyMemberRequest(id = it.id, name = it.name, mvp = it.mvp) }
-            val problem =
-                validateParty(
-                    SavePartyRequest("Limbo trio", withoutBob, listOf("limbo")),
-                    emptySet(),
-                    memberIdsOf(partyId),
-                    seatsWithLootHistory(partyId),
-                )
-            assertEquals(
-                "a member with loot history cannot be removed, delete or reassign their loot first",
-                problem,
-            )
+                    .map { it.name }
+            val request = SavePartyRequest(party.characterId, "limbo", withoutBob)
+            saveParty(userId, partyId, request, Clock.System.now())
+
+            val after = findParty(partyId, userId)!!
+            assertTrue(after.members.none { it.name == "Bob" })
+            assertEquals(1, findLoot(lootId, partyId)!!.payouts.size)
         }
     }
 
