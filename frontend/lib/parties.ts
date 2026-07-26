@@ -40,10 +40,20 @@ export function isCleared(party: Party): boolean {
 /** What the party list is narrowed to. "not-cleared" is everything `isCleared` rejects. */
 export type ClearFilter = "all" | "not-cleared" | "cleared";
 
-/** The configs a filter admits, in the order they came in. */
-export function filterByClear(parties: Party[], filter: ClearFilter): Party[] {
+/**
+ * The configs a filter admits, in the order they came in.
+ *
+ * `cleared` is the config's own answer by default. Party View passes its own on a past week, where
+ * the clear comes from that week's rows rather than from the config: filtering on party.cleared
+ * there would narrow the list by THIS week's state while showing last week's ticks.
+ */
+export function filterByClear(
+  parties: Party[],
+  filter: ClearFilter,
+  cleared: (party: Party) => boolean = isCleared,
+): Party[] {
   if (filter === "all") return parties;
-  return parties.filter((party) => isCleared(party) === (filter === "cleared"));
+  return parties.filter((party) => cleared(party) === (filter === "cleared"));
 }
 
 export type PartyGroup<T> = {

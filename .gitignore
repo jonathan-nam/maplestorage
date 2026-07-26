@@ -13,6 +13,9 @@ infra/backend.hcl
 # No trailing slash: also ignore a node_modules SYMLINK, not just a directory (a
 # symlink here once got committed and clobbered the real one on checkout).
 frontend/node_modules
+# Unanchored, so a node_modules anywhere else is ignored too. Running a frontend command from the
+# repo root instead of frontend/ drops a vitest cache in ./node_modules, and `git add -A` staged it.
+node_modules
 frontend/.next/
 frontend/out/
 frontend/.env*.local
