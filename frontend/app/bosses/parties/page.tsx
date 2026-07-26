@@ -4,6 +4,7 @@ import { useAuth } from "@clerk/nextjs";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { PartyCard } from "@/components/party-card";
+import { RosterStrip } from "@/components/roster-strip";
 import { apiAssetUrl, apiFetch } from "@/lib/api";
 import { peek, put } from "@/lib/cache";
 import { byBoss, byCharacter, consolidate, otherMembers, partySizeLabel } from "@/lib/parties";
@@ -214,6 +215,8 @@ export default function PartiesPage() {
                     </h3>
                     <span className="party-card-size">{partySizeLabel(others.length + 1)}</span>
                   </header>
+
+                  <RosterStrip members={arrangement.members} />
 
                   {/* One chip per boss this arrangement runs, each a way into that boss's own
                       pool. The pools stay separate: a drop comes off one boss, and pooling three

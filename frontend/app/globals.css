@@ -2463,10 +2463,12 @@ button.link:disabled {
   color: var(--ink-strong);
 }
 
+/* One row per party, full width. It was a grid of narrow cards, which made every party the size
+   of the longest name in it and left the sprites nowhere to go. A boss is a row. */
 .party-list {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-  gap: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 
 .party-card {
@@ -2481,8 +2483,7 @@ button.link:disabled {
 
 .party-card-head {
   display: flex;
-  align-items: baseline;
-  justify-content: space-between;
+  align-items: center;
   gap: 10px;
 }
 
@@ -3370,4 +3371,68 @@ button.link:disabled {
   border: 0;
   background: transparent;
   cursor: inherit;
+}
+
+/* The party as its characters. Same tile as the clear matrix's column heads (48x56, drawn from the
+   sprite's feet up), so a character reads the same on both pages. */
+.roster-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.roster-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 72px;
+  text-align: center;
+}
+
+.roster-sprite {
+  width: 48px;
+  height: 56px;
+  object-fit: contain;
+  object-position: center bottom;
+  image-rendering: pixelated;
+}
+
+/* No sprite found, or the lookup has not run. The frame still occupies its space so a party of
+   five does not go ragged around the one character nobody could find. */
+.roster-sprite.is-empty {
+  border: 1px dashed var(--line);
+  border-radius: 4px;
+  opacity: 0.5;
+}
+
+.roster-name {
+  max-width: 72px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  color: var(--ink);
+}
+
+.roster-person {
+  font-size: 10px;
+  color: var(--muted-2);
+}
+
+/* The row's own header: boss on the left, state on the right, everything on one line. */
+.boss-run {
+  padding: 14px 16px;
+}
+
+.boss-run-head {
+  gap: 10px;
+}
+
+/* On the header line, hard right: the row is wide now, and a state that floats in the middle of
+   it reads as belonging to whatever it happens to sit above. */
+.party-card-head .party-clear {
+  margin-left: auto;
 }
