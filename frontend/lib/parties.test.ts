@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { bossesFor, partiesByCharacter, partyLabel, partySizeLabel, runsByBoss } from "./parties";
+import {
+  bossesFor,
+  expandParties,
+  partiesByCharacter,
+  partyLabel,
+  partySizeLabel,
+} from "./parties";
 import type { Boss } from "@/types/boss";
 import type { Party, PartyMember } from "@/types/party";
 
@@ -79,7 +85,7 @@ describe("partiesByCharacter", () => {
   });
 });
 
-describe("runsByBoss", () => {
+describe("expandParties", () => {
   const boss = (bossKey: string, name: string): Boss => ({
     bossKey,
     name,
@@ -87,28 +93,55 @@ describe("runsByBoss", () => {
     iconUrl: `/boss-icons/${bossKey}.png`,
   });
   const catalog = [boss("limbo", "Limbo"), boss("baldrix", "Baldrix")];
+  const duo = {
+    ...party("p1", [seat("morebuff12", "char-1"), seat("Lynn")]),
+    bossKeys: ["baldrix", "limbo"],
+  };
 
-  it("lists a party once per boss it runs, in catalog order", () => {
-    // The duo that does three bosses is three things to do, not one. Grouped by party it reads as
-    // a single row, which is right for editing it and wrong for finding tonight's boss.
-    const duo = { ...party("p1", [seat("Rune"), seat("Steve")]), bossKeys: ["baldrix", "limbo"] };
-    const runs = runsByBoss([duo], catalog);
-
-    expect(runs.map((r) => r.boss.key)).toEqual(["limbo", "baldrix"]);
-    expect(runs.every((r) => r.party.id === "p1")).toBe(true);
-    expect(runs[0]?.boss.name).toBe("Limbo");
+  it("leaves parties alone when neither axis is on", () => {
+    const rows = expandParties([duo], catalog, ["char-1"], { byBoss: false, byCharacter: false });
+    expect(rows).toEqual([{ party: duo, boss: null, characterId: null }]);
   });
 
-  it("puts two parties on the same boss next to each other", () => {
-    const a = { ...party("a", [seat("One")]), bossKeys: ["limbo"] };
-    const b = { ...party("b", [seat("Two")]), bossKeys: ["limbo"] };
-    expect(runsByBoss([a, b], catalog).map((r) => r.party.id)).toEqual(["a", "b"]);
+  it("splits by boss, in catalog order", () => {
+    // The duo that does two bosses is two things to do, and the question on the night is "who am I
+    // doing Limbo with", not "which party contains Limbo".
+    const rows = expandParties([duo], catalog, ["char-1"], { byBoss: true, byCharacter: false });
+    expect(rows.map((r) => r.boss?.key)).toEqual(["limbo", "baldrix"]);
+    expect(rows.every((r) => r.characterId === null)).toBe(true);
   });
 
-  it("leaves out a party that runs nothing yet", () => {
-    // It has no boss to be listed under, and inventing a row would file it under one it does not
-    // run. It is still there in the grouped view.
-    expect(runsByBoss([party("p1", [seat("Rune")])], catalog)).toEqual([]);
+  it("splits by character, in roster order", () => {
+    const rows = expandParties([duo], catalog, ["char-1"], { byBoss: false, byCharacter: true });
+    expect(rows).toEqual([{ party: duo, boss: null, characterId: "char-1" }]);
+  });
+
+  it("gives one row per character-boss pair when both are on", () => {
+    const rows = expandParties([duo], catalog, ["char-1"], { byBoss: true, byCharacter: true });
+    expect(rows.map((r) => [r.characterId, r.boss?.key])).toEqual([
+      ["char-1", "limbo"],
+      ["char-1", "baldrix"],
+    ]);
+  });
+
+  it("keeps a party that has nothing on the axis being split by", () => {
+    // A party with no boss yet, split by boss, still has to appear: a row that vanished because it
+    // had no value on an axis is a party you own and cannot see.
+    const unassigned = party("p2", [seat("Steve")]);
+    const rows = expandParties([unassigned], catalog, ["char-1"], {
+      byBoss: true,
+      byCharacter: true,
+    });
+    expect(rows).toEqual([{ party: unassigned, boss: null, characterId: null }]);
+  });
+
+  it("sorts by character first, so both axes read as one character's night", () => {
+    const other = { ...party("p3", [seat("acornacorn", "char-2")]), bossKeys: ["limbo"] };
+    const rows = expandParties([duo, other], catalog, ["char-2", "char-1"], {
+      byBoss: true,
+      byCharacter: true,
+    });
+    expect(rows.map((r) => r.characterId)).toEqual(["char-2", "char-1", "char-1"]);
   });
 });
 

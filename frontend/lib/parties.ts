@@ -60,37 +60,71 @@ export function partiesByCharacter(parties: Party[], characterOrder: string[]): 
 
 export type PartyBoss = { key: string; name: string; iconUrl: string | null };
 
-export type BossRun = {
-  boss: PartyBoss;
+/** One line of the parties list: a party, and whichever axes it has been split by. */
+export type PartyRow = {
   party: Party;
+  /** Set when split by boss: which of the party's bosses this row is for. */
+  boss: PartyBoss | null;
+  /** Set when split by character: which of YOUR characters in the party this row is for. */
+  characterId: string | null;
+};
+
+export type Expansion = {
+  byBoss: boolean;
+  byCharacter: boolean;
 };
 
 /**
- * One entry per (party, boss), in catalog order.
+ * The parties, split along whichever axes are switched on.
  *
- * A party that runs three bosses is three runs here, because that is how a week is actually
- * planned: you do not sit down to do "the duo", you sit down to do Kalos. Grouped by party the
- * same information reads as one row, which is right for editing and wrong for looking up who you
- * need for tonight's boss.
+ * Neither: one row per party, which is how it is edited. By boss: a party that runs three bosses
+ * is three rows, because on the night it is three things to do and the question is "who am I doing
+ * Kalos with". By character: one row per character of yours in it. Both: one row per
+ * character-boss pair, which is that character's night.
  *
- * A party with no bosses yet appears in no run. It has nothing to be listed under, and inventing a
- * row for it would put a party under a boss it does not run.
+ * Nothing is ever dropped by a split. A party with no bosses still appears when splitting by boss,
+ * and one with none of your characters still appears when splitting by character; they just have
+ * nothing in that column. A row that vanished because it had no value on an axis would be a party
+ * you own and cannot see.
  */
-export function runsByBoss(parties: Party[], bosses: Boss[]): BossRun[] {
-  const runs: BossRun[] = [];
-  // Driven by the catalog rather than by the parties, so the list reads in progression order and
-  // two parties on the same boss land next to each other.
-  for (const boss of bosses) {
-    for (const party of parties) {
-      if (party.bossKeys.includes(boss.bossKey)) {
-        runs.push({
-          boss: { key: boss.bossKey, name: boss.name, iconUrl: boss.iconUrl },
-          party,
-        });
+export function expandParties(
+  parties: Party[],
+  bosses: Boss[],
+  characterOrder: string[],
+  { byBoss, byCharacter }: Expansion,
+): PartyRow[] {
+  const rows: PartyRow[] = [];
+
+  for (const party of parties) {
+    // Catalog order, not the party's, so two parties on the same boss sort together.
+    const bossesHere = byBoss ? bosses.filter((b) => party.bossKeys.includes(b.bossKey)) : [];
+    const mine = byCharacter
+      ? characterOrder.filter((id) => party.members.some((m) => m.characterId === id))
+      : [];
+
+    const bossSlots: (PartyBoss | null)[] = bossesHere.length
+      ? bossesHere.map((b) => ({ key: b.bossKey, name: b.name, iconUrl: b.iconUrl }))
+      : [null];
+    const characterSlots: (string | null)[] = mine.length ? mine : [null];
+
+    for (const characterId of characterSlots) {
+      for (const boss of bossSlots) {
+        rows.push({ party, boss, characterId });
       }
     }
   }
-  return runs;
+
+  // Character first, then boss: with both axes on, the list reads as one character's night rather
+  // than as a boss with several people's characters interleaved under it.
+  const characterRank = (id: string | null) =>
+    id === null ? characterOrder.length : characterOrder.indexOf(id);
+  const bossRank = (key: string | null) =>
+    key === null ? bosses.length : bosses.findIndex((b) => b.bossKey === key);
+  return rows.sort(
+    (a, b) =>
+      characterRank(a.characterId) - characterRank(b.characterId) ||
+      bossRank(a.boss?.key ?? null) - bossRank(b.boss?.key ?? null),
+  );
 }
 
 /** Which bosses a party covers, in the catalog's order rather than the party's. */
