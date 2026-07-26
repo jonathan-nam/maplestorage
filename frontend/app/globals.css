@@ -2789,6 +2789,12 @@ button.link:disabled {
   color: var(--warn);
 }
 
+/* Nothing outstanding, so the pool is history rather than a job. Muted on purpose: it is there to
+   say the pool is not empty and to be a way into it, not to ask for anything. */
+.party-loot-summary.is-done {
+  color: var(--muted);
+}
+
 .loot-pool {
   margin-top: 28px;
 }

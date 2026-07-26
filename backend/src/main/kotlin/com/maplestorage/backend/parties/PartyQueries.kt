@@ -46,7 +46,7 @@ internal fun partiesFor(userId: String): List<PartyResponse> {
         val id = row[Party.id]
         row.toPartyResponse(
             membersByParty[id].orEmpty(),
-            counts[id] ?: LootCounts(0, 0),
+            counts[id] ?: LootCounts(0, 0, 0),
             clears[id] ?: ClearState(null, false),
         )
     }
@@ -64,7 +64,7 @@ internal fun findParty(
             .firstOrNull() ?: return null
     return row.toPartyResponse(
         membersFor(listOf(partyId), userId)[partyId].orEmpty(),
-        lootCountsFor(listOf(partyId))[partyId] ?: LootCounts(0, 0),
+        lootCountsFor(listOf(partyId))[partyId] ?: LootCounts(0, 0, 0),
         clearStateFor(listOf(row))[partyId] ?: ClearState(null, false),
     )
 }
@@ -222,10 +222,14 @@ private fun spriteFor(
         ?: row[PartyMember.spriteImgUrl]
         ?: spritesByName[row[PartyMember.name].lowercase()]
 
-/** Unsold drops, and sold ones with somebody still unpaid. */
+/** Unsold drops, sold ones with somebody still unpaid, and ones with nothing left to do. */
 internal data class LootCounts(
     val pending: Int,
     val awaitingPayout: Int,
+    // Sold and everybody paid. Carried so a pool that is fully settled is still VISIBLE from the
+    // list: with only the two counters above, marking the last share paid made a party's whole
+    // drop history vanish from its row, and there was nothing to say the pool was not empty.
+    val settled: Int,
 )
 
 /**
@@ -260,6 +264,7 @@ internal fun lootCountsFor(partyIds: List<Uuid>): Map<Uuid, LootCounts> {
             LootCounts(
                 pending = rows.count { !it.third },
                 awaitingPayout = rows.count { it.third && it.first in unpaidLootIds },
+                settled = rows.count { it.third && it.first !in unpaidLootIds },
             )
         }
 }
@@ -275,6 +280,7 @@ private fun ResultRow.toPartyResponse(
     members = members,
     pendingLoot = loot.pending,
     awaitingPayout = loot.awaitingPayout,
+    settledLoot = loot.settled,
     cleared = clear.cleared,
     clearedByHand = clear.byHand,
     createdAt = this[Party.createdAt].toString(),

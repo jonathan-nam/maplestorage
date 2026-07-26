@@ -29,6 +29,7 @@ const party = (id: string, members: PartyMember[], over: Partial<Party> = {}): P
   members,
   pendingLoot: 0,
   awaitingPayout: 0,
+  settledLoot: 0,
   cleared: null,
   clearedByHand: false,
   createdAt: "2026-07-01T00:00:00Z",

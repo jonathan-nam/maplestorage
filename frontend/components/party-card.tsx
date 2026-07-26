@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { type ReactNode, useState } from "react";
 import { RosterStrip } from "@/components/roster-strip";
+import { poolLabel } from "@/lib/loot";
 import { otherMembers, partySizeLabel } from "@/lib/parties";
 import type { Party } from "@/types/party";
 
@@ -29,6 +30,7 @@ export function PartyCard({
   onToggleClear?: (cleared: boolean) => void;
 }) {
   const [open, setOpen] = useState(false);
+  const pool = poolLabel(party);
   const rosterId = `party-roster-${party.id}`;
   const others = otherMembers(party);
 
@@ -64,16 +66,15 @@ export function PartyCard({
           {partySizeLabel(party.members.length)}
         </Link>
 
-        {/* Only what needs doing. A settled pool says nothing, because a row that always shows
-            "0 awaiting payout" is a row nobody reads. */}
-        {(party.pendingLoot > 0 || party.awaitingPayout > 0) && (
-          <Link className="party-loot-summary" href={`/bosses/parties/${party.id}`}>
-            {[
-              party.pendingLoot > 0 ? `${party.pendingLoot} in the pool` : null,
-              party.awaitingPayout > 0 ? `${party.awaitingPayout} awaiting payout` : null,
-            ]
-              .filter(Boolean)
-              .join(" · ")}
+        {/* Work to do gets the line; a settled pool gets it quietly when there is none. It used
+            to say nothing at all once everything was paid, which erased the pool from the row and
+            left no way to tell a party with a season of drops from one that never dropped. */}
+        {pool && (
+          <Link
+            className={pool.done ? "party-loot-summary is-done" : "party-loot-summary"}
+            href={`/bosses/parties/${party.id}`}
+          >
+            {pool.text}
           </Link>
         )}
 

@@ -88,14 +88,55 @@ export type LootSummary = {
   pending: number;
   /** Sold, with somebody still unpaid. */
   awaitingPayout: number;
+  /** Sold, everybody paid, nothing left to do. */
+  settled: number;
 };
 
-/** The two counts a party card shows: what is unsold, and what is sold but not settled. */
+/**
+ * What a pool is up to: what is unsold, what is sold but not settled, and what is done.
+ *
+ * The third is not busywork. Counting only the first two meant a pool where everything had been
+ * paid reported nothing at all, and a party with a season of drops behind it read exactly like one
+ * that had never dropped a thing.
+ */
 export function summarize(loot: Loot[]): LootSummary {
   return {
     pending: loot.filter((l) => l.status === "PENDING").length,
     awaitingPayout: loot.filter((l) => l.status === "SOLD").length,
+    settled: loot.filter((l) => l.status === "PAID_OUT").length,
   };
+}
+
+/** The three counts a party row reads its badge off. Mirrors PartyResponse's own fields. */
+export type PoolCounts = {
+  pendingLoot: number;
+  awaitingPayout: number;
+  settledLoot: number;
+};
+
+/**
+ * What a party row says about its pool, or null when there is no pool.
+ *
+ * Outstanding work wins the line: "2 in the pool" and "1 awaiting payout" are things to go and do,
+ * and a settled count beside them would just be noise. Only when there is nothing to do does the
+ * settled count get the line, quietly, and that case is the whole point. Showing only the first two
+ * meant paying the last share erased every trace of the pool from the list, so a party with a
+ * season of drops behind it looked identical to one that had never dropped anything.
+ */
+export function poolLabel(counts: PoolCounts): { text: string; done: boolean } | null {
+  const outstanding = [
+    counts.pendingLoot > 0 ? `${counts.pendingLoot} in the pool` : null,
+    counts.awaitingPayout > 0 ? `${counts.awaitingPayout} awaiting payout` : null,
+  ].filter(Boolean);
+
+  if (outstanding.length > 0) return { text: outstanding.join(" \u00b7 "), done: false };
+  if (counts.settledLoot > 0) return { text: `${counts.settledLoot} settled`, done: true };
+  return null;
+}
+
+/** Every drop the pool holds, whatever state it is in. */
+export function poolSize(counts: PoolCounts): number {
+  return counts.pendingLoot + counts.awaitingPayout + counts.settledLoot;
 }
 
 /** The status as a short label. Kept beside summarize so the two cannot disagree. */

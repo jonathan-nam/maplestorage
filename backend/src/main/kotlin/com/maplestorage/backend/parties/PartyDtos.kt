@@ -37,6 +37,9 @@ data class PartyResponse(
     // The pool at a glance: dropped but unsold, and sold with somebody still unpaid.
     val pendingLoot: Int = 0,
     val awaitingPayout: Int = 0,
+    // Sold and settled. Sent so a fully-settled pool still shows on the row: without it, paying
+    // the last share made the party's whole drop history disappear from the list.
+    val settledLoot: Int = 0,
     // Whether this boss is cleared in the period it is currently in, straight out of boss_clear:
     // the same row the clear matrix draws and a planner capture writes. Null means nobody has said
     // anything about it this period, which is not the same as "not cleared".
