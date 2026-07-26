@@ -4,6 +4,7 @@ import {
   formatPeriod,
   formatWeekStart,
   indexClears,
+  weekLabel,
   rowFullyCleared,
 } from "./boss-clears";
 import type { BossClear } from "@/types/boss";
@@ -113,5 +114,26 @@ describe("formatWeekStart", () => {
     expect(formatWeekStart("not-a-date")).toBe("not-a-date");
     expect(formatWeekStart("")).toBe("");
     expect(formatWeekStart("2026-13-01")).toBe("2026-13-01");
+  });
+});
+
+describe("weekLabel", () => {
+  it("names the week in progress on the live view", () => {
+    // weekStart is null when nothing has been stepped to, and then the week being shown is the
+    // one in progress. Party View only ever has this case.
+    expect(weekLabel({ weekStart: null, currentWeekStart: "2026-07-23" })).toBe("Week of July 23");
+  });
+
+  it("names the week stepped to, not the one in progress", () => {
+    expect(weekLabel({ weekStart: "2026-07-16", currentWeekStart: "2026-07-23" })).toBe(
+      "Week of July 16",
+    );
+  });
+
+  it("is one function so two pages cannot word the same week differently", () => {
+    // The stepper on the Individual View and the standing label on Party View both read this.
+    const view = { weekStart: null, currentWeekStart: "2026-01-01" };
+    expect(weekLabel(view)).toBe(weekLabel({ ...view }));
+    expect(weekLabel(view)).toBe("Week of January 1");
   });
 });

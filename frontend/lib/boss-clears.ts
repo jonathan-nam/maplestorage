@@ -1,4 +1,4 @@
-import type { BossClear } from "@/types/boss";
+import type { BossClear, BossClearsView } from "@/types/boss";
 
 // Three states, not two, and the third is the point.
 //
@@ -77,4 +77,15 @@ export function formatWeekStart(iso: string): string {
   const [, month, day] = iso.split("-").map(Number);
   if (!month || !day || month < 1 || month > MONTH_NAMES.length) return iso;
   return `${MONTH_NAMES[month - 1]} ${day}`;
+}
+
+/**
+ * Which week a view is showing: "Week of July 16".
+ *
+ * Shared by the stepper on the Individual View and the standing label on Party View, so the two
+ * cannot end up wording the same week differently. `weekStart` is null on the live view, and then
+ * the week in progress is the one being shown.
+ */
+export function weekLabel(view: Pick<BossClearsView, "weekStart" | "currentWeekStart">): string {
+  return `Week of ${formatWeekStart(view.weekStart ?? view.currentWeekStart)}`;
 }
