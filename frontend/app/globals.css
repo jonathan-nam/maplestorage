@@ -3493,18 +3493,17 @@ button.link:disabled {
   gap: 12px;
 }
 
-/* The Wallet: what every pool nets out to, per person.
- *
- * Three totals, then a row per counterparty. The two directions are coloured the same way the loot
- * pool colours a status, so "owe" reads the same on both pages. */
-.wallet-totals {
+/* A row of headline figures, above the detail that produced them. Shared by the Wallet and the
+ * Drop Log, so the two read as one thing; the tone modifiers carry the meaning (warn is money out,
+ * good is money in), matching how the loot pool colours a status. */
+.stat-row {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 10px;
   margin-bottom: 20px;
 }
 
-.wallet-total {
+.stat-tile {
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -3514,32 +3513,32 @@ button.link:disabled {
   background: var(--surface);
 }
 
-.wallet-total-label {
+.stat-label {
   color: var(--muted);
   font-size: 12px;
 }
 
-.wallet-total-value {
+.stat-value {
   color: var(--ink-strong);
   font-size: 18px;
   /* Tabular, so the three totals line up digit for digit and can be compared by length. */
   font-variant-numeric: tabular-nums;
 }
 
-.wallet-total.is-owe .wallet-total-value {
+.stat-value.is-warn {
   color: var(--warn);
 }
 
-.wallet-total.is-owed .wallet-total-value {
+.stat-value.is-good {
   color: var(--good);
 }
 
-.wallet-total.is-net.is-down .wallet-total-value {
-  color: var(--warn);
-}
-
-.wallet-total.is-net.is-up .wallet-total-value {
-  color: var(--good);
+/* What the figure above is measuring. Load-bearing on the Drop Log, where "sold for" means what
+ * landed in inventories and NOT the prices as typed. See lib/drop-log.ts. */
+.stat-note {
+  color: var(--muted-2);
+  font-size: 11px;
+  line-height: 1.4;
 }
 
 .wallet-row {
@@ -3662,7 +3661,88 @@ button.link:disabled {
 }
 
 @media (max-width: 560px) {
-  .wallet-totals {
+  .stat-row {
     grid-template-columns: 1fr;
   }
+}
+
+/* The Drop Log: a month at a time, each row a drop and what it made. */
+.droplog-month-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.droplog-month-total {
+  color: var(--good);
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+
+.droplog-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.droplog-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+/* Still in the pool: nothing has been made yet, so the row sits back from the sold ones. */
+.droplog-row.status-pending {
+  background: var(--surface-2);
+}
+
+.droplog-title {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.droplog-title .loot-name {
+  color: var(--ink-strong);
+  text-decoration: none;
+}
+
+.droplog-title .loot-name:hover {
+  color: var(--accent);
+}
+
+.droplog-amounts {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  margin-left: auto;
+  text-align: right;
+}
+
+.droplog-take {
+  color: var(--good);
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+
+.droplog-filter {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.droplog-note {
+  margin-top: 16px;
 }

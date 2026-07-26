@@ -176,6 +176,9 @@ export default function PartiesPage() {
               <Link className="party-cancel" href="/bosses/parties/wallet">
                 Wallet
               </Link>
+              <Link className="party-cancel" href="/bosses/parties/drops">
+                Drop Log
+              </Link>
               <Link className="party-cancel" href="/bosses/parties/edit">
                 Edit parties
               </Link>
