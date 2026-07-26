@@ -87,7 +87,13 @@ export function PartyGridEditor({
                     placeholder="who"
                     aria-label="Person's name"
                   />
-                  <label className="grid-mvp">
+                  {/* The Auction House takes 3% from MVP and 5% from everyone else, and on a
+                      payout it is the RECEIVING person's rate that applies. So this is not a
+                      label, it changes what you have to send them. See lib/drop-split.ts. */}
+                  <label
+                    className="grid-mvp"
+                    title="MVP pays 3% Auction House fee instead of 5%, which changes their share of a split"
+                  >
                     <input
                       type="checkbox"
                       checked={person.mvp}
@@ -100,9 +106,7 @@ export function PartyGridEditor({
                         })
                       }
                     />
-                    {/* The Auction House takes 3% from MVP and 5% from everyone else, and it is the
-                        RECEIVING person's rate that applies to a payout. See lib/drop-split.ts. */}
-                    <span>MVP</span>
+                    <span>MVP (3% fee)</span>
                   </label>
                   <button
                     type="button"
@@ -164,52 +168,67 @@ export function PartyGridEditor({
                     placeholder="Xkalos duo"
                     aria-label="Party name"
                   />
-                  <details className="grid-bosses">
-                    <summary>
-                      {row.bossKeys.length === 0
-                        ? "pick bosses"
-                        : row.bossKeys.map((key) => {
-                            const boss = bossByKey.get(key);
-                            return boss?.iconUrl ? (
-                              <img
-                                key={key}
-                                className="boss-portrait is-small"
-                                src={apiAssetUrl(boss.iconUrl)}
-                                alt={boss.name}
-                                title={boss.name}
-                              />
-                            ) : (
-                              <span key={key}>{boss?.name ?? key}</span>
-                            );
-                          })}
-                    </summary>
-                    <div className="grid-boss-picker">
-                      {bosses.map((boss) => (
-                        <label key={boss.bossKey} className="party-boss-chip">
-                          <input
-                            type="checkbox"
-                            checked={row.bossKeys.includes(boss.bossKey)}
-                            onChange={() =>
+                  <div className="grid-bosses">
+                    {row.bossKeys.map((key) => {
+                      const boss = bossByKey.get(key);
+                      return (
+                        <span key={key} className="grid-boss-chip">
+                          {boss?.iconUrl && (
+                            <img
+                              className="boss-portrait is-small"
+                              src={apiAssetUrl(boss.iconUrl)}
+                              alt=""
+                            />
+                          )}
+                          {boss?.name ?? key}
+                          <button
+                            type="button"
+                            className="grid-boss-remove"
+                            aria-label={`Remove ${boss?.name ?? key} from ${row.name || "party"}`}
+                            onClick={() =>
                               edit({
                                 ...draft,
                                 rows: draft.rows.map((r) =>
                                   r.key === row.key
-                                    ? {
-                                        ...r,
-                                        bossKeys: r.bossKeys.includes(boss.bossKey)
-                                          ? r.bossKeys.filter((k) => k !== boss.bossKey)
-                                          : [...r.bossKeys, boss.bossKey],
-                                      }
+                                    ? { ...r, bossKeys: r.bossKeys.filter((k) => k !== key) }
                                     : r,
                                 ),
                               })
                             }
-                          />
-                          <span>{boss.name}</span>
-                        </label>
-                      ))}
-                    </div>
-                  </details>
+                          >
+                            &times;
+                          </button>
+                        </span>
+                      );
+                    })}
+                    {/* Resets to the placeholder after each pick, so the same dropdown adds a
+                        second and a third boss. A party runs several, and a plain <select> that
+                        kept its value would look like it had replaced the first. */}
+                    <select
+                      className="split-input grid-boss-add"
+                      value=""
+                      aria-label={`Add a boss to ${row.name || "party"}`}
+                      onChange={(e) => {
+                        const key = e.target.value;
+                        if (key === "") return;
+                        edit({
+                          ...draft,
+                          rows: draft.rows.map((r) =>
+                            r.key === row.key ? { ...r, bossKeys: [...r.bossKeys, key] } : r,
+                          ),
+                        });
+                      }}
+                    >
+                      <option value="">{row.bossKeys.length === 0 ? "+ boss" : "+"}</option>
+                      {bosses
+                        .filter((boss) => !row.bossKeys.includes(boss.bossKey))
+                        .map((boss) => (
+                          <option key={boss.bossKey} value={boss.bossKey}>
+                            {boss.name}
+                          </option>
+                        ))}
+                    </select>
+                  </div>
                   <button
                     type="button"
                     className="grid-drop"
@@ -300,7 +319,8 @@ export function PartyGridEditor({
         {problem && <span className="grid-problem">{problem}</span>}
         {error && <span className="split-error">{error}</span>}
         <span className="party-hint">
-          A blank cell means they sat that one out. {MAX_PARTY} to a party.
+          A blank cell means they sat that one out. {MAX_PARTY} to a party. MVP is the 3% Auction
+          House fee instead of 5%, which changes that person&apos;s share of a split.
         </span>
       </div>
 

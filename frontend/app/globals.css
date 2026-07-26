@@ -3069,29 +3069,46 @@ button.link:disabled {
   color: var(--bad);
 }
 
+/* Chosen bosses as chips, plus a dropdown that adds another. The full catalog is 17 rows, and
+   putting all of it under every party is a wall of checkboxes to read past. */
 .grid-bosses {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
   margin-top: 6px;
   font-size: 11px;
   color: var(--muted);
 }
 
-.grid-bosses summary {
-  display: flex;
-  flex-wrap: wrap;
+.grid-boss-chip {
+  display: inline-flex;
   align-items: center;
-  gap: 3px;
+  gap: 4px;
+  padding: 2px 4px 2px 2px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--ink);
+}
+
+.grid-boss-remove {
+  font: inherit;
+  font-size: 12px;
+  line-height: 1;
+  padding: 0 2px;
+  border: 0;
+  background: transparent;
+  color: var(--muted-2);
   cursor: pointer;
 }
 
-.grid-boss-picker {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  margin-top: 6px;
-  padding: 6px;
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  background: var(--surface-2);
+.grid-boss-remove:hover {
+  color: var(--bad);
+}
+
+.grid-boss-add {
+  font-size: 11px;
+  padding: 3px 6px;
 }
 
 .grid-actions {
