@@ -112,10 +112,7 @@ export default function PartiesPage() {
   return (
     <main className="page">
       <h1 className="page-title">Parties</h1>
-      <p className="split-intro">
-        What each character runs each boss with. A boss they solo has no party, so it is not here. A
-        party is a roster, not a clear: what died stays on Boss Clears, read from your planner.
-      </p>
+      <p className="split-intro">Which bosses each character runs, and who they run them with.</p>
 
       {state === "error" && <p>Couldn&apos;t load your parties.</p>}
       {state === "loading" && <p className="party-hint">Loading...</p>}

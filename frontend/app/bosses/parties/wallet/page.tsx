@@ -77,9 +77,8 @@ export default function WalletPage() {
 
       <h1 className="page-title">Wallet</h1>
       <p className="split-intro">
-        Every unpaid share in every pool, added up per person. A drop still in the pool is not here:
-        it has not sold, so nobody holds the mesos yet. Mark a share paid on its own party and it
-        leaves this page.
+        What you owe and what you&apos;re owed, across every party&apos;s loot pool. Mark a share
+        paid on its party to clear it from here.
       </p>
 
       {state === "error" && <p>Couldn&apos;t load your pools.</p>}
