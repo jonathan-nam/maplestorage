@@ -23,7 +23,8 @@ FROM (VALUES
     ('malefic-star', 'Malefic Star', 'WEEKLY', 12, 'malefic-star.png'),
     ('limbo', 'Limbo', 'WEEKLY', 13, 'limbo.png'),
     ('baldrix', 'Baldrix', 'WEEKLY', 14, 'baldrix.png'),
-    ('black-mage', 'Black Mage', 'MONTHLY', 15, 'black-mage.png')
+    ('jupiter', 'Jupiter', 'WEEKLY', 15, 'jupiter.png'),
+    ('black-mage', 'Black Mage', 'MONTHLY', 16, 'black-mage.png')
 ) AS v (boss_key, name, reset, sort_order, icon_ref_key)
 LEFT JOIN boss_catalog existing ON existing.boss_key = v.boss_key
 ON CONFLICT (boss_key) DO UPDATE SET

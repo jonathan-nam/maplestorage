@@ -24,5 +24,6 @@ export const BOSS_ART: Record<string, string> = {
   "malefic-star": "/boss-icons/malefic-star.png",
   limbo: "/boss-icons/limbo.png",
   baldrix: "/boss-icons/baldrix.png",
+  jupiter: "/boss-icons/jupiter.png",
   "black-mage": "/boss-icons/black-mage.png",
 };

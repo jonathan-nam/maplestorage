@@ -90,6 +90,12 @@
     "tracked": true
   },
   {
+    "key": "jupiter",
+    "name": "Jupiter",
+    "reset": "WEEKLY",
+    "tracked": true
+  },
+  {
     "key": "akechi-mitsuhide",
     "name": "Akechi Mitsuhide",
     "reset": "WEEKLY",

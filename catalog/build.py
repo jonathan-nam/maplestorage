@@ -558,6 +558,15 @@ def fetch_drop_icons(drops: list[dict]) -> None:
     print(f"fetched {got} drop icons into {DROP_ICONS.relative_to(ROOT)}")
 
 
+def _refuse_missing_art(problems: list[str]) -> None:
+    if not problems:
+        return
+    print("catalog is inconsistent with its art:\n", file=sys.stderr)
+    for p in problems:
+        print(f"  - {p}", file=sys.stderr)
+    sys.exit(1)
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--check", action="store_true", help="fail if generated output is stale")
@@ -577,11 +586,6 @@ def main() -> None:
         fetch_drop_icons(drops)
 
     problems = check_art(items) + check_drop_art(drops) + check_boss_art(bosses)
-    if problems:
-        print("catalog is inconsistent with its art:\n", file=sys.stderr)
-        for p in problems:
-            print(f"  - {p}", file=sys.stderr)
-        sys.exit(1)
 
     outputs = [
         (SQL_OUT, sql(items)),
@@ -592,6 +596,7 @@ def main() -> None:
     ]
 
     if args.check:
+        _refuse_missing_art(problems)
         stale = [path for path, want in outputs if (path.read_text() if path.exists() else "") != want]
         if stale:
             names = ", ".join(str(p.relative_to(ROOT)) for p in stale)
@@ -602,6 +607,11 @@ def main() -> None:
     for path, want in outputs:
         path.write_text(want)
     print(f"wrote {len(items)} items, {_boss_summary(bosses)} and {len(drops)} drops")
+    # AFTER writing, deliberately. A new boss has no portrait until build_boss_portraits cuts one,
+    # and that script reads the boss catalog this run generates: checking first would deadlock the
+    # two, with each waiting on the other. Writing first and failing after leaves the tree exactly
+    # one command short of correct, and --check still refuses to let it be committed that way.
+    _refuse_missing_art(problems)
 
 
 if __name__ == "__main__":

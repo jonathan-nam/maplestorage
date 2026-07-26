@@ -7,7 +7,7 @@ import { BOSS_ART } from "./boss-art";
 // quietly stop preloading, which looks exactly like the slowness this file exists to fix.
 describe("BOSS_ART", () => {
   it("covers the tracked catalog rather than a subset of it", () => {
-    expect(Object.keys(BOSS_ART).length).toBe(16);
+    expect(Object.keys(BOSS_ART).length).toBe(17);
   });
 
   it("points at the backend's boss-icons route, keyed by boss key", () => {
