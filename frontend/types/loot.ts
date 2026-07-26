@@ -31,6 +31,13 @@ export type Loot = {
   payouts: LootPayout[];
 };
 
+// One party's whole pool, from GET /api/parties/loot. Grouped by party because reading a split
+// needs that party's seats.
+export type PartyLootPool = {
+  partyId: string;
+  loot: Loot[];
+};
+
 export type AddLootBody = {
   dropKey?: string | null;
   customName?: string | null;

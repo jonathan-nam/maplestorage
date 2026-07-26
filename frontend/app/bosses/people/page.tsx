@@ -87,8 +87,7 @@ export default function PeoplePage() {
       </p>
       <h1 className="page-title">People</h1>
       <p className="split-intro">
-        Who plays which character. A party names characters; this says whose they are, so a party
-        with CreedBratton in it shows Chris without you saying so again.
+        Who plays which character. Add a person, then list the characters they play.
       </p>
 
       {state === "error" && <p>Couldn&apos;t load your people.</p>}

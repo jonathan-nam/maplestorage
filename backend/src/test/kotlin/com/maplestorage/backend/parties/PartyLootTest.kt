@@ -7,7 +7,7 @@ import com.maplestorage.backend.db.Person
 import com.maplestorage.backend.users.ensureUser
 import kotlinx.datetime.LocalDate
 import org.flywaydb.core.Flyway
-import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.core.inList
 import org.jetbrains.exposed.v1.jdbc.Database
 import org.jetbrains.exposed.v1.jdbc.deleteWhere
 import org.jetbrains.exposed.v1.jdbc.insert
@@ -32,6 +32,9 @@ import kotlin.uuid.Uuid
  */
 class PartyLootTest {
     private val userId = "user_test_loot_1"
+
+    /** A second account, so the account-wide read has something it must not return. */
+    private val strangerId = "user_test_loot_2"
     private val dropped = LocalDate.parse("2026-07-20")
 
     @BeforeTest
@@ -58,13 +61,13 @@ class PartyLootTest {
         // function parameter shadows the receiver and hides this; a class property does not. It
         // emptied the dev database's characters once, and boss_clear and character_token_count
         // cascaded with them.
-        val owner = userId
+        val owners = listOf(userId, strangerId)
         transaction {
             // party_loot and party_member cascade from party, and the payout rows cascade from the
             // loot. The character a config hangs off goes last.
-            Party.deleteWhere { Party.userId eq owner }
-            Person.deleteWhere { Person.userId eq owner }
-            Characters.deleteWhere { Characters.userId eq owner }
+            Party.deleteWhere { Party.userId inList owners }
+            Person.deleteWhere { Person.userId inList owners }
+            Characters.deleteWhere { Characters.userId inList owners }
         }
     }
 
@@ -268,5 +271,54 @@ class PartyLootTest {
             assertNull(loot.dropKey)
             assertNull(loot.iconUrl)
         }
+    }
+
+    @Test
+    fun `the account-wide read is every pool of yours and none of anybody else's`() {
+        transaction {
+            // Two configs of your own, and a stranger's with loot in it. The wallet nets what you
+            // owe against what you are owed, so a pool that leaked in from another account would
+            // put somebody else's debt in your total.
+            val limbo = trio()
+            val mine = Uuid.parse(limbo.characterId)
+            val kalos =
+                createParty(
+                    userId,
+                    mine,
+                    bossIdForKey("kalos-the-guardian")!!,
+                    SavePartyRequest(limbo.characterId, "kalos-the-guardian", listOf("Steve")),
+                    Clock.System.now(),
+                )
+            addGrindstone(limbo)
+            addLoot(kalos, dropIdForKey("grindstone-of-faith")!!, null, null, dropped, Clock.System.now())
+            addLoot(Uuid.parse(strangerParty().id), null, "Not yours", null, dropped, Clock.System.now())
+
+            val pools = allLootFor(userId)
+            assertEquals(setOf(limbo.id, kalos.toString()), pools.map { it.partyId }.toSet())
+            assertEquals(2, pools.sumOf { it.loot.size })
+            // The same rows lootFor returns, so the wallet and a party's own page read one shape.
+            assertEquals(
+                lootFor(Uuid.parse(limbo.id)),
+                pools.single { it.partyId == limbo.id }.loot,
+            )
+        }
+    }
+
+    /** A second account with a config of its own, to prove the ownership filter above. */
+    private fun strangerParty(): PartyResponse {
+        ensureUser(strangerId, "$strangerId@example.com")
+        val theirs = Uuid.random()
+        val now = Clock.System.now()
+        val owner = strangerId
+        Characters.insert {
+            it[Characters.id] = theirs
+            it[Characters.userId] = owner
+            it[Characters.name] = "Stranger"
+            it[createdAt] = now
+            it[updatedAt] = now
+            it[position] = 0
+        }
+        val request = SavePartyRequest(theirs.toString(), "limbo", listOf("Nobody"))
+        return findParty(createParty(strangerId, theirs, bossIdForKey("limbo")!!, request, now), strangerId)!!
     }
 }

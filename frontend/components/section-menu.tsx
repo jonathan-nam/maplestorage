@@ -17,6 +17,7 @@ const SECTIONS: { group?: string; items: { href: string; label: string }[] }[] =
     items: [
       { href: "/bosses", label: "Boss Clears" },
       { href: "/bosses/parties", label: "Parties" },
+      { href: "/bosses/parties/wallet", label: "Wallet" },
       { href: "/bosses/people", label: "People" },
       { href: "/bosses/split", label: "Split Utility" },
     ],

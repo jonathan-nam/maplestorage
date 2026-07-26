@@ -3485,3 +3485,184 @@ button.link:disabled {
 .party-row .party-loot-summary {
   text-decoration: none;
 }
+
+/* The Parties toolbar's links, kept together at the right of the grouping tabs. */
+.party-toolbar-links {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* The Wallet: what every pool nets out to, per person.
+ *
+ * Three totals, then a row per counterparty. The two directions are coloured the same way the loot
+ * pool colours a status, so "owe" reads the same on both pages. */
+.wallet-totals {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.wallet-total {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.wallet-total-label {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.wallet-total-value {
+  color: var(--ink-strong);
+  font-size: 18px;
+  /* Tabular, so the three totals line up digit for digit and can be compared by length. */
+  font-variant-numeric: tabular-nums;
+}
+
+.wallet-total.is-owe .wallet-total-value {
+  color: var(--warn);
+}
+
+.wallet-total.is-owed .wallet-total-value {
+  color: var(--good);
+}
+
+.wallet-total.is-net.is-down .wallet-total-value {
+  color: var(--warn);
+}
+
+.wallet-total.is-net.is-up .wallet-total-value {
+  color: var(--good);
+}
+
+.wallet-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  margin-bottom: 10px;
+  border: 1px solid var(--line);
+  /* The direction, on the edge of the row: which way this person's money runs is the first thing
+     being read, and a colour carries it before the words do. */
+  border-left: 3px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.wallet-row.is-owe {
+  border-left-color: var(--warn);
+}
+
+.wallet-row.is-owed {
+  border-left-color: var(--good);
+}
+
+.wallet-row-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.wallet-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 15px;
+  color: var(--ink-strong);
+}
+
+/* No person owns this character yet, so the row is a character and the same human may be under a
+   second name further down. */
+.wallet-unattributed {
+  padding: 2px 8px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 400;
+}
+
+.wallet-verdict {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.wallet-row-head .copy-amount {
+  margin-left: auto;
+}
+
+.wallet-gross {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.wallet-lines {
+  list-style: none;
+  margin: 0;
+  padding: 8px 0 0;
+  border-top: 1px solid var(--line-soft);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.wallet-lines > li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+}
+
+.wallet-line-drop {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 180px;
+}
+
+.wallet-line-drop a {
+  color: var(--ink-strong);
+  text-decoration: none;
+}
+
+.wallet-line-drop a:hover {
+  color: var(--accent);
+}
+
+.wallet-line-who {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.wallet-lines .copy-amount {
+  margin-left: auto;
+}
+
+.wallet-notes {
+  list-style: none;
+  margin: 20px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+@media (max-width: 560px) {
+  .wallet-totals {
+    grid-template-columns: 1fr;
+  }
+}
