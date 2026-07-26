@@ -122,14 +122,23 @@ export default function EditPartiesPage() {
   return (
     <main className="page">
       <p className="loot-back">
-        <Link href="/bosses/parties">&larr; Parties</Link>
+        <Link href="/bosses/parties">&larr; Party View</Link>
       </p>
       <h1 className="page-title">Edit parties</h1>
       <p className="split-intro">
         Pick a character, then say who they run each boss with. A boss they solo needs no party, so
-        leave it out. Who plays which character lives on the{" "}
-        <Link href="/bosses/people">People</Link> page.
+        leave it out.
       </p>
+
+      {/* People is not in the hamburger any more: naming whose character is which is part of
+          setting a party up, so it lives here, where you already are when you need it. */}
+      <div className="party-toolbar">
+        <span className="party-toolbar-links">
+          <Link className="party-cancel" href="/bosses/people">
+            People
+          </Link>
+        </span>
+      </div>
 
       {state === "error" && <p>Couldn&apos;t load your parties.</p>}
       {state === "loading" && <p className="party-hint">Loading...</p>}
