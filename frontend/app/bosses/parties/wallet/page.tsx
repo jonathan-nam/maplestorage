@@ -86,18 +86,18 @@ export default function WalletPage() {
 
       {state === "loaded" && (
         <>
-          <div className="wallet-totals">
-            <div className="wallet-total is-owe">
-              <span className="wallet-total-label">You owe</span>
-              <span className="wallet-total-value">{formatMesos(wallet.owe, true)}</span>
+          <div className="stat-row">
+            <div className="stat-tile">
+              <span className="stat-label">You owe</span>
+              <span className="stat-value is-warn">{formatMesos(wallet.owe, true)}</span>
             </div>
-            <div className="wallet-total is-owed">
-              <span className="wallet-total-label">You&apos;re owed</span>
-              <span className="wallet-total-value">{formatMesos(wallet.owed, true)}</span>
+            <div className="stat-tile">
+              <span className="stat-label">You&apos;re owed</span>
+              <span className="stat-value is-good">{formatMesos(wallet.owed, true)}</span>
             </div>
-            <div className={`wallet-total is-net ${wallet.net < 0 ? "is-down" : "is-up"}`}>
-              <span className="wallet-total-label">Net</span>
-              <span className="wallet-total-value">
+            <div className="stat-tile">
+              <span className="stat-label">Net</span>
+              <span className={`stat-value ${wallet.net < 0 ? "is-warn" : "is-good"}`}>
                 {wallet.net < 0 ? "-" : ""}
                 {formatMesos(Math.abs(wallet.net), true)}
               </span>
