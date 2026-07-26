@@ -132,9 +132,14 @@ export default function PartiesPage() {
   // nothing left in it drops out rather than sitting there empty.
   const visible = filterByClear(parties, clearFilter);
   const clearedCount = parties.filter(isCleared).length;
-  const filterTabs: { value: ClearFilter; label: string; count: number }[] = [
+  const filterTabs: { value: ClearFilter; label: string; count: number; title?: string }[] = [
     { value: "all", label: "All", count: parties.length },
-    { value: "not-cleared", label: "Not cleared", count: parties.length - clearedCount },
+    {
+      value: "not-cleared",
+      label: "Not cleared",
+      count: parties.length - clearedCount,
+      title: "Includes bosses no planner capture has mentioned this period",
+    },
     { value: "cleared", label: "Cleared", count: clearedCount },
   ];
 
@@ -217,6 +222,7 @@ export default function PartiesPage() {
                     type="button"
                     className={clearFilter === tab.value ? "basis-tab active" : "basis-tab"}
                     aria-pressed={clearFilter === tab.value}
+                    title={tab.title}
                     onClick={() => setClearFilter(tab.value)}
                   >
                     {tab.label}
