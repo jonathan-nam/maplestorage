@@ -3442,11 +3442,17 @@ button.link:disabled {
 .party-row {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  /* Closed by default, so no gap to leave under the one line. The open state adds it back rather
+     than a later rule taking it away, which would depend on source order to work at all. */
+  gap: 0;
   padding: 10px 14px;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--surface);
+}
+
+.party-row.is-open {
+  gap: 8px;
 }
 
 .party-row-head {
@@ -3745,4 +3751,44 @@ button.link:disabled {
 
 .droplog-note {
   margin-top: 16px;
+}
+
+/* A party row opens to show who is in it. Closed is the default: the heading, the size and the
+   clear state are what the list is scanned for, and a dozen bosses was a dozen rows of sprites to
+   scroll past. */
+.party-row-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.party-row-toggle:hover {
+  color: var(--ink-strong);
+}
+
+/* Solo: nothing to open, but the width is kept so the headings stay in one column. */
+.party-row-toggle.is-empty {
+  cursor: default;
+}
+
+.party-row-chevron {
+  width: 0;
+  height: 0;
+  /* A triangle from borders, so there is no glyph to go missing on a font that lacks it. */
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+  border-left: 5px solid currentColor;
+  transition: transform 120ms ease;
+}
+
+.party-row.is-open .party-row-chevron {
+  transform: rotate(90deg);
 }
