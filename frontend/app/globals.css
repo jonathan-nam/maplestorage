@@ -1798,21 +1798,62 @@ button.link:disabled {
   line-height: 1;
 }
 
-.boss-cell.is-cleared {
+/* The mark is a block, not a bare glyph.
+ *
+ * A tick and a middot at the same weight turn 16 bosses by N characters into one field of texture:
+ * finding what is left means hunting for the ABSENCE of a tick, which is the slowest thing the eye
+ * can be asked to do. The game's own planner answers it by changing the whole row, a cleared one
+ * going dark against a bright one still to do, so the states differ by fill first:
+ *
+ *   cleared = filled in, remaining = an empty slot waiting to be filled, unseen = nothing at all.
+ *
+ * Filled against hollow survives greyscale and colour blindness on its own; the green and the
+ * amber only confirm what the shape already said. An inner block rather than a background on the
+ * cell, because .is-col-hover paints the cell and would win on specificity, blanking the state
+ * exactly where the cursor is. */
+.boss-cell-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 20px;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  font-size: 12px;
+}
+
+/* The state rides on the mark, not on the cell, so the legend below the table can draw the same
+   three marks by reusing these rules rather than restating them. */
+.boss-cell-mark.is-cleared {
+  border-color: color-mix(in srgb, var(--good) 45%, transparent);
+  background: color-mix(in srgb, var(--good) 20%, transparent);
   color: var(--good);
 }
 
-/* Dimmer than the tick and dimmer than the boss name: "seen, not done" should
-   read as quieter than both, not as a second kind of mark. */
-.boss-cell.is-pending {
+/* Hollow, and brighter at the edge than the tick is: what is left is the thing worth looking at,
+   and a settled row should not compete with it. */
+.boss-cell-mark.is-pending {
+  border-color: var(--warn);
+  background: color-mix(in srgb, var(--warn) 10%, transparent);
+}
+
+/* No mark at all. An unreported boss is NOT a boss that was not cleared, and giving it a slot of
+   its own would invite reading it as one. The legend says what the blank means. */
+.boss-cell-mark.is-unseen {
+  border-color: transparent;
+  background: none;
+}
+
+/* Every character has cleared it, so the row itself steps back and the rows with work left are
+   what the page is made of. Only when EVERY cell is cleared: a row holding an unreported character
+   is not a row that is done, and dimming it would be this feature's one unforgivable bug. */
+.boss-table tr.is-row-cleared .boss-name {
   color: var(--muted-2);
 }
 
-/* Empty on purpose. An unreported boss is NOT a boss that was not cleared, and
-   giving it a glyph of its own would invite reading it as one. The legend says
-   what the blank means. */
-.boss-cell.is-unseen {
-  color: transparent;
+.boss-table tr.is-row-cleared .boss-portrait {
+  opacity: 0.5;
+  filter: saturate(0.3);
 }
 
 .boss-legend {
@@ -1824,23 +1865,18 @@ button.link:disabled {
   font-size: 11px;
 }
 
+/* The legend draws the real marks at the real size, so it is a key rather than a description of
+   one. */
 .boss-key {
-  display: inline-block;
-  min-width: 12px;
   margin-left: 10px;
-  text-align: center;
 }
 
 .boss-key:first-child {
   margin-left: 0;
 }
 
-.boss-key.is-cleared {
-  color: var(--good);
-}
-
 .boss-key.is-unseen {
-  border-bottom: 1px solid var(--line);
+  border: 1px dashed var(--line);
 }
 
 /* Week picker on the left, reset clocks on the right, above the table. They wrap onto two lines on
@@ -2077,12 +2113,19 @@ button.link:disabled {
   gap: 5px;
 }
 
+/* Done recedes and what is left is the loud one, the same way round as the matrix and the party
+   rows. It used to be the other way, which made a capture's readout disagree with the page it
+   feeds. */
 .planner-clears .is-cleared {
-  color: var(--ink);
+  color: var(--muted);
+}
+
+.planner-clears .is-cleared .planner-clear-mark {
+  color: var(--good);
 }
 
 .planner-clears .is-pending {
-  color: var(--muted);
+  color: var(--warn);
 }
 
 /* A caveat is not decoration: each one is a reason the rows above are not the whole list. */
@@ -3342,14 +3385,19 @@ button.link:disabled {
   letter-spacing: 0.04em;
 }
 
+/* Filled when done, hollow when not, the same language the matrix marks use. Two outlines that
+   differed only in hue read as one shape at arm's length, which is the whole complaint. */
 .party-clear.is-cleared {
-  border-color: var(--good);
+  border-color: color-mix(in srgb, var(--good) 45%, transparent);
+  background: color-mix(in srgb, var(--good) 20%, transparent);
   color: var(--good);
 }
 
 .party-clear.is-pending {
   border-color: var(--warn);
+  background: color-mix(in srgb, var(--warn) 8%, transparent);
   color: var(--warn);
+  font-weight: 600;
 }
 
 .party-clear:disabled {
@@ -3365,11 +3413,11 @@ button.link:disabled {
   letter-spacing: 0;
 }
 
-/* In the arrangement view the state rides along on the boss chip, where it is a label. */
+/* In the arrangement view the state rides along on the boss chip, where it is a label. It keeps
+   its fill: the chips sit in a row, and a bare coloured word among them was the easiest state on
+   the page to miss. */
 .party-bosses .party-clear {
-  padding: 0 6px;
-  border: 0;
-  background: transparent;
+  padding: 1px 6px;
   cursor: inherit;
 }
 
@@ -3453,6 +3501,23 @@ button.link:disabled {
 
 .party-row.is-open {
   gap: 8px;
+}
+
+/* Done, so the row recedes and the list becomes what is left. Same move the game's planner makes on
+   a cleared row, and the same one .is-row-cleared makes in the matrix. Only on a definite clear:
+   "not reported" keeps its full weight, because it is a row that still needs an answer. */
+.party-row.is-cleared {
+  border-color: var(--line-soft);
+  background: none;
+}
+
+.party-row.is-cleared .party-row-name {
+  color: var(--muted);
+}
+
+.party-row.is-cleared .boss-portrait {
+  opacity: 0.5;
+  filter: saturate(0.3);
 }
 
 .party-row-head {

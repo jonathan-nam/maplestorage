@@ -18,6 +18,24 @@ export function cellState(clears: Map<string, boolean> | undefined, bossKey: str
   return clears.get(bossKey) ? "cleared" : "pending";
 }
 
+/**
+ * Is this boss done for every character in the roster?
+ *
+ * The matrix dims a whole row on this answer, which is the row saying "nothing left to do here".
+ * So `unseen` must not count: a character whose planner was not captured this period has not
+ * answered, and treating silence as a clear is the same collapse `cellState` exists to prevent,
+ * one step further along where it is harder to spot. An empty roster is not done either, it is a
+ * roster with nothing to say.
+ */
+export function rowFullyCleared(
+  byCharacter: Map<string, Map<string, boolean>>,
+  characterIds: string[],
+  bossKey: string,
+): boolean {
+  if (characterIds.length === 0) return false;
+  return characterIds.every((id) => cellState(byCharacter.get(id), bossKey) === "cleared");
+}
+
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 /**

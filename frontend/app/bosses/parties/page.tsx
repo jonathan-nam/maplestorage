@@ -268,7 +268,17 @@ export default function PartiesPage() {
                             />
                           )}
                           {bossByKey.get(party.bossKey)?.name ?? party.bossKey}
-                          {party.cleared && <span className="party-clear is-cleared">done</span>}
+                          {/* Both states are said out loud. "done" alone left "still to do" as the
+                              absence of a label, which is the one state on this page you actually
+                              need to spot. Null stays silent: it is not a third answer here, it is
+                              no answer. */}
+                          {party.cleared !== null && (
+                            <span
+                              className={`party-clear is-${party.cleared ? "cleared" : "pending"}`}
+                            >
+                              {party.cleared ? "done" : "still to do"}
+                            </span>
+                          )}
                           {(party.pendingLoot > 0 || party.awaitingPayout > 0) && (
                             <span className="party-loot-summary">
                               {party.pendingLoot + party.awaitingPayout}
