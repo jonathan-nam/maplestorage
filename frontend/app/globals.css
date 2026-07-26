@@ -2975,16 +2975,20 @@ button.link:disabled {
   margin: 16px 0 28px;
 }
 
+/* Scrolls on its own so six people plus a party column cannot stretch the page. No border or
+   fill: the inputs already draw every cell, and a box around them was a second frame around a
+   thing that is all frames. */
 .grid-scroll {
   overflow-x: auto;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: var(--surface);
 }
 
 .grid-table {
   border-collapse: collapse;
   font-size: 13px;
+}
+
+.grid-table {
+  margin-left: -6px;
 }
 
 .grid-table th,
@@ -3122,4 +3126,50 @@ button.link:disabled {
 .grid-problem {
   color: var(--warn);
   font-size: 12px;
+}
+
+/* The Parties page's own controls: how to list them, and the way to the editor. */
+.party-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.party-toolbar .party-cancel {
+  text-decoration: none;
+}
+
+/* One card per (party, boss) in the by-boss view. The boss leads, because that is what is being
+   looked up: the party under it is the answer. */
+.boss-run {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.boss-run-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.boss-run-name {
+  margin: 0;
+  font-size: 14px;
+  color: var(--ink-strong);
+}
+
+/* The party inside a boss card is not a card of its own: one border around the other reads as two
+   things. */
+.boss-run .party-card {
+  padding: 0;
+  border: 0;
+  background: transparent;
 }

@@ -1,20 +1,24 @@
 "use client";
 
 import { useAuth } from "@clerk/nextjs";
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { PartyCard } from "@/components/party-card";
-import { PartyGridEditor } from "@/components/party-grid-editor";
-import { ApiError, apiFetch } from "@/lib/api";
-import { preloadBossArt } from "@/lib/preload-boss-art";
+import { apiAssetUrl, apiFetch } from "@/lib/api";
 import { peek, put } from "@/lib/cache";
-import { partiesByCharacter } from "@/lib/parties";
+import { partiesByCharacter, runsByBoss } from "@/lib/parties";
+import { preloadBossArt } from "@/lib/preload-boss-art";
 import type { Boss } from "@/types/boss";
 import type { Character } from "@/types/character";
-import type { PartyGrid, SaveGridBody } from "@/types/party";
+import type { Party } from "@/types/party";
 
 type LoadState = "loading" | "loaded" | "error";
 
-const GRID_KEY = "/api/parties/grid";
+// Grouped: one card per party, however many bosses it runs. By boss: that same party once per
+// boss, because a duo that does three bosses is three things to do on a Thursday, not one.
+type View = "grouped" | "by-boss";
+
+const PARTIES_KEY = "/api/parties";
 const BOSSES_KEY = "/api/bosses";
 const CHARACTERS_KEY = "/api/characters";
 
@@ -25,29 +29,17 @@ export default function PartiesPage() {
   const { getToken } = useAuth();
 
   // Seeded from cache so a repeat visit paints immediately, as the other pages do. See lib/cache.ts.
-  const seededGrid = peek<PartyGrid>(GRID_KEY);
+  const seededParties = peek<Party[]>(PARTIES_KEY);
   const seededBosses = peek<Boss[]>(BOSSES_KEY);
   const seededCharacters = peek<Character[]>(CHARACTERS_KEY);
 
-  const [grid, setGrid] = useState<PartyGrid>(seededGrid ?? { people: [], parties: [] });
+  const [parties, setParties] = useState<Party[]>(seededParties ?? []);
   const [bosses, setBosses] = useState<Boss[]>(seededBosses ?? []);
   const [characters, setCharacters] = useState<Character[]>(seededCharacters ?? []);
   const [state, setState] = useState<LoadState>(
-    seededGrid && seededBosses && seededCharacters ? "loaded" : "loading",
+    seededParties && seededBosses && seededCharacters ? "loaded" : "loading",
   );
-
-  const [busy, setBusy] = useState(false);
-  const [saveError, setSaveError] = useState<string | null>(null);
-
-  async function loadGrid(token?: string | null) {
-    const result = await apiFetch<PartyGrid>(
-      GRID_KEY,
-      { method: "GET" },
-      token !== undefined ? () => Promise.resolve(token) : getToken,
-    );
-    setGrid(result);
-    put(GRID_KEY, result);
-  }
+  const [view, setView] = useState<View>("grouped");
 
   useEffect(() => {
     // One token for the whole burst, as the boss page does: getToken() can round-trip to Clerk,
@@ -56,14 +48,16 @@ export default function PartiesPage() {
       .then((token) => {
         const withToken = () => Promise.resolve(token);
         return Promise.all([
-          loadGrid(token),
+          apiFetch<Party[]>(PARTIES_KEY, { method: "GET" }, withToken),
           apiFetch<Boss[]>(BOSSES_KEY, { method: "GET" }, withToken),
           apiFetch<Character[]>(CHARACTERS_KEY, { method: "GET" }, withToken),
         ]);
       })
-      .then(([, bossResult, characterResult]) => {
+      .then(([partyResult, bossResult, characterResult]) => {
+        setParties(partyResult);
         setBosses(bossResult);
         setCharacters(characterResult);
+        put(PARTIES_KEY, partyResult);
         put(BOSSES_KEY, bossResult);
         put(CHARACTERS_KEY, characterResult);
         setState("loaded");
@@ -74,34 +68,13 @@ export default function PartiesPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  async function save(body: SaveGridBody) {
-    setBusy(true);
-    setSaveError(null);
-    try {
-      const saved = await apiFetch<PartyGrid>(
-        GRID_KEY,
-        { method: "PUT", body: JSON.stringify(body) },
-        getToken,
-      );
-      // The server's answer, not the draft: it decides seat ids, person ids and boss order, and a
-      // grid assembled here would be a second answer to what was just saved.
-      setGrid(saved);
-      put(GRID_KEY, saved);
-    } catch (e) {
-      // The backend refuses a bad grid with the reason in the body (see validateGrid). Showing it
-      // beats "something went wrong" for the one thing the user can actually fix.
-      setSaveError(e instanceof ApiError ? e.body : "Couldn't save the grid.");
-    } finally {
-      setBusy(false);
-    }
-  }
-
   const bossByKey = new Map(bosses.map((b) => [b.bossKey, b]));
   const characterById = new Map(characters.map((c) => [c.id, c]));
   const groups = partiesByCharacter(
-    grid.parties,
+    parties,
     characters.map((c) => c.id),
   );
+  const runs = runsByBoss(parties, bosses);
 
   return (
     <main className="page">
@@ -116,46 +89,85 @@ export default function PartiesPage() {
 
       {state === "loaded" && (
         <>
-          {/* The grid IS the editor. Cards below are the read view, and the way into a pool. */}
-          <PartyGridEditor
-            // Remounted when the server's grid changes, so the draft starts from what was saved
-            // rather than from a stale copy of it.
-            key={grid.parties.map((p) => p.id).join() + grid.people.map((p) => p.id).join()}
-            grid={grid}
-            bosses={bosses}
-            busy={busy}
-            error={saveError}
-            onSave={save}
-          />
+          <div className="party-toolbar">
+            <div className="basis-row" role="group" aria-label="How to list parties">
+              <button
+                type="button"
+                className={view === "grouped" ? "basis-tab active" : "basis-tab"}
+                onClick={() => setView("grouped")}
+              >
+                By party
+              </button>
+              <button
+                type="button"
+                className={view === "by-boss" ? "basis-tab active" : "basis-tab"}
+                onClick={() => setView("by-boss")}
+              >
+                By boss
+              </button>
+            </div>
+            <Link className="party-cancel" href="/bosses/parties/edit">
+              Edit parties
+            </Link>
+          </div>
 
-          {grid.parties.length === 0 && (
+          {parties.length === 0 && (
             <p className="finder-empty">
-              Nothing yet. Add a person, add a party, and put the character they bring in the cell.
+              No parties yet. <Link href="/bosses/parties/edit">Set them up</Link> as a grid: a
+              column per person, a row per party.
             </p>
           )}
 
-          {groups.map((group) => {
-            const character = group.characterId ? characterById.get(group.characterId) : null;
-            return (
-              <section className="party-group" key={group.characterId ?? "unseated"}>
-                <header className="party-group-head">
-                  {character?.spriteImgUrl && (
-                    <img className="party-group-sprite" src={character.spriteImgUrl} alt="" />
-                  )}
-                  <h2 className="party-group-name">
-                    {/* A party with none of your characters in it is still yours to track: it
-                        just has no character to file it under. */}
-                    {character?.name ?? "No character in these"}
-                  </h2>
-                </header>
-                <div className="party-list">
-                  {group.parties.map((party) => (
-                    <PartyCard key={party.id} party={party} bossByKey={bossByKey} />
-                  ))}
-                </div>
-              </section>
-            );
-          })}
+          {view === "by-boss" && runs.length === 0 && parties.length > 0 && (
+            // Every party exists but none says which boss it runs, so there is nothing to list
+            // under a boss. Saying so beats an empty page that looks like a failed load.
+            <p className="finder-empty">
+              None of your parties has a boss assigned yet. Add one in{" "}
+              <Link href="/bosses/parties/edit">the grid</Link>.
+            </p>
+          )}
+
+          {view === "by-boss" && runs.length > 0 && (
+            <div className="party-list">
+              {runs.map(({ boss, party }) => (
+                <article className="boss-run" key={`${boss.key}-${party.id}`}>
+                  <header className="boss-run-head">
+                    {boss.iconUrl && (
+                      <img className="boss-portrait" src={apiAssetUrl(boss.iconUrl)} alt="" />
+                    )}
+                    <h3 className="boss-run-name">{boss.name}</h3>
+                  </header>
+                  {/* The party's own bosses are not repeated here: this card IS one of them, and
+                      listing the other two under it reads as though they were also this row. */}
+                  <PartyCard party={party} bossByKey={bossByKey} hideBosses />
+                </article>
+              ))}
+            </div>
+          )}
+
+          {view === "grouped" &&
+            groups.map((group) => {
+              const character = group.characterId ? characterById.get(group.characterId) : null;
+              return (
+                <section className="party-group" key={group.characterId ?? "unseated"}>
+                  <header className="party-group-head">
+                    {character?.spriteImgUrl && (
+                      <img className="party-group-sprite" src={character.spriteImgUrl} alt="" />
+                    )}
+                    <h2 className="party-group-name">
+                      {/* A party with none of your characters in it is still yours to track: it
+                          just has no character to file it under. */}
+                      {character?.name ?? "No character in these"}
+                    </h2>
+                  </header>
+                  <div className="party-list">
+                    {group.parties.map((party) => (
+                      <PartyCard key={party.id} party={party} bossByKey={bossByKey} />
+                    ))}
+                  </div>
+                </section>
+              );
+            })}
         </>
       )}
     </main>

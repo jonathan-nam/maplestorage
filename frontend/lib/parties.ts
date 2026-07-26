@@ -60,6 +60,39 @@ export function partiesByCharacter(parties: Party[], characterOrder: string[]): 
 
 export type PartyBoss = { key: string; name: string; iconUrl: string | null };
 
+export type BossRun = {
+  boss: PartyBoss;
+  party: Party;
+};
+
+/**
+ * One entry per (party, boss), in catalog order.
+ *
+ * A party that runs three bosses is three runs here, because that is how a week is actually
+ * planned: you do not sit down to do "the duo", you sit down to do Kalos. Grouped by party the
+ * same information reads as one row, which is right for editing and wrong for looking up who you
+ * need for tonight's boss.
+ *
+ * A party with no bosses yet appears in no run. It has nothing to be listed under, and inventing a
+ * row for it would put a party under a boss it does not run.
+ */
+export function runsByBoss(parties: Party[], bosses: Boss[]): BossRun[] {
+  const runs: BossRun[] = [];
+  // Driven by the catalog rather than by the parties, so the list reads in progression order and
+  // two parties on the same boss land next to each other.
+  for (const boss of bosses) {
+    for (const party of parties) {
+      if (party.bossKeys.includes(boss.bossKey)) {
+        runs.push({
+          boss: { key: boss.bossKey, name: boss.name, iconUrl: boss.iconUrl },
+          party,
+        });
+      }
+    }
+  }
+  return runs;
+}
+
 /** Which bosses a party covers, in the catalog's order rather than the party's. */
 export function bossesFor(party: Party, bossByKey: Map<string, Boss>): PartyBoss[] {
   // A key the catalog does not have is shown as the raw key, art-less. Ugly and honest; dropping

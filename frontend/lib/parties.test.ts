@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { bossesFor, partiesByCharacter, partyLabel, partySizeLabel } from "./parties";
+import { bossesFor, partiesByCharacter, partyLabel, partySizeLabel, runsByBoss } from "./parties";
 import type { Boss } from "@/types/boss";
 import type { Party, PartyMember } from "@/types/party";
 
@@ -76,6 +76,39 @@ describe("partiesByCharacter", () => {
 
   it("leaves a character with no parties out rather than showing an empty group", () => {
     expect(partiesByCharacter([], ["char-1"])).toEqual([]);
+  });
+});
+
+describe("runsByBoss", () => {
+  const boss = (bossKey: string, name: string): Boss => ({
+    bossKey,
+    name,
+    reset: "WEEKLY",
+    iconUrl: `/boss-icons/${bossKey}.png`,
+  });
+  const catalog = [boss("limbo", "Limbo"), boss("baldrix", "Baldrix")];
+
+  it("lists a party once per boss it runs, in catalog order", () => {
+    // The duo that does three bosses is three things to do, not one. Grouped by party it reads as
+    // a single row, which is right for editing it and wrong for finding tonight's boss.
+    const duo = { ...party("p1", [seat("Rune"), seat("Steve")]), bossKeys: ["baldrix", "limbo"] };
+    const runs = runsByBoss([duo], catalog);
+
+    expect(runs.map((r) => r.boss.key)).toEqual(["limbo", "baldrix"]);
+    expect(runs.every((r) => r.party.id === "p1")).toBe(true);
+    expect(runs[0]?.boss.name).toBe("Limbo");
+  });
+
+  it("puts two parties on the same boss next to each other", () => {
+    const a = { ...party("a", [seat("One")]), bossKeys: ["limbo"] };
+    const b = { ...party("b", [seat("Two")]), bossKeys: ["limbo"] };
+    expect(runsByBoss([a, b], catalog).map((r) => r.party.id)).toEqual(["a", "b"]);
+  });
+
+  it("leaves out a party that runs nothing yet", () => {
+    // It has no boss to be listed under, and inventing a row would file it under one it does not
+    // run. It is still there in the grouped view.
+    expect(runsByBoss([party("p1", [seat("Rune")])], catalog)).toEqual([]);
   });
 });
 

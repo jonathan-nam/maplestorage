@@ -9,7 +9,16 @@ import type { Party } from "@/types/party";
 
 // A read view. Editing and deleting live in the grid above it, because a party edited in two
 // places is a party that can be edited into two different shapes.
-export function PartyCard({ party, bossByKey }: { party: Party; bossByKey: Map<string, Boss> }) {
+export function PartyCard({
+  party,
+  bossByKey,
+  // Set in the per-boss view, where the card already sits under the boss it is being listed for.
+  hideBosses = false,
+}: {
+  party: Party;
+  bossByKey: Map<string, Boss>;
+  hideBosses?: boolean;
+}) {
   const bosses = bossesFor(party, bossByKey);
 
   return (
@@ -29,7 +38,7 @@ export function PartyCard({ party, bossByKey }: { party: Party; bossByKey: Map<s
 
       {/* No bosses is a real state, not an unfinished one: a party can exist before you decide
           what it runs. Saying so beats an empty row that looks like a failed load. */}
-      {bosses.length > 0 ? (
+      {hideBosses ? null : bosses.length > 0 ? (
         <ul className="party-bosses">
           {bosses.map((boss) => (
             <li key={boss.key}>
