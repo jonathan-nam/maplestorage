@@ -3392,13 +3392,13 @@ button.link:disabled {
   color: var(--muted-2);
 }
 
-/* The one light thing on the row, and the only state that inverts: dark ink on a light pill rather
-   than the other way about. Nothing else in the list is drawn this way, so it is found without
-   being read. */
+/* The edge does it, not a fill. A solid light pill was the loudest thing on a page of quiet rows
+   and pulled the eye before the boss it belonged to; the bright border reads at the same distance
+   without taking the row over. Ink and border together, so it is still the brightest of the three
+   at a glance rather than a hue you have to name. */
 .party-clear.is-pending {
   border-color: var(--ink-strong);
-  background: var(--ink);
-  color: var(--bg);
+  color: var(--ink-strong);
   font-weight: 600;
 }
 
