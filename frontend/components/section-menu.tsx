@@ -3,39 +3,17 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { activeHref, MENU_HREFS, SECTIONS } from "@/lib/section-menu";
 
-// Account sections live behind a hamburger beside the brand. The menu was built as scaffolding for
-// exactly this: a new section is one more entry, not a re-layout.
-// /characters redirects to /inventory (see next.config), so old links keep working.
-//
-// A group is a heading with its own links, NOT a link itself: there is no /bossing page, and a
-// heading that navigated nowhere would be the one thing in here that lies about what it does.
-const SECTIONS: { group?: string; items: { href: string; label: string }[] }[] = [
-  { items: [{ href: "/inventory", label: "Inventory" }] },
-  {
-    group: "Bossing",
-    items: [
-      { href: "/bosses", label: "Individual View" },
-      { href: "/bosses/parties", label: "Party View" },
-      { href: "/bosses/parties/wallet", label: "Wallet" },
-      { href: "/bosses/parties/drops", label: "Drop Log" },
-      { href: "/bosses/people", label: "People" },
-      { href: "/bosses/split", label: "Split Utility" },
-    ],
-  },
-];
-
-const HREFS = SECTIONS.flatMap((s) => s.items.map((i) => i.href));
+// Account sections live behind a hamburger beside the brand. What it lists, and which entry a path
+// belongs to, are in lib/section-menu.ts, where they can be tested: the highlight rule fails
+// silently, by lighting the wrong word rather than by erroring.
 
 export function SectionMenu() {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
 
-  // Longest matching href wins, so /bosses/split lights up "Split Utility" alone. A plain
-  // startsWith would light up "Individual View" as well, since one section nests under the other.
-  const active = HREFS.filter((href) => pathname === href || pathname.startsWith(`${href}/`)).sort(
-    (a, b) => b.length - a.length,
-  )[0];
+  const active = activeHref(pathname);
   const ref = useRef<HTMLDivElement>(null);
   const router = useRouter();
 
@@ -47,7 +25,7 @@ export function SectionMenu() {
   //
   // Every section, deduped by the router cache. No effect under `next dev`, which never prefetches.
   useEffect(() => {
-    for (const href of HREFS) router.prefetch(href);
+    for (const href of MENU_HREFS) router.prefetch(href);
   }, [router]);
 
   // Close on an outside click or Escape, the two ways a menu should always be dismissable.
@@ -90,17 +68,19 @@ export function SectionMenu() {
               aria-label={section.group}
             >
               {section.group ? <p className="section-menu-group-label">{section.group}</p> : null}
-              {section.items.map((item) => (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  role="menuitem"
-                  className={active === item.href ? "active" : ""}
-                  onClick={() => setOpen(false)}
-                >
-                  {item.label}
-                </Link>
-              ))}
+              {section.items
+                .filter((item) => !item.hidden)
+                .map((item) => (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    role="menuitem"
+                    className={active === item.href ? "active" : ""}
+                    onClick={() => setOpen(false)}
+                  >
+                    {item.label}
+                  </Link>
+                ))}
             </div>
           ))}
         </nav>
