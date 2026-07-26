@@ -14,6 +14,8 @@ const party = (id: string, members: PartyMember[], name: string | null = null): 
   name,
   members,
   bossKeys: [],
+  pendingLoot: 0,
+  awaitingPayout: 0,
   createdAt: "2026-07-26T00:00:00Z",
   updatedAt: "2026-07-26T00:00:00Z",
 });

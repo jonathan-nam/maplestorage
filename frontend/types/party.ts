@@ -19,6 +19,9 @@ export type Party = {
   // Catalog keys, in progression order. The names come from /api/bosses, the same catalog the
   // clear matrix draws its rows from.
   bossKeys: string[];
+  // The pool at a glance: dropped but unsold, and sold with somebody still unpaid.
+  pendingLoot: number;
+  awaitingPayout: number;
   createdAt: string;
   updatedAt: string;
 };

@@ -38,7 +38,7 @@ repos:
         pass_filenames: false
 
       - id: catalog
-        name: catalog is in sync (items.yaml -> R__token_catalog.sql)
+        name: catalog is in sync (items/bosses/drops.yaml -> generated SQL)
         entry: python3 catalog/build.py --check
         language: system
         files: ^(catalog/|vision/app/cv/templates/|backend/src/main/resources/seed-assets/)

@@ -2667,3 +2667,239 @@ button.link:disabled {
   color: var(--muted-2);
   font-size: 12px;
 }
+
+/* The loot pool. One card per drop, taken from "in the pool" to "settled". Every figure in a row
+   comes from splitOf() (lib/loot.ts), which calls the same splitDrop() the Split Utility does. */
+.loot-back {
+  margin: 0 0 8px;
+  font-size: 13px;
+}
+
+.loot-back a {
+  color: var(--muted);
+  text-decoration: none;
+}
+
+.loot-back a:hover {
+  color: var(--ink);
+}
+
+.party-card-name a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.party-card-name a:hover {
+  color: var(--accent);
+}
+
+.party-loot-summary {
+  margin: 0;
+  font-size: 12px;
+  color: var(--warn);
+}
+
+.loot-pool {
+  margin-top: 28px;
+}
+
+.loot-pool-title {
+  margin: 0 0 12px;
+  font-size: 15px;
+  color: var(--ink-strong);
+}
+
+.loot-add {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.loot-drop-select {
+  min-width: 220px;
+}
+
+.loot-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.loot-row {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+/* Settled rows recede: the pool is a worklist, and what is done should not compete with what is
+   not. */
+.loot-row.status-paid_out {
+  opacity: 0.72;
+}
+
+.loot-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.loot-icon {
+  width: 46px;
+  height: 46px;
+  flex: none;
+  /* Drawn 1:1: the sprites are normalised to a 46px frame by catalog/build.py, and scaling them
+     here would undo that. */
+  image-rendering: pixelated;
+}
+
+.loot-title {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.loot-name {
+  color: var(--ink-strong);
+  font-size: 14px;
+}
+
+.loot-meta {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.loot-status {
+  flex: none;
+  padding: 3px 9px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  font-size: 11px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.loot-status.is-sold {
+  border-color: var(--warn);
+  color: var(--warn);
+}
+
+.loot-status.is-paid_out {
+  border-color: var(--good);
+  color: var(--good);
+}
+
+.loot-warn {
+  margin: 0;
+  padding: 8px 10px;
+  border-left: 2px solid var(--warn);
+  background: var(--surface-2);
+  color: var(--ink);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.loot-sale-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.loot-sale-line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.loot-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.loot-parsed {
+  color: var(--muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.loot-sold-line {
+  margin: 0;
+  font-size: 13px;
+  color: var(--ink);
+  line-height: 1.6;
+}
+
+.loot-sold-line strong {
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+
+.loot-shares {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.loot-shares > li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding-top: 6px;
+  border-top: 1px solid var(--line-soft);
+  font-size: 13px;
+}
+
+.loot-shares > li.is-paid {
+  color: var(--muted);
+}
+
+.loot-share-name {
+  min-width: 90px;
+  color: var(--ink-strong);
+}
+
+.loot-shares > li.is-paid .loot-share-name {
+  color: var(--muted);
+}
+
+.loot-share-nets {
+  color: var(--muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.loot-paid {
+  font: inherit;
+  font-size: 12px;
+  margin-left: auto;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.loot-paid.is-paid {
+  border-color: var(--good);
+  color: var(--good);
+}
+
+.loot-paid:disabled {
+  opacity: 0.5;
+  cursor: default;
+}

@@ -13,6 +13,7 @@ import io.ktor.server.routing.delete
 import io.ktor.server.routing.get
 import io.ktor.server.routing.post
 import io.ktor.server.routing.put
+import io.ktor.server.routing.route
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import kotlin.time.Clock
 import kotlin.uuid.Uuid
@@ -23,6 +24,7 @@ fun Route.partyRoutes() {
     get("/{id}") { getParty() }
     put("/{id}") { savePartyRoute() }
     delete("/{id}") { deletePartyRoute() }
+    route("/{id}/loot") { lootRoutes() }
 }
 
 /** What a create or a save can come to. Kept explicit so each maps to one status code, once. */
@@ -89,7 +91,13 @@ private suspend fun RoutingContext.savePartyRoute() {
             if (!ownsParty(partyId, userId)) {
                 SaveOutcome.Missing
             } else {
-                val problem = validateParty(request, ownedCharacterIds(userId), memberIdsOf(partyId))
+                val problem =
+                    validateParty(
+                        request,
+                        ownedCharacterIds(userId),
+                        memberIdsOf(partyId),
+                        seatsWithLootHistory(partyId),
+                    )
                 if (problem != null) {
                     SaveOutcome.Invalid(problem)
                 } else {
@@ -136,11 +144,16 @@ internal fun validateParty(
     request: SavePartyRequest,
     ownedCharacters: Set<Uuid>,
     existingMemberIds: Set<Uuid>,
+    // Seats the loot pool points at. They cannot be dropped from the party: a payout row is the
+    // record that somebody was paid, and removing the seat would erase the record while the money
+    // stays real. Empty for a party being created.
+    protectedMemberIds: Set<Uuid> = emptySet(),
 ): String? {
     val members = request.members
     val seatIds = members.mapNotNull { it.id }
     val characterIds = members.mapNotNull { it.characterId }
     val parsedCharacterIds = characterIds.mapNotNull(Uuid::parseOrNull)
+    val keptSeats = seatIds.mapNotNull(Uuid::parseOrNull).toSet()
 
     return when {
         members.isEmpty() -> "a party needs at least one member"
@@ -154,6 +167,8 @@ internal fun validateParty(
         // Two seats for one character would double that character's share of every split.
         parsedCharacterIds.distinct().size != parsedCharacterIds.size ->
             "a character can hold only one seat in a party"
+        !keptSeats.containsAll(protectedMemberIds) ->
+            "a member with loot history cannot be removed, delete or reassign their loot first"
         bossIdsForKeys(request.bossKeys) == null -> "unknown boss key"
         else -> null
     }

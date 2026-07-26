@@ -186,3 +186,71 @@ object PartyBoss : Table("party_boss") {
 
     override val primaryKey = PrimaryKey(partyId, bossCatalogId)
 }
+
+// What a boss can drop, and the art shown beside it. Seeded by R__drop_catalog.sql from
+// catalog/drops.yaml. Separate from TokenCatalog, which is what the parser counts in an
+// inventory. See V17__drop_catalog.sql.
+object DropCatalog : Table("drop_catalog") {
+    // No auto-default: the seed keeps an existing row's id, which PartyLoot references.
+    val id = uuid("id")
+    val dropKey = text("drop_key").uniqueIndex()
+    val name = text("name")
+
+    // The file under seed-assets/drops, served at /drop-icons. Null when the pinned dataset has
+    // no art for it, so the client knows to draw the row without an icon.
+    val iconRefKey = text("icon_ref_key").nullable()
+
+    // ALWAYS or HEROIC when every member gets their own copy, null when the party gets one. It
+    // decides whether a drop is poolable at all, so it is data, not a label.
+    val perMember = text("per_member").nullable()
+    val worlds = text("worlds").nullable()
+    val quantity = integer("quantity")
+    val sortOrder = integer("sort_order")
+
+    override val primaryKey = PrimaryKey(id)
+}
+
+object BossDrop : Table("boss_drop") {
+    val bossCatalogId = reference("boss_catalog_id", BossCatalog.id)
+    val dropCatalogId = reference("drop_catalog_id", DropCatalog.id)
+    val sortOrder = integer("sort_order")
+
+    override val primaryKey = PrimaryKey(bossCatalogId, dropCatalogId)
+}
+
+// A party's loot pool. Stores what was entered, never what was computed: the split arithmetic
+// lives in frontend/lib/drop-split.ts and a second copy here would be a second answer.
+object PartyLoot : Table("party_loot") {
+    val id = uuid("id")
+    val partyId = reference("party_id", Party.id)
+
+    // Exactly one of these is set (party_loot_named_once).
+    val dropCatalogId = optReference("drop_catalog_id", DropCatalog.id)
+    val customName = text("custom_name").nullable()
+
+    val bossCatalogId = optReference("boss_catalog_id", BossCatalog.id)
+    val droppedOn = date("dropped_on")
+
+    // The sale, all five columns or none of them (party_loot_sale_complete).
+    val soldAt = timestamp("sold_at").nullable()
+    val saleAmount = long("sale_amount").nullable()
+    val amountBasis = text("amount_basis").nullable()
+    val splitMethod = text("split_method").nullable()
+    val sellerMemberId = optReference("seller_member_id", PartyMember.id)
+
+    val createdAt = timestamp("created_at")
+    val updatedAt = timestamp("updated_at")
+
+    override val primaryKey = PrimaryKey(id)
+}
+
+// Who is owed for a sale, pinned at the moment it sold rather than re-derived from the party.
+// See V18__party_loot.sql.
+object PartyLootPayout : Table("party_loot_payout") {
+    val lootId = reference("loot_id", PartyLoot.id)
+    val memberId = reference("member_id", PartyMember.id)
+    val paid = bool("paid")
+    val paidAt = timestamp("paid_at").nullable()
+
+    override val primaryKey = PrimaryKey(lootId, memberId)
+}

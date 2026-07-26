@@ -1,0 +1,46 @@
+// Mirrors backend's parties/LootDtos.kt field-for-field.
+
+export type LootPayout = {
+  memberId: string;
+  paid: boolean;
+  paidAt: string | null;
+};
+
+export type Loot = {
+  id: string;
+  // Set when the drop came from a boss table; customName is set instead when it was typed.
+  dropKey: string | null;
+  customName: string | null;
+  // Already resolved to whichever of the two applies.
+  name: string;
+  iconUrl: string | null;
+  // ALWAYS or HEROIC when each member gets their own copy, so pooling it is not what it needs.
+  perMember: string | null;
+  bossKey: string | null;
+  droppedOn: string;
+  // PENDING, SOLD or PAID_OUT. Derived by the server from the sale and the payout rows.
+  status: string;
+  saleAmount: number | null;
+  // LISTED or RECEIVED. See AmountBasis in lib/drop-split.ts.
+  amountBasis: string | null;
+  // LAZY or FAIR.
+  splitMethod: string | null;
+  sellerMemberId: string | null;
+  soldAt: string | null;
+  // Who is owed, pinned when the drop sold. Empty before that.
+  payouts: LootPayout[];
+};
+
+export type AddLootBody = {
+  dropKey?: string | null;
+  customName?: string | null;
+  bossKey?: string | null;
+  droppedOn?: string | null;
+};
+
+export type SellLootBody = {
+  amount: number;
+  amountBasis: string;
+  splitMethod: string;
+  sellerMemberId: string;
+};

@@ -25,6 +25,10 @@ data class PartyResponse(
     val members: List<PartyMemberResponse>,
     // Which bosses this party is for, as catalog keys in progression order.
     val bossKeys: List<String>,
+    // The loot pool at a glance: what has dropped and not sold, and what has sold with somebody
+    // still unpaid. Counted server side so the list page does not fetch every party's pool.
+    val pendingLoot: Int = 0,
+    val awaitingPayout: Int = 0,
     val createdAt: String,
     val updatedAt: String,
 )

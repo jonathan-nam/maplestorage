@@ -1,0 +1,168 @@
+"use client";
+
+import { useAuth } from "@clerk/nextjs";
+import Link from "next/link";
+import { useParams } from "next/navigation";
+import { useEffect, useState } from "react";
+import { LootPool } from "@/components/loot-pool";
+import { ApiError, apiFetch } from "@/lib/api";
+import { peek, put } from "@/lib/cache";
+import { summarize } from "@/lib/loot";
+import { bossNamesFor, partyLabel, partySizeLabel } from "@/lib/parties";
+import type { Boss } from "@/types/boss";
+import type { DropTables } from "@/types/drop";
+import type { AddLootBody, Loot, SellLootBody } from "@/types/loot";
+import type { Party } from "@/types/party";
+
+type LoadState = "loading" | "loaded" | "error";
+
+const BOSSES_KEY = "/api/bosses";
+const DROPS_KEY = "/api/bosses/drops";
+
+export default function PartyPage() {
+  const { getToken } = useAuth();
+  const params = useParams<{ id: string }>();
+  const partyId = params.id;
+
+  const [party, setParty] = useState<Party | null>(null);
+  const [loot, setLoot] = useState<Loot[]>([]);
+  const [bosses, setBosses] = useState<Boss[]>(peek<Boss[]>(BOSSES_KEY) ?? []);
+  const [dropTables, setDropTables] = useState<DropTables>(peek<DropTables>(DROPS_KEY) ?? {});
+  const [state, setState] = useState<LoadState>("loading");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const partyUrl = `/api/parties/${partyId}`;
+  const lootUrl = `${partyUrl}/loot`;
+
+  async function loadLoot(token?: string | null) {
+    const result = await apiFetch<Loot[]>(
+      lootUrl,
+      { method: "GET" },
+      token !== undefined ? () => Promise.resolve(token) : getToken,
+    );
+    setLoot(result);
+  }
+
+  useEffect(() => {
+    getToken()
+      .then((token) => {
+        const withToken = () => Promise.resolve(token);
+        return Promise.all([
+          apiFetch<Party>(partyUrl, { method: "GET" }, withToken),
+          loadLoot(token),
+          apiFetch<Boss[]>(BOSSES_KEY, { method: "GET" }, withToken),
+          // The whole catalog's drop tables, cached: it is a few dozen rows and the picker needs
+          // whichever boss you switch to next.
+          apiFetch<DropTables>(DROPS_KEY, { method: "GET" }, withToken),
+        ]);
+      })
+      .then(([partyResult, , bossResult, dropResult]) => {
+        setParty(partyResult);
+        setBosses(bossResult);
+        setDropTables(dropResult);
+        put(BOSSES_KEY, bossResult);
+        put(DROPS_KEY, dropResult);
+        setState("loaded");
+      })
+      .catch(() => setState("error"));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [partyId]);
+
+  // Every mutation refetches the pool rather than patching it in place: status is derived from the
+  // sale and the payout rows server side, so the server's answer is the only one that is right.
+  async function mutate(path: string, options: RequestInit) {
+    setBusy(true);
+    setError(null);
+    try {
+      await apiFetch<unknown>(path, options, getToken);
+      await loadLoot();
+    } catch (e) {
+      setError(e instanceof ApiError ? e.body : "That didn't save.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const add = (body: AddLootBody) =>
+    mutate(lootUrl, { method: "POST", body: JSON.stringify(body) });
+  const sell = (lootId: string, body: SellLootBody) =>
+    mutate(`${lootUrl}/${lootId}/sale`, { method: "PUT", body: JSON.stringify(body) });
+  const unsell = (lootId: string) => mutate(`${lootUrl}/${lootId}/sale`, { method: "DELETE" });
+  const setPaid = (lootId: string, memberId: string, paid: boolean) =>
+    mutate(`${lootUrl}/${lootId}/payouts/${memberId}`, {
+      method: "PUT",
+      body: JSON.stringify({ paid }),
+    });
+  const remove = (lootId: string) => mutate(`${lootUrl}/${lootId}`, { method: "DELETE" });
+
+  const bossNameByKey = new Map(bosses.map((b) => [b.bossKey, b.name]));
+  // Counted from the rows on screen rather than from the party's stored counters, which were read
+  // one request earlier and go stale the moment something here is marked paid.
+  const summary = summarize(loot);
+
+  return (
+    <main className="page">
+      <p className="loot-back">
+        <Link href="/bosses/parties">&larr; Parties</Link>
+      </p>
+
+      {state === "error" && <p>Couldn&apos;t load that party.</p>}
+      {state === "loading" && <p className="party-hint">Loading...</p>}
+
+      {state === "loaded" && party && (
+        <>
+          <h1 className="page-title">{partyLabel(party)}</h1>
+          <div className="party-card-head">
+            <ul className="party-roster">
+              {party.members.map((member) => (
+                <li
+                  key={member.id}
+                  className={`party-seat-chip${member.characterId ? " is-mine" : ""}`}
+                >
+                  {member.name}
+                  {member.mvp && <span className="party-mvp">MVP</span>}
+                </li>
+              ))}
+            </ul>
+            <span className="party-card-size">{partySizeLabel(party.members.length)}</span>
+          </div>
+
+          {party.bossKeys.length > 0 && (
+            <ul className="party-bosses">
+              {bossNamesFor(party, bossNameByKey).map((name) => (
+                <li key={name}>{name}</li>
+              ))}
+            </ul>
+          )}
+
+          {(summary.pending > 0 || summary.awaitingPayout > 0) && (
+            <p className="party-loot-summary">
+              {[
+                summary.pending > 0 ? `${summary.pending} in the pool` : null,
+                summary.awaitingPayout > 0 ? `${summary.awaitingPayout} awaiting payout` : null,
+              ]
+                .filter(Boolean)
+                .join(" \u00b7 ")}
+            </p>
+          )}
+
+          {error && <p className="split-error">{error}</p>}
+
+          <LootPool
+            party={party}
+            loot={loot}
+            dropTables={dropTables}
+            bossNameByKey={bossNameByKey}
+            busy={busy}
+            onAdd={add}
+            onSell={sell}
+            onUnsell={unsell}
+            onSetPaid={setPaid}
+            onDelete={remove}
+          />
+        </>
+      )}
+    </main>
+  );
+}
