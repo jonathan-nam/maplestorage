@@ -234,6 +234,8 @@ export default function PartiesPage() {
   return (
     <main className="page">
       <h1 className="page-title">Party View</h1>
+      {/* Kept to one line, and to about the same length as the Individual View's, for the reason
+          given there: the week label below sits at whatever height this wraps to. */}
       <p className="split-intro">Which bosses each character runs, and who they run them with.</p>
 
       {state === "error" && <p>Couldn&apos;t load your parties.</p>}
