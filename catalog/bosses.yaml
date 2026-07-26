@@ -72,6 +72,12 @@ bosses:
   - key: baldrix
     name: Baldrix
     reset: WEEKLY
+  # After Baldrix, which is where the planner puts it (test-fixtures/planner/boss portraits
+  # sample.png). Until now it was missing here entirely, so its planner row matched no name and
+  # counted as UNREADABLE, which is what makes a parse warn that it may have missed a boss.
+  - key: jupiter
+    name: Jupiter
+    reset: WEEKLY
   # Untracked by request: still on the planner, so the reader must keep its name. See `tracked`.
   - key: akechi-mitsuhide
     name: Akechi Mitsuhide

@@ -7,6 +7,7 @@ import { PlannerDock } from "@/components/planner-dock";
 import { ResetTimer } from "@/components/reset-timer";
 import { WeekStepper } from "@/components/week-stepper";
 import { apiFetch } from "@/lib/api";
+import { preloadBossArt } from "@/lib/preload-boss-art";
 import { peek, put } from "@/lib/cache";
 import type { Boss, BossClearsView } from "@/types/boss";
 import type { Character } from "@/types/character";
@@ -22,6 +23,9 @@ const CHARACTERS_KEY = "/api/characters";
 const clearsUrl = (week: string | null) => (week ? `${CLEARS_KEY}?week=${week}` : CLEARS_KEY);
 
 export default function BossesPage() {
+  // Before anything is fetched: see lib/preload-boss-art.ts.
+  preloadBossArt();
+
   const { getToken } = useAuth();
 
   // Seeded from cache so a repeat visit paints immediately rather than flashing a loading state

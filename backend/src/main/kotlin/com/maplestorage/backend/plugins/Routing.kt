@@ -50,6 +50,14 @@ fun Application.configureRouting(
         // fades to 195 at the baseline and the slot background is 226.
         staticResources("/digit-icons", "seed-assets/digits") { cacheControl(iconCache) }
 
+        // Boss drop art, from catalog/drops.yaml. Public and cached like the token icons, and for
+        // the same reasons: static art keyed by a stable filename, loaded by <img> tags that
+        // cannot attach a Bearer token.
+        staticResources("/drop-icons", "seed-assets/drops") { cacheControl(iconCache) }
+
+        // Boss portraits, cut from a planner capture. Public and cached like the other art.
+        staticResources("/boss-icons", "seed-assets/bosses") { cacheControl(iconCache) }
+
         // Unauthenticated on purpose, this is what the ALB target group polls
         // (see infra/alb.tf's health_check block). No DB touch here: a slow or
         // briefly-unavailable RDS shouldn't flip the target group unhealthy.
@@ -99,7 +107,7 @@ fun Application.configureRouting(
             }
 
             route("/api/parties") {
-                partyRoutes()
+                partyRoutes(nexonLookupService)
             }
         }
     }

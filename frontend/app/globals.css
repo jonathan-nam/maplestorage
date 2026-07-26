@@ -1755,9 +1755,30 @@ button.link:disabled {
    the table is width:100% under auto layout, so the slack is shared out and this column ends up
    somewhat wider. Do not reach for table-layout:fixed to pin it, that also drops .boss-cell's
    min-width and a wide roster would squeeze instead of scrolling. */
+/* The boss's portrait sits inside the row header. The flex is on an inner span rather than the
+   cell: display:flex on a <th> takes it out of the table layout and the column stops aligning
+   with the header above it. */
+.boss-name-inner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Keeps the row's height and the column's width when there is nothing to draw. Without it the
+   matrix would reflow as the portraits arrived, which is the class of layout shift that put the
+   inventory window 30px out of place (#77). */
+.boss-portrait.is-empty {
+  background: var(--surface-2);
+  border-radius: 3px;
+}
+
+/* 180px of name plus the portrait and its gap. Widened rather than letting the art eat into the
+   name, because "Guardian Angel Slime" already ran close to the old width and this column is
+   nowrap: it would have clipped the longest names, which are the ones hardest to tell apart. The
+   30px comes off the mark columns, which have it to spare. */
 .boss-col-head,
 .boss-name {
-  width: 180px;
+  width: 214px;
 }
 
 .boss-name {
@@ -2666,4 +2687,283 @@ button.link:disabled {
   margin: 0;
   color: var(--muted-2);
   font-size: 12px;
+}
+
+/* The loot pool. One card per drop, taken from "in the pool" to "settled". Every figure in a row
+   comes from splitOf() (lib/loot.ts), which calls the same splitDrop() the Split Utility does. */
+.loot-back {
+  margin: 0 0 8px;
+  font-size: 13px;
+}
+
+.loot-back a {
+  color: var(--muted);
+  text-decoration: none;
+}
+
+.loot-back a:hover {
+  color: var(--ink);
+}
+
+.party-card-name a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.party-card-name a:hover {
+  color: var(--accent);
+}
+
+.party-loot-summary {
+  margin: 0;
+  font-size: 12px;
+  color: var(--warn);
+}
+
+.loot-pool {
+  margin-top: 28px;
+}
+
+.loot-pool-title {
+  margin: 0 0 12px;
+  font-size: 15px;
+  color: var(--ink-strong);
+}
+
+.loot-add {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.loot-drop-select {
+  min-width: 220px;
+}
+
+.loot-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.loot-row {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+/* Settled rows recede: the pool is a worklist, and what is done should not compete with what is
+   not. */
+.loot-row.status-paid_out {
+  opacity: 0.72;
+}
+
+.loot-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.loot-icon {
+  width: 46px;
+  height: 46px;
+  flex: none;
+  /* Drawn 1:1: the sprites are normalised to a 46px frame by catalog/build.py, and scaling them
+     here would undo that. */
+  image-rendering: pixelated;
+}
+
+.loot-title {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.loot-name {
+  color: var(--ink-strong);
+  font-size: 14px;
+}
+
+.loot-meta {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.loot-status {
+  flex: none;
+  padding: 3px 9px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  font-size: 11px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.loot-status.is-sold {
+  border-color: var(--warn);
+  color: var(--warn);
+}
+
+.loot-status.is-paid_out {
+  border-color: var(--good);
+  color: var(--good);
+}
+
+.loot-warn {
+  margin: 0;
+  padding: 8px 10px;
+  border-left: 2px solid var(--warn);
+  background: var(--surface-2);
+  color: var(--ink);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.loot-sale-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.loot-sale-line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.loot-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.loot-parsed {
+  color: var(--muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.loot-sold-line {
+  margin: 0;
+  font-size: 13px;
+  color: var(--ink);
+  line-height: 1.6;
+}
+
+.loot-sold-line strong {
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+
+.loot-shares {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.loot-shares > li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding-top: 6px;
+  border-top: 1px solid var(--line-soft);
+  font-size: 13px;
+}
+
+.loot-shares > li.is-paid {
+  color: var(--muted);
+}
+
+.loot-share-name {
+  min-width: 90px;
+  color: var(--ink-strong);
+}
+
+.loot-shares > li.is-paid .loot-share-name {
+  color: var(--muted);
+}
+
+.loot-share-nets {
+  color: var(--muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.loot-paid {
+  font: inherit;
+  font-size: 12px;
+  margin-left: auto;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.loot-paid.is-paid {
+  border-color: var(--good);
+  color: var(--good);
+}
+
+.loot-paid:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* Party member sprites and boss portraits.
+   Both are pixel art, so both are drawn at a size that does not resample them into mush: the boss
+   portraits are cut from the planner at 26px and are shown at 26 or at exactly half. */
+.seat-sprite {
+  width: 24px;
+  height: 24px;
+  flex: none;
+  object-fit: contain;
+  object-position: center bottom;
+  image-rendering: pixelated;
+}
+
+.party-seat-chip {
+  /* Taller than a text-only chip now that it carries a face. */
+  padding: 2px 8px 2px 3px;
+}
+
+.boss-portrait {
+  width: 26px;
+  height: 26px;
+  flex: none;
+  image-rendering: pixelated;
+  border-radius: 3px;
+}
+
+.boss-portrait.is-small {
+  width: 13px;
+  height: 13px;
+}
+
+.party-bosses li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px 2px 3px;
+}
+
+.loot-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
 }

@@ -6,6 +6,7 @@
 // it IS one party, and hiding it from the second character would be the missing row this repo
 // prefers to avoid.
 
+import type { Boss } from "@/types/boss";
 import type { Party } from "@/types/party";
 
 /** The game's own party limit. Mirrors MAX_PARTY_SIZE in PartyQueries.kt. */
@@ -57,9 +58,14 @@ export function partiesByCharacter(parties: Party[], characterOrder: string[]): 
   return groups;
 }
 
-/** Which bosses a party covers, as names, in the catalog's order rather than the party's. */
-export function bossNamesFor(party: Party, bossNameByKey: Map<string, string>): string[] {
-  // A key with no name means the catalog moved under us. Showing the raw key is ugly and honest;
-  // dropping it would quietly shorten the list of bosses this party is for.
-  return party.bossKeys.map((key) => bossNameByKey.get(key) ?? key);
+export type PartyBoss = { key: string; name: string; iconUrl: string | null };
+
+/** Which bosses a party covers, in the catalog's order rather than the party's. */
+export function bossesFor(party: Party, bossByKey: Map<string, Boss>): PartyBoss[] {
+  // A key the catalog does not have is shown as the raw key, art-less. Ugly and honest; dropping
+  // it would quietly shorten the list of bosses this party is for.
+  return party.bossKeys.map((key) => {
+    const boss = bossByKey.get(key);
+    return { key, name: boss?.name ?? key, iconUrl: boss?.iconUrl ?? null };
+  });
 }

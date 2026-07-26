@@ -9,6 +9,9 @@ export type PartyMember = {
   // Whether they pay the MVP Auction House rate. A status, not a rate: the rates live in
   // lib/drop-split.ts and are read from there wherever money is worked out.
   mvp: boolean;
+  // The linked character's sprite, or whatever the name lookup found. Null is ordinary: a typo or
+  // an unranked character has no portrait, and the seat draws without one.
+  spriteImgUrl: string | null;
 };
 
 export type Party = {
@@ -19,6 +22,9 @@ export type Party = {
   // Catalog keys, in progression order. The names come from /api/bosses, the same catalog the
   // clear matrix draws its rows from.
   bossKeys: string[];
+  // The pool at a glance: dropped but unsold, and sold with somebody still unpaid.
+  pendingLoot: number;
+  awaitingPayout: number;
   createdAt: string;
   updatedAt: string;
 };

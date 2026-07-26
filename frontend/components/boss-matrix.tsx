@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 
+import { apiAssetUrl } from "@/lib/api";
 import { cellState, formatPeriod, indexClears } from "@/lib/boss-clears";
 import type { Boss, BossClearsByCharacter } from "@/types/boss";
 import type { Character } from "@/types/character";
@@ -27,11 +28,12 @@ const CADENCE_ORDER = ["MONTHLY", "WEEKLY", "DAILY"];
 // until /api/bosses answers. Being a row or two out for one round-trip is a cosmetic difference;
 // rendering an empty table is not.
 const SKELETON_BOSSES: Boss[] = [
-  { bossKey: "sk-monthly", name: "", reset: "MONTHLY" },
+  { bossKey: "sk-monthly", name: "", reset: "MONTHLY", iconUrl: null },
   ...Array.from({ length: 8 }, (_, i) => ({
     bossKey: `sk-weekly-${i}`,
     name: "",
     reset: "WEEKLY",
+    iconUrl: null,
   })),
 ];
 
@@ -148,7 +150,19 @@ export function BossMatrix({
               .map((boss) => (
                 <tr key={boss.bossKey}>
                   <th className="boss-name" scope="row">
-                    {loading ? <span className="skeleton sk-line" /> : boss.name}
+                    {/* Flexed on an inner span, not on the th: display:flex on a table cell takes
+                        it out of the table layout and the column stops aligning. */}
+                    <span className="boss-name-inner">
+                      {/* The game's own portrait, cut from a planner capture, so a row is
+                          recognisable before the name is read. The frame is drawn either way, so
+                          the loading state and a boss with no art keep the column's width. */}
+                      {!loading && boss.iconUrl ? (
+                        <img className="boss-portrait" src={apiAssetUrl(boss.iconUrl)} alt="" />
+                      ) : (
+                        <span className="boss-portrait is-empty" aria-hidden="true" />
+                      )}
+                      {loading ? <span className="skeleton sk-line" /> : boss.name}
+                    </span>
                   </th>
                   {columns.map((character) => {
                     if (loading) {

@@ -1,9 +1,13 @@
 package com.maplestorage.backend.parties
 
 import com.maplestorage.backend.db.BossCatalog
+import com.maplestorage.backend.db.Characters
 import com.maplestorage.backend.db.Party
 import com.maplestorage.backend.db.PartyBoss
+import com.maplestorage.backend.db.PartyLoot
+import com.maplestorage.backend.db.PartyLootPayout
 import com.maplestorage.backend.db.PartyMember
+import org.jetbrains.exposed.v1.core.JoinType
 import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
@@ -32,7 +36,7 @@ internal fun partiesFor(userId: String): List<PartyResponse> {
     // Two queries for the whole page rather than two per party. The lists are small, but the
     // per-party version is the one that turns a roster of eight into seventeen round trips.
     val membersByParty =
-        PartyMember
+        membersJoin()
             .selectAll()
             .where { PartyMember.partyId inList partyIds }
             .orderBy(PartyMember.position)
@@ -45,10 +49,58 @@ internal fun partiesFor(userId: String): List<PartyResponse> {
             .orderBy(BossCatalog.sortOrder)
             .groupBy({ it[PartyBoss.partyId] }) { it[BossCatalog.bossKey] }
 
+    val counts = lootCountsFor(partyIds)
+
     return parties.map { row ->
         val id = row[Party.id]
-        row.toPartyResponse(membersByParty[id].orEmpty(), bossKeysByParty[id].orEmpty())
+        row.toPartyResponse(
+            membersByParty[id].orEmpty(),
+            bossKeysByParty[id].orEmpty(),
+            counts[id] ?: LootCounts(0, 0),
+        )
     }
+}
+
+/** Unsold drops, and sold ones with somebody still unpaid. */
+internal data class LootCounts(
+    val pending: Int,
+    val awaitingPayout: Int,
+)
+
+/**
+ * The two pool counts per party, in two queries for the whole page.
+ *
+ * "Awaiting payout" is derived the same way the loot rows derive their status: sold, and at least
+ * one payout row unpaid. Deriving it in one place and storing it in none is what keeps the card's
+ * badge and the drop's own status from disagreeing.
+ */
+internal fun lootCountsFor(partyIds: List<Uuid>): Map<Uuid, LootCounts> {
+    val loot =
+        if (partyIds.isEmpty()) {
+            emptyList()
+        } else {
+            PartyLoot
+                .selectAll()
+                .where { PartyLoot.partyId inList partyIds }
+                .map { Triple(it[PartyLoot.id], it[PartyLoot.partyId], it[PartyLoot.soldAt] != null) }
+        }
+    if (loot.isEmpty()) return emptyMap()
+
+    val unpaidLootIds =
+        PartyLootPayout
+            .selectAll()
+            .where { (PartyLootPayout.lootId inList loot.map { it.first }) and (PartyLootPayout.paid eq false) }
+            .map { it[PartyLootPayout.lootId] }
+            .toSet()
+
+    return loot
+        .groupBy { it.second }
+        .mapValues { (_, rows) ->
+            LootCounts(
+                pending = rows.count { !it.third },
+                awaitingPayout = rows.count { it.third && it.first in unpaidLootIds },
+            )
+        }
 }
 
 internal fun findParty(
@@ -60,7 +112,11 @@ internal fun findParty(
             .selectAll()
             .where { (Party.id eq partyId) and (Party.userId eq userId) }
             .firstOrNull() ?: return null
-    return row.toPartyResponse(membersOf(partyId), bossKeysOf(partyId))
+    return row.toPartyResponse(
+        membersOf(partyId),
+        bossKeysOf(partyId),
+        lootCountsFor(listOf(partyId))[partyId] ?: LootCounts(0, 0),
+    )
 }
 
 /** True when the party exists and belongs to this user. The ownership check every write starts with. */
@@ -75,7 +131,7 @@ internal fun ownsParty(
         .not()
 
 private fun membersOf(partyId: Uuid): List<PartyMemberResponse> =
-    PartyMember
+    membersJoin()
         .selectAll()
         .where { PartyMember.partyId eq partyId }
         .orderBy(PartyMember.position)
@@ -89,22 +145,35 @@ private fun bossKeysOf(partyId: Uuid): List<String> =
         .orderBy(BossCatalog.sortOrder)
         .map { it[BossCatalog.bossKey] }
 
+/**
+ * Seats with their character, when they have one.
+ *
+ * LEFT, because most seats are other players. The join exists for the sprite: a seat of yours
+ * shows the character's own portrait, which is refreshed on the character, so copying it into the
+ * party row would leave the party showing a portrait the roster has since replaced.
+ */
+private fun membersJoin() = PartyMember.join(Characters, JoinType.LEFT, PartyMember.characterId, Characters.id)
+
 private fun ResultRow.toMemberResponse() =
     PartyMemberResponse(
         id = this[PartyMember.id].toString(),
         name = this[PartyMember.name],
         characterId = this[PartyMember.characterId]?.toString(),
         mvp = this[PartyMember.mvp],
+        spriteImgUrl = this.getOrNull(Characters.spriteImgUrl) ?: this[PartyMember.spriteImgUrl],
     )
 
 private fun ResultRow.toPartyResponse(
     members: List<PartyMemberResponse>,
     bossKeys: List<String>,
+    loot: LootCounts,
 ) = PartyResponse(
     id = this[Party.id].toString(),
     name = this[Party.name],
     members = members,
     bossKeys = bossKeys,
+    pendingLoot = loot.pending,
+    awaitingPayout = loot.awaitingPayout,
     createdAt = this[Party.createdAt].toString(),
     updatedAt = this[Party.updatedAt].toString(),
 )

@@ -1,6 +1,7 @@
 package com.maplestorage.backend.config
 
 private const val DEFAULT_VISION_SERVICE_URL = "http://127.0.0.1:8000"
+private const val DEFAULT_PORT = 8080
 
 // Central place to read the environment variables the ECS task definition
 // injects (see infra/ecs.tf's `environment`/`secrets` blocks). Fail fast at
@@ -17,6 +18,10 @@ object Env {
     // The vision service runs as a second container in the same ECS task, so
     // this is loopback by default and only needs overriding for local dev.
     val visionServiceUrl: String get() = System.getenv("VISION_SERVICE_URL") ?: DEFAULT_VISION_SERVICE_URL
+
+    // Deployed on 8080 everywhere (infra/ecs.tf and docker-compose.yml both publish it). Only a
+    // second local instance, run beside the dev stack to look at a branch, needs another.
+    val port: Int get() = System.getenv("PORT")?.toIntOrNull() ?: DEFAULT_PORT
 
     private fun required(name: String): String =
         System.getenv(name) ?: error("Missing required environment variable: $name")

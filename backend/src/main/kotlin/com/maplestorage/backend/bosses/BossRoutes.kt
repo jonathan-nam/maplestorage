@@ -14,6 +14,19 @@ import kotlin.time.Clock
 fun Route.bossRoutes() {
     get { listBosses() }
     get("/clears") { getCurrentBossClears() }
+    get("/drops") { getDropTables() }
+}
+
+// Every boss's drop table, from catalog/drops.yaml. Served rather than shipped in the frontend
+// for the reason the boss catalog is: adding a drop stays a one-file change.
+internal suspend fun RoutingContext.getDropTables() {
+    val (userId, email) = call.principalIdAndEmail()
+    val tables =
+        transaction {
+            ensureUser(userId, email)
+            dropTables()
+        }
+    call.respond(tables)
 }
 
 // The catalog itself, in progression order. Served rather than shipped in the frontend so the

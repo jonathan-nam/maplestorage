@@ -11,6 +11,9 @@ data class BossResponse(
     // WEEKLY / DAILY / MONTHLY. The client needs it to label a column's cadence, and to know that
     // two bosses in the same matrix are not counting the same span of time.
     val reset: String,
+    // The boss's planner portrait, backend-relative and resolved by apiAssetUrl(). Null only if
+    // the seed has no art for it, which catalog/build.py refuses to let happen.
+    val iconUrl: String? = null,
 )
 
 @Serializable

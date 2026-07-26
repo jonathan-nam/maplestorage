@@ -6,6 +6,8 @@ export type Boss = {
   // WEEKLY / DAILY / MONTHLY. Two bosses in the same matrix are not counting the same span of
   // time, so the cadence has to be visible rather than implied by column position.
   reset: string;
+  // The boss's own planner portrait, backend-relative. Resolve with apiAssetUrl().
+  iconUrl: string | null;
 };
 
 export type BossClear = {

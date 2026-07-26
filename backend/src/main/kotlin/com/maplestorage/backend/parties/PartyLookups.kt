@@ -2,10 +2,12 @@ package com.maplestorage.backend.parties
 
 import com.maplestorage.backend.db.BossCatalog
 import com.maplestorage.backend.db.Characters
+import com.maplestorage.backend.db.DropCatalog
 import com.maplestorage.backend.db.PartyMember
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.inList
 import org.jetbrains.exposed.v1.jdbc.selectAll
+import kotlin.time.Instant
 import kotlin.uuid.Uuid
 
 // The reads validateParty needs before a write is allowed: whose characters these are, which
@@ -46,3 +48,34 @@ internal fun bossIdsForKeys(keys: List<String>): Map<String, Uuid>? {
             .associate { it[BossCatalog.bossKey] to it[BossCatalog.id] }
     return if (found.size == wanted.size) found else null
 }
+
+/** The catalog id for a drop key, or null when there is no such drop. */
+internal fun dropIdForKey(dropKey: String): Uuid? =
+    DropCatalog
+        .selectAll()
+        .where { DropCatalog.dropKey eq dropKey }
+        .firstOrNull()
+        ?.get(DropCatalog.id)
+
+/** The catalog id for a boss key, or null when it is not a tracked boss. */
+internal fun bossIdForKey(bossKey: String): Uuid? =
+    BossCatalog
+        .selectAll()
+        .where { BossCatalog.bossKey eq bossKey }
+        .firstOrNull()
+        ?.get(BossCatalog.id)
+
+/** A seat's stored sprite and when the lookup that filled it last ran, keyed by the seat's name. */
+internal data class SeatSprite(
+    val spriteImgUrl: String?,
+    val refreshedAt: Instant?,
+)
+
+internal fun seatSpritesOf(partyId: Uuid): Map<String, SeatSprite> =
+    PartyMember
+        .selectAll()
+        .where { PartyMember.partyId eq partyId }
+        .associate {
+            it[PartyMember.name] to
+                SeatSprite(it[PartyMember.spriteImgUrl], it[PartyMember.spriteRefreshedAt])
+        }

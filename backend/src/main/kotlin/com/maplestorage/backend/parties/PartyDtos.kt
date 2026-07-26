@@ -14,6 +14,10 @@ data class PartyMemberResponse(
     // Whether this member pays the MVP Auction House rate on a payout. The rate itself lives in
     // frontend/lib/drop-split.ts; sending a status rather than a number keeps it there.
     val mvp: Boolean,
+    // The seat's sprite: the linked character's own when there is one, otherwise whatever the
+    // Nexon lookup found for that name. Null is ordinary (a typo, an unranked character), and the
+    // client draws initials for it.
+    val spriteImgUrl: String? = null,
 )
 
 @Serializable
@@ -25,6 +29,10 @@ data class PartyResponse(
     val members: List<PartyMemberResponse>,
     // Which bosses this party is for, as catalog keys in progression order.
     val bossKeys: List<String>,
+    // The loot pool at a glance: what has dropped and not sold, and what has sold with somebody
+    // still unpaid. Counted server side so the list page does not fetch every party's pool.
+    val pendingLoot: Int = 0,
+    val awaitingPayout: Int = 0,
     val createdAt: String,
     val updatedAt: String,
 )

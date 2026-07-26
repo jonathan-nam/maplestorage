@@ -31,6 +31,7 @@ screenshot is what build_icons.py is for.
 
 import argparse
 import json
+import re
 import pathlib
 import sys
 
@@ -49,6 +50,25 @@ BOSS_MANIFEST = ROOT / "catalog" / "bosses.yaml"
 BOSS_OUT = ROOT / "vision" / "app" / "cv" / "boss_catalog.json"
 BOSS_SQL_OUT = ROOT / "backend" / "src" / "main" / "resources" / "db" / "migration" / "R__boss_catalog.sql"
 BOSS_RESETS = {"WEEKLY", "DAILY", "MONTHLY"}
+# Boss portraits, cut from a planner capture by vision/app/cv/build_boss_portraits.py and named
+# from the boss key. Every TRACKED boss must have one: a boss drawn without art sits beside
+# fifteen that have it and reads as a failed load.
+BOSS_ICONS = ROOT / "backend" / "src" / "main" / "resources" / "seed-assets" / "bosses"
+
+# The portrait paths, shipped in the frontend bundle. The art itself stays on the backend with
+# every other seed asset; this is only the list of URLs, and it exists so the browser can START
+# fetching the portraits at first render instead of after a Clerk token and an /api/bosses call.
+# Generated, so adding a boss is still one edit to bosses.yaml.
+BOSS_ART_OUT = ROOT / "frontend" / "lib" / "boss-art.ts"
+
+# The boss drop tables. What a boss can drop, and the art the loot pool draws beside it. Unlike
+# items, a drop has no vision template: nothing reads these off a screenshot, they are picked from
+# a list by a human.
+DROP_MANIFEST = ROOT / "catalog" / "drops.yaml"
+DROP_ICONS = ROOT / "backend" / "src" / "main" / "resources" / "seed-assets" / "drops"
+DROP_SQL_OUT = ROOT / "backend" / "src" / "main" / "resources" / "db" / "migration" / "R__drop_catalog.sql"
+DROP_PER_MEMBER = {"ALWAYS", "HEROIC"}
+DROP_WORLDS = {"INTERACTIVE", "HEROIC"}
 
 # The display icons are the official item sprites from maplestory.io, keyed by Nexon item id.
 # `icon_id` in items.yaml pins the one a human validated against the in-game art. The version is
@@ -179,7 +199,8 @@ def boss_sql(bosses: list[dict]) -> str:
     # Manifest position IS the sort order, so reordering bosses.yaml reorders the matrix and
     # nothing else has to be touched. See V12__boss_sort_order.sql.
     rows = ",\n".join(
-        f"    ({q(b['key'])}, {q(b['name'])}, {q(b['reset'])}, {i})" for i, b in enumerate(tracked)
+        f"    ({q(b['key'])}, {q(b['name'])}, {q(b['reset'])}, {i}, {q(b['key'] + '.png')})"
+        for i, b in enumerate(tracked)
     )
     return f"""-- GENERATED FROM catalog/bosses.yaml. DO NOT EDIT BY HAND.
 -- Regenerate with:  python catalog/build.py
@@ -187,16 +208,121 @@ def boss_sql(bosses: list[dict]) -> str:
 -- Repeatable (R__): editing bosses.yaml reseeds boss_catalog on the next boot. Upserts by
 -- boss_key and keeps an existing row's id, which boss_clear references, so it is never churned.
 
-INSERT INTO boss_catalog (id, boss_key, name, reset, sort_order)
-SELECT COALESCE(existing.id, gen_random_uuid()), v.boss_key, v.name, v.reset, v.sort_order
+INSERT INTO boss_catalog (id, boss_key, name, reset, sort_order, icon_ref_key)
+SELECT COALESCE(existing.id, gen_random_uuid()), v.boss_key, v.name, v.reset, v.sort_order,
+       v.icon_ref_key
 FROM (VALUES
 {rows}
-) AS v (boss_key, name, reset, sort_order)
+) AS v (boss_key, name, reset, sort_order, icon_ref_key)
 LEFT JOIN boss_catalog existing ON existing.boss_key = v.boss_key
 ON CONFLICT (boss_key) DO UPDATE SET
-    name       = EXCLUDED.name,
-    reset      = EXCLUDED.reset,
+    name         = EXCLUDED.name,
+    reset        = EXCLUDED.reset,
+    sort_order   = EXCLUDED.sort_order,
+    icon_ref_key = EXCLUDED.icon_ref_key;
+"""
+
+
+def load_drops(bosses: list[dict]) -> tuple[list[dict], dict[str, list[str]]]:
+    """The drop manifest, validated against the boss catalog it keys on."""
+    data = yaml.safe_load(DROP_MANIFEST.read_text())
+    drops = data["drops"]
+    tables = data["tables"]
+
+    seen: set[str] = set()
+    for d in drops:
+        key = d["key"]
+        if set(key) - KEY_CHARS:
+            sys.exit(f"drop key {key!r} must be lowercase kebab-case, it becomes a DB value")
+        if key in seen:
+            sys.exit(f"duplicate drop key {key!r}")
+        seen.add(key)
+        if not d.get("name"):
+            sys.exit(f"{key}: needs a name, it is what the loot pool shows")
+        icon_id = d.get("icon_id")
+        if icon_id is not None and not isinstance(icon_id, int):
+            sys.exit(f"{key}: icon_id must be an integer maplestory.io item id, got {icon_id!r}")
+        per_member = d.get("per_member")
+        if per_member is not None and per_member not in DROP_PER_MEMBER:
+            sys.exit(f"{key}: per_member must be one of {sorted(DROP_PER_MEMBER)}, got {per_member!r}")
+        worlds = d.get("worlds")
+        if worlds is not None and worlds not in DROP_WORLDS:
+            sys.exit(f"{key}: worlds must be one of {sorted(DROP_WORLDS)}, got {worlds!r}")
+        quantity = d.get("quantity", 1)
+        if not isinstance(quantity, int) or quantity < 1:
+            sys.exit(f"{key}: quantity must be a positive integer, got {quantity!r}")
+
+    # A table keyed on a boss that is not tracked would seed a row against no boss_catalog id, so
+    # it is refused here rather than dropped silently at insert time.
+    tracked = {b["key"] for b in bosses if b.get("tracked", True)}
+    for boss_key, keys in tables.items():
+        if boss_key not in tracked:
+            sys.exit(f"drop table for {boss_key!r}: not a tracked boss in catalog/bosses.yaml")
+        for key in keys:
+            if key not in seen:
+                sys.exit(f"drop table for {boss_key!r}: no drop named {key!r}")
+        if len(set(keys)) != len(keys):
+            sys.exit(f"drop table for {boss_key!r}: lists the same drop twice")
+
+    return drops, tables
+
+
+def drop_sql(drops: list[dict], tables: dict[str, list[str]]) -> str:
+    """The drop_catalog and boss_drop seed. Upserts by drop_key, keeps ids, and rebuilds tables.
+
+    boss_drop IS deleted and rewritten, unlike the catalog rows: it is a pure join with nothing
+    referencing it, and a boss losing a drop has to actually lose it. drop_catalog rows are kept
+    because party_loot points at them, so churning an id would orphan somebody's loot history.
+    """
+
+    def q(s: str) -> str:
+        return "'" + s.replace("'", "''") + "'"
+
+    def opt(value) -> str:
+        return "NULL" if value is None else q(value)
+
+    rows = ",\n".join(
+        f"    ({q(d['key'])}, {q(d['name'])}, "
+        f"{q(d['key'] + '.png') if d.get('icon_id') is not None else 'NULL'}, "
+        f"{opt(d.get('per_member'))}, {opt(d.get('worlds'))}, {d.get('quantity', 1)}, {i})"
+        for i, d in enumerate(drops)
+    )
+    pairs = ",\n".join(
+        f"    ({q(boss_key)}, {q(drop_key)}, {i})"
+        for boss_key, keys in tables.items()
+        for i, drop_key in enumerate(keys)
+    )
+    return f"""-- GENERATED FROM catalog/drops.yaml. DO NOT EDIT BY HAND.
+-- Regenerate with:  python catalog/build.py
+--
+-- Repeatable (R__): editing drops.yaml reseeds the drop catalog on the next boot. drop_catalog
+-- upserts by drop_key and keeps an existing row's id, which party_loot references. boss_drop is
+-- rebuilt outright, so a drop removed from a boss's table really leaves it.
+
+INSERT INTO drop_catalog (id, drop_key, name, icon_ref_key, per_member, worlds, quantity, sort_order)
+SELECT COALESCE(existing.id, gen_random_uuid()), v.drop_key, v.name, v.icon_ref_key, v.per_member,
+       v.worlds, v.quantity, v.sort_order
+FROM (VALUES
+{rows}
+) AS v (drop_key, name, icon_ref_key, per_member, worlds, quantity, sort_order)
+LEFT JOIN drop_catalog existing ON existing.drop_key = v.drop_key
+ON CONFLICT (drop_key) DO UPDATE SET
+    name         = EXCLUDED.name,
+    icon_ref_key = EXCLUDED.icon_ref_key,
+    per_member = EXCLUDED.per_member,
+    worlds     = EXCLUDED.worlds,
+    quantity   = EXCLUDED.quantity,
     sort_order = EXCLUDED.sort_order;
+
+DELETE FROM boss_drop;
+
+INSERT INTO boss_drop (boss_catalog_id, drop_catalog_id, sort_order)
+SELECT b.id, d.id, v.sort_order
+FROM (VALUES
+{pairs}
+) AS v (boss_key, drop_key, sort_order)
+JOIN boss_catalog b ON b.boss_key = v.boss_key
+JOIN drop_catalog d ON d.drop_key = v.drop_key;
 """
 
 
@@ -350,6 +476,97 @@ def fetch_icons(items: list[dict]) -> None:
     print(f"normalized {normed} hand-cut icons to the same footprint")
 
 
+def boss_art_ts(bosses: list[dict]) -> str:
+    """The frontend's copy of the portrait paths. Paths only, never the art."""
+    # Quoted only when the key is not a bare JS identifier, which is prettier's own
+    # "quote-props: as-needed" rule. Emitting it that way keeps this file passing
+    # `prettier --check` without the generator and the formatter fighting over it.
+    def prop(key: str) -> str:
+        return key if re.fullmatch(r"[A-Za-z_$][A-Za-z0-9_$]*", key) else f'"{key}"'
+
+    rows = "\n".join(
+        f'  {prop(b["key"])}: "/boss-icons/{b["key"]}.png",'
+        for b in bosses
+        if b.get("tracked", True)
+    )
+    return f"""// GENERATED FROM catalog/bosses.yaml. DO NOT EDIT BY HAND.
+// Regenerate with:  python catalog/build.py
+//
+// Backend-relative paths, resolved with apiAssetUrl() like every other served asset. This exists
+// for ONE reason: the portraits are known before a user is, so the browser can start fetching
+// them at first render rather than after getToken() and /api/bosses have both answered. That
+// waterfall is what made the art appear a beat after the rest of the page.
+//
+// Only tracked bosses, matching what boss_catalog is seeded with.
+
+export const BOSS_ART: Record<string, string> = {{
+{rows}
+}};
+"""
+
+
+def check_boss_art(bosses: list[dict]) -> list[str]:
+    """Every tracked boss needs its portrait, named from its key. Untracked ones are drawn nowhere."""
+    problems = []
+    for b in bosses:
+        if not b.get("tracked", True):
+            continue
+        icon = BOSS_ICONS / f"{b['key']}.png"
+        if not icon.exists():
+            problems.append(
+                f"{b['key']}: missing {icon.relative_to(ROOT)} "
+                "(cd vision && python -m app.cv.build_boss_portraits)"
+            )
+    return problems
+
+
+def check_drop_art(drops: list[dict]) -> list[str]:
+    """A drop with an icon_id must have the icon it names. One without is drawn blank, on purpose."""
+    problems = []
+    for d in drops:
+        if d.get("icon_id") is None:
+            continue
+        icon = DROP_ICONS / f"{d['key']}.png"
+        if not icon.exists():
+            problems.append(f"{d['key']}: missing {icon.relative_to(ROOT)} (run --fetch-icons)")
+    return problems
+
+
+def fetch_drop_icons(drops: list[dict]) -> None:
+    """Download the official sprite for every drop with an icon_id. Same rules as fetch_icons."""
+    import urllib.request
+
+    DROP_ICONS.mkdir(parents=True, exist_ok=True)
+    got = 0
+    for d in drops:
+        icon_id = d.get("icon_id")
+        if icon_id is None:
+            continue
+        version = d.get("icon_version", ICON_VERSION)
+        url = ICON_URL.format(version=version, icon_id=icon_id)
+        req = urllib.request.Request(url, headers={"User-Agent": "maplestorage-build"})
+        try:
+            with urllib.request.urlopen(req, timeout=30) as r:
+                data = r.read()
+        except Exception as e:
+            sys.exit(f"{d['key']}: could not fetch icon {icon_id} (v{version}): {e}")
+        if not data.startswith(b"\x89PNG\r\n\x1a\n"):
+            sys.exit(f"{d['key']}: icon {icon_id} (v{version}) did not return a PNG")
+        (DROP_ICONS / f"{d['key']}.png").write_bytes(_normalize_icon(data))
+        got += 1
+        print(f"  {d['key']:36} <- {icon_id} (v{version})")
+    print(f"fetched {got} drop icons into {DROP_ICONS.relative_to(ROOT)}")
+
+
+def _refuse_missing_art(problems: list[str]) -> None:
+    if not problems:
+        return
+    print("catalog is inconsistent with its art:\n", file=sys.stderr)
+    for p in problems:
+        print(f"  - {p}", file=sys.stderr)
+    sys.exit(1)
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--check", action="store_true", help="fail if generated output is stale")
@@ -362,34 +579,39 @@ def main() -> None:
 
     items = load()
     bosses = load_bosses()
+    drops, drop_tables = load_drops(bosses)
 
     if args.fetch_icons:
         fetch_icons(items)
+        fetch_drop_icons(drops)
 
-    problems = check_art(items)
-    if problems:
-        print("catalog is inconsistent with its art:\n", file=sys.stderr)
-        for p in problems:
-            print(f"  - {p}", file=sys.stderr)
-        sys.exit(1)
+    problems = check_art(items) + check_drop_art(drops) + check_boss_art(bosses)
 
     outputs = [
         (SQL_OUT, sql(items)),
         (BOSS_OUT, boss_json(bosses)),
         (BOSS_SQL_OUT, boss_sql(bosses)),
+        (DROP_SQL_OUT, drop_sql(drops, drop_tables)),
+        (BOSS_ART_OUT, boss_art_ts(bosses)),
     ]
 
     if args.check:
+        _refuse_missing_art(problems)
         stale = [path for path, want in outputs if (path.read_text() if path.exists() else "") != want]
         if stale:
             names = ", ".join(str(p.relative_to(ROOT)) for p in stale)
             sys.exit(f"stale, run python catalog/build.py: {names}")
-        print(f"catalog is in sync ({len(items)} items, {_boss_summary(bosses)})")
+        print(f"catalog is in sync ({len(items)} items, {_boss_summary(bosses)}, {len(drops)} drops)")
         return
 
     for path, want in outputs:
         path.write_text(want)
-    print(f"wrote {len(items)} items and {_boss_summary(bosses)}")
+    print(f"wrote {len(items)} items, {_boss_summary(bosses)} and {len(drops)} drops")
+    # AFTER writing, deliberately. A new boss has no portrait until build_boss_portraits cuts one,
+    # and that script reads the boss catalog this run generates: checking first would deadlock the
+    # two, with each waiting on the other. Writing first and failing after leaves the tree exactly
+    # one command short of correct, and --check still refuses to let it be committed that way.
+    _refuse_missing_art(problems)
 
 
 if __name__ == "__main__":

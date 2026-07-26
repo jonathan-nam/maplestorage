@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { PartyCard } from "@/components/party-card";
 import { PartyEditor } from "@/components/party-editor";
 import { ApiError, apiFetch } from "@/lib/api";
+import { preloadBossArt } from "@/lib/preload-boss-art";
 import { peek, put } from "@/lib/cache";
 import { partiesByCharacter, partyLabel } from "@/lib/parties";
 import type { Boss } from "@/types/boss";
@@ -18,6 +19,9 @@ const BOSSES_KEY = "/api/bosses";
 const CHARACTERS_KEY = "/api/characters";
 
 export default function PartiesPage() {
+  // Before anything is fetched: see lib/preload-boss-art.ts.
+  preloadBossArt();
+
   const { getToken } = useAuth();
 
   // Seeded from cache so a repeat visit paints immediately, as the other pages do. See lib/cache.ts.
@@ -109,7 +113,7 @@ export default function PartiesPage() {
     }
   }
 
-  const bossNameByKey = new Map(bosses.map((b) => [b.bossKey, b.name]));
+  const bossByKey = new Map(bosses.map((b) => [b.bossKey, b]));
   const characterById = new Map(characters.map((c) => [c.id, c]));
   const groups = partiesByCharacter(
     parties,
@@ -198,7 +202,7 @@ export default function PartiesPage() {
                     <PartyCard
                       key={party.id}
                       party={party}
-                      bossNameByKey={bossNameByKey}
+                      bossByKey={bossByKey}
                       busy={busy}
                       onEdit={() => {
                         setSaveError(null);

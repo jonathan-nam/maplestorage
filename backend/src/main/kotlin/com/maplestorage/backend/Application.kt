@@ -18,7 +18,9 @@ import io.ktor.server.engine.embeddedServer
 import io.ktor.server.netty.Netty
 
 fun main() {
-    embeddedServer(Netty, port = 8080, host = "0.0.0.0", module = Application::module)
+    // 8080 everywhere it is deployed (ECS and docker-compose both publish that), so the env var
+    // exists for one case: running a branch beside the already-running dev stack to look at it.
+    embeddedServer(Netty, port = Env.port, host = "0.0.0.0", module = Application::module)
         .start(wait = true)
 }
 
