@@ -15,8 +15,8 @@ const SECTIONS: { group?: string; items: { href: string; label: string }[] }[] =
   {
     group: "Bossing",
     items: [
-      { href: "/bosses", label: "Boss Clears" },
-      { href: "/bosses/parties", label: "Parties" },
+      { href: "/bosses", label: "Individual View" },
+      { href: "/bosses/parties", label: "Party View" },
       { href: "/bosses/parties/wallet", label: "Wallet" },
       { href: "/bosses/people", label: "People" },
       { href: "/bosses/split", label: "Split Utility" },
@@ -31,7 +31,7 @@ export function SectionMenu() {
   const pathname = usePathname();
 
   // Longest matching href wins, so /bosses/split lights up "Split Utility" alone. A plain
-  // startsWith would light up "Boss Clears" as well, since one section nests under the other.
+  // startsWith would light up "Individual View" as well, since one section nests under the other.
   const active = HREFS.filter((href) => pathname === href || pathname.startsWith(`${href}/`)).sort(
     (a, b) => b.length - a.length,
   )[0];

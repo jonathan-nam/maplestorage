@@ -4,12 +4,13 @@ import { useAuth } from "@clerk/nextjs";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { PartyCard } from "@/components/party-card";
+import { ResetTimer } from "@/components/reset-timer";
 import { RosterStrip } from "@/components/roster-strip";
 import { apiAssetUrl, apiFetch } from "@/lib/api";
 import { peek, put } from "@/lib/cache";
 import { byBoss, byCharacter, consolidate, otherMembers, partySizeLabel } from "@/lib/parties";
 import { preloadBossArt } from "@/lib/preload-boss-art";
-import type { Boss } from "@/types/boss";
+import type { Boss, BossClearsView } from "@/types/boss";
 import type { Character } from "@/types/character";
 import type { Party } from "@/types/party";
 
@@ -25,6 +26,9 @@ type Grouping = "character" | "boss" | "party";
 const PARTIES_KEY = "/api/parties";
 const BOSSES_KEY = "/api/bosses";
 const CHARACTERS_KEY = "/api/characters";
+// Only for the countdown. The clears themselves are already on each config (party.cleared), read
+// from the same boss_clear rows, so this is not a second source for what is done.
+const CLEARS_KEY = "/api/bosses/clears";
 
 export default function PartiesPage() {
   // Before anything is fetched: see lib/preload-boss-art.ts.
@@ -44,10 +48,14 @@ export default function PartiesPage() {
   );
   const [grouping, setGrouping] = useState<Grouping>("character");
   const [busy, setBusy] = useState(false);
+  const [view, setView] = useState<BossClearsView | null>(peek<BossClearsView>(CLEARS_KEY) ?? null);
+  // When the view was received, so the countdown can correct for a browser clock that disagrees
+  // with the server's. See lib/reset-countdown.ts.
+  const [receivedAt, setReceivedAt] = useState<number>(() => Date.now());
 
   useEffect(() => {
     // One token for the whole burst, as the boss page does: getToken() can round-trip to Clerk,
-    // and three calls would pay that three times.
+    // and four calls would pay that four times.
     getToken()
       .then((token) => {
         const withToken = () => Promise.resolve(token);
@@ -55,15 +63,23 @@ export default function PartiesPage() {
           apiFetch<Party[]>(PARTIES_KEY, { method: "GET" }, withToken),
           apiFetch<Boss[]>(BOSSES_KEY, { method: "GET" }, withToken),
           apiFetch<Character[]>(CHARACTERS_KEY, { method: "GET" }, withToken),
+          // Caught on its own: the countdown is the one thing on this page that is not the party
+          // list, and losing it must not take the list down with it.
+          apiFetch<BossClearsView>(CLEARS_KEY, { method: "GET" }, withToken).catch(() => null),
         ]);
       })
-      .then(([partyResult, bossResult, characterResult]) => {
+      .then(([partyResult, bossResult, characterResult, clearsResult]) => {
         setParties(partyResult);
         setBosses(bossResult);
         setCharacters(characterResult);
         put(PARTIES_KEY, partyResult);
         put(BOSSES_KEY, bossResult);
         put(CHARACTERS_KEY, characterResult);
+        if (clearsResult) {
+          setView(clearsResult);
+          setReceivedAt(Date.now());
+          put(CLEARS_KEY, clearsResult);
+        }
         setState("loaded");
       })
       // Only blank the page if there is nothing to show: a failed refresh behind data we already
@@ -75,9 +91,9 @@ export default function PartiesPage() {
   /**
    * Ticks a boss cleared, or un-ticks it.
    *
-   * Writes boss_clear, the same row the Boss Clears matrix reads and a planner capture overwrites,
-   * so the two pages cannot drift. Refetched rather than patched in place: the server decides
-   * which period the tick landed in.
+   * Writes boss_clear, the same row the Individual View matrix reads and a planner capture
+   * overwrites, so the two pages cannot drift. Refetched rather than patched in place: the server
+   * decides which period the tick landed in.
    */
   async function toggleClear(party: Party, cleared: boolean) {
     setBusy(true);
@@ -111,7 +127,7 @@ export default function PartiesPage() {
 
   return (
     <main className="page">
-      <h1 className="page-title">Parties</h1>
+      <h1 className="page-title">Party View</h1>
       <p className="split-intro">Which bosses each character runs, and who they run them with.</p>
 
       {state === "error" && <p>Couldn&apos;t load your parties.</p>}
@@ -119,6 +135,19 @@ export default function PartiesPage() {
 
       {state === "loaded" && (
         <>
+          {/* The same countdown the Individual View carries, off the same served instants: what a
+              party is planned around is when the week turns over. No week stepper beside it, since
+              a config's clear is only ever the period it is in. */}
+          {view && (
+            <div className="boss-controls">
+              <ResetTimer
+                nextResets={view.nextResets}
+                serverNow={view.now}
+                receivedAt={receivedAt}
+              />
+            </div>
+          )}
+
           <div className="party-toolbar">
             <div className="basis-row" role="group" aria-label="Group parties by">
               <button
