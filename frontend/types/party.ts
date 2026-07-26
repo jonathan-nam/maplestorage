@@ -20,8 +20,6 @@ export type Party = {
   id: string;
   characterId: string;
   bossKey: string;
-  // Optional label for a shape worth naming ("carry"). Null is ordinary.
-  name: string | null;
   // Your character first, then the others.
   members: PartyMember[];
   // The pool at a glance: dropped but unsold, and sold with somebody still unpaid.
@@ -49,7 +47,6 @@ export type Person = {
 export type SavePartyBody = {
   characterId: string;
   bossKey: string;
-  name: string | null;
   members: string[];
 };
 

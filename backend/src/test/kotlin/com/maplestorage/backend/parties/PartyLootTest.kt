@@ -86,7 +86,7 @@ class PartyLootTest {
             it[updatedAt] = now
             it[position] = 0
         }
-        val request = SavePartyRequest(mine.toString(), "limbo", "Limbo trio", listOf("Steve", "Bob"))
+        val request = SavePartyRequest(mine.toString(), "limbo", listOf("Steve", "Bob"))
         val id = createParty(userId, mine, bossIdForKey("limbo")!!, request, now)
         return findParty(id, userId)!!
     }
@@ -182,7 +182,7 @@ class PartyLootTest {
 
             // The same config with one more person in it.
             val others = party.members.drop(1).map { it.name } + "Cara"
-            val grown = SavePartyRequest(party.characterId, "limbo", "Limbo trio", others)
+            val grown = SavePartyRequest(party.characterId, "limbo", others)
             saveParty(userId, partyId, grown, Clock.System.now())
 
             // Still three seats' worth of history: the fourth was not there when it sold.
@@ -209,7 +209,7 @@ class PartyLootTest {
                     .drop(1)
                     .filter { it.name != "Bob" }
                     .map { it.name }
-            val request = SavePartyRequest(party.characterId, "limbo", "Limbo trio", withoutBob)
+            val request = SavePartyRequest(party.characterId, "limbo", withoutBob)
             saveParty(userId, partyId, request, Clock.System.now())
 
             val after = findParty(partyId, userId)!!

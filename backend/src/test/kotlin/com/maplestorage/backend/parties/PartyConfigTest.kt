@@ -100,10 +100,9 @@ class PartyConfigTest {
         characterId: Uuid,
         bossKey: String,
         members: List<String>,
-        name: String? = null,
         sprites: Map<String, String?> = emptyMap(),
     ): PartyResponse {
-        val request = SavePartyRequest(characterId.toString(), bossKey, name, members)
+        val request = SavePartyRequest(characterId.toString(), bossKey, members)
         val id = createParty(userId, characterId, bossIdForKey(bossKey)!!, request, Clock.System.now(), sprites)
         return findParty(id, userId)!!
     }
@@ -152,13 +151,12 @@ class PartyConfigTest {
             val party = config(userOneId, mine, "malefic-star", listOf("Lynn", "Kaiser"))
             val lynn = party.members.first { it.name == "Lynn" }
 
-            val request = SavePartyRequest(mine.toString(), "malefic-star", "trio", listOf("Kaiser", "Lynn"))
+            val request = SavePartyRequest(mine.toString(), "malefic-star", listOf("Kaiser", "Lynn"))
             saveParty(userOneId, Uuid.parse(party.id), request, Clock.System.now())
 
             val saved = findParty(Uuid.parse(party.id), userOneId)!!
             assertEquals(listOf("warrior2020", "Kaiser", "Lynn"), saved.members.map { it.name })
             assertEquals(lynn.id, saved.members.first { it.name == "Lynn" }.id)
-            assertEquals("trio", saved.name)
         }
     }
 
@@ -174,7 +172,7 @@ class PartyConfigTest {
                 bossKey: String,
                 members: List<String>,
             ) = validateNewParty(
-                SavePartyRequest(characterId?.toString() ?: "", bossKey, null, members),
+                SavePartyRequest(characterId?.toString() ?: "", bossKey, members),
                 userOneId,
                 characterId,
                 bossIdForKey(bossKey),
@@ -203,7 +201,7 @@ class PartyConfigTest {
             assertEquals(
                 "that character already has a party for this boss",
                 validateNewParty(
-                    SavePartyRequest(mine.toString(), "kalos-the-guardian", null, listOf("Other")),
+                    SavePartyRequest(mine.toString(), "kalos-the-guardian", listOf("Other")),
                     userOneId,
                     mine,
                     kalos,

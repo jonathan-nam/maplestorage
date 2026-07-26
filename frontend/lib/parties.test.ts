@@ -5,7 +5,6 @@ import {
   byCharacter,
   consolidate,
   otherMembers,
-  partyLabel,
   partySizeLabel,
 } from "./parties";
 import type { Boss } from "@/types/boss";
@@ -27,17 +26,10 @@ const boss = (bossKey: string, name: string): Boss => ({
   iconUrl: `/boss-icons/${bossKey}.png`,
 });
 
-const config = (
-  id: string,
-  characterId: string,
-  bossKey: string,
-  others: string[],
-  name: string | null = null,
-): Party => ({
+const config = (id: string, characterId: string, bossKey: string, others: string[]): Party => ({
   id,
   characterId,
   bossKey,
-  name,
   members: [seat("mine", characterId), ...others.map((o) => seat(o))],
   pendingLoot: 0,
   awaitingPayout: 0,
@@ -51,17 +43,6 @@ describe("otherMembers", () => {
   it("leaves your own character out, because the config already is that character", () => {
     const party = config("p1", "char-1", "limbo", ["CreedBratton"]);
     expect(otherMembers(party).map((m) => m.name)).toEqual(["CreedBratton"]);
-  });
-});
-
-describe("partyLabel", () => {
-  it("falls back to who is in it, not to the boss", () => {
-    // The boss is already the heading wherever a config is drawn, so naming it again says nothing
-    // twice.
-    expect(partyLabel(config("p1", "c1", "limbo", ["CreedBratton", "Lynn"]))).toBe(
-      "CreedBratton + Lynn",
-    );
-    expect(partyLabel(config("p1", "c1", "limbo", ["Lynn"], "  carry  "))).toBe("carry");
   });
 });
 

@@ -37,7 +37,6 @@ internal fun createParty(
         it[Party.userId] = userId
         it[Party.characterId] = characterId
         it[Party.bossCatalogId] = bossCatalogId
-        it[name] = request.name?.trim()?.ifBlank { null }
         it[createdAt] = now
         it[updatedAt] = now
     }
@@ -68,7 +67,6 @@ internal fun saveParty(
             .where { (Party.id eq partyId) and (Party.userId eq userId) }
             .first()[Party.characterId]
     Party.update({ (Party.id eq partyId) and (Party.userId eq userId) }) {
-        it[name] = request.name?.trim()?.ifBlank { null }
         it[updatedAt] = now
     }
     writeMembers(userId, partyId, characterId, request.members, sprites, now)

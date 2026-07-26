@@ -11,7 +11,7 @@ import { preloadBossArt } from "@/lib/preload-boss-art";
 import { ApiError, apiFetch } from "@/lib/api";
 import { peek, put } from "@/lib/cache";
 import { summarize } from "@/lib/loot";
-import { partyLabel, partySizeLabel } from "@/lib/parties";
+import { otherMembers, partySizeLabel } from "@/lib/parties";
 import type { Boss } from "@/types/boss";
 import type { DropTables } from "@/types/drop";
 import type { AddLootBody, Loot, SellLootBody } from "@/types/loot";
@@ -118,7 +118,13 @@ export default function PartyPage() {
 
       {state === "loaded" && party && (
         <>
-          <h1 className="page-title">{partyLabel(party)}</h1>
+          {/* The boss and the roster ARE the title: there is nothing else it could be called. */}
+          <h1 className="page-title">
+            {bossByKey.get(party.bossKey)?.name ?? party.bossKey} with{" "}
+            {otherMembers(party)
+              .map((m) => m.name)
+              .join(", ")}
+          </h1>
           <div className="party-card-head">
             <ul className="party-roster">
               {party.members.map((member) => (

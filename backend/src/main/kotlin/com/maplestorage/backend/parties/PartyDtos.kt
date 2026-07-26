@@ -33,9 +33,6 @@ data class PartyResponse(
     val id: String,
     val characterId: String,
     val bossKey: String,
-    // Optional label for a shape worth naming ("carry"). Null is ordinary; the client falls back
-    // to the roster rather than inventing a name.
-    val name: String?,
     val members: List<PartyMemberResponse>,
     // The pool at a glance: dropped but unsold, and sold with somebody still unpaid.
     val pendingLoot: Int = 0,
@@ -69,7 +66,6 @@ data class PersonResponse(
 data class SavePartyRequest(
     val characterId: String,
     val bossKey: String,
-    val name: String? = null,
     val members: List<String> = emptyList(),
 )
 

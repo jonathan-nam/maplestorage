@@ -3,7 +3,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { RosterStrip } from "@/components/roster-strip";
-import { otherMembers, partyLabel, partySizeLabel } from "@/lib/parties";
+import { otherMembers, partySizeLabel } from "@/lib/parties";
 import type { Party } from "@/types/party";
 
 // One config, read only: who this character runs this boss with, and what its pool is up to.
@@ -30,9 +30,8 @@ export function PartyCard({
       <header className="party-row-head">
         {heading}
         <Link className="party-row-label" href={`/bosses/parties/${party.id}`}>
-          {partyLabel(party)}
+          {partySizeLabel(party.members.length)}
         </Link>
-        <span className="party-card-size">{partySizeLabel(party.members.length)}</span>
 
         {/* Only what needs doing. A settled pool says nothing, because a row that always shows
             "0 awaiting payout" is a row nobody reads. */}

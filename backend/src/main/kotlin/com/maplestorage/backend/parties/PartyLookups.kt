@@ -74,7 +74,13 @@ internal fun seatSpritesByCharacter(userId: String): Map<String, SeatSprite> =
         .innerJoin(Party)
         .selectAll()
         .where { Party.userId eq userId }
-        .associate {
-            it[PartyMember.name] to
-                SeatSprite(it[PartyMember.spriteImgUrl], it[PartyMember.spriteRefreshedAt])
+        .groupBy { it[PartyMember.name] }
+        .mapValues { (_, rows) ->
+            // The best answer this account has for that character, not the last row that mentioned
+            // them: a seat created after the lookup ran carries a null of its own, and picking that
+            // one would lose a sprite it already has and ask Nexon for it again.
+            SeatSprite(
+                spriteImgUrl = rows.firstNotNullOfOrNull { it[PartyMember.spriteImgUrl] },
+                refreshedAt = rows.mapNotNull { it[PartyMember.spriteRefreshedAt] }.maxOrNull(),
+            )
         }

@@ -116,6 +116,16 @@ private fun membersFor(
     partyIds: List<Uuid>,
     userId: String,
 ): Map<Uuid, List<PartyMemberResponse>> {
+    // Every sprite this account has found, by character name. A sprite belongs to the CHARACTER,
+    // not to the seat: the same person in three configs is the same character, and looking them up
+    // once means the other two seats have a null of their own. Reading through this map is what
+    // makes a character look the same in every party they are in.
+    val spritesByName =
+        seatSpritesByCharacter(userId)
+            .mapNotNull { (name, seat) ->
+                seat.spriteImgUrl?.let { name.lowercase() to it }
+            }.toMap()
+
     val owners =
         PersonCharacter
             .innerJoin(Person)
@@ -139,7 +149,7 @@ private fun membersFor(
                 personId = owner?.first,
                 personName = owner?.second,
                 characterId = row[PartyMember.characterId]?.toString(),
-                spriteImgUrl = row.getOrNull(Characters.spriteImgUrl) ?: row[PartyMember.spriteImgUrl],
+                spriteImgUrl = spriteFor(row, spritesByName),
             )
         }
 }
@@ -196,6 +206,22 @@ private fun clearStateFor(rows: List<ResultRow>): Map<Uuid, ClearState> {
     }
 }
 
+/**
+ * The sprite to draw for a seat: the roster's own for one of your characters, then this seat's,
+ * then whatever this account has found for that character NAME anywhere else.
+ *
+ * The last one matters. A character named in three configs is looked up once, so the other two
+ * seats hold a null of their own, and reading only the seat left the same person drawn in one row
+ * and blank in the next two.
+ */
+private fun spriteFor(
+    row: ResultRow,
+    spritesByName: Map<String, String>,
+): String? =
+    row.getOrNull(Characters.spriteImgUrl)
+        ?: row[PartyMember.spriteImgUrl]
+        ?: spritesByName[row[PartyMember.name].lowercase()]
+
 /** Unsold drops, and sold ones with somebody still unpaid. */
 internal data class LootCounts(
     val pending: Int,
@@ -246,7 +272,6 @@ private fun ResultRow.toPartyResponse(
     id = this[Party.id].toString(),
     characterId = this[Party.characterId].toString(),
     bossKey = this[BossCatalog.bossKey],
-    name = this[Party.name],
     members = members,
     pendingLoot = loot.pending,
     awaitingPayout = loot.awaitingPayout,

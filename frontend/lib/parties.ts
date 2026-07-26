@@ -16,21 +16,6 @@ export function otherMembers(party: Party) {
 }
 
 /**
- * What to call a config: the label it was given, or who is in it.
- *
- * Falls back to the roster rather than to the boss, because the boss is already the heading
- * everywhere a config is drawn, and "Kalos (Kalos)" says nothing twice.
- */
-export function partyLabel(party: Party): string {
-  const named = party.name?.trim();
-  if (named) return named;
-  const roster = otherMembers(party)
-    .map((m) => m.name.trim())
-    .filter(Boolean);
-  return roster.length > 0 ? roster.join(" + ") : "Solo";
-}
-
-/**
  * How a party of this size gets said out loud. "Duo" and "trio" are what people call these; four
  * and up have no such word, so they keep the count.
  */

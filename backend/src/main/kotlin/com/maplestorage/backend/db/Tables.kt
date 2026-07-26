@@ -166,9 +166,6 @@ object Party : Table("party") {
     val characterId = reference("character_id", Characters.id)
     val bossCatalogId = reference("boss_catalog_id", BossCatalog.id)
 
-    // Optional label, for when a boss has a shape worth naming ("carry", "duo"). Nullable, and the
-    // client falls back to the roster rather than storing a derived name.
-    val name = text("name").nullable()
     val createdAt = timestamp("created_at")
     val updatedAt = timestamp("updated_at")
 

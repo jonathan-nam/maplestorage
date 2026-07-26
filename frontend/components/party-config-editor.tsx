@@ -53,9 +53,7 @@ export function PartyConfigEditor({
           party={party}
           boss={bossByKey.get(party.bossKey) ?? null}
           busy={busy}
-          onSave={(members, name) =>
-            onSave({ characterId, bossKey: party.bossKey, name, members }, party.id)
-          }
+          onSave={(members) => onSave({ characterId, bossKey: party.bossKey, members }, party.id)}
           onDelete={() => onDelete(party)}
         />
       ))}
@@ -82,7 +80,7 @@ export function PartyConfigEditor({
         <AddParty
           busy={busy || addingBoss === ""}
           onAdd={(member) => {
-            onSave({ characterId, bossKey: addingBoss, name: null, members: [member] });
+            onSave({ characterId, bossKey: addingBoss, members: [member] });
             setAddingBoss("");
           }}
           knownCharacters={knownCharacters}
@@ -149,13 +147,12 @@ function ConfigRow({
   party: Party;
   boss: Boss | null;
   busy: boolean;
-  onSave: (members: string[], name: string | null) => void;
+  onSave: (members: string[]) => void;
   onDelete: () => void;
 }) {
   const saved = otherMembers(party).map((m) => m.name);
   const [members, setMembers] = useState<string[]>(saved.length > 0 ? saved : [""]);
-  const [name, setName] = useState(party.name ?? "");
-  const dirty = members.join(" ") !== saved.join(" ") || name.trim() !== (party.name ?? "");
+  const dirty = members.join(" ") !== saved.join(" ");
   const attributed = otherMembers(party).filter((m) => m.personName);
 
   return (
@@ -163,14 +160,6 @@ function ConfigRow({
       <header className="config-head">
         {boss?.iconUrl && <img className="boss-portrait" src={apiAssetUrl(boss.iconUrl)} alt="" />}
         <h3 className="config-boss">{boss?.name ?? party.bossKey}</h3>
-        <input
-          className="split-input config-label"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="label (carry, duo...)"
-          aria-label={`Label for ${boss?.name ?? party.bossKey}`}
-          maxLength={40}
-        />
         <button type="button" className="party-delete" onClick={onDelete} disabled={busy}>
           Remove
         </button>
@@ -229,12 +218,7 @@ function ConfigRow({
             type="button"
             className="party-save"
             disabled={busy}
-            onClick={() =>
-              onSave(
-                members.map((m) => m.trim()).filter((m) => m !== ""),
-                name.trim() === "" ? null : name.trim(),
-              )
-            }
+            onClick={() => onSave(members.map((m) => m.trim()).filter((m) => m !== ""))}
           >
             Save
           </button>
@@ -242,10 +226,7 @@ function ConfigRow({
             type="button"
             className="party-cancel"
             disabled={busy}
-            onClick={() => {
-              setMembers(saved.length > 0 ? saved : [""]);
-              setName(party.name ?? "");
-            }}
+            onClick={() => setMembers(saved.length > 0 ? saved : [""])}
           >
             Revert
           </button>
