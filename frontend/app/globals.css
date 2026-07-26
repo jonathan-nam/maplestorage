@@ -38,12 +38,6 @@
   --good: #5cbf87;
   --warn: #e0a24e;
   --bad: #e0706a;
-  /* Work outstanding, which is not a warning. --warn is money and trouble; a boss you have not run
-     yet is neither, and borrowing it made the party list read as a page full of problems. Used on
-     the party clear and the capture readout, where the state is a label among other labels and has
-     to be picked out. The clear matrix does NOT use it: there the states are marks on a plain
-     cell, and every attempt to colour that table was worse than not colouring it. */
-  --todo: #8f7ec8;
 }
 
 /* Every page's root. Nothing inside it sets its own max-width or centres itself. */
@@ -2120,7 +2114,7 @@ button.link:disabled {
 }
 
 .planner-clears .is-pending {
-  color: var(--todo);
+  color: var(--ink-strong);
 }
 
 /* A caveat is not decoration: each one is a reason the rows above are not the whole list. */
@@ -3386,21 +3380,25 @@ button.link:disabled {
   letter-spacing: 0.04em;
 }
 
-/* Ordered by brightness, the same way round as the matrix cells: what is left is the loud one and
-   done sits back. No hue, for the reason given on .boss-matrix, and because a green pill next to a
-   monochrome table would read as two different features rather than one.
-   Between them sits the base rule above, which is "not reported". That order is deliberate: a row
-   nobody has answered for still wants an answer, so it should not be quieter than a finished one. */
+/* Ordered by brightness, and by brightness only. Three palettes were tried on these states and on
+   the matrix's cells, and each one ended up an argument about the colour rather than about the
+   list; the matrix is plain marks now and a coloured pill beside it read as a second feature.
+   Light is still to do, dark is done, and between them sits the base rule above, which is "not
+   reported". That order is deliberate: a row nobody has answered for still wants an answer, so it
+   should not be quieter than a finished one. */
 .party-clear.is-cleared {
   border-color: var(--line-soft);
   background: none;
   color: var(--muted-2);
 }
 
+/* The one light thing on the row, and the only state that inverts: dark ink on a light pill rather
+   than the other way about. Nothing else in the list is drawn this way, so it is found without
+   being read. */
 .party-clear.is-pending {
-  border-color: var(--todo);
-  background: color-mix(in srgb, var(--todo) 18%, transparent);
-  color: var(--ink-strong);
+  border-color: var(--ink-strong);
+  background: var(--ink);
+  color: var(--bg);
   font-weight: 600;
 }
 
@@ -3410,8 +3408,8 @@ button.link:disabled {
 }
 
 /* In the arrangement view the state rides along on the boss chip, where it is a label. It keeps
-   its fill: the chips sit in a row, and a bare coloured word among them was the easiest state on
-   the page to miss. */
+   its fill: the chips sit in a row, and a bare word among them was the easiest state on the page
+   to miss. */
 .party-bosses .party-clear {
   padding: 1px 6px;
   cursor: inherit;
