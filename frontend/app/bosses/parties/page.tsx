@@ -146,9 +146,14 @@ export default function PartiesPage() {
                 By party
               </button>
             </div>
-            <Link className="party-cancel" href="/bosses/parties/edit">
-              Edit parties
-            </Link>
+            <span className="party-toolbar-links">
+              <Link className="party-cancel" href="/bosses/parties/wallet">
+                Wallet
+              </Link>
+              <Link className="party-cancel" href="/bosses/parties/edit">
+                Edit parties
+              </Link>
+            </span>
           </div>
 
           {parties.length === 0 && (

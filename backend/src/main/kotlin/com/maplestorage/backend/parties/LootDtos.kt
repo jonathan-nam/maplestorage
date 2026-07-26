@@ -41,6 +41,18 @@ data class LootResponse(
     val payouts: List<LootPayoutResponse>,
 )
 
+/**
+ * One party's whole pool, for the account-wide read behind the wallet.
+ *
+ * Grouped by party because the split needs the party's seats to be read at all: a share is owed by
+ * one seat to another, and which seats those are is the party's, not the drop's.
+ */
+@Serializable
+data class PartyLootPoolResponse(
+    val partyId: String,
+    val loot: List<LootResponse>,
+)
+
 @Serializable
 data class AddLootRequest(
     // Exactly one of these. A drop key names a catalog item (and brings its icon and per-member

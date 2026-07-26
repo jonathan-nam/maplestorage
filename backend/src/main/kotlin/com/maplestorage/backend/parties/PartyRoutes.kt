@@ -32,6 +32,9 @@ import kotlin.uuid.Uuid
 fun Route.partyRoutes(nexonLookupService: NexonLookupService) {
     get { listParties() }
     post { createPartyRoute(nexonLookupService) }
+    // Before /{id}, and matched ahead of it whatever the order: Ktor scores a constant segment
+    // above a parameter. Every pool at once, for the wallet.
+    get("/loot") { listAllLoot() }
     get("/{id}") { getParty() }
     put("/{id}") { savePartyRoute(nexonLookupService) }
     put("/{id}/clear") { setClearRoute() }
@@ -51,6 +54,23 @@ private suspend fun RoutingContext.listParties() {
             partiesFor(userId)
         }
     call.respond(parties)
+}
+
+/**
+ * Every party's pool, in one request.
+ *
+ * The wallet nets what you owe against what you are owed, so it needs all of them at once, and one
+ * request per party would be one per boss per character. No money is computed here: the split has
+ * one implementation (frontend/lib/drop-split.ts) and this ships the drops it reads.
+ */
+private suspend fun RoutingContext.listAllLoot() {
+    val (userId, email) = call.principalIdAndEmail()
+    val pools =
+        transaction {
+            ensureUser(userId, email)
+            allLootFor(userId)
+        }
+    call.respond(pools)
 }
 
 private suspend fun RoutingContext.getParty() {
