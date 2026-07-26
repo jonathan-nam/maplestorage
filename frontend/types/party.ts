@@ -22,9 +22,12 @@ export type Party = {
   bossKey: string;
   // Your character first, then the others.
   members: PartyMember[];
-  // The pool at a glance: dropped but unsold, and sold with somebody still unpaid.
+  // The pool at a glance: dropped but unsold, sold with somebody still unpaid, and sold with
+  // nothing left to do. The last one is carried so a fully settled pool is still visible from the
+  // list rather than reading as a party that never dropped anything.
   pendingLoot: number;
   awaitingPayout: number;
+  settledLoot: number;
   // Whether this boss is cleared in the period it is currently in, straight out of boss_clear:
   // the same row the clear matrix draws and a planner capture writes. Null means nobody has said
   // anything about it this period, which is NOT the same as "not cleared".

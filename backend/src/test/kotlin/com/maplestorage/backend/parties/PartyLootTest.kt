@@ -274,6 +274,38 @@ class PartyLootTest {
     }
 
     @Test
+    fun `a settled pool is still counted, so the row does not read as empty`() {
+        transaction {
+            // Paying the last share used to take the pool off the party's row entirely: both
+            // counters went to zero and a party with a season of drops behind it looked exactly
+            // like one that had never dropped anything.
+            val party = trio()
+            val partyId = Uuid.parse(party.id)
+            val seller = party.members.first { it.name == "Rune" }
+
+            addGrindstone(party) // stays in the pool
+            val awaiting = addGrindstone(party)
+            val done = addGrindstone(party)
+            sellLoot(awaiting, sale(seller.id), Uuid.parse(seller.id), partyId, Clock.System.now())
+            sellLoot(done, sale(seller.id), Uuid.parse(seller.id), partyId, Clock.System.now())
+            findLoot(done, partyId)!!.payouts.forEach {
+                setPayoutPaid(done, Uuid.parse(it.memberId), true, Clock.System.now())
+            }
+
+            val counts = lootCountsFor(listOf(partyId))[partyId]!!
+            assertEquals(1, counts.pending)
+            assertEquals(1, counts.awaitingPayout)
+            assertEquals(1, counts.settled)
+
+            // And it reaches the row the list draws.
+            val row = findParty(partyId, userId)!!
+            assertEquals(1, row.pendingLoot)
+            assertEquals(1, row.awaitingPayout)
+            assertEquals(1, row.settledLoot)
+        }
+    }
+
+    @Test
     fun `the account-wide read is every pool of yours and none of anybody else's`() {
         transaction {
             // Two configs of your own, and a stranger's with loot in it. The wallet nets what you

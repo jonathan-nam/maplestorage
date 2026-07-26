@@ -8,6 +8,7 @@ import { ResetTimer } from "@/components/reset-timer";
 import { RosterStrip } from "@/components/roster-strip";
 import { apiAssetUrl, apiFetch } from "@/lib/api";
 import { peek, put } from "@/lib/cache";
+import { poolSize } from "@/lib/loot";
 import { byBoss, byCharacter, consolidate, otherMembers, partySizeLabel } from "@/lib/parties";
 import { preloadBossArt } from "@/lib/preload-boss-art";
 import type { Boss, BossClearsView } from "@/types/boss";
@@ -279,9 +280,17 @@ export default function PartiesPage() {
                               {party.cleared ? "done" : "still to do"}
                             </span>
                           )}
-                          {(party.pendingLoot > 0 || party.awaitingPayout > 0) && (
-                            <span className="party-loot-summary">
-                              {party.pendingLoot + party.awaitingPayout}
+                          {/* Every drop, not just the outstanding ones: this is the way in to
+                              the pool, and it disappeared entirely once everything was paid. */}
+                          {poolSize(party) > 0 && (
+                            <span
+                              className={
+                                party.pendingLoot + party.awaitingPayout > 0
+                                  ? "party-loot-summary"
+                                  : "party-loot-summary is-done"
+                              }
+                            >
+                              {poolSize(party)}
                             </span>
                           )}
                         </Link>

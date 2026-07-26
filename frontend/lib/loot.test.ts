@@ -1,6 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { splitDrop } from "./drop-split";
-import { formatDropped, memberFee, splitOf, statusLabel, summarize } from "./loot";
+import {
+  formatDropped,
+  memberFee,
+  poolLabel,
+  poolSize,
+  splitOf,
+  statusLabel,
+  summarize,
+} from "./loot";
 import type { Loot } from "@/types/loot";
 import type { PartyMember } from "@/types/party";
 
@@ -106,7 +114,9 @@ describe("summarize", () => {
       sold({ id: "c", status: "SOLD" }),
       sold({ id: "d", status: "PAID_OUT" }),
     ];
-    expect(summarize(loot)).toEqual({ pending: 1, awaitingPayout: 2 });
+    // The settled one is counted rather than ignored: a pool where everything is paid still has
+    // drops in it, and reporting nothing made it look empty.
+    expect(summarize(loot)).toEqual({ pending: 1, awaitingPayout: 2, settled: 1 });
   });
 });
 
@@ -122,5 +132,48 @@ describe("formatDropped", () => {
   it("reads the date as written rather than through a timezone", () => {
     expect(formatDropped("2026-07-20")).toBe("20 Jul");
     expect(formatDropped("2026-01-01")).toBe("1 Jan");
+  });
+});
+
+describe("poolLabel", () => {
+  const counts = (pendingLoot: number, awaitingPayout: number, settledLoot: number) => ({
+    pendingLoot,
+    awaitingPayout,
+    settledLoot,
+  });
+
+  it("says nothing for a pool with nothing in it", () => {
+    expect(poolLabel(counts(0, 0, 0))).toBeNull();
+  });
+
+  it("shows a fully settled pool rather than going silent", () => {
+    // The bug this exists for: with only the outstanding counts, marking the last share paid
+    // erased the pool from the row, and a party with a season of drops behind it read exactly
+    // like one that had never dropped anything.
+    expect(poolLabel(counts(0, 0, 3))).toEqual({ text: "3 settled", done: true });
+  });
+
+  it("gives the line to work that needs doing, not to what is finished", () => {
+    // A settled count beside "1 awaiting payout" is noise next to a thing to go and do.
+    expect(poolLabel(counts(0, 1, 9))).toEqual({ text: "1 awaiting payout", done: false });
+    expect(poolLabel(counts(2, 0, 9))).toEqual({ text: "2 in the pool", done: false });
+    expect(poolLabel(counts(2, 1, 9))).toEqual({
+      text: "2 in the pool \u00b7 1 awaiting payout",
+      done: false,
+    });
+  });
+
+  it("marks the settled case as done so it can be drawn quietly", () => {
+    expect(poolLabel(counts(0, 0, 1))?.done).toBe(true);
+    expect(poolLabel(counts(1, 0, 1))?.done).toBe(false);
+  });
+});
+
+describe("poolSize", () => {
+  it("counts every drop whatever state it is in", () => {
+    // The way into a pool, so it must not vanish just because the work is done.
+    expect(poolSize({ pendingLoot: 1, awaitingPayout: 2, settledLoot: 3 })).toBe(6);
+    expect(poolSize({ pendingLoot: 0, awaitingPayout: 0, settledLoot: 4 })).toBe(4);
+    expect(poolSize({ pendingLoot: 0, awaitingPayout: 0, settledLoot: 0 })).toBe(0);
   });
 });

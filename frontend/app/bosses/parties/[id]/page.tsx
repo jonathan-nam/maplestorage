@@ -10,7 +10,7 @@ import { apiAssetUrl } from "@/lib/api";
 import { preloadBossArt } from "@/lib/preload-boss-art";
 import { ApiError, apiFetch } from "@/lib/api";
 import { peek, put } from "@/lib/cache";
-import { summarize } from "@/lib/loot";
+import { poolLabel, summarize } from "@/lib/loot";
 import { otherMembers, partySizeLabel } from "@/lib/parties";
 import type { Boss } from "@/types/boss";
 import type { DropTables } from "@/types/drop";
@@ -106,6 +106,11 @@ export default function PartyPage() {
   // Counted from the rows on screen rather than from the party's stored counters, which were read
   // one request earlier and go stale the moment something here is marked paid.
   const summary = summarize(loot);
+  const poolLine = poolLabel({
+    pendingLoot: summary.pending,
+    awaitingPayout: summary.awaitingPayout,
+    settledLoot: summary.settled,
+  });
 
   return (
     <main className="page">
@@ -147,14 +152,9 @@ export default function PartyPage() {
             </li>
           </ul>
 
-          {(summary.pending > 0 || summary.awaitingPayout > 0) && (
-            <p className="party-loot-summary">
-              {[
-                summary.pending > 0 ? `${summary.pending} in the pool` : null,
-                summary.awaitingPayout > 0 ? `${summary.awaitingPayout} awaiting payout` : null,
-              ]
-                .filter(Boolean)
-                .join(" \u00b7 ")}
+          {poolLine && (
+            <p className={poolLine.done ? "party-loot-summary is-done" : "party-loot-summary"}>
+              {poolLine.text}
             </p>
           )}
 
