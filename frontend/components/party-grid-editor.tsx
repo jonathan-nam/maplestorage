@@ -87,27 +87,6 @@ export function PartyGridEditor({
                     placeholder="who"
                     aria-label="Person's name"
                   />
-                  {/* The Auction House takes 3% from MVP and 5% from everyone else, and on a
-                      payout it is the RECEIVING person's rate that applies. So this is not a
-                      label, it changes what you have to send them. See lib/drop-split.ts. */}
-                  <label
-                    className="grid-mvp"
-                    title="MVP pays 3% Auction House fee instead of 5%, which changes their share of a split"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={person.mvp}
-                      onChange={(e) =>
-                        edit({
-                          ...draft,
-                          people: draft.people.map((p) =>
-                            p.key === person.key ? { ...p, mvp: e.target.checked } : p,
-                          ),
-                        })
-                      }
-                    />
-                    <span>MVP (3% fee)</span>
-                  </label>
                   <button
                     type="button"
                     className="grid-drop"
@@ -139,6 +118,8 @@ export function PartyGridEditor({
                       ...draft,
                       people: [
                         ...draft.people,
+                        // mvp is carried, not edited: it is an Auction House fee tier and the
+                        // grid is about who runs with whom. See PersonResponse.
                         { key: newKey("person", draft.people), name: "", mvp: false },
                       ],
                     })
@@ -319,8 +300,7 @@ export function PartyGridEditor({
         {problem && <span className="grid-problem">{problem}</span>}
         {error && <span className="split-error">{error}</span>}
         <span className="party-hint">
-          A blank cell means they sat that one out. {MAX_PARTY} to a party. MVP is the 3% Auction
-          House fee instead of 5%, which changes that person&apos;s share of a split.
+          A blank cell means they sat that one out. {MAX_PARTY} to a party.
         </span>
       </div>
 
