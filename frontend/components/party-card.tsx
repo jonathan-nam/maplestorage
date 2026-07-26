@@ -33,7 +33,11 @@ export function PartyCard({
   const others = otherMembers(party);
 
   return (
-    <article className={open ? "party-row is-open" : "party-row"}>
+    // Cleared rows step back so the list reads as what is left. Strictly `=== true`: null is "no
+    // capture has said anything", which is a row that still needs an answer, not a finished one.
+    <article
+      className={`party-row${open ? " is-open" : ""}${party.cleared === true ? " is-cleared" : ""}`}
+    >
       <header className="party-row-head">
         {/* A disclosure of its own rather than the whole header, which already holds two links and
             the clear button: nesting those inside a control is not something a row can do. Absent

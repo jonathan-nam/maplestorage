@@ -237,7 +237,9 @@ function PlannerCard({ capture, onDismiss }: { capture: Capture; onDismiss: () =
             <ul className="planner-clears">
               {result.bossClears.map((c) => (
                 <li key={c.bossKey} className={c.cleared ? "is-cleared" : "is-pending"}>
-                  <span aria-hidden="true">{c.cleared ? "✓" : "·"}</span>
+                  <span className="planner-clear-mark" aria-hidden="true">
+                    {c.cleared ? "✓" : "·"}
+                  </span>
                   {c.displayName}
                   <span className="visually-hidden">
                     {c.cleared ? " cleared" : " not yet cleared"}

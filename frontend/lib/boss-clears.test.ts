@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { cellState, formatPeriod, formatWeekStart, indexClears } from "./boss-clears";
+import {
+  cellState,
+  formatPeriod,
+  formatWeekStart,
+  indexClears,
+  rowFullyCleared,
+} from "./boss-clears";
 import type { BossClear } from "@/types/boss";
 
 const clear = (bossKey: string, cleared: boolean): BossClear => ({
@@ -26,6 +32,57 @@ describe("cellState", () => {
     expect(cellState(indexClears(undefined), "lotus")).toBe("unseen");
     expect(cellState(indexClears([]), "lotus")).toBe("unseen");
     expect(cellState(undefined, "lotus")).toBe("unseen");
+  });
+});
+
+describe("rowFullyCleared", () => {
+  // The matrix dims a row on this, and a dimmed row is read as "nothing left to do". Every case
+  // below is one where saying true would hide a run somebody still has to make.
+  const roster = ["ann", "bob", "cass"];
+  const index = (entries: Record<string, BossClear[]>) =>
+    new Map(Object.entries(entries).map(([id, clears]) => [id, indexClears(clears)]));
+
+  it("is true only when every character has cleared it", () => {
+    const byCharacter = index({
+      ann: [clear("lotus", true)],
+      bob: [clear("lotus", true)],
+      cass: [clear("lotus", true)],
+    });
+
+    expect(rowFullyCleared(byCharacter, roster, "lotus")).toBe(true);
+  });
+
+  it("is false while one character has it reported and not done", () => {
+    const byCharacter = index({
+      ann: [clear("lotus", true)],
+      bob: [clear("lotus", false)],
+      cass: [clear("lotus", true)],
+    });
+
+    expect(rowFullyCleared(byCharacter, roster, "lotus")).toBe(false);
+  });
+
+  it("does not count silence as a clear", () => {
+    // cass ran a planner capture that mentioned another boss, so there is no lotus row for her.
+    // She has not said she cleared it, and the row must not claim she did.
+    const byCharacter = index({
+      ann: [clear("lotus", true)],
+      bob: [clear("lotus", true)],
+      cass: [clear("damien", true)],
+    });
+
+    expect(rowFullyCleared(byCharacter, roster, "lotus")).toBe(false);
+  });
+
+  it("does not count a character with no capture at all as a clear", () => {
+    const byCharacter = index({ ann: [clear("lotus", true)], bob: [clear("lotus", true)] });
+
+    expect(rowFullyCleared(byCharacter, roster, "lotus")).toBe(false);
+  });
+
+  it("is false for an empty roster rather than vacuously true", () => {
+    // every() on nothing is true, which would dim every row on a page with no characters on it.
+    expect(rowFullyCleared(new Map(), [], "lotus")).toBe(false);
   });
 });
 

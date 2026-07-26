@@ -3,7 +3,7 @@
 import { useState } from "react";
 
 import { apiAssetUrl } from "@/lib/api";
-import { cellState, formatPeriod, indexClears } from "@/lib/boss-clears";
+import { cellState, formatPeriod, indexClears, rowFullyCleared } from "@/lib/boss-clears";
 import type { Boss, BossClearsByCharacter } from "@/types/boss";
 import type { Character } from "@/types/character";
 
@@ -148,7 +148,21 @@ export function BossMatrix({
             {rows
               .filter((boss) => boss.reset === cadence)
               .map((boss) => (
-                <tr key={boss.bossKey}>
+                <tr
+                  key={boss.bossKey}
+                  // Nothing left to do on this boss, so the row steps back. See rowFullyCleared for
+                  // why an unreported character does not count towards it.
+                  className={
+                    !loading &&
+                    rowFullyCleared(
+                      byCharacter,
+                      columns.map((c) => c.id),
+                      boss.bossKey,
+                    )
+                      ? "is-row-cleared"
+                      : undefined
+                  }
+                >
                   <th className="boss-name" scope="row">
                     {/* Flexed on an inner span, not on the th: display:flex on a table cell takes
                         it out of the table layout and the column stops aligning. */}
@@ -183,10 +197,12 @@ export function BossMatrix({
                         className={`boss-cell is-${state}${colClass(character.id)}`}
                         onMouseEnter={() => setHoveredColumn(character.id)}
                       >
-                        {/* The glyph is decorative; the text is what a screen reader gets, and
-                            "not reported" is deliberately not "not cleared". */}
-                        <span aria-hidden="true">
-                          {state === "cleared" ? "✓" : state === "pending" ? "·" : ""}
+                        {/* The mark is decorative; the text is what a screen reader gets, and
+                            "not reported" is deliberately not "not cleared". Pending carries no
+                            glyph: the empty slot is the mark, and a dot inside it only competes
+                            with the tick next door. */}
+                        <span className={`boss-cell-mark is-${state}`} aria-hidden="true">
+                          {state === "cleared" ? "✓" : ""}
                         </span>
                         <span className="visually-hidden">
                           {state === "cleared"
@@ -211,9 +227,11 @@ export function BossMatrix({
       {!loading && (
         <>
           <p className="boss-legend">
-            <span className="boss-key is-cleared">✓</span> cleared
-            <span className="boss-key is-pending">·</span> not yet
-            <span className="boss-key is-unseen" /> no capture this period
+            {/* The same marks the cells use, at the same size, so the key is the thing rather than
+                a description of it. */}
+            <span className="boss-key boss-cell-mark is-cleared">✓</span> cleared
+            <span className="boss-key boss-cell-mark is-pending" /> still to do
+            <span className="boss-key boss-cell-mark is-unseen" /> no capture this period
           </p>
           {/* Said out loud rather than left as an absence: a reader who knows Zakum is in the
               catalog should find out why it is missing here, not assume the week lost it. */}
