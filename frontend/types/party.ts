@@ -1,8 +1,22 @@
 // Mirrors backend's parties/PartyDtos.kt field-for-field.
 
-export type PartyMember = {
+// One of the people you run with. The grid's columns are these.
+export type Person = {
   id: string;
   name: string;
+  // Their Auction House tier. One answer per person, not per party.
+  mvp: boolean;
+};
+
+export type PartyMember = {
+  id: string;
+  // Which person holds the seat.
+  personId: string;
+  // What the cell says: the character, or a label for it ("2nd mech").
+  name: string;
+  // The character's real name when the label is not it. What the sprite lookup and the roster
+  // link use.
+  ign: string | null;
   // Set when the seat is one of your characters, null when it is somebody else. This link is what
   // answers "which parties is this character in".
   characterId: string | null;
@@ -29,19 +43,36 @@ export type Party = {
   updatedAt: string;
 };
 
-// A seat as submitted. `id` keeps an existing seat rather than replacing it, which matters because
-// loot payouts point at seat rows. See PartyMemberRequest.
-export type PartyMemberDraft = {
+// The whole roster: columns, rows, and the character in each filled cell. Mirrors
+// PartyGridResponse.
+export type PartyGrid = {
+  people: Person[];
+  parties: Party[];
+};
+
+// What PUT /api/parties/grid takes. `key` is how a seat points at a person within one save: their
+// id when they already exist, anything the client made up when they do not.
+export type SavePersonBody = {
+  key: string;
   id?: string;
   name: string;
-  characterId: string | null;
   mvp: boolean;
 };
 
-// The whole party, every time: a save replaces the seats and the boss list rather than patching
-// them. Seats left out are removed.
+export type SaveSeatBody = {
+  personKey: string;
+  characterName: string;
+  ign?: string | null;
+};
+
 export type SavePartyBody = {
+  id?: string;
   name: string | null;
-  members: PartyMemberDraft[];
   bossKeys: string[];
+  seats: SaveSeatBody[];
+};
+
+export type SaveGridBody = {
+  people: SavePersonBody[];
+  parties: SavePartyBody[];
 };

@@ -7,19 +7,9 @@ import { bossesFor, partyLabel, partySizeLabel } from "@/lib/parties";
 import type { Boss } from "@/types/boss";
 import type { Party } from "@/types/party";
 
-export function PartyCard({
-  party,
-  bossByKey,
-  onEdit,
-  onDelete,
-  busy,
-}: {
-  party: Party;
-  bossByKey: Map<string, Boss>;
-  onEdit: () => void;
-  onDelete: () => void;
-  busy: boolean;
-}) {
+// A read view. Editing and deleting live in the grid above it, because a party edited in two
+// places is a party that can be edited into two different shapes.
+export function PartyCard({ party, bossByKey }: { party: Party; bossByKey: Map<string, Boss> }) {
   const bosses = bossesFor(party, bossByKey);
 
   return (
@@ -66,15 +56,6 @@ export function PartyCard({
             .join(" \u00b7 ")}
         </p>
       )}
-
-      <div className="party-card-actions">
-        <button type="button" className="party-cancel" onClick={onEdit} disabled={busy}>
-          Edit
-        </button>
-        <button type="button" className="party-delete" onClick={onDelete} disabled={busy}>
-          Delete
-        </button>
-      </div>
     </article>
   );
 }

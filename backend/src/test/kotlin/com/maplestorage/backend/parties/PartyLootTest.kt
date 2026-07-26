@@ -2,6 +2,7 @@ package com.maplestorage.backend.parties
 
 import com.maplestorage.backend.config.Env
 import com.maplestorage.backend.db.Party
+import com.maplestorage.backend.db.Person
 import com.maplestorage.backend.users.ensureUser
 import kotlinx.datetime.LocalDate
 import org.flywaydb.core.Flyway
@@ -49,19 +50,30 @@ class PartyLootTest {
 
     @AfterTest
     fun cleanUp() {
-        // party_loot and party_member cascade from party; the payout rows cascade from the loot.
-        transaction { Party.deleteWhere { Party.userId eq userId } }
+        transaction {
+            // party_loot and party_member cascade from party, and the payout rows cascade from the
+            // loot. People are referenced by the seats, so they can only go once the parties have.
+            Party.deleteWhere { Party.userId eq userId }
+            Person.deleteWhere { Person.userId eq userId }
+        }
     }
 
     private fun trio(): PartyResponse {
         ensureUser(userId, "$userId@example.com")
-        val members =
+        val people =
             listOf(
-                PartyMemberRequest(name = "Rune"),
-                PartyMemberRequest(name = "Steve", mvp = true),
-                PartyMemberRequest(name = "Bob"),
+                GridPersonRequest(key = "me", name = "Me"),
+                GridPersonRequest(key = "steve", name = "Steve", mvp = true),
+                GridPersonRequest(key = "bob", name = "Bob"),
             )
-        return createParty(userId, SavePartyRequest("Limbo trio", members, listOf("limbo")), Clock.System.now())
+        val seats =
+            listOf(
+                GridSeatRequest("me", "Rune"),
+                GridSeatRequest("steve", "Steve"),
+                GridSeatRequest("bob", "Bob"),
+            )
+        val party = GridPartyRequest(name = "Limbo trio", bossKeys = listOf("limbo"), seats = seats)
+        return saveGrid(userId, SaveGridRequest(people, listOf(party)), Clock.System.now()).parties.single()
     }
 
     private fun addGrindstone(party: PartyResponse): Uuid {
@@ -153,9 +165,14 @@ class PartyLootTest {
             val seller = party.members[0]
             sellLoot(lootId, sale(seller.id), Uuid.parse(seller.id), partyId, Clock.System.now())
 
-            val kept = party.members.map { PartyMemberRequest(id = it.id, name = it.name, mvp = it.mvp) }
-            val grown = SavePartyRequest("Limbo trio", kept + PartyMemberRequest(name = "Cara"), listOf("limbo"))
-            saveParty(partyId, userId, grown, Clock.System.now())
+            // The same grid with one more column, and a cell for her in this row.
+            val people =
+                peopleFor(userId).map { GridPersonRequest(key = it.id, id = it.id, name = it.name, mvp = it.mvp) } +
+                    GridPersonRequest(key = "cara", name = "Cara")
+            val seats =
+                party.members.map { GridSeatRequest(it.personId, it.name) } + GridSeatRequest("cara", "Cara")
+            val grown = GridPartyRequest(party.id, "Limbo trio", listOf("limbo"), seats)
+            saveGrid(userId, SaveGridRequest(people, listOf(grown)), Clock.System.now())
 
             // Still three seats' worth of history: the fourth was not there when it sold.
             val loot = findLoot(lootId, partyId)!!
@@ -173,19 +190,22 @@ class PartyLootTest {
             val seller = party.members[0]
             sellLoot(lootId, sale(seller.id), Uuid.parse(seller.id), partyId, Clock.System.now())
 
-            val withoutBob =
-                party.members
-                    .filter { it.name != "Bob" }
-                    .map { PartyMemberRequest(id = it.id, name = it.name, mvp = it.mvp) }
+            val people = peopleFor(userId)
+            val kept = people.map { GridPersonRequest(key = it.id, id = it.id, name = it.name, mvp = it.mvp) }
+            val withoutBob = party.members.filter { it.name != "Bob" }.map { GridSeatRequest(it.personId, it.name) }
+            val request =
+                SaveGridRequest(kept, listOf(GridPartyRequest(party.id, "Limbo trio", listOf("limbo"), withoutBob)))
             val problem =
-                validateParty(
-                    SavePartyRequest("Limbo trio", withoutBob, listOf("limbo")),
-                    emptySet(),
-                    memberIdsOf(partyId),
-                    seatsWithLootHistory(partyId),
+                validateGrid(
+                    request,
+                    userId,
+                    people.map { Uuid.parse(it.id) }.toSet(),
+                    setOf(partyId),
                 )
+            // Bob's column stays; it is his SEAT in this row that the payout points at, and the
+            // grid cannot drop the cell without dropping the record.
             assertEquals(
-                "a member with loot history cannot be removed, delete or reassign their loot first",
+                "a person with loot history cannot be removed, delete or reassign their loot first",
                 problem,
             )
         }

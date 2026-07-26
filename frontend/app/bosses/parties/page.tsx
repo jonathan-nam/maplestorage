@@ -3,18 +3,18 @@
 import { useAuth } from "@clerk/nextjs";
 import { useEffect, useState } from "react";
 import { PartyCard } from "@/components/party-card";
-import { PartyEditor } from "@/components/party-editor";
+import { PartyGridEditor } from "@/components/party-grid-editor";
 import { ApiError, apiFetch } from "@/lib/api";
 import { preloadBossArt } from "@/lib/preload-boss-art";
 import { peek, put } from "@/lib/cache";
-import { partiesByCharacter, partyLabel } from "@/lib/parties";
+import { partiesByCharacter } from "@/lib/parties";
 import type { Boss } from "@/types/boss";
 import type { Character } from "@/types/character";
-import type { Party, SavePartyBody } from "@/types/party";
+import type { PartyGrid, SaveGridBody } from "@/types/party";
 
 type LoadState = "loading" | "loaded" | "error";
 
-const PARTIES_KEY = "/api/parties";
+const GRID_KEY = "/api/parties/grid";
 const BOSSES_KEY = "/api/bosses";
 const CHARACTERS_KEY = "/api/characters";
 
@@ -25,31 +25,28 @@ export default function PartiesPage() {
   const { getToken } = useAuth();
 
   // Seeded from cache so a repeat visit paints immediately, as the other pages do. See lib/cache.ts.
-  const seededParties = peek<Party[]>(PARTIES_KEY);
+  const seededGrid = peek<PartyGrid>(GRID_KEY);
   const seededBosses = peek<Boss[]>(BOSSES_KEY);
   const seededCharacters = peek<Character[]>(CHARACTERS_KEY);
 
-  const [parties, setParties] = useState<Party[]>(seededParties ?? []);
+  const [grid, setGrid] = useState<PartyGrid>(seededGrid ?? { people: [], parties: [] });
   const [bosses, setBosses] = useState<Boss[]>(seededBosses ?? []);
   const [characters, setCharacters] = useState<Character[]>(seededCharacters ?? []);
   const [state, setState] = useState<LoadState>(
-    seededParties && seededBosses && seededCharacters ? "loaded" : "loading",
+    seededGrid && seededBosses && seededCharacters ? "loaded" : "loading",
   );
 
-  // Null when nothing is being edited, "new" for a party that does not exist yet.
-  const [editing, setEditing] = useState<Party | "new" | null>(null);
-  const [confirmDelete, setConfirmDelete] = useState<Party | null>(null);
   const [busy, setBusy] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
-  async function loadParties(token?: string | null) {
-    const result = await apiFetch<Party[]>(
-      PARTIES_KEY,
+  async function loadGrid(token?: string | null) {
+    const result = await apiFetch<PartyGrid>(
+      GRID_KEY,
       { method: "GET" },
       token !== undefined ? () => Promise.resolve(token) : getToken,
     );
-    setParties(result);
-    put(PARTIES_KEY, result);
+    setGrid(result);
+    put(GRID_KEY, result);
   }
 
   useEffect(() => {
@@ -59,7 +56,7 @@ export default function PartiesPage() {
       .then((token) => {
         const withToken = () => Promise.resolve(token);
         return Promise.all([
-          loadParties(token),
+          loadGrid(token),
           apiFetch<Boss[]>(BOSSES_KEY, { method: "GET" }, withToken),
           apiFetch<Character[]>(CHARACTERS_KEY, { method: "GET" }, withToken),
         ]);
@@ -77,37 +74,23 @@ export default function PartiesPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  async function save(body: SavePartyBody) {
-    const target = editing === "new" ? null : editing;
+  async function save(body: SaveGridBody) {
     setBusy(true);
     setSaveError(null);
     try {
-      await apiFetch<Party>(
-        target ? `${PARTIES_KEY}/${target.id}` : PARTIES_KEY,
-        { method: target ? "PUT" : "POST", body: JSON.stringify(body) },
+      const saved = await apiFetch<PartyGrid>(
+        GRID_KEY,
+        { method: "PUT", body: JSON.stringify(body) },
         getToken,
       );
-      // Refetch rather than splice the response in: the server decides seat ids and boss order,
-      // and a list assembled here would be a second answer to what was just saved.
-      await loadParties();
-      setEditing(null);
+      // The server's answer, not the draft: it decides seat ids, person ids and boss order, and a
+      // grid assembled here would be a second answer to what was just saved.
+      setGrid(saved);
+      put(GRID_KEY, saved);
     } catch (e) {
-      // The backend refuses a bad party with the reason in the body (see validateParty). Showing
-      // it beats "something went wrong" for the one thing the user can actually fix.
-      setSaveError(e instanceof ApiError ? e.body : "Couldn't save that party.");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function remove(party: Party) {
-    setBusy(true);
-    try {
-      await apiFetch<void>(`${PARTIES_KEY}/${party.id}`, { method: "DELETE" }, getToken);
-      await loadParties();
-      setConfirmDelete(null);
-    } catch {
-      setConfirmDelete(null);
+      // The backend refuses a bad grid with the reason in the body (see validateGrid). Showing it
+      // beats "something went wrong" for the one thing the user can actually fix.
+      setSaveError(e instanceof ApiError ? e.body : "Couldn't save the grid.");
     } finally {
       setBusy(false);
     }
@@ -116,7 +99,7 @@ export default function PartiesPage() {
   const bossByKey = new Map(bosses.map((b) => [b.bossKey, b]));
   const characterById = new Map(characters.map((c) => [c.id, c]));
   const groups = partiesByCharacter(
-    parties,
+    grid.parties,
     characters.map((c) => c.id),
   );
 
@@ -133,53 +116,21 @@ export default function PartiesPage() {
 
       {state === "loaded" && (
         <>
-          {editing === null && (
-            <button type="button" className="party-save" onClick={() => setEditing("new")}>
-              + New party
-            </button>
-          )}
+          {/* The grid IS the editor. Cards below are the read view, and the way into a pool. */}
+          <PartyGridEditor
+            // Remounted when the server's grid changes, so the draft starts from what was saved
+            // rather than from a stale copy of it.
+            key={grid.parties.map((p) => p.id).join() + grid.people.map((p) => p.id).join()}
+            grid={grid}
+            bosses={bosses}
+            busy={busy}
+            error={saveError}
+            onSave={save}
+          />
 
-          {editing !== null && (
-            <PartyEditor
-              party={editing === "new" ? null : editing}
-              bosses={bosses}
-              characters={characters}
-              busy={busy}
-              error={saveError}
-              onSave={save}
-              onCancel={() => {
-                setEditing(null);
-                setSaveError(null);
-              }}
-            />
-          )}
-
-          {confirmDelete && (
-            <div className="party-confirm">
-              <span>Delete “{partyLabel(confirmDelete)}”?</span>
-              <button
-                type="button"
-                className="party-delete"
-                disabled={busy}
-                onClick={() => remove(confirmDelete)}
-              >
-                Delete
-              </button>
-              <button
-                type="button"
-                className="party-cancel"
-                disabled={busy}
-                onClick={() => setConfirmDelete(null)}
-              >
-                Keep
-              </button>
-            </div>
-          )}
-
-          {parties.length === 0 && editing === null && (
+          {grid.parties.length === 0 && (
             <p className="finder-empty">
-              No parties yet. Add the group you run Baldrix or Kalos with, and it will show up under
-              that character.
+              Nothing yet. Add a person, add a party, and put the character they bring in the cell.
             </p>
           )}
 
@@ -199,17 +150,7 @@ export default function PartiesPage() {
                 </header>
                 <div className="party-list">
                   {group.parties.map((party) => (
-                    <PartyCard
-                      key={party.id}
-                      party={party}
-                      bossByKey={bossByKey}
-                      busy={busy}
-                      onEdit={() => {
-                        setSaveError(null);
-                        setEditing(party);
-                      }}
-                      onDelete={() => setConfirmDelete(party)}
-                    />
+                    <PartyCard key={party.id} party={party} bossByKey={bossByKey} />
                   ))}
                 </div>
               </section>

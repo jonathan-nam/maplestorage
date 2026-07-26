@@ -1,8 +1,8 @@
 package com.maplestorage.backend.parties
 
 import com.maplestorage.backend.db.BossCatalog
-import com.maplestorage.backend.db.Characters
 import com.maplestorage.backend.db.DropCatalog
+import com.maplestorage.backend.db.Party
 import com.maplestorage.backend.db.PartyMember
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.inList
@@ -10,17 +10,9 @@ import org.jetbrains.exposed.v1.jdbc.selectAll
 import kotlin.time.Instant
 import kotlin.uuid.Uuid
 
-// The reads validateParty needs before a write is allowed: whose characters these are, which
-// seats this party actually has, and whether every submitted boss key is a real one. Inside a
-// transaction, like the rest.
-
-/** The caller's character ids, so a seat cannot be linked to somebody else's character. */
-internal fun ownedCharacterIds(userId: String): Set<Uuid> =
-    Characters
-        .selectAll()
-        .where { Characters.userId eq userId }
-        .map { it[Characters.id] }
-        .toSet()
+// The reads a grid save needs before it is allowed: which seats a party has, whether every
+// submitted boss key is real, and what sprites have already been found. Inside a transaction,
+// like the rest.
 
 /** The seat ids currently in this party, so an edit cannot reach a seat in another one. */
 internal fun memberIdsOf(partyId: Uuid): Set<Uuid> =
@@ -71,11 +63,18 @@ internal data class SeatSprite(
     val refreshedAt: Instant?,
 )
 
-internal fun seatSpritesOf(partyId: Uuid): Map<String, SeatSprite> =
+/**
+ * Every sprite this account has already looked up, keyed by CHARACTER name.
+ *
+ * Across all parties, not one: the same character shows up in several rows of the grid, and asking
+ * Nexon again for a name we already have an answer for is a round trip per row.
+ */
+internal fun seatSpritesByCharacter(userId: String): Map<String, SeatSprite> =
     PartyMember
+        .innerJoin(Party)
         .selectAll()
-        .where { PartyMember.partyId eq partyId }
+        .where { Party.userId eq userId }
         .associate {
-            it[PartyMember.name] to
+            (it[PartyMember.ign] ?: it[PartyMember.name]) to
                 SeatSprite(it[PartyMember.spriteImgUrl], it[PartyMember.spriteRefreshedAt])
         }

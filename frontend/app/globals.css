@@ -2967,3 +2967,142 @@ button.link:disabled {
   align-items: center;
   gap: 5px;
 }
+
+/* The party grid: the sheet this feature came from, made editable. A column per person, a row per
+   party, and the character they bring in the cell. Scrolls horizontally on its own, because six
+   people plus a party column is wider than the page column and the page must not stretch. */
+.grid-editor {
+  margin: 16px 0 28px;
+}
+
+.grid-scroll {
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.grid-table {
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.grid-table th,
+.grid-table td {
+  border-bottom: 1px solid var(--line-soft);
+  border-right: 1px solid var(--line-soft);
+  padding: 6px;
+  vertical-align: top;
+  text-align: left;
+}
+
+.grid-row-head {
+  position: relative;
+  min-width: 190px;
+}
+
+.grid-col-head {
+  min-width: 150px;
+}
+
+.grid-row-name,
+.grid-person-name {
+  width: 100%;
+  font-size: 13px;
+  padding: 5px 8px;
+}
+
+.grid-cell {
+  min-width: 150px;
+}
+
+.grid-cell-label {
+  width: 100%;
+  font-size: 13px;
+  padding: 5px 8px;
+}
+
+/* The IGN sits under the label and reads as secondary, because most of the time the label already
+   is the name and this line is empty. */
+.grid-cell-ign {
+  width: 100%;
+  margin-top: 4px;
+  font-size: 11px;
+  padding: 3px 8px;
+  color: var(--muted);
+  background: var(--surface-2);
+}
+
+.grid-cell.is-spacer {
+  border-right: 0;
+}
+
+.grid-mvp {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.grid-drop {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  font: inherit;
+  font-size: 13px;
+  line-height: 1;
+  padding: 2px 5px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--muted-2);
+  cursor: pointer;
+}
+
+.grid-col-head {
+  position: relative;
+}
+
+.grid-drop:hover {
+  color: var(--bad);
+}
+
+.grid-bosses {
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.grid-bosses summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 3px;
+  cursor: pointer;
+}
+
+.grid-boss-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface-2);
+}
+
+.grid-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.grid-problem {
+  color: var(--warn);
+  font-size: 12px;
+}

@@ -5,7 +5,9 @@ import type { Party, PartyMember } from "@/types/party";
 
 const seat = (name: string, characterId: string | null = null): PartyMember => ({
   id: `seat-${name}`,
+  personId: `person-${name}`,
   name,
+  ign: null,
   characterId,
   mvp: false,
   spriteImgUrl: null,

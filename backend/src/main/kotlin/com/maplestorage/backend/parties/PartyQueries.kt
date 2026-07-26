@@ -7,6 +7,7 @@ import com.maplestorage.backend.db.PartyBoss
 import com.maplestorage.backend.db.PartyLoot
 import com.maplestorage.backend.db.PartyLootPayout
 import com.maplestorage.backend.db.PartyMember
+import com.maplestorage.backend.db.Person
 import org.jetbrains.exposed.v1.core.JoinType
 import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.and
@@ -152,14 +153,21 @@ private fun bossKeysOf(partyId: Uuid): List<String> =
  * shows the character's own portrait, which is refreshed on the character, so copying it into the
  * party row would leave the party showing a portrait the roster has since replaced.
  */
-private fun membersJoin() = PartyMember.join(Characters, JoinType.LEFT, PartyMember.characterId, Characters.id)
+private fun membersJoin() =
+    PartyMember
+        .join(Characters, JoinType.LEFT, PartyMember.characterId, Characters.id)
+        // INNER, and explicit about which columns: every seat has a person, and the seat's MVP
+        // answer is read off them rather than stored twice.
+        .join(Person, JoinType.INNER, onColumn = PartyMember.personId, otherColumn = Person.id)
 
 private fun ResultRow.toMemberResponse() =
     PartyMemberResponse(
         id = this[PartyMember.id].toString(),
         name = this[PartyMember.name],
+        ign = this[PartyMember.ign],
+        personId = this[PartyMember.personId].toString(),
         characterId = this[PartyMember.characterId]?.toString(),
-        mvp = this[PartyMember.mvp],
+        mvp = this[Person.mvp],
         spriteImgUrl = this.getOrNull(Characters.spriteImgUrl) ?: this[PartyMember.spriteImgUrl],
     )
 

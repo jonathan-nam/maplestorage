@@ -168,6 +168,20 @@ object Party : Table("party") {
     override val primaryKey = PrimaryKey(id)
 }
 
+// The people you run with, as distinct from the characters they bring. See V21__person.sql.
+object Person : Table("person") {
+    val id = uuid("id")
+    val userId = reference("user_id", Users.id)
+    val name = text("name")
+
+    // The Auction House tier, which is a fact about the person rather than about a seat.
+    val mvp = bool("mvp")
+    val createdAt = timestamp("created_at")
+    val updatedAt = timestamp("updated_at")
+
+    override val primaryKey = PrimaryKey(id)
+}
+
 object PartyMember : Table("party_member") {
     val id = uuid("id")
     val partyId = reference("party_id", Party.id)
@@ -177,8 +191,13 @@ object PartyMember : Table("party_member") {
     // so removing a character leaves the seat (and any loot split with it) readable.
     val characterId = optReference("character_id", Characters.id)
 
-    // MVP status, not a fee rate. See V16__party.sql.
-    val mvp = bool("mvp")
+    // Who this seat is. The character they brought is `name`; the same person brings a different
+    // one to a different boss, which is the whole reason this column exists.
+    val personId = reference("person_id", Person.id)
+
+    // The character's real name, when `name` is a label for it ("2nd mech" -> morebuff12). Null
+    // when the label is already the name. See V22__party_member_ign.sql.
+    val ign = text("ign").nullable()
     val position = integer("position")
 
     // Only for seats that are NOT one of this account's characters: those read their sprite off
