@@ -304,6 +304,46 @@ class PartyLootTest {
         }
     }
 
+    @Test
+    fun `a boss you solo gets a config, a pool, and a sale that is all yours`() {
+        transaction {
+            // The reason solo configs stopped being refused. Without one there is nowhere to put a
+            // drop off a boss you kill alone, and the drop log quietly misses it.
+            ensureUser(userId, "$userId@example.com")
+            val mineId = Uuid.random()
+            val now = Clock.System.now()
+            val owner = userId
+            Characters.insert {
+                it[Characters.id] = mineId
+                it[Characters.userId] = owner
+                it[Characters.name] = "Rune"
+                it[createdAt] = now
+                it[updatedAt] = now
+                it[position] = 0
+            }
+            val request = SavePartyRequest(mineId.toString(), "limbo", emptyList())
+            assertNull(validateNewParty(request, userId, mineId, bossIdForKey("limbo")))
+
+            val partyId = createParty(userId, mineId, bossIdForKey("limbo")!!, request, now)
+            val party = findParty(partyId, userId)!!
+            // One seat, yours. The config's own character is always a seat.
+            assertEquals(listOf("Rune"), party.members.map { it.name })
+
+            val lootId = addLoot(partyId, dropIdForKey("grindstone-of-faith")!!, null, null, dropped, now)
+            val seller = party.members.single()
+            sellLoot(lootId, sale(seller.id), Uuid.parse(seller.id), partyId, now)
+
+            val sold = findLoot(lootId, partyId)!!
+            // Nobody to pay, so it is settled the moment it sells rather than owing a phantom share.
+            assertTrue(sold.payouts.isEmpty())
+            assertEquals(STATUS_PAID_OUT, sold.status)
+            assertEquals(9_500_000_000, sold.saleAmount)
+
+            // And it reaches the account-wide read the drop log is built on.
+            assertTrue(allLootFor(userId).any { it.partyId == partyId.toString() })
+        }
+    }
+
     /** A second account with a config of its own, to prove the ownership filter above. */
     private fun strangerParty(): PartyResponse {
         ensureUser(strangerId, "$strangerId@example.com")

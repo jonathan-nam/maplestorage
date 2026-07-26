@@ -277,6 +277,19 @@ describe("buildWallet", () => {
     expect(wallet.owe).toBe(0);
   });
 
+  it("has nothing to say about a solo run", () => {
+    // Nobody else was there, so there is no debt in either direction. Not "unreadable", and not
+    // a share owed to a party of one.
+    const solo = party("pa", [mine("m1", "mechyfechy")]);
+    const wallet = buildWallet([solo], [pool("pa", [sold({ payouts: [] })])]);
+
+    expect(wallet.counterparties).toHaveLength(0);
+    expect(wallet.owe).toBe(0);
+    expect(wallet.owed).toBe(0);
+    expect(wallet.unreadable).toBe(0);
+    expect(wallet.betweenMine).toBe(0);
+  });
+
   it("has nothing to say about an account with no parties", () => {
     const wallet = buildWallet([], []);
     expect(wallet).toEqual({

@@ -126,6 +126,20 @@ describe("buildDropLog", () => {
     expect(log.totals.yourTake).toBe(expected.seller.keeps + expected.shares[0]!.nets);
   });
 
+  it("counts a solo sale as entirely yours", () => {
+    // The whole reason solo configs are allowed: a boss you kill alone still drops things, and
+    // nobody takes a cut. Your take is what landed, with no payout hop to lose 5% to.
+    const solo = party("pa", [mine("m1", "mechyfechy")]);
+    const loot = drop({ payouts: [] });
+    const expected = splitOf(loot, solo.members)!;
+
+    const log = buildDropLog([solo], [pool("pa", [loot])]);
+
+    expect(log.totals.yourTake).toBe(log.totals.pooled);
+    expect(log.totals.yourTake).toBe(expected.split.sellerReceives);
+    expect(expected.shares).toEqual([]);
+  });
+
   it("keeps unsold drops in the history with no money on them", () => {
     const p = duo();
     const log = buildDropLog([p], [pool("pa", [pending({ id: "l9" })])]);

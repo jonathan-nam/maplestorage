@@ -25,8 +25,9 @@ data class PartyMemberResponse(
 /**
  * One config: your character, one boss, and who they run it with.
  *
- * A boss your character solos has no config, which is why solo runs do not appear anywhere. The
- * members are the OTHER characters; your own is `characterId` on the config itself.
+ * The members are the OTHER characters; your own is `characterId` on the config itself, and is
+ * always a seat. An empty members list is a SOLO run, which is a config like any other: it is what
+ * that boss's loot pool hangs off.
  */
 @Serializable
 data class PartyResponse(
@@ -59,8 +60,8 @@ data class PersonResponse(
 /**
  * A config, as submitted.
  *
- * `members` is the other characters, in the order they should read. Empty is refused: a config
- * with nobody else in it is a solo run, and a solo run is simply not a config.
+ * `members` is the other characters, in the order they should read. Empty is a solo run, which is
+ * allowed: see validateMembers in PartyValidation.kt for why it stopped being refused.
  */
 @Serializable
 data class SavePartyRequest(

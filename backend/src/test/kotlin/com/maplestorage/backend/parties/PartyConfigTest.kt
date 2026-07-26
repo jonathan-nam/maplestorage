@@ -184,8 +184,9 @@ class PartyConfigTest {
             )
             // Zakum is in catalog/bosses.yaml but untracked, so it is seeded into no table.
             assertEquals("unknown bossKey", check(mine, "zakum", listOf("X")))
-            // A boss your character solos has no config at all, which is why solo runs never show.
-            assertEquals("a party needs somebody else in it", check(mine, "kalos-the-guardian", emptyList()))
+            // A solo run IS a config. It is what that boss's loot pool hangs off, and refusing it
+            // meant a drop off a boss you solo could not be recorded anywhere.
+            assertNull(check(mine, "kalos-the-guardian", emptyList()))
             assertEquals(
                 "a party holds at most 6 including your character",
                 check(mine, "kalos-the-guardian", (1..6).map { "M$it" }),

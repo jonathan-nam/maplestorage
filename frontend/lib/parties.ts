@@ -1,11 +1,12 @@
 // Reading a set of party configs.
 //
-// A config is one of your characters, on one boss, with the people that character runs it with:
-// "mechyfechy runs Kalos with CreedBratton". A boss that character solos has no config, so solo
-// runs appear nowhere, which is what makes the list short enough to read.
+// A config is one of your characters, on one boss, and who that character runs it with:
+// "mechyfechy runs Kalos with CreedBratton", or "mechyfechy solos Limbo". A config with nobody
+// else in it is a solo run, which is a config like any other: it is what that boss's loot pool
+// hangs off. Only bosses you have said something about are here, which keeps the list readable.
 
 import type { Boss } from "@/types/boss";
-import type { Party } from "@/types/party";
+import type { Party, PartyMember } from "@/types/party";
 
 /** Six seats, the game's own party limit. Mirrors MAX_PARTY_SIZE in PartyQueries.kt. */
 export const MAX_PARTY = 6;
@@ -24,6 +25,28 @@ export function partySizeLabel(size: number): string {
   if (size === 2) return "Duo";
   if (size === 3) return "Trio";
   return `${size}-man`;
+}
+
+/**
+ * How a run reads: "Kalos with Rune, Steve", or "Kalos solo".
+ *
+ * A config with nobody else in it is a solo run, which is a real config: it is what that boss's
+ * loot pool hangs off. Joining an empty roster onto "with" left a sentence ending in nothing.
+ */
+export function runLabel(bossName: string, others: PartyMember[]): string {
+  return others.length === 0 ? `${bossName} solo` : `${bossName} with ${namesOf(others)}`;
+}
+
+/** "mechyfechy + Rune + Steve", or "mechyfechy solo". Same reasoning as runLabel. */
+export function arrangementLabel(characterName: string, others: PartyMember[]): string {
+  return others.length === 0
+    ? `${characterName} solo`
+    : `${characterName} + ${others.map((m) => m.name).join(" + ")}`;
+}
+
+/** The others by name, comma separated. Empty when it is a solo run. */
+export function namesOf(members: PartyMember[]): string {
+  return members.map((m) => m.name).join(", ");
 }
 
 export type PartyGroup<T> = {

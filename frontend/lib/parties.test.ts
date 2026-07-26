@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
+  arrangementLabel,
   bossesWithoutConfig,
   byBoss,
   byCharacter,
   consolidate,
   otherMembers,
   partySizeLabel,
+  runLabel,
 } from "./parties";
 import type { Boss } from "@/types/boss";
 import type { Party, PartyMember } from "@/types/party";
@@ -127,5 +129,34 @@ describe("bossesWithoutConfig", () => {
       "limbo",
       "baldrix",
     ]);
+  });
+});
+
+describe("solo runs read as solo, not as a sentence with nothing after it", () => {
+  it("names a run by its roster, or says solo", () => {
+    // A config with nobody else in it is real now: it is what a solo boss's loot pool hangs off.
+    // Joining an empty roster onto "with" left "Kalos with " on screen.
+    expect(runLabel("Kalos", [seat("Rune"), seat("Steve")])).toBe("Kalos with Rune, Steve");
+    expect(runLabel("Kalos", [])).toBe("Kalos solo");
+  });
+
+  it("names an arrangement the same way", () => {
+    expect(arrangementLabel("mechyfechy", [seat("Rune")])).toBe("mechyfechy + Rune");
+    expect(arrangementLabel("mechyfechy", [])).toBe("mechyfechy solo");
+  });
+
+  it("calls a party of one Solo", () => {
+    expect(partySizeLabel(1)).toBe("Solo");
+  });
+
+  it("groups a character's solo configs as one arrangement", () => {
+    // Every solo config of a character shares the same (empty) roster, so they consolidate into
+    // one line with a boss each, exactly as a duo across three bosses does.
+    const solos = [config("p1", "char-1", "limbo", []), config("p2", "char-1", "kalos", [])];
+    const grouped = consolidate(solos, ["char-1"]);
+
+    expect(grouped).toHaveLength(1);
+    expect(grouped[0]!.parties.map((p) => p.bossKey)).toEqual(["limbo", "kalos"]);
+    expect(otherMembers(grouped[0]!.parties[0]!)).toEqual([]);
   });
 });

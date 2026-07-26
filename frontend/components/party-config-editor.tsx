@@ -80,7 +80,9 @@ export function PartyConfigEditor({
         <AddParty
           busy={busy || addingBoss === ""}
           onAdd={(member) => {
-            onSave({ characterId, bossKey: addingBoss, members: [member] });
+            // Blank means solo, which is an empty roster. Sending [""] would be a seat with no
+            // name on it, which the server refuses and rightly so.
+            onSave({ characterId, bossKey: addingBoss, members: member === "" ? [] : [member] });
             setAddingBoss("");
           }}
           knownCharacters={knownCharacters}
@@ -91,10 +93,11 @@ export function PartyConfigEditor({
 }
 
 /**
- * Adding a party takes the boss AND the first person in one go.
+ * Adding a config takes the boss, and optionally the first person.
  *
- * The server refuses a party with nobody else in it, on purpose: that is a solo run, and a solo
- * run is not a party. So there is no such thing as an empty row to fill in afterwards.
+ * Leaving the name empty makes a SOLO run, which is a config like any other: it is what that
+ * boss's loot pool hangs off, so a drop off a boss you kill alone has somewhere to go. The button
+ * says which of the two it is about to make rather than making you guess.
  */
 function AddParty({
   busy,
@@ -113,20 +116,20 @@ function AddParty({
         value={member}
         list="known-characters"
         onChange={(e) => setMember(e.target.value)}
-        placeholder="with who?"
-        aria-label="First member of the new party"
+        placeholder="with who? (blank for solo)"
+        aria-label="First member of the new party, or blank for a solo run"
         maxLength={40}
       />
       <button
         type="button"
         className="party-save"
-        disabled={busy || member.trim() === ""}
+        disabled={busy}
         onClick={() => {
           onAdd(member.trim());
           setMember("");
         }}
       >
-        Add party
+        {member.trim() === "" ? "Add solo" : "Add party"}
       </button>
       <datalist id="known-characters">
         {knownCharacters.map((character) => (

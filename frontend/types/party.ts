@@ -14,8 +14,8 @@ export type PartyMember = {
   spriteImgUrl: string | null;
 };
 
-// One config: your character, one boss, and who they run it with. A boss your character solos has
-// no config, which is why solo runs appear nowhere.
+// One config: your character, one boss, and who they run it with. An empty `members` is a solo
+// run, which is a config like any other: it is what that boss's loot pool hangs off.
 export type Party = {
   id: string;
   characterId: string;

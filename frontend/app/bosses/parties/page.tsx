@@ -8,7 +8,14 @@ import { ResetTimer } from "@/components/reset-timer";
 import { RosterStrip } from "@/components/roster-strip";
 import { apiAssetUrl, apiFetch } from "@/lib/api";
 import { peek, put } from "@/lib/cache";
-import { byBoss, byCharacter, consolidate, otherMembers, partySizeLabel } from "@/lib/parties";
+import {
+  arrangementLabel,
+  byBoss,
+  byCharacter,
+  consolidate,
+  otherMembers,
+  partySizeLabel,
+} from "@/lib/parties";
 import { preloadBossArt } from "@/lib/preload-boss-art";
 import type { Boss, BossClearsView } from "@/types/boss";
 import type { Character } from "@/types/character";
@@ -245,8 +252,7 @@ export default function PartiesPage() {
                       <img className="seat-sprite" src={character.spriteImgUrl} alt="" />
                     )}
                     <h3 className="boss-run-name">
-                      {character?.name ?? "Unknown character"} +{" "}
-                      {others.map((m) => m.name).join(" + ")}
+                      {arrangementLabel(character?.name ?? "Unknown character", others)}
                     </h3>
                     <span className="party-card-size">{partySizeLabel(others.length + 1)}</span>
                   </header>

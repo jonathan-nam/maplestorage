@@ -47,13 +47,18 @@ internal fun validateNewParty(
     }
 }
 
-/** The rules a config's roster has to keep, wherever it is being written. */
+/**
+ * The rules a config's roster has to keep, wherever it is being written.
+ *
+ * An EMPTY roster is allowed, and is a solo run. It used to be refused, on the reasoning that a
+ * party of one is not a party. That was right about the word and wrong about the need: a config is
+ * what a loot pool hangs off, so refusing solo runs meant a drop off a boss you solo could not be
+ * recorded anywhere, and the drop log silently missed everything you killed alone. The split of a
+ * solo sale is already well defined (splitDrop keeps the lot; see drop-split.ts).
+ */
 internal fun validateMembers(members: List<String>): String? {
     val names = members.map { it.trim() }
     return when {
-        // Your own character is the config; the members are the others. Nobody else means a solo
-        // run, and a solo run is not a party.
-        names.isEmpty() -> "a party needs somebody else in it"
         names.size > MAX_PARTY_SIZE - 1 -> "a party holds at most $MAX_PARTY_SIZE including your character"
         names.any { it.isBlank() } -> "a member needs a character name"
         names.map { it.lowercase() }.distinct().size != names.size -> "the same character twice"
