@@ -3436,3 +3436,52 @@ button.link:disabled {
 .party-card-head .party-clear {
   margin-left: auto;
 }
+
+/* A party is two lines: what it is filed under plus its state, then its characters. It was three,
+   and a list of fifteen parties is where a spare line per row is felt. */
+.party-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.party-row-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.party-row-name {
+  margin: 0;
+  font-size: 14px;
+  color: var(--ink-strong);
+}
+
+.party-row-label {
+  color: var(--muted);
+  font-size: 12px;
+  text-decoration: none;
+}
+
+.party-row-label:hover {
+  color: var(--accent);
+}
+
+/* Right of everything on the same line, which is the point: the eye runs down one column of
+   states rather than hunting for them under each row. */
+.party-row-head .party-clear {
+  margin-left: auto;
+}
+
+.party-row .roster-strip {
+  gap: 10px;
+}
+
+.party-row .party-loot-summary {
+  text-decoration: none;
+}

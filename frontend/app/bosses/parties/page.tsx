@@ -171,25 +171,26 @@ export default function PartiesPage() {
                   </header>
                   <div className="party-list">
                     {group.parties.map((party) => (
-                      <article className="boss-run" key={party.id}>
-                        <header className="boss-run-head">
-                          {bossByKey.get(party.bossKey)?.iconUrl && (
-                            <img
-                              className="boss-portrait"
-                              src={apiAssetUrl(bossByKey.get(party.bossKey)!.iconUrl!)}
-                              alt=""
-                            />
-                          )}
-                          <h3 className="boss-run-name">
-                            {bossByKey.get(party.bossKey)?.name ?? party.bossKey}
-                          </h3>
-                        </header>
-                        <PartyCard
-                          party={party}
-                          busy={busy}
-                          onToggleClear={(cleared) => toggleClear(party, cleared)}
-                        />
-                      </article>
+                      <PartyCard
+                        key={party.id}
+                        party={party}
+                        busy={busy}
+                        onToggleClear={(cleared) => toggleClear(party, cleared)}
+                        heading={
+                          <>
+                            {bossByKey.get(party.bossKey)?.iconUrl && (
+                              <img
+                                className="boss-portrait"
+                                src={apiAssetUrl(bossByKey.get(party.bossKey)!.iconUrl!)}
+                                alt=""
+                              />
+                            )}
+                            <h3 className="party-row-name">
+                              {bossByKey.get(party.bossKey)?.name ?? party.bossKey}
+                            </h3>
+                          </>
+                        }
+                      />
                     ))}
                   </div>
                 </section>
@@ -216,7 +217,7 @@ export default function PartiesPage() {
                     <span className="party-card-size">{partySizeLabel(others.length + 1)}</span>
                   </header>
 
-                  <RosterStrip members={arrangement.members} />
+                  <RosterStrip members={others} />
 
                   {/* One chip per boss this arrangement runs, each a way into that boss's own
                       pool. The pools stay separate: a drop comes off one boss, and pooling three
@@ -258,25 +259,26 @@ export default function PartiesPage() {
                 </header>
                 <div className="party-list">
                   {group.parties.map((party) => (
-                    <article className="boss-run" key={party.id}>
-                      <header className="boss-run-head">
-                        {characterById.get(party.characterId)?.spriteImgUrl && (
-                          <img
-                            className="seat-sprite"
-                            src={characterById.get(party.characterId)!.spriteImgUrl!}
-                            alt=""
-                          />
-                        )}
-                        <h3 className="boss-run-name">
-                          {characterById.get(party.characterId)?.name ?? "Unknown character"}
-                        </h3>
-                      </header>
-                      <PartyCard
-                        party={party}
-                        busy={busy}
-                        onToggleClear={(cleared) => toggleClear(party, cleared)}
-                      />
-                    </article>
+                    <PartyCard
+                      key={party.id}
+                      party={party}
+                      busy={busy}
+                      onToggleClear={(cleared) => toggleClear(party, cleared)}
+                      heading={
+                        <>
+                          {characterById.get(party.characterId)?.spriteImgUrl && (
+                            <img
+                              className="seat-sprite"
+                              src={characterById.get(party.characterId)!.spriteImgUrl!}
+                              alt=""
+                            />
+                          )}
+                          <h3 className="party-row-name">
+                            {characterById.get(party.characterId)?.name ?? "Unknown character"}
+                          </h3>
+                        </>
+                      }
+                    />
                   ))}
                 </div>
               </section>
