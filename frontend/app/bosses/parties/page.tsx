@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 import { PartyCard } from "@/components/party-card";
 import { apiAssetUrl, apiFetch } from "@/lib/api";
 import { peek, put } from "@/lib/cache";
-import { byBoss, byCharacter } from "@/lib/parties";
+import { byBoss, byCharacter, consolidate, otherMembers, partySizeLabel } from "@/lib/parties";
 import { preloadBossArt } from "@/lib/preload-boss-art";
 import type { Boss } from "@/types/boss";
 import type { Character } from "@/types/character";
@@ -14,9 +14,12 @@ import type { Party } from "@/types/party";
 
 type LoadState = "loading" | "loaded" | "error";
 
-// The same configs, read two ways. By character: what does this character owe the week. By boss:
-// who am I doing Kalos with tonight. Neither is a filter, so nothing is ever hidden by the choice.
-type Grouping = "character" | "boss";
+// The same configs, read three ways, and none of them hides anything.
+//   character   what does this character owe the week, a row per boss
+//   boss        who am I doing Kalos with tonight
+//   party       one row per ARRANGEMENT: a duo with the same person across three bosses is one
+//               line with three bosses on it, which is how you would describe it out loud
+type Grouping = "character" | "boss" | "party";
 
 const PARTIES_KEY = "/api/parties";
 const BOSSES_KEY = "/api/bosses";
@@ -74,6 +77,10 @@ export default function PartiesPage() {
     characters.map((c) => c.id),
   );
   const bossGroups = byBoss(parties, bosses);
+  const arrangements = consolidate(
+    parties,
+    characters.map((c) => c.id),
+  );
 
   return (
     <main className="page">
@@ -103,6 +110,13 @@ export default function PartiesPage() {
                 onClick={() => setGrouping("boss")}
               >
                 By boss
+              </button>
+              <button
+                type="button"
+                className={grouping === "party" ? "basis-tab active" : "basis-tab"}
+                onClick={() => setGrouping("party")}
+              >
+                By party
               </button>
             </div>
             <Link className="party-cancel" href="/bosses/parties/edit">
@@ -148,6 +162,54 @@ export default function PartiesPage() {
                     ))}
                   </div>
                 </section>
+              );
+            })}
+
+          {grouping === "party" &&
+            arrangements.map((arrangement) => {
+              const character = characterById.get(arrangement.characterId);
+              const others = otherMembers({
+                ...arrangement.parties[0]!,
+                members: arrangement.members,
+              });
+              return (
+                <article className="boss-run" key={arrangement.key}>
+                  <header className="boss-run-head">
+                    {character?.spriteImgUrl && (
+                      <img className="seat-sprite" src={character.spriteImgUrl} alt="" />
+                    )}
+                    <h3 className="boss-run-name">
+                      {character?.name ?? "Unknown character"} +{" "}
+                      {others.map((m) => m.name).join(" + ")}
+                    </h3>
+                    <span className="party-card-size">{partySizeLabel(others.length + 1)}</span>
+                  </header>
+
+                  {/* One chip per boss this arrangement runs, each a way into that boss's own
+                      pool. The pools stay separate: a drop comes off one boss, and pooling three
+                      would be splitting what cannot be split. */}
+                  <ul className="party-bosses">
+                    {arrangement.parties.map((party) => (
+                      <li key={party.id}>
+                        <Link href={`/bosses/parties/${party.id}`}>
+                          {bossByKey.get(party.bossKey)?.iconUrl && (
+                            <img
+                              className="boss-portrait"
+                              src={apiAssetUrl(bossByKey.get(party.bossKey)!.iconUrl!)}
+                              alt=""
+                            />
+                          )}
+                          {bossByKey.get(party.bossKey)?.name ?? party.bossKey}
+                          {(party.pendingLoot > 0 || party.awaitingPayout > 0) && (
+                            <span className="party-loot-summary">
+                              {party.pendingLoot + party.awaitingPayout}
+                            </span>
+                          )}
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                </article>
               );
             })}
 

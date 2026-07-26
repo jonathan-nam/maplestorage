@@ -73,6 +73,49 @@ export function byBoss(parties: Party[], bosses: Boss[]): PartyGroup<Boss>[] {
     .filter((group) => group.parties.length > 0);
 }
 
+export type ConsolidatedParty = {
+  key: string;
+  characterId: string;
+  /** The roster, taken from the first config: they are identical by construction. */
+  members: Party["members"];
+  /** The configs this arrangement covers, one per boss, in the order they arrived (catalog). */
+  parties: Party[];
+};
+
+/**
+ * Configs with the same roster, merged into one entry per arrangement.
+ *
+ * A duo with CreedBratton across Kalos, First Adversary and Baldrix is one arrangement and three
+ * runs. Per boss is the right shape on the night; per arrangement is the right shape when the
+ * question is who you run with rather than what is on tonight.
+ *
+ * A VIEW, not a merge of the underlying configs. Each boss keeps its own config and its own loot
+ * pool, because a drop comes off one boss and a pool that pooled three would be back to the
+ * splitting-what-cannot-be-split problem.
+ */
+export function consolidate(parties: Party[], characterOrder: string[]): ConsolidatedParty[] {
+  const groups = new Map<string, ConsolidatedParty>();
+
+  for (const characterId of characterOrder) {
+    for (const party of parties.filter((p) => p.characterId === characterId)) {
+      // Sorted and lowercased, so the same people in a different order are the same arrangement.
+      const roster = otherMembers(party)
+        .map((m) => m.name.trim().toLowerCase())
+        .sort()
+        .join("|");
+      const key = `${characterId}::${roster}`;
+      const existing = groups.get(key);
+      if (existing) {
+        existing.parties.push(party);
+      } else {
+        groups.set(key, { key, characterId, members: party.members, parties: [party] });
+      }
+    }
+  }
+
+  return [...groups.values()];
+}
+
 /** The bosses this character has no config for: what "add a party" can still be added for. */
 export function bossesWithoutConfig(parties: Party[], bosses: Boss[], characterId: string): Boss[] {
   const taken = new Set(parties.filter((p) => p.characterId === characterId).map((p) => p.bossKey));

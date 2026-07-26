@@ -3302,3 +3302,24 @@ button.link:disabled {
   font-size: 13px;
   padding: 7px 10px;
 }
+
+/* The consolidated view: one card per arrangement, with a chip per boss it runs. Each chip is the
+   way into that boss's own pool, which stays separate. */
+.party-bosses a {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: inherit;
+  text-decoration: none;
+}
+
+.party-bosses a:hover {
+  color: var(--accent);
+}
+
+.party-bosses .party-loot-summary {
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--surface);
+  font-size: 10px;
+}

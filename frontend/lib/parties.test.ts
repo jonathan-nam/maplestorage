@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  bossesWithoutConfig,
   byBoss,
   byCharacter,
-  bossesWithoutConfig,
+  consolidate,
   otherMembers,
   partyLabel,
   partySizeLabel,
@@ -91,6 +92,40 @@ describe("byBoss", () => {
     const groups = byBoss([mech, warrior, third], catalog);
     expect(groups.map((g) => g.key.bossKey)).toEqual(["limbo", "baldrix"]);
     expect(groups[0]?.parties.map((p) => p.id)).toEqual(["p2", "p3"]);
+  });
+});
+
+describe("consolidate", () => {
+  it("merges the same roster across bosses into one arrangement", () => {
+    // A duo with CreedBratton on three bosses is one arrangement and three runs. Each keeps its
+    // own config, because each has its own loot pool.
+    const kalos = config("p1", "char-1", "kalos", ["CreedBratton"]);
+    const adversary = config("p2", "char-1", "first-adversary", ["CreedBratton"]);
+    const baldrix = config("p3", "char-1", "baldrix", ["CreedBratton"]);
+
+    const merged = consolidate([kalos, adversary, baldrix], ["char-1"]);
+    expect(merged).toHaveLength(1);
+    expect(merged[0]?.parties.map((p) => p.bossKey)).toEqual([
+      "kalos",
+      "first-adversary",
+      "baldrix",
+    ]);
+  });
+
+  it("treats the same people in another order as the same arrangement", () => {
+    const one = config("p1", "char-1", "kalos", ["Lynn", "Kaiser"]);
+    const two = config("p2", "char-1", "limbo", ["kaiser", "lynn"]);
+    expect(consolidate([one, two], ["char-1"])).toHaveLength(1);
+  });
+
+  it("keeps different rosters and different characters apart", () => {
+    const duo = config("p1", "char-1", "kalos", ["CreedBratton"]);
+    const trio = config("p2", "char-1", "limbo", ["CreedBratton", "Lynn"]);
+    // Same roster, but somebody else's character runs it: two arrangements, because the question
+    // is what THIS character runs with.
+    const otherCharacter = config("p3", "char-2", "kalos", ["CreedBratton"]);
+
+    expect(consolidate([duo, trio, otherCharacter], ["char-1", "char-2"])).toHaveLength(3);
   });
 });
 
