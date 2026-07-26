@@ -4,6 +4,8 @@ import {
   byBoss,
   byCharacter,
   consolidate,
+  filterByClear,
+  isCleared,
   otherMembers,
   partySizeLabel,
 } from "./parties";
@@ -52,6 +54,28 @@ describe("partySizeLabel", () => {
     expect(partySizeLabel(2)).toBe("Duo");
     expect(partySizeLabel(3)).toBe("Trio");
     expect(partySizeLabel(6)).toBe("6-man");
+  });
+});
+
+describe("filterByClear", () => {
+  const cleared = { ...config("p1", "char-1", "limbo", ["X"]), cleared: true };
+  const notCleared = { ...config("p2", "char-1", "kalos", ["X"]), cleared: false };
+  const unreported = config("p3", "char-1", "baldrix", ["X"]);
+
+  it("keeps everything under all", () => {
+    expect(filterByClear([cleared, notCleared, unreported], "all")).toHaveLength(3);
+  });
+
+  it("counts an unreported boss as still to do, not as done", () => {
+    // The failure this guards: a week where nothing has been captured yet reads as a fully
+    // cleared week, and the list of what is left comes back empty.
+    expect(isCleared(unreported)).toBe(false);
+    expect(
+      filterByClear([cleared, notCleared, unreported], "not-cleared").map((p) => p.id),
+    ).toEqual(["p2", "p3"]);
+    expect(filterByClear([cleared, notCleared, unreported], "cleared").map((p) => p.id)).toEqual([
+      "p1",
+    ]);
   });
 });
 

@@ -10,7 +10,16 @@ import { apiAssetUrl, apiFetch } from "@/lib/api";
 import { weekLabel } from "@/lib/boss-clears";
 import { peek, put } from "@/lib/cache";
 import { poolSize } from "@/lib/loot";
-import { byBoss, byCharacter, consolidate, otherMembers, partySizeLabel } from "@/lib/parties";
+import {
+  byBoss,
+  byCharacter,
+  type ClearFilter,
+  consolidate,
+  filterByClear,
+  isCleared,
+  otherMembers,
+  partySizeLabel,
+} from "@/lib/parties";
 import { preloadBossArt } from "@/lib/preload-boss-art";
 import type { Boss, BossClearsView } from "@/types/boss";
 import type { Character } from "@/types/character";
@@ -49,6 +58,7 @@ export default function PartiesPage() {
     seededParties && seededBosses && seededCharacters ? "loaded" : "loading",
   );
   const [grouping, setGrouping] = useState<Grouping>("character");
+  const [clearFilter, setClearFilter] = useState<ClearFilter>("all");
   const [busy, setBusy] = useState(false);
   const [view, setView] = useState<BossClearsView | null>(peek<BossClearsView>(CLEARS_KEY) ?? null);
   // When the view was received, so the countdown can correct for a browser clock that disagrees
@@ -117,13 +127,24 @@ export default function PartiesPage() {
 
   const characterById = new Map(characters.map((c) => [c.id, c]));
   const bossByKey = new Map(bosses.map((b) => [b.bossKey, b]));
+
+  // Filtered once, then grouped, so all three groupings answer the same question and a group with
+  // nothing left in it drops out rather than sitting there empty.
+  const visible = filterByClear(parties, clearFilter);
+  const clearedCount = parties.filter(isCleared).length;
+  const filterTabs: { value: ClearFilter; label: string; count: number }[] = [
+    { value: "all", label: "All", count: parties.length },
+    { value: "not-cleared", label: "Not cleared", count: parties.length - clearedCount },
+    { value: "cleared", label: "Cleared", count: clearedCount },
+  ];
+
   const characterGroups = byCharacter(
-    parties,
+    visible,
     characters.map((c) => c.id),
   );
-  const bossGroups = byBoss(parties, bosses);
+  const bossGroups = byBoss(visible, bosses);
   const arrangements = consolidate(
-    parties,
+    visible,
     characters.map((c) => c.id),
   );
 
@@ -161,28 +182,48 @@ export default function PartiesPage() {
           )}
 
           <div className="party-toolbar">
-            <div className="basis-row" role="group" aria-label="Group parties by">
-              <button
-                type="button"
-                className={grouping === "character" ? "basis-tab active" : "basis-tab"}
-                onClick={() => setGrouping("character")}
-              >
-                By character
-              </button>
-              <button
-                type="button"
-                className={grouping === "boss" ? "basis-tab active" : "basis-tab"}
-                onClick={() => setGrouping("boss")}
-              >
-                By boss
-              </button>
-              <button
-                type="button"
-                className={grouping === "party" ? "basis-tab active" : "basis-tab"}
-                onClick={() => setGrouping("party")}
-              >
-                By party
-              </button>
+            <div className="party-toolbar-tabs">
+              <div className="basis-row" role="group" aria-label="Group parties by">
+                <button
+                  type="button"
+                  className={grouping === "character" ? "basis-tab active" : "basis-tab"}
+                  onClick={() => setGrouping("character")}
+                >
+                  By character
+                </button>
+                <button
+                  type="button"
+                  className={grouping === "boss" ? "basis-tab active" : "basis-tab"}
+                  onClick={() => setGrouping("boss")}
+                >
+                  By boss
+                </button>
+                <button
+                  type="button"
+                  className={grouping === "party" ? "basis-tab active" : "basis-tab"}
+                  onClick={() => setGrouping("party")}
+                >
+                  By party
+                </button>
+              </div>
+
+              {/* What is left this week, without reading past what is done. "Not cleared" holds
+                  the unreported ones too: see isCleared. The counts are of every config, not of
+                  what is on screen, so switching tabs cannot change them. */}
+              <div className="basis-row" role="group" aria-label="Filter by clear state">
+                {filterTabs.map((tab) => (
+                  <button
+                    key={tab.value}
+                    type="button"
+                    className={clearFilter === tab.value ? "basis-tab active" : "basis-tab"}
+                    aria-pressed={clearFilter === tab.value}
+                    onClick={() => setClearFilter(tab.value)}
+                  >
+                    {tab.label}
+                    <span className="tab-count">{tab.count}</span>
+                  </button>
+                ))}
+              </div>
             </div>
             <span className="party-toolbar-links">
               <Link className="party-cancel" href="/bosses/parties/wallet">
@@ -201,6 +242,16 @@ export default function PartiesPage() {
             <p className="finder-empty">
               No parties yet. <Link href="/bosses/parties/edit">Set them up</Link>: pick a
               character, then say who they run each boss with.
+            </p>
+          )}
+
+          {/* An empty list under a filter is an answer, not a blank page. Kept apart from the no
+              parties at all case above, which is a different thing to say. */}
+          {parties.length > 0 && visible.length === 0 && (
+            <p className="finder-empty">
+              {clearFilter === "cleared"
+                ? "Nothing cleared this week yet."
+                : "Every party is cleared this week."}
             </p>
           )}
 

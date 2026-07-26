@@ -26,6 +26,26 @@ export function partySizeLabel(size: number): string {
   return `${size}-man`;
 }
 
+/**
+ * Whether this config is done for the period it is in.
+ *
+ * Strictly `=== true`. Null is "no capture has said anything about it", which is a row that still
+ * needs an answer rather than a finished one, so it counts as outstanding. party-card.tsx draws
+ * the same line when it steps a cleared row back.
+ */
+export function isCleared(party: Party): boolean {
+  return party.cleared === true;
+}
+
+/** What the party list is narrowed to. "not-cleared" is everything `isCleared` rejects. */
+export type ClearFilter = "all" | "not-cleared" | "cleared";
+
+/** The configs a filter admits, in the order they came in. */
+export function filterByClear(parties: Party[], filter: ClearFilter): Party[] {
+  if (filter === "all") return parties;
+  return parties.filter((party) => isCleared(party) === (filter === "cleared"));
+}
+
 export type PartyGroup<T> = {
   key: T;
   parties: Party[];
