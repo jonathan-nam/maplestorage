@@ -2340,6 +2340,16 @@ button.link:disabled {
   color: var(--ink-strong);
 }
 
+/* How many rows a tab would show. Quiet: the label is what is being read, the number is the
+   answer to "is it worth switching to". */
+.basis-tab .tab-count {
+  color: var(--muted-2);
+  font-variant-numeric: tabular-nums;
+}
+.basis-tab.active .tab-count {
+  color: var(--muted);
+}
+
 /* Worked derivation, collapsed by default. The numbers in here are generated from the same split
    the table above shows, never restated by hand. See explainSplit. */
 .split-math {
@@ -3549,6 +3559,15 @@ button.link:disabled {
 
 .party-row .party-loot-summary {
   text-decoration: none;
+}
+
+/* The two tab groups, grouping and clear state, kept together at the left so they wrap onto their
+   own line together rather than the filter breaking away next to the links. */
+.party-toolbar-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 16px;
 }
 
 /* The Parties toolbar's links, kept together at the right of the grouping tabs. */
