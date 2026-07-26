@@ -38,6 +38,10 @@
   --good: #5cbf87;
   --warn: #e0a24e;
   --bad: #e0706a;
+  /* Work outstanding, which is not a warning. --warn is money and trouble; a boss you have not run
+     yet is neither, and borrowing it made the clear matrix read as a page full of problems. Kept
+     off --accent as well, so a still-to-do cell and the column under the cursor stay apart. */
+  --todo: #8f7ec8;
 }
 
 /* Every page's root. Nothing inside it sets its own max-width or centres itself. */
@@ -1658,20 +1662,18 @@ button.link:disabled {
 .boss-matrix {
   overflow-x: auto;
 
-  /* The two clear tints, named once. The cells read them and so does the legend's key, which is
-     the point: a key that drifts from the table it describes is worse than no key at all. The dim
-     one is for a row with nothing left to do, see .is-row-cleared. */
-  /* Brightness alone, no hue. Green against amber was a traffic light on a page that is not one,
-     and a low mix of --warn over a near-black page came out brown, which reads as dirt rather than
-     as a state.
-     So the states are ordered by light instead: what is left is the brightest thing in the table,
-     done sits just above the background, and nothing reported is the background. That is the order
-     the game's own planner puts them in, it needs no colour to survive, and it leaves --good and
-     --warn to mean money and trouble everywhere else in the app rather than two more things here.
-     The tick is what separates a done cell from an unreported one. The fills are close together
-     down at this end, so it is carrying the distinction, not decorating it. */
+  /* The clear tints, named once. The cells read them and so does the legend's key, which is the
+     point: a key that drifts from the table it describes is worse than no key at all. The dim one
+     is for a row with nothing left to do, see .is-row-cleared.
+     ONE hue, and it is on the state that wants doing. Green against amber was a traffic light on a
+     page that is not one, so the other two states are greys: done should recede and an unreported
+     boss has nothing to say.
+     But still-to-do cannot be a grey. This table already spends grey on the row striping (see the
+     nth-child rule below and the note beside it), so a grey fill lands in a channel that is taken
+     and reads as shading rather than as a state. That shipped and was reported as exactly that.
+     Hue is what carries a signal here; it is the same conclusion the hover band reached. */
   --cell-cleared: color-mix(in srgb, var(--ink-strong) 10%, transparent);
-  --cell-pending: color-mix(in srgb, var(--ink-strong) 22%, transparent);
+  --cell-pending: color-mix(in srgb, var(--todo) 34%, transparent);
   --cell-cleared-dim: color-mix(in srgb, var(--ink-strong) 4%, transparent);
 }
 
@@ -1830,9 +1832,9 @@ button.link:disabled {
  * cells here reads as one continuous run of done or still-to-do rather than a line of separate
  * marks.
  *
- * The tick is what tells a done cell from an unreported one. Their fills are the two darkest of
- * the three and sit close together, so the tick is carrying that distinction rather than
- * decorating it: it must not be dropped to tidy the grid up.
+ * Each state says its own name: a tick for done, a fill for still-to-do, a dash for nothing
+ * reported. None of the three is read as the absence of another, which is what went wrong when the
+ * blank was left to mean "no capture" on its own.
  *
  * background-COLOR on all three, so the hover band (a background-image, see above) layers over the
  * state instead of replacing it. The tints are named on .boss-matrix. */
@@ -1845,17 +1847,21 @@ button.link:disabled {
   background-color: var(--cell-pending);
 }
 
-/* Uncoloured on purpose. An unreported boss is NOT a boss that was not cleared, and giving it a
-   tint of its own would invite reading it as one. The legend says what the blank means. */
+/* No fill, but a dash: nothing was reported, said out loud rather than left as an empty cell for
+   the reader to interpret. An unreported boss is still NOT a boss that was not cleared, so the
+   dash is deliberately not a mark of the same weight as the tick, and the cell stays unfilled.
+   It reads as "no answer", which is what it is. */
 .boss-cell.is-unseen {
   background-color: transparent;
+  /* Quiet, but not so quiet it is back to being an empty cell: --line is around 1.9:1 here, and
+     this dash has to be read now that it is carrying a state. */
+  color: var(--muted-2);
 }
 
 /* Nothing left to do on this boss, so the whole row goes quiet: the tint drops back, the name
    mutes and the portrait desaturates. A row still holding one bright cell keeps its full weight,
    so the table reads as the list of what is left.
-   The tick dims with it but does not go: it is still the only thing separating these cells from
-   an unreported one, and this row is the dimmest place in the table for that to be true.
+   The tick dims with it but does not go: a row this quiet still has to say which state it is in.
    Only when EVERY cell is cleared, see rowFullyCleared: a row holding an unreported character is
    not a row that is done, and dimming it would be this feature's one unforgivable bug. */
 .boss-table tr.is-row-cleared .boss-cell.is-cleared {
@@ -1907,10 +1913,10 @@ button.link:disabled {
   background-color: var(--cell-pending);
 }
 
-/* The blank needs an outline here and only here: in the table its emptiness is read against the
-   filled cells beside it, but a legend entry with no edge is just a gap in a sentence. */
+/* The dash is the mark now, so the key draws it exactly as the cell does and needs no outline of
+   its own to stand in for one. */
 .boss-key.is-unseen {
-  border: 1px dashed var(--line);
+  color: var(--muted-2);
 }
 
 /* Week picker on the left, reset clocks on the right, above the table. They wrap onto two lines on
@@ -2155,7 +2161,7 @@ button.link:disabled {
 }
 
 .planner-clears .is-pending {
-  color: var(--ink-strong);
+  color: var(--todo);
 }
 
 /* A caveat is not decoration: each one is a reason the rows above are not the whole list. */
@@ -3427,8 +3433,8 @@ button.link:disabled {
 }
 
 .party-clear.is-pending {
-  border-color: var(--ink);
-  background: color-mix(in srgb, var(--ink-strong) 12%, transparent);
+  border-color: var(--todo);
+  background: color-mix(in srgb, var(--todo) 18%, transparent);
   color: var(--ink-strong);
   font-weight: 600;
 }

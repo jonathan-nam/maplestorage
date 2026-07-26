@@ -49,34 +49,47 @@ describe("the legend cannot drift from the table it describes", () => {
   });
 });
 
-// With the hue gone, brightness is the ONLY thing separating the three states, so the order of the
-// three tints is the whole signal rather than a detail of it. Nothing here errors when it breaks:
-// the table just quietly stops answering "what is left".
-describe("the states stay ordered by brightness", () => {
-  const mix = (name: string) =>
-    Number(
-      /var\(--ink-strong\)\s*(\d+)%/.exec(
-        rule(".boss-matrix").match(`${name}:[^;]+`)?.[0] ?? "",
-      )?.[1] ?? NaN,
-    );
+describe("still-to-do stays out of the greys", () => {
+  const tint = (name: string) => rule(".boss-matrix").match(`${name}:[^;]+`)?.[0] ?? "";
 
-  it("makes still-to-do the brightest and done the quieter of the two", () => {
-    // Backwards is the dangerous direction: done would shout and the work left would recede, which
-    // is the complaint this whole thing started from.
-    expect(mix("--cell-pending")).toBeGreaterThan(mix("--cell-cleared"));
+  it("gives still-to-do a hue rather than another grey", () => {
+    // This table already spends grey on the row striping, so a grey fill lands in a channel that
+    // is taken and reads as shading rather than as a state. That shipped once and was reported as
+    // exactly that, and nothing about it errors: the cell is still drawn, it just stops meaning
+    // anything. The same reasoning is why the hover band is a tint and not a lighter grey.
+    expect(tint("--cell-pending")).toContain("var(--todo)");
+    expect(tint("--cell-pending")).not.toContain("var(--ink-strong)");
+  });
+
+  it("keeps --todo off the hover band's hue, so a hovered column is not a state", () => {
+    const todo = /--todo:\s*(#[0-9a-f]{6})/i.exec(css)?.[1];
+    const accent = /--accent:\s*(#[0-9a-f]{6})/i.exec(css)?.[1];
+
+    expect(todo).toBeTruthy();
+    expect(todo).not.toBe(accent);
+  });
+
+  it("leaves done and unreported as greys, so only the work left is coloured", () => {
+    // Done recedes and an unreported boss has nothing to say. Colouring either one back up turns
+    // the table into a traffic light again.
+    expect(tint("--cell-cleared")).toContain("var(--ink-strong)");
+    expect(tint("--cell-cleared-dim")).toContain("var(--ink-strong)");
   });
 
   it("dims the cleared tint further for a row with nothing left to do", () => {
-    expect(mix("--cell-cleared-dim")).toBeLessThan(mix("--cell-cleared"));
+    const pct = (name: string) => Number(/(\d+)%/.exec(tint(name))?.[1] ?? NaN);
+
+    expect(pct("--cell-cleared-dim")).toBeLessThan(pct("--cell-cleared"));
     expect(rule(".boss-table tr.is-row-cleared .boss-cell.is-cleared")).toContain(
       "var(--cell-cleared-dim)",
     );
   });
 
-  it("keeps a tick on the cleared cell at both brightnesses", () => {
-    // The done and unreported fills are the two darkest and sit close together. The tick is what
-    // separates them, so a rule that stopped setting a legible colour would collapse the two.
+  it("gives the two unfilled states a legible mark each", () => {
+    // Done and unreported are both quiet, so each says its own name: a tick and a dash. Leaving
+    // the blank to mean "no capture" on its own is what made the two hard to tell apart.
     expect(rule(".boss-cell.is-cleared")).toMatch(/color:\s*var\(--ink\)/);
+    expect(rule(".boss-cell.is-unseen")).toMatch(/color:\s*var\(/);
     expect(rule(".boss-table tr.is-row-cleared .boss-cell.is-cleared")).toMatch(/color:\s*var\(/);
   });
 });
