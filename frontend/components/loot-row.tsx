@@ -5,6 +5,7 @@ import { CopyAmount } from "@/components/copy-amount";
 import { apiAssetUrl } from "@/lib/api";
 import { formatMesos, parseMesos } from "@/lib/drop-split";
 import { formatDropped, splitOf, statusLabel } from "@/lib/loot";
+import type { Boss } from "@/types/boss";
 import type { Loot, SellLootBody } from "@/types/loot";
 import type { Party } from "@/types/party";
 
@@ -15,7 +16,7 @@ import type { Party } from "@/types/party";
 export function LootRow({
   loot,
   party,
-  bossName,
+  boss,
   busy,
   onSell,
   onUnsell,
@@ -24,7 +25,7 @@ export function LootRow({
 }: {
   loot: Loot;
   party: Party;
-  bossName: string | null;
+  boss: Boss | null;
   busy: boolean;
   onSell: (body: SellLootBody) => void;
   onUnsell: () => void;
@@ -53,7 +54,10 @@ export function LootRow({
         <div className="loot-title">
           <span className="loot-name">{loot.name}</span>
           <span className="loot-meta">
-            {[bossName, formatDropped(loot.droppedOn)].filter(Boolean).join(" · ")}
+            {boss?.iconUrl && (
+              <img className="boss-portrait is-small" src={apiAssetUrl(boss.iconUrl)} alt="" />
+            )}
+            {[boss?.name, formatDropped(loot.droppedOn)].filter(Boolean).join(" · ")}
           </span>
         </div>
         <span className={`loot-status is-${loot.status.toLowerCase()}`}>

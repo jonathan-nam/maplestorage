@@ -5,10 +5,12 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { LootPool } from "@/components/loot-pool";
+import { SeatChip } from "@/components/seat-chip";
+import { apiAssetUrl } from "@/lib/api";
 import { ApiError, apiFetch } from "@/lib/api";
 import { peek, put } from "@/lib/cache";
 import { summarize } from "@/lib/loot";
-import { bossNamesFor, partyLabel, partySizeLabel } from "@/lib/parties";
+import { bossesFor, partyLabel, partySizeLabel } from "@/lib/parties";
 import type { Boss } from "@/types/boss";
 import type { DropTables } from "@/types/drop";
 import type { AddLootBody, Loot, SellLootBody } from "@/types/loot";
@@ -96,7 +98,7 @@ export default function PartyPage() {
     });
   const remove = (lootId: string) => mutate(`${lootUrl}/${lootId}`, { method: "DELETE" });
 
-  const bossNameByKey = new Map(bosses.map((b) => [b.bossKey, b.name]));
+  const bossByKey = new Map(bosses.map((b) => [b.bossKey, b]));
   // Counted from the rows on screen rather than from the party's stored counters, which were read
   // one request earlier and go stale the moment something here is marked paid.
   const summary = summarize(loot);
@@ -116,13 +118,7 @@ export default function PartyPage() {
           <div className="party-card-head">
             <ul className="party-roster">
               {party.members.map((member) => (
-                <li
-                  key={member.id}
-                  className={`party-seat-chip${member.characterId ? " is-mine" : ""}`}
-                >
-                  {member.name}
-                  {member.mvp && <span className="party-mvp">MVP</span>}
-                </li>
+                <SeatChip key={member.id} member={member} />
               ))}
             </ul>
             <span className="party-card-size">{partySizeLabel(party.members.length)}</span>
@@ -130,8 +126,13 @@ export default function PartyPage() {
 
           {party.bossKeys.length > 0 && (
             <ul className="party-bosses">
-              {bossNamesFor(party, bossNameByKey).map((name) => (
-                <li key={name}>{name}</li>
+              {bossesFor(party, bossByKey).map((boss) => (
+                <li key={boss.key}>
+                  {boss.iconUrl && (
+                    <img className="boss-portrait" src={apiAssetUrl(boss.iconUrl)} alt="" />
+                  )}
+                  {boss.name}
+                </li>
               ))}
             </ul>
           )}
@@ -153,7 +154,7 @@ export default function PartyPage() {
             party={party}
             loot={loot}
             dropTables={dropTables}
-            bossNameByKey={bossNameByKey}
+            bossByKey={bossByKey}
             busy={busy}
             onAdd={add}
             onSell={sell}

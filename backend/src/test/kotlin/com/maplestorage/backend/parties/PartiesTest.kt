@@ -62,6 +62,7 @@ class PartiesTest {
     private fun addCharacter(
         userId: String,
         name: String,
+        sprite: String? = null,
     ): Uuid {
         ensureUser(userId, "$userId@example.com")
         val id = Uuid.random()
@@ -70,6 +71,7 @@ class PartiesTest {
             it[Characters.id] = id
             it[Characters.userId] = userId
             it[Characters.name] = name
+            it[spriteImgUrl] = sprite
             it[createdAt] = now
             it[updatedAt] = now
             it[position] = 0
@@ -181,6 +183,44 @@ class PartiesTest {
             // covering it would cover a boss nothing else in the app knows about.
             assertEquals("unknown boss key", check(seats("Steve"), listOf("baldrix", "zakum")))
             assertNull(check(listOf(mySeat), listOf("baldrix")))
+        }
+    }
+
+    @Test
+    fun `a seat of yours shows the character's sprite, and other seats show what was looked up`() {
+        transaction {
+            val main = addCharacter(userOneId, "Rune", sprite = "https://nexon.example/rune.png")
+            val members =
+                listOf(
+                    PartyMemberRequest(name = "Rune", characterId = main.toString()),
+                    PartyMemberRequest(name = "Steve"),
+                    PartyMemberRequest(name = "Ghost"),
+                )
+            // Steve resolved, Ghost did not. Both were asked, which is what the null records.
+            val sprites = mapOf("Steve" to "https://nexon.example/steve.png", "Ghost" to null)
+            val party =
+                createParty(userOneId, SavePartyRequest("Trio", members, emptyList()), Clock.System.now(), sprites)
+
+            // Read off the character, not copied onto the seat: refreshing the character's sprite
+            // has to move the party's portrait with it.
+            assertEquals("https://nexon.example/rune.png", party.members[0].spriteImgUrl)
+            assertEquals("https://nexon.example/steve.png", party.members[1].spriteImgUrl)
+            assertNull(party.members[2].spriteImgUrl)
+
+            // A save that touches neither name must not wipe the sprites it did not look up.
+            val kept =
+                party.members.map {
+                    PartyMemberRequest(
+                        id = it.id,
+                        name = it.name,
+                        characterId = it.characterId,
+                    )
+                }
+            saveParty(Uuid.parse(party.id), userOneId, SavePartyRequest("Trio", kept, emptyList()), Clock.System.now())
+
+            val saved = findParty(Uuid.parse(party.id), userOneId)!!
+            assertEquals("https://nexon.example/rune.png", saved.members[0].spriteImgUrl)
+            assertEquals("https://nexon.example/steve.png", saved.members[1].spriteImgUrl)
         }
     }
 

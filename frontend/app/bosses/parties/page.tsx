@@ -109,7 +109,7 @@ export default function PartiesPage() {
     }
   }
 
-  const bossNameByKey = new Map(bosses.map((b) => [b.bossKey, b.name]));
+  const bossByKey = new Map(bosses.map((b) => [b.bossKey, b]));
   const characterById = new Map(characters.map((c) => [c.id, c]));
   const groups = partiesByCharacter(
     parties,
@@ -198,7 +198,7 @@ export default function PartiesPage() {
                     <PartyCard
                       key={party.id}
                       party={party}
-                      bossNameByKey={bossNameByKey}
+                      bossByKey={bossByKey}
                       busy={busy}
                       onEdit={() => {
                         setSaveError(null);

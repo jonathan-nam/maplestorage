@@ -49,6 +49,10 @@ BOSS_MANIFEST = ROOT / "catalog" / "bosses.yaml"
 BOSS_OUT = ROOT / "vision" / "app" / "cv" / "boss_catalog.json"
 BOSS_SQL_OUT = ROOT / "backend" / "src" / "main" / "resources" / "db" / "migration" / "R__boss_catalog.sql"
 BOSS_RESETS = {"WEEKLY", "DAILY", "MONTHLY"}
+# Boss portraits, cut from a planner capture by vision/app/cv/build_boss_portraits.py and named
+# from the boss key. Every TRACKED boss must have one: a boss drawn without art sits beside
+# fifteen that have it and reads as a failed load.
+BOSS_ICONS = ROOT / "backend" / "src" / "main" / "resources" / "seed-assets" / "bosses"
 
 # The boss drop tables. What a boss can drop, and the art the loot pool draws beside it. Unlike
 # items, a drop has no vision template: nothing reads these off a screenshot, they are picked from
@@ -188,7 +192,8 @@ def boss_sql(bosses: list[dict]) -> str:
     # Manifest position IS the sort order, so reordering bosses.yaml reorders the matrix and
     # nothing else has to be touched. See V12__boss_sort_order.sql.
     rows = ",\n".join(
-        f"    ({q(b['key'])}, {q(b['name'])}, {q(b['reset'])}, {i})" for i, b in enumerate(tracked)
+        f"    ({q(b['key'])}, {q(b['name'])}, {q(b['reset'])}, {i}, {q(b['key'] + '.png')})"
+        for i, b in enumerate(tracked)
     )
     return f"""-- GENERATED FROM catalog/bosses.yaml. DO NOT EDIT BY HAND.
 -- Regenerate with:  python catalog/build.py
@@ -196,16 +201,18 @@ def boss_sql(bosses: list[dict]) -> str:
 -- Repeatable (R__): editing bosses.yaml reseeds boss_catalog on the next boot. Upserts by
 -- boss_key and keeps an existing row's id, which boss_clear references, so it is never churned.
 
-INSERT INTO boss_catalog (id, boss_key, name, reset, sort_order)
-SELECT COALESCE(existing.id, gen_random_uuid()), v.boss_key, v.name, v.reset, v.sort_order
+INSERT INTO boss_catalog (id, boss_key, name, reset, sort_order, icon_ref_key)
+SELECT COALESCE(existing.id, gen_random_uuid()), v.boss_key, v.name, v.reset, v.sort_order,
+       v.icon_ref_key
 FROM (VALUES
 {rows}
-) AS v (boss_key, name, reset, sort_order)
+) AS v (boss_key, name, reset, sort_order, icon_ref_key)
 LEFT JOIN boss_catalog existing ON existing.boss_key = v.boss_key
 ON CONFLICT (boss_key) DO UPDATE SET
-    name       = EXCLUDED.name,
-    reset      = EXCLUDED.reset,
-    sort_order = EXCLUDED.sort_order;
+    name         = EXCLUDED.name,
+    reset        = EXCLUDED.reset,
+    sort_order   = EXCLUDED.sort_order,
+    icon_ref_key = EXCLUDED.icon_ref_key;
 """
 
 
@@ -462,6 +469,21 @@ def fetch_icons(items: list[dict]) -> None:
     print(f"normalized {normed} hand-cut icons to the same footprint")
 
 
+def check_boss_art(bosses: list[dict]) -> list[str]:
+    """Every tracked boss needs its portrait, named from its key. Untracked ones are drawn nowhere."""
+    problems = []
+    for b in bosses:
+        if not b.get("tracked", True):
+            continue
+        icon = BOSS_ICONS / f"{b['key']}.png"
+        if not icon.exists():
+            problems.append(
+                f"{b['key']}: missing {icon.relative_to(ROOT)} "
+                "(cd vision && python -m app.cv.build_boss_portraits)"
+            )
+    return problems
+
+
 def check_drop_art(drops: list[dict]) -> list[str]:
     """A drop with an icon_id must have the icon it names. One without is drawn blank, on purpose."""
     problems = []
@@ -518,7 +540,7 @@ def main() -> None:
         fetch_icons(items)
         fetch_drop_icons(drops)
 
-    problems = check_art(items) + check_drop_art(drops)
+    problems = check_art(items) + check_drop_art(drops) + check_boss_art(bosses)
     if problems:
         print("catalog is inconsistent with its art:\n", file=sys.stderr)
         for p in problems:

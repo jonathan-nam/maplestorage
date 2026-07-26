@@ -4,6 +4,7 @@ import { useState } from "react";
 import { LootRow } from "@/components/loot-row";
 import { apiAssetUrl } from "@/lib/api";
 import type { AddLootBody, Loot, SellLootBody } from "@/types/loot";
+import type { Boss } from "@/types/boss";
 import type { DropTables } from "@/types/drop";
 import type { Party } from "@/types/party";
 
@@ -19,7 +20,7 @@ export function LootPool({
   party,
   loot,
   dropTables,
-  bossNameByKey,
+  bossByKey,
   busy,
   onAdd,
   onSell,
@@ -30,7 +31,7 @@ export function LootPool({
   party: Party;
   loot: Loot[];
   dropTables: DropTables;
-  bossNameByKey: Map<string, string>;
+  bossByKey: Map<string, Boss>;
   busy: boolean;
   onAdd: (body: AddLootBody) => void;
   onSell: (lootId: string, body: SellLootBody) => void;
@@ -64,6 +65,14 @@ export function LootPool({
           setCustomName("");
         }}
       >
+        {bossByKey.get(bossKey)?.iconUrl && (
+          <img
+            className="boss-portrait"
+            src={apiAssetUrl(bossByKey.get(bossKey)!.iconUrl!)}
+            alt=""
+          />
+        )}
+
         <select
           className="split-input"
           value={bossKey}
@@ -78,7 +87,7 @@ export function LootPool({
           {party.bossKeys.length === 0 && <option value="">no boss</option>}
           {party.bossKeys.map((key) => (
             <option key={key} value={key}>
-              {bossNameByKey.get(key) ?? key}
+              {bossByKey.get(key)?.name ?? key}
             </option>
           ))}
         </select>
@@ -135,7 +144,7 @@ export function LootPool({
               key={item.id}
               loot={item}
               party={party}
-              bossName={item.bossKey ? (bossNameByKey.get(item.bossKey) ?? item.bossKey) : null}
+              boss={item.bossKey ? (bossByKey.get(item.bossKey) ?? null) : null}
               busy={busy}
               onSell={(body) => onSell(item.id, body)}
               onUnsell={() => onUnsell(item.id)}

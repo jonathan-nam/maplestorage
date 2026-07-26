@@ -133,6 +133,10 @@ object BossCatalog : Table("boss_catalog") {
     // Manifest position, so the matrix draws its columns in progression order rather than
     // alphabetically. See V12__boss_sort_order.sql.
     val sortOrder = integer("sort_order").nullable()
+
+    // The boss's planner portrait under seed-assets/bosses, served at /boss-icons. Cut from a real
+    // capture (vision/app/cv/build_boss_portraits.py), so it is the art the game itself shows.
+    val iconRefKey = text("icon_ref_key").nullable()
 }
 
 object BossClear : Table("boss_clear") {
@@ -176,6 +180,11 @@ object PartyMember : Table("party_member") {
     // MVP status, not a fee rate. See V16__party.sql.
     val mvp = bool("mvp")
     val position = integer("position")
+
+    // Only for seats that are NOT one of this account's characters: those read their sprite off
+    // Characters, which is kept refreshed. See V20__party_member_sprite.sql.
+    val spriteImgUrl = text("sprite_img_url").nullable()
+    val spriteRefreshedAt = timestamp("sprite_refreshed_at").nullable()
 
     override val primaryKey = PrimaryKey(id)
 }

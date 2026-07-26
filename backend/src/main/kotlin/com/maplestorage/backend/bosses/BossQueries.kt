@@ -24,7 +24,14 @@ internal fun bossCatalog(): List<BossResponse> =
     BossCatalog
         .selectAll()
         .orderBy(BossCatalog.sortOrder)
-        .map { BossResponse(it[BossCatalog.bossKey], it[BossCatalog.name], it[BossCatalog.reset]) }
+        .map {
+            BossResponse(
+                bossKey = it[BossCatalog.bossKey],
+                name = it[BossCatalog.name],
+                reset = it[BossCatalog.reset],
+                iconUrl = it[BossCatalog.iconRefKey]?.let { key -> "/boss-icons/$key" },
+            )
+        }
 
 /**
  * Every character's clears for the period each boss is currently in, keyed by character id.

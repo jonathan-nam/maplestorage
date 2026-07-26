@@ -1,11 +1,13 @@
 package com.maplestorage.backend.parties
 
 import com.maplestorage.backend.db.BossCatalog
+import com.maplestorage.backend.db.Characters
 import com.maplestorage.backend.db.Party
 import com.maplestorage.backend.db.PartyBoss
 import com.maplestorage.backend.db.PartyLoot
 import com.maplestorage.backend.db.PartyLootPayout
 import com.maplestorage.backend.db.PartyMember
+import org.jetbrains.exposed.v1.core.JoinType
 import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
@@ -34,7 +36,7 @@ internal fun partiesFor(userId: String): List<PartyResponse> {
     // Two queries for the whole page rather than two per party. The lists are small, but the
     // per-party version is the one that turns a roster of eight into seventeen round trips.
     val membersByParty =
-        PartyMember
+        membersJoin()
             .selectAll()
             .where { PartyMember.partyId inList partyIds }
             .orderBy(PartyMember.position)
@@ -129,7 +131,7 @@ internal fun ownsParty(
         .not()
 
 private fun membersOf(partyId: Uuid): List<PartyMemberResponse> =
-    PartyMember
+    membersJoin()
         .selectAll()
         .where { PartyMember.partyId eq partyId }
         .orderBy(PartyMember.position)
@@ -143,12 +145,22 @@ private fun bossKeysOf(partyId: Uuid): List<String> =
         .orderBy(BossCatalog.sortOrder)
         .map { it[BossCatalog.bossKey] }
 
+/**
+ * Seats with their character, when they have one.
+ *
+ * LEFT, because most seats are other players. The join exists for the sprite: a seat of yours
+ * shows the character's own portrait, which is refreshed on the character, so copying it into the
+ * party row would leave the party showing a portrait the roster has since replaced.
+ */
+private fun membersJoin() = PartyMember.join(Characters, JoinType.LEFT, PartyMember.characterId, Characters.id)
+
 private fun ResultRow.toMemberResponse() =
     PartyMemberResponse(
         id = this[PartyMember.id].toString(),
         name = this[PartyMember.name],
         characterId = this[PartyMember.characterId]?.toString(),
         mvp = this[PartyMember.mvp],
+        spriteImgUrl = this.getOrNull(Characters.spriteImgUrl) ?: this[PartyMember.spriteImgUrl],
     )
 
 private fun ResultRow.toPartyResponse(

@@ -21,6 +21,9 @@ internal fun createParty(
     userId: String,
     request: SavePartyRequest,
     now: Instant,
+    // name -> sprite found by the Nexon lookup, or null when the lookup came back empty. Only the
+    // names that were actually looked up appear; the rest keep whatever the row already had.
+    sprites: Map<String, String?> = emptyMap(),
 ): PartyResponse {
     val partyId = Uuid.random()
     Party.insert {
@@ -30,7 +33,7 @@ internal fun createParty(
         it[createdAt] = now
         it[updatedAt] = now
     }
-    writeMembers(partyId, request.members)
+    writeMembers(partyId, request.members, sprites, now)
     writeBosses(partyId, request.bossKeys)
     return findPartyOrThrow(partyId, userId)
 }
@@ -47,12 +50,13 @@ internal fun saveParty(
     userId: String,
     request: SavePartyRequest,
     now: Instant,
+    sprites: Map<String, String?> = emptyMap(),
 ) {
     Party.update({ (Party.id eq partyId) and (Party.userId eq userId) }) {
         it[name] = request.name?.trim()?.ifBlank { null }
         it[updatedAt] = now
     }
-    writeMembers(partyId, request.members)
+    writeMembers(partyId, request.members, sprites, now)
     writeBosses(partyId, request.bossKeys)
 }
 
@@ -64,6 +68,8 @@ internal fun deleteParty(
 private fun writeMembers(
     partyId: Uuid,
     members: List<PartyMemberRequest>,
+    sprites: Map<String, String?>,
+    now: Instant,
 ) {
     val kept = members.mapNotNull { it.id?.let(Uuid::parseOrNull) }
     if (kept.isEmpty()) {
@@ -76,21 +82,36 @@ private fun writeMembers(
     members.forEachIndexed { index, member ->
         val existing = member.id?.let(Uuid::parseOrNull)
         val characterId = member.characterId?.let(Uuid::parseOrNull)
+        val seatName = member.name.trim()
+        // A seat of yours reads its sprite off the character, so no copy is kept here: a copy
+        // would go stale the moment the character's own sprite is refreshed.
+        val looked = characterId == null && sprites.containsKey(seatName)
         if (existing == null) {
             PartyMember.insert {
                 it[id] = Uuid.random()
                 it[PartyMember.partyId] = partyId
-                it[name] = member.name.trim()
+                it[name] = seatName
                 it[PartyMember.characterId] = characterId
                 it[mvp] = member.mvp
                 it[position] = index
+                it[spriteImgUrl] = if (looked) sprites[seatName] else null
+                it[spriteRefreshedAt] = if (looked) now else null
             }
         } else {
             PartyMember.update({ PartyMember.id eq existing }) {
-                it[name] = member.name.trim()
+                it[name] = seatName
                 it[PartyMember.characterId] = characterId
                 it[mvp] = member.mvp
                 it[position] = index
+                // Left alone unless this name was looked up just now, or the seat became one of
+                // yours. Otherwise a save that only reorders seats would wipe every sprite.
+                if (characterId != null) {
+                    it[spriteImgUrl] = null
+                    it[spriteRefreshedAt] = null
+                } else if (looked) {
+                    it[spriteImgUrl] = sprites[seatName]
+                    it[spriteRefreshedAt] = now
+                }
             }
         }
     }

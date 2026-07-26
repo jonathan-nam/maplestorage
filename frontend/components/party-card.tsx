@@ -1,23 +1,26 @@
 "use client";
 
 import Link from "next/link";
-import { bossNamesFor, partyLabel, partySizeLabel } from "@/lib/parties";
+import { SeatChip } from "@/components/seat-chip";
+import { apiAssetUrl } from "@/lib/api";
+import { bossesFor, partyLabel, partySizeLabel } from "@/lib/parties";
+import type { Boss } from "@/types/boss";
 import type { Party } from "@/types/party";
 
 export function PartyCard({
   party,
-  bossNameByKey,
+  bossByKey,
   onEdit,
   onDelete,
   busy,
 }: {
   party: Party;
-  bossNameByKey: Map<string, string>;
+  bossByKey: Map<string, Boss>;
   onEdit: () => void;
   onDelete: () => void;
   busy: boolean;
 }) {
-  const bossNames = bossNamesFor(party, bossNameByKey);
+  const bosses = bossesFor(party, bossByKey);
 
   return (
     <article className="party-card">
@@ -30,23 +33,21 @@ export function PartyCard({
 
       <ul className="party-roster">
         {party.members.map((member) => (
-          <li
-            key={member.id}
-            className={`party-seat-chip${member.characterId ? " is-mine" : ""}`}
-            title={member.characterId ? "One of your characters" : undefined}
-          >
-            {member.name}
-            {member.mvp && <span className="party-mvp">MVP</span>}
-          </li>
+          <SeatChip key={member.id} member={member} />
         ))}
       </ul>
 
       {/* No bosses is a real state, not an unfinished one: a party can exist before you decide
           what it runs. Saying so beats an empty row that looks like a failed load. */}
-      {bossNames.length > 0 ? (
+      {bosses.length > 0 ? (
         <ul className="party-bosses">
-          {bossNames.map((name) => (
-            <li key={name}>{name}</li>
+          {bosses.map((boss) => (
+            <li key={boss.key}>
+              {boss.iconUrl && (
+                <img className="boss-portrait" src={apiAssetUrl(boss.iconUrl)} alt="" />
+              )}
+              {boss.name}
+            </li>
           ))}
         </ul>
       ) : (

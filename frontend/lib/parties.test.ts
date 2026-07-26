@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { bossNamesFor, partiesByCharacter, partyLabel, partySizeLabel } from "./parties";
+import { bossesFor, partiesByCharacter, partyLabel, partySizeLabel } from "./parties";
+import type { Boss } from "@/types/boss";
 import type { Party, PartyMember } from "@/types/party";
 
 const seat = (name: string, characterId: string | null = null): PartyMember => ({
@@ -7,6 +8,7 @@ const seat = (name: string, characterId: string | null = null): PartyMember => (
   name,
   characterId,
   mvp: false,
+  spriteImgUrl: null,
 });
 
 const party = (id: string, members: PartyMember[], name: string | null = null): Party => ({
@@ -75,12 +77,20 @@ describe("partiesByCharacter", () => {
   });
 });
 
-describe("bossNamesFor", () => {
+describe("bossesFor", () => {
   it("shows a key it cannot name rather than dropping it", () => {
-    // A missing name means the catalog changed. A shortened boss list would say this party runs
+    // A missing entry means the catalog changed. A shortened boss list would say this party runs
     // fewer bosses than it does, which is the quiet kind of wrong.
-    const names = new Map([["baldrix", "Baldrix"]]);
+    const baldrix: Boss = {
+      bossKey: "baldrix",
+      name: "Baldrix",
+      reset: "WEEKLY",
+      iconUrl: "/boss-icons/baldrix.png",
+    };
     const p = { ...party("p1", []), bossKeys: ["baldrix", "mystery-boss"] };
-    expect(bossNamesFor(p, names)).toEqual(["Baldrix", "mystery-boss"]);
+    expect(bossesFor(p, new Map([["baldrix", baldrix]]))).toEqual([
+      { key: "baldrix", name: "Baldrix", iconUrl: "/boss-icons/baldrix.png" },
+      { key: "mystery-boss", name: "mystery-boss", iconUrl: null },
+    ]);
   });
 });

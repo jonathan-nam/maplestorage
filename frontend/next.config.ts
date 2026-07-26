@@ -40,6 +40,17 @@ const nextConfig: NextConfig = {
 
   env: { NEXT_PUBLIC_ASSET_VERSION: assetVersion },
 
+  // Local preview only, and off unless PREVIEW_API_ORIGIN is set. The devcontainer forwards
+  // 3000/8080/5432 and ignores everything else, so a second backend run beside the dev stack
+  // (PORT=8081) is not reachable from the host browser. Proxying it through the dev server's own
+  // origin means only the frontend port has to be forwarded, and it makes the calls same-origin,
+  // so CORS stops mattering for the preview too.
+  async rewrites() {
+    const previewApi = process.env.PREVIEW_API_ORIGIN;
+    if (!previewApi) return [];
+    return [{ source: "/preview-api/:path*", destination: `${previewApi}/:path*` }];
+  },
+
   // The section moved from /characters to /inventory. Keep old bookmarks and in-flight
   // sessions working with a permanent redirect. The API routes (/api/characters) are the
   // data resource and are unaffected.

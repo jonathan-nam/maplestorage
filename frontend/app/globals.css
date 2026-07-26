@@ -2903,3 +2903,46 @@ button.link:disabled {
   opacity: 0.5;
   cursor: default;
 }
+
+/* Party member sprites and boss portraits.
+   Both are pixel art, so both are drawn at a size that does not resample them into mush: the boss
+   portraits are cut from the planner at 26px and are shown at 26 or at exactly half. */
+.seat-sprite {
+  width: 24px;
+  height: 24px;
+  flex: none;
+  object-fit: contain;
+  object-position: center bottom;
+  image-rendering: pixelated;
+}
+
+.party-seat-chip {
+  /* Taller than a text-only chip now that it carries a face. */
+  padding: 2px 8px 2px 3px;
+}
+
+.boss-portrait {
+  width: 26px;
+  height: 26px;
+  flex: none;
+  image-rendering: pixelated;
+  border-radius: 3px;
+}
+
+.boss-portrait.is-small {
+  width: 13px;
+  height: 13px;
+}
+
+.party-bosses li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px 2px 3px;
+}
+
+.loot-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}

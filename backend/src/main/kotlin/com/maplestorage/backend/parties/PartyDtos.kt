@@ -14,6 +14,10 @@ data class PartyMemberResponse(
     // Whether this member pays the MVP Auction House rate on a payout. The rate itself lives in
     // frontend/lib/drop-split.ts; sending a status rather than a number keeps it there.
     val mvp: Boolean,
+    // The seat's sprite: the linked character's own when there is one, otherwise whatever the
+    // Nexon lookup found for that name. Null is ordinary (a typo, an unranked character), and the
+    // client draws initials for it.
+    val spriteImgUrl: String? = null,
 )
 
 @Serializable
