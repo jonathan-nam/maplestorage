@@ -31,6 +31,7 @@ screenshot is what build_icons.py is for.
 
 import argparse
 import json
+import re
 import pathlib
 import sys
 
@@ -53,6 +54,12 @@ BOSS_RESETS = {"WEEKLY", "DAILY", "MONTHLY"}
 # from the boss key. Every TRACKED boss must have one: a boss drawn without art sits beside
 # fifteen that have it and reads as a failed load.
 BOSS_ICONS = ROOT / "backend" / "src" / "main" / "resources" / "seed-assets" / "bosses"
+
+# The portrait paths, shipped in the frontend bundle. The art itself stays on the backend with
+# every other seed asset; this is only the list of URLs, and it exists so the browser can START
+# fetching the portraits at first render instead of after a Clerk token and an /api/bosses call.
+# Generated, so adding a boss is still one edit to bosses.yaml.
+BOSS_ART_OUT = ROOT / "frontend" / "lib" / "boss-art.ts"
 
 # The boss drop tables. What a boss can drop, and the art the loot pool draws beside it. Unlike
 # items, a drop has no vision template: nothing reads these off a screenshot, they are picked from
@@ -469,6 +476,35 @@ def fetch_icons(items: list[dict]) -> None:
     print(f"normalized {normed} hand-cut icons to the same footprint")
 
 
+def boss_art_ts(bosses: list[dict]) -> str:
+    """The frontend's copy of the portrait paths. Paths only, never the art."""
+    # Quoted only when the key is not a bare JS identifier, which is prettier's own
+    # "quote-props: as-needed" rule. Emitting it that way keeps this file passing
+    # `prettier --check` without the generator and the formatter fighting over it.
+    def prop(key: str) -> str:
+        return key if re.fullmatch(r"[A-Za-z_$][A-Za-z0-9_$]*", key) else f'"{key}"'
+
+    rows = "\n".join(
+        f'  {prop(b["key"])}: "/boss-icons/{b["key"]}.png",'
+        for b in bosses
+        if b.get("tracked", True)
+    )
+    return f"""// GENERATED FROM catalog/bosses.yaml. DO NOT EDIT BY HAND.
+// Regenerate with:  python catalog/build.py
+//
+// Backend-relative paths, resolved with apiAssetUrl() like every other served asset. This exists
+// for ONE reason: the portraits are known before a user is, so the browser can start fetching
+// them at first render rather than after getToken() and /api/bosses have both answered. That
+// waterfall is what made the art appear a beat after the rest of the page.
+//
+// Only tracked bosses, matching what boss_catalog is seeded with.
+
+export const BOSS_ART: Record<string, string> = {{
+{rows}
+}};
+"""
+
+
 def check_boss_art(bosses: list[dict]) -> list[str]:
     """Every tracked boss needs its portrait, named from its key. Untracked ones are drawn nowhere."""
     problems = []
@@ -552,6 +588,7 @@ def main() -> None:
         (BOSS_OUT, boss_json(bosses)),
         (BOSS_SQL_OUT, boss_sql(bosses)),
         (DROP_SQL_OUT, drop_sql(drops, drop_tables)),
+        (BOSS_ART_OUT, boss_art_ts(bosses)),
     ]
 
     if args.check:

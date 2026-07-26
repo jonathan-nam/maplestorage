@@ -7,6 +7,7 @@ import { useEffect, useState } from "react";
 import { LootPool } from "@/components/loot-pool";
 import { SeatChip } from "@/components/seat-chip";
 import { apiAssetUrl } from "@/lib/api";
+import { preloadBossArt } from "@/lib/preload-boss-art";
 import { ApiError, apiFetch } from "@/lib/api";
 import { peek, put } from "@/lib/cache";
 import { summarize } from "@/lib/loot";
@@ -22,6 +23,9 @@ const BOSSES_KEY = "/api/bosses";
 const DROPS_KEY = "/api/bosses/drops";
 
 export default function PartyPage() {
+  // Before anything is fetched: see lib/preload-boss-art.ts.
+  preloadBossArt();
+
   const { getToken } = useAuth();
   const params = useParams<{ id: string }>();
   const partyId = params.id;
