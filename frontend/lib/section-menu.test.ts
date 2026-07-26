@@ -9,6 +9,7 @@ describe("which section a path belongs to", () => {
     expect(labelFor("/inventory")).toBe("Inventory");
     expect(labelFor("/bosses")).toBe("Individual View");
     expect(labelFor("/bosses/parties")).toBe("Party View");
+    expect(labelFor("/bosses/order")).toBe("Run Order");
     expect(labelFor("/bosses/split")).toBe("Split Utility");
   });
 
@@ -16,6 +17,7 @@ describe("which section a path belongs to", () => {
     // The rule the longest-match sort exists for: /bosses/split must not also light the entry for
     // /bosses, which is a prefix of it.
     expect(labelFor("/bosses/split")).not.toBe("Individual View");
+    expect(labelFor("/bosses/order")).not.toBe("Individual View");
     expect(labelFor("/bosses/parties")).not.toBe("Individual View");
   });
 
@@ -55,7 +57,13 @@ describe("what the menu lists", () => {
     expect(HREFS.length).toBeGreaterThan(MENU_HREFS.length);
   });
 
-  it("lists the four sections a person navigates between", () => {
-    expect(MENU_HREFS).toEqual(["/inventory", "/bosses", "/bosses/parties", "/bosses/split"]);
+  it("lists the five sections a person navigates between", () => {
+    expect(MENU_HREFS).toEqual([
+      "/inventory",
+      "/bosses",
+      "/bosses/parties",
+      "/bosses/order",
+      "/bosses/split",
+    ]);
   });
 });

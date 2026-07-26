@@ -38,6 +38,7 @@ export const SECTIONS: { group?: string; items: SectionItem[] }[] = [
       // Drop Log need neither: they sit under /bosses/parties and so already resolve to Party
       // View, which is the section they are part of.
       { href: "/bosses/people", label: "People", hidden: true },
+      { href: "/bosses/order", label: "Run Order" },
       { href: "/bosses/split", label: "Split Utility" },
     ],
   },
