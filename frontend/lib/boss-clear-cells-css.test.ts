@@ -38,10 +38,12 @@ describe("the legend cannot drift from the table it describes", () => {
   it("draws its swatches from the same custom properties the cells read", () => {
     // Restating the tints here is the failure mode: the key goes on saying one thing after the
     // cells start saying another, and a key that disagrees with its table is worse than none.
+    // `as const` so the pairs stay tuples of literals. Without it these widen to string[], and
+    // under noUncheckedIndexedAccess the destructured halves come out string | undefined.
     for (const [cell, key] of [
       [".boss-cell.is-cleared", ".boss-key.is-cleared"],
       [".boss-cell.is-pending", ".boss-key.is-pending"],
-    ]) {
+    ] as const) {
       const token = /background-color:\s*(var\(--cell-[a-z-]+\))/.exec(rule(cell))?.[1];
       expect(token, `${cell} should read a shared tint`).toBeTruthy();
       expect(rule(key)).toContain(token!);
