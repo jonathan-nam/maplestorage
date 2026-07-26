@@ -116,10 +116,10 @@ export default function BossesPage() {
   return (
     <main className="page">
       <h1 className="page-title">Individual View</h1>
-      <p className="split-intro">
-        Which bosses each character has cleared this period. Upload a Maple Planner capture to fill
-        it in.
-      </p>
+      {/* Kept to one line, and to about the same length as Party View's. The week label below
+          sits at whatever height the prose above it wraps to, so an intro that runs onto a second
+          line on one page and not the other moves the label when you switch between them. */}
+      <p className="split-intro">Which bosses each character has cleared this period.</p>
 
       {state === "error" && <p>Couldn&apos;t load your boss clears.</p>}
 
