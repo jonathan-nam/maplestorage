@@ -42,6 +42,7 @@ export default function PartiesPage() {
     seededParties && seededBosses && seededCharacters ? "loaded" : "loading",
   );
   const [grouping, setGrouping] = useState<Grouping>("character");
+  const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     // One token for the whole burst, as the boss page does: getToken() can round-trip to Clerk,
@@ -69,6 +70,31 @@ export default function PartiesPage() {
       .catch(() => setState((s) => (s === "loaded" ? "loaded" : "error")));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  /**
+   * Ticks a boss cleared, or un-ticks it.
+   *
+   * Writes boss_clear, the same row the Boss Clears matrix reads and a planner capture overwrites,
+   * so the two pages cannot drift. Refetched rather than patched in place: the server decides
+   * which period the tick landed in.
+   */
+  async function toggleClear(party: Party, cleared: boolean) {
+    setBusy(true);
+    try {
+      await apiFetch<Party>(
+        `${PARTIES_KEY}/${party.id}/clear`,
+        { method: "PUT", body: JSON.stringify({ cleared }) },
+        getToken,
+      );
+      const refreshed = await apiFetch<Party[]>(PARTIES_KEY, { method: "GET" }, getToken);
+      setParties(refreshed);
+      put(PARTIES_KEY, refreshed);
+    } catch {
+      // Leaving the old state up beats showing a tick that did not save.
+    } finally {
+      setBusy(false);
+    }
+  }
 
   const characterById = new Map(characters.map((c) => [c.id, c]));
   const bossByKey = new Map(bosses.map((b) => [b.bossKey, b]));
@@ -157,7 +183,11 @@ export default function PartiesPage() {
                             {bossByKey.get(party.bossKey)?.name ?? party.bossKey}
                           </h3>
                         </header>
-                        <PartyCard party={party} />
+                        <PartyCard
+                          party={party}
+                          busy={busy}
+                          onToggleClear={(cleared) => toggleClear(party, cleared)}
+                        />
                       </article>
                     ))}
                   </div>
@@ -200,6 +230,7 @@ export default function PartiesPage() {
                             />
                           )}
                           {bossByKey.get(party.bossKey)?.name ?? party.bossKey}
+                          {party.cleared && <span className="party-clear is-cleared">done</span>}
                           {(party.pendingLoot > 0 || party.awaitingPayout > 0) && (
                             <span className="party-loot-summary">
                               {party.pendingLoot + party.awaitingPayout}
@@ -237,7 +268,11 @@ export default function PartiesPage() {
                           {characterById.get(party.characterId)?.name ?? "Unknown character"}
                         </h3>
                       </header>
-                      <PartyCard party={party} />
+                      <PartyCard
+                        party={party}
+                        busy={busy}
+                        onToggleClear={(cleared) => toggleClear(party, cleared)}
+                      />
                     </article>
                   ))}
                 </div>

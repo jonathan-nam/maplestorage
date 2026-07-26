@@ -1,7 +1,6 @@
 package com.maplestorage.backend.parties
 
-import com.maplestorage.backend.db.Characters
-import com.maplestorage.backend.db.Party
+import com.maplestorage.backend.db.BossCatalog
 import com.maplestorage.backend.plugins.parseUuidParam
 import com.maplestorage.backend.plugins.principalIdAndEmail
 import com.maplestorage.backend.services.NexonLookupService
@@ -20,7 +19,6 @@ import io.ktor.server.routing.route
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
-import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
@@ -36,6 +34,7 @@ fun Route.partyRoutes(nexonLookupService: NexonLookupService) {
     post { createPartyRoute(nexonLookupService) }
     get("/{id}") { getParty() }
     put("/{id}") { savePartyRoute(nexonLookupService) }
+    put("/{id}/clear") { setClearRoute() }
     delete("/{id}") { deletePartyRoute() }
     route("/{id}/loot") { lootRoutes() }
 }
@@ -108,6 +107,34 @@ private suspend fun RoutingContext.savePartyRoute(nexonLookupService: NexonLooku
     respondToSave(outcome, HttpStatusCode.OK)
 }
 
+/**
+ * Ticks this config's boss cleared for the current period, or un-ticks it.
+ *
+ * The same row the clear matrix reads, so the two pages cannot disagree, and the same row the next
+ * planner capture will overwrite.
+ */
+private suspend fun RoutingContext.setClearRoute() {
+    val (userId, email) = call.principalIdAndEmail()
+    val partyId = call.parseUuidParam("id") ?: return
+    val request = call.receive<SetClearRequest>()
+
+    val party =
+        transaction {
+            ensureUser(userId, email)
+            val found = findParty(partyId, userId)
+            if (found != null) {
+                val boss =
+                    BossCatalog
+                        .selectAll()
+                        .where { BossCatalog.bossKey eq found.bossKey }
+                        .first()
+                setPartyClear(found, boss[BossCatalog.id], boss[BossCatalog.reset], request.cleared, Clock.System.now())
+            }
+            if (found == null) null else findParty(partyId, userId)
+        }
+    if (party == null) call.respond(HttpStatusCode.NotFound) else call.respond(party)
+}
+
 private suspend fun RoutingContext.deletePartyRoute() {
     val (userId, email) = call.principalIdAndEmail()
     val partyId = call.parseUuidParam("id") ?: return
@@ -143,57 +170,6 @@ private suspend fun RoutingContext.respondToSave(
         is String -> call.respond(HttpStatusCode.BadRequest, outcome)
         is PartyResponse -> call.respond(onSuccess, outcome)
         else -> call.respond(HttpStatusCode.InternalServerError)
-    }
-}
-
-/**
- * Why this config cannot be created, or null.
- *
- * Refuses rather than repairs: a second config for the same character and boss, a boss the catalog
- * does not have, or somebody else's character would each save something the user did not ask for.
- * Must run inside a transaction.
- */
-internal fun validateNewParty(
-    request: SavePartyRequest,
-    userId: String,
-    characterId: Uuid?,
-    bossCatalogId: Uuid?,
-): String? {
-    val owned =
-        characterId != null &&
-            Characters
-                .selectAll()
-                .where { (Characters.id eq characterId) and (Characters.userId eq userId) }
-                .empty()
-                .not()
-    val taken =
-        characterId != null &&
-            bossCatalogId != null &&
-            Party
-                .selectAll()
-                .where { (Party.characterId eq characterId) and (Party.bossCatalogId eq bossCatalogId) }
-                .empty()
-                .not()
-
-    return when {
-        !owned -> "characterId must be one of your characters"
-        bossCatalogId == null -> "unknown bossKey"
-        taken -> "that character already has a party for this boss"
-        else -> validateMembers(request.members)
-    }
-}
-
-/** The rules a config's roster has to keep, wherever it is being written. */
-internal fun validateMembers(members: List<String>): String? {
-    val names = members.map { it.trim() }
-    return when {
-        // Your own character is the config; the members are the others. Nobody else means a solo
-        // run, and a solo run is not a party.
-        names.isEmpty() -> "a party needs somebody else in it"
-        names.size > MAX_PARTY_SIZE - 1 -> "a party holds at most $MAX_PARTY_SIZE including your character"
-        names.any { it.isBlank() } -> "a member needs a character name"
-        names.map { it.lowercase() }.distinct().size != names.size -> "the same character twice"
-        else -> null
     }
 }
 

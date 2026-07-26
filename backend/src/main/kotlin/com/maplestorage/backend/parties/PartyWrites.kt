@@ -1,5 +1,7 @@
 package com.maplestorage.backend.parties
 
+import com.maplestorage.backend.bosses.periodStartFor
+import com.maplestorage.backend.db.BossClear
 import com.maplestorage.backend.db.Characters
 import com.maplestorage.backend.db.Party
 import com.maplestorage.backend.db.PartyMember
@@ -13,6 +15,7 @@ import org.jetbrains.exposed.v1.jdbc.deleteWhere
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.update
+import org.jetbrains.exposed.v1.jdbc.upsert
 import kotlin.time.Instant
 import kotlin.uuid.Uuid
 
@@ -69,6 +72,33 @@ internal fun saveParty(
         it[updatedAt] = now
     }
     writeMembers(userId, partyId, characterId, request.members, sprites, now)
+}
+
+/**
+ * Marks this config's boss cleared, or not, for the period it is currently in.
+ *
+ * Writes boss_clear, which is what makes the two pages agree: the clear matrix reads this row and
+ * a planner capture overwrites it. There is one answer to "is Kalos done this week", and ticking
+ * it here is another way of saying it rather than a second place to keep it.
+ *
+ * source_screenshot_id is left null on purpose. It is what tells a hand-tick from a capture later,
+ * and the next capture will replace this row with one that has a screenshot behind it.
+ */
+internal fun setPartyClear(
+    party: PartyResponse,
+    bossCatalogId: Uuid,
+    reset: String,
+    cleared: Boolean,
+    now: Instant,
+) {
+    BossClear.upsert(BossClear.characterId, BossClear.bossCatalogId, BossClear.periodStart) { row ->
+        row[characterId] = Uuid.parse(party.characterId)
+        row[BossClear.bossCatalogId] = bossCatalogId
+        row[periodStart] = periodStartFor(reset, now)
+        row[BossClear.cleared] = cleared
+        row[capturedAt] = now
+        row[sourceScreenshotId] = null
+    }
 }
 
 internal fun deleteParty(

@@ -3323,3 +3323,51 @@ button.link:disabled {
   background: var(--surface);
   font-size: 10px;
 }
+
+/* The clear, ticked from a party. Three states, because "nobody has said anything this period" is
+   not "not cleared": the matrix has drawn that distinction since it was built, and a party that
+   collapsed the two would be the page that lies about it. */
+.party-clear {
+  align-self: flex-start;
+  font: inherit;
+  font-size: 11px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  color: var(--muted);
+  cursor: pointer;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.party-clear.is-cleared {
+  border-color: var(--good);
+  color: var(--good);
+}
+
+.party-clear.is-pending {
+  border-color: var(--warn);
+  color: var(--warn);
+}
+
+.party-clear:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* Ticked here rather than read off a capture. Quiet, but there: a figure you can trace to a
+   screenshot and one somebody typed are not equally trustworthy. */
+.party-clear-hand {
+  color: var(--muted-2);
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+/* In the arrangement view the state rides along on the boss chip, where it is a label. */
+.party-bosses .party-clear {
+  padding: 0 6px;
+  border: 0;
+  background: transparent;
+  cursor: inherit;
+}

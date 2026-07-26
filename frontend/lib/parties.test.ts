@@ -41,6 +41,8 @@ const config = (
   members: [seat("mine", characterId), ...others.map((o) => seat(o))],
   pendingLoot: 0,
   awaitingPayout: 0,
+  cleared: null,
+  clearedByHand: false,
   createdAt: "2026-07-26T00:00:00Z",
   updatedAt: "2026-07-26T00:00:00Z",
 });

@@ -40,6 +40,13 @@ data class PartyResponse(
     // The pool at a glance: dropped but unsold, and sold with somebody still unpaid.
     val pendingLoot: Int = 0,
     val awaitingPayout: Int = 0,
+    // Whether this boss is cleared in the period it is currently in, straight out of boss_clear:
+    // the same row the clear matrix draws and a planner capture writes. Null means nobody has said
+    // anything about it this period, which is not the same as "not cleared".
+    val cleared: Boolean? = null,
+    // Ticked here rather than read off a planner. A number you can trace to a capture and one
+    // somebody typed are not equally trustworthy, so the two are not drawn identically.
+    val clearedByHand: Boolean = false,
     val createdAt: String,
     val updatedAt: String,
 )
@@ -83,4 +90,10 @@ data class PersonRequest(
     val id: String? = null,
     val name: String,
     val characters: List<String> = emptyList(),
+)
+
+/** Ticking a config's boss cleared for the period it is in, or un-ticking it. */
+@Serializable
+data class SetClearRequest(
+    val cleared: Boolean,
 )

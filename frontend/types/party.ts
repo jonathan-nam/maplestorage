@@ -27,6 +27,12 @@ export type Party = {
   // The pool at a glance: dropped but unsold, and sold with somebody still unpaid.
   pendingLoot: number;
   awaitingPayout: number;
+  // Whether this boss is cleared in the period it is currently in, straight out of boss_clear:
+  // the same row the clear matrix draws and a planner capture writes. Null means nobody has said
+  // anything about it this period, which is NOT the same as "not cleared".
+  cleared: boolean | null;
+  // Ticked here rather than read off a planner capture.
+  clearedByHand: boolean;
   createdAt: string;
   updatedAt: string;
 };

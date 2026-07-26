@@ -1,6 +1,8 @@
 package com.maplestorage.backend.parties
 
+import com.maplestorage.backend.bosses.periodStartFor
 import com.maplestorage.backend.db.BossCatalog
+import com.maplestorage.backend.db.BossClear
 import com.maplestorage.backend.db.Characters
 import com.maplestorage.backend.db.Party
 import com.maplestorage.backend.db.PartyLoot
@@ -14,6 +16,7 @@ import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.inList
 import org.jetbrains.exposed.v1.jdbc.selectAll
+import kotlin.time.Clock
 import kotlin.uuid.Uuid
 
 // The reads behind /api/parties. `internal` rather than private, as the boss and token queries
@@ -37,10 +40,15 @@ internal fun partiesFor(userId: String): List<PartyResponse> {
     val partyIds = rows.map { it[Party.id] }
     val membersByParty = membersFor(partyIds, userId)
     val counts = lootCountsFor(partyIds)
+    val clears = clearStateFor(rows)
 
     return rows.map { row ->
         val id = row[Party.id]
-        row.toPartyResponse(membersByParty[id].orEmpty(), counts[id] ?: LootCounts(0, 0))
+        row.toPartyResponse(
+            membersByParty[id].orEmpty(),
+            counts[id] ?: LootCounts(0, 0),
+            clears[id] ?: ClearState(null, false),
+        )
     }
 }
 
@@ -57,6 +65,7 @@ internal fun findParty(
     return row.toPartyResponse(
         membersFor(listOf(partyId), userId)[partyId].orEmpty(),
         lootCountsFor(listOf(partyId))[partyId] ?: LootCounts(0, 0),
+        clearStateFor(listOf(row))[partyId] ?: ClearState(null, false),
     )
 }
 
@@ -135,6 +144,58 @@ private fun membersFor(
         }
 }
 
+/**
+ * Whether this config's boss is cleared in the period it is currently in, and how that was known.
+ *
+ * Read from boss_clear, the same table the clear matrix reads and a planner capture writes. That
+ * is the whole of the sync between the two pages: there is one answer to "is Kalos done this week
+ * on mechyfechy", and both views are looking at it rather than keeping their own.
+ *
+ * `cleared` is null when no row exists, which is not the same as false: false means a capture or a
+ * tick SAID it is not done, null means nobody has said anything this period.
+ */
+internal data class ClearState(
+    val cleared: Boolean?,
+    // No source screenshot, so it was ticked by hand rather than read off a planner. Worth showing:
+    // a number you can trace to a capture and one somebody typed are not equally trustworthy.
+    val byHand: Boolean,
+)
+
+private fun clearStateFor(rows: List<ResultRow>): Map<Uuid, ClearState> {
+    if (rows.isEmpty()) return emptyMap()
+    val now = Clock.System.now()
+
+    // Per boss, because cadences differ: a weekly and a monthly boss are in different periods at
+    // the same instant, and filtering on one date would answer for the other only on the day they
+    // happen to coincide.
+    val wanted =
+        rows.associate { row ->
+            row[Party.id] to
+                Triple(
+                    row[Party.characterId],
+                    row[Party.bossCatalogId],
+                    periodStartFor(row[BossCatalog.reset], now),
+                )
+        }
+
+    val found =
+        BossClear
+            .selectAll()
+            .where { BossClear.characterId inList wanted.values.map { it.first }.distinct() }
+            .associateBy {
+                Triple(
+                    it[BossClear.characterId],
+                    it[BossClear.bossCatalogId],
+                    it[BossClear.periodStart],
+                )
+            }
+
+    return wanted.mapValues { (_, key) ->
+        val row = found[key]
+        ClearState(row?.get(BossClear.cleared), row != null && row[BossClear.sourceScreenshotId] == null)
+    }
+}
+
 /** Unsold drops, and sold ones with somebody still unpaid. */
 internal data class LootCounts(
     val pending: Int,
@@ -180,6 +241,7 @@ internal fun lootCountsFor(partyIds: List<Uuid>): Map<Uuid, LootCounts> {
 private fun ResultRow.toPartyResponse(
     members: List<PartyMemberResponse>,
     loot: LootCounts,
+    clear: ClearState,
 ) = PartyResponse(
     id = this[Party.id].toString(),
     characterId = this[Party.characterId].toString(),
@@ -188,6 +250,8 @@ private fun ResultRow.toPartyResponse(
     members = members,
     pendingLoot = loot.pending,
     awaitingPayout = loot.awaitingPayout,
+    cleared = clear.cleared,
+    clearedByHand = clear.byHand,
     createdAt = this[Party.createdAt].toString(),
     updatedAt = this[Party.updatedAt].toString(),
 )

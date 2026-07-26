@@ -1,9 +1,15 @@
 package com.maplestorage.backend.parties
 
+import com.maplestorage.backend.bosses.currentBossClearsFor
+import com.maplestorage.backend.bosses.upsertBossClears
 import com.maplestorage.backend.config.Env
+import com.maplestorage.backend.db.BossCatalog
+import com.maplestorage.backend.db.BossClear
 import com.maplestorage.backend.db.Characters
 import com.maplestorage.backend.db.Party
 import com.maplestorage.backend.db.Person
+import com.maplestorage.backend.db.Screenshots
+import com.maplestorage.backend.services.DetectedBossClear
 import com.maplestorage.backend.users.ensureUser
 import org.flywaydb.core.Flyway
 import org.jetbrains.exposed.v1.core.eq
@@ -11,6 +17,7 @@ import org.jetbrains.exposed.v1.core.or
 import org.jetbrains.exposed.v1.jdbc.Database
 import org.jetbrains.exposed.v1.jdbc.deleteWhere
 import org.jetbrains.exposed.v1.jdbc.insert
+import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
@@ -54,6 +61,14 @@ class PartyConfigTest {
     @AfterTest
     fun cleanUp() {
         transaction {
+            // boss_clear and screenshots reference the characters, so they go before them.
+            val owned =
+                Characters
+                    .selectAll()
+                    .where { (Characters.userId eq userOneId) or (Characters.userId eq userTwoId) }
+                    .map { it[Characters.id] }
+            owned.forEach { id -> BossClear.deleteWhere { characterId eq id } }
+            Screenshots.deleteWhere { (Screenshots.userId eq userOneId) or (Screenshots.userId eq userTwoId) }
             Party.deleteWhere { (Party.userId eq userOneId) or (Party.userId eq userTwoId) }
             Person.deleteWhere { (Person.userId eq userOneId) or (Person.userId eq userTwoId) }
             Characters.deleteWhere { (Characters.userId eq userOneId) or (Characters.userId eq userTwoId) }
@@ -254,6 +269,69 @@ class PartyConfigTest {
             assertEquals("CreedBratton", after.members[1].name)
             assertNull(after.members[1].personName)
             assertTrue(peopleFor(userOneId).isEmpty())
+        }
+    }
+
+    @Test
+    fun `a config and the clear matrix are the same row, read from both ends`() {
+        transaction {
+            val mine = addCharacter(userOneId, "mechyfechy")
+            val party = config(userOneId, mine, "kalos-the-guardian", listOf("CreedBratton"))
+            // Nobody has said anything this period, which is not the same as "not cleared".
+            assertNull(party.cleared)
+
+            val boss =
+                BossCatalog
+                    .selectAll()
+                    .where { BossCatalog.bossKey eq "kalos-the-guardian" }
+                    .first()
+            setPartyClear(party, boss[BossCatalog.id], boss[BossCatalog.reset], true, Clock.System.now())
+
+            val ticked = findParty(Uuid.parse(party.id), userOneId)!!
+            assertEquals(true, ticked.cleared)
+            // No screenshot behind it, so the UI can say it was ticked rather than captured.
+            assertTrue(ticked.clearedByHand)
+
+            // And the clear matrix sees the same thing, because it IS the same row. This is the
+            // whole of the sync between the two pages: one answer, two readers.
+            val matrix = currentBossClearsFor(userOneId, Clock.System.now())
+            val clears = matrix[mine.toString()].orEmpty()
+            assertEquals(listOf("kalos-the-guardian"), clears.map { it.bossKey })
+            assertTrue(clears.single().cleared)
+
+            // Un-ticking says "seen, not done" rather than removing the row: absent would mean
+            // nobody had said anything, and somebody just did.
+            setPartyClear(party, boss[BossCatalog.id], boss[BossCatalog.reset], false, Clock.System.now())
+            assertEquals(false, findParty(Uuid.parse(party.id), userOneId)!!.cleared)
+        }
+    }
+
+    @Test
+    fun `a planner capture shows up in the party view without being told twice`() {
+        transaction {
+            val mine = addCharacter(userOneId, "mechyfechy")
+            val party = config(userOneId, mine, "limbo", listOf("CreedBratton"))
+            val shot = Uuid.random()
+            Screenshots.insert {
+                it[Screenshots.id] = shot
+                it[Screenshots.userId] = userOneId
+                it[characterId] = mine
+                it[type] = "PLANNER"
+                it[uploadedAt] = Clock.System.now()
+                it[parseStatus] = "SUCCESS"
+            }
+            upsertBossClears(
+                mine,
+                listOf(DetectedBossClear("limbo", true)),
+                shot,
+                Clock.System.now(),
+            )
+
+            val seen = findParty(Uuid.parse(party.id), userOneId)!!
+            assertEquals(true, seen.cleared)
+            // Read off a planner, so not by hand: the two are not equally trustworthy and are not
+            // drawn the same.
+            assertTrue(!seen.clearedByHand)
         }
     }
 
