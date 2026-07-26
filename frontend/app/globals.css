@@ -1657,6 +1657,16 @@ button.link:disabled {
    itself rather than pushing the page sideways. */
 .boss-matrix {
   overflow-x: auto;
+
+  /* The two clear tints, named once. The cells read them and so does the legend's key, which is
+     the point: a key that drifts from the table it describes is worse than no key at all. The dim
+     one is for a row with nothing left to do, see .is-row-cleared. */
+  /* Amber sits heavier than green on purpose: what is left is the thing worth looking at. It also
+     needs the weight to read AS amber, since a low mix of --warn over a near-black page comes out
+     brown, which looks like dirt rather than a state. */
+  --cell-cleared: color-mix(in srgb, var(--good) 20%, transparent);
+  --cell-pending: color-mix(in srgb, var(--warn) 32%, transparent);
+  --cell-cleared-dim: color-mix(in srgb, var(--good) 7%, transparent);
 }
 
 /* Fills the column, so this page's block ends on the same edge as the inventory window and the
@@ -1683,11 +1693,19 @@ button.link:disabled {
    signal instead, so the band reads the same at either stripe parity.
    Both bands are semi-transparent and the cell one paints over the row one, so where they cross
    (the cell under the cursor) composites to ~28% on its own. That is deliberate: no third rule to
-   keep in step with these two. */
+   keep in step with these two.
+
+   background-IMAGE, not the background shorthand. The cells carry their clear state as a
+   background-color, and a shorthand here would reset it: the state would vanish from the row and
+   column under the cursor, which is exactly where you are looking. As an image the band layers
+   over the colour instead, and the two compose. */
 .boss-table tbody tr:not(.boss-cadence-row):hover,
 .boss-table .boss-cell.is-col-hover,
 .boss-table .boss-char-head.is-col-hover {
-  background: color-mix(in srgb, var(--accent) 15%, transparent);
+  background-image: linear-gradient(
+    color-mix(in srgb, var(--accent) 15%, transparent),
+    color-mix(in srgb, var(--accent) 15%, transparent)
+  );
 }
 
 .boss-col-head,
@@ -1798,55 +1816,44 @@ button.link:disabled {
   line-height: 1;
 }
 
-/* The mark is a block, not a bare glyph.
+/* The whole cell carries the state, not a box drawn inside it.
  *
  * A tick and a middot at the same weight turn 16 bosses by N characters into one field of texture:
  * finding what is left means hunting for the ABSENCE of a tick, which is the slowest thing the eye
- * can be asked to do. The game's own planner answers it by changing the whole row, a cleared one
- * going dark against a bright one still to do, so the states differ by fill first:
+ * can be asked to do. The game's own planner answers it by colouring the whole row, so a column of
+ * cells here reads as one continuous run of done or still-to-do rather than a line of separate
+ * marks.
  *
- *   cleared = filled in, remaining = an empty slot waiting to be filled, unseen = nothing at all.
+ * The tick stays on the cleared cell. It is the only part of this that survives greyscale, so it
+ * is what tells a green cell from an amber one when the colour does not arrive.
  *
- * Filled against hollow survives greyscale and colour blindness on its own; the green and the
- * amber only confirm what the shape already said. An inner block rather than a background on the
- * cell, because .is-col-hover paints the cell and would win on specificity, blanking the state
- * exactly where the cursor is. */
-.boss-cell-mark {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 20px;
-  border: 1px solid transparent;
-  border-radius: 5px;
-  font-size: 12px;
-}
-
-/* The state rides on the mark, not on the cell, so the legend below the table can draw the same
-   three marks by reusing these rules rather than restating them. */
-.boss-cell-mark.is-cleared {
-  border-color: color-mix(in srgb, var(--good) 45%, transparent);
-  background: color-mix(in srgb, var(--good) 20%, transparent);
+ * background-COLOR on all three, so the hover band (a background-image, see above) layers over the
+ * state instead of replacing it. The tints are named on .boss-matrix. */
+.boss-cell.is-cleared {
+  background-color: var(--cell-cleared);
   color: var(--good);
 }
 
-/* Hollow, and brighter at the edge than the tick is: what is left is the thing worth looking at,
-   and a settled row should not compete with it. */
-.boss-cell-mark.is-pending {
-  border-color: var(--warn);
-  background: color-mix(in srgb, var(--warn) 10%, transparent);
+.boss-cell.is-pending {
+  background-color: var(--cell-pending);
 }
 
-/* No mark at all. An unreported boss is NOT a boss that was not cleared, and giving it a slot of
-   its own would invite reading it as one. The legend says what the blank means. */
-.boss-cell-mark.is-unseen {
-  border-color: transparent;
-  background: none;
+/* Uncoloured on purpose. An unreported boss is NOT a boss that was not cleared, and giving it a
+   tint of its own would invite reading it as one. The legend says what the blank means. */
+.boss-cell.is-unseen {
+  background-color: transparent;
 }
 
-/* Every character has cleared it, so the row itself steps back and the rows with work left are
-   what the page is made of. Only when EVERY cell is cleared: a row holding an unreported character
-   is not a row that is done, and dimming it would be this feature's one unforgivable bug. */
+/* Nothing left to do on this boss, so the whole row goes quiet: the tint drops back, the name
+   mutes and the portrait desaturates. A row still holding an amber cell keeps its full colour, so
+   the table reads as the list of what is left.
+   Only when EVERY cell is cleared, see rowFullyCleared: a row holding an unreported character is
+   not a row that is done, and dimming it would be this feature's one unforgivable bug. */
+.boss-table tr.is-row-cleared .boss-cell.is-cleared {
+  background-color: var(--cell-cleared-dim);
+  color: color-mix(in srgb, var(--good) 55%, transparent);
+}
+
 .boss-table tr.is-row-cleared .boss-name {
   color: var(--muted-2);
 }
@@ -1865,16 +1872,34 @@ button.link:disabled {
   font-size: 11px;
 }
 
-/* The legend draws the real marks at the real size, so it is a key rather than a description of
-   one. */
+/* Swatches of the cell tints themselves, off the same two custom properties the cells read, so the
+   key cannot drift from the table it describes. */
 .boss-key {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 16px;
   margin-left: 10px;
+  border-radius: 3px;
+  font-size: 11px;
 }
 
 .boss-key:first-child {
   margin-left: 0;
 }
 
+.boss-key.is-cleared {
+  background-color: var(--cell-cleared);
+  color: var(--good);
+}
+
+.boss-key.is-pending {
+  background-color: var(--cell-pending);
+}
+
+/* The blank needs an outline here and only here: in the table its emptiness is read against the
+   coloured cells beside it, but a legend entry with no edge is just a gap in a sentence. */
 .boss-key.is-unseen {
   border: 1px dashed var(--line);
 }
@@ -3403,14 +3428,6 @@ button.link:disabled {
 .party-clear:disabled {
   opacity: 0.5;
   cursor: default;
-}
-
-/* Ticked here rather than read off a capture. Quiet, but there: a figure you can trace to a
-   screenshot and one somebody typed are not equally trustworthy. */
-.party-clear-hand {
-  color: var(--muted-2);
-  text-transform: none;
-  letter-spacing: 0;
 }
 
 /* In the arrangement view the state rides along on the boss chip, where it is a label. It keeps
