@@ -7,6 +7,7 @@ import { PartyCard } from "@/components/party-card";
 import { ResetTimer } from "@/components/reset-timer";
 import { RosterStrip } from "@/components/roster-strip";
 import { apiAssetUrl, apiFetch } from "@/lib/api";
+import { weekLabel } from "@/lib/boss-clears";
 import { peek, put } from "@/lib/cache";
 import { poolSize } from "@/lib/loot";
 import { byBoss, byCharacter, consolidate, otherMembers, partySizeLabel } from "@/lib/parties";
@@ -136,11 +137,21 @@ export default function PartiesPage() {
 
       {state === "loaded" && (
         <>
-          {/* The same countdown the Individual View carries, off the same served instants: what a
-              party is planned around is when the week turns over. No week stepper beside it, since
-              a config's clear is only ever the period it is in. */}
+          {/* The week these ticks are for, and how long is left of it: the same label and the
+              same countdown the Individual View carries, off the same served week and instants.
+              The label is drawn from weekLabel() rather than restated, so the two pages cannot
+              word the same week differently.
+
+              No ARROWS beside it, unlike the Individual View's. Stepping there refetches the
+              matrix for the week you land on; nothing here can follow, because a config's clear
+              comes off /api/parties, which only ever answers for the period it is in. Arrows
+              would move the label while every tick under it stayed on this week, which is a
+              confidently wrong screen rather than a missing feature. */}
           {view && (
             <div className="boss-controls">
+              <span className="week-label" title="Party clears are shown for the current period">
+                {weekLabel(view)}
+              </span>
               <ResetTimer
                 nextResets={view.nextResets}
                 serverNow={view.now}
