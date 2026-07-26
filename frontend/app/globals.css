@@ -39,8 +39,10 @@
   --warn: #e0a24e;
   --bad: #e0706a;
   /* Work outstanding, which is not a warning. --warn is money and trouble; a boss you have not run
-     yet is neither, and borrowing it made the clear matrix read as a page full of problems. Kept
-     off --accent as well, so a still-to-do cell and the column under the cursor stay apart. */
+     yet is neither, and borrowing it made the party list read as a page full of problems. Used on
+     the party clear and the capture readout, where the state is a label among other labels and has
+     to be picked out. The clear matrix does NOT use it: there the states are marks on a plain
+     cell, and every attempt to colour that table was worse than not colouring it. */
   --todo: #8f7ec8;
 }
 
@@ -1661,20 +1663,6 @@ button.link:disabled {
    itself rather than pushing the page sideways. */
 .boss-matrix {
   overflow-x: auto;
-
-  /* The clear tints, named once. The cells read them and so does the legend's key, which is the
-     point: a key that drifts from the table it describes is worse than no key at all. The dim one
-     is for a row with nothing left to do, see .is-row-cleared.
-     ONE hue, and it is on the state that wants doing. Green against amber was a traffic light on a
-     page that is not one, so the other two states are greys: done should recede and an unreported
-     boss has nothing to say.
-     But still-to-do cannot be a grey. This table already spends grey on the row striping (see the
-     nth-child rule below and the note beside it), so a grey fill lands in a channel that is taken
-     and reads as shading rather than as a state. That shipped and was reported as exactly that.
-     Hue is what carries a signal here; it is the same conclusion the hover band reached. */
-  --cell-cleared: color-mix(in srgb, var(--ink-strong) 10%, transparent);
-  --cell-pending: color-mix(in srgb, var(--todo) 34%, transparent);
-  --cell-cleared-dim: color-mix(in srgb, var(--ink-strong) 4%, transparent);
 }
 
 /* Fills the column, so this page's block ends on the same edge as the inventory window and the
@@ -1701,19 +1689,11 @@ button.link:disabled {
    signal instead, so the band reads the same at either stripe parity.
    Both bands are semi-transparent and the cell one paints over the row one, so where they cross
    (the cell under the cursor) composites to ~28% on its own. That is deliberate: no third rule to
-   keep in step with these two.
-
-   background-IMAGE, not the background shorthand. The cells carry their clear state as a
-   background-color, and a shorthand here would reset it: the state would vanish from the row and
-   column under the cursor, which is exactly where you are looking. As an image the band layers
-   over the colour instead, and the two compose. */
+   keep in step with these two. */
 .boss-table tbody tr:not(.boss-cadence-row):hover,
 .boss-table .boss-cell.is-col-hover,
 .boss-table .boss-char-head.is-col-hover {
-  background-image: linear-gradient(
-    color-mix(in srgb, var(--accent) 15%, transparent),
-    color-mix(in srgb, var(--accent) 15%, transparent)
-  );
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
 }
 
 .boss-col-head,
@@ -1824,50 +1804,32 @@ button.link:disabled {
   line-height: 1;
 }
 
-/* The whole cell carries the state, not a box drawn inside it.
- *
- * A tick and a middot at the same weight turn 16 bosses by N characters into one field of texture:
- * finding what is left means hunting for the ABSENCE of a tick, which is the slowest thing the eye
- * can be asked to do. The game's own planner answers it by colouring the whole row, so a column of
- * cells here reads as one continuous run of done or still-to-do rather than a line of separate
- * marks.
- *
- * Each state says its own name: a tick for done, a fill for still-to-do, a dash for nothing
- * reported. None of the three is read as the absence of another, which is what went wrong when the
- * blank was left to mean "no capture" on its own.
- *
- * background-COLOR on all three, so the hover band (a background-image, see above) layers over the
- * state instead of replacing it. The tints are named on .boss-matrix. */
+/* Three marks, no fills. Each state says its own name: a tick for done, nothing at all for still
+   to do, a dash for nothing reported. Filling the cells was tried and taken back out: colour put
+   the state in the same channel as the row striping, and every palette for it was an argument
+   about the palette rather than about the table. */
 .boss-cell.is-cleared {
-  background-color: var(--cell-cleared);
   color: var(--ink);
 }
 
+/* Deliberately empty, and the loudest thing in the table by being the only gap in a column of
+   marks. */
 .boss-cell.is-pending {
-  background-color: var(--cell-pending);
+  color: transparent;
 }
 
-/* No fill, but a dash: nothing was reported, said out loud rather than left as an empty cell for
-   the reader to interpret. An unreported boss is still NOT a boss that was not cleared, so the
-   dash is deliberately not a mark of the same weight as the tick, and the cell stays unfilled.
-   It reads as "no answer", which is what it is. */
+/* An unreported boss is still NOT a boss that was not cleared, so the dash is quieter than the
+   tick and reads as "no answer" rather than as a mark of the same kind. It has to be legible
+   though: at --line it measured around 1.9:1, which is back to being an empty cell. */
 .boss-cell.is-unseen {
-  background-color: transparent;
-  /* Quiet, but not so quiet it is back to being an empty cell: --line is around 1.9:1 here, and
-     this dash has to be read now that it is carrying a state. */
   color: var(--muted-2);
 }
 
-/* Nothing left to do on this boss, so the whole row goes quiet: the tint drops back, the name
-   mutes and the portrait desaturates. A row still holding one bright cell keeps its full weight,
-   so the table reads as the list of what is left.
-   The tick dims with it but does not go: a row this quiet still has to say which state it is in.
+/* Nothing left to do on this boss, so the row goes quiet: the name mutes and the portrait
+   desaturates. A row with work left keeps its full weight, so the table reads as the list of what
+   is left.
    Only when EVERY cell is cleared, see rowFullyCleared: a row holding an unreported character is
    not a row that is done, and dimming it would be this feature's one unforgivable bug. */
-.boss-table tr.is-row-cleared .boss-cell.is-cleared {
-  background-color: var(--cell-cleared-dim);
-  color: var(--muted);
-}
 
 .boss-table tr.is-row-cleared .boss-name {
   color: var(--muted-2);
@@ -1887,17 +1849,12 @@ button.link:disabled {
   font-size: 11px;
 }
 
-/* Swatches of the cell tints themselves, off the same two custom properties the cells read, so the
-   key cannot drift from the table it describes. */
+/* The same marks the cells draw, at the same weight. */
 .boss-key {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 16px;
+  display: inline-block;
+  min-width: 12px;
   margin-left: 10px;
-  border-radius: 3px;
-  font-size: 11px;
+  text-align: center;
 }
 
 .boss-key:first-child {
@@ -1905,16 +1862,18 @@ button.link:disabled {
 }
 
 .boss-key.is-cleared {
-  background-color: var(--cell-cleared);
   color: var(--ink);
 }
 
+/* Still-to-do is an empty cell, and an empty legend entry is just a gap in a sentence. The outline
+   is what says "this space, deliberately", and it belongs here and nowhere else: in the table the
+   gap is read against the marks on either side of it. */
 .boss-key.is-pending {
-  background-color: var(--cell-pending);
+  height: 12px;
+  border: 1px dashed var(--line);
+  border-radius: 2px;
 }
 
-/* The dash is the mark now, so the key draws it exactly as the cell does and needs no outline of
-   its own to stand in for one. */
 .boss-key.is-unseen {
   color: var(--muted-2);
 }
