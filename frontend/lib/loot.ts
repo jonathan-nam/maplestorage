@@ -5,13 +5,19 @@
 // its input, and the payout rows say who is in it. A second implementation of the split is the one
 // thing this feature must not grow, because two answers to "what do I send you" is worse than none.
 
-import { FEE_MVP, FEE_STANDARD, type Split, splitDrop } from "./drop-split";
+import { FEE_STANDARD, type Split, splitDrop } from "./drop-split";
 import type { Loot } from "@/types/loot";
 import type { PartyMember } from "@/types/party";
 
-/** The Auction House rate this member pays on a payout hop. */
-export function memberFee(mvp: boolean): number {
-  return mvp ? FEE_MVP : FEE_STANDARD;
+/**
+ * The Auction House rate a member pays on a payout hop.
+ *
+ * The standard rate for everybody: MVP tiers are not tracked any more, so there is nothing to read
+ * a 3% off. That is the honest reading of what is stored rather than a claim that nobody is MVP,
+ * and it means a split can only under-state what a member nets, never over-state it.
+ */
+export function memberFee(): number {
+  return FEE_STANDARD;
 }
 
 export type Share = {
@@ -58,8 +64,8 @@ export function splitOf(loot: Loot, members: PartyMember[]): LootSplit | null {
   const split = splitDrop({
     amount: loot.saleAmount,
     amountIs: loot.amountBasis === "LISTED" ? "listed" : "received",
-    sellerFee: memberFee(seller.mvp),
-    memberFees: owed.map((o) => memberFee(o.member!.mvp)),
+    sellerFee: memberFee(),
+    memberFees: owed.map(() => memberFee()),
     method: loot.splitMethod === "FAIR" ? "fair" : "lazy",
   });
 

@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 import { PartyCard } from "@/components/party-card";
 import { apiAssetUrl, apiFetch } from "@/lib/api";
 import { peek, put } from "@/lib/cache";
-import { expandParties } from "@/lib/parties";
+import { byBoss, byCharacter } from "@/lib/parties";
 import { preloadBossArt } from "@/lib/preload-boss-art";
 import type { Boss } from "@/types/boss";
 import type { Character } from "@/types/character";
@@ -14,8 +14,9 @@ import type { Party } from "@/types/party";
 
 type LoadState = "loading" | "loaded" | "error";
 
-// Two independent splits, not two modes. A duo that runs three bosses is one row, three rows or
-// three rows per character of yours in it, depending on which of these is on.
+// The same configs, read two ways. By character: what does this character owe the week. By boss:
+// who am I doing Kalos with tonight. Neither is a filter, so nothing is ever hidden by the choice.
+type Grouping = "character" | "boss";
 
 const PARTIES_KEY = "/api/parties";
 const BOSSES_KEY = "/api/bosses";
@@ -27,7 +28,6 @@ export default function PartiesPage() {
 
   const { getToken } = useAuth();
 
-  // Seeded from cache so a repeat visit paints immediately, as the other pages do. See lib/cache.ts.
   const seededParties = peek<Party[]>(PARTIES_KEY);
   const seededBosses = peek<Boss[]>(BOSSES_KEY);
   const seededCharacters = peek<Character[]>(CHARACTERS_KEY);
@@ -38,8 +38,7 @@ export default function PartiesPage() {
   const [state, setState] = useState<LoadState>(
     seededParties && seededBosses && seededCharacters ? "loaded" : "loading",
   );
-  const [byBoss, setByBoss] = useState(false);
-  const [byCharacter, setByCharacter] = useState(false);
+  const [grouping, setGrouping] = useState<Grouping>("character");
 
   useEffect(() => {
     // One token for the whole burst, as the boss page does: getToken() can round-trip to Clerk,
@@ -68,21 +67,20 @@ export default function PartiesPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const bossByKey = new Map(bosses.map((b) => [b.bossKey, b]));
   const characterById = new Map(characters.map((c) => [c.id, c]));
-  const rows = expandParties(
+  const bossByKey = new Map(bosses.map((b) => [b.bossKey, b]));
+  const characterGroups = byCharacter(
     parties,
-    bosses,
     characters.map((c) => c.id),
-    { byBoss, byCharacter },
   );
+  const bossGroups = byBoss(parties, bosses);
 
   return (
     <main className="page">
       <h1 className="page-title">Parties</h1>
       <p className="split-intro">
-        Who each character actually runs with. A party is a roster, not a clear: what died stays on
-        Boss Clears, read from your planner.
+        What each character runs each boss with. A boss they solo has no party, so it is not here. A
+        party is a roster, not a clear: what died stays on Boss Clears, read from your planner.
       </p>
 
       {state === "error" && <p>Couldn&apos;t load your parties.</p>}
@@ -91,23 +89,21 @@ export default function PartiesPage() {
       {state === "loaded" && (
         <>
           <div className="party-toolbar">
-            <div className="party-splits" role="group" aria-label="Split the list by">
-              <label className={byBoss ? "party-chip is-on" : "party-chip"}>
-                <input
-                  type="checkbox"
-                  checked={byBoss}
-                  onChange={(e) => setByBoss(e.target.checked)}
-                />
-                By boss
-              </label>
-              <label className={byCharacter ? "party-chip is-on" : "party-chip"}>
-                <input
-                  type="checkbox"
-                  checked={byCharacter}
-                  onChange={(e) => setByCharacter(e.target.checked)}
-                />
+            <div className="basis-row" role="group" aria-label="Group parties by">
+              <button
+                type="button"
+                className={grouping === "character" ? "basis-tab active" : "basis-tab"}
+                onClick={() => setGrouping("character")}
+              >
                 By character
-              </label>
+              </button>
+              <button
+                type="button"
+                className={grouping === "boss" ? "basis-tab active" : "basis-tab"}
+                onClick={() => setGrouping("boss")}
+              >
+                By boss
+              </button>
             </div>
             <Link className="party-cancel" href="/bosses/parties/edit">
               Edit parties
@@ -116,43 +112,75 @@ export default function PartiesPage() {
 
           {parties.length === 0 && (
             <p className="finder-empty">
-              No parties yet. <Link href="/bosses/parties/edit">Set them up</Link> as a grid: a
-              column per person, a row per party.
+              No parties yet. <Link href="/bosses/parties/edit">Set them up</Link>: pick a
+              character, then say who they run each boss with.
             </p>
           )}
 
-          <div className="party-list">
-            {rows.map(({ party, boss, characterId }) => {
-              const character = characterId ? characterById.get(characterId) : null;
-              const heading = boss || character;
+          {grouping === "character" &&
+            characterGroups.map((group) => {
+              const character = characterById.get(group.key);
               return (
-                <article
-                  className="boss-run"
-                  key={`${party.id}-${boss?.key ?? ""}-${characterId ?? ""}`}
-                >
-                  {heading && (
-                    <header className="boss-run-head">
-                      {boss?.iconUrl && (
-                        <img className="boss-portrait" src={apiAssetUrl(boss.iconUrl)} alt="" />
-                      )}
-                      {boss && <h3 className="boss-run-name">{boss.name}</h3>}
-                      {character && (
-                        <span className="boss-run-character">
-                          {character.spriteImgUrl && (
-                            <img className="seat-sprite" src={character.spriteImgUrl} alt="" />
+                <section className="party-group" key={group.key}>
+                  <header className="party-group-head">
+                    {character?.spriteImgUrl && (
+                      <img className="party-group-sprite" src={character.spriteImgUrl} alt="" />
+                    )}
+                    <h2 className="party-group-name">{character?.name ?? "Unknown character"}</h2>
+                  </header>
+                  <div className="party-list">
+                    {group.parties.map((party) => (
+                      <article className="boss-run" key={party.id}>
+                        <header className="boss-run-head">
+                          {bossByKey.get(party.bossKey)?.iconUrl && (
+                            <img
+                              className="boss-portrait"
+                              src={apiAssetUrl(bossByKey.get(party.bossKey)!.iconUrl!)}
+                              alt=""
+                            />
                           )}
-                          {character.name}
-                        </span>
-                      )}
-                    </header>
-                  )}
-                  {/* When the row IS a boss, the party's other bosses are not repeated inside it:
-                      listing them under this heading reads as though they were also this row. */}
-                  <PartyCard party={party} bossByKey={bossByKey} hideBosses={boss !== null} />
-                </article>
+                          <h3 className="boss-run-name">
+                            {bossByKey.get(party.bossKey)?.name ?? party.bossKey}
+                          </h3>
+                        </header>
+                        <PartyCard party={party} />
+                      </article>
+                    ))}
+                  </div>
+                </section>
               );
             })}
-          </div>
+
+          {grouping === "boss" &&
+            bossGroups.map((group) => (
+              <section className="party-group" key={group.key.bossKey}>
+                <header className="party-group-head">
+                  {group.key.iconUrl && (
+                    <img className="boss-portrait" src={apiAssetUrl(group.key.iconUrl)} alt="" />
+                  )}
+                  <h2 className="party-group-name">{group.key.name}</h2>
+                </header>
+                <div className="party-list">
+                  {group.parties.map((party) => (
+                    <article className="boss-run" key={party.id}>
+                      <header className="boss-run-head">
+                        {characterById.get(party.characterId)?.spriteImgUrl && (
+                          <img
+                            className="seat-sprite"
+                            src={characterById.get(party.characterId)!.spriteImgUrl!}
+                            alt=""
+                          />
+                        )}
+                        <h3 className="boss-run-name">
+                          {characterById.get(party.characterId)?.name ?? "Unknown character"}
+                        </h3>
+                      </header>
+                      <PartyCard party={party} />
+                    </article>
+                  ))}
+                </div>
+              </section>
+            ))}
         </>
       )}
     </main>

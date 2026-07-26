@@ -39,7 +39,7 @@ export function LootPool({
   onSetPaid: (lootId: string, memberId: string, paid: boolean) => void;
   onDelete: (lootId: string) => void;
 }) {
-  const [bossKey, setBossKey] = useState(party.bossKeys[0] ?? "");
+  const bossKey = party.bossKey;
   const [dropKey, setDropKey] = useState("");
   const [customName, setCustomName] = useState("");
 
@@ -73,25 +73,8 @@ export function LootPool({
           />
         )}
 
-        <select
-          className="split-input"
-          value={bossKey}
-          onChange={(e) => {
-            setBossKey(e.target.value);
-            // The drop belongs to the boss that was selected when it was picked, so changing the
-            // boss clears it rather than filing a Kalos drop under Limbo.
-            setDropKey("");
-          }}
-          aria-label="Which boss dropped it"
-        >
-          {party.bossKeys.length === 0 && <option value="">no boss</option>}
-          {party.bossKeys.map((key) => (
-            <option key={key} value={key}>
-              {bossByKey.get(key)?.name ?? key}
-            </option>
-          ))}
-        </select>
-
+        {/* No boss picker: a pool belongs to a config, and a config IS one boss. Choosing again
+            here would let a Kalos drop be filed under Limbo in Kalos's own pool. */}
         <select
           className="split-input loot-drop-select"
           value={dropKey}

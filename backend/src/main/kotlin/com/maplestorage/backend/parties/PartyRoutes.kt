@@ -1,7 +1,7 @@
 package com.maplestorage.backend.parties
 
+import com.maplestorage.backend.db.Characters
 import com.maplestorage.backend.db.Party
-import com.maplestorage.backend.db.Person
 import com.maplestorage.backend.plugins.parseUuidParam
 import com.maplestorage.backend.plugins.principalIdAndEmail
 import com.maplestorage.backend.services.NexonLookupService
@@ -14,32 +14,34 @@ import io.ktor.server.routing.Route
 import io.ktor.server.routing.RoutingContext
 import io.ktor.server.routing.delete
 import io.ktor.server.routing.get
+import io.ktor.server.routing.post
 import io.ktor.server.routing.put
 import io.ktor.server.routing.route
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import kotlin.time.Clock
 import kotlin.time.Duration.Companion.days
+import kotlin.uuid.Uuid
+
+// A config is one of your characters, on one boss, with the people that character runs it with.
+// The character and the boss are what it IS, so they are set once, at create.
 
 fun Route.partyRoutes(nexonLookupService: NexonLookupService) {
     get { listParties() }
-    // Registered before /{id}, or the parameter route swallows the literal.
-    get("/grid") { getGrid() }
-    // The only way to write a party. One editing surface, so the roster cannot be edited into two
-    // different shapes by two different endpoints.
-    put("/grid") { saveGridRoute(nexonLookupService) }
+    post { createPartyRoute(nexonLookupService) }
     get("/{id}") { getParty() }
+    put("/{id}") { savePartyRoute(nexonLookupService) }
     delete("/{id}") { deletePartyRoute() }
     route("/{id}/loot") { lootRoutes() }
 }
 
 // A lookup is worth retrying after this long. A name that resolved to nothing is usually a typo or
-// a character too new to rank, and neither is worth an outbound call on every save; a week is long
-// enough to be free in practice and short enough that a fixed name comes back on its own.
+// a character too new to rank, and neither is worth an outbound call on every save.
 private val SPRITE_RETRY_AFTER = 7.days
 
 private suspend fun RoutingContext.listParties() {
@@ -50,60 +52,6 @@ private suspend fun RoutingContext.listParties() {
             partiesFor(userId)
         }
     call.respond(parties)
-}
-
-private suspend fun RoutingContext.getGrid() {
-    val (userId, email) = call.principalIdAndEmail()
-    val grid =
-        transaction {
-            ensureUser(userId, email)
-            gridFor(userId)
-        }
-    call.respond(grid)
-}
-
-/**
- * The whole roster, saved in one request.
- *
- * Validated before anything is written, so a grid that cannot be saved leaves the old one exactly
- * as it was rather than half applied.
- */
-private suspend fun RoutingContext.saveGridRoute(nexonLookupService: NexonLookupService) {
-    val (userId, email) = call.principalIdAndEmail()
-    val request = call.receive<SaveGridRequest>()
-
-    val known =
-        transaction {
-            ensureUser(userId, email)
-            seatSpritesByCharacter(userId)
-        }
-    // Outside the transaction: an outbound HTTP call per name, and holding a connection across it
-    // would tie up the pool for as long as Nexon takes to answer.
-    val sprites = lookUpSeatSprites(request, known, nexonLookupService)
-
-    val outcome =
-        transaction {
-            val ownedPeople =
-                Person
-                    .selectAll()
-                    .where { Person.userId eq userId }
-                    .map { it[Person.id] }
-                    .toSet()
-            val ownedParties =
-                Party
-                    .selectAll()
-                    .where { Party.userId eq userId }
-                    .map { it[Party.id] }
-                    .toSet()
-            val problem = validateGrid(request, userId, ownedPeople, ownedParties)
-            problem ?: saveGrid(userId, request, Clock.System.now(), sprites)
-        }
-
-    when (outcome) {
-        is String -> call.respond(HttpStatusCode.BadRequest, outcome)
-        is PartyGridResponse -> call.respond(outcome)
-        else -> call.respond(HttpStatusCode.InternalServerError)
-    }
 }
 
 private suspend fun RoutingContext.getParty() {
@@ -117,38 +65,160 @@ private suspend fun RoutingContext.getParty() {
     if (party == null) call.respond(HttpStatusCode.NotFound) else call.respond(party)
 }
 
+private suspend fun RoutingContext.createPartyRoute(nexonLookupService: NexonLookupService) {
+    val (userId, email) = call.principalIdAndEmail()
+    val request = call.receive<SavePartyRequest>()
+    val sprites = lookUpSprites(userId, request, email, nexonLookupService)
+
+    val outcome =
+        transaction {
+            val characterId = Uuid.parseOrNull(request.characterId)
+            val bossId = bossIdForKey(request.bossKey)
+            val problem = validateNewParty(request, userId, characterId, bossId)
+            if (problem != null) {
+                problem
+            } else {
+                val id = createParty(userId, characterId!!, bossId!!, request, Clock.System.now(), sprites)
+                findParty(id, userId)!!
+            }
+        }
+    respondToSave(outcome, HttpStatusCode.Created)
+}
+
+private suspend fun RoutingContext.savePartyRoute(nexonLookupService: NexonLookupService) {
+    val (userId, email) = call.principalIdAndEmail()
+    val partyId = call.parseUuidParam("id") ?: return
+    val request = call.receive<SavePartyRequest>()
+    val sprites = lookUpSprites(userId, request, email, nexonLookupService)
+
+    val outcome =
+        transaction {
+            if (!ownsParty(partyId, userId)) {
+                null
+            } else {
+                val problem = validateMembers(request.members)
+                if (problem != null) {
+                    problem
+                } else {
+                    saveParty(userId, partyId, request, Clock.System.now(), sprites)
+                    findParty(partyId, userId)!!
+                }
+            }
+        }
+    respondToSave(outcome, HttpStatusCode.OK)
+}
+
 private suspend fun RoutingContext.deletePartyRoute() {
     val (userId, email) = call.principalIdAndEmail()
     val partyId = call.parseUuidParam("id") ?: return
-    val deleted =
+
+    val outcome =
         transaction {
             ensureUser(userId, email)
-            deleteParty(partyId, userId)
+            when {
+                !ownsParty(partyId, userId) -> null
+                // Deleting the config would take its pool with it, and a paid-out split is a
+                // record rather than a setting.
+                lootCountsFor(listOf(partyId)).isNotEmpty() ->
+                    "this party has loot in its pool, clear the pool first"
+                else -> {
+                    deleteParty(partyId, userId)
+                    HttpStatusCode.NoContent
+                }
+            }
         }
-    call.respond(if (deleted) HttpStatusCode.NoContent else HttpStatusCode.NotFound)
+    when (outcome) {
+        null -> call.respond(HttpStatusCode.NotFound)
+        is String -> call.respond(HttpStatusCode.BadRequest, outcome)
+        else -> call.respond(HttpStatusCode.NoContent)
+    }
+}
+
+private suspend fun RoutingContext.respondToSave(
+    outcome: Any?,
+    onSuccess: HttpStatusCode,
+) {
+    when (outcome) {
+        null -> call.respond(HttpStatusCode.NotFound)
+        is String -> call.respond(HttpStatusCode.BadRequest, outcome)
+        is PartyResponse -> call.respond(onSuccess, outcome)
+        else -> call.respond(HttpStatusCode.InternalServerError)
+    }
 }
 
 /**
- * Sprites for the cells that need one, looked up by character name.
+ * Why this config cannot be created, or null.
  *
- * A cell holding one of your own characters is skipped: those read the character's own sprite,
- * refreshed where it belongs. A character already carrying a sprite is left alone, and one whose
- * lookup came back empty recently is not asked again.
- *
- * Never throws: NexonLookupService swallows its own failures, and a roster must save whether or
- * not a portrait could be found.
+ * Refuses rather than repairs: a second config for the same character and boss, a boss the catalog
+ * does not have, or somebody else's character would each save something the user did not ask for.
+ * Must run inside a transaction.
  */
-private suspend fun lookUpSeatSprites(
-    request: SaveGridRequest,
-    known: Map<String, SeatSprite>,
+internal fun validateNewParty(
+    request: SavePartyRequest,
+    userId: String,
+    characterId: Uuid?,
+    bossCatalogId: Uuid?,
+): String? {
+    val owned =
+        characterId != null &&
+            Characters
+                .selectAll()
+                .where { (Characters.id eq characterId) and (Characters.userId eq userId) }
+                .empty()
+                .not()
+    val taken =
+        characterId != null &&
+            bossCatalogId != null &&
+            Party
+                .selectAll()
+                .where { (Party.characterId eq characterId) and (Party.bossCatalogId eq bossCatalogId) }
+                .empty()
+                .not()
+
+    return when {
+        !owned -> "characterId must be one of your characters"
+        bossCatalogId == null -> "unknown bossKey"
+        taken -> "that character already has a party for this boss"
+        else -> validateMembers(request.members)
+    }
+}
+
+/** The rules a config's roster has to keep, wherever it is being written. */
+internal fun validateMembers(members: List<String>): String? {
+    val names = members.map { it.trim() }
+    return when {
+        // Your own character is the config; the members are the others. Nobody else means a solo
+        // run, and a solo run is not a party.
+        names.isEmpty() -> "a party needs somebody else in it"
+        names.size > MAX_PARTY_SIZE - 1 -> "a party holds at most $MAX_PARTY_SIZE including your character"
+        names.any { it.isBlank() } -> "a member needs a character name"
+        names.map { it.lowercase() }.distinct().size != names.size -> "the same character twice"
+        else -> null
+    }
+}
+
+/**
+ * Sprites for the members that need one, looked up by character name.
+ *
+ * A member who is one of your own characters is skipped: those read the character's own sprite.
+ * A name already carrying a sprite is left alone, and one whose lookup came back empty recently is
+ * not asked again. Never throws.
+ */
+private suspend fun RoutingContext.lookUpSprites(
+    userId: String,
+    request: SavePartyRequest,
+    email: String,
     nexonLookupService: NexonLookupService,
 ): Map<String, String?> {
+    val known =
+        transaction {
+            ensureUser(userId, email)
+            seatSpritesByCharacter(userId)
+        }
     val now = Clock.System.now()
     val wanted =
-        request.parties
-            // By IGN where there is one: a label like "2nd mech" would find nothing, and asking
-            // for it every save is a round trip that can never succeed.
-            .flatMap { party -> party.seats.map { (it.ign ?: it.characterName).trim() } }
+        request.members
+            .map { it.trim() }
             .filter { it.isNotEmpty() }
             .distinct()
             .filter { name ->
@@ -158,6 +228,8 @@ private suspend fun lookUpSeatSprites(
             }
     if (wanted.isEmpty()) return emptyMap()
 
+    // Outside the transaction above: an outbound HTTP call per name, and holding a connection
+    // across it would tie up the pool for as long as Nexon takes to answer.
     return coroutineScope {
         wanted
             .map { name -> async { name to nexonLookupService.lookup(name)?.spriteImgUrl } }

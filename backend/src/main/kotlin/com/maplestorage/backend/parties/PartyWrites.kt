@@ -1,10 +1,13 @@
 package com.maplestorage.backend.parties
 
+import com.maplestorage.backend.db.Characters
 import com.maplestorage.backend.db.Party
-import com.maplestorage.backend.db.PartyBoss
 import com.maplestorage.backend.db.PartyMember
+import com.maplestorage.backend.db.Person
+import com.maplestorage.backend.db.PersonCharacter
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.core.inList
 import org.jetbrains.exposed.v1.core.notInList
 import org.jetbrains.exposed.v1.jdbc.deleteWhere
 import org.jetbrains.exposed.v1.jdbc.insert
@@ -13,72 +16,59 @@ import org.jetbrains.exposed.v1.jdbc.update
 import kotlin.time.Instant
 import kotlin.uuid.Uuid
 
-// The per-party writes the grid save is built out of (see GridWrites.kt, which is the only caller
-// and the only editing surface). Every function must run inside a transaction, on input the route
-// has already validated.
-
-/** One cell of the grid, resolved: who, on which character, and whether that character is yours. */
-internal data class Seat(
-    val personId: Uuid,
-    // What the cell says, which may be a label for the character.
-    val characterName: String,
-    // Who that is, when the label is not the name. Null when the label is the name.
-    val ign: String?,
-    val characterId: Uuid?,
-) {
-    /** The name to look a sprite up by, and to link against the roster: the IGN if there is one. */
-    val lookupName: String get() = ign ?: characterName
-}
-
-/** One row of the grid, resolved: what it is called, what it runs, and who is in it. */
-internal data class PartyContent(
-    val name: String?,
-    val bossKeys: List<String>,
-    val seats: List<Seat>,
-)
+// Writes behind /api/parties and /api/people. Inside a transaction, on input the route has
+// already validated.
 
 internal fun createParty(
     userId: String,
-    content: PartyContent,
+    characterId: Uuid,
+    bossCatalogId: Uuid,
+    request: SavePartyRequest,
     now: Instant,
-    // character name -> sprite the Nexon lookup found, or null when it came back empty. Only names
-    // actually looked up appear; the rest keep whatever the row already had.
+    // character name -> sprite the Nexon lookup found, or null when it came back empty.
     sprites: Map<String, String?> = emptyMap(),
 ): Uuid {
     val partyId = Uuid.random()
     Party.insert {
         it[id] = partyId
         it[Party.userId] = userId
-        it[Party.name] = content.name?.trim()?.ifBlank { null }
+        it[Party.characterId] = characterId
+        it[Party.bossCatalogId] = bossCatalogId
+        it[name] = request.name?.trim()?.ifBlank { null }
         it[createdAt] = now
         it[updatedAt] = now
     }
-    writeMembers(partyId, content.seats, sprites, now)
-    writeBosses(partyId, content.bossKeys)
+    writeMembers(userId, partyId, characterId, request.members, sprites, now)
     return partyId
 }
 
 /**
- * Replaces the party's name, seats and bosses with what was submitted.
+ * Replaces the config's label and members.
  *
- * Seats are matched to existing rows by PERSON, not by seat id: the grid's cell for (party,
- * person) is the same seat however the character in it changes. Keeping the row is what keeps a
- * loot payout pointing at somebody, so changing which character Jared brought must not re-create
- * the seat that says Jared was paid.
+ * The character and the boss are not editable: they are what the config IS, and changing either
+ * would silently turn "Kalos on mechyfechy" into a different question with the same loot pool
+ * hanging off it. Delete it and make the other one instead.
+ *
+ * Seats are matched to existing rows by character NAME, so correcting a label or reordering the
+ * list keeps the row a loot payout points at.
  */
 internal fun saveParty(
-    partyId: Uuid,
     userId: String,
-    content: PartyContent,
+    partyId: Uuid,
+    request: SavePartyRequest,
     now: Instant,
     sprites: Map<String, String?> = emptyMap(),
 ) {
+    val characterId =
+        Party
+            .selectAll()
+            .where { (Party.id eq partyId) and (Party.userId eq userId) }
+            .first()[Party.characterId]
     Party.update({ (Party.id eq partyId) and (Party.userId eq userId) }) {
-        it[Party.name] = content.name?.trim()?.ifBlank { null }
+        it[name] = request.name?.trim()?.ifBlank { null }
         it[updatedAt] = now
     }
-    writeMembers(partyId, content.seats, sprites, now)
-    writeBosses(partyId, content.bossKeys)
+    writeMembers(userId, partyId, characterId, request.members, sprites, now)
 }
 
 internal fun deleteParty(
@@ -86,56 +76,77 @@ internal fun deleteParty(
     userId: String,
 ): Boolean = Party.deleteWhere { (Party.id eq partyId) and (Party.userId eq userId) } > 0
 
+/**
+ * Writes the seats, YOUR character first.
+ *
+ * The API takes the others, because that is what you type: the config already knows whose it is.
+ * Your character is stored as a seat anyway, and that is not bookkeeping for its own sake. A loot
+ * pool's payouts point at seats, and you are usually the one who sold the drop, so leaving
+ * yourself out would make the seller of most drops unnameable.
+ */
 private fun writeMembers(
+    userId: String,
     partyId: Uuid,
-    seats: List<Seat>,
+    ownCharacterId: Uuid,
+    members: List<String>,
     sprites: Map<String, String?>,
     now: Instant,
 ) {
+    val ownName =
+        Characters
+            .selectAll()
+            .where { Characters.id eq ownCharacterId }
+            .first()[Characters.name]
+    val names = listOf(ownName) + members.map { it.trim() }.filterNot { it.equals(ownName, ignoreCase = true) }
     val existing =
         PartyMember
             .selectAll()
             .where { PartyMember.partyId eq partyId }
-            .associate { it[PartyMember.personId] to it[PartyMember.id] }
+            .associate { it[PartyMember.name].lowercase() to it[PartyMember.id] }
 
-    val kept = seats.mapNotNull { existing[it.personId] }
+    val kept = names.mapNotNull { existing[it.lowercase()] }
     if (kept.isEmpty()) {
         PartyMember.deleteWhere { PartyMember.partyId eq partyId }
     } else {
         PartyMember.deleteWhere { (PartyMember.partyId eq partyId) and (PartyMember.id notInList kept) }
     }
 
-    // Positions are rewritten from the submitted order every time, so they stay dense.
-    seats.forEachIndexed { index, seat ->
+    // Your own characters, by lowercased name: a seat naming one of them is linked to it, so it
+    // shows the roster's sprite. Names are unique per world, so this cannot bind somebody else's.
+    val mine =
+        Characters
+            .selectAll()
+            .where { Characters.userId eq userId }
+            .associate { it[Characters.name].lowercase() to it[Characters.id] }
+
+    names.forEachIndexed { index, name ->
+        val characterId = mine[name.lowercase()]
         // A seat of yours reads its sprite off the character, so no copy is kept here: a copy
         // would go stale the moment the character's own sprite is refreshed.
-        val looked = seat.characterId == null && sprites.containsKey(seat.lookupName)
-        val seatId = existing[seat.personId]
+        val looked = characterId == null && sprites.containsKey(name)
+        val seatId = existing[name.lowercase()]
         if (seatId == null) {
             PartyMember.insert {
                 it[id] = Uuid.random()
                 it[PartyMember.partyId] = partyId
-                it[personId] = seat.personId
-                it[name] = seat.characterName
-                it[ign] = seat.ign
-                it[characterId] = seat.characterId
+                it[PartyMember.name] = name
+                it[PartyMember.characterId] = characterId
                 it[position] = index
-                it[spriteImgUrl] = if (looked) sprites[seat.lookupName] else null
+                it[spriteImgUrl] = if (looked) sprites[name] else null
                 it[spriteRefreshedAt] = if (looked) now else null
             }
         } else {
             PartyMember.update({ PartyMember.id eq seatId }) {
-                it[name] = seat.characterName
-                it[ign] = seat.ign
-                it[characterId] = seat.characterId
+                it[PartyMember.name] = name
+                it[PartyMember.characterId] = characterId
                 it[position] = index
                 // Left alone unless this character was looked up just now, or the seat became one
-                // of yours. Otherwise a save that only reorders columns would wipe every sprite.
-                if (seat.characterId != null) {
+                // of yours. Otherwise a save that only reorders seats would wipe every sprite.
+                if (characterId != null) {
                     it[spriteImgUrl] = null
                     it[spriteRefreshedAt] = null
                 } else if (looked) {
-                    it[spriteImgUrl] = sprites[seat.lookupName]
+                    it[spriteImgUrl] = sprites[name]
                     it[spriteRefreshedAt] = now
                 }
             }
@@ -143,18 +154,61 @@ private fun writeMembers(
     }
 }
 
-private fun writeBosses(
-    partyId: Uuid,
-    bossKeys: List<String>,
+/**
+ * Replaces the people list and every character attributed to them.
+ *
+ * Configs are untouched: they name characters, and this only says whose those characters are. So
+ * removing a person leaves every seat exactly where it was, showing no owner.
+ */
+internal fun savePeople(
+    userId: String,
+    request: SavePeopleRequest,
+    now: Instant,
 ) {
-    // Validated before it gets here, so a missing key at this point is a bug, not user input. Same
-    // reasoning as upsertBossClears: fail loudly rather than write a short list.
-    val ids = bossIdsForKeys(bossKeys) ?: error("unvalidated boss keys reached writeBosses: $bossKeys")
-    PartyBoss.deleteWhere { PartyBoss.partyId eq partyId }
-    ids.values.forEach { bossId ->
-        PartyBoss.insert {
-            it[PartyBoss.partyId] = partyId
-            it[bossCatalogId] = bossId
-        }
+    val kept = mutableListOf<Uuid>()
+    for (person in request.people) {
+        val name = person.name.trim()
+        val existing = person.id?.let(Uuid::parseOrNull)
+        val personId =
+            if (existing == null) {
+                val id = Uuid.random()
+                Person.insert {
+                    it[Person.id] = id
+                    it[Person.userId] = userId
+                    it[Person.name] = name
+                    it[createdAt] = now
+                    it[updatedAt] = now
+                }
+                id
+            } else {
+                Person.update({ (Person.id eq existing) and (Person.userId eq userId) }) {
+                    it[Person.name] = name
+                    it[updatedAt] = now
+                }
+                existing
+            }
+        kept += personId
+
+        PersonCharacter.deleteWhere { PersonCharacter.personId eq personId }
+        person.characters
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
+            .distinctBy { it.lowercase() }
+            .forEach { character ->
+                PersonCharacter.insert {
+                    it[PersonCharacter.id] = Uuid.random()
+                    it[PersonCharacter.personId] = personId
+                    it[PersonCharacter.userId] = userId
+                    it[PersonCharacter.name] = character
+                }
+            }
     }
+
+    val doomed =
+        Person
+            .selectAll()
+            .where { Person.userId eq userId }
+            .map { it[Person.id] }
+            .filterNot { it in kept }
+    if (doomed.isNotEmpty()) Person.deleteWhere { Person.id inList doomed }
 }

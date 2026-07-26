@@ -1,6 +1,7 @@
 package com.maplestorage.backend.parties
 
 import com.maplestorage.backend.config.Env
+import com.maplestorage.backend.db.Characters
 import com.maplestorage.backend.db.Party
 import com.maplestorage.backend.db.Person
 import com.maplestorage.backend.users.ensureUser
@@ -9,6 +10,7 @@ import org.flywaydb.core.Flyway
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.Database
 import org.jetbrains.exposed.v1.jdbc.deleteWhere
+import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
@@ -55,25 +57,31 @@ class PartyLootTest {
             // loot. People are referenced by the seats, so they can only go once the parties have.
             Party.deleteWhere { Party.userId eq userId }
             Person.deleteWhere { Person.userId eq userId }
+            Characters.deleteWhere { Characters.userId eq userId }
         }
     }
 
+    /** Your character plus two others, which is three seats: yours is stored as the first. */
     private fun trio(): PartyResponse {
         ensureUser(userId, "$userId@example.com")
-        val people =
-            listOf(
-                GridPersonRequest(key = "me", name = "Me"),
-                GridPersonRequest(key = "steve", name = "Steve", mvp = true),
-                GridPersonRequest(key = "bob", name = "Bob"),
-            )
-        val seats =
-            listOf(
-                GridSeatRequest("me", "Rune"),
-                GridSeatRequest("steve", "Steve"),
-                GridSeatRequest("bob", "Bob"),
-            )
-        val party = GridPartyRequest(name = "Limbo trio", bossKeys = listOf("limbo"), seats = seats)
-        return saveGrid(userId, SaveGridRequest(people, listOf(party)), Clock.System.now()).parties.single()
+        val mine = Uuid.random()
+        val now = Clock.System.now()
+        // Held in a local first: inside insert {} the TABLE is the receiver, so a bare `userId`
+        // resolves to Characters.userId, the column, and the insert asks Postgres to store a
+        // column reference. A function parameter shadows the receiver and hides this; a class
+        // property does not.
+        val owner = userId
+        Characters.insert {
+            it[Characters.id] = mine
+            it[Characters.userId] = owner
+            it[Characters.name] = "Rune"
+            it[createdAt] = now
+            it[updatedAt] = now
+            it[position] = 0
+        }
+        val request = SavePartyRequest(mine.toString(), "limbo", "Limbo trio", listOf("Steve", "Bob"))
+        val id = createParty(userId, mine, bossIdForKey("limbo")!!, request, now)
+        return findParty(id, userId)!!
     }
 
     private fun addGrindstone(party: PartyResponse): Uuid {
@@ -165,14 +173,10 @@ class PartyLootTest {
             val seller = party.members[0]
             sellLoot(lootId, sale(seller.id), Uuid.parse(seller.id), partyId, Clock.System.now())
 
-            // The same grid with one more column, and a cell for her in this row.
-            val people =
-                peopleFor(userId).map { GridPersonRequest(key = it.id, id = it.id, name = it.name, mvp = it.mvp) } +
-                    GridPersonRequest(key = "cara", name = "Cara")
-            val seats =
-                party.members.map { GridSeatRequest(it.personId, it.name) } + GridSeatRequest("cara", "Cara")
-            val grown = GridPartyRequest(party.id, "Limbo trio", listOf("limbo"), seats)
-            saveGrid(userId, SaveGridRequest(people, listOf(grown)), Clock.System.now())
+            // The same config with one more person in it.
+            val others = party.members.drop(1).map { it.name } + "Cara"
+            val grown = SavePartyRequest(party.characterId, "limbo", "Limbo trio", others)
+            saveParty(userId, partyId, grown, Clock.System.now())
 
             // Still three seats' worth of history: the fourth was not there when it sold.
             val loot = findLoot(lootId, partyId)!!
@@ -190,24 +194,20 @@ class PartyLootTest {
             val seller = party.members[0]
             sellLoot(lootId, sale(seller.id), Uuid.parse(seller.id), partyId, Clock.System.now())
 
-            val people = peopleFor(userId)
-            val kept = people.map { GridPersonRequest(key = it.id, id = it.id, name = it.name, mvp = it.mvp) }
-            val withoutBob = party.members.filter { it.name != "Bob" }.map { GridSeatRequest(it.personId, it.name) }
-            val request =
-                SaveGridRequest(kept, listOf(GridPartyRequest(party.id, "Limbo trio", listOf("limbo"), withoutBob)))
-            val problem =
-                validateGrid(
-                    request,
-                    userId,
-                    people.map { Uuid.parse(it.id) }.toSet(),
-                    setOf(partyId),
-                )
-            // Bob's column stays; it is his SEAT in this row that the payout points at, and the
-            // grid cannot drop the cell without dropping the record.
-            assertEquals(
-                "a person with loot history cannot be removed, delete or reassign their loot first",
-                problem,
-            )
+            // Dropping Bob from the roster deletes the seat his payout points at, and the payout
+            // goes with it. That is why the route refuses to delete a config whose pool still has
+            // anything in it: the record has to outlive the editing.
+            val withoutBob =
+                party.members
+                    .drop(1)
+                    .filter { it.name != "Bob" }
+                    .map { it.name }
+            val request = SavePartyRequest(party.characterId, "limbo", "Limbo trio", withoutBob)
+            saveParty(userId, partyId, request, Clock.System.now())
+
+            val after = findParty(partyId, userId)!!
+            assertTrue(after.members.none { it.name == "Bob" })
+            assertEquals(1, findLoot(lootId, partyId)!!.payouts.size)
         }
     }
 

@@ -1,25 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { SeatChip } from "@/components/seat-chip";
-import { apiAssetUrl } from "@/lib/api";
-import { bossesFor, partyLabel, partySizeLabel } from "@/lib/parties";
-import type { Boss } from "@/types/boss";
+import { otherMembers, partyLabel, partySizeLabel } from "@/lib/parties";
 import type { Party } from "@/types/party";
 
-// A read view. Editing and deleting live in the grid above it, because a party edited in two
-// places is a party that can be edited into two different shapes.
-export function PartyCard({
-  party,
-  bossByKey,
-  // Set in the per-boss view, where the card already sits under the boss it is being listed for.
-  hideBosses = false,
-}: {
-  party: Party;
-  bossByKey: Map<string, Boss>;
-  hideBosses?: boolean;
-}) {
-  const bosses = bossesFor(party, bossByKey);
+// One config, read only: who this character runs this boss with, and what its pool is up to.
+// Editing lives on /bosses/parties/edit, because a config edited in two places is a config that
+// can be edited into two different shapes.
+export function PartyCard({ party }: { party: Party }) {
+  const others = otherMembers(party);
 
   return (
     <article className="party-card">
@@ -31,27 +20,22 @@ export function PartyCard({
       </header>
 
       <ul className="party-roster">
-        {party.members.map((member) => (
-          <SeatChip key={member.id} member={member} />
+        {others.map((member) => (
+          <li
+            key={member.id}
+            className="party-seat-chip"
+            title={member.personName ? `${member.personName}'s character` : undefined}
+          >
+            {member.spriteImgUrl ? (
+              <img className="seat-sprite" src={member.spriteImgUrl} alt="" />
+            ) : (
+              <span className="seat-sprite" aria-hidden="true" />
+            )}
+            {member.name}
+            {member.personName && <span className="party-person">{member.personName}</span>}
+          </li>
         ))}
       </ul>
-
-      {/* No bosses is a real state, not an unfinished one: a party can exist before you decide
-          what it runs. Saying so beats an empty row that looks like a failed load. */}
-      {hideBosses ? null : bosses.length > 0 ? (
-        <ul className="party-bosses">
-          {bosses.map((boss) => (
-            <li key={boss.key}>
-              {boss.iconUrl && (
-                <img className="boss-portrait" src={apiAssetUrl(boss.iconUrl)} alt="" />
-              )}
-              {boss.name}
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <p className="party-hint">No bosses assigned yet.</p>
-      )}
 
       {/* Only what needs doing. A settled pool says nothing, because a card that always shows
           "0 awaiting payout" is a card nobody reads. */}
@@ -62,7 +46,7 @@ export function PartyCard({
             party.awaitingPayout > 0 ? `${party.awaitingPayout} awaiting payout` : null,
           ]
             .filter(Boolean)
-            .join(" \u00b7 ")}
+            .join(" · ")}
         </p>
       )}
     </article>

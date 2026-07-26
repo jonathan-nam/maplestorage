@@ -11,7 +11,7 @@ import { preloadBossArt } from "@/lib/preload-boss-art";
 import { ApiError, apiFetch } from "@/lib/api";
 import { peek, put } from "@/lib/cache";
 import { summarize } from "@/lib/loot";
-import { bossesFor, partyLabel, partySizeLabel } from "@/lib/parties";
+import { partyLabel, partySizeLabel } from "@/lib/parties";
 import type { Boss } from "@/types/boss";
 import type { DropTables } from "@/types/drop";
 import type { AddLootBody, Loot, SellLootBody } from "@/types/loot";
@@ -128,18 +128,18 @@ export default function PartyPage() {
             <span className="party-card-size">{partySizeLabel(party.members.length)}</span>
           </div>
 
-          {party.bossKeys.length > 0 && (
-            <ul className="party-bosses">
-              {bossesFor(party, bossByKey).map((boss) => (
-                <li key={boss.key}>
-                  {boss.iconUrl && (
-                    <img className="boss-portrait" src={apiAssetUrl(boss.iconUrl)} alt="" />
-                  )}
-                  {boss.name}
-                </li>
-              ))}
-            </ul>
-          )}
+          <ul className="party-bosses">
+            <li>
+              {bossByKey.get(party.bossKey)?.iconUrl && (
+                <img
+                  className="boss-portrait"
+                  src={apiAssetUrl(bossByKey.get(party.bossKey)!.iconUrl!)}
+                  alt=""
+                />
+              )}
+              {bossByKey.get(party.bossKey)?.name ?? party.bossKey}
+            </li>
+          </ul>
 
           {(summary.pending > 0 || summary.awaitingPayout > 0) && (
             <p className="party-loot-summary">

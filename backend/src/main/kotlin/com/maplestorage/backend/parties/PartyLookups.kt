@@ -75,6 +75,6 @@ internal fun seatSpritesByCharacter(userId: String): Map<String, SeatSprite> =
         .selectAll()
         .where { Party.userId eq userId }
         .associate {
-            (it[PartyMember.ign] ?: it[PartyMember.name]) to
+            it[PartyMember.name] to
                 SeatSprite(it[PartyMember.spriteImgUrl], it[PartyMember.spriteRefreshedAt])
         }

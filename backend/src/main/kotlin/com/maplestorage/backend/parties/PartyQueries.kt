@@ -3,11 +3,11 @@ package com.maplestorage.backend.parties
 import com.maplestorage.backend.db.BossCatalog
 import com.maplestorage.backend.db.Characters
 import com.maplestorage.backend.db.Party
-import com.maplestorage.backend.db.PartyBoss
 import com.maplestorage.backend.db.PartyLoot
 import com.maplestorage.backend.db.PartyLootPayout
 import com.maplestorage.backend.db.PartyMember
 import com.maplestorage.backend.db.Person
+import com.maplestorage.backend.db.PersonCharacter
 import org.jetbrains.exposed.v1.core.JoinType
 import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.and
@@ -21,45 +21,118 @@ import kotlin.uuid.Uuid
 // is the thing most likely to be quietly wrong. Writes are in PartyWrites.kt.
 // All of these must be called from inside a `transaction { }` block.
 
-/** Six seats, the game's own party limit. Enforced here because a CHECK cannot count siblings. */
+/** Six seats, the game's own party limit, so five OTHERS at most beside your own character. */
 internal const val MAX_PARTY_SIZE = 6
 
 internal fun partiesFor(userId: String): List<PartyResponse> {
-    val parties =
+    val rows =
         Party
-            .selectAll()
-            .where { Party.userId eq userId }
-            .orderBy(Party.createdAt)
-            .toList()
-    if (parties.isEmpty()) return emptyList()
-
-    val partyIds = parties.map { it[Party.id] }
-    // Two queries for the whole page rather than two per party. The lists are small, but the
-    // per-party version is the one that turns a roster of eight into seventeen round trips.
-    val membersByParty =
-        membersJoin()
-            .selectAll()
-            .where { PartyMember.partyId inList partyIds }
-            .orderBy(PartyMember.position)
-            .groupBy({ it[PartyMember.partyId] }) { it.toMemberResponse() }
-    val bossKeysByParty =
-        PartyBoss
             .innerJoin(BossCatalog)
             .selectAll()
-            .where { PartyBoss.partyId inList partyIds }
+            .where { Party.userId eq userId }
             .orderBy(BossCatalog.sortOrder)
-            .groupBy({ it[PartyBoss.partyId] }) { it[BossCatalog.bossKey] }
+            .toList()
+    if (rows.isEmpty()) return emptyList()
 
+    val partyIds = rows.map { it[Party.id] }
+    val membersByParty = membersFor(partyIds, userId)
     val counts = lootCountsFor(partyIds)
 
-    return parties.map { row ->
+    return rows.map { row ->
         val id = row[Party.id]
-        row.toPartyResponse(
-            membersByParty[id].orEmpty(),
-            bossKeysByParty[id].orEmpty(),
-            counts[id] ?: LootCounts(0, 0),
+        row.toPartyResponse(membersByParty[id].orEmpty(), counts[id] ?: LootCounts(0, 0))
+    }
+}
+
+internal fun findParty(
+    partyId: Uuid,
+    userId: String,
+): PartyResponse? {
+    val row =
+        Party
+            .innerJoin(BossCatalog)
+            .selectAll()
+            .where { (Party.id eq partyId) and (Party.userId eq userId) }
+            .firstOrNull() ?: return null
+    return row.toPartyResponse(
+        membersFor(listOf(partyId), userId)[partyId].orEmpty(),
+        lootCountsFor(listOf(partyId))[partyId] ?: LootCounts(0, 0),
+    )
+}
+
+/** True when the config exists and belongs to this user. The ownership check every write starts with. */
+internal fun ownsParty(
+    partyId: Uuid,
+    userId: String,
+): Boolean =
+    Party
+        .selectAll()
+        .where { (Party.id eq partyId) and (Party.userId eq userId) }
+        .empty()
+        .not()
+
+internal fun peopleFor(userId: String): List<PersonResponse> {
+    val people =
+        Person
+            .selectAll()
+            .where { Person.userId eq userId }
+            .orderBy(Person.createdAt)
+            .toList()
+    if (people.isEmpty()) return emptyList()
+
+    val charactersByPerson =
+        PersonCharacter
+            .selectAll()
+            .where { PersonCharacter.userId eq userId }
+            .orderBy(PersonCharacter.name)
+            .groupBy({ it[PersonCharacter.personId] }) { it[PersonCharacter.name] }
+
+    return people.map {
+        PersonResponse(
+            id = it[Person.id].toString(),
+            name = it[Person.name],
+            characters = charactersByPerson[it[Person.id]].orEmpty(),
         )
     }
+}
+
+/**
+ * Seats for these configs, with whose character each one is.
+ *
+ * The person comes from person_character, matched on the seat's character NAME: that association
+ * is account-wide and stated once, so a seat naming CreedBratton shows Chris in every config
+ * without storing him on each of them.
+ */
+private fun membersFor(
+    partyIds: List<Uuid>,
+    userId: String,
+): Map<Uuid, List<PartyMemberResponse>> {
+    val owners =
+        PersonCharacter
+            .innerJoin(Person)
+            .selectAll()
+            .where { PersonCharacter.userId eq userId }
+            .associate {
+                it[PersonCharacter.name].lowercase() to
+                    (it[Person.id].toString() to it[Person.name])
+            }
+
+    return PartyMember
+        .join(Characters, JoinType.LEFT, PartyMember.characterId, Characters.id)
+        .selectAll()
+        .where { PartyMember.partyId inList partyIds }
+        .orderBy(PartyMember.position)
+        .groupBy({ it[PartyMember.partyId] }) { row ->
+            val owner = owners[row[PartyMember.name].lowercase()]
+            PartyMemberResponse(
+                id = row[PartyMember.id].toString(),
+                name = row[PartyMember.name],
+                personId = owner?.first,
+                personName = owner?.second,
+                characterId = row[PartyMember.characterId]?.toString(),
+                spriteImgUrl = row.getOrNull(Characters.spriteImgUrl) ?: row[PartyMember.spriteImgUrl],
+            )
+        }
 }
 
 /** Unsold drops, and sold ones with somebody still unpaid. */
@@ -69,7 +142,7 @@ internal data class LootCounts(
 )
 
 /**
- * The two pool counts per party, in two queries for the whole page.
+ * The two pool counts per config, in two queries for the whole page.
  *
  * "Awaiting payout" is derived the same way the loot rows derive their status: sold, and at least
  * one payout row unpaid. Deriving it in one place and storing it in none is what keeps the card's
@@ -104,82 +177,15 @@ internal fun lootCountsFor(partyIds: List<Uuid>): Map<Uuid, LootCounts> {
         }
 }
 
-internal fun findParty(
-    partyId: Uuid,
-    userId: String,
-): PartyResponse? {
-    val row =
-        Party
-            .selectAll()
-            .where { (Party.id eq partyId) and (Party.userId eq userId) }
-            .firstOrNull() ?: return null
-    return row.toPartyResponse(
-        membersOf(partyId),
-        bossKeysOf(partyId),
-        lootCountsFor(listOf(partyId))[partyId] ?: LootCounts(0, 0),
-    )
-}
-
-/** True when the party exists and belongs to this user. The ownership check every write starts with. */
-internal fun ownsParty(
-    partyId: Uuid,
-    userId: String,
-): Boolean =
-    Party
-        .selectAll()
-        .where { (Party.id eq partyId) and (Party.userId eq userId) }
-        .empty()
-        .not()
-
-private fun membersOf(partyId: Uuid): List<PartyMemberResponse> =
-    membersJoin()
-        .selectAll()
-        .where { PartyMember.partyId eq partyId }
-        .orderBy(PartyMember.position)
-        .map { it.toMemberResponse() }
-
-private fun bossKeysOf(partyId: Uuid): List<String> =
-    PartyBoss
-        .innerJoin(BossCatalog)
-        .selectAll()
-        .where { PartyBoss.partyId eq partyId }
-        .orderBy(BossCatalog.sortOrder)
-        .map { it[BossCatalog.bossKey] }
-
-/**
- * Seats with their character, when they have one.
- *
- * LEFT, because most seats are other players. The join exists for the sprite: a seat of yours
- * shows the character's own portrait, which is refreshed on the character, so copying it into the
- * party row would leave the party showing a portrait the roster has since replaced.
- */
-private fun membersJoin() =
-    PartyMember
-        .join(Characters, JoinType.LEFT, PartyMember.characterId, Characters.id)
-        // INNER, and explicit about which columns: every seat has a person, and the seat's MVP
-        // answer is read off them rather than stored twice.
-        .join(Person, JoinType.INNER, onColumn = PartyMember.personId, otherColumn = Person.id)
-
-private fun ResultRow.toMemberResponse() =
-    PartyMemberResponse(
-        id = this[PartyMember.id].toString(),
-        name = this[PartyMember.name],
-        ign = this[PartyMember.ign],
-        personId = this[PartyMember.personId].toString(),
-        characterId = this[PartyMember.characterId]?.toString(),
-        mvp = this[Person.mvp],
-        spriteImgUrl = this.getOrNull(Characters.spriteImgUrl) ?: this[PartyMember.spriteImgUrl],
-    )
-
 private fun ResultRow.toPartyResponse(
     members: List<PartyMemberResponse>,
-    bossKeys: List<String>,
     loot: LootCounts,
 ) = PartyResponse(
     id = this[Party.id].toString(),
+    characterId = this[Party.characterId].toString(),
+    bossKey = this[BossCatalog.bossKey],
     name = this[Party.name],
     members = members,
-    bossKeys = bossKeys,
     pendingLoot = loot.pending,
     awaitingPayout = loot.awaitingPayout,
     createdAt = this[Party.createdAt].toString(),

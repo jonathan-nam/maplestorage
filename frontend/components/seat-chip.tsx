@@ -11,7 +11,7 @@ export function SeatChip({ member }: { member: PartyMember }) {
   return (
     <li
       className={`party-seat-chip${member.characterId ? " is-mine" : ""}`}
-      title={member.characterId ? "One of your characters" : undefined}
+      title={member.characterId ? "One of your characters" : (member.personName ?? undefined)}
     >
       {member.spriteImgUrl ? (
         <img className="seat-sprite" src={member.spriteImgUrl} alt="" />
@@ -19,7 +19,7 @@ export function SeatChip({ member }: { member: PartyMember }) {
         <span className="seat-sprite" aria-hidden="true" />
       )}
       {member.name}
-      {member.mvp && <span className="party-mvp">MVP</span>}
+      {member.personName && <span className="party-person">{member.personName}</span>}
     </li>
   );
 }

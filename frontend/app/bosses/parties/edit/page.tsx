@@ -3,78 +3,121 @@
 import { useAuth } from "@clerk/nextjs";
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { PartyGridEditor } from "@/components/party-grid-editor";
+import { CharacterPicker } from "@/components/character-picker";
+import { PartyConfigEditor } from "@/components/party-config-editor";
 import { ApiError, apiFetch } from "@/lib/api";
 import { peek, put } from "@/lib/cache";
 import { preloadBossArt } from "@/lib/preload-boss-art";
 import type { Boss } from "@/types/boss";
-import type { PartyGrid, SaveGridBody } from "@/types/party";
+import type { Character } from "@/types/character";
+import type { Party, Person, SavePartyBody } from "@/types/party";
 
 type LoadState = "loading" | "loaded" | "error";
 
-const GRID_KEY = "/api/parties/grid";
+const PARTIES_KEY = "/api/parties";
 const BOSSES_KEY = "/api/bosses";
+const CHARACTERS_KEY = "/api/characters";
+const PEOPLE_KEY = "/api/people";
 
-// Editing the roster, on its own page. The Parties page answers "what are my parties"; this one
-// answers "change them", and the two want different shapes: a dense grid to type into, against a
-// list to read.
+// Editing, one character at a time. The Parties page answers "what are my parties"; this answers
+// "change them", and it does it the way the question is asked: pick a character, then say who they
+// run each boss with.
 export default function EditPartiesPage() {
   // Before anything is fetched: see lib/preload-boss-art.ts.
   preloadBossArt();
 
   const { getToken } = useAuth();
-  const seededGrid = peek<PartyGrid>(GRID_KEY);
-  const seededBosses = peek<Boss[]>(BOSSES_KEY);
 
-  const [grid, setGrid] = useState<PartyGrid>(seededGrid ?? { people: [], parties: [] });
-  const [bosses, setBosses] = useState<Boss[]>(seededBosses ?? []);
-  const [state, setState] = useState<LoadState>(seededGrid && seededBosses ? "loaded" : "loading");
+  const [parties, setParties] = useState<Party[]>(peek<Party[]>(PARTIES_KEY) ?? []);
+  const [bosses, setBosses] = useState<Boss[]>(peek<Boss[]>(BOSSES_KEY) ?? []);
+  const [characters, setCharacters] = useState<Character[]>(
+    peek<Character[]>(CHARACTERS_KEY) ?? [],
+  );
+  const [people, setPeople] = useState<Person[]>(peek<Person[]>(PEOPLE_KEY) ?? []);
+  const [state, setState] = useState<LoadState>("loading");
+  const [selected, setSelected] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [saveError, setSaveError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  async function loadParties(token?: string | null) {
+    const result = await apiFetch<Party[]>(
+      PARTIES_KEY,
+      { method: "GET" },
+      token !== undefined ? () => Promise.resolve(token) : getToken,
+    );
+    setParties(result);
+    put(PARTIES_KEY, result);
+  }
 
   useEffect(() => {
     getToken()
       .then((token) => {
         const withToken = () => Promise.resolve(token);
         return Promise.all([
-          apiFetch<PartyGrid>(GRID_KEY, { method: "GET" }, withToken),
+          loadParties(token),
           apiFetch<Boss[]>(BOSSES_KEY, { method: "GET" }, withToken),
+          apiFetch<Character[]>(CHARACTERS_KEY, { method: "GET" }, withToken),
+          apiFetch<Person[]>(PEOPLE_KEY, { method: "GET" }, withToken),
         ]);
       })
-      .then(([gridResult, bossResult]) => {
-        setGrid(gridResult);
+      .then(([, bossResult, characterResult, peopleResult]) => {
         setBosses(bossResult);
-        put(GRID_KEY, gridResult);
+        setCharacters(characterResult);
+        setPeople(peopleResult);
         put(BOSSES_KEY, bossResult);
+        put(CHARACTERS_KEY, characterResult);
+        put(PEOPLE_KEY, peopleResult);
+        // Open on the first character rather than on a prompt to choose one.
+        setSelected((current) => current ?? characterResult[0]?.id ?? null);
         setState("loaded");
       })
-      // Only blank the page if there is nothing to show: a failed refresh behind data we already
-      // have should leave that data up.
       .catch(() => setState((s) => (s === "loaded" ? "loaded" : "error")));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  async function save(body: SaveGridBody) {
+  async function save(body: SavePartyBody, partyId?: string) {
     setBusy(true);
-    setSaveError(null);
+    setError(null);
     try {
-      const saved = await apiFetch<PartyGrid>(
-        GRID_KEY,
-        { method: "PUT", body: JSON.stringify(body) },
+      await apiFetch<Party>(
+        partyId ? `${PARTIES_KEY}/${partyId}` : PARTIES_KEY,
+        { method: partyId ? "PUT" : "POST", body: JSON.stringify(body) },
         getToken,
       );
-      // The server's answer, not the draft: it decides seat ids, person ids and boss order, and a
-      // grid assembled here would be a second answer to what was just saved.
-      setGrid(saved);
-      put(GRID_KEY, saved);
+      // Refetched rather than spliced in: the server decides seat ids and which seat is yours.
+      await loadParties();
     } catch (e) {
-      // The backend refuses a bad grid with the reason in the body (see validateGrid). Showing it
-      // beats "something went wrong" for the one thing the user can actually fix.
-      setSaveError(e instanceof ApiError ? e.body : "Couldn't save the grid.");
+      // The backend refuses with the reason in the body (see validateNewParty). Showing it beats
+      // "something went wrong" for the one thing the user can actually fix.
+      setError(e instanceof ApiError ? e.body : "Couldn't save that party.");
     } finally {
       setBusy(false);
     }
   }
+
+  async function remove(party: Party) {
+    setBusy(true);
+    setError(null);
+    try {
+      await apiFetch<void>(`${PARTIES_KEY}/${party.id}`, { method: "DELETE" }, getToken);
+      await loadParties();
+    } catch (e) {
+      setError(e instanceof ApiError ? e.body : "Couldn't remove that party.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const character = characters.find((c) => c.id === selected) ?? null;
+  // Every character named anywhere: your roster, the people list, and whoever is already in a
+  // party. Typing a name the app already knows should not mean typing it differently.
+  const knownCharacters = Array.from(
+    new Set([
+      ...characters.map((c) => c.name),
+      ...people.flatMap((p) => p.characters),
+      ...parties.flatMap((p) => p.members.map((m) => m.name)),
+    ]),
+  ).sort();
 
   return (
     <main className="page">
@@ -83,25 +126,43 @@ export default function EditPartiesPage() {
       </p>
       <h1 className="page-title">Edit parties</h1>
       <p className="split-intro">
-        A column per person, a row per party, and the character they bring in the cell. A blank cell
-        means they sat that one out.
+        Pick a character, then say who they run each boss with. A boss they solo needs no party, so
+        leave it out. Who plays which character lives on the{" "}
+        <Link href="/bosses/people">People</Link> page.
       </p>
 
       {state === "error" && <p>Couldn&apos;t load your parties.</p>}
       {state === "loading" && <p className="party-hint">Loading...</p>}
 
-      {state === "loaded" && (
-        <PartyGridEditor
-          // Remounted when the server's grid changes, so the draft starts from what was saved
-          // rather than from a stale copy of it.
-          key={grid.parties.map((p) => p.id).join() + grid.people.map((p) => p.id).join()}
-          grid={grid}
-          bosses={bosses}
-          busy={busy}
-          error={saveError}
-          onSave={save}
-        />
-      )}
+      {state === "loaded" &&
+        (characters.length === 0 ? (
+          <p className="finder-empty">Add a character on the Inventory page first.</p>
+        ) : (
+          <>
+            <CharacterPicker
+              characters={characters}
+              selectedId={selected}
+              onSelect={(id) => {
+                setSelected(id);
+                setError(null);
+              }}
+            />
+
+            {character && (
+              <PartyConfigEditor
+                characterId={character.id}
+                characterName={character.name}
+                parties={parties.filter((p) => p.characterId === character.id)}
+                bosses={bosses}
+                knownCharacters={knownCharacters}
+                busy={busy}
+                error={error}
+                onSave={save}
+                onDelete={remove}
+              />
+            )}
+          </>
+        ))}
     </main>
   );
 }

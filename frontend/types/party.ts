@@ -1,41 +1,29 @@
 // Mirrors backend's parties/PartyDtos.kt field-for-field.
 
-// One of the people you run with. The grid's columns are these.
-export type Person = {
-  id: string;
-  name: string;
-  // Their Auction House tier. One answer per person, not per party.
-  mvp: boolean;
-};
-
+// One seat: a character somebody brought.
 export type PartyMember = {
   id: string;
-  // Which person holds the seat.
-  personId: string;
-  // What the cell says: the character, or a label for it ("2nd mech").
   name: string;
-  // The character's real name when the label is not it. What the sprite lookup and the roster
-  // link use.
-  ign: string | null;
-  // Set when the seat is one of your characters, null when it is somebody else. This link is what
-  // answers "which parties is this character in".
+  // Whose character this is, from the people list, matched on the character name. Null means it
+  // has not been attributed to anybody yet, which is ordinary.
+  personId: string | null;
+  personName: string | null;
+  // Set when the seat is one of YOUR characters. The config's own character is always the first
+  // seat, so this is set on at least one of them.
   characterId: string | null;
-  // Whether they pay the MVP Auction House rate. A status, not a rate: the rates live in
-  // lib/drop-split.ts and are read from there wherever money is worked out.
-  mvp: boolean;
-  // The linked character's sprite, or whatever the name lookup found. Null is ordinary: a typo or
-  // an unranked character has no portrait, and the seat draws without one.
   spriteImgUrl: string | null;
 };
 
+// One config: your character, one boss, and who they run it with. A boss your character solos has
+// no config, which is why solo runs appear nowhere.
 export type Party = {
   id: string;
-  // Null when never named. Label it with partyLabel(), which falls back to the roster.
+  characterId: string;
+  bossKey: string;
+  // Optional label for a shape worth naming ("carry"). Null is ordinary.
   name: string | null;
+  // Your character first, then the others.
   members: PartyMember[];
-  // Catalog keys, in progression order. The names come from /api/bosses, the same catalog the
-  // clear matrix draws its rows from.
-  bossKeys: string[];
   // The pool at a glance: dropped but unsold, and sold with somebody still unpaid.
   pendingLoot: number;
   awaitingPayout: number;
@@ -43,36 +31,23 @@ export type Party = {
   updatedAt: string;
 };
 
-// The whole roster: columns, rows, and the character in each filled cell. Mirrors
-// PartyGridResponse.
-export type PartyGrid = {
-  people: Person[];
-  parties: Party[];
-};
-
-// What PUT /api/parties/grid takes. `key` is how a seat points at a person within one save: their
-// id when they already exist, anything the client made up when they do not.
-export type SavePersonBody = {
-  key: string;
-  id?: string;
+// A person, and the characters of theirs you have named.
+export type Person = {
+  id: string;
   name: string;
-  mvp: boolean;
+  characters: string[];
 };
 
-export type SaveSeatBody = {
-  personKey: string;
-  characterName: string;
-  ign?: string | null;
-};
-
+// What POST /api/parties and PUT /api/parties/{id} take. `members` is the OTHER characters: the
+// config already knows whose it is.
 export type SavePartyBody = {
-  id?: string;
+  characterId: string;
+  bossKey: string;
   name: string | null;
-  bossKeys: string[];
-  seats: SaveSeatBody[];
+  members: string[];
 };
 
-export type SaveGridBody = {
-  people: SavePersonBody[];
-  parties: SavePartyBody[];
+// The whole people list, every time.
+export type SavePeopleBody = {
+  people: { id?: string; name: string; characters: string[] }[];
 };

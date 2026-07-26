@@ -4,17 +4,16 @@ import { formatDropped, memberFee, splitOf, statusLabel, summarize } from "./loo
 import type { Loot } from "@/types/loot";
 import type { PartyMember } from "@/types/party";
 
-const member = (id: string, name: string, mvp = false): PartyMember => ({
+const member = (id: string, name: string): PartyMember => ({
   id,
-  personId: `person-${id}`,
   name,
-  ign: null,
+  personId: `person-${id}`,
+  personName: null,
   characterId: null,
-  mvp,
   spriteImgUrl: null,
 });
 
-const party = [member("m1", "Rune"), member("m2", "Steve", true), member("m3", "Bob")];
+const party = [member("m1", "Rune"), member("m2", "Steve"), member("m3", "Bob")];
 
 const sold = (over: Partial<Loot> = {}): Loot => ({
   id: "l1",
@@ -39,15 +38,15 @@ const sold = (over: Partial<Loot> = {}): Loot => ({
 });
 
 describe("splitOf", () => {
-  it("hands the party's own rates to splitDrop rather than computing anything itself", () => {
-    // The check that matters: these figures are splitDrop's, not a second implementation's. An MVP
-    // member costs 3% on the payout hop and everyone else 5%, and it is the RECEIVER's rate.
+  it("hands the rates to splitDrop rather than computing anything itself", () => {
+    // The check that matters: these figures are splitDrop's, not a second implementation's. Every
+    // member pays the standard rate, because MVP tiers are not tracked.
     const loot = sold();
     const expected = splitDrop({
       amount: 9_500_000_000,
       amountIs: "listed",
-      sellerFee: memberFee(false),
-      memberFees: [memberFee(true), memberFee(false)],
+      sellerFee: memberFee(),
+      memberFees: [memberFee(), memberFee()],
       method: "fair",
     });
 

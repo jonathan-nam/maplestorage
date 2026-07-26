@@ -4,49 +4,83 @@ import kotlinx.serialization.Serializable
 
 // Mirrored by the frontend's types/party.ts field-for-field.
 
-@Serializable
-data class PersonResponse(
-    val id: String,
-    val name: String,
-    // The Auction House tier this person pays on a payout. One answer per person, not per party.
-    val mvp: Boolean,
-)
-
+/**
+ * One seat: a character somebody brought.
+ *
+ * `personName` is not stored on the seat. It comes from person_character, matched on the character
+ * name, so "CreedBratton is Chris's" is stated once and every config that names CreedBratton shows
+ * it. Null means that character has not been attributed to anybody yet, which is ordinary.
+ */
 @Serializable
 data class PartyMemberResponse(
     val id: String,
-    // Which person holds the seat. The grid's column.
-    val personId: String,
-    // What the cell says: the character, or a label for it ("2nd mech").
     val name: String,
-    // The character's real name when the label is not it. Null means `name` is already the IGN.
-    // This is what the sprite lookup and the link to your roster use.
-    val ign: String? = null,
-    // Set when this seat is one of the caller's characters, null when it is somebody else. The
-    // parties page groups by exactly this, so a character can be shown the parties it is in.
+    val personId: String?,
+    val personName: String?,
+    // Set when the seat is one of YOUR characters, which happens when you bring two of your own.
     val characterId: String?,
-    // Copied from the person so a split does not need a second request to work out a fee. The
-    // rate itself lives in frontend/lib/drop-split.ts; sending a status keeps it there.
-    val mvp: Boolean,
-    // The seat's sprite: the linked character's own when there is one, otherwise whatever the
-    // Nexon lookup found for that name. Null is ordinary (a typo, an unranked character), and the
-    // client draws initials for it.
-    val spriteImgUrl: String? = null,
+    val spriteImgUrl: String?,
 )
 
+/**
+ * One config: your character, one boss, and who they run it with.
+ *
+ * A boss your character solos has no config, which is why solo runs do not appear anywhere. The
+ * members are the OTHER characters; your own is `characterId` on the config itself.
+ */
 @Serializable
 data class PartyResponse(
     val id: String,
-    // Null when the party was never named. The client labels it from its members rather than
-    // inventing a name here, which would then have to be maintained as the roster changed.
+    val characterId: String,
+    val bossKey: String,
+    // Optional label for a shape worth naming ("carry"). Null is ordinary; the client falls back
+    // to the roster rather than inventing a name.
     val name: String?,
     val members: List<PartyMemberResponse>,
-    // Which bosses this party is for, as catalog keys in progression order.
-    val bossKeys: List<String>,
-    // The loot pool at a glance: what has dropped and not sold, and what has sold with somebody
-    // still unpaid. Counted server side so the list page does not fetch every party's pool.
+    // The pool at a glance: dropped but unsold, and sold with somebody still unpaid.
     val pendingLoot: Int = 0,
     val awaitingPayout: Int = 0,
     val createdAt: String,
     val updatedAt: String,
+)
+
+/** A person, and the characters of theirs you have named. */
+@Serializable
+data class PersonResponse(
+    val id: String,
+    val name: String,
+    val characters: List<String>,
+)
+
+/**
+ * A config, as submitted.
+ *
+ * `members` is the other characters, in the order they should read. Empty is refused: a config
+ * with nobody else in it is a solo run, and a solo run is simply not a config.
+ */
+@Serializable
+data class SavePartyRequest(
+    val characterId: String,
+    val bossKey: String,
+    val name: String? = null,
+    val members: List<String> = emptyList(),
+)
+
+/**
+ * The whole people list, every time.
+ *
+ * A full replace, because it is one screen you edit as a whole. A person absent from the payload
+ * has been removed, and one whose characters shrink has had those attributions taken back; the
+ * configs naming those characters keep the characters and simply stop showing an owner.
+ */
+@Serializable
+data class SavePeopleRequest(
+    val people: List<PersonRequest> = emptyList(),
+)
+
+@Serializable
+data class PersonRequest(
+    val id: String? = null,
+    val name: String,
+    val characters: List<String> = emptyList(),
 )
