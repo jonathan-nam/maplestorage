@@ -182,11 +182,6 @@ export default function RunOrderPage() {
     <main className="page">
       <h1 className="page-title">Run Order</h1>
 
-      <p className="split-intro">
-        What to run tonight and in what order. Fullest parties first, and nobody left waiting around
-        or changing character.
-      </p>
-
       <div className="basis-row" role="group" aria-label="Where the runs come from">
         {(
           [
@@ -359,8 +354,7 @@ export default function RunOrderPage() {
           {/* The assumed durations stay on screen. They are what the finishing time is built from,
               and a time presented without them reads as a measurement of your party. */}
           <p className="split-caveat">
-            Every run is assumed to take {formatDuration(DEFAULT_MINUTES)}. Treat the finishing time
-            as rough, and the order as the answer.
+            Every run is assumed to take {formatDuration(DEFAULT_MINUTES)}.
           </p>
         </section>
       )}
