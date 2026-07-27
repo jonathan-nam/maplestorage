@@ -28,9 +28,13 @@
 // WAITING is a run somebody sits out between two runs they are in. Somebody needed for two of six
 // bosses should do them back to back and have the rest of the night free, whichever end that lands
 // on. A run at either end costs them nothing, so only the gaps in the middle are counted. It sits
-// above switches because a gap is half an hour of sitting there and a switch is a minute. It sits
-// below party size, so a person whose two runs are the fullest and the emptiest can still be split
-// across the night.
+// above switches because a gap is a whole boss of sitting there and a switch is a moment at the
+// login screen. It sits below party size, so a person whose two runs are the fullest and the
+// emptiest can still be split across the night.
+//
+// A switch is counted and ordered on, never billed to the clock. The night is measured in whole
+// runs, so at the default half hour a run the schedule reads 0:00, 0:30, 1:00. Charging a relog
+// against an estimate that coarse only bought a finishing time that looked precise and was not.
 
 /** One seat in a run: a character, and whose it is. Null means nobody has claimed it. */
 export type RunSeat = {
@@ -135,20 +139,9 @@ export function screenRuns(runs: CandidateRun[], availablePersonIds: Iterable<st
   return { eligible, rejected };
 }
 
-/**
- * Real minutes a character change costs: quit to the login screen, pick, load in, walk to the door.
- *
- * Charged to the schedule, not just counted, because a budget that ignores it packs a night that
- * cannot happen. Rough, and deliberately not precise to the second, but zero is the one value it
- * is definitely not.
- */
-export const SWITCH_MINUTES = 1;
-
 export type PlanOptions = {
   /** The window, in minutes. */
   minutes: number;
-  /** What one character change costs the clock. See SWITCH_MINUTES. */
-  switchMinutes?: number;
   /**
    * How many partial plans stay alive per step. The search is a beam, not an exhaustive one: the
    * orderings of even fifteen runs do not fit in a browser tab. Wider is slower and no worse.
@@ -160,14 +153,14 @@ export type PlannedRun = {
   run: EligibleRun;
   /** Who changed character to start this run, in seat order. Empty for most runs, and that is the point. */
   switched: string[];
-  /** Minutes from the start of the night, switches included. */
+  /** Minutes from the start of the night: the runs before this one, and nothing else. */
   startsAt: number;
 };
 
 export type Plan = {
   runs: PlannedRun[];
   switches: number;
-  /** Minutes the whole plan occupies, switch time included. */
+  /** Minutes the whole plan occupies: the runs added up, and nothing else. */
   minutes: number;
 };
 
@@ -230,7 +223,6 @@ export function planNight(
   runs: EligibleRun[],
   options: PlanOptions,
 ): { best: Plan; byCount: Plan[] } {
-  const switchMinutes = options.switchMinutes ?? SWITCH_MINUTES;
   const beamWidth = options.beamWidth ?? 1000;
 
   const start: State = {
@@ -269,7 +261,7 @@ export function planNight(
           })
           .map((seat) => seat.personId);
 
-        const startsAt = state.minutes + switched.length * switchMinutes;
+        const startsAt = state.minutes;
         const minutes = startsAt + run.minutes;
         if (minutes > options.minutes) continue;
 

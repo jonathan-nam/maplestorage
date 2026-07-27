@@ -151,7 +151,7 @@ describe("planNight", () => {
       eligible("lucid", "lucid", 10, [["Mechy", "me"]]),
       eligible("will", "will", 10, [["Kanna", "me"]]),
     ];
-    const { best } = planNight(runs, { minutes: 120, switchMinutes: 0 });
+    const { best } = planNight(runs, { minutes: 120 });
 
     expect(best.runs).toHaveLength(4);
     expect(best.switches).toBe(1);
@@ -172,19 +172,22 @@ describe("planNight", () => {
         ["Dwight", "chris"],
       ]),
     ];
-    const { best } = planNight(runs, { minutes: 120, switchMinutes: 0 });
+    const { best } = planNight(runs, { minutes: 120 });
     expect(best.switches).toBe(2);
     expect(best.runs[1]?.switched.sort()).toEqual(["chris", "me"]);
   });
 
-  it("charges a switch to the clock, so a packed night stays honest", () => {
+  it("bills the budget for runs and nothing else", () => {
+    // A switch between them, and the two runs still add up to exactly 20. The window is spent on
+    // bosses, so a night of 30-minute runs fills a 2 hour window with four of them and not three.
     const runs = [
       eligible("a", "lotus", 10, [["Mechy", "me"]]),
       eligible("b", "damien", 10, [["Kanna", "me"]]),
     ];
-    // 10 + 1 switch + 10 = 21. A budget of 20 only has room for one of them.
-    expect(planNight(runs, { minutes: 21, switchMinutes: 1 }).best.runs).toHaveLength(2);
-    expect(planNight(runs, { minutes: 20, switchMinutes: 1 }).best.runs).toHaveLength(1);
+    const { best } = planNight(runs, { minutes: 20 });
+    expect(best.runs).toHaveLength(2);
+    expect(best.switches).toBe(1);
+    expect(best.minutes).toBe(20);
   });
 
   it("does not make somebody log in twice for a run they sit out", () => {
@@ -198,7 +201,7 @@ describe("planNight", () => {
       ]),
       eligible("c", "lucid", 10, [["Mechy", "me"]]),
     ];
-    const { best } = planNight(runs, { minutes: 120, switchMinutes: 0 });
+    const { best } = planNight(runs, { minutes: 120 });
     expect(best.runs).toHaveLength(3);
     expect(best.switches).toBe(1);
     expect(order(best)).toEqual(["b", "a", "c"]);
@@ -217,7 +220,7 @@ describe("planNight", () => {
         ["Creed", "chris"],
       ]),
     ];
-    const { best } = planNight(runs, { minutes: 120, switchMinutes: 0 });
+    const { best } = planNight(runs, { minutes: 120 });
     expect(order(best)).toEqual(["trio", "duo", "solo"]);
   });
 
@@ -242,7 +245,7 @@ describe("planNight", () => {
         ["Dwight", "dave"],
       ]),
     ];
-    const { best } = planNight(runs, { minutes: 120, switchMinutes: 0 });
+    const { best } = planNight(runs, { minutes: 120 });
 
     expect(best.switches).toBe(0);
     const partners = best.runs.map((r) => r.run.seats[1]?.personId ?? "");
@@ -271,7 +274,7 @@ describe("planNight", () => {
         ["Dwight", "dave"],
       ]),
     ];
-    const { best } = planNight(runs, { minutes: 120, switchMinutes: 0 });
+    const { best } = planNight(runs, { minutes: 120 });
 
     const partners = best.runs.map((r) => r.run.seats[1]?.personId ?? "");
     expect(blocks(partners)).toBe(2);
@@ -290,7 +293,7 @@ describe("planNight", () => {
         ["Dwight", "dave"],
       ]),
     ];
-    const { best } = planNight(runs, { minutes: 120, switchMinutes: 0 });
+    const { best } = planNight(runs, { minutes: 120 });
     expect(order(best)).toEqual(["c", "a", "b"]);
     expect(best.switches).toBe(1);
   });
@@ -307,7 +310,7 @@ describe("planNight", () => {
         ["Dwight", "dave"],
       ]),
     ];
-    const { best } = planNight(runs, { minutes: 120, switchMinutes: 0 });
+    const { best } = planNight(runs, { minutes: 120 });
     expect(best.runs).toHaveLength(1);
   });
 
@@ -316,7 +319,7 @@ describe("planNight", () => {
       eligible("a", "lotus", 10, [["Mechy", "me"]]),
       eligible("b", "lotus", 10, [["Kanna", "me"]]),
     ];
-    const { best } = planNight(runs, { minutes: 120, switchMinutes: 0 });
+    const { best } = planNight(runs, { minutes: 120 });
     expect(best.runs).toHaveLength(2);
   });
 
@@ -327,7 +330,7 @@ describe("planNight", () => {
       eligible("b", "damien", 10, [["Mechy", "me"]]),
       eligible("c", "lucid", 10, [["Kanna", "me"]]),
     ];
-    const { best, byCount } = planNight(runs, { minutes: 120, switchMinutes: 0 });
+    const { best, byCount } = planNight(runs, { minutes: 120 });
 
     expect(best.runs).toHaveLength(3);
     expect(best.switches).toBe(1);
@@ -336,14 +339,16 @@ describe("planNight", () => {
     expect(byCount[1]?.switches).toBe(0);
   });
 
-  it("reports when each run starts, switch time included", () => {
+  it("starts each run where the one before it ended, switch or no switch", () => {
     const runs = [
-      eligible("a", "lotus", 10, [["Mechy", "me"]]),
-      eligible("b", "damien", 15, [["Kanna", "me"]]),
+      eligible("a", "lotus", 30, [["Mechy", "me"]]),
+      eligible("b", "damien", 30, [["Kanna", "me"]]),
+      eligible("c", "lucid", 30, [["Kanna", "me"]]),
     ];
-    const { best } = planNight(runs, { minutes: 120, switchMinutes: 2 });
-    expect(best.runs.map((r) => r.startsAt)).toEqual([0, 12]);
-    expect(best.minutes).toBe(27);
+    const { best } = planNight(runs, { minutes: 120 });
+    expect(best.runs.map((r) => r.startsAt)).toEqual([0, 30, 60]);
+    expect(best.minutes).toBe(90);
+    expect(best.switches).toBe(1);
   });
 
   it("gives the same plan back for the same input", () => {
@@ -379,7 +384,7 @@ describe("planNight", () => {
         ["ChrisB", "chris"],
       ]),
     ];
-    const { best } = planNight(runs, { minutes: 200, switchMinutes: 0 });
+    const { best } = planNight(runs, { minutes: 200 });
     expect(best.runs).toHaveLength(4);
     // One turn: both people move from their A character to their B character, once.
     expect(best.switches).toBe(2);
