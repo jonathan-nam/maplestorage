@@ -33,8 +33,9 @@ fun Route.partyRoutes(nexonLookupService: NexonLookupService) {
     get { listParties() }
     post { createPartyRoute(nexonLookupService) }
     // Before /{id}, and matched ahead of it whatever the order: Ktor scores a constant segment
-    // above a parameter. Every pool at once, for the wallet.
+    // above a parameter. Every pool at once, for the wallet, and the wallet's one settle back.
     get("/loot") { listAllLoot() }
+    post("/loot/settle") { settleRoute() }
     get("/{id}") { getParty() }
     put("/{id}") { savePartyRoute(nexonLookupService) }
     put("/{id}/clear") { setClearRoute() }

@@ -21,7 +21,8 @@ import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import kotlin.time.Clock
 import kotlin.uuid.Uuid
 
-// The loot pool, under an owned party: /api/parties/{id}/loot.
+// The loot pool, under an owned party: /api/parties/{id}/loot. Plus the wallet's settle, which is
+// the one handler here that is NOT under a party (see settleRoute), registered by PartyRoutes.kt.
 //
 // Every handler starts by proving the party is the caller's. Nothing here trusts a loot id on its
 // own, since a loot row's owner is its party's owner and nothing else.
@@ -152,6 +153,43 @@ private suspend fun RoutingContext.setPayoutRoute() {
             }
         }
     respondToLoot(outcome, HttpStatusCode.OK)
+}
+
+/**
+ * Settles a whole relationship: every payout row one net transfer covers, marked paid together.
+ *
+ * Account-wide rather than under /{id}/loot, because a relationship is not one party's. Paying
+ * somebody once for four drops across three of your characters' parties is one transfer, and four
+ * requests would let three land and the fourth fail with no record of which.
+ *
+ * Answers with every pool, the shape GET /loot returns, so the wallet redraws from the server's
+ * reading of what is now paid rather than from what it assumed would happen.
+ */
+internal suspend fun RoutingContext.settleRoute() {
+    val (userId, email) = call.principalIdAndEmail()
+    val request = call.receive<SettleRequest>()
+    val refs = request.payouts.map { Uuid.parseOrNull(it.lootId) to Uuid.parseOrNull(it.memberId) }
+
+    if (refs.isEmpty()) {
+        return call.respond(HttpStatusCode.BadRequest, "name at least one payout to settle")
+    }
+    if (refs.any { (lootId, memberId) -> lootId == null || memberId == null }) {
+        return call.respond(HttpStatusCode.BadRequest, "malformed lootId or memberId")
+    }
+
+    val named = refs.map { (lootId, memberId) -> lootId!! to memberId!! }
+    val pools =
+        transaction {
+            ensureUser(userId, email)
+            if (settlePayouts(userId, named, Clock.System.now())) allLootFor(userId) else null
+        }
+    if (pools == null) {
+        // Nothing was written: see settlePayouts. Reload rather than retry, since a wallet naming
+        // a row that is gone is reading a pool that has moved on.
+        call.respond(HttpStatusCode.NotFound, "a drop or member named here is not in your parties any more")
+    } else {
+        call.respond(pools)
+    }
 }
 
 private suspend fun RoutingContext.deleteLootRoute() {

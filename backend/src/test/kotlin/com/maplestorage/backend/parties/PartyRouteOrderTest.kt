@@ -1,9 +1,11 @@
 package com.maplestorage.backend.parties
 
 import io.ktor.client.request.get
+import io.ktor.client.request.post
 import io.ktor.client.statement.bodyAsText
 import io.ktor.server.response.respond
 import io.ktor.server.routing.get
+import io.ktor.server.routing.post
 import io.ktor.server.routing.route
 import io.ktor.server.routing.routing
 import io.ktor.server.testing.testApplication
@@ -29,12 +31,16 @@ class PartyRouteOrderTest {
                 routing {
                     // Declared in the order PartyRoutes.kt declares them.
                     get("/parties/loot") { call.respond("all pools") }
+                    post("/parties/loot/settle") { call.respond("settle") }
                     get("/parties/{id}") { call.respond("one party: ${call.parameters["id"]}") }
                     route("/parties/{id}/loot") { get { call.respond("one pool") } }
                 }
             }
 
             assertEquals("all pools", client.get("/parties/loot").bodyAsText())
+            // The wallet's settle is three segments, and the two-segment /{id}/loot beside it must
+            // not swallow the first two.
+            assertEquals("settle", client.post("/parties/loot/settle").bodyAsText())
             // The neighbours still resolve to themselves.
             assertEquals("one party: abc", client.get("/parties/abc").bodyAsText())
             assertEquals("one pool", client.get("/parties/abc/loot").bodyAsText())

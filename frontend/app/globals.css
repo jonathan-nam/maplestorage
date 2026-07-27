@@ -3689,6 +3689,32 @@ button.link:disabled {
   font-size: 12px;
 }
 
+/* What a settle is about to mark, said before it marks it. Nothing here can check that the mesos
+   moved, so the claim gets read back. */
+.wallet-confirm {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  background: var(--surface-2);
+}
+
+.wallet-confirm-what {
+  flex: 1 1 240px;
+  margin: 0;
+  color: var(--ink);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.wallet-confirm-buttons {
+  display: flex;
+  gap: 8px;
+}
+
 .wallet-lines {
   list-style: none;
   margin: 0;
