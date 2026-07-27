@@ -325,8 +325,85 @@ describe("planAsText", () => {
       [R("1", "Lotus", [["Bishop", "You"]]), R("2", "Damien", [["Bishop", "You"]])],
       120,
     );
-    expect(text).toContain("1. Lotus");
-    expect(text).toContain("2. Damien");
+    expect(text).toContain("1. Lotus:");
+    expect(text).toContain("2. Damien:");
+  });
+
+  it("puts the whole party on the boss's own line, as characters", () => {
+    const text = textFor(
+      [
+        R("1", "Lotus", [
+          ["Bishop", "You"],
+          ["Nightlord", "Dave"],
+        ]),
+      ],
+      120,
+    );
+    expect(text).toContain("1. Lotus: Bishop, Nightlord");
+  });
+
+  it("names a seat's owner only where they had to change character", () => {
+    const text = textFor(
+      [R("1", "Lotus", [["Bishop", "You"]]), R("2", "Damien", [["Kanna", "You"]])],
+      120,
+    );
+    expect(text).toContain("2. Damien: Kanna (You, swap)");
+    // The first run is not a switch. Logging in is not changing character, so the seat is bare.
+    expect(text).toContain("1. Lotus: Bishop\n");
+  });
+
+  it("says who came in for whom when one person replaces another", () => {
+    const text = textFor(
+      [
+        R("1", "Lotus", [
+          ["Bishop", "You"],
+          ["Nightlord", "Dave"],
+        ]),
+        R("2", "Damien", [
+          ["Bishop", "You"],
+          ["Hero", "Chris"],
+        ]),
+      ],
+      120,
+    );
+    expect(text).toContain("Chris in for Dave.");
+  });
+
+  it("says arrivals and departures apart when they do not pair off", () => {
+    const text = textFor(
+      [
+        R("1", "Lotus", [
+          ["Bishop", "You"],
+          ["Nightlord", "Dave"],
+          ["Shadower", "Erin"],
+        ]),
+        R("2", "Damien", [
+          ["Bishop", "You"],
+          ["Hero", "Chris"],
+        ]),
+      ],
+      120,
+    );
+    expect(text).toContain("Chris in. Dave and Erin out.");
+  });
+
+  it("says nothing about arrivals on the first run, or when the party holds", () => {
+    const text = textFor(
+      [
+        R("1", "Lotus", [
+          ["Bishop", "You"],
+          ["Nightlord", "Dave"],
+        ]),
+        R("2", "Damien", [
+          ["Bishop", "You"],
+          ["Nightlord", "Dave"],
+        ]),
+      ],
+      120,
+    );
+    expect(text).not.toContain(" in.");
+    expect(text).not.toContain(" out.");
+    expect(text).not.toContain(" in for ");
   });
 
   it("says so plainly when there is nothing to paste", () => {

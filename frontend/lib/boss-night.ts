@@ -10,7 +10,7 @@
 import type { Boss } from "@/types/boss";
 import type { Party, PartyMember } from "@/types/party";
 
-import type { CandidateRun, Plan } from "./boss-run-plan";
+import type { CandidateRun, Plan, PlannedRun } from "./boss-run-plan";
 
 /**
  * You, as a person the schedule has to keep on one character.
@@ -148,6 +148,58 @@ export function formatDuration(minutes: number): string {
   return `${hours}h ${rest}m`;
 }
 
+/** Names as a person would say them: "Dave", "Dave and Erin", "Dave, Erin and Chris". */
+function andList(names: string[]): string {
+  if (names.length < 2) return names.join("");
+  return `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+}
+
+/**
+ * One run as a line: the boss, and the characters that turn up to it.
+ *
+ * A character stands for its owner, so naming both on every seat says the same thing twice. The
+ * name appears only where something moved, which is the whole reason to read the line twice. Who
+ * arrived and who left is then said in words, because a reader scrolling a chat cannot compare
+ * this line against the one above it the way they can glance up a column on screen.
+ */
+function runLine(
+  planned: PlannedRun,
+  before: PlannedRun | undefined,
+  number: number,
+  nameOf: (id: string) => string,
+): string {
+  const switched = new Set(planned.switched);
+  const seats = planned.run.seats
+    .map((seat) =>
+      switched.has(seat.personId)
+        ? `${seat.character} (${nameOf(seat.personId)}, swap)`
+        : seat.character,
+    )
+    .join(", ");
+
+  const line = `${number}. ${planned.run.bossName}: ${seats}`;
+  if (!before) return line;
+
+  const here = new Set(planned.run.seats.map((seat) => seat.personId));
+  const was = new Set(before.run.seats.map((seat) => seat.personId));
+  const joined = planned.run.seats
+    .filter((seat) => !was.has(seat.personId))
+    .map((seat) => nameOf(seat.personId));
+  const left = before.run.seats
+    .filter((seat) => !here.has(seat.personId))
+    .map((seat) => nameOf(seat.personId));
+
+  // One out, one in, is a swap of people rather than two separate facts, and reads as one.
+  if (joined.length === 1 && left.length === 1) return `${line}. ${joined[0]} in for ${left[0]}.`;
+
+  const changes = [
+    joined.length > 0 ? `${andList(joined)} in.` : null,
+    left.length > 0 ? `${andList(left)} out.` : null,
+  ].filter((change): change is string => change !== null);
+
+  return changes.length > 0 ? `${line}. ${changes.join(" ")}` : line;
+}
+
 /** Run numbers as a person would write them: "1-3", "1, 3", "1-2, 5". */
 function runRanges(numbers: number[]): string {
   const parts: string[] = [];
@@ -210,10 +262,10 @@ function personLine(person: NightPerson, plan: Plan): { name: string; text: stri
 /**
  * The plan as plain text, for pasting where the party actually talks.
  *
- * Written for somebody scanning a group chat on a phone, so it is arranged by the question each
- * reader has ("which character am I on, and when do I change") rather than by the structure the
- * solver produced. Repeating every seat on every line, which is what the first version did, buries
- * the two lines that matter under the ten that do not change.
+ * Two passes over the same night, because a reader arrives with two questions. The rows are the
+ * ones on screen: the boss, the characters in it, and what moved since the last one. The lines
+ * under them answer "which character am I on tonight" without making anybody read four rows to
+ * work it out, and they are where a character is tied to its owner.
  *
  * No leading spaces or column alignment: chat clients render this proportionally, and anything
  * lined up in a monospace editor arrives crooked.
@@ -234,7 +286,8 @@ export function planAsText(plan: Plan, roster: NightPerson[]): string {
     `${plan.runs.length} ${plan.runs.length === 1 ? "boss" : "bosses"} · ` +
     `about ${formatDuration(plan.minutes)} · ${switches}`;
 
-  const order = plan.runs.map((planned, i) => `${i + 1}. ${planned.run.bossName}`);
+  const nameOf = (id: string) => roster.find((person) => person.id === id)?.name ?? id;
+  const order = plan.runs.map((planned, i) => runLine(planned, plan.runs[i - 1], i + 1, nameOf));
 
   const who = roster
     .map((person) => personLine(person, plan))
