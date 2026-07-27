@@ -10,6 +10,8 @@
 import type { Boss } from "@/types/boss";
 import type { Party, PartyMember } from "@/types/party";
 
+import { BOSS_SHORT_NAMES } from "./boss-art";
+
 import type { CandidateRun, Plan, PlannedRun } from "./boss-run-plan";
 
 /**
@@ -177,7 +179,9 @@ function runLine(
     )
     .join(", ");
 
-  const line = `${number}. ${planned.run.bossName}: ${seats}`;
+  // What the party calls it, which is what they will scroll past looking for their own run.
+  const boss = BOSS_SHORT_NAMES[planned.run.bossKey] ?? planned.run.bossName;
+  const line = `${number}. ${boss}: ${seats}`;
   if (!before) return line;
 
   const here = new Set(planned.run.seats.map((seat) => seat.personId));

@@ -161,6 +161,8 @@ def load_bosses() -> list[dict]:
             sys.exit(f"{key}: reset must be one of {sorted(BOSS_RESETS)}, got {b.get('reset')!r}")
         if not isinstance(b.get("tracked", True), bool):
             sys.exit(f"{key}: tracked must be true or false, got {b.get('tracked')!r}")
+        if "short" in b and not str(b["short"]).strip():
+            sys.exit(f"{key}: short must be a name or absent, not empty")
     return bosses
 
 
@@ -487,6 +489,9 @@ def boss_art_ts(bosses: list[dict]) -> str:
     tracked = [b for b in bosses if b.get("tracked", True)]
     rows = "\n".join(f'  {prop(b["key"])}: "/boss-icons/{b["key"]}.png",' for b in tracked)
     names = "\n".join(f'  {prop(b["key"])}: "{b["name"]}",' for b in tracked)
+    short = "\n".join(
+        f'  {prop(b["key"])}: "{b["short"]}",' for b in tracked if b.get("short")
+    )
     return f"""// GENERATED FROM catalog/bosses.yaml. DO NOT EDIT BY HAND.
 // Regenerate with:  python catalog/build.py
 //
@@ -502,6 +507,9 @@ def boss_art_ts(bosses: list[dict]) -> str:
 // with no account behind it, and deriving one from the keys gets "Kalos The Guardian" wrong.
 //
 // Only tracked bosses in both, matching what boss_catalog is seeded with.
+//
+// BOSS_SHORT_NAMES is what a party calls a boss out loud, and holds only the ones that have one.
+// A missing key means the full name is the short name. Never match anything against these.
 
 export const BOSS_ART: Record<string, string> = {{
 {rows}
@@ -509,6 +517,10 @@ export const BOSS_ART: Record<string, string> = {{
 
 export const BOSS_NAMES: Record<string, string> = {{
 {names}
+}};
+
+export const BOSS_SHORT_NAMES: Record<string, string> = {{
+{short}
 }};
 """
 

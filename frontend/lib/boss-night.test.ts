@@ -329,6 +329,25 @@ describe("planAsText", () => {
     expect(text).toContain("2. Damien:");
   });
 
+  it("calls a boss what the party calls it", () => {
+    const text = textFor(
+      [
+        R("malefic-star", "Malefic Star", [["Bishop", "You"]]),
+        R("kalos-the-guardian", "Kalos the Guardian", [["Bishop", "You"]]),
+      ],
+      120,
+    );
+    expect(text).toContain("Star: Bishop");
+    expect(text).toContain("Kalos: Bishop");
+    expect(text).not.toContain("Malefic");
+    expect(text).not.toContain("Guardian");
+  });
+
+  it("keeps the full name for a boss with no shorthand", () => {
+    const text = textFor([R("lotus", "Lotus", [["Bishop", "You"]])], 60);
+    expect(text).toContain("1. Lotus: Bishop");
+  });
+
   it("puts the whole party on the boss's own line, as characters", () => {
     const text = textFor(
       [
