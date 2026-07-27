@@ -4,14 +4,20 @@ import { useAuth } from "@clerk/nextjs";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { CopyAmount } from "@/components/copy-amount";
-import { apiAssetUrl, apiFetch } from "@/lib/api";
+import { ApiError, apiAssetUrl, apiFetch } from "@/lib/api";
 import { peek, put } from "@/lib/cache";
 import { formatMesos } from "@/lib/drop-split";
 import { formatDropped } from "@/lib/loot";
-import { buildWallet, netLabel, type Counterparty } from "@/lib/wallet";
+import {
+  buildWallet,
+  netLabel,
+  settlementFor,
+  transferLine,
+  type Counterparty,
+} from "@/lib/wallet";
 import { preloadBossArt } from "@/lib/preload-boss-art";
 import type { Boss } from "@/types/boss";
-import type { PartyLootPool } from "@/types/loot";
+import type { PartyLootPool, SettleBody } from "@/types/loot";
 import type { Party } from "@/types/party";
 
 // Every unpaid share across every pool, folded to one line per person.
@@ -23,6 +29,7 @@ type LoadState = "loading" | "loaded" | "error";
 
 const PARTIES_KEY = "/api/parties";
 const POOLS_KEY = "/api/parties/loot";
+const SETTLE_KEY = "/api/parties/loot/settle";
 const BOSSES_KEY = "/api/bosses";
 
 export default function WalletPage() {
@@ -39,6 +46,9 @@ export default function WalletPage() {
   const [bosses, setBosses] = useState<Boss[]>(seededBosses ?? []);
   const [state, setState] = useState<LoadState>("loading");
   const [open, setOpen] = useState<string | null>(null);
+  const [confirming, setConfirming] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     // One token for the whole burst: getToken() can round-trip to Clerk.
@@ -65,6 +75,32 @@ export default function WalletPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  /**
+   * Settles one relationship: every share it holds, both directions, marked paid together.
+   *
+   * The answer is the whole set of pools as the server now reads them, and it replaces ours. The
+   * alternative is patching the rows we THINK we just changed, which is a second opinion on what
+   * is paid, held by the page that draws the total.
+   */
+  async function settle(person: Counterparty) {
+    setBusy(true);
+    setError(null);
+    try {
+      const body: SettleBody = { payouts: settlementFor(person) };
+      const fresh = await apiFetch<PartyLootPool[]>(
+        SETTLE_KEY,
+        { method: "POST", body: JSON.stringify(body) },
+        getToken,
+      );
+      setPools(fresh);
+      setConfirming(null);
+    } catch (e) {
+      setError(e instanceof ApiError ? e.body : "That didn't save.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   const bossByKey = new Map(bosses.map((b) => [b.bossKey, b]));
   const wallet = buildWallet(parties, pools);
   const settled = state === "loaded" && wallet.counterparties.length === 0;
@@ -77,11 +113,12 @@ export default function WalletPage() {
 
       <h1 className="page-title">Wallet</h1>
       <p className="split-intro">
-        What you owe and what you&apos;re owed, across every party&apos;s loot pool. Mark a share
-        paid on its party to clear it from here.
+        What you owe and what you&apos;re owed, across every party&apos;s loot pool. Settle a person
+        to clear every share between you at once, or mark them one at a time on their party.
       </p>
 
       {state === "error" && <p>Couldn&apos;t load your pools.</p>}
+      {error && <p className="loot-warn">{error}</p>}
       {state === "loading" && <p className="party-hint">Loading...</p>}
 
       {state === "loaded" && (
@@ -117,6 +154,11 @@ export default function WalletPage() {
               bossByKey={bossByKey}
               open={open === person.key}
               onToggle={() => setOpen((current) => (current === person.key ? null : person.key))}
+              confirming={confirming === person.key}
+              onSettle={() => setConfirming(person.key)}
+              onConfirm={() => settle(person)}
+              onCancel={() => setConfirming(null)}
+              busy={busy}
             />
           ))}
 
@@ -159,13 +201,24 @@ function WalletRow({
   bossByKey,
   open,
   onToggle,
+  confirming,
+  onSettle,
+  onConfirm,
+  onCancel,
+  busy,
 }: {
   person: Counterparty;
   bossByKey: Map<string, Boss>;
   open: boolean;
   onToggle: () => void;
+  confirming: boolean;
+  onSettle: () => void;
+  onConfirm: () => void;
+  onCancel: () => void;
+  busy: boolean;
 }) {
   const both = person.owe > 0 && person.owed > 0;
+  const partyCount = new Set(person.lines.map((line) => line.partyId)).size;
 
   return (
     <article className={`wallet-row ${person.net < 0 ? "is-owe" : "is-owed"}`}>
@@ -188,6 +241,9 @@ function WalletRow({
         <button type="button" className="party-cancel" onClick={onToggle} aria-expanded={open}>
           {open ? "Hide" : `${person.lines.length} ${person.lines.length === 1 ? "drop" : "drops"}`}
         </button>
+        <button type="button" className="party-save" onClick={onSettle} disabled={busy}>
+          Settle
+        </button>
       </header>
 
       {/* Both directions outstanding: the net above is one transfer instead of two, which is a
@@ -196,6 +252,27 @@ function WalletRow({
         <p className="wallet-gross">
           You owe {formatMesos(person.owe, true)}, they owe {formatMesos(person.owed, true)}.
         </p>
+      )}
+
+      {/* A settle is a claim that mesos moved, and nothing here can check it. So it says what it
+          is about to mark before it marks it, and the one transfer it is standing in for. */}
+      {confirming && (
+        <div className="wallet-confirm">
+          <p className="wallet-confirm-what">
+            {transferLine(person)} Marks all {person.lines.length}{" "}
+            {person.lines.length === 1 ? "share" : "shares"} between you paid
+            {both ? ", both directions" : ""}
+            {partyCount > 1 ? `, across ${partyCount} parties` : ""}.
+          </p>
+          <div className="wallet-confirm-buttons">
+            <button type="button" className="party-save" onClick={onConfirm} disabled={busy}>
+              {busy ? "Settling..." : "It's paid"}
+            </button>
+            <button type="button" className="party-cancel" onClick={onCancel} disabled={busy}>
+              Cancel
+            </button>
+          </div>
+        </div>
       )}
 
       {open && (

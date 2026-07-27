@@ -84,3 +84,25 @@ data class SellLootRequest(
 data class PayoutRequest(
     val paid: Boolean,
 )
+
+/** One payout row, named the only way it is unique: which drop, and who is owed on it. */
+@Serializable
+data class PayoutRef(
+    val lootId: String,
+    val memberId: String,
+)
+
+/**
+ * Settling a whole relationship in one go: every payout row that one net transfer covers.
+ *
+ * The client names the rows rather than naming a person, because who owes whom is worked out by
+ * frontend/lib/wallet.ts and a second implementation here would be a second answer to it. This
+ * end of it only marks rows paid.
+ *
+ * All of them or none. A settle that half-lands leaves some shares paid and some not, with the
+ * wallet showing a smaller debt and nothing on screen saying which part of the transfer happened.
+ */
+@Serializable
+data class SettleRequest(
+    val payouts: List<PayoutRef>,
+)

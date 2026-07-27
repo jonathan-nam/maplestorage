@@ -16,10 +16,12 @@ import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlin.time.Clock
+import kotlin.time.Duration.Companion.days
 import kotlin.uuid.Uuid
 
 /**
@@ -333,6 +335,113 @@ class PartyLootTest {
                 lootFor(Uuid.parse(limbo.id)),
                 pools.single { it.partyId == limbo.id }.loot,
             )
+        }
+    }
+
+    @Test
+    fun `settling clears the named rows across parties, whichever seat is owed`() {
+        transaction {
+            // Paying one person for what they are owed everywhere is ONE transfer, so it is one
+            // call. Both directions in it: you sold in the first party, they sold in the second,
+            // and the payout row is against a different seat each time.
+            val limbo = trio()
+            val limboId = Uuid.parse(limbo.id)
+            val kalosId =
+                createParty(
+                    userId,
+                    Uuid.parse(limbo.characterId),
+                    bossIdForKey("kalos-the-guardian")!!,
+                    SavePartyRequest(limbo.characterId, "kalos-the-guardian", listOf("Steve")),
+                    Clock.System.now(),
+                )
+            val kalos = findParty(kalosId, userId)!!
+
+            val yourSale = addGrindstone(limbo)
+            val you = limbo.members.first { it.name == "Rune" }
+            sellLoot(yourSale, sale(you.id), Uuid.parse(you.id), limboId, Clock.System.now())
+
+            val theirSale =
+                addLoot(kalosId, dropIdForKey("grindstone-of-faith")!!, null, null, dropped, Clock.System.now())
+            val them = kalos.members.first { it.name == "Steve" }
+            sellLoot(theirSale, sale(them.id), Uuid.parse(them.id), kalosId, Clock.System.now())
+
+            val refs =
+                findLoot(yourSale, limboId)!!.payouts.map { yourSale to Uuid.parse(it.memberId) } +
+                    findLoot(theirSale, kalosId)!!.payouts.map { theirSale to Uuid.parse(it.memberId) }
+
+            assertTrue(settlePayouts(userId, refs, Clock.System.now()))
+            assertEquals(STATUS_PAID_OUT, findLoot(yourSale, limboId)!!.status)
+            assertEquals(STATUS_PAID_OUT, findLoot(theirSale, kalosId)!!.status)
+        }
+    }
+
+    @Test
+    fun `a settle naming a row it cannot reach writes nothing at all`() {
+        transaction {
+            val party = trio()
+            val partyId = Uuid.parse(party.id)
+            val lootId = addGrindstone(party)
+            val seller = party.members.first { it.name == "Rune" }
+            sellLoot(lootId, sale(seller.id), Uuid.parse(seller.id), partyId, Clock.System.now())
+            val ours = findLoot(lootId, partyId)!!.payouts.map { lootId to Uuid.parse(it.memberId) }
+
+            val stranger = strangerParty()
+            val strangerPartyId = Uuid.parse(stranger.id)
+            val strangerLoot =
+                addLoot(
+                    strangerPartyId,
+                    dropIdForKey("grindstone-of-faith")!!,
+                    null,
+                    null,
+                    dropped,
+                    Clock.System.now(),
+                )
+            val theirSeller = stranger.members.first { it.name == "Stranger" }.id
+            sellLoot(
+                strangerLoot,
+                sale(theirSeller),
+                Uuid.parse(theirSeller),
+                strangerPartyId,
+                Clock.System.now(),
+            )
+            val theirs =
+                findLoot(strangerLoot, strangerPartyId)!!.payouts.map {
+                    strangerLoot to Uuid.parse(it.memberId)
+                }
+
+            // A seat that is not on this drop's roster, and a row in somebody else's party. Each
+            // takes the whole settle down with it: paying for the rows it COULD reach would leave
+            // the wallet short by the rest, with nothing on screen saying which.
+            assertFalse(settlePayouts(userId, ours + (lootId to Uuid.random()), Clock.System.now()))
+            assertFalse(settlePayouts(userId, ours + theirs, Clock.System.now()))
+
+            assertEquals(STATUS_SOLD, findLoot(lootId, partyId)!!.status)
+            assertTrue(findLoot(lootId, partyId)!!.payouts.none { it.paid })
+            assertTrue(findLoot(strangerLoot, strangerPartyId)!!.payouts.none { it.paid })
+        }
+    }
+
+    @Test
+    fun `settling twice leaves the row that was already paid as it was`() {
+        transaction {
+            val party = trio()
+            val partyId = Uuid.parse(party.id)
+            val lootId = addGrindstone(party)
+            val seller = party.members.first { it.name == "Rune" }
+            sellLoot(lootId, sale(seller.id), Uuid.parse(seller.id), partyId, Clock.System.now())
+
+            val payouts = findLoot(lootId, partyId)!!.payouts
+            val early = payouts.first().memberId
+            setPayoutPaid(lootId, Uuid.parse(early), true, Clock.System.now() - 1.days)
+            val paidAt = findLoot(lootId, partyId)!!.payouts.single { it.memberId == early }.paidAt
+
+            assertTrue(settlePayouts(userId, payouts.map { lootId to Uuid.parse(it.memberId) }, Clock.System.now()))
+
+            val after = findLoot(lootId, partyId)!!
+            assertEquals(STATUS_PAID_OUT, after.status)
+            // paidAt is the record of when the money moved. A settle sent twice is one payment,
+            // and re-stamping it would date the transfer to the second click.
+            assertEquals(paidAt, after.payouts.single { it.memberId == early }.paidAt)
         }
     }
 

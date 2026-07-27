@@ -10,6 +10,7 @@
 // That fold is the whole reason the wallet is worth having: CreedBratton and CreedBratton2 are one
 // debt to Chris, and settling it is one transfer rather than two.
 
+import { formatMesos } from "./drop-split";
 import { splitOf } from "./loot";
 import type { PartyLootPool } from "@/types/loot";
 import type { Party, PartyMember } from "@/types/party";
@@ -38,6 +39,12 @@ export type WalletLine = {
    * SAME person's characters, and those are two transfers, not one row drawn twice.
    */
   theirsId: string;
+  /**
+   * The seat the payout row is against, which is the one being PAID: theirs when you owe, yours
+   * when they owe you. Not interchangeable with theirsId, and settling by that instead would mark
+   * the wrong seat paid on every line you are owed.
+   */
+  payeeId: string;
   /** Mesos that have to move: what the sender lists, before the receiver's Auction House fee. */
   pay: number;
   /** What the receiver is left holding, after that fee. */
@@ -157,6 +164,7 @@ export function buildWallet(parties: Party[], pools: PartyLootPool[]): Wallet {
           mine: mine.name,
           theirs: theirs.name,
           theirsId: theirs.id,
+          payeeId: member.id,
           pay: share.pay,
           nets: share.nets,
         });
@@ -176,6 +184,17 @@ export function buildWallet(parties: Party[], pools: PartyLootPool[]): Wallet {
 }
 
 /**
+ * The payout rows that settling with this person clears, for POST /api/parties/loot/settle.
+ *
+ * BOTH directions, always. Settling is one transfer of the net, so it closes what you owe them and
+ * what they owe you together: clearing only the side the net points at would leave the smaller side
+ * outstanding after the money that covered it has already moved.
+ */
+export function settlementFor(person: Counterparty): { lootId: string; memberId: string }[] {
+  return person.lines.map((line) => ({ lootId: line.lootId, memberId: line.payeeId }));
+}
+
+/**
  * How a counterparty's position reads in one line.
  *
  * Settling both directions with a single transfer of the net is a real thing people do, and it
@@ -186,4 +205,18 @@ export function netLabel(net: number): "they owe you" | "you owe them" | "square
   if (net > 0) return "they owe you";
   if (net < 0) return "you owe them";
   return "square";
+}
+
+/**
+ * The one transfer a settle stands for, as a sentence.
+ *
+ * The net, because that is what settling IS: one payment closing both directions. Zero is a real
+ * case rather than an empty one, two sides that cancel are settled by nobody sending anything, and
+ * the shares behind them still have to be marked.
+ */
+export function transferLine(person: Counterparty): string {
+  const amount = formatMesos(Math.abs(person.net), true);
+  if (person.net === 0) return "The two sides cancel out, so nothing needs to be sent.";
+  if (person.net < 0) return `You send ${person.name} ${amount}.`;
+  return `${person.name} sends you ${amount}.`;
 }

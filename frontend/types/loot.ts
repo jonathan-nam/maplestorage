@@ -51,3 +51,9 @@ export type SellLootBody = {
   splitMethod: string;
   sellerMemberId: string;
 };
+
+// POST /api/parties/loot/settle. Every payout row one net transfer covers, marked paid together or
+// not at all. Built by settlementFor() in lib/wallet.ts, never by hand at a call site.
+export type SettleBody = {
+  payouts: { lootId: string; memberId: string }[];
+};
