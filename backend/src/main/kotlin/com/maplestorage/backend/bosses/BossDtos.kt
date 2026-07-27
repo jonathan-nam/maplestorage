@@ -31,6 +31,19 @@ data class BossClearResponse(
 )
 
 /**
+ * One cell of the matrix, answered by hand instead of by a planner capture.
+ *
+ * No period in the payload. Which period a tick lands in follows from the boss's own cadence, and
+ * that boundary has one implementation (BossPeriod.kt); letting a client name it would be a second.
+ */
+@Serializable
+data class SetBossClearRequest(
+    val characterId: String,
+    val bossKey: String,
+    val cleared: Boolean,
+)
+
+/**
  * One view of the matrix: either the current period or one past week.
  *
  * The navigation is served rather than computed client side for the reason the period label already

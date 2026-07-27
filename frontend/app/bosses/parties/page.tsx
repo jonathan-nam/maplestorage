@@ -8,7 +8,7 @@ import { ResetTimer } from "@/components/reset-timer";
 import { WeekStepper } from "@/components/week-stepper";
 import { RosterStrip } from "@/components/roster-strip";
 import { apiAssetUrl, apiFetch } from "@/lib/api";
-import { cellState, clearStateLabel, indexClears } from "@/lib/boss-clears";
+import { cellState, clearOfCell, clearStateLabel, indexClears } from "@/lib/boss-clears";
 import { bossLabel, difficultyLabel } from "@/lib/boss-difficulty";
 import { peek, put } from "@/lib/cache";
 import { poolSize } from "@/lib/loot";
@@ -215,7 +215,7 @@ export default function PartiesPage() {
   function clearOf(party: Party): { cleared: boolean | null; byHand: boolean } {
     if (!history) return { cleared: party.cleared, byHand: party.clearedByHand };
     const state = cellState(clearsByCharacter.get(party.characterId), party.bossKey);
-    return { cleared: state === "unseen" ? null : state === "cleared", byHand: false };
+    return { cleared: clearOfCell(state), byHand: false };
   }
 
   // The clear the page is DRAWING, not the config's own, so the filter and the counts agree with

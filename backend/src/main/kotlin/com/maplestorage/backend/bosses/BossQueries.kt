@@ -114,6 +114,45 @@ private fun ResultRow.toBossClearResponse() =
     )
 
 /**
+ * Ticks one character's boss cleared for the period it is currently in, or un-ticks it.
+ *
+ * The same row a capture writes and the matrix reads, so ticking a cell and uploading a planner are
+ * two ways of saying one thing rather than two places to keep it. source_screenshot_id is left null
+ * on purpose, as setPartyClear leaves it: it is what tells a hand tick from a capture, and the next
+ * capture replaces the row with one that has a screenshot behind it.
+ *
+ * Returns false if the character is not this user's, or the boss key is not in the catalog. Refused
+ * rather than written: a clear filed against a character or a boss nobody named would still be read
+ * as somebody's answer.
+ */
+internal fun setBossClearByHand(
+    userId: String,
+    characterId: Uuid,
+    bossKey: String,
+    cleared: Boolean,
+    now: Instant,
+): Boolean {
+    val owned =
+        Characters
+            .selectAll()
+            .where { (Characters.id eq characterId) and (Characters.userId eq userId) }
+            .firstOrNull() != null
+    val boss =
+        if (!owned) null else BossCatalog.selectAll().where { BossCatalog.bossKey eq bossKey }.firstOrNull()
+    if (boss == null) return false
+
+    BossClear.upsert(BossClear.characterId, BossClear.bossCatalogId, BossClear.periodStart) { row ->
+        row[BossClear.characterId] = characterId
+        row[bossCatalogId] = boss[BossCatalog.id]
+        row[periodStart] = periodStartFor(boss[BossCatalog.reset], now)
+        row[BossClear.cleared] = cleared
+        row[capturedAt] = now
+        row[sourceScreenshotId] = null
+    }
+    return true
+}
+
+/**
  * Files a planner read against the character it belongs to.
  *
  * Pending rows are written too, not only clears: a planner shows every boss the character runs

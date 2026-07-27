@@ -44,6 +44,7 @@ export default function BossesPage() {
   );
   const [week, setWeek] = useState<string | null>(null);
   const [stepping, setStepping] = useState(false);
+  const [ticking, setTicking] = useState(false);
   const [uploadFor, setUploadFor] = useState<string | null>(null);
 
   // Clicking the arrow twice quickly fires two requests, and they can land in either order. Only
@@ -71,6 +72,37 @@ export default function BossesPage() {
     } catch {
       // The save itself succeeded, so leaving the old matrix up is better than blanking it. The
       // next load will pick the new clears up.
+    }
+  }
+
+  /**
+   * Answers one cell by hand, for when there is no planner capture to hand.
+   *
+   * Writes boss_clear, the same row a capture writes and Party View ticks, so the three cannot
+   * drift. The server answers with the refreshed matrix: which period a tick lands in follows from
+   * the boss's cadence and is decided there, so reading it back is what makes the screen show what
+   * was written rather than what was clicked.
+   *
+   * Ticks serialise (see `ticking`). Two in flight at once could land in either order, and the
+   * later answer is not necessarily the one that saw both writes.
+   */
+  async function toggleClear(characterId: string, bossKey: string, cleared: boolean) {
+    const ticket = ++latestRequest.current;
+    setTicking(true);
+    try {
+      const result = await apiFetch<BossClearsView>(
+        CLEARS_KEY,
+        { method: "PUT", body: JSON.stringify({ characterId, bossKey, cleared }) },
+        getToken,
+      );
+      if (ticket !== latestRequest.current) return;
+      setView(result);
+      setReceivedAt(Date.now());
+      put(CLEARS_KEY, result);
+    } catch {
+      // Leaving the old mark up beats drawing a tick that did not save.
+    } finally {
+      setTicking(false);
     }
   }
 
@@ -148,11 +180,16 @@ export default function BossesPage() {
               </div>
             )}
 
+            {/* Editable on the live view only, for the reason the dock below is only offered
+                there: a past week carries weekly rows alone, so a tick on it would have no one
+                period to land in. */}
             <BossMatrix
               bosses={bosses}
               characters={characters}
               clearsByCharacter={view?.clearsByCharacter ?? {}}
               historyWeek={view?.weekStart ?? null}
+              onToggle={week === null ? toggleClear : undefined}
+              busy={ticking || stepping}
             />
 
             {/* Uploading files a capture against now, so it only makes sense on the live view.

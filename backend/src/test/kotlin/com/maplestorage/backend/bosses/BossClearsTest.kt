@@ -1,6 +1,7 @@
 package com.maplestorage.backend.bosses
 
 import com.maplestorage.backend.config.Env
+import com.maplestorage.backend.db.BossCatalog
 import com.maplestorage.backend.db.BossClear
 import com.maplestorage.backend.db.Characters
 import com.maplestorage.backend.db.Screenshots
@@ -8,6 +9,7 @@ import com.maplestorage.backend.services.DetectedBossClear
 import com.maplestorage.backend.users.ensureUser
 import kotlinx.datetime.LocalDate
 import org.flywaydb.core.Flyway
+import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.or
 import org.jetbrains.exposed.v1.jdbc.Database
@@ -313,4 +315,87 @@ class BossClearsTest {
                 )
             }
         }
+
+    @Test
+    fun `a hand tick files against the boss's own period, with no screenshot behind it`() =
+        transaction {
+            val character = addCharacter(userOneId, "Typist")
+            assertTrue(setBossClearByHand(userOneId, character, "lotus", true, midWeek))
+
+            val clears = currentBossClearsFor(userOneId, midWeek).getValue(character.toString())
+            assertEquals(listOf("lotus"), clears.map { it.bossKey })
+            assertTrue(clears.single().cleared)
+            // The week the tick landed in came from the boss's cadence, not from the day it was
+            // typed: midWeek is a Saturday.
+            assertEquals("2026-07-16", clears.single().periodStart)
+            // Null is what tells a hand tick from a capture, and Party View reads it as byHand.
+            assertNull(sourceScreenshotOf(character, "lotus"))
+        }
+
+    @Test
+    fun `a monthly boss ticked by hand lands in the month, not the week`() =
+        transaction {
+            val character = addCharacter(userOneId, "Monthly")
+            setBossClearByHand(userOneId, character, "black-mage", true, midWeek)
+
+            val clears = currentBossClearsFor(userOneId, midWeek).getValue(character.toString())
+            assertEquals("2026-07-01", clears.single().periodStart)
+        }
+
+    @Test
+    fun `ticking and un-ticking the same cell leaves one row saying the last thing said`() =
+        transaction {
+            val character = addCharacter(userOneId, "Mistake")
+            setBossClearByHand(userOneId, character, "lotus", true, midWeek)
+            setBossClearByHand(userOneId, character, "lotus", false, midWeek)
+
+            val clears = currentBossClearsFor(userOneId, midWeek).getValue(character.toString())
+            assertEquals(1, clears.size, "the same boss in the same period must be one row")
+            // Not-cleared, not absent. Un-ticking says "not done", which is a different answer from
+            // "nothing has been said", and the matrix draws the two differently.
+            assertTrue(!clears.single().cleared)
+        }
+
+    @Test
+    fun `a hand tick overwrites the capture that disagreed with it`() =
+        transaction {
+            val character = addCharacter(userOneId, "Corrector")
+            upsertBossClears(character, listOf(DetectedBossClear("lotus", false)), addScreenshot(userOneId), midWeek)
+            setBossClearByHand(userOneId, character, "lotus", true, midWeek)
+
+            val clears = currentBossClearsFor(userOneId, midWeek).getValue(character.toString())
+            assertEquals(1, clears.size)
+            assertTrue(clears.single().cleared)
+            // The screenshot goes with the reading it belonged to. Leaving it would attribute a
+            // typed answer to a capture that said the opposite.
+            assertNull(sourceScreenshotOf(character, "lotus"))
+        }
+
+    @Test
+    fun `I cannot tick a cell on someone else's character`() =
+        transaction {
+            val theirs = addCharacter(userTwoId, "Theirs")
+            assertTrue(!setBossClearByHand(userOneId, theirs, "lotus", true, midWeek))
+            assertTrue(currentBossClearsFor(userTwoId, midWeek).isEmpty(), "nothing may be written")
+        }
+
+    @Test
+    fun `a hand tick on a boss the catalog does not have is refused, not filed`() =
+        transaction {
+            val character = addCharacter(userOneId, "Unknown")
+            assertTrue(!setBossClearByHand(userOneId, character, "not-a-boss", true, midWeek))
+            assertTrue(currentBossClearsFor(userOneId, midWeek).isEmpty())
+        }
+
+    // The provenance column, which no read DTO carries: a hand tick leaves it null and a capture
+    // fills it. Read straight out of the table rather than inferred.
+    private fun sourceScreenshotOf(
+        character: Uuid,
+        bossKey: String,
+    ): Uuid? =
+        BossClear
+            .innerJoin(BossCatalog)
+            .selectAll()
+            .where { (BossClear.characterId eq character) and (BossCatalog.bossKey eq bossKey) }
+            .single()[BossClear.sourceScreenshotId]
 }

@@ -20,9 +20,27 @@ export function clearStateLabel(cleared: boolean | null): string {
   return cleared ? "cleared" : "not cleared";
 }
 
+/** A cell state as the boolean-or-null the rest of the app keeps a clear in. */
+export function clearOfCell(state: CellState): boolean | null {
+  return state === "unseen" ? null : state === "cleared";
+}
+
 /** The same names, for the matrix, which holds the three states as a CellState. */
 export function cellStateLabel(state: CellState): string {
-  return clearStateLabel(state === "unseen" ? null : state === "cleared");
+  return clearStateLabel(clearOfCell(state));
+}
+
+/**
+ * What a click on a clear in this state should write.
+ *
+ * One function for the matrix cell and the party card, so the two cannot end up disagreeing about
+ * what un-ticking means. Two answers out of three states: "not reported" and "not cleared" both
+ * tick to cleared, and cleared un-ticks to not-cleared. There is deliberately no way back to "not
+ * reported" from a click, so a mark a click leaves is always an answer rather than a return to
+ * silence. Only a capture, or a new period, puts a cell back to having said nothing.
+ */
+export function nextClear(cleared: boolean | null): boolean {
+  return cleared !== true;
 }
 
 /** Index one character's clears for lookup. 16 bosses by N characters is a lot of find() scans. */
