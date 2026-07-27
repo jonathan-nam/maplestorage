@@ -68,6 +68,25 @@ class BossCatalogSeedTest {
     }
 
     @Test
+    fun `every boss offers difficulties a config can pick from`() {
+        // This list is what the party editor shows and what the save route validates against, so
+        // an empty one is a boss no config can state a mode for. HARD and CHAOS are one rung under
+        // two names, for whether the boss is a monster (Chaos Gloom, Hard Baldrix), so no boss has
+        // both, and the order is the ladder's because the UI shows them in it.
+        val ladder = listOf("EASY", "NORMAL", "HARD", "CHAOS", "EXTREME")
+        transaction {
+            BossCatalog.selectAll().forEach { row ->
+                val key = row[BossCatalog.bossKey]
+                val modes = row[BossCatalog.difficulties]
+                assertTrue(modes.isNotEmpty(), "$key offers no difficulty, so no config can name one")
+                assertTrue(modes.all { it in ladder }, "$key offers $modes, which is not all on the ladder")
+                assertTrue("HARD" !in modes || "CHAOS" !in modes, "$key offers both HARD and CHAOS")
+                assertEquals(modes.sortedBy(ladder::indexOf), modes, "$key lists its difficulties out of order")
+            }
+        }
+    }
+
+    @Test
     fun `every boss declares a cadence the period logic understands`() {
         // reset is CHECK-constrained in the schema, but the constraint and BossPeriod's `when` are
         // two separate lists. A cadence that satisfied the database and not the code would throw

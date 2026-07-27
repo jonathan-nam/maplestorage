@@ -277,6 +277,7 @@ private fun ResultRow.toPartyResponse(
     id = this[Party.id].toString(),
     characterId = this[Party.characterId].toString(),
     bossKey = this[BossCatalog.bossKey],
+    difficulty = this[Party.difficulty],
     members = members,
     pendingLoot = loot.pending,
     awaitingPayout = loot.awaitingPayout,

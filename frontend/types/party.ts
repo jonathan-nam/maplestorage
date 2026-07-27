@@ -20,6 +20,9 @@ export type Party = {
   id: string;
   characterId: string;
   bossKey: string;
+  // Which mode this party runs, one of the boss's own difficulties. Null is not NORMAL, it is
+  // nobody having said yet, and nothing draws a difficulty for it.
+  difficulty: string | null;
   // Your character first, then the others.
   members: PartyMember[];
   // The pool at a glance: dropped but unsold, sold with somebody still unpaid, and sold with
@@ -51,6 +54,9 @@ export type SavePartyBody = {
   characterId: string;
   bossKey: string;
   members: string[];
+  // One of the boss's own difficulties. Omitted or null says nothing, which the server keeps as
+  // nothing; anything the boss does not have is refused rather than stored.
+  difficulty?: string | null;
 };
 
 // The whole people list, every time.

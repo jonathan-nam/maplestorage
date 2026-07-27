@@ -34,6 +34,7 @@ function party(id: string, bossKey: string, members: PartyMember[]): Party {
     id,
     characterId: members[0]?.characterId ?? "c1",
     bossKey,
+    difficulty: null,
     members,
     pendingLoot: 0,
     awaitingPayout: 0,
@@ -97,7 +98,9 @@ describe("rosterFrom", () => {
 });
 
 describe("runsFromParties", () => {
-  const bosses = [{ bossKey: "lotus", name: "Lotus", reset: "WEEKLY", iconUrl: null }];
+  const bosses = [
+    { bossKey: "lotus", name: "Lotus", reset: "WEEKLY", iconUrl: null, difficulties: ["HARD"] },
+  ];
 
   it("turns a config into a run with its seats attributed", () => {
     const runs = runsFromParties([party("1", "lotus", [mine, chris])], bosses, () => 5);
@@ -106,6 +109,7 @@ describe("runsFromParties", () => {
         id: "1",
         bossKey: "lotus",
         bossName: "Lotus",
+        difficulty: null,
         minutes: 5,
         seats: [
           { character: "Mechy", personId: YOU },
@@ -122,6 +126,11 @@ describe("runsFromParties", () => {
       () => 5,
     );
     expect(runs).toHaveLength(1);
+  });
+
+  it("carries the mode the config says it runs", () => {
+    const hard = { ...party("1", "lotus", [mine, chris]), difficulty: "HARD" };
+    expect(runsFromParties([hard], bosses, () => 5)[0]?.difficulty).toBe("HARD");
   });
 
   it("falls back to the key when the catalog has no name for the boss", () => {
@@ -248,6 +257,22 @@ describe("planAsText", () => {
     bossName,
     minutes: 30,
     seats: seats.map(([character, person]) => ({ character, person })),
+  });
+
+  it("names the mode in the line people copy, so nobody queues the wrong one", () => {
+    const hard = { ...party("1", "lotus", [mine, chris]), difficulty: "HARD" };
+    const runs = runsFromParties(
+      [hard],
+      [{ bossKey: "lotus", name: "Lotus", reset: "WEEKLY", iconUrl: null, difficulties: ["HARD"] }],
+      () => 30,
+    );
+    const roster = rosterFrom([hard]);
+    const { eligible } = screenRuns(
+      runs,
+      roster.map((p) => p.id),
+    );
+    const text = planAsText(planNight(eligible, { minutes: 60 }).best, roster);
+    expect(text).toContain("1. Hard Lotus:");
   });
 
   it("opens with what a reader wants before they read anything else", () => {

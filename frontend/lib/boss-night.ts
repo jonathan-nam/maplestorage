@@ -11,6 +11,7 @@ import type { Boss } from "@/types/boss";
 import type { Party, PartyMember } from "@/types/party";
 
 import { BOSS_SHORT_NAMES } from "./boss-art";
+import { bossLabel } from "./boss-difficulty";
 
 import type { CandidateRun, Plan, PlannedRun } from "./boss-run-plan";
 
@@ -79,6 +80,7 @@ export function runsFromParties(
     id: party.id,
     bossKey: party.bossKey,
     bossName: nameFor.get(party.bossKey) ?? party.bossKey,
+    difficulty: party.difficulty,
     minutes: minutesFor(party.bossKey),
     seats: party.members.map((member) => ({
       character: member.name,
@@ -115,6 +117,8 @@ export function runsFromDrafts(drafts: DraftRun[]): CandidateRun[] {
     id: draft.id,
     bossKey: draft.bossKey,
     bossName: draft.bossName,
+    // A hand-typed run has no config behind it, so there is nothing to say. Not guessed at.
+    difficulty: null,
     minutes: draft.minutes,
     seats: draft.seats
       .filter((seat) => seat.character.trim() !== "")
@@ -179,8 +183,12 @@ function runLine(
     )
     .join(", ");
 
-  // What the party calls it, which is what they will scroll past looking for their own run.
-  const boss = BOSS_SHORT_NAMES[planned.run.bossKey] ?? planned.run.bossName;
+  // What the party calls it, which is what they will scroll past looking for their own run. The
+  // mode goes in front of it: "Chaos Kalos" is the whole name of what is being run.
+  const boss = bossLabel(
+    BOSS_SHORT_NAMES[planned.run.bossKey] ?? planned.run.bossName,
+    planned.run.difficulty,
+  );
   const line = `${number}. ${boss}: ${seats}`;
   if (!before) return line;
 

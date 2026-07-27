@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { RunDraftEditor } from "@/components/run-draft-editor";
 import { CopyPlan, RunPlan } from "@/components/run-plan";
 import { apiFetch } from "@/lib/api";
+import { bossLabel } from "@/lib/boss-difficulty";
 import { DEFAULT_MINUTES, minutesFor } from "@/lib/boss-minutes";
 import {
   type DraftRun,
@@ -378,7 +379,7 @@ export default function RunOrderPage() {
           <ul className="night-leftovers">
             {unscheduled.map((leftOut) => (
               <li key={leftOut.id}>
-                {leftOut.bossName}
+                {bossLabel(leftOut.bossName, leftOut.difficulty)}
                 <span className="night-leftover-seats">
                   {leftOut.seats.map((seat) => seat.character).join(", ")}
                 </span>
@@ -394,7 +395,9 @@ export default function RunOrderPage() {
           <ul className="night-rejects">
             {rejected.map((rejection) => (
               <li key={rejection.run.id}>
-                <span className="night-reject-boss">{rejection.run.bossName}</span>
+                <span className="night-reject-boss">
+                  {bossLabel(rejection.run.bossName, rejection.run.difficulty)}
+                </span>
                 <span className="night-reject-why">
                   {explainRejection(rejection.reason, rejection.detail, roster)}
                 </span>

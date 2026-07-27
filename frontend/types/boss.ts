@@ -8,6 +8,9 @@ export type Boss = {
   reset: string;
   // The boss's own planner portrait, backend-relative. Resolve with apiAssetUrl().
   iconUrl: string | null;
+  // The modes it can be fought at, lowest first: what a party config picks from. CHAOS is the
+  // third rung's name for the bosses that are monsters, so a boss has HARD or CHAOS, never both.
+  difficulties: string[];
 };
 
 export type BossClear = {

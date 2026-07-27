@@ -48,6 +48,8 @@ export type CandidateRun = {
   id: string;
   bossKey: string;
   bossName: string;
+  /** The mode the config says it runs. Null for a hand-typed run, which is not asked for one. */
+  difficulty: string | null;
   /** Door to door, in minutes: getting in, the fight, and looting. */
   minutes: number;
   seats: RunSeat[];

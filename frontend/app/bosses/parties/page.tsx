@@ -9,6 +9,7 @@ import { WeekStepper } from "@/components/week-stepper";
 import { RosterStrip } from "@/components/roster-strip";
 import { apiAssetUrl, apiFetch } from "@/lib/api";
 import { cellState, clearStateLabel, indexClears } from "@/lib/boss-clears";
+import { bossLabel, difficultyLabel } from "@/lib/boss-difficulty";
 import { peek, put } from "@/lib/cache";
 import { poolSize } from "@/lib/loot";
 import {
@@ -400,7 +401,10 @@ export default function PartiesPage() {
                               />
                             )}
                             <h3 className="party-row-name">
-                              {bossByKey.get(party.bossKey)?.name ?? party.bossKey}
+                              {bossLabel(
+                                bossByKey.get(party.bossKey)?.name ?? party.bossKey,
+                                party.difficulty,
+                              )}
                             </h3>
                           </>
                         }
@@ -447,7 +451,10 @@ export default function PartiesPage() {
                               alt=""
                             />
                           )}
-                          {bossByKey.get(party.bossKey)?.name ?? party.bossKey}
+                          {bossLabel(
+                            bossByKey.get(party.bossKey)?.name ?? party.bossKey,
+                            party.difficulty,
+                          )}
                           {/* Both states are said out loud. Naming only the cleared one left the
                               other as the absence of a label, which is the one state on this page
                               you actually need to spot. Null stays silent: it is not a third answer
@@ -511,6 +518,13 @@ export default function PartiesPage() {
                           <h3 className="party-row-name">
                             {characterById.get(party.characterId)?.name ?? "Unknown character"}
                           </h3>
+                          {/* Beside the character, not folded into the heading: filed by boss,
+                              two of your characters can run the same boss at different modes. */}
+                          {party.difficulty && (
+                            <span className="party-difficulty">
+                              {difficultyLabel(party.difficulty)}
+                            </span>
+                          )}
                         </>
                       }
                     />

@@ -19,6 +19,7 @@ function run(
     id,
     bossKey,
     bossName: bossKey,
+    difficulty: null,
     minutes,
     seats: seats.map(([character, personId]) => ({ character, personId })),
   };
@@ -34,6 +35,7 @@ function eligible(
     id,
     bossKey,
     bossName: bossKey,
+    difficulty: null,
     minutes,
     seats: seats.map(([character, personId]) => ({ character, personId })),
   };

@@ -30,6 +30,7 @@ internal fun bossCatalog(): List<BossResponse> =
                 name = it[BossCatalog.name],
                 reset = it[BossCatalog.reset],
                 iconUrl = it[BossCatalog.iconRefKey]?.let { key -> "/boss-icons/$key" },
+                difficulties = it[BossCatalog.difficulties],
             )
         }
 

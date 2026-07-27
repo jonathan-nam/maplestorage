@@ -101,8 +101,9 @@ class PartyConfigTest {
         bossKey: String,
         members: List<String>,
         sprites: Map<String, String?> = emptyMap(),
+        difficulty: String? = null,
     ): PartyResponse {
-        val request = SavePartyRequest(characterId.toString(), bossKey, members)
+        val request = SavePartyRequest(characterId.toString(), bossKey, members, difficulty)
         val id = createParty(userId, characterId, bossIdForKey(bossKey)!!, request, Clock.System.now(), sprites)
         return findParty(id, userId)!!
     }
@@ -200,6 +201,58 @@ class PartyConfigTest {
             val saved = findParty(Uuid.parse(party.id), userOneId)!!
             assertEquals(mine.toString(), saved.characterId)
             assertEquals("limbo", saved.bossKey)
+        }
+    }
+
+    @Test
+    fun `a config says which difficulty it runs, and can change its mind`() {
+        transaction {
+            val mine = addCharacter(userOneId, "mechyfechy")
+            val party = config(userOneId, mine, "kalos-the-guardian", listOf("CreedBratton"), difficulty = "CHAOS")
+            assertEquals("CHAOS", party.difficulty)
+
+            // Editable, unlike the character and the boss: a party that starts clearing Extreme is
+            // the same party, with the same pool.
+            saveParty(
+                userOneId,
+                Uuid.parse(party.id),
+                SavePartyRequest(mine.toString(), "kalos-the-guardian", listOf("CreedBratton"), "EXTREME"),
+                Clock.System.now(),
+            )
+            assertEquals("EXTREME", findParty(Uuid.parse(party.id), userOneId)!!.difficulty)
+        }
+    }
+
+    @Test
+    fun `a config that has not said which difficulty it runs is not given one`() {
+        transaction {
+            val mine = addCharacter(userOneId, "mechyfechy")
+            // Null, not NORMAL. Every config predating the column is in this state, and defaulting
+            // it would put a mode on screen that nobody chose.
+            assertNull(config(userOneId, mine, "limbo", listOf("Lynn")).difficulty)
+        }
+    }
+
+    @Test
+    fun `refuses a difficulty the boss does not have, rather than storing it`() {
+        transaction {
+            fun check(
+                bossKey: String,
+                difficulty: String?,
+            ) = validateDifficulty(bossIdForKey(bossKey)!!, difficulty)
+
+            // Kalos is a monster, so its third rung is Chaos and there is no Hard Kalos to enter.
+            assertEquals(
+                "difficulty must be one of: EASY, NORMAL, CHAOS, EXTREME",
+                check("kalos-the-guardian", "HARD"),
+            )
+            // Baldrix is not a monster, so it is the other way round.
+            assertEquals("difficulty must be one of: NORMAL, HARD", check("baldrix", "CHAOS"))
+            // The Black Mage is fought at two, and neither of them is Normal.
+            assertEquals("difficulty must be one of: HARD, EXTREME", check("black-mage", "NORMAL"))
+            assertNull(check("black-mage", "EXTREME"))
+            // Saying nothing is allowed, and is what an untouched config says.
+            assertNull(check("kalos-the-guardian", null))
         }
     }
 

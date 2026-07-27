@@ -50,6 +50,9 @@ BOSS_MANIFEST = ROOT / "catalog" / "bosses.yaml"
 BOSS_OUT = ROOT / "vision" / "app" / "cv" / "boss_catalog.json"
 BOSS_SQL_OUT = ROOT / "backend" / "src" / "main" / "resources" / "db" / "migration" / "R__boss_catalog.sql"
 BOSS_RESETS = {"WEEKLY", "DAILY", "MONTHLY"}
+# The difficulty ladder, lowest first. CHAOS is the third rung under another name, used by the
+# bosses that are monsters rather than people, so a boss carries HARD or CHAOS and never both.
+BOSS_DIFFICULTIES = ["EASY", "NORMAL", "HARD", "CHAOS", "EXTREME"]
 # Boss portraits, cut from a planner capture by vision/app/cv/build_boss_portraits.py and named
 # from the boss key. Every TRACKED boss must have one: a boss drawn without art sits beside
 # fifteen that have it and reads as a failed load.
@@ -163,7 +166,31 @@ def load_bosses() -> list[dict]:
             sys.exit(f"{key}: tracked must be true or false, got {b.get('tracked')!r}")
         if "short" in b and not str(b["short"]).strip():
             sys.exit(f"{key}: short must be a name or absent, not empty")
+        check_difficulties(b)
     return bosses
+
+
+def check_difficulties(boss: dict) -> None:
+    """The modes a config can pick from. Required for a tracked boss, and in ladder order.
+
+    An untracked boss is seeded nowhere and so has no config to pick for. See catalog/bosses.yaml.
+    """
+    key = boss["key"]
+    modes = boss.get("difficulties") or []
+    if not modes:
+        if boss.get("tracked", True):
+            sys.exit(f"{key}: needs difficulties, a party config picks the mode it runs from them")
+        return
+    unknown = [m for m in modes if m not in BOSS_DIFFICULTIES]
+    if unknown:
+        sys.exit(f"{key}: difficulty {unknown[0]!r} is not one of {BOSS_DIFFICULTIES}")
+    if len(set(modes)) != len(modes):
+        sys.exit(f"{key}: lists the same difficulty twice")
+    if "HARD" in modes and "CHAOS" in modes:
+        sys.exit(f"{key}: HARD and CHAOS are one rung under two names, a boss has one of them")
+    rungs = [BOSS_DIFFICULTIES.index(m) for m in modes]
+    if rungs != sorted(rungs):
+        sys.exit(f"{key}: difficulties must be listed lowest first, the UI shows them in this order")
 
 
 def _boss_summary(bosses: list[dict]) -> str:
@@ -197,11 +224,15 @@ def boss_sql(bosses: list[dict]) -> str:
     def q(s: str) -> str:
         return "'" + s.replace("'", "''") + "'"
 
+    def modes(b: dict) -> str:
+        return "ARRAY[" + ", ".join(q(m) for m in b["difficulties"]) + "]::TEXT[]"
+
     tracked = [b for b in bosses if b.get("tracked", True)]
     # Manifest position IS the sort order, so reordering bosses.yaml reorders the matrix and
     # nothing else has to be touched. See V12__boss_sort_order.sql.
     rows = ",\n".join(
-        f"    ({q(b['key'])}, {q(b['name'])}, {q(b['reset'])}, {i}, {q(b['key'] + '.png')})"
+        f"    ({q(b['key'])}, {q(b['name'])}, {q(b['reset'])}, {i}, {q(b['key'] + '.png')},"
+        f" {modes(b)})"
         for i, b in enumerate(tracked)
     )
     return f"""-- GENERATED FROM catalog/bosses.yaml. DO NOT EDIT BY HAND.
@@ -210,18 +241,19 @@ def boss_sql(bosses: list[dict]) -> str:
 -- Repeatable (R__): editing bosses.yaml reseeds boss_catalog on the next boot. Upserts by
 -- boss_key and keeps an existing row's id, which boss_clear references, so it is never churned.
 
-INSERT INTO boss_catalog (id, boss_key, name, reset, sort_order, icon_ref_key)
+INSERT INTO boss_catalog (id, boss_key, name, reset, sort_order, icon_ref_key, difficulties)
 SELECT COALESCE(existing.id, gen_random_uuid()), v.boss_key, v.name, v.reset, v.sort_order,
-       v.icon_ref_key
+       v.icon_ref_key, v.difficulties
 FROM (VALUES
 {rows}
-) AS v (boss_key, name, reset, sort_order, icon_ref_key)
+) AS v (boss_key, name, reset, sort_order, icon_ref_key, difficulties)
 LEFT JOIN boss_catalog existing ON existing.boss_key = v.boss_key
 ON CONFLICT (boss_key) DO UPDATE SET
     name         = EXCLUDED.name,
     reset        = EXCLUDED.reset,
     sort_order   = EXCLUDED.sort_order,
-    icon_ref_key = EXCLUDED.icon_ref_key;
+    icon_ref_key = EXCLUDED.icon_ref_key,
+    difficulties = EXCLUDED.difficulties;
 """
 
 

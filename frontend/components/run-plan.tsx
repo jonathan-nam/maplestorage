@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 
 import { apiAssetUrl } from "@/lib/api";
 import { BOSS_ART } from "@/lib/boss-art";
+import { bossLabel } from "@/lib/boss-difficulty";
 import { formatDuration, type NightPerson, planAsText } from "@/lib/boss-night";
 import type { Plan } from "@/lib/boss-run-plan";
 
@@ -36,7 +37,9 @@ export function RunPlan({ plan, roster }: { plan: Plan; roster: NightPerson[] })
               <span className="run-art is-empty" aria-hidden="true" />
             )}
             <span className="run-boss">
-              <span className="run-boss-name">{planned.run.bossName}</span>
+              <span className="run-boss-name">
+                {bossLabel(planned.run.bossName, planned.run.difficulty)}
+              </span>
               <span className="run-boss-minutes">{formatDuration(planned.run.minutes)}</span>
             </span>
             <ul className="run-seats">
