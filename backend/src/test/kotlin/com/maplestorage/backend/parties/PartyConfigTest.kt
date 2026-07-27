@@ -161,6 +161,49 @@ class PartyConfigTest {
     }
 
     @Test
+    fun `editing a config leaves the day it was set up alone`() {
+        transaction {
+            val mine = addCharacter(userOneId, "mechyfechy")
+            val party = config(userOneId, mine, "limbo", listOf("Lynn"))
+
+            val swapped = SavePartyRequest(mine.toString(), "limbo", listOf("Kaiser"))
+            saveParty(userOneId, Uuid.parse(party.id), swapped, Clock.System.now())
+            val saved = findParty(Uuid.parse(party.id), userOneId)!!
+
+            // Party View decides which configs a PAST week admits by comparing createdAt against
+            // that week's end (see existedInWeek in frontend/lib/parties.ts). If an edit moved
+            // createdAt forward, swapping a name today would evict the config from weeks it really
+            // was around for, and a week that was right yesterday would quietly lose rows.
+            assertEquals(party.createdAt, saved.createdAt)
+            assertTrue(saved.updatedAt >= party.updatedAt)
+            assertEquals(listOf("mechyfechy", "Kaiser"), saved.members.map { it.name })
+        }
+    }
+
+    @Test
+    fun `a config cannot be moved to another character or boss, so a past clear cannot be reattributed`() {
+        transaction {
+            val mine = addCharacter(userOneId, "mechyfechy")
+            val other = addCharacter(userOneId, "warrior2020")
+            val party = config(userOneId, mine, "limbo", listOf("Lynn"))
+
+            // Asks for both to be changed. The character and the boss are what the config IS, and
+            // boss_clear is keyed on exactly that pair, so honouring this would move every past
+            // clear this config draws onto a character who never ran it.
+            saveParty(
+                userOneId,
+                Uuid.parse(party.id),
+                SavePartyRequest(other.toString(), "kalos-the-guardian", listOf("Lynn")),
+                Clock.System.now(),
+            )
+
+            val saved = findParty(Uuid.parse(party.id), userOneId)!!
+            assertEquals(mine.toString(), saved.characterId)
+            assertEquals("limbo", saved.bossKey)
+        }
+    }
+
+    @Test
     fun `refuses a config that cannot be created as asked`() {
         transaction {
             val mine = addCharacter(userOneId, "mechyfechy")

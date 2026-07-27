@@ -97,6 +97,19 @@ export function formatWeekStart(iso: string): string {
 }
 
 /**
+ * The reset day that ends a week, exclusive: "2026-07-16" -> "2026-07-23".
+ *
+ * Stepped in UTC. The boundary is midnight Thursday UTC (see BossPeriod.kt), so walking it through
+ * local time would land a day out for every viewer who is not on it, which is the same trap
+ * formatPeriod avoids.
+ */
+export function weekEndExclusive(weekStart: string): string {
+  const [year, month, day] = weekStart.split("-").map(Number);
+  if (!year || !month || !day) return weekStart;
+  return new Date(Date.UTC(year, month - 1, day + 7)).toISOString().slice(0, 10);
+}
+
+/**
  * Which week a view is showing: "Week of July 16".
  *
  * Shared by the stepper on the Individual View and the standing label on Party View, so the two
