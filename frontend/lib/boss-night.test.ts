@@ -12,9 +12,11 @@ import {
   rosterFrom,
   rosterFromDrafts,
   runsFromDrafts,
+  planAsText,
   runsFromParties,
   YOU,
 } from "./boss-night";
+import { planNight, screenRuns } from "./boss-run-plan";
 
 function member(over: Partial<PartyMember> & { name: string }): PartyMember {
   return {
@@ -225,5 +227,121 @@ describe("explainRejection", () => {
 
   it("names the character nobody has claimed", () => {
     expect(explainRejection("unattributed-seat", ["Stranger"], roster)).toContain("Stranger");
+  });
+});
+
+describe("planAsText", () => {
+  // Built through the real planner rather than a hand-made Plan, so the text is pinned against
+  // what the tool actually produces.
+  const textFor = (drafts: DraftRun[], minutes: number) => {
+    const roster = rosterFromDrafts(drafts);
+    const { eligible } = screenRuns(
+      runsFromDrafts(drafts),
+      roster.map((p) => p.id),
+    );
+    return planAsText(planNight(eligible, { minutes }).best, roster);
+  };
+
+  const R = (id: string, bossName: string, seats: [string, string][]): DraftRun => ({
+    id,
+    bossKey: id,
+    bossName,
+    minutes: 30,
+    seats: seats.map(([character, person]) => ({ character, person })),
+  });
+
+  it("opens with what a reader wants before they read anything else", () => {
+    const text = textFor([R("1", "Lotus", [["Bishop", "You"]])], 60);
+    expect(text.split("\n")[0]).toBe("1 boss · about 30m · no character switches");
+  });
+
+  it("counts bosses and switches in the plural when there is more than one", () => {
+    const text = textFor(
+      [
+        R("1", "Lotus", [["Bishop", "You"]]),
+        R("2", "Damien", [["Kanna", "You"]]),
+        R("3", "Lucid", [["Hero", "You"]]),
+      ],
+      180,
+    );
+    expect(text.split("\n")[0]).toContain("3 bosses");
+    expect(text.split("\n")[0]).toContain("2 character switches");
+  });
+
+  it("gives somebody who never moves one line and no run numbers to check off", () => {
+    const text = textFor(
+      [R("1", "Lotus", [["Hero", "Chris"]]), R("2", "Damien", [["Hero", "Chris"]])],
+      120,
+    );
+    expect(text).toContain("Chris: Hero the whole way");
+  });
+
+  it("says where a switch falls, in the order the night runs", () => {
+    const text = textFor(
+      [
+        R("1", "Lotus", [["Bishop", "You"]]),
+        R("2", "Damien", [["Bishop", "You"]]),
+        R("3", "Lucid", [["Kanna", "You"]]),
+      ],
+      180,
+    );
+    expect(text).toContain("You: Bishop for 1-2, then Kanna for 3");
+  });
+
+  it("compresses a run of consecutive numbers and comma-separates a gap", () => {
+    // Dave sits out the middle boss, so his numbers cannot be a range.
+    const text = textFor(
+      [
+        R("1", "Lotus", [
+          ["Bishop", "You"],
+          ["Nightlord", "Dave"],
+        ]),
+        R("2", "Damien", [["Bishop", "You"]]),
+        R("3", "Lucid", [
+          ["Bishop", "You"],
+          ["Nightlord", "Dave"],
+        ]),
+      ],
+      180,
+    );
+    expect(text).toContain("Dave: Nightlord for 1, 3");
+    expect(text).toContain("You: Bishop the whole way");
+  });
+
+  it("leaves out somebody who is in no scheduled run", () => {
+    // Only one boss fits, and it is not the one Dave is in.
+    const text = textFor(
+      [R("1", "Lotus", [["Bishop", "You"]]), R("2", "Damien", [["Nightlord", "Dave"]])],
+      30,
+    );
+    expect(text).not.toContain("Dave");
+  });
+
+  it("lists the bosses in order, numbered to match the lines below", () => {
+    const text = textFor(
+      [R("1", "Lotus", [["Bishop", "You"]]), R("2", "Damien", [["Bishop", "You"]])],
+      120,
+    );
+    expect(text).toContain("1. Lotus");
+    expect(text).toContain("2. Damien");
+  });
+
+  it("says so plainly when there is nothing to paste", () => {
+    expect(planAsText({ runs: [], switches: 0, minutes: 0 }, [])).toBe(
+      "No bosses fit in the time.",
+    );
+  });
+
+  it("indents nothing, because a chat client will not render it monospaced", () => {
+    const text = textFor(
+      [
+        R("1", "Lotus", [
+          ["Bishop", "You"],
+          ["Hero", "Chris"],
+        ]),
+      ],
+      60,
+    );
+    expect(text.split("\n").every((line) => line === line.trimStart())).toBe(true);
   });
 });

@@ -148,30 +148,100 @@ export function formatDuration(minutes: number): string {
   return `${hours}h ${rest}m`;
 }
 
+/** Run numbers as a person would write them: "1-3", "1, 3", "1-2, 5". */
+function runRanges(numbers: number[]): string {
+  const parts: string[] = [];
+  let start: number | undefined;
+  let end: number | undefined;
+
+  for (const n of numbers) {
+    if (start === undefined || end === undefined) {
+      start = n;
+      end = n;
+    } else if (n === end + 1) {
+      end = n;
+    } else {
+      parts.push(start === end ? `${start}` : `${start}-${end}`);
+      start = n;
+      end = n;
+    }
+  }
+  if (start !== undefined && end !== undefined) {
+    parts.push(start === end ? `${start}` : `${start}-${end}`);
+  }
+
+  return parts.join(", ");
+}
+
+/**
+ * What one person is on, across the whole night.
+ *
+ * Their runs collapse into stretches on one character, which is the shape the ordering was chosen
+ * to produce, so this is the line where the work shows. Somebody in every run on one character is
+ * told so in words rather than handed the numbers 1 to 6 to check off.
+ */
+function personLine(person: NightPerson, plan: Plan): { name: string; text: string } | null {
+  const appearances = plan.runs.flatMap((planned, i) => {
+    const seat = planned.run.seats.find((s) => s.personId === person.id);
+    return seat ? [{ at: i + 1, character: seat.character }] : [];
+  });
+  if (appearances.length === 0) return null;
+
+  const stretches: { character: string; at: number[] }[] = [];
+  for (const appearance of appearances) {
+    const last = stretches[stretches.length - 1];
+    if (last && last.character === appearance.character) last.at.push(appearance.at);
+    else stretches.push({ character: appearance.character, at: [appearance.at] });
+  }
+
+  const everyRun = appearances.length === plan.runs.length;
+  const only = stretches.length === 1 ? stretches[0] : undefined;
+
+  const text =
+    only && everyRun
+      ? `${only.character} the whole way`
+      : stretches
+          .map((stretch) => `${stretch.character} for ${runRanges(stretch.at)}`)
+          .join(", then ");
+
+  return { name: person.name, text };
+}
+
 /**
  * The plan as plain text, for pasting where the party actually talks.
+ *
+ * Written for somebody scanning a group chat on a phone, so it is arranged by the question each
+ * reader has ("which character am I on, and when do I change") rather than by the structure the
+ * solver produced. Repeating every seat on every line, which is what the first version did, buries
+ * the two lines that matter under the ten that do not change.
+ *
+ * No leading spaces or column alignment: chat clients render this proportionally, and anything
+ * lined up in a monospace editor arrives crooked.
  *
  * Built from the Plan it is given, never restated by hand, so it cannot drift from what the page
  * is showing. The same rule explainSplit() follows.
  */
 export function planAsText(plan: Plan, roster: NightPerson[]): string {
-  const nameOf = (id: string) => roster.find((p) => p.id === id)?.name ?? id;
+  if (plan.runs.length === 0) return "No bosses fit in the time.";
 
-  const lines = plan.runs.map((planned, i) => {
-    const seats = planned.run.seats
-      .map((seat) => `${seat.character} (${nameOf(seat.personId)})`)
-      .join(", ");
-    const swap =
-      planned.switched.length === 0 ? "" : ` [swap: ${planned.switched.map(nameOf).join(", ")}]`;
-    return `${i + 1}. ${formatDuration(planned.startsAt)} ${planned.run.bossName} - ${seats}${swap}`;
-  });
+  const switches =
+    plan.switches === 0
+      ? "no character switches"
+      : `${plan.switches} character ${plan.switches === 1 ? "switch" : "switches"}`;
 
-  const summary =
-    `${plan.runs.length} ${plan.runs.length === 1 ? "boss" : "bosses"}, ` +
-    `${formatDuration(plan.minutes)}, ` +
-    `${plan.switches} ${plan.switches === 1 ? "switch" : "switches"}`;
+  // "about", because the clock is built on a flat half-hour placeholder. See boss-minutes.ts.
+  const headline =
+    `${plan.runs.length} ${plan.runs.length === 1 ? "boss" : "bosses"} · ` +
+    `about ${formatDuration(plan.minutes)} · ${switches}`;
 
-  return [summary, ...lines].join("\n");
+  const order = plan.runs.map((planned, i) => `${i + 1}. ${planned.run.bossName}`);
+
+  const who = roster
+    .map((person) => personLine(person, plan))
+    .filter((line): line is { name: string; text: string } => line !== null)
+    .map((line) => `${line.name}: ${line.text}`);
+
+  return [headline, "", ...order, "", ...who].join("\n");
 }
 
 /** Why a run could not be scheduled, in words, given the roster to name people from. */
