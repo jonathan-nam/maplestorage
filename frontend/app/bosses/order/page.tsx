@@ -221,16 +221,18 @@ export default function RunOrderPage() {
 
       {fromAccount && state === "loaded" && parties.length === 0 && (
         <p className="finder-empty">
-          No party configs yet. Add some under Party View, or build the night by hand.
+          No parties yet. Add some under Party View, or build the night by hand.
         </p>
       )}
 
       {!fromAccount && (
         <section className="night-section">
           <h2 className="night-heading">The runs</h2>
+          {/* Both halves are required, and a run missing either is skipped. Saying so up front
+              beats a row that silently never appears in the plan. */}
           <p className="party-hint">
-            One row per boss, with the character each person brings. That pairing is what the order
-            is worked out from, so a run needs it to be scheduled at all.
+            One row per boss, with the character each person brings. A run needs both to be
+            scheduled.
           </p>
           <RunDraftEditor drafts={drafts} onChange={changeDrafts} />
         </section>
@@ -352,10 +354,12 @@ export default function RunOrderPage() {
 
           <RunPlan plan={plan} roster={roster} />
 
+          {/* The assumed durations stay on screen. They are what the finishing time is built from,
+              and a time presented without them reads as a measurement of your party. */}
           <p className="split-caveat">
-            Every run is assumed to take {formatDuration(DEFAULT_MINUTES)}, and a character switch
-            another {formatDuration(SWITCH_MINUTES)}. Nothing here knows your party&apos;s real
-            pace, so treat the finishing time as a rough shape and the order as the answer.
+            Every run is assumed to take {formatDuration(DEFAULT_MINUTES)}, a character switch
+            another {formatDuration(SWITCH_MINUTES)}. Treat the finishing time as rough, and the
+            order as the answer.
           </p>
         </section>
       )}

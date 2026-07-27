@@ -174,7 +174,7 @@ export function PlannerDock({
         <span className="dock-drop-sub">
           {selected
             ? "or paste it. The list usually takes two or three captures, one per scroll position"
-            : "The planner doesn't show whose it is, so it can't be worked out from the picture"}
+            : "The planner doesn't show whose it is"}
         </span>
         <input
           ref={fileInputRef}
