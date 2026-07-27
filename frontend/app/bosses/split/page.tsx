@@ -87,10 +87,7 @@ export default function DropSplitPage() {
                 {split ? <> You received {mesos(split.sellerReceives)}.</> : null}
               </>
             ) : (
-              <>
-                What actually landed in your inventory. Your own fee is already spent, so it does
-                not affect the split.
-              </>
+              <>What actually landed in your inventory. Your own fee is already spent.</>
             )}
           </span>
         </div>
@@ -212,10 +209,11 @@ export default function DropSplitPage() {
             </div>
           </dl>
 
+          {/* The uneven outcome is the warning. Why the second fee lands where it does is in
+              splitDrop, and "Show the math" below walks the figures for anyone who wants it. */}
           {others > 0 && method === "lazy" && (
             <p className="split-note">
-              Every member ends up short of your own share, because their half of the split is taxed
-              a second time. Switch to fair to even it out.
+              Every member ends up short of your own share. Switch to fair to even it out.
             </p>
           )}
 
