@@ -56,8 +56,7 @@ const clearsUrl = (week: string | null) => (week ? `${CLEARS_KEY}?week=${week}` 
  */
 const WEEKLY = "WEEKLY";
 
-/** "1 config is" / "3 configs are", so the history note reads as a sentence at either count. */
-const configsAre = (n: number) => `${n} ${n === 1 ? "config is" : "configs are"}`;
+const partyWord = (n: number) => (n === 1 ? "party" : "parties");
 
 export default function PartiesPage() {
   // Before anything is fetched: see lib/preload-boss-art.ts.
@@ -180,10 +179,8 @@ export default function PartiesPage() {
   const bossByKey = new Map(bosses.map((b) => [b.bossKey, b]));
   const history = week !== null;
 
-  // Two rules narrow a past week, and they are counted apart so the note can say which one dropped
-  // what. Pooling them would explain four absent rows with a rule that accounts for one.
-  //
-  // Cadence first: a history view carries weekly rows only, so the configs it cannot answer for are
+  // Two rules narrow a past week, counted apart so the empty line can name the one that applies.
+  // Cadence first: a history view carries weekly rows only, so a config it cannot answer for is
   // dropped rather than drawn as "not reported". See WEEKLY above.
   const weekly = history
     ? parties.filter((p) => bossByKey.get(p.bossKey)?.reset === WEEKLY)
@@ -193,14 +190,13 @@ export default function PartiesPage() {
   const hiddenByCadence = parties.length - weekly.length;
   const hiddenByAge = weekly.length - shown.length;
 
-  // Why a week came out empty, so the blank list is a reason rather than a shrug. Both rules can
-  // empty it, and naming the wrong one is a confident wrong explanation of a correct screen.
+  // Either rule can empty a week, and naming the wrong one explains a correct screen wrongly.
   const emptyWeekReason =
     hiddenByCadence === 0
-      ? "they were all set up after it"
+      ? "They were all set up later."
       : hiddenByAge === 0
-        ? "none of them are on a weekly boss"
-        : "some were set up after it, and the rest are not on weekly bosses";
+        ? "None are on a weekly boss."
+        : "They were set up later, or are not on a weekly boss.";
 
   const clearsByCharacter = new Map(
     Object.entries(view?.clearsByCharacter ?? {}).map(([id, clears]) => [id, indexClears(clears)]),
@@ -281,23 +277,12 @@ export default function PartiesPage() {
             </div>
           )}
 
-          {/* Said out loud rather than left to be noticed: a past week is read-only, and it is
-              short some configs. Each reason gets its own count, so neither is explained by the
-              other's rule. */}
-          {history && (
+          {/* Only when there is a list to qualify. With nothing shown the empty line below says it
+              all, and both together said it twice. */}
+          {history && shown.length > 0 && (
             <p className="boss-history-note">
-              A past week. Clears are read-only here, and only weekly bosses can be answered for
-              {hiddenByCadence > 0 && `, so ${configsAre(hiddenByCadence)} not shown`}.
-              {hiddenByAge > 0 &&
-                ` ${configsAre(hiddenByAge)} not shown either, having been set up after this week.`}
-              {/* The one thing on a past week that is still today's answer. A clear is history,
-                  keyed on the character and the boss and the period; a roster is configuration, and
-                  editing one rewrites who is drawn beside every past clear it appears next to.
-                  Said rather than snapshotted: a planner capture never knew who was in the party,
-                  so storing one per week would file today's guess as that week's fact. */}
-              {shown.length > 0 &&
-                " Rosters are the current ones, since a config records who you run with now rather" +
-                  " than who was there that week."}
+              Past week, read-only. Weekly bosses only.
+              {hiddenByAge > 0 && ` ${hiddenByAge} newer ${partyWord(hiddenByAge)} hidden.`}
             </p>
           )}
 
@@ -368,11 +353,10 @@ export default function PartiesPage() {
             </p>
           )}
 
-          {/* A past week the configs do not reach is its own answer, and NOT "nothing cleared".
-              Nothing was cleared BY THESE PARTIES because these parties did not exist; the clears
-              that week are real and the Individual View still has them. */}
+          {/* Not "nothing cleared": that week's clears are real and the Individual View has them.
+              These parties just were not around for it. */}
           {parties.length > 0 && shown.length === 0 && (
-            <p className="finder-empty">No parties in this week: {emptyWeekReason}.</p>
+            <p className="finder-empty">No parties in this week. {emptyWeekReason}</p>
           )}
 
           {/* An empty list under a filter is an answer, not a blank page. Kept apart from the no

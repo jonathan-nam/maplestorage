@@ -1,5 +1,33 @@
 # Working in this repo
 
+## UI copy is not commentary
+
+**Never put internal narration on screen.** The reasoning behind a rule belongs in a comment or a
+commit message. What the user sees is the rule's effect, in as few words as the screen can carry.
+
+This went wrong on Party View, which grew to:
+
+> A past week. Clears are read-only here, and only weekly bosses can be answered for. 20 configs
+> are not shown either, having been set up after this week.
+
+Three internal facts nobody asked for, and "either" dangling off a clause that was not rendered.
+It says the same thing as:
+
+> Past week, read-only. Weekly bosses only. 20 newer parties hidden.
+
+Concretely:
+
+- Say the effect, not the mechanism. "Weekly bosses only", not why a week cannot answer for a
+  daily one.
+- Use the product's words. A user has *parties*, not *configs*; a *config* is our word for the row.
+- One message per fact. A note above the list and an empty line inside it were both explaining the
+  same absence.
+- Do not explain a design decision on screen. If a caveat cannot be said in a few words, it is a
+  tooltip or it is nothing.
+
+None of this licenses a screen that hides what it dropped. A count that changed still gets said, and
+"prefer refusing to answer over guessing" still holds. Say it short, not never.
+
 ## Comments
 
 The bar for a comment is: **it says something the code cannot.** A constraint, a measurement, a
