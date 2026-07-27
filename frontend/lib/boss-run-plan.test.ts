@@ -188,8 +188,8 @@ describe("planNight", () => {
   });
 
   it("does not make somebody log in twice for a run they sit out", () => {
-    // Chris is only in the middle run. Sitting out does not park him anywhere new, so the
-    // Mechy->Kanna->Mechy shape costs ME two switches and CHRIS none.
+    // Chris is only in run b, which goes first for being the biggest. Sitting out the other two
+    // does not park him anywhere new, so the whole night costs ME one switch and CHRIS none.
     const runs = [
       eligible("a", "lotus", 10, [["Mechy", "me"]]),
       eligible("b", "damien", 10, [
@@ -201,7 +201,98 @@ describe("planNight", () => {
     const { best } = planNight(runs, { minutes: 120, switchMinutes: 0 });
     expect(best.runs).toHaveLength(3);
     expect(best.switches).toBe(1);
-    expect(order(best)).toEqual(["a", "c", "b"]);
+    expect(order(best)).toEqual(["b", "a", "c"]);
+  });
+
+  it("runs the fullest parties first", () => {
+    const runs = [
+      eligible("solo", "lotus", 10, [["Mechy", "me"]]),
+      eligible("trio", "damien", 10, [
+        ["Mechy", "me"],
+        ["Creed", "chris"],
+        ["Dwight", "dave"],
+      ]),
+      eligible("duo", "lucid", 10, [
+        ["Mechy", "me"],
+        ["Creed", "chris"],
+      ]),
+    ];
+    const { best } = planNight(runs, { minutes: 120, switchMinutes: 0 });
+    expect(order(best)).toEqual(["trio", "duo", "solo"]);
+  });
+
+  it("keeps somebody's handful of runs together instead of spread across the night", () => {
+    // Chris and Dave are in two runs each, and me in all four on one character. Alternating them
+    // costs nobody a switch and still leaves both sitting out a boss in the middle of their night.
+    const runs = [
+      eligible("a", "lotus", 10, [
+        ["Mechy", "me"],
+        ["Creed", "chris"],
+      ]),
+      eligible("b", "damien", 10, [
+        ["Mechy", "me"],
+        ["Dwight", "dave"],
+      ]),
+      eligible("c", "lucid", 10, [
+        ["Mechy", "me"],
+        ["Creed", "chris"],
+      ]),
+      eligible("d", "will", 10, [
+        ["Mechy", "me"],
+        ["Dwight", "dave"],
+      ]),
+    ];
+    const { best } = planNight(runs, { minutes: 120, switchMinutes: 0 });
+
+    expect(best.switches).toBe(0);
+    const partners = best.runs.map((r) => r.run.seats[1]?.personId ?? "");
+    expect(blocks(partners)).toBe(2);
+  });
+
+  it("does not strand somebody in the middle to save a switch", () => {
+    // My two characters split chris and dave down the middle. Running a, b, c, d parks me on
+    // Mechy then Kanna for one switch all night, and leaves BOTH of them sitting out a boss
+    // between their two. Pairing each of them up instead costs a second switch and no waiting.
+    const runs = [
+      eligible("a", "lotus", 10, [
+        ["Mechy", "me"],
+        ["Creed", "chris"],
+      ]),
+      eligible("b", "damien", 10, [
+        ["Mechy", "me"],
+        ["Dwight", "dave"],
+      ]),
+      eligible("c", "lucid", 10, [
+        ["Kanna", "me"],
+        ["Creed", "chris"],
+      ]),
+      eligible("d", "will", 10, [
+        ["Kanna", "me"],
+        ["Dwight", "dave"],
+      ]),
+    ];
+    const { best } = planNight(runs, { minutes: 120, switchMinutes: 0 });
+
+    const partners = best.runs.map((r) => r.run.seats[1]?.personId ?? "");
+    expect(blocks(partners)).toBe(2);
+    expect(best.switches).toBe(2);
+  });
+
+  it("puts a fuller party first even when that costs a switch", () => {
+    // Kanna's two runs would group for free, but that leaves the three-person boss until last,
+    // by which time somebody has gone to bed. One relog is the cheaper thing to spend.
+    const runs = [
+      eligible("a", "lotus", 10, [["Kanna", "me"]]),
+      eligible("b", "damien", 10, [["Kanna", "me"]]),
+      eligible("c", "lucid", 10, [
+        ["Mechy", "me"],
+        ["Creed", "chris"],
+        ["Dwight", "dave"],
+      ]),
+    ];
+    const { best } = planNight(runs, { minutes: 120, switchMinutes: 0 });
+    expect(order(best)).toEqual(["c", "a", "b"]);
+    expect(best.switches).toBe(1);
   });
 
   it("never books one character onto the same boss twice", () => {

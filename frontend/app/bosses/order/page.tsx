@@ -182,7 +182,8 @@ export default function RunOrderPage() {
       <h1 className="page-title">Run Order</h1>
 
       <p className="split-intro">
-        What to run tonight and in what order, arranged so nobody keeps changing character.
+        What to run tonight and in what order. Fullest parties first, and nobody left waiting around
+        or changing character.
       </p>
 
       <div className="basis-row" role="group" aria-label="Where the runs come from">
