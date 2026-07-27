@@ -4,6 +4,7 @@ import {
   byBoss,
   byCharacter,
   consolidate,
+  existedInWeek,
   filterByClear,
   isCleared,
   otherMembers,
@@ -54,6 +55,37 @@ describe("partySizeLabel", () => {
     expect(partySizeLabel(2)).toBe("Duo");
     expect(partySizeLabel(3)).toBe("Trio");
     expect(partySizeLabel(6)).toBe("6-man");
+  });
+});
+
+describe("existedInWeek", () => {
+  const made = (id: string, createdAt: string): Party => ({
+    ...config(id, "char-1", "limbo", ["X"]),
+    createdAt,
+  });
+
+  it("drops a config set up after the week it is being shown under", () => {
+    // The bug this exists for: every config was created 26 Jul, and the week of 16 Jul drew all of
+    // them, so a clear read off a 19 Jul planner capture was attributed to a party that did not
+    // exist for another week, beside a roster that was never that week's.
+    const parties = [made("old", "2026-07-14T10:00:00Z"), made("new", "2026-07-26T18:16:49.608Z")];
+    expect(existedInWeek(parties, "2026-07-16").map((p) => p.id)).toEqual(["old"]);
+  });
+
+  it("keeps a config set up mid-week, which did exist in it", () => {
+    expect(existedInWeek([made("p", "2026-07-19T20:33:07Z")], "2026-07-16")).toHaveLength(1);
+  });
+
+  it("puts a config created on a reset day in the week that day opens, not the one it closes", () => {
+    // Midnight Thursday UTC is the boundary. A config created at any time on 23 Jul belongs to the
+    // week of 23 Jul, so the week of 16 Jul must not claim it.
+    const onReset = [made("p", "2026-07-23T00:00:00Z")];
+    expect(existedInWeek(onReset, "2026-07-16")).toHaveLength(0);
+    expect(existedInWeek(onReset, "2026-07-23")).toHaveLength(1);
+  });
+
+  it("does not narrow the week a config was made in", () => {
+    expect(existedInWeek([made("p", "2026-07-26T00:00:00Z")], "2026-07-23")).toHaveLength(1);
   });
 });
 

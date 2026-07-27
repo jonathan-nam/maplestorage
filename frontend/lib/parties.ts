@@ -4,6 +4,7 @@
 // "mechyfechy runs Kalos with CreedBratton". A boss that character solos has no config, so solo
 // runs appear nowhere, which is what makes the list short enough to read.
 
+import { weekEndExclusive } from "@/lib/boss-clears";
 import type { Boss } from "@/types/boss";
 import type { Party } from "@/types/party";
 
@@ -54,6 +55,21 @@ export function filterByClear(
 ): Party[] {
   if (filter === "all") return parties;
   return parties.filter((party) => cleared(party) === (filter === "cleared"));
+}
+
+/**
+ * The configs that already existed in the week starting `weekStart`.
+ *
+ * A config is not history. It says who you run a boss with NOW, so drawing today's list under a past
+ * week attributed that week's clears to parties which did not exist then, beside a roster that was
+ * not that week's roster. The clear was real, the party around it was imported from this week.
+ *
+ * Compared as UTC days, not as instants: both sides are already UTC, and comparing the timestamps
+ * would turn on how many fractional-second digits Postgres happened to emit.
+ */
+export function existedInWeek(parties: Party[], weekStart: string): Party[] {
+  const end = weekEndExclusive(weekStart);
+  return parties.filter((party) => party.createdAt.slice(0, 10) < end);
 }
 
 export type PartyGroup<T> = {

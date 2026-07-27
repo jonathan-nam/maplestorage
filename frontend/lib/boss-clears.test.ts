@@ -8,6 +8,7 @@ import {
   formatPeriod,
   formatWeekStart,
   indexClears,
+  weekEndExclusive,
   weekLabel,
   rowFullyCleared,
 } from "./boss-clears";
@@ -153,6 +154,36 @@ describe("formatWeekStart", () => {
     expect(formatWeekStart("not-a-date")).toBe("not-a-date");
     expect(formatWeekStart("")).toBe("");
     expect(formatWeekStart("2026-13-01")).toBe("2026-13-01");
+  });
+});
+
+describe("weekEndExclusive", () => {
+  it("steps to the next reset day", () => {
+    expect(weekEndExclusive("2026-07-16")).toBe("2026-07-23");
+    expect(weekEndExclusive("2026-07-23")).toBe("2026-07-30");
+  });
+
+  it("crosses a month, a year and a leap day without a calendar of its own", () => {
+    expect(weekEndExclusive("2026-07-30")).toBe("2026-08-06");
+    expect(weekEndExclusive("2026-12-31")).toBe("2027-01-07");
+    expect(weekEndExclusive("2028-02-24")).toBe("2028-03-02");
+  });
+
+  it("stays on the day it was given rather than the viewer's", () => {
+    // The pin for the UTC arithmetic: a local-time step lands a day out for anyone behind UTC, and
+    // this label decides which configs a past week admits.
+    const tz = process.env.TZ;
+    process.env.TZ = "Pacific/Auckland";
+    try {
+      expect(weekEndExclusive("2026-07-16")).toBe("2026-07-23");
+    } finally {
+      process.env.TZ = tz;
+    }
+  });
+
+  it("passes anything it cannot parse straight through rather than inventing a week", () => {
+    expect(weekEndExclusive("not-a-date")).toBe("not-a-date");
+    expect(weekEndExclusive("")).toBe("");
   });
 });
 
