@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { BOSS_ART, BOSS_NAMES } from "./boss-art";
+import { BOSS_ART, BOSS_NAMES, BOSS_SHORT_NAMES } from "./boss-art";
 
 // boss-art.ts is generated from catalog/bosses.yaml, and catalog/build.py --check keeps it in
 // step. These guard the shape rather than the contents: a generator that emitted an empty object
@@ -26,5 +26,26 @@ describe("BOSS_NAMES", () => {
     // The derivation this guards against is title-casing the key, which would capitalise the
     // "the" here. It is the reason the names are generated at all.
     expect(BOSS_NAMES["kalos-the-guardian"]).toBe("Kalos the Guardian");
+  });
+});
+
+describe("BOSS_SHORT_NAMES", () => {
+  it("holds only bosses that are also named and drawn", () => {
+    for (const key of Object.keys(BOSS_SHORT_NAMES)) {
+      expect(BOSS_NAMES[key]).toBeDefined();
+    }
+  });
+
+  it("is shorter than the full name, or it is not a shorthand", () => {
+    for (const [key, short] of Object.entries(BOSS_SHORT_NAMES)) {
+      expect(short.length).toBeLessThan((BOSS_NAMES[key] as string).length);
+    }
+  });
+
+  it("says what a party says", () => {
+    expect(BOSS_SHORT_NAMES["malefic-star"]).toBe("Star");
+    expect(BOSS_SHORT_NAMES["kalos-the-guardian"]).toBe("Kalos");
+    // A boss whose name is already what everyone calls it does not get an entry.
+    expect(BOSS_SHORT_NAMES["lotus"]).toBeUndefined();
   });
 });

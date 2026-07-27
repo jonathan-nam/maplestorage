@@ -14,6 +14,10 @@
 # `name` is the exact in-game display name, what the OCR is matched against. Truncated reads
 # ("Guardian Angel Sli..") still resolve by best overlap, so the full name belongs here.
 #
+# `short` is optional, and only for what a party calls the boss out loud: "Star", not "Malefic
+# Star". It is never matched against, so it can be as loose as the group's own slang. Leave it out
+# and the full name is used. Never put the shorthand in `name`, that is the OCR's evidence.
+#
 # `reset` is the boss's own reset cadence, WEEKLY / DAILY / MONTHLY. It is a game fact (it decides
 # which period a clear counts against), and it matches how the planner groups these under its
 # MONTHLY/WEEKLY/DAILY headers. It is NOT difficulty: difficulty is deliberately not tracked, a
@@ -53,18 +57,22 @@ bosses:
     reset: WEEKLY
   - key: chosen-seren
     name: Chosen Seren
+    short: Seren
     reset: WEEKLY
   - key: kalos-the-guardian
     name: Kalos the Guardian
+    short: Kalos
     reset: WEEKLY
   - key: first-adversary
     name: First Adversary
+    short: Adversary
     reset: WEEKLY
   - key: kaling
     name: Kaling
     reset: WEEKLY
   - key: malefic-star
     name: Malefic Star
+    short: Star
     reset: WEEKLY
   - key: limbo
     name: Limbo

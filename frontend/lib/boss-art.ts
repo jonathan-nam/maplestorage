@@ -13,6 +13,9 @@
 // with no account behind it, and deriving one from the keys gets "Kalos The Guardian" wrong.
 //
 // Only tracked bosses in both, matching what boss_catalog is seeded with.
+//
+// BOSS_SHORT_NAMES is what a party calls a boss out loud, and holds only the ones that have one.
+// A missing key means the full name is the short name. Never match anything against these.
 
 export const BOSS_ART: Record<string, string> = {
   lotus: "/boss-icons/lotus.png",
@@ -52,4 +55,11 @@ export const BOSS_NAMES: Record<string, string> = {
   baldrix: "Baldrix",
   jupiter: "Jupiter",
   "black-mage": "Black Mage",
+};
+
+export const BOSS_SHORT_NAMES: Record<string, string> = {
+  "chosen-seren": "Seren",
+  "kalos-the-guardian": "Kalos",
+  "first-adversary": "Adversary",
+  "malefic-star": "Star",
 };
