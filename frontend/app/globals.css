@@ -1798,6 +1798,39 @@ button.link:disabled {
   line-height: 1;
 }
 
+/* On the live view the cell IS the control. The padding moves onto the button so the target is the
+   whole cell and not the 1ch glyph inside it, and min-height holds the box open on "not cleared",
+   which draws nothing at all and would otherwise collapse to its padding.
+   No hover tint of its own: the row band and the column band already cross on the cell under the
+   cursor, and a third rule here is the one that would fall out of step with those two. */
+.boss-cell.is-editable {
+  padding: 0;
+}
+
+.boss-mark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 1em;
+  padding: 5px 8px;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+/* Inset, so the ring sits inside the cell rather than over its neighbour's border. */
+.boss-mark:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.boss-mark:disabled {
+  cursor: default;
+}
+
 /* Three marks, no fills. Each state says its own name: a tick for done, nothing at all for still
    to do, a dash for nothing reported. Filling the cells was tried and taken back out: colour put
    the state in the same channel as the row striping, and every palette for it was an argument

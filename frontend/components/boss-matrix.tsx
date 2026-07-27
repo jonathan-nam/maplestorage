@@ -6,8 +6,10 @@ import { apiAssetUrl } from "@/lib/api";
 import {
   cellState,
   cellStateLabel,
+  clearOfCell,
   formatPeriod,
   indexClears,
+  nextClear,
   rowFullyCleared,
 } from "@/lib/boss-clears";
 import type { Boss, BossClearsByCharacter } from "@/types/boss";
@@ -56,6 +58,8 @@ export function BossMatrix({
   clearsByCharacter,
   loading,
   historyWeek,
+  onToggle,
+  busy,
 }: {
   bosses: Boss[];
   characters: Pick<Character, "id" | "name" | "spriteImgUrl">[];
@@ -63,6 +67,17 @@ export function BossMatrix({
   loading?: boolean;
   // Set when showing a past week rather than the current period. See the cadence filter below.
   historyWeek?: string | null;
+  /**
+   * Answers a cell by hand, without a planner capture. Omitted for a read-only matrix: a past week
+   * is shown, not edited, the same rule Party View's cards follow.
+   *
+   * Two states, not three, matching the party toggle: a cell that has never been reported ticks to
+   * cleared, and a cleared one un-ticks to not-cleared. There is no way back to "not reported" from
+   * here, so the mark a click leaves is always an answer rather than a return to silence.
+   */
+  onToggle?: (characterId: string, bossKey: string, cleared: boolean) => void;
+  /** A tick is in flight. Ticks serialise, so the matrix always draws what the server last said. */
+  busy?: boolean;
 }) {
   // Same table either way, so the loading and loaded layouts cannot drift apart.
   const rows = loading && bosses.length === 0 ? SKELETON_BOSSES : bosses;
@@ -198,24 +213,45 @@ export function BossMatrix({
                       );
                     }
                     const state = cellState(byCharacter.get(character.id), boss.bossKey);
+                    // Decorative; `said` is what a screen reader gets, and "not reported" is
+                    // deliberately not "not cleared". Not-cleared is the empty one of the three:
+                    // it is the only state you find by the gap it leaves, and the other two have
+                    // to be marks so that gap means something.
+                    const mark = state === "cleared" ? "✓" : state === "unseen" ? "–" : "";
+                    const said =
+                      state === "unseen"
+                        ? `${boss.name} ${cellStateLabel(state)} for ${character.name}`
+                        : `${boss.name} ${cellStateLabel(state)} by ${character.name}`;
                     return (
                       <td
                         key={character.id}
-                        className={`boss-cell is-${state}${colClass(character.id)}`}
+                        // is-editable moves the cell's padding onto the button, so the click
+                        // target is the whole cell rather than the glyph in the middle of it.
+                        className={`boss-cell is-${state}${onToggle ? " is-editable" : ""}${colClass(character.id)}`}
                         onMouseEnter={() => setHoveredColumn(character.id)}
                       >
-                        {/* Decorative; the text below is what a screen reader gets, and "not
-                            reported" is deliberately not "not cleared". Not-cleared is the empty
-                            one of the three: it is the only state you find by the gap it leaves,
-                            and the other two have to be marks so that gap means something. */}
-                        <span aria-hidden="true">
-                          {state === "cleared" ? "✓" : state === "unseen" ? "–" : ""}
-                        </span>
-                        <span className="visually-hidden">
-                          {state === "unseen"
-                            ? `${boss.name} ${cellStateLabel(state)} for ${character.name}`
-                            : `${boss.name} ${cellStateLabel(state)} by ${character.name}`}
-                        </span>
+                        {onToggle ? (
+                          // The cell IS the control, rather than a mark with a control beside it:
+                          // 16 bosses by a roster's worth of columns leaves no room for a second
+                          // thing per cell, and the mark is already what you are aiming at.
+                          <button
+                            type="button"
+                            className="boss-mark"
+                            disabled={busy}
+                            title={state === "cleared" ? "Mark not cleared" : "Mark cleared"}
+                            onClick={() =>
+                              onToggle(character.id, boss.bossKey, nextClear(clearOfCell(state)))
+                            }
+                          >
+                            <span aria-hidden="true">{mark}</span>
+                            <span className="visually-hidden">{said}</span>
+                          </button>
+                        ) : (
+                          <>
+                            <span aria-hidden="true">{mark}</span>
+                            <span className="visually-hidden">{said}</span>
+                          </>
+                        )}
                       </td>
                     );
                   })}

@@ -4,10 +4,12 @@ import { describe, expect, it } from "vitest";
 import {
   cellState,
   cellStateLabel,
+  clearOfCell,
   clearStateLabel,
   formatPeriod,
   formatWeekStart,
   indexClears,
+  nextClear,
   weekEndExclusive,
   weekLabel,
   rowFullyCleared,
@@ -19,6 +21,36 @@ const clear = (bossKey: string, cleared: boolean): BossClear => ({
   cleared,
   periodStart: "2026-07-16",
   capturedAt: "2026-07-18T12:00:00Z",
+});
+
+describe("nextClear", () => {
+  it("ticks an unreported cell to cleared rather than to not-cleared", () => {
+    // The first click on a cell nothing has been said about is somebody saying they killed it.
+    // Writing "not cleared" instead would put a claim on screen that nobody made.
+    expect(nextClear(null)).toBe(true);
+  });
+
+  it("ticks and un-ticks between the two answers", () => {
+    expect(nextClear(false)).toBe(true);
+    expect(nextClear(true)).toBe(false);
+  });
+
+  it("never writes its way back to unreported", () => {
+    // Two answers out of three states, on purpose: a click always leaves an answer. Only a capture
+    // or a new period puts a cell back to having said nothing. The matrix and the party card share
+    // this function so they cannot drift on it.
+    for (const from of [null, false, true]) {
+      expect(typeof nextClear(from)).toBe("boolean");
+    }
+  });
+});
+
+describe("clearOfCell", () => {
+  it("keeps unseen apart from not-cleared when a cell state becomes a clear", () => {
+    expect(clearOfCell("unseen")).toBeNull();
+    expect(clearOfCell("pending")).toBe(false);
+    expect(clearOfCell("cleared")).toBe(true);
+  });
 });
 
 describe("cellState", () => {

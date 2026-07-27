@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { type ReactNode, useState } from "react";
 import { RosterStrip } from "@/components/roster-strip";
-import { clearStateLabel } from "@/lib/boss-clears";
+import { clearStateLabel, nextClear } from "@/lib/boss-clears";
 import { poolLabel } from "@/lib/loot";
 import { otherMembers, partySizeLabel } from "@/lib/parties";
 import type { Party } from "@/types/party";
@@ -106,7 +106,7 @@ export function PartyCard({
             type="button"
             className={`party-clear is-${clearClass(clear.cleared)}`}
             disabled={busy}
-            onClick={() => onToggleClear(!clear.cleared)}
+            onClick={() => onToggleClear(nextClear(clear.cleared))}
             title={
               clear.cleared === null
                 ? "No planner capture has mentioned this boss this period"
