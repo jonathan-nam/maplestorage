@@ -155,11 +155,12 @@ function andList(names: string[]): string {
 }
 
 /**
- * One run as a line: when it starts, the boss, and who brings which character.
+ * One run as a line: the boss, and the characters that turn up to it.
  *
- * The same row the page draws, including the mark on a seat whose owner had to change character.
- * Who arrived and who left is then said in words, because a reader scrolling a chat cannot
- * compare this line against the one above it the way they can glance up a column on screen.
+ * A character stands for its owner, so naming both on every seat says the same thing twice. The
+ * name appears only where something moved, which is the whole reason to read the line twice. Who
+ * arrived and who left is then said in words, because a reader scrolling a chat cannot compare
+ * this line against the one above it the way they can glance up a column on screen.
  */
 function runLine(
   planned: PlannedRun,
@@ -169,13 +170,14 @@ function runLine(
 ): string {
   const switched = new Set(planned.switched);
   const seats = planned.run.seats
-    .map((seat) => {
-      const who = nameOf(seat.personId);
-      return `${seat.character} (${switched.has(seat.personId) ? `${who}, swap` : who})`;
-    })
+    .map((seat) =>
+      switched.has(seat.personId)
+        ? `${seat.character} (${nameOf(seat.personId)}, swap)`
+        : seat.character,
+    )
     .join(", ");
 
-  const line = `${number}. ${formatDuration(planned.startsAt)} ${planned.run.bossName}: ${seats}`;
+  const line = `${number}. ${planned.run.bossName}: ${seats}`;
   if (!before) return line;
 
   const here = new Set(planned.run.seats.map((seat) => seat.personId));
@@ -261,9 +263,9 @@ function personLine(person: NightPerson, plan: Plan): { name: string; text: stri
  * The plan as plain text, for pasting where the party actually talks.
  *
  * Two passes over the same night, because a reader arrives with two questions. The rows are the
- * ones on screen: when a boss starts, who is in it, who changed character for it, and who came or
- * went since the last one. The lines under them answer "which character am I on tonight" without
- * making anybody read four rows to work it out.
+ * ones on screen: the boss, the characters in it, and what moved since the last one. The lines
+ * under them answer "which character am I on tonight" without making anybody read four rows to
+ * work it out, and they are where a character is tied to its owner.
  *
  * No leading spaces or column alignment: chat clients render this proportionally, and anything
  * lined up in a monospace editor arrives crooked.
