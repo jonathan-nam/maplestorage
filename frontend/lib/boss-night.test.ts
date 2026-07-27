@@ -289,23 +289,26 @@ describe("planAsText", () => {
   });
 
   it("compresses a run of consecutive numbers and comma-separates a gap", () => {
-    // Dave sits out the middle boss, so his numbers cannot be a range.
+    // Dave sits out the middle boss, so his numbers cannot be a range. The night has to run
+    // 3-person, 2-person, 1-person for size, which is the one thing that outranks keeping Dave's
+    // two runs together, so this gap is the rare one the planner cannot close.
     const text = textFor(
       [
         R("1", "Lotus", [
           ["Bishop", "You"],
           ["Nightlord", "Dave"],
+          ["Shadower", "Erin"],
         ]),
-        R("2", "Damien", [["Bishop", "You"]]),
-        R("3", "Lucid", [
+        R("2", "Damien", [
           ["Bishop", "You"],
-          ["Nightlord", "Dave"],
+          ["Shadower", "Erin"],
         ]),
+        R("3", "Lucid", [["Nightlord", "Dave"]]),
       ],
       180,
     );
     expect(text).toContain("Dave: Nightlord for 1, 3");
-    expect(text).toContain("You: Bishop the whole way");
+    expect(text).toContain("You: Bishop for 1-2");
   });
 
   it("leaves out somebody who is in no scheduled run", () => {

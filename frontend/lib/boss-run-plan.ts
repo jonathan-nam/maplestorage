@@ -1,4 +1,4 @@
-// Ordering a night of bosses so people stay on one character.
+// Ordering a night of bosses so people stay on one character and nobody sits about.
 //
 // The hard part of a bossing night is not what time to meet, it is what to run and in what order.
 // Every person has several characters, and each boss is run with a particular one of them. Put the
@@ -12,12 +12,25 @@
 // What is optimised, in order:
 //
 //   1. the number of runs that fit in the time
-//   2. the number of switches
-//   3. finishing earlier
+//   2. the fullest parties first
+//   3. the least waiting around
+//   4. the number of switches
+//   5. finishing earlier
 //
 // Count first is deliberate: the point of the night is dead bosses, and a plan that saves two
 // relogs by dropping a boss is not obviously better. It is often not much worse either, which is
 // why `byCount` hands back the best plan at EVERY length and lets the caller show the trade.
+//
+// The fullest parties go first because the group only shrinks: someone dropping out at midnight
+// takes the six-person boss with them, where a relog costs a minute. That is why party size
+// outranks switches and not the run count.
+//
+// WAITING is a run somebody sits out between two runs they are in. Somebody needed for two of six
+// bosses should do them back to back and have the rest of the night free, whichever end that lands
+// on. A run at either end costs them nothing, so only the gaps in the middle are counted. It sits
+// above switches because a gap is half an hour of sitting there and a switch is a minute. It sits
+// below party size, so a person whose two runs are the fullest and the emptiest can still be split
+// across the night.
 
 /** One seat in a run: a character, and whose it is. Null means nobody has claimed it. */
 export type RunSeat = {
@@ -169,11 +182,29 @@ type State = {
   lastCharacter: Map<string, string>;
   /** `character::bossKey` already spent. A character clears a boss once a period, so never twice a night. */
   spent: Set<string>;
+  /**
+   * Party sizes in run order, one fixed-width field each, so a plain string compare IS the
+   * lexicographic compare of the sequence. Safe because states are only ever compared at equal
+   * length: every round of the beam appends exactly one run.
+   */
+  parties: string;
+  /** Which run each person was last in, by index. Absent means they have not been in one yet. */
+  lastRun: Map<string, number>;
+  /** Runs people sit out between two of their own, summed over everybody. See WAITING. */
+  waiting: number;
   minutes: number;
   switches: number;
 };
 
+/** A party size as a comparison field. Two digits, because a party is six people and never 100. */
+function sizeField(size: number): string {
+  return String(Math.min(size, 99)).padStart(2, "0");
+}
+
 function betterState(a: State, b: State): number {
+  // Bigger parties earlier. Greater string, not lesser, so this is descending.
+  if (a.parties !== b.parties) return a.parties < b.parties ? 1 : -1;
+  if (a.waiting !== b.waiting) return a.waiting - b.waiting;
   if (a.switches !== b.switches) return a.switches - b.switches;
   if (a.minutes !== b.minutes) return a.minutes - b.minutes;
   // Deterministic last resort, so the same input always gives the same plan back.
@@ -207,6 +238,9 @@ export function planNight(
     taken: new Set(),
     lastCharacter: new Map(),
     spent: new Set(),
+    parties: "",
+    lastRun: new Map(),
+    waiting: 0,
     minutes: 0,
     switches: 0,
   };
@@ -215,9 +249,11 @@ export function planNight(
   let beam: State[] = [start];
 
   while (beam.length > 0) {
-    // Keyed on what the future actually depends on: which runs are gone, and where everyone is
-    // parked. Two states agreeing on both are the same problem from here, so only the cheaper
-    // one is worth carrying.
+    // Keyed on what the future actually depends on: which runs are gone, where everyone is parked,
+    // and how long ago each person last played. Two states agreeing on all three are the same
+    // problem from here, so only the cheaper one is worth carrying. The third is there because
+    // waiting is counted: two states can park everybody identically and still owe a different gap
+    // to whoever comes back next.
     const next = new Map<string, State>();
 
     for (const state of beam) {
@@ -237,10 +273,16 @@ export function planNight(
         const minutes = startsAt + run.minutes;
         if (minutes > options.minutes) continue;
 
+        const at = state.order.length;
         const lastCharacter = new Map(state.lastCharacter);
+        const lastRun = new Map(state.lastRun);
         const spent = new Set(state.spent);
+        let waiting = state.waiting;
         for (const seat of run.seats) {
+          const before = state.lastRun.get(seat.personId);
+          if (before !== undefined) waiting += at - before - 1;
           lastCharacter.set(seat.personId, seat.character);
+          lastRun.set(seat.personId, at);
           spent.add(`${seat.character}::${run.bossKey}`);
         }
 
@@ -249,6 +291,9 @@ export function planNight(
           taken: new Set(state.taken).add(run.id),
           lastCharacter,
           spent,
+          parties: state.parties + sizeField(run.seats.length),
+          lastRun,
+          waiting,
           minutes,
           switches: state.switches + switched.length,
         };
@@ -257,7 +302,7 @@ export function planNight(
           [...candidate.taken].sort().join(),
           [...lastCharacter.entries()]
             .sort(([a], [b]) => a.localeCompare(b))
-            .map(([p, c]) => `${p}>${c}`)
+            .map(([p, c]) => `${p}>${c}@${lastRun.get(p)}`)
             .join(),
         ].join("|");
 
