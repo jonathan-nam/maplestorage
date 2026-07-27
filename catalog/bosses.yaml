@@ -20,8 +20,17 @@
 #
 # `reset` is the boss's own reset cadence, WEEKLY / DAILY / MONTHLY. It is a game fact (it decides
 # which period a clear counts against), and it matches how the planner groups these under its
-# MONTHLY/WEEKLY/DAILY headers. It is NOT difficulty: difficulty is deliberately not tracked, a
-# player sets a planner difficulty independent of what they actually clear.
+# MONTHLY/WEEKLY/DAILY headers. It is not difficulty.
+#
+# `difficulties` are the modes this boss can be fought at, lowest first, and they are what a party
+# config picks from. Required for a tracked boss. The ladder is EASY, NORMAL, HARD, EXTREME, with
+# the third rung named CHAOS instead of HARD for the bosses that are monsters rather than people:
+# Chaos Gloom and Chaos Kalos, but Hard Baldrix. A boss has one or the other, never both, and not
+# every boss has every rung (Black Mage starts at Hard).
+#
+# This is the difficulty a party SAYS it runs, not one read off a capture. The planner shows a
+# difficulty badge and the reader ignores it on purpose: a player sets that badge independent of
+# what they actually clear, so a clear stays (boss, cleared) and nothing here changes that.
 #
 # `tracked` (default true) says whether the tracker keeps clears for this boss. An untracked boss
 # stays listed here on purpose: its row is still ON the planner, so the reader must still be able
@@ -34,58 +43,74 @@ bosses:
   - key: lotus
     name: Lotus
     reset: WEEKLY
+    difficulties: [NORMAL, HARD, EXTREME]
   - key: damien
     name: Damien
     reset: WEEKLY
+    difficulties: [NORMAL, HARD]
   - key: guardian-angel-slime
     name: Guardian Angel Slime
     reset: WEEKLY
+    difficulties: [NORMAL, CHAOS]
   - key: lucid
     name: Lucid
     reset: WEEKLY
+    difficulties: [EASY, NORMAL, HARD]
   - key: will
     name: Will
     reset: WEEKLY
+    difficulties: [EASY, NORMAL, HARD]
   - key: gloom
     name: Gloom
     reset: WEEKLY
+    difficulties: [NORMAL, CHAOS]
   - key: verus-hilla
     name: Verus Hilla
     reset: WEEKLY
+    difficulties: [NORMAL, HARD]
   - key: darknell
     name: Darknell
     reset: WEEKLY
+    difficulties: [NORMAL, HARD]
   - key: chosen-seren
     name: Chosen Seren
     short: Seren
     reset: WEEKLY
+    difficulties: [NORMAL, HARD, EXTREME]
   - key: kalos-the-guardian
     name: Kalos the Guardian
     short: Kalos
     reset: WEEKLY
+    difficulties: [EASY, NORMAL, CHAOS, EXTREME]
   - key: first-adversary
     name: First Adversary
     short: Adversary
     reset: WEEKLY
+    difficulties: [EASY, NORMAL, HARD, EXTREME]
   - key: kaling
     name: Kaling
     reset: WEEKLY
+    difficulties: [EASY, NORMAL, HARD, EXTREME]
   - key: malefic-star
     name: Malefic Star
     short: Star
     reset: WEEKLY
+    difficulties: [NORMAL, HARD]
   - key: limbo
     name: Limbo
     reset: WEEKLY
+    difficulties: [NORMAL, HARD]
   - key: baldrix
     name: Baldrix
     reset: WEEKLY
+    difficulties: [NORMAL, HARD]
   # After Baldrix, which is where the planner puts it (test-fixtures/planner/boss portraits
   # sample.png). Until now it was missing here entirely, so its planner row matched no name and
   # counted as UNREADABLE, which is what makes a parse warn that it may have missed a boss.
   - key: jupiter
     name: Jupiter
     reset: WEEKLY
+    difficulties: [NORMAL, HARD]
   # Untracked by request: still on the planner, so the reader must keep its name. See `tracked`.
   - key: akechi-mitsuhide
     name: Akechi Mitsuhide
@@ -96,6 +121,7 @@ bosses:
   - key: black-mage
     name: Black Mage
     reset: MONTHLY
+    difficulties: [HARD, EXTREME]
 
   # --- Daily (not tracked) ------------------------------------------------------------
   # The tracker is weekly-and-up. Dailies reset before a once-a-day capture can say anything

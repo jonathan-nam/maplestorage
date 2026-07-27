@@ -7,6 +7,7 @@ import { useEffect, useState } from "react";
 import { LootPool } from "@/components/loot-pool";
 import { SeatChip } from "@/components/seat-chip";
 import { apiAssetUrl } from "@/lib/api";
+import { bossLabel } from "@/lib/boss-difficulty";
 import { preloadBossArt } from "@/lib/preload-boss-art";
 import { ApiError, apiFetch } from "@/lib/api";
 import { peek, put } from "@/lib/cache";
@@ -125,7 +126,7 @@ export default function PartyPage() {
         <>
           {/* The boss and the roster ARE the title: there is nothing else it could be called. */}
           <h1 className="page-title">
-            {bossByKey.get(party.bossKey)?.name ?? party.bossKey} with{" "}
+            {bossLabel(bossByKey.get(party.bossKey)?.name ?? party.bossKey, party.difficulty)} with{" "}
             {otherMembers(party)
               .map((m) => m.name)
               .join(", ")}
@@ -148,7 +149,7 @@ export default function PartyPage() {
                   alt=""
                 />
               )}
-              {bossByKey.get(party.bossKey)?.name ?? party.bossKey}
+              {bossLabel(bossByKey.get(party.bossKey)?.name ?? party.bossKey, party.difficulty)}
             </li>
           </ul>
 

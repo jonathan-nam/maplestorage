@@ -14,6 +14,10 @@ data class BossResponse(
     // The boss's planner portrait, backend-relative and resolved by apiAssetUrl(). Null only if
     // the seed has no art for it, which catalog/build.py refuses to let happen.
     val iconUrl: String? = null,
+    // The modes it can be fought at, lowest first, which is what a party config picks from. Sent
+    // rather than held client side because it is catalog data, and a second copy in the frontend
+    // would be the one that misses the next boss.
+    val difficulties: List<String> = emptyList(),
 )
 
 @Serializable

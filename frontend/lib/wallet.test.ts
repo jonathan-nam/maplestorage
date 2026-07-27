@@ -30,6 +30,7 @@ const party = (id: string, members: PartyMember[], over: Partial<Party> = {}): P
   id,
   characterId: members[0]!.characterId!,
   bossKey: "limbo",
+  difficulty: null,
   members,
   pendingLoot: 0,
   awaitingPayout: 0,

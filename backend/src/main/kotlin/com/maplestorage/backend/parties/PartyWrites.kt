@@ -37,6 +37,7 @@ internal fun createParty(
         it[Party.userId] = userId
         it[Party.characterId] = characterId
         it[Party.bossCatalogId] = bossCatalogId
+        it[difficulty] = request.difficulty
         it[createdAt] = now
         it[updatedAt] = now
     }
@@ -45,11 +46,12 @@ internal fun createParty(
 }
 
 /**
- * Replaces the config's label and members.
+ * Replaces the config's difficulty and members.
  *
  * The character and the boss are not editable: they are what the config IS, and changing either
  * would silently turn "Kalos on mechyfechy" into a different question with the same loot pool
- * hanging off it. Delete it and make the other one instead.
+ * hanging off it. Delete it and make the other one instead. The difficulty is editable, because a
+ * party that starts clearing Chaos is the same party.
  *
  * Seats are matched to existing rows by character NAME, so correcting a label or reordering the
  * list keeps the row a loot payout points at.
@@ -67,6 +69,7 @@ internal fun saveParty(
             .where { (Party.id eq partyId) and (Party.userId eq userId) }
             .first()[Party.characterId]
     Party.update({ (Party.id eq partyId) and (Party.userId eq userId) }) {
+        it[difficulty] = request.difficulty
         it[updatedAt] = now
     }
     writeMembers(userId, partyId, characterId, request.members, sprites, now)

@@ -27,12 +27,14 @@ const boss = (bossKey: string, name: string): Boss => ({
   name,
   reset: "WEEKLY",
   iconUrl: `/boss-icons/${bossKey}.png`,
+  difficulties: ["NORMAL", "HARD"],
 });
 
 const config = (id: string, characterId: string, bossKey: string, others: string[]): Party => ({
   id,
   characterId,
   bossKey,
+  difficulty: null,
   members: [seat("mine", characterId), ...others.map((o) => seat(o))],
   pendingLoot: 0,
   awaitingPayout: 0,

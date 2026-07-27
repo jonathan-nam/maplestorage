@@ -33,6 +33,9 @@ data class PartyResponse(
     val id: String,
     val characterId: String,
     val bossKey: String,
+    // Which mode this party runs, one of the boss's own difficulties. Null is not NORMAL, it is
+    // nobody having said yet, so nothing draws a difficulty for it.
+    val difficulty: String? = null,
     val members: List<PartyMemberResponse>,
     // The pool at a glance: dropped but unsold, and sold with somebody still unpaid.
     val pendingLoot: Int = 0,
@@ -70,6 +73,9 @@ data class SavePartyRequest(
     val characterId: String,
     val bossKey: String,
     val members: List<String> = emptyList(),
+    // One of the boss's own difficulties, or null for "not said". Anything else is refused rather
+    // than dropped: a config claiming Normal Black Mage would read as a fact somebody entered.
+    val difficulty: String? = null,
 )
 
 /**

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { apiAssetUrl } from "@/lib/api";
+import { difficultyLabel } from "@/lib/boss-difficulty";
 import { bossesWithoutConfig, MAX_PARTY, otherMembers } from "@/lib/parties";
 import type { Boss } from "@/types/boss";
 import type { Party, SavePartyBody } from "@/types/party";
@@ -53,7 +54,9 @@ export function PartyConfigEditor({
           party={party}
           boss={bossByKey.get(party.bossKey) ?? null}
           busy={busy}
-          onSave={(members) => onSave({ characterId, bossKey: party.bossKey, members }, party.id)}
+          onSave={(members, difficulty) =>
+            onSave({ characterId, bossKey: party.bossKey, members, difficulty }, party.id)
+          }
           onDelete={() => onDelete(party)}
         />
       ))}
@@ -79,8 +82,9 @@ export function PartyConfigEditor({
         </select>
         <AddParty
           busy={busy || addingBoss === ""}
-          onAdd={(member) => {
-            onSave({ characterId, bossKey: addingBoss, members: [member] });
+          difficulties={bossByKey.get(addingBoss)?.difficulties ?? []}
+          onAdd={(member, difficulty) => {
+            onSave({ characterId, bossKey: addingBoss, members: [member], difficulty });
             setAddingBoss("");
           }}
           knownCharacters={knownCharacters}
@@ -98,16 +102,27 @@ export function PartyConfigEditor({
  */
 function AddParty({
   busy,
+  difficulties,
   onAdd,
   knownCharacters,
 }: {
   busy: boolean;
-  onAdd: (member: string) => void;
+  /** The chosen boss's modes, empty until a boss is chosen. */
+  difficulties: string[];
+  onAdd: (member: string, difficulty: string | null) => void;
   knownCharacters: string[];
 }) {
   const [member, setMember] = useState("");
+  const [difficulty, setDifficulty] = useState("");
   return (
     <>
+      <DifficultySelect
+        difficulties={difficulties}
+        value={difficulty}
+        label="Difficulty for the new party"
+        disabled={busy}
+        onChange={setDifficulty}
+      />
       <input
         className="split-input"
         value={member}
@@ -122,8 +137,9 @@ function AddParty({
         className="party-save"
         disabled={busy || member.trim() === ""}
         onClick={() => {
-          onAdd(member.trim());
+          onAdd(member.trim(), difficulty === "" ? null : difficulty);
           setMember("");
+          setDifficulty("");
         }}
       >
         Add party
@@ -137,6 +153,44 @@ function AddParty({
   );
 }
 
+/**
+ * The mode this party runs, out of the ones the boss has.
+ *
+ * Empty is a real answer, not a prompt to be filled in: a config can predate the column, or the
+ * group may not have settled on one. It is never defaulted to Normal, which would be the app
+ * saying something nobody said.
+ */
+function DifficultySelect({
+  difficulties,
+  value,
+  label,
+  disabled,
+  onChange,
+}: {
+  difficulties: string[];
+  value: string;
+  label: string;
+  disabled?: boolean;
+  onChange: (difficulty: string) => void;
+}) {
+  return (
+    <select
+      className="split-input config-difficulty"
+      value={value}
+      aria-label={label}
+      disabled={disabled || difficulties.length === 0}
+      onChange={(e) => onChange(e.target.value)}
+    >
+      <option value="">difficulty...</option>
+      {difficulties.map((difficulty) => (
+        <option key={difficulty} value={difficulty}>
+          {difficultyLabel(difficulty)}
+        </option>
+      ))}
+    </select>
+  );
+}
+
 function ConfigRow({
   party,
   boss,
@@ -147,12 +201,14 @@ function ConfigRow({
   party: Party;
   boss: Boss | null;
   busy: boolean;
-  onSave: (members: string[]) => void;
+  onSave: (members: string[], difficulty: string | null) => void;
   onDelete: () => void;
 }) {
   const saved = otherMembers(party).map((m) => m.name);
+  const savedDifficulty = party.difficulty ?? "";
   const [members, setMembers] = useState<string[]>(saved.length > 0 ? saved : [""]);
-  const dirty = members.join(" ") !== saved.join(" ");
+  const [difficulty, setDifficulty] = useState(savedDifficulty);
+  const dirty = members.join(" ") !== saved.join(" ") || difficulty !== savedDifficulty;
   const attributed = otherMembers(party).filter((m) => m.personName);
 
   return (
@@ -160,6 +216,13 @@ function ConfigRow({
       <header className="config-head">
         {boss?.iconUrl && <img className="boss-portrait" src={apiAssetUrl(boss.iconUrl)} alt="" />}
         <h3 className="config-boss">{boss?.name ?? party.bossKey}</h3>
+        <DifficultySelect
+          difficulties={boss?.difficulties ?? []}
+          value={difficulty}
+          label={`Difficulty for ${boss?.name ?? party.bossKey}`}
+          disabled={busy}
+          onChange={setDifficulty}
+        />
         <button type="button" className="party-delete" onClick={onDelete} disabled={busy}>
           Remove
         </button>
@@ -218,7 +281,12 @@ function ConfigRow({
             type="button"
             className="party-save"
             disabled={busy}
-            onClick={() => onSave(members.map((m) => m.trim()).filter((m) => m !== ""))}
+            onClick={() =>
+              onSave(
+                members.map((m) => m.trim()).filter((m) => m !== ""),
+                difficulty === "" ? null : difficulty,
+              )
+            }
           >
             Save
           </button>
@@ -226,7 +294,10 @@ function ConfigRow({
             type="button"
             className="party-cancel"
             disabled={busy}
-            onClick={() => setMembers(saved.length > 0 ? saved : [""])}
+            onClick={() => {
+              setMembers(saved.length > 0 ? saved : [""]);
+              setDifficulty(savedDifficulty);
+            }}
           >
             Revert
           </button>

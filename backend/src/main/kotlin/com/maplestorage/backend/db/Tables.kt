@@ -137,6 +137,10 @@ object BossCatalog : Table("boss_catalog") {
     // The boss's planner portrait under seed-assets/bosses, served at /boss-icons. Cut from a real
     // capture (vision/app/cv/build_boss_portraits.py), so it is the art the game itself shows.
     val iconRefKey = text("icon_ref_key").nullable()
+
+    // The modes this boss can be fought at, lowest first, and the only ones a config may pick.
+    // Seeded from catalog/bosses.yaml. See V24__party_difficulty.sql.
+    val difficulties = array<String>("difficulties")
 }
 
 object BossClear : Table("boss_clear") {
@@ -165,6 +169,10 @@ object Party : Table("party") {
     // "what does this character run this boss with".
     val characterId = reference("character_id", Characters.id)
     val bossCatalogId = reference("boss_catalog_id", BossCatalog.id)
+
+    // Which mode this party runs, one of the boss's own difficulties. Null is not a default of
+    // NORMAL, it is nobody having said yet.
+    val difficulty = text("difficulty").nullable()
 
     val createdAt = timestamp("created_at")
     val updatedAt = timestamp("updated_at")

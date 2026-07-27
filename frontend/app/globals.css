@@ -3293,6 +3293,14 @@ button.link:disabled {
   max-width: 180px;
 }
 
+/* Narrow on purpose: the widest option is "Extreme", and a full-width select beside the boss
+   name reads as the more important of the two. */
+.config-difficulty {
+  font-size: 12px;
+  padding: 5px 8px;
+  max-width: 130px;
+}
+
 .config-head .party-delete {
   margin-left: auto;
 }
@@ -3535,6 +3543,15 @@ button.link:disabled {
   margin: 0;
   font-size: 14px;
   color: var(--ink-strong);
+}
+
+/* Filed by boss, the mode belongs to the row rather than to the heading: two of your characters
+   can run the same boss at different ones. Filed by character it is part of the name instead. */
+.party-difficulty {
+  color: var(--muted);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
 .party-row-label {

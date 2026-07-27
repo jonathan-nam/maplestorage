@@ -1,5 +1,6 @@
 package com.maplestorage.backend.parties
 
+import com.maplestorage.backend.db.BossCatalog
 import com.maplestorage.backend.db.Characters
 import com.maplestorage.backend.db.Party
 import org.jetbrains.exposed.v1.core.and
@@ -43,8 +44,33 @@ internal fun validateNewParty(
         !owned -> "characterId must be one of your characters"
         bossCatalogId == null -> "unknown bossKey"
         taken -> "that character already has a party for this boss"
-        else -> validateMembers(request.members)
+        else -> validateDifficulty(bossCatalogId, request.difficulty) ?: validateMembers(request.members)
     }
+}
+
+/**
+ * Why this difficulty cannot stand against this boss, or null.
+ *
+ * Null passes: not saying which mode you run is allowed, and is what every config predating the
+ * column says. Saying one the boss does not have is refused rather than dropped, because a config
+ * reading "Normal Black Mage" is a fact somebody would believe. The modes come from the catalog
+ * row (catalog/bosses.yaml), so a new mode is one edit there and no code change here.
+ *
+ * Must run inside a transaction.
+ */
+internal fun validateDifficulty(
+    bossCatalogId: Uuid,
+    difficulty: String?,
+): String? {
+    if (difficulty == null) return null
+    val modes =
+        BossCatalog
+            .selectAll()
+            .where { BossCatalog.id eq bossCatalogId }
+            .firstOrNull()
+            ?.get(BossCatalog.difficulties)
+            .orEmpty()
+    return if (difficulty in modes) null else "difficulty must be one of: ${modes.joinToString(", ")}"
 }
 
 /** The rules a config's roster has to keep, wherever it is being written. */

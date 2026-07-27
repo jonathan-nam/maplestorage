@@ -34,12 +34,13 @@ const CADENCE_ORDER = ["MONTHLY", "WEEKLY", "DAILY"];
 // until /api/bosses answers. Being a row or two out for one round-trip is a cosmetic difference;
 // rendering an empty table is not.
 const SKELETON_BOSSES: Boss[] = [
-  { bossKey: "sk-monthly", name: "", reset: "MONTHLY", iconUrl: null },
+  { bossKey: "sk-monthly", name: "", reset: "MONTHLY", iconUrl: null, difficulties: [] },
   ...Array.from({ length: 8 }, (_, i) => ({
     bossKey: `sk-weekly-${i}`,
     name: "",
     reset: "WEEKLY",
     iconUrl: null,
+    difficulties: [],
   })),
 ];
 
