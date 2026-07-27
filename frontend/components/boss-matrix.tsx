@@ -238,14 +238,10 @@ export function BossMatrix({
             <span className="boss-key is-unseen">–</span> {cellStateLabel("unseen")}: no capture
             this period
           </p>
-          {/* Said out loud rather than left as an absence: a reader who knows Zakum is in the
-              catalog should find out why it is missing here, not assume the week lost it. */}
-          {historyWeek && (
-            <p className="boss-history-note">
-              Weekly bosses only. A past week holds seven daily resets and can span two months, so
-              neither has a single answer for it.
-            </p>
-          )}
+          {/* Said, not left as an absence: a reader who knows Zakum is in the catalog should not
+              read its missing row as the week having lost it. Why only weekly is answerable is in
+              weeklyClearsFor, not on screen. */}
+          {historyWeek && <p className="boss-history-note">Weekly bosses only.</p>}
         </>
       )}
     </div>
