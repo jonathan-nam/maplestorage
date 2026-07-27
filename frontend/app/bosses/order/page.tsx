@@ -17,7 +17,7 @@ import {
   runsFromDrafts,
   runsFromParties,
 } from "@/lib/boss-night";
-import { planNight, screenRuns, SWITCH_MINUTES, tradeOffs } from "@/lib/boss-run-plan";
+import { planNight, screenRuns, tradeOffs } from "@/lib/boss-run-plan";
 import { peek, put } from "@/lib/cache";
 import { isCleared } from "@/lib/parties";
 import { preloadBossArt } from "@/lib/preload-boss-art";
@@ -358,9 +358,8 @@ export default function RunOrderPage() {
           {/* The assumed durations stay on screen. They are what the finishing time is built from,
               and a time presented without them reads as a measurement of your party. */}
           <p className="split-caveat">
-            Every run is assumed to take {formatDuration(DEFAULT_MINUTES)}, a character switch
-            another {formatDuration(SWITCH_MINUTES)}. Treat the finishing time as rough, and the
-            order as the answer.
+            Every run is assumed to take {formatDuration(DEFAULT_MINUTES)}. Treat the finishing time
+            as rough, and the order as the answer.
           </p>
         </section>
       )}
