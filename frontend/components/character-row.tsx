@@ -13,7 +13,6 @@ import type { Character } from "@/types/character";
 
 export function CharacterRow({
   character,
-  busy,
   onUpdated,
   onDeleted,
   onSetWorld,
@@ -22,7 +21,6 @@ export function CharacterRow({
   canMoveDown,
 }: {
   character: Character;
-  busy: boolean;
   onUpdated: (character: Character) => void;
   onDeleted: (id: string) => void;
   onSetWorld: (world: WorldType) => void;
@@ -81,7 +79,10 @@ export function CharacterRow({
       onDeleted(character.id);
     });
 
-  const disabled = busy || working;
+  // This row only, and only while its own refresh or delete is in flight: a Nexon lookup takes
+  // seconds and its answer overwrites this character. A page-wide flag here was what made every
+  // other row's buttons flash on a world click. See persist() on the page.
+  const disabled = working;
 
   return (
     <li className="character-row">
