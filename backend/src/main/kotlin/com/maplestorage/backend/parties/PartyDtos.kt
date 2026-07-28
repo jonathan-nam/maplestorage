@@ -32,6 +32,10 @@ data class PartyMemberResponse(
 data class PartyResponse(
     val id: String,
     val characterId: String,
+    // The character's world, INTERACTIVE or HEROIC. Carried on the config because it is what
+    // decides whether this pool's drops can be sold at all: Heroic worlds do not trade, so a
+    // split, a payout and a wallet line are all figures that could never change hands.
+    val worldType: String,
     val bossKey: String,
     // Which mode this party runs, one of the boss's own difficulties. Null is not NORMAL, it is
     // nobody having said yet, so nothing draws a difficulty for it.

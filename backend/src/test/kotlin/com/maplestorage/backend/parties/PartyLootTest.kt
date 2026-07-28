@@ -4,6 +4,8 @@ import com.maplestorage.backend.config.Env
 import com.maplestorage.backend.db.Characters
 import com.maplestorage.backend.db.Party
 import com.maplestorage.backend.db.Person
+import com.maplestorage.backend.users.WORLD_HEROIC
+import com.maplestorage.backend.users.WORLD_INTERACTIVE
 import com.maplestorage.backend.users.ensureUser
 import kotlinx.datetime.LocalDate
 import org.flywaydb.core.Flyway
@@ -74,7 +76,7 @@ class PartyLootTest {
     }
 
     /** Your character plus two others, which is three seats: yours is stored as the first. */
-    private fun trio(): PartyResponse {
+    private fun trio(world: String = WORLD_INTERACTIVE): PartyResponse {
         ensureUser(userId, "$userId@example.com")
         val mine = Uuid.random()
         val now = Clock.System.now()
@@ -87,6 +89,7 @@ class PartyLootTest {
             it[Characters.id] = mine
             it[Characters.userId] = owner
             it[Characters.name] = "Rune"
+            it[Characters.worldType] = world
             it[createdAt] = now
             it[updatedAt] = now
             it[position] = 0
@@ -442,6 +445,28 @@ class PartyLootTest {
             // paidAt is the record of when the money moved. A settle sent twice is one payment,
             // and re-stamping it would date the transfer to the second click.
             assertEquals(paidAt, after.payouts.single { it.memberId == early }.paidAt)
+        }
+    }
+
+    @Test
+    fun `a Heroic world config cannot sell, and says which world it is in`() {
+        transaction {
+            val heroic = trio(WORLD_HEROIC)
+            // Carried on the config, so the client does not have to fetch the character to find
+            // out whether this pool's drops are worth a price box.
+            assertEquals(WORLD_HEROIC, heroic.worldType)
+            assertFalse(partyCanSell(Uuid.parse(heroic.id)))
+        }
+    }
+
+    @Test
+    fun `an Interactive world config still sells`() {
+        transaction {
+            // The half of the rule that is easy to break by getting the comparison backwards, and
+            // which no Heroic test would catch: every existing pool would silently stop selling.
+            val party = trio()
+            assertEquals(WORLD_INTERACTIVE, party.worldType)
+            assertTrue(partyCanSell(Uuid.parse(party.id)))
         }
     }
 

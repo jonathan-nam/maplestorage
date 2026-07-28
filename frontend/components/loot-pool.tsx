@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { LootRow } from "@/components/loot-row";
 import { apiAssetUrl } from "@/lib/api";
+import { dropExistsIn, isPerMember } from "@/lib/world";
 import type { AddLootBody, Loot, SellLootBody } from "@/types/loot";
 import type { Boss } from "@/types/boss";
 import type { DropTables } from "@/types/drop";
@@ -43,7 +44,9 @@ export function LootPool({
   const [dropKey, setDropKey] = useState("");
   const [customName, setCustomName] = useState("");
 
-  const table = dropTables[bossKey] ?? [];
+  // Only what drops where this party plays. The three scroll coupons do not exist in Heroic
+  // worlds, and a picker that offers one there is offering to log a drop that cannot happen.
+  const table = (dropTables[bossKey] ?? []).filter((d) => dropExistsIn(d.worlds, party.worldType));
   const chosen = table.find((d) => d.dropKey === dropKey);
   const canAdd = !busy && (dropKey === OTHER ? customName.trim() !== "" : dropKey !== "");
 
@@ -85,7 +88,7 @@ export function LootPool({
           {table.map((drop) => (
             <option key={drop.dropKey} value={drop.dropKey}>
               {drop.name}
-              {drop.perMember ? " (one each)" : ""}
+              {isPerMember(drop.perMember, party.worldType) ? " (one each)" : ""}
             </option>
           ))}
           <option value={OTHER}>something else...</option>
@@ -109,9 +112,8 @@ export function LootPool({
         </button>
       </form>
 
-      {chosen?.worlds === "INTERACTIVE" && (
-        <p className="party-hint">This one only drops in Interactive worlds.</p>
-      )}
+      {/* The "only drops in Interactive worlds" note that used to sit here is gone: the list is
+          now narrowed to this party's world, so anything still on it does drop here. */}
       {table.length === 0 && bossKey !== "" && (
         <p className="party-hint">
           No drop table recorded for this boss yet, so pick “something else” and type it.

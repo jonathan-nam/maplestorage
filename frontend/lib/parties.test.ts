@@ -33,6 +33,7 @@ const boss = (bossKey: string, name: string): Boss => ({
 const config = (id: string, characterId: string, bossKey: string, others: string[]): Party => ({
   id,
   characterId,
+  worldType: "INTERACTIVE",
   bossKey,
   difficulty: null,
   members: [seat("mine", characterId), ...others.map((o) => seat(o))],

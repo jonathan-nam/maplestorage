@@ -5,6 +5,7 @@ import { CopyAmount } from "@/components/copy-amount";
 import { apiAssetUrl } from "@/lib/api";
 import { formatMesos, parseMesos } from "@/lib/drop-split";
 import { formatDropped, splitOf, statusLabel } from "@/lib/loot";
+import { canTrade, isPerMember } from "@/lib/world";
 import type { Boss } from "@/types/boss";
 import type { Loot, SellLootBody } from "@/types/loot";
 import type { Party } from "@/types/party";
@@ -40,6 +41,10 @@ export function LootRow({
 
   const amount = parseMesos(price);
   const result = splitOf(loot, party.members);
+  // Heroic worlds do not trade. The row stays, because a Heroic player still logs what fell; what
+  // goes is every control that would turn a drop into money. The backend refuses the sale too, so
+  // this is what the rule looks like rather than the whole of it.
+  const canSell = canTrade(party.worldType);
 
   return (
     <article className={`loot-row status-${loot.status.toLowerCase()}`}>
@@ -66,16 +71,23 @@ export function LootRow({
       </header>
 
       {/* The mistake this whole app exists to prevent, in miniature: a drop everyone receives
-          their own copy of is not one pot to divide. */}
-      {loot.perMember && (
-        <p className="loot-warn">
-          {loot.perMember === "ALWAYS"
-            ? "Everyone gets their own. Nothing to split."
-            : "In Heroic/Reboot everyone gets their own, so there is nothing to split there."}
-        </p>
+          their own copy of is not one pot to divide. It used to hedge ("in Heroic/Reboot...")
+          because the row did not know where it was; it does now, so it either applies or is not
+          said. Only where there is splitting to warn off: in a Heroic pool nothing splits anyway. */}
+      {canSell && isPerMember(loot.perMember, party.worldType) && (
+        <p className="loot-warn">Everyone gets their own. Nothing to split.</p>
+      )}
+
+      {loot.status === "PENDING" && !canSell && (
+        <div className="loot-actions">
+          <button type="button" className="party-delete" onClick={onDelete} disabled={busy}>
+            Remove
+          </button>
+        </div>
       )}
 
       {loot.status === "PENDING" &&
+        canSell &&
         (selling ? (
           <form
             className="loot-sale-form"

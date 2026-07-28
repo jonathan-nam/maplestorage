@@ -10,6 +10,7 @@ import com.maplestorage.backend.db.PartyLootPayout
 import com.maplestorage.backend.db.PartyMember
 import com.maplestorage.backend.db.Person
 import com.maplestorage.backend.db.PersonCharacter
+import com.maplestorage.backend.users.WORLD_INTERACTIVE
 import org.jetbrains.exposed.v1.core.JoinType
 import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.and
@@ -31,6 +32,9 @@ internal fun partiesFor(userId: String): List<PartyResponse> {
     val rows =
         Party
             .innerJoin(BossCatalog)
+            // The config's own character, for its world. Named columns rather than the FK-inferred
+            // overload: party_member also references characters, so "which link" is worth stating.
+            .join(Characters, JoinType.INNER, Party.characterId, Characters.id)
             .selectAll()
             .where { Party.userId eq userId }
             .orderBy(BossCatalog.sortOrder)
@@ -59,6 +63,7 @@ internal fun findParty(
     val row =
         Party
             .innerJoin(BossCatalog)
+            .join(Characters, JoinType.INNER, Party.characterId, Characters.id)
             .selectAll()
             .where { (Party.id eq partyId) and (Party.userId eq userId) }
             .firstOrNull() ?: return null
@@ -68,6 +73,21 @@ internal fun findParty(
         clearStateFor(listOf(row))[partyId] ?: ClearState(null, false),
     )
 }
+
+/**
+ * True when this config's drops can be sold at all.
+ *
+ * Heroic (Reboot) worlds do not trade, so a sale there is not a figure to get right, it is one
+ * that could never have happened. The UI hides the control; this is what makes hiding it a rule
+ * rather than a suggestion, and without it the payout rows a sale pins would outlive the button.
+ */
+internal fun partyCanSell(partyId: Uuid): Boolean =
+    Party
+        .join(Characters, JoinType.INNER, Party.characterId, Characters.id)
+        .selectAll()
+        .where { Party.id eq partyId }
+        .firstOrNull()
+        ?.get(Characters.worldType) == WORLD_INTERACTIVE
 
 /** True when the config exists and belongs to this user. The ownership check every write starts with. */
 internal fun ownsParty(
@@ -276,6 +296,7 @@ private fun ResultRow.toPartyResponse(
 ) = PartyResponse(
     id = this[Party.id].toString(),
     characterId = this[Party.characterId].toString(),
+    worldType = this[Characters.worldType],
     bossKey = this[BossCatalog.bossKey],
     difficulty = this[Party.difficulty],
     members = members,

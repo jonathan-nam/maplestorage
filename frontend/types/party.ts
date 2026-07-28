@@ -1,5 +1,7 @@
 // Mirrors backend's parties/PartyDtos.kt field-for-field.
 
+import type { WorldType } from "@/lib/world";
+
 // One seat: a character somebody brought.
 export type PartyMember = {
   id: string;
@@ -19,6 +21,9 @@ export type PartyMember = {
 export type Party = {
   id: string;
   characterId: string;
+  // The character's world. Heroic worlds do not trade, so this decides whether this pool's drops
+  // can be sold at all: see lib/world.ts.
+  worldType: WorldType;
   bossKey: string;
   // Which mode this party runs, one of the boss's own difficulties. Null is not NORMAL, it is
   // nobody having said yet, and nothing draws a difficulty for it.

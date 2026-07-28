@@ -1,6 +1,7 @@
 package com.maplestorage.backend.characters
 
 import com.maplestorage.backend.db.Characters
+import com.maplestorage.backend.db.Users
 import com.maplestorage.backend.plugins.parseUuidParam
 import com.maplestorage.backend.plugins.principalIdAndEmail
 import com.maplestorage.backend.plugins.span
@@ -63,12 +64,20 @@ private suspend fun RoutingContext.createCharacter(nexonLookupService: NexonLook
                     .where { Characters.userId eq userId }
                     .count()
                     .toInt()
+            // The account's world, not the column default: a Heroic player adding their tenth
+            // character should not have to go and say so again.
+            val accountWorld =
+                Users
+                    .selectAll()
+                    .where { Users.id eq userId }
+                    .single()[Users.worldType]
             Characters.insert {
                 it[id] = newId
                 it[Characters.userId] = userId
                 it[name] = request.name
                 it[level] = lookup?.level
                 it[jobName] = lookup?.jobName
+                it[worldType] = accountWorld
                 it[spriteImgUrl] = lookup?.spriteImgUrl
                 it[spriteRefreshedAt] = if (lookup != null) now else null
                 it[createdAt] = now

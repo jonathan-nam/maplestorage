@@ -98,6 +98,7 @@ private suspend fun RoutingContext.sellLootRoute() {
             when {
                 !ownsParty(partyId, userId) -> null
                 findLoot(lootId, partyId) == null -> null
+                !partyCanSell(partyId) -> "Heroic worlds do not trade, so this cannot be sold."
                 request.amount < 0 -> "amount must be zero or more"
                 request.amountBasis !in AMOUNT_BASES -> "amountBasis must be LISTED or RECEIVED"
                 request.splitMethod !in SPLIT_METHODS -> "splitMethod must be LAZY or FAIR"

@@ -29,6 +29,7 @@ const chris = { id: "p-chris", name: "Chris" };
 const party = (id: string, members: PartyMember[], over: Partial<Party> = {}): Party => ({
   id,
   characterId: members[0]!.characterId!,
+  worldType: "INTERACTIVE",
   bossKey: "limbo",
   difficulty: null,
   members,

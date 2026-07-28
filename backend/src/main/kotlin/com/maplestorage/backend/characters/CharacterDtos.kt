@@ -9,6 +9,9 @@ data class CharacterResponse(
     val level: Int?,
     val jobName: String?,
     val worldName: String?,
+    // INTERACTIVE or HEROIC. Inherited from the account when the character is added, and the one
+    // this character's parties read to decide whether their loot can be sold at all.
+    val worldType: String,
     val spriteImgUrl: String?,
     val spriteRefreshedAt: String?,
     val createdAt: String,

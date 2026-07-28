@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { activeHref, MENU_HREFS, SECTIONS } from "@/lib/section-menu";
+import { activeHref, MENU_HREFS, sectionsFor } from "@/lib/section-menu";
+import { useWorldType } from "@/lib/use-world-type";
 
 // Account sections live behind a hamburger beside the brand. What it lists, and which entry a path
 // belongs to, are in lib/section-menu.ts, where they can be tested: the highlight rule fails
@@ -16,6 +17,9 @@ export function SectionMenu() {
   const active = activeHref(pathname);
   const ref = useRef<HTMLDivElement>(null);
   const router = useRouter();
+  // A Heroic account has nothing to split, so the Split Utility is not on their list. It still
+  // routes, and prefetching it costs nothing worth branching on.
+  const sections = sectionsFor(useWorldType());
 
   // The panel below only mounts while the menu is open, and <Link> prefetches on entering the
   // viewport, so the routes got at most the moment between opening the menu and clicking an item.
@@ -60,7 +64,7 @@ export function SectionMenu() {
 
       {open ? (
         <nav className="section-menu-panel" role="menu">
-          {SECTIONS.map((section) => (
+          {sections.map((section) => (
             <div
               key={section.group ?? section.items[0]?.href}
               className={section.group ? "section-menu-group" : undefined}
