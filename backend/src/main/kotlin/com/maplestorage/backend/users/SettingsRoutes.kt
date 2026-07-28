@@ -13,6 +13,7 @@ import io.ktor.server.routing.get
 import io.ktor.server.routing.put
 import kotlinx.serialization.Serializable
 import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.jdbc.select
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.jetbrains.exposed.v1.jdbc.update
@@ -21,8 +22,16 @@ import org.jetbrains.exposed.v1.jdbc.update
 
 @Serializable
 data class SettingsResponse(
-    // INTERACTIVE or HEROIC.
+    // INTERACTIVE or HEROIC. What a newly added character starts in, and what "all characters"
+    // last said. NOT an assertion about the account: a character's own world is the truth, and
+    // one account can hold both.
     val worldType: String,
+    // Whether ANY character is somewhere that trades.
+    //
+    // Derived, never stored, and the only thing the account-wide screens may key off: the section
+    // menu and the Drop Log's meso totals answer for the whole account, and reading `worldType`
+    // there would hide an Interactive character's real earnings behind a default nobody set.
+    val trades: Boolean,
 )
 
 @Serializable
@@ -40,13 +49,30 @@ private suspend fun RoutingContext.getSettings() {
     val settings =
         transaction {
             ensureUser(userId, email)
-            Users
-                .selectAll()
-                .where { Users.id eq userId }
-                .single()
-                .let { SettingsResponse(worldType = it[Users.worldType]) }
+            settingsFor(userId)
         }
     call.respond(settings)
+}
+
+/**
+ * An account with no characters yet trades, so a first-time page is not quietly missing half of
+ * itself before there is anything to be missing.
+ */
+internal fun settingsFor(userId: String): SettingsResponse {
+    val worlds =
+        Characters
+            .select(Characters.worldType)
+            .where { Characters.userId eq userId }
+            .map { it[Characters.worldType] }
+    val default =
+        Users
+            .selectAll()
+            .where { Users.id eq userId }
+            .single()[Users.worldType]
+    return SettingsResponse(
+        worldType = default,
+        trades = worlds.isEmpty() || worlds.any { it == WORLD_INTERACTIVE },
+    )
 }
 
 private suspend fun RoutingContext.saveSettings() {
@@ -58,13 +84,16 @@ private suspend fun RoutingContext.saveSettings() {
         return
     }
 
-    transaction {
-        ensureUser(userId, email)
-        Users.update({ Users.id eq userId }) { it[Users.worldType] = worldType }
-        // Every character follows the account, because nothing offers to set one separately yet.
-        // The column is still the one parties read, so the day it is offered, only the UI changes.
-        Characters.update({ Characters.userId eq userId }) { it[Characters.worldType] = worldType }
-    }
+    // The "all characters" control, which is also the only place the default is stated: saying it
+    // of the whole account is the one unambiguous answer to what the next character starts in.
+    // Setting a single character deliberately does NOT move it.
+    val settings =
+        transaction {
+            ensureUser(userId, email)
+            Users.update({ Users.id eq userId }) { it[Users.worldType] = worldType }
+            Characters.update({ Characters.userId eq userId }) { it[Characters.worldType] = worldType }
+            settingsFor(userId)
+        }
 
-    call.respond(SettingsResponse(worldType = worldType))
+    call.respond(settings)
 }

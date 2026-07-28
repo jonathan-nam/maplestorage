@@ -7,6 +7,7 @@ import com.maplestorage.backend.plugins.principalIdAndEmail
 import com.maplestorage.backend.plugins.span
 import com.maplestorage.backend.services.NexonLookupService
 import com.maplestorage.backend.users.ensureUser
+import com.maplestorage.backend.users.worldTypeOrNull
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.call
 import io.ktor.server.request.receive
@@ -165,6 +166,14 @@ private suspend fun RoutingContext.updateCharacter() {
     val characterId = call.parseUuidParam("id") ?: return
     val request = call.receive<UpdateCharacterRequest>()
 
+    // Refused rather than ignored. A world silently dropped would leave the character in the other
+    // one, and its parties would go on offering to sell what cannot be sold.
+    val world = request.worldType?.let { worldTypeOrNull(it) }
+    if (request.worldType != null && world == null) {
+        call.respond(HttpStatusCode.BadRequest, "worldType must be INTERACTIVE or HEROIC")
+        return
+    }
+
     val updated =
         transaction {
             ensureUser(userId, email)
@@ -172,6 +181,7 @@ private suspend fun RoutingContext.updateCharacter() {
                 Characters.update({ (Characters.id eq characterId) and (Characters.userId eq userId) }) { row ->
                     request.name?.let { row[Characters.name] = it }
                     request.level?.let { row[Characters.level] = it }
+                    world?.let { row[Characters.worldType] = it }
                     row[Characters.updatedAt] = Clock.System.now()
                 }
             if (rowsChanged == 0) null else findOwnedCharacter(characterId, userId)

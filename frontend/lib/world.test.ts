@@ -47,17 +47,20 @@ describe("whether everyone gets their own", () => {
 });
 
 describe("what an account is shown", () => {
-  it("draws mesos until the account is known to be Heroic", () => {
+  it("draws mesos until no character is known to trade", () => {
+    // `trades`, never a single world, and that is the whole point of the field: an account with
+    // one Interactive character among Heroic ones has real earnings in the Drop Log, and keying
+    // this off an account-wide world would hide them behind a default nobody set.
     expect(showsMoney(undefined)).toBe(true);
-    expect(showsMoney("INTERACTIVE")).toBe(true);
-    expect(showsMoney("HEROIC")).toBe(false);
+    expect(showsMoney(true)).toBe(true);
+    expect(showsMoney(false)).toBe(false);
   });
 
   it("keeps the Wallet reachable while a share is still owed", () => {
-    // The rule that stops this from hiding what it dropped: switching an account to Heroic must
+    // The rule that stops this from hiding what it dropped: moving every character to Heroic must
     // not strand money somebody was already owed behind a link that no longer exists.
-    expect(offersWallet("HEROIC", true)).toBe(true);
-    expect(offersWallet("HEROIC", false)).toBe(false);
-    expect(offersWallet("INTERACTIVE", false)).toBe(true);
+    expect(offersWallet(false, true)).toBe(true);
+    expect(offersWallet(false, false)).toBe(false);
+    expect(offersWallet(true, false)).toBe(true);
   });
 });

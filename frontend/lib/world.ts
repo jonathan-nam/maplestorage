@@ -39,26 +39,28 @@ export function dropExistsIn(worlds: string | null, world: WorldType): boolean {
 }
 
 /**
- * Whether to draw meso figures for an account.
+ * Whether to draw meso figures on a screen that answers for the WHOLE account.
  *
- * Takes an account's world rather than a character's, so it takes the moment before the world is
- * known: undefined draws them, which is what every screen did before this existed. A Heroic
- * account's totals are all zero, and three tiles of zeroes is Interactive machinery held up in
- * front of somebody it can never apply to.
+ * Takes `trades` (does any character trade), never one world, because an account can hold both and
+ * the Drop Log sums across all of them. Keying this off a single stored world would hide an
+ * Interactive character's real earnings behind a default nobody set.
+ *
+ * Undefined is the moment before the answer arrives, and it draws them: that is what every screen
+ * did before this existed, and it errs towards showing rather than hiding.
  */
-export function showsMoney(world: WorldType | undefined): boolean {
-  return world !== "HEROIC";
+export function showsMoney(trades: boolean | undefined): boolean {
+  return trades !== false;
 }
 
 /**
  * Whether to offer the Wallet.
  *
- * A Heroic account cannot create a debt, so the page has nothing to answer for them. It is still
- * offered while a share is outstanding: money somebody is owed does not stop existing because the
- * account's world changed, and taking the link away over the top of it would hide what it dropped.
+ * An account with no trading character cannot create a debt, so the page has nothing to answer. It
+ * is still offered while a share is outstanding: money somebody is owed does not stop existing
+ * because a world changed, and taking the link away over the top of it would hide what it dropped.
  */
-export function offersWallet(world: WorldType | undefined, owed: boolean): boolean {
-  return showsMoney(world) || owed;
+export function offersWallet(trades: boolean | undefined, owed: boolean): boolean {
+  return showsMoney(trades) || owed;
 }
 
 /**

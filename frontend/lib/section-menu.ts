@@ -3,17 +3,15 @@
 // Split out of the component because the highlight rule has a silent failure mode: a path that
 // resolves to the wrong entry does not error, it just lights the wrong word. See the tests.
 
-import type { WorldType } from "./world";
-
 export type SectionItem = {
   href: string;
   label: string;
   /**
-   * Only listed for an account that can trade.
+   * Only listed while some character of this account can trade.
    *
    * The page still exists and still routes, so an old link is not a dead end. It is off the menu
-   * because a Heroic player has nothing to split, and offering them the tool anyway is the app
-   * explaining a control they cannot use.
+   * because a purely Heroic account has nothing to split, and offering them the tool anyway is the
+   * app explaining a control they cannot use. One Interactive character is enough to keep it.
    */
   interactiveOnly?: boolean;
   /**
@@ -63,14 +61,16 @@ export const MENU_HREFS = SECTIONS.flatMap((s) =>
 );
 
 /**
- * What to draw for this account, or everything while the world is not known yet.
+ * What to draw for this account, or everything while the answer is not known yet.
  *
- * Undefined is the moment before /api/settings answers. Showing the full menu then is the old
- * behaviour and costs a Heroic account one entry for a few milliseconds; the panel does not even
- * mount until the hamburger is clicked, which is almost always after.
+ * `trades` is "does any character trade", not one world: an account with a foot in both keeps the
+ * Interactive-only entries, because the character that needs them exists. Undefined is the moment
+ * before /api/settings answers. Showing the full menu then is the old behaviour and costs a purely
+ * Heroic account one entry for a few milliseconds; the panel does not even mount until the
+ * hamburger is clicked, which is almost always after.
  */
-export function sectionsFor(world: WorldType | undefined) {
-  if (world !== "HEROIC") return SECTIONS;
+export function sectionsFor(trades: boolean | undefined) {
+  if (trades !== false) return SECTIONS;
   return SECTIONS.map((section) => ({
     ...section,
     items: section.items.filter((item) => !item.interactiveOnly),

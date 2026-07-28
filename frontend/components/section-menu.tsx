@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { activeHref, MENU_HREFS, sectionsFor } from "@/lib/section-menu";
-import { useWorldType } from "@/lib/use-world-type";
+import { useAccountSettings } from "@/lib/use-account-settings";
 
 // Account sections live behind a hamburger beside the brand. What it lists, and which entry a path
 // belongs to, are in lib/section-menu.ts, where they can be tested: the highlight rule fails
@@ -17,9 +17,10 @@ export function SectionMenu() {
   const active = activeHref(pathname);
   const ref = useRef<HTMLDivElement>(null);
   const router = useRouter();
-  // A Heroic account has nothing to split, so the Split Utility is not on their list. It still
-  // routes, and prefetching it costs nothing worth branching on.
-  const sections = sectionsFor(useWorldType());
+  // An account with no trading character has nothing to split, so the Split Utility is not on
+  // their list. One Interactive character keeps it. It still routes either way, and prefetching it
+  // costs nothing worth branching on.
+  const sections = sectionsFor(useAccountSettings()?.trades);
 
   // The panel below only mounts while the menu is open, and <Link> prefetches on entering the
   // viewport, so the routes got at most the moment between opening the menu and clicking an item.

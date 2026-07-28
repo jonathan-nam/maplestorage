@@ -50,6 +50,8 @@ data class CreateCharacterRequest(
 data class UpdateCharacterRequest(
     val name: String? = null,
     val level: Int? = null,
+    // INTERACTIVE or HEROIC. Per character, because one account can play both.
+    val worldType: String? = null,
 )
 
 // The full set of the caller's character ids in their new order. It must be exactly that set,

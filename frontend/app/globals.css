@@ -914,6 +914,19 @@ img.user-avatar-img {
 
 /* One setting per row: its name, then the control. Nothing between them, the control says what it
    does by what it is set to. */
+.settings-heading {
+  margin: 24px 0 10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.setting-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
 .setting-row {
   display: flex;
   align-items: center;
@@ -921,7 +934,10 @@ img.user-avatar-img {
   flex-wrap: wrap;
 }
 
+/* Fixed, so the toggles line up down the column and a row with a mixed state reads as one of the
+   set rather than as its own thing. */
 .setting-label {
+  min-width: 150px;
   color: var(--muted);
   font-size: 13px;
 }

@@ -23,7 +23,7 @@ import {
   partySizeLabel,
 } from "@/lib/parties";
 import { preloadBossArt } from "@/lib/preload-boss-art";
-import { useWorldType } from "@/lib/use-world-type";
+import { useAccountSettings } from "@/lib/use-account-settings";
 import { offersWallet } from "@/lib/world";
 import type { Boss, BossClearsView } from "@/types/boss";
 import type { Character } from "@/types/character";
@@ -66,7 +66,7 @@ export default function PartiesPage() {
   preloadBossArt();
 
   const { getToken } = useAuth();
-  const world = useWorldType();
+  const settings = useAccountSettings();
 
   const seededParties = peek<Party[]>(PARTIES_KEY);
   const seededBosses = peek<Boss[]>(BOSSES_KEY);
@@ -243,7 +243,7 @@ export default function PartiesPage() {
   // Counted off every party, not the filtered set: a share owed on a party this week's filter
   // hides is still a share owed.
   const showWallet = offersWallet(
-    world,
+    settings?.trades,
     parties.some((p) => p.awaitingPayout > 0),
   );
 

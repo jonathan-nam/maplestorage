@@ -9,7 +9,7 @@ import { buildDropLog, forCharacter, type DropEntry, type DropMonth } from "@/li
 import { formatMesos } from "@/lib/drop-split";
 import { formatDropped, statusLabel } from "@/lib/loot";
 import { preloadBossArt } from "@/lib/preload-boss-art";
-import { useWorldType } from "@/lib/use-world-type";
+import { useAccountSettings } from "@/lib/use-account-settings";
 import { showsMoney } from "@/lib/world";
 import type { Boss } from "@/types/boss";
 import type { Character } from "@/types/character";
@@ -31,9 +31,10 @@ export default function DropLogPage() {
   preloadBossArt();
 
   const { getToken } = useAuth();
-  // A Heroic account never sold anything, so its meso totals are all a true zero. Drawing three of
-  // them is still worse than drawing none.
-  const money = showsMoney(useWorldType());
+  // Read off "does any character trade", not off one world: this page sums across every party, so
+  // one Interactive character means there is real money here to show. Only an account with none at
+  // all gets the tiles dropped, and there its totals were three true zeroes.
+  const money = showsMoney(useAccountSettings()?.trades);
 
   const [parties, setParties] = useState<Party[]>(peek<Party[]>(PARTIES_KEY) ?? []);
   const [pools, setPools] = useState<PartyLootPool[]>([]);
