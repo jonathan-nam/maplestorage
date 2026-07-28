@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { CharacterPicker } from "@/components/character-picker";
+import { DockShell } from "@/components/dock-shell";
 import { Ellipsis } from "@/components/ellipsis";
 import { SharpEyesMark } from "@/components/sharp-eyes-mark";
 import { apiFetch } from "@/lib/api";
@@ -9,6 +10,7 @@ import { clearStateLabel } from "@/lib/boss-clears";
 import { invalidate } from "@/lib/cache";
 import { compressImage } from "@/lib/compress-image";
 import { clearedCount, describeCaveat, hasPlanner, plannerCaveats } from "@/lib/planner-capture";
+import { useDockOpen } from "@/lib/use-dock-open";
 import type { Character } from "@/types/character";
 import type { ScreenshotResult } from "@/types/screenshot";
 
@@ -49,6 +51,7 @@ export function PlannerDock({
 }) {
   const [captures, setCaptures] = useState<Capture[]>([]);
   const [dragOver, setDragOver] = useState(false);
+  const [open, setOpen] = useDockOpen("planner");
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const counter = useRef(0);
@@ -80,6 +83,9 @@ export function PlannerDock({
   function add(files: File[]) {
     const images = files.filter((f) => f.type.startsWith("image/"));
     if (images.length === 0) return;
+    // Unfold first, and unconditionally: pasting works while folded, and both answers to a paste
+    // (the read, or the refusal below) are inside the fold.
+    setOpen(true);
     if (!selected) {
       setRefused(true);
       return;
@@ -134,9 +140,15 @@ export function PlannerDock({
   }
 
   return (
-    <section className="dock planner-dock">
+    <DockShell
+      name="planner"
+      open={open}
+      onOpenChange={setOpen}
+      cards={captures.map((capture) => (
+        <PlannerCard key={capture.id} capture={capture} onDismiss={() => dismiss(capture.id)} />
+      ))}
+    >
       <div className="planner-pick">
-        <span className="planner-pick-label">Upload your Maple Planner</span>
         <CharacterPicker
           characters={characters}
           selectedId={selectedCharacterId}
@@ -195,11 +207,7 @@ export function PlannerDock({
           whose clears these are.
         </p>
       )}
-
-      {captures.map((capture) => (
-        <PlannerCard key={capture.id} capture={capture} onDismiss={() => dismiss(capture.id)} />
-      ))}
-    </section>
+    </DockShell>
   );
 }
 

@@ -72,6 +72,12 @@ the dropzone. It **is** the same state as having no character selected, not a se
 disagree with the carousel. A screenshot cannot be both "definitely Bob's" and "work out whose it
 is".
 
+Both upload docks (this one, and the Maple Planner dock on Individual View) sit at the **top** of
+the page they feed, and **fold** to their title bar. Uploading is something you do once after a
+run, while reading the numbers is what the rest of the week is for, so the fold is remembered
+between visits. What came back from a capture never folds: the read is the answer to the upload
+you just made.
+
 **The preview grid.** The parse is shown before it is committed, in the same 16-wide lattice as the
 inventory below, with what *changed* called out (`+n`, or `new`). An upload used to be a leap of
 faith: it parsed, it wrote, and you found out afterwards. This project has shipped silent

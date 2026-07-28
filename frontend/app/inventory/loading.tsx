@@ -1,3 +1,4 @@
+import { DockSkeleton } from "@/components/dock-shell";
 import { CharactersSkeleton } from "@/components/loading-skeleton";
 
 // Shown from the instant a nav link is clicked until this route's own JS has mounted. Without a
@@ -10,6 +11,7 @@ export default function Loading() {
   return (
     <main className="page">
       <h1 className="page-title">Inventory</h1>
+      <DockSkeleton name="inventory" />
       <CharactersSkeleton />
     </main>
   );

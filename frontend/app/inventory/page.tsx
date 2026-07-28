@@ -181,6 +181,27 @@ export default function CharactersPage() {
     <main className="page">
       <h1 className="page-title">Inventory</h1>
 
+      {/* Outside the load states on purpose. The dock is the first thing on the page now, so
+          rendering it only once the roster lands would push the whole page down at the moment the
+          fetch returns. It also means a screenshot can be dropped while the roster is still on its
+          way, which is the same generic upload the eye offers. */}
+      <CaptureDock
+        characters={characters}
+        pinnedCharacterId={selectedId}
+        stored={new Map((selectedTokens ?? []).map((t) => [t.tokenCatalogId, t.quantity]))}
+        getToken={getToken}
+        onCharacterAdded={handleAdded}
+        onSaved={() => setRevision((n) => n + 1)}
+        onToggleGeneric={() => {
+          if (selectedId) {
+            setLastSelectedId(selectedId);
+            setSelectedId(null);
+          } else {
+            setSelectedId(lastSelectedId ?? characters[0]?.id ?? null);
+          }
+        }}
+      />
+
       {state === "error" && <p>Couldn&apos;t load your characters.</p>}
 
       {/* One deliberate loading state, not the real chrome assembling itself in stages. The
@@ -229,27 +250,10 @@ export default function CharactersPage() {
             </p>
           ) : (
             <p className="finder-empty">
-              No character selected, a screenshot dropped below will be filed by the name read from
+              No character selected, a screenshot dropped above will be filed by the name read from
               it. Pick a character to see their inventory.
             </p>
           )}
-
-          <CaptureDock
-            characters={characters}
-            pinnedCharacterId={selectedId}
-            stored={new Map((selectedTokens ?? []).map((t) => [t.tokenCatalogId, t.quantity]))}
-            getToken={getToken}
-            onCharacterAdded={handleAdded}
-            onSaved={() => setRevision((n) => n + 1)}
-            onToggleGeneric={() => {
-              if (selectedId) {
-                setLastSelectedId(selectedId);
-                setSelectedId(null);
-              } else {
-                setSelectedId(lastSelectedId ?? characters[0]?.id ?? null);
-              }
-            }}
-          />
         </div>
       )}
     </main>

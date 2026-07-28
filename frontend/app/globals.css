@@ -1229,6 +1229,53 @@ img.user-avatar-img {
   margin: 0 0 1rem;
 }
 
+/* The fold. The dropzone sits at the top of the page it feeds, which is where it is wanted on the
+   day you upload and in the way on the other six, so its title bar is also the control that puts
+   it away. What it folds to is remembered: lib/dock-collapse.ts. */
+.dock-bar {
+  display: flex;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.dock-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  /* Pulled back by its own left padding so the label lines up with the page, not with the hit
+     area around it. */
+  margin-left: -6px;
+  padding: 4px 8px 4px 6px;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.dock-toggle:hover {
+  color: var(--ink-strong);
+}
+
+.dock-toggle:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.dock-caret {
+  font-size: 11px;
+  color: var(--muted);
+  transition: transform 0.12s ease;
+}
+
+/* Folded, it points at the thing that will appear. */
+.dock-toggle[aria-expanded="false"] .dock-caret {
+  transform: rotate(-90deg);
+}
+
 .dock-drop {
   display: flex;
   flex-direction: column;
@@ -1277,6 +1324,25 @@ img.user-avatar-img {
 .dock-drop.dragover .dock-drop-mark {
   opacity: 1;
   filter: none;
+}
+
+/* The dropzone's shape while the route boundary waits for the page's own JS. It is the real box
+   with shimmer where its two lines go, so the height is the real height and the handover does not
+   move the page. Inert, though: there is nothing here yet to hand a file to. */
+.dock-drop.is-skeleton,
+.dock-drop.is-skeleton:hover {
+  cursor: default;
+  border-color: var(--line);
+  background: var(--surface-2);
+}
+
+.dock-drop.is-skeleton:hover .dock-drop-mark {
+  opacity: 0.55;
+  filter: saturate(0.5);
+}
+
+.dock-drop.is-skeleton .dock-eye {
+  cursor: default;
 }
 
 .capture {
@@ -2226,28 +2292,16 @@ button.link:disabled {
   width: 68px;
 }
 
-/* The planner capture dock. Sits under the matrix, since the matrix is the answer and this is how
-   you feed it. */
-.planner-dock {
-  margin-top: 24px;
-}
-
 /* Choosing the character comes first, and is not optional: the planner panel carries no name, so
    an unattributed capture cannot be filed. See the note at the top of planner-dock.tsx. */
 .planner-pick {
   margin-bottom: 10px;
 }
 
-/* The strip is inside a labelled field here, not driving the page below it, so it does not need
-   the carousel's own top margin. */
+/* The strip is a field inside the dock, not a carousel driving the page below it, so it does not
+   need the carousel's own top margin. */
 .carousel.carousel-compact {
-  margin: 4px 0 0;
-}
-
-/* Reads as a section title, so it matches .page-title rather than the surrounding small text. */
-.planner-pick-label {
-  font-size: 20px;
-  color: var(--ink-strong);
+  margin: 0;
 }
 
 /* Still a click target when disabled, because clicking is how you find out why. It explains

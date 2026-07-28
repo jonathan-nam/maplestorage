@@ -1,4 +1,5 @@
 import { BossMatrix } from "@/components/boss-matrix";
+import { DockSkeleton } from "@/components/dock-shell";
 
 // See app/inventory/loading.tsx for why these boundaries exist.
 //
@@ -9,6 +10,7 @@ export default function Loading() {
   return (
     <main className="page">
       <h1 className="page-title">Individual View</h1>
+      <DockSkeleton name="planner" picker />
       <BossMatrix loading bosses={[]} characters={[]} clearsByCharacter={{}} />
     </main>
   );
