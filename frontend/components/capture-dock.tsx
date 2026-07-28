@@ -1,12 +1,14 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { DockShell } from "@/components/dock-shell";
 import { Ellipsis } from "@/components/ellipsis";
 import { SharpEyesMark } from "@/components/sharp-eyes-mark";
 import { COLS, SlotGrid, type SlotItem } from "@/components/slot-grid";
 import { apiFetch } from "@/lib/api";
 import { invalidate } from "@/lib/cache";
 import { compressImage } from "@/lib/compress-image";
+import { useDockOpen } from "@/lib/use-dock-open";
 import type { Character } from "@/types/character";
 import type { ScreenshotResult } from "@/types/screenshot";
 
@@ -62,6 +64,7 @@ export function CaptureDock({
 }) {
   const [captures, setCaptures] = useState<Capture[]>([]);
   const [dragOver, setDragOver] = useState(false);
+  const [open, setOpen] = useDockOpen("inventory");
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const counter = useRef(0);
@@ -90,7 +93,11 @@ export function CaptureDock({
   }, [pinnedCharacterId]);
 
   function add(files: File[]) {
-    for (const file of files.filter((f) => f.type.startsWith("image/"))) {
+    const images = files.filter((f) => f.type.startsWith("image/"));
+    // Pasting works whether or not the dock is folded, so a paste has to unfold it. The read that
+    // follows is the answer to what you just did, and it belongs next to the box it came from.
+    if (images.length > 0) setOpen(true);
+    for (const file of images) {
       const id = `cap-${counter.current++}`;
       const capture: Capture = {
         id,
@@ -177,7 +184,23 @@ export function CaptureDock({
   }
 
   return (
-    <section className="dock">
+    <DockShell
+      name="inventory"
+      open={open}
+      onOpenChange={setOpen}
+      cards={captures.map((capture) => (
+        <CaptureCard
+          key={capture.id}
+          capture={capture}
+          characters={characters}
+          pinned={pinned}
+          onResolve={(id) => resolveTo(capture, id)}
+          onIgnore={() => ignore(capture)}
+          onAddAndResolve={(name) => addAndResolve(capture, name)}
+          onDismiss={() => dismiss(capture.id)}
+        />
+      ))}
+    >
       <div
         className={`dock-drop${dragOver ? " dragover" : ""}${generic ? " generic" : ""}`}
         onClick={() => fileInputRef.current?.click()}
@@ -219,7 +242,7 @@ export function CaptureDock({
           }}
         />
 
-        {/* Turning this on DESELECTS the character in the strip above, and that is the point:
+        {/* Turning this on DESELECTS the character in the strip below, and that is the point:
             the two are one state, so what you can see is what will happen. A screenshot cannot be
             both "definitely Bob's" and "work out whose it is". stopPropagation because the whole
             dropzone is a click target for the file picker. */}
@@ -233,7 +256,7 @@ export function CaptureDock({
           }}
           title={
             generic
-              ? "Reading the character's name from the screenshot. Pick a character above to save it to them instead."
+              ? "Reading the character's name from the screenshot. Pick a character to save it to them instead."
               : "Not this character's? Read the name from the screenshot instead."
           }
         >
@@ -243,20 +266,7 @@ export function CaptureDock({
           </span>
         </button>
       </div>
-
-      {captures.map((capture) => (
-        <CaptureCard
-          key={capture.id}
-          capture={capture}
-          characters={characters}
-          pinned={pinned}
-          onResolve={(id) => resolveTo(capture, id)}
-          onIgnore={() => ignore(capture)}
-          onAddAndResolve={(name) => addAndResolve(capture, name)}
-          onDismiss={() => dismiss(capture.id)}
-        />
-      ))}
-    </section>
+    </DockShell>
   );
 }
 
@@ -489,7 +499,7 @@ function describe(
     // Only reachable with no character selected. Pick one and there is nothing to resolve.
     case "UNRESOLVABLE":
       return {
-        text: "No character name is visible in this screenshot. Pick a character, or select one above before uploading.",
+        text: "No character name is visible in this screenshot. Pick a character to save it to.",
         tone: "warn",
       };
 

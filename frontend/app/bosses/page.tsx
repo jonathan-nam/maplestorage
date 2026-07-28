@@ -4,6 +4,7 @@ import { useAuth } from "@clerk/nextjs";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { BossMatrix } from "@/components/boss-matrix";
+import { DockSkeleton } from "@/components/dock-shell";
 import { PlannerDock } from "@/components/planner-dock";
 import { ResetTimer } from "@/components/reset-timer";
 import { WeekStepper } from "@/components/week-stepper";
@@ -146,13 +147,38 @@ export default function BossesPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Not "characters.length === 0": that is also true while the roster is still loading, when the
+  // answer is "not yet" rather than "nobody".
+  const noRoster = state !== "loading" && characters.length === 0;
+
   return (
     <main className="page">
       <h1 className="page-title">Individual View</h1>
-      {/* Kept to one line, and to about the same length as Party View's. The week label below
-          sits at whatever height the prose above it wraps to, so an intro that runs onto a second
-          line on one page and not the other moves the label when you switch between them. */}
-      <p className="split-intro">Which bosses each character has cleared this period.</p>
+
+      {/* Uploading files a capture against now, so it only makes sense on the live view. Offering
+          it under a past week would invite a capture that silently lands in this week instead of
+          the one on screen.
+
+          Outside the load states otherwise: it is the first thing on the page, so waiting for the
+          roster would push the matrix down at the moment the fetch returns. The picker holds the
+          space with tiles of its own until then, rather than standing empty at the wrong height.
+
+          An empty roster is the one case the dock cannot be offered in: a planner capture carries
+          no name of its own, so there would be nobody to file it under. */}
+      {week === null &&
+        (state === "loading" ? (
+          <DockSkeleton name="planner" picker />
+        ) : (
+          !noRoster && (
+            <PlannerDock
+              characters={characters}
+              selectedCharacterId={uploadFor}
+              onSelectCharacter={setUploadFor}
+              getToken={getToken}
+              onSaved={refetchClears}
+            />
+          )
+        ))}
 
       {state === "error" && <p>Couldn&apos;t load your boss clears.</p>}
 
@@ -199,19 +225,6 @@ export default function BossesPage() {
               onToggle={week === null ? toggleClear : undefined}
               busy={ticking || stepping}
             />
-
-            {/* Uploading files a capture against now, so it only makes sense on the live view.
-                Offering it under a past week would invite a capture that silently lands in this
-                week instead of the one on screen. */}
-            {week === null && (
-              <PlannerDock
-                characters={characters}
-                selectedCharacterId={uploadFor}
-                onSelectCharacter={setUploadFor}
-                getToken={getToken}
-                onSaved={refetchClears}
-              />
-            )}
           </>
         ))}
     </main>
