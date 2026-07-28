@@ -1265,10 +1265,19 @@ img.user-avatar-img {
   outline-offset: 2px;
 }
 
+/* The fold is the dock's only control once the mark stopped carrying it, so the caret is sized to
+   be seen rather than found: 16px and at full ink, not 11px of grey. */
 .dock-caret {
-  font-size: 11px;
-  color: var(--muted);
-  transition: transform 0.12s ease;
+  font-size: 16px;
+  line-height: 1;
+  color: var(--ink);
+  transition:
+    transform 0.12s ease,
+    color 0.12s;
+}
+
+.dock-toggle:hover .dock-caret {
+  color: var(--ink-strong);
 }
 
 /* The mark stands the bar up to 32px whether the dock is folded or not, which is the point: folded,
@@ -1321,28 +1330,6 @@ img.user-avatar-img {
   color: var(--muted);
 }
 
-/* The brand mark, sat in the dropzone so the icon in the header and "you can drop a picture
-   here" become the same idea. Held back at rest so it reads as a target rather than as art,
-   and brought up to full colour when the box is live.
-
-   64px only. The mark is a 32x32 sprite scaled by image-rendering: pixelated, so integer
-   multiples stay crisp and anything else fringes (site-header.tsx records the same trap at 28).
-   For that reason the hover state changes colour, never scale. */
-.dock-drop-mark {
-  display: block;
-  margin-bottom: 8px;
-  opacity: 0.55;
-  filter: saturate(0.5);
-  transition:
-    opacity 0.12s,
-    filter 0.12s;
-}
-.dock-drop:hover .dock-drop-mark,
-.dock-drop.dragover .dock-drop-mark {
-  opacity: 1;
-  filter: none;
-}
-
 /* The dropzone's shape while the route boundary waits for the page's own JS. It is the real box
    with shimmer where its two lines go, so the height is the real height and the handover does not
    move the page. Inert, though: there is nothing here yet to hand a file to. */
@@ -1351,11 +1338,6 @@ img.user-avatar-img {
   cursor: default;
   border-color: var(--line);
   background: var(--surface-2);
-}
-
-.dock-drop.is-skeleton:hover .dock-drop-mark {
-  opacity: 0.55;
-  filter: saturate(0.5);
 }
 
 .dock-drop.is-skeleton .dock-eye {
@@ -2332,18 +2314,6 @@ button.link:disabled {
 
 .dock-drop.disabled:hover {
   border-color: var(--line);
-}
-
-/* Held at the resting look and no further: nothing will be accepted until a character is
-   chosen, so the mark must not light up on hover and promise otherwise.
-
-   It is NOT dimmed past resting either. This is the state /bosses lands in, so dimming it is
-   dimming the page's first and only "you can upload here" signal. The faded border, the muted
-   text and "Choose a character first" already carry the not-yet. */
-.dock-drop.disabled .dock-drop-mark,
-.dock-drop.disabled:hover .dock-drop-mark {
-  opacity: 0.55;
-  filter: saturate(0.5);
 }
 
 .planner-refused {

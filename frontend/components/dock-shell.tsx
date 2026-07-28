@@ -109,9 +109,6 @@ export function DockSkeleton({ name, picker = false }: { name: DockName; picker?
       )}
 
       <div className="dock-drop is-skeleton" aria-hidden="true">
-        <span className="dock-drop-mark">
-          <SharpEyesMark size={64} />
-        </span>
         <span className="dock-drop-main">
           <span className="skeleton sk-line" style={{ width: "260px" }} />
         </span>
