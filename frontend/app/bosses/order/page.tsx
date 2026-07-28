@@ -222,6 +222,31 @@ export default function RunOrderPage() {
         </p>
       )}
 
+      {/* The filter sits with the parties it narrows, not down in the budget section, because it
+          is the only way back out of the state where it has excluded everything. Under a heading
+          the plan renders it left a cleared week with a blank page and no control on it. */}
+      {fromAccount && state === "loaded" && parties.length > 0 && (
+        <label className="night-toggle">
+          <input
+            type="checkbox"
+            checked={openOnly}
+            onChange={(e) => {
+              setOpenOnly(e.target.checked);
+              setChosen(null);
+            }}
+          />
+          <span>Only bosses not cleared this period</span>
+        </label>
+      )}
+
+      {fromAccount && state === "loaded" && parties.length > 0 && runs.length === 0 && (
+        <p className="finder-empty">
+          {parties.length === 1
+            ? "Your party is cleared this period."
+            : `All ${parties.length} parties are cleared this period.`}
+        </p>
+      )}
+
       {!fromAccount && (
         <section className="night-section">
           <h2 className="night-heading">The runs</h2>
@@ -298,19 +323,6 @@ export default function RunOrderPage() {
               />
             </label>
           </div>
-          {fromAccount && (
-            <label className="night-toggle">
-              <input
-                type="checkbox"
-                checked={openOnly}
-                onChange={(e) => {
-                  setOpenOnly(e.target.checked);
-                  setChosen(null);
-                }}
-              />
-              <span>Only bosses not cleared this period</span>
-            </label>
-          )}
         </section>
       )}
 

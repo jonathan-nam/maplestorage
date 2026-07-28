@@ -4229,8 +4229,11 @@ button.link:disabled {
   width: 5.5em;
 }
 
+/* Block-level, and only as wide as its label. It follows the inline-flex .basis-row, so an
+   inline-flex box here rides up onto the end of the tabs instead of taking its own line. */
 .night-toggle {
-  display: inline-flex;
+  display: flex;
+  width: fit-content;
   align-items: center;
   gap: 6px;
   margin-top: 10px;
