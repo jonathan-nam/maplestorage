@@ -1,7 +1,7 @@
 "use client";
 
 import { useAuth } from "@clerk/nextjs";
-import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { useDeferredValue, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 
 import { RunDraftEditor } from "@/components/run-draft-editor";
 import { CopyPlan, RunPlan } from "@/components/run-plan";
@@ -165,9 +165,18 @@ export default function RunOrderPage() {
   );
 
   const { eligible, rejected } = useMemo(() => screenRuns(runs, here), [runs, here]);
+
+  // Everything above is linear and runs on the tick you click. planNight is not: at 20 parties over
+  // four hours it is ~650ms, which the tick would have to finish before the checkbox could even
+  // redraw ticked. So the search reads deferred inputs. The controls commit at once, the plan
+  // arrives in a second render, and `stale` marks the gap rather than leaving it unexplained.
+  const planFor = useDeferredValue(eligible);
+  const planWithin = useDeferredValue(budget);
+  const stale = planFor !== eligible || planWithin !== budget;
+
   const { best, byCount } = useMemo(
-    () => planNight(eligible, { minutes: budget }),
-    [eligible, budget],
+    () => planNight(planFor, { minutes: planWithin }),
+    [planFor, planWithin],
   );
 
   const options = useMemo(() => tradeOffs(byCount), [byCount]);
@@ -176,7 +185,9 @@ export default function RunOrderPage() {
   const plan = (chosen !== null && options[chosen]) || best;
 
   const scheduled = new Set(plan.runs.map((planned) => planned.run.id));
-  const unscheduled = eligible.filter((run) => !scheduled.has(run.id));
+  // Read off the same inputs the plan was built from. Against the live list, a run the deferred
+  // plan has not scheduled yet would show as both scheduled and left out.
+  const unscheduled = planFor.filter((run) => !scheduled.has(run.id));
 
   return (
     <main className="page">
@@ -327,7 +338,10 @@ export default function RunOrderPage() {
       )}
 
       {plan.runs.length > 0 && (
-        <section className="night-section">
+        <section
+          className={stale ? "night-section is-restating" : "night-section"}
+          aria-busy={stale}
+        >
           <div className="night-headline-row">
             <p className="night-headline">
               <strong>
@@ -373,14 +387,17 @@ export default function RunOrderPage() {
 
       {runs.length > 0 && plan.runs.length === 0 && (
         <p className="finder-empty">
-          {eligible.length === 0
+          {planFor.length === 0
             ? "No run can go ahead with the people who are on."
-            : `Nothing fits in ${formatDuration(budget)}. The shortest run needs longer than that.`}
+            : `Nothing fits in ${formatDuration(planWithin)}. The shortest run needs longer than that.`}
         </p>
       )}
 
       {unscheduled.length > 0 && (
-        <section className="night-section">
+        <section
+          className={stale ? "night-section is-restating" : "night-section"}
+          aria-busy={stale}
+        >
           <h2 className="night-heading">Left out, for time</h2>
           <ul className="night-leftovers">
             {unscheduled.map((leftOut) => (
