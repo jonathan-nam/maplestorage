@@ -1271,6 +1271,23 @@ img.user-avatar-img {
   transition: transform 0.12s ease;
 }
 
+/* The mark stands the bar up to 32px whether the dock is folded or not, which is the point: folded,
+   this row is the only thing left of the dock, and it has to read as a thing rather than as a line
+   of small print. Held back at rest like the dropzone's, and brought up with the label on hover. */
+.dock-bar-mark {
+  display: block;
+  opacity: 0.65;
+  filter: saturate(0.6);
+  transition:
+    opacity 0.12s,
+    filter 0.12s;
+}
+
+.dock-toggle:hover .dock-bar-mark {
+  opacity: 1;
+  filter: none;
+}
+
 /* Folded, it points at the thing that will appear. */
 .dock-toggle[aria-expanded="false"] .dock-caret {
   transform: rotate(-90deg);

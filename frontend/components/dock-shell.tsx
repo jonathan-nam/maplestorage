@@ -42,6 +42,15 @@ export function DockShell({
           <span className="dock-caret" aria-hidden="true">
             &#9662;
           </span>
+          {/* Decorative, like the one in the dropzone: the label beside it already names the dock,
+              and the mark's own aria-label would read "SharpEyes" into the button's name.
+
+              32 only. See site-header.tsx: the sprite is 32x32 drawn with image-rendering
+              pixelated, so a non-multiple size drops whole rows and columns and the mark visibly
+              alternates between two shapes as zoom changes. */}
+          <span className="dock-bar-mark" aria-hidden="true">
+            <SharpEyesMark size={32} />
+          </span>
           {DOCK_LABELS[name]}
         </button>
       </div>
