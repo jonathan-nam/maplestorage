@@ -2,6 +2,7 @@ package com.maplestorage.backend.parties
 
 import com.maplestorage.backend.bosses.periodStartFor
 import com.maplestorage.backend.db.BossClear
+import com.maplestorage.backend.db.CharacterBossSkip
 import com.maplestorage.backend.db.Characters
 import com.maplestorage.backend.db.Party
 import com.maplestorage.backend.db.PartyMember
@@ -31,6 +32,13 @@ internal fun createParty(
     // character name -> sprite the Nexon lookup found, or null when it came back empty.
     sprites: Map<String, String?> = emptyMap(),
 ): Uuid {
+    // A config for this pair says the character runs the boss, so any "doesn't run" mark on it is
+    // now wrong. The config is the more detailed statement of the two, so it wins. The skip route
+    // refuses the opposite order (see RoutineRefusal.HasParty), which leaves one way for the two to
+    // disagree and one answer to it.
+    CharacterBossSkip.deleteWhere {
+        (CharacterBossSkip.characterId eq characterId) and (CharacterBossSkip.bossCatalogId eq bossCatalogId)
+    }
     val partyId = Uuid.random()
     Party.insert {
         it[id] = partyId

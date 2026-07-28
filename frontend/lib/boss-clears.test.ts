@@ -9,10 +9,12 @@ import {
   formatPeriod,
   formatWeekStart,
   indexClears,
+  indexSkips,
   nextClear,
   weekEndExclusive,
   weekLabel,
   rowFullyCleared,
+  rowNobodyRuns,
 } from "./boss-clears";
 import type { BossClear } from "@/types/boss";
 
@@ -71,6 +73,31 @@ describe("cellState", () => {
     expect(cellState(indexClears([]), "lotus")).toBe("unseen");
     expect(cellState(undefined, "lotus")).toBe("unseen");
   });
+
+  it("separates a boss nobody has answered for from one this character never runs", () => {
+    // The reason the fourth state exists. Both are a missing clear row, and before the mark they
+    // drew the same dash, so a boss only one character runs read as a roster that was behind on it.
+    const clears = indexClears([clear("lotus", true)]);
+    const skips = new Set(["jupiter"]);
+
+    expect(cellState(clears, "jupiter", skips)).toBe("skipped");
+    expect(cellState(clears, "lucid", skips)).toBe("unseen");
+  });
+
+  it("lets a clear outrank the mark, which is how a one-off run shows up", () => {
+    // A character who does not normally run Jupiter but did this week. The tick shows, and the
+    // routine is untouched, so next period the cell is back to "doesn't run". Nothing rewrites
+    // what the user said about the character on the strength of one week.
+    const clears = indexClears([clear("jupiter", true)]);
+
+    expect(cellState(clears, "jupiter", new Set(["jupiter"]))).toBe("cleared");
+  });
+
+  it("keeps the mark over a pending row, since a planner listing a boss is not a claim to run it", () => {
+    const clears = indexClears([clear("jupiter", false)]);
+
+    expect(cellState(clears, "jupiter", new Set(["jupiter"]))).toBe("skipped");
+  });
 });
 
 describe("clearStateLabel", () => {
@@ -84,6 +111,13 @@ describe("clearStateLabel", () => {
     expect(cellStateLabel("cleared")).toBe("cleared");
     expect(cellStateLabel("pending")).toBe("not cleared");
     expect(cellStateLabel("unseen")).toBe("not reported");
+    expect(cellStateLabel("skipped")).toBe("doesn't run");
+  });
+
+  it("does not turn a boss nobody runs into an answer about clearing it", () => {
+    // "doesn't run" is not a third answer to "was it cleared", it is the question not applying.
+    // Calling it not-cleared is what put fifteen characters behind on Jupiter.
+    expect(clearOfCell("skipped")).toBeNull();
   });
 });
 
@@ -156,6 +190,49 @@ describe("rowFullyCleared", () => {
   it("is false for an empty roster rather than vacuously true", () => {
     // every() on nothing is true, which would dim every row on a page with no characters on it.
     expect(rowFullyCleared(new Map(), [], "lotus")).toBe(false);
+  });
+
+  it("ignores the characters who do not run it, which is the point of saying so", () => {
+    // Only ann runs Jupiter. Before the mark this row could never dim, because bob and cass sat on
+    // a dash forever, so the one row with real work left looked like the fifteen without any.
+    const byCharacter = index({ ann: [clear("jupiter", true)] });
+    const skips = indexSkips({ bob: ["jupiter"], cass: ["jupiter"] });
+
+    expect(rowFullyCleared(byCharacter, roster, "jupiter", skips)).toBe(true);
+  });
+
+  it("still counts a runner who has said nothing", () => {
+    // cass does not run it, but bob does and has not answered. Dimming here would hide bob's run.
+    const byCharacter = index({ ann: [clear("jupiter", true)] });
+    const skips = indexSkips({ cass: ["jupiter"] });
+
+    expect(rowFullyCleared(byCharacter, roster, "jupiter", skips)).toBe(false);
+  });
+
+  it("is false when nobody runs it, rather than calling an untouched boss done", () => {
+    // Vacuously true otherwise. "Everyone who runs it is done" and "nobody runs it" both quieten
+    // the row, but they are different facts and only one of them is a week's work being finished.
+    const skips = indexSkips({ ann: ["jupiter"], bob: ["jupiter"], cass: ["jupiter"] });
+
+    expect(rowFullyCleared(new Map(), roster, "jupiter", skips)).toBe(false);
+    expect(rowNobodyRuns(roster, "jupiter", skips)).toBe(true);
+  });
+});
+
+describe("rowNobodyRuns", () => {
+  const roster = ["ann", "bob", "cass"];
+
+  it("is false while one character still runs it", () => {
+    expect(rowNobodyRuns(roster, "jupiter", indexSkips({ bob: ["jupiter"] }))).toBe(false);
+  });
+
+  it("is false for an empty roster, like rowFullyCleared", () => {
+    expect(rowNobodyRuns([], "jupiter", indexSkips({}))).toBe(false);
+  });
+
+  it("is false when nothing has been marked at all", () => {
+    // The default state of every account. Nobody having said anything is not everybody opting out.
+    expect(rowNobodyRuns(roster, "jupiter", undefined)).toBe(false);
   });
 });
 

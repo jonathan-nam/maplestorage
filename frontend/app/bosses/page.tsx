@@ -1,6 +1,7 @@
 "use client";
 
 import { useAuth } from "@clerk/nextjs";
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { BossMatrix } from "@/components/boss-matrix";
 import { PlannerDock } from "@/components/planner-dock";
@@ -177,6 +178,12 @@ export default function BossesPage() {
                   serverNow={view.now}
                   receivedAt={receivedAt}
                 />
+                {/* Which bosses a character runs is set one character at a time, on its own page:
+                    the whole set is the thing being answered, and a grid of cells cannot show one
+                    character's set without you reading down a column. */}
+                <Link className="boss-routine-link" href="/bosses/routine">
+                  Who runs what
+                </Link>
               </div>
             )}
 
@@ -187,6 +194,7 @@ export default function BossesPage() {
               bosses={bosses}
               characters={characters}
               clearsByCharacter={view?.clearsByCharacter ?? {}}
+              skipsByCharacter={view?.skipsByCharacter ?? {}}
               historyWeek={view?.weekStart ?? null}
               onToggle={week === null ? toggleClear : undefined}
               busy={ticking || stepping}

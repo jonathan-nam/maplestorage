@@ -10,15 +10,16 @@ const rule = (selector: string) => {
   return css.slice(at, css.indexOf("}", at));
 };
 
-// The matrix draws its three states as marks with no fills, so two of them are glyphs and the
-// third is the gap between them. That only works while the glyphs are visible: make the dash
+// The matrix draws its four states as marks with no fills, so three of them are glyphs and the
+// fourth is the gap between them. That only works while the glyphs are visible: make the dash
 // transparent and "no capture" becomes an empty cell, which is "not cleared" as far as anyone
 // reading the table can tell. Nothing errors when it happens, the table just starts answering a
 // question it was not asked, which is the failure this project exists to prevent.
 describe("boss clear marks stay visible", () => {
-  it("gives the two marked states a colour and leaves only not-cleared blank", () => {
+  it("gives the three marked states a colour and leaves only not-cleared blank", () => {
     expect(rule(".boss-cell.is-cleared")).toMatch(/color:\s*var\(--ink\)/);
     expect(rule(".boss-cell.is-unseen")).toMatch(/color:\s*var\(--muted-2\)/);
+    expect(rule(".boss-cell.is-skipped")).toMatch(/color:\s*var\(--muted-2\)/);
     expect(rule(".boss-cell.is-pending")).toMatch(/color:\s*transparent/);
   });
 
@@ -40,7 +41,7 @@ describe("boss clear marks stay visible", () => {
   it("does not fill the cells, so the state is the mark and not the background", () => {
     // Colouring the cells was tried twice and taken back out: the fill landed in the same channel
     // as the row striping below, and read as shading rather than as a state.
-    for (const state of ["is-cleared", "is-pending", "is-unseen"]) {
+    for (const state of ["is-cleared", "is-pending", "is-unseen", "is-skipped"]) {
       expect(rule(`.boss-cell.${state}`)).not.toMatch(/background/);
     }
   });

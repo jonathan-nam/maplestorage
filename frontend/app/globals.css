@@ -1831,10 +1831,11 @@ button.link:disabled {
   cursor: default;
 }
 
-/* Three marks, no fills. Each state says its own name: a tick for done, nothing at all for still
-   to do, a dash for nothing reported. Filling the cells was tried and taken back out: colour put
-   the state in the same channel as the row striping, and every palette for it was an argument
-   about the palette rather than about the table. */
+/* Four states, three marks and one gap, no fills. Each says its own name: a tick for done, nothing
+   at all for still to do, a dash for nothing reported, a dot for a boss this character does not
+   run. Filling the cells was tried and taken back out: colour put the state in the same channel as
+   the row striping, and every palette for it was an argument about the palette rather than about
+   the table. */
 .boss-cell.is-cleared {
   color: var(--ink);
 }
@@ -1852,17 +1853,27 @@ button.link:disabled {
   color: var(--muted-2);
 }
 
-/* Nothing left to do on this boss, so the row goes quiet: the name mutes and the portrait
-   desaturates. A row with work left keeps its full weight, so the table reads as the list of what
-   is left.
-   Only when EVERY cell is cleared, see rowFullyCleared: a row holding an unreported character is
-   not a row that is done, and dimming it would be this feature's one unforgivable bug. */
-
-.boss-table tr.is-row-cleared .boss-name {
+/* A boss this character does not run. A mark and not a gap: the gap is already "not cleared", and
+   the whole point of the mark is that those two were the same cell before it existed. Quiet, but
+   not so quiet it reads as the gap, for the reason the dash has a floor. */
+.boss-cell.is-skipped {
   color: var(--muted-2);
 }
 
-.boss-table tr.is-row-cleared .boss-portrait {
+/* Nothing left to do on this boss, so the row goes quiet: the name mutes and the portrait
+   desaturates. A row with work left keeps its full weight, so the table reads as the list of what
+   is left.
+   Only when every character who RUNS it is cleared, see rowFullyCleared: a row holding an
+   unreported character is not a row that is done, and dimming it would be this feature's one
+   unforgivable bug. A row nobody runs dims too but is not the same fact, hence its own class. */
+
+.boss-table tr.is-row-cleared .boss-name,
+.boss-table tr.is-row-unrun .boss-name {
+  color: var(--muted-2);
+}
+
+.boss-table tr.is-row-cleared .boss-portrait,
+.boss-table tr.is-row-unrun .boss-portrait {
   opacity: 0.5;
   filter: saturate(0.3);
 }
@@ -1901,8 +1912,94 @@ button.link:disabled {
   border-radius: 2px;
 }
 
-.boss-key.is-unseen {
+.boss-key.is-unseen,
+.boss-key.is-skipped {
   color: var(--muted-2);
+}
+
+/* A way out to the routine page, sitting with the week picker and the clocks. A link and not a
+   button: it goes somewhere, and the matrix has no mode for it to put the page into. */
+.boss-routine-link {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+/* One character's routine: a checklist of the catalog, grouped by cadence like the matrix. */
+.routine {
+  margin-top: 16px;
+}
+
+.routine-count {
+  margin: 0 0 12px;
+  color: var(--muted-2);
+  font-size: 13px;
+}
+
+.routine-group {
+  margin-bottom: 18px;
+}
+
+.routine-cadence {
+  margin: 0 0 6px;
+  color: var(--muted-2);
+  font-size: 11px;
+  font-weight: 400;
+  letter-spacing: 0.08em;
+}
+
+.routine-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.routine-row {
+  border-top: 1px solid var(--line-soft);
+}
+
+/* An unticked boss recedes rather than vanishing: it is still one of the sixteen, and the list is
+   only readable as a routine if what is NOT run stays visible next to what is. */
+.routine-row.is-skipped .routine-name {
+  color: var(--muted-2);
+}
+
+.routine-row.is-skipped .boss-portrait {
+  opacity: 0.5;
+  filter: saturate(0.3);
+}
+
+.routine-label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 4px;
+  cursor: pointer;
+}
+
+.routine-check {
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.routine-check:disabled,
+.routine-check:disabled + * {
+  cursor: default;
+}
+
+.routine-name {
+  font-size: 14px;
+}
+
+.routine-locked {
+  margin-left: auto;
+  color: var(--muted-2);
+  font-size: 11px;
+}
+
+.routine-error {
+  margin: 10px 0 0;
+  color: var(--ink);
+  font-size: 13px;
 }
 
 /* Week picker on the left, reset clocks on the right, above the table. They wrap onto two lines on

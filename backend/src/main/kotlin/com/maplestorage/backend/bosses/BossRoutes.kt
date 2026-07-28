@@ -19,6 +19,7 @@ fun Route.bossRoutes() {
     get { listBosses() }
     get("/clears") { getCurrentBossClears() }
     put("/clears") { setBossClearRoute() }
+    put("/routine") { setBossRoutineRoute() }
     get("/drops") { getDropTables() }
 }
 
@@ -113,6 +114,40 @@ internal suspend fun RoutingContext.setBossClearRoute() {
     if (view == null) call.respond(HttpStatusCode.NotFound) else call.respond(view)
 }
 
+/**
+ * Replaces which bosses a character runs, in one save.
+ *
+ * The whole set at once, because the editor is a checklist of every boss and what it has to say is
+ * "this is the routine now". Answers with the refreshed matrix so the page that sent it does not
+ * have to work out what changed.
+ */
+internal suspend fun RoutingContext.setBossRoutineRoute() {
+    val (userId, email) = call.principalIdAndEmail()
+    val request = call.receive<SetBossRoutineRequest>()
+    val characterId =
+        Uuid.parseOrNull(request.characterId)
+            ?: return call.respond(HttpStatusCode.BadRequest, "malformed characterId")
+    val now = Clock.System.now()
+
+    val outcome =
+        transaction {
+            ensureUser(userId, email)
+            val refusal = setBossRoutine(userId, characterId, request.skippedBossKeys, now)
+            refusal ?: clearsView(userId, null, now)
+        }
+    when (outcome) {
+        is RoutineRefusal.Unknown -> call.respond(HttpStatusCode.NotFound)
+        // Shown to the user as-is, so it is a sentence rather than an error code. The editor locks
+        // these bosses, so meeting this means the two got out of step.
+        is RoutineRefusal.HasParty ->
+            call.respond(
+                HttpStatusCode.Conflict,
+                "${outcome.bossNames.joinToString(", ")}: remove the party first.",
+            )
+        else -> call.respond(outcome as BossClearsViewResponse)
+    }
+}
+
 /** The matrix as of [now], for the current period when [week] is null. Call inside a transaction. */
 private fun clearsView(
     userId: String,
@@ -127,6 +162,9 @@ private fun clearsView(
     val clears = if (week == null) currentBossClearsFor(userId, now) else weeklyClearsFor(userId, week)
     return BossClearsViewResponse(
         clearsByCharacter = clears,
+        // Current view only. A skip is true as of now, so painting it over a past week would state
+        // it about a week nobody said it about.
+        skipsByCharacter = if (week == null) bossSkipsFor(userId) else emptyMap(),
         weekStart = week?.toString(),
         previousWeekStart = navigation.previous?.toString(),
         nextWeekStart = navigation.next?.toString(),
