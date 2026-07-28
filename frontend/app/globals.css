@@ -4256,6 +4256,15 @@ button.link:disabled {
   font-size: 14px;
 }
 
+/* The plan on screen answers the inputs from before your last click, for as long as the search
+   takes. Fading it says which part of the page has not caught up, and costs no words to say it.
+   The delay is only worth marking, not animating: a spinner on a 200ms gap is more distracting
+   than the gap. */
+.night-section.is-restating {
+  opacity: 0.45;
+  transition: opacity 120ms ease-out;
+}
+
 /* The order itself. Numbered by CSS rather than in the markup: the number is the position in the
    plan, and a list that renumbers itself cannot disagree with the order it is drawn in. */
 .run-list {
