@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { DockShell } from "@/components/dock-shell";
 import { Ellipsis } from "@/components/ellipsis";
-import { SharpEyesMark } from "@/components/sharp-eyes-mark";
 import { COLS, SlotGrid, type SlotItem } from "@/components/slot-grid";
 import { apiFetch } from "@/lib/api";
 import { invalidate } from "@/lib/cache";
@@ -215,11 +214,6 @@ export function CaptureDock({
           add(Array.from(e.dataTransfer.files));
         }}
       >
-        {/* Decorative: the text below already says what this is, and the mark repeating
-            "SharpEyes" to a screen reader would only be noise. */}
-        <span className="dock-drop-mark" aria-hidden="true">
-          <SharpEyesMark size={64} />
-        </span>
         <span className="dock-drop-main">
           {pinned
             ? `Drop ${pinned.name}'s inventory screenshot here`
