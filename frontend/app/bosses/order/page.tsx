@@ -159,10 +159,13 @@ export default function RunOrderPage() {
     [fromAccount, usable, bosses, drafts],
   );
 
-  const here = useMemo(
-    () => roster.filter((person) => !away.includes(person.id)).map((person) => person.id),
+  // Who is on, as people and as ids. The grid puts a column per person, so it needs the names and
+  // the order, not just the set the screening asks for.
+  const onTonight = useMemo(
+    () => roster.filter((person) => !away.includes(person.id)),
     [roster, away],
   );
+  const here = useMemo(() => onTonight.map((person) => person.id), [onTonight]);
 
   const { eligible, rejected } = useMemo(() => screenRuns(runs, here), [runs, here]);
 
@@ -354,7 +357,7 @@ export default function RunOrderPage() {
               </strong>
               .
             </p>
-            <CopyPlan plan={plan} roster={roster} />
+            <CopyPlan plan={plan} roster={onTonight} />
           </div>
 
           {options.length > 1 && (
@@ -376,7 +379,7 @@ export default function RunOrderPage() {
             </div>
           )}
 
-          <RunPlan plan={plan} roster={roster} />
+          <RunPlan plan={plan} roster={onTonight} />
 
           {/* The assumed durations stay on screen. They are what the finishing time is built from,
               and a time presented without them reads as a measurement of your party. */}
