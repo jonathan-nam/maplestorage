@@ -33,6 +33,7 @@ function party(id: string, bossKey: string, members: PartyMember[]): Party {
   return {
     id,
     characterId: members[0]?.characterId ?? "c1",
+    worldType: "INTERACTIVE",
     bossKey,
     difficulty: null,
     members,

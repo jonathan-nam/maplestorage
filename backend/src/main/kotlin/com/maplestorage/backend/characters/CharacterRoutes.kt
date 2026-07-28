@@ -1,11 +1,13 @@
 package com.maplestorage.backend.characters
 
 import com.maplestorage.backend.db.Characters
+import com.maplestorage.backend.db.Users
 import com.maplestorage.backend.plugins.parseUuidParam
 import com.maplestorage.backend.plugins.principalIdAndEmail
 import com.maplestorage.backend.plugins.span
 import com.maplestorage.backend.services.NexonLookupService
 import com.maplestorage.backend.users.ensureUser
+import com.maplestorage.backend.users.worldTypeOrNull
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.call
 import io.ktor.server.request.receive
@@ -63,12 +65,20 @@ private suspend fun RoutingContext.createCharacter(nexonLookupService: NexonLook
                     .where { Characters.userId eq userId }
                     .count()
                     .toInt()
+            // The account's world, not the column default: a Heroic player adding their tenth
+            // character should not have to go and say so again.
+            val accountWorld =
+                Users
+                    .selectAll()
+                    .where { Users.id eq userId }
+                    .single()[Users.worldType]
             Characters.insert {
                 it[id] = newId
                 it[Characters.userId] = userId
                 it[name] = request.name
                 it[level] = lookup?.level
                 it[jobName] = lookup?.jobName
+                it[worldType] = accountWorld
                 it[spriteImgUrl] = lookup?.spriteImgUrl
                 it[spriteRefreshedAt] = if (lookup != null) now else null
                 it[createdAt] = now
@@ -156,6 +166,14 @@ private suspend fun RoutingContext.updateCharacter() {
     val characterId = call.parseUuidParam("id") ?: return
     val request = call.receive<UpdateCharacterRequest>()
 
+    // Refused rather than ignored. A world silently dropped would leave the character in the other
+    // one, and its parties would go on offering to sell what cannot be sold.
+    val world = request.worldType?.let { worldTypeOrNull(it) }
+    if (request.worldType != null && world == null) {
+        call.respond(HttpStatusCode.BadRequest, "worldType must be INTERACTIVE or HEROIC")
+        return
+    }
+
     val updated =
         transaction {
             ensureUser(userId, email)
@@ -163,6 +181,7 @@ private suspend fun RoutingContext.updateCharacter() {
                 Characters.update({ (Characters.id eq characterId) and (Characters.userId eq userId) }) { row ->
                     request.name?.let { row[Characters.name] = it }
                     request.level?.let { row[Characters.level] = it }
+                    world?.let { row[Characters.worldType] = it }
                     row[Characters.updatedAt] = Clock.System.now()
                 }
             if (rowsChanged == 0) null else findOwnedCharacter(characterId, userId)

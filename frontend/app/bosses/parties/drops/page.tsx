@@ -9,6 +9,8 @@ import { buildDropLog, forCharacter, type DropEntry, type DropMonth } from "@/li
 import { formatMesos } from "@/lib/drop-split";
 import { formatDropped, statusLabel } from "@/lib/loot";
 import { preloadBossArt } from "@/lib/preload-boss-art";
+import { useAccountSettings } from "@/lib/use-account-settings";
+import { showsMoney } from "@/lib/world";
 import type { Boss } from "@/types/boss";
 import type { Character } from "@/types/character";
 import type { PartyLootPool } from "@/types/loot";
@@ -29,6 +31,10 @@ export default function DropLogPage() {
   preloadBossArt();
 
   const { getToken } = useAuth();
+  // Read off "does any character trade", not off one world: this page sums across every party, so
+  // one Interactive character means there is real money here to show. Only an account with none at
+  // all gets the tiles dropped, and there its totals were three true zeroes.
+  const money = showsMoney(useAccountSettings()?.trades);
 
   const [parties, setParties] = useState<Party[]>(peek<Party[]>(PARTIES_KEY) ?? []);
   const [pools, setPools] = useState<PartyLootPool[]>([]);
@@ -85,8 +91,8 @@ export default function DropLogPage() {
 
       <h1 className="page-title">Drop Log</h1>
       <p className="split-intro">
-        Every drop your parties have logged, newest first, and what it made. Add drops in a
-        party&apos;s own pool.
+        Every drop your parties have logged, newest first
+        {money ? ", and what it made" : ""}. Add drops in a party&apos;s own pool.
       </p>
 
       {state === "error" && <p>Couldn&apos;t load your drops.</p>}
@@ -103,18 +109,22 @@ export default function DropLogPage() {
                 {totals.pending > 0 && `, ${totals.pending} in the pool`}
               </span>
             </div>
-            <div className="stat-tile">
-              <span className="stat-label">Sold for</span>
-              <span className="stat-value is-good">{formatMesos(totals.pooled, true)}</span>
-              {/* Labelled precisely, because the obvious reading of "total sales" is a number
-                  that cannot be computed. See the header of lib/drop-log.ts. */}
-              <span className="stat-note">landed in inventories, fee off</span>
-            </div>
-            <div className="stat-tile">
-              <span className="stat-label">Your take</span>
-              <span className="stat-value is-good">{formatMesos(totals.yourTake, true)}</span>
-              <span className="stat-note">your share of the above</span>
-            </div>
+            {money && (
+              <>
+                <div className="stat-tile">
+                  <span className="stat-label">Sold for</span>
+                  <span className="stat-value is-good">{formatMesos(totals.pooled, true)}</span>
+                  {/* Labelled precisely, because the obvious reading of "total sales" is a number
+                      that cannot be computed. See the header of lib/drop-log.ts. */}
+                  <span className="stat-note">landed in inventories, fee off</span>
+                </div>
+                <div className="stat-tile">
+                  <span className="stat-label">Your take</span>
+                  <span className="stat-value is-good">{formatMesos(totals.yourTake, true)}</span>
+                  <span className="stat-note">your share of the above</span>
+                </div>
+              </>
+            )}
           </div>
 
           {withDrops.length > 1 && (
@@ -151,6 +161,7 @@ export default function DropLogPage() {
               bossByKey={bossByKey}
               characterById={characterById}
               showCharacter={character === null}
+              money={money}
             />
           ))}
 
@@ -175,20 +186,24 @@ function MonthSection({
   bossByKey,
   characterById,
   showCharacter,
+  money,
 }: {
   month: DropMonth;
   bossByKey: Map<string, Boss>;
   characterById: Map<string, Character>;
   showCharacter: boolean;
+  money: boolean;
 }) {
   return (
     <section className="party-group">
       <header className="droplog-month-head">
         <h2 className="party-group-name">{month.label}</h2>
-        <span className="droplog-month-total">
-          {formatMesos(month.yourTake, true)}
-          <span className="stat-label"> your take</span>
-        </span>
+        {money && (
+          <span className="droplog-month-total">
+            {formatMesos(month.yourTake, true)}
+            <span className="stat-label"> your take</span>
+          </span>
+        )}
       </header>
       <ul className="droplog-list">
         {month.entries.map((entry) => (

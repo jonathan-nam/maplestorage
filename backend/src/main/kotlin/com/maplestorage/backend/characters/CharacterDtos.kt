@@ -9,6 +9,9 @@ data class CharacterResponse(
     val level: Int?,
     val jobName: String?,
     val worldName: String?,
+    // INTERACTIVE or HEROIC. Inherited from the account when the character is added, and the one
+    // this character's parties read to decide whether their loot can be sold at all.
+    val worldType: String,
     val spriteImgUrl: String?,
     val spriteRefreshedAt: String?,
     val createdAt: String,
@@ -47,6 +50,8 @@ data class CreateCharacterRequest(
 data class UpdateCharacterRequest(
     val name: String? = null,
     val level: Int? = null,
+    // INTERACTIVE or HEROIC. Per character, because one account can play both.
+    val worldType: String? = null,
 )
 
 // The full set of the caller's character ids in their new order. It must be exactly that set,

@@ -892,7 +892,8 @@ img.user-avatar-img {
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
 }
 
-.user-avatar-menu button {
+.user-avatar-menu button,
+.user-avatar-menu a {
   text-align: left;
   border: 0;
   background: none;
@@ -902,11 +903,43 @@ img.user-avatar-img {
   padding: 7px 10px;
   border-radius: 6px;
   cursor: pointer;
+  text-decoration: none;
 }
 
-.user-avatar-menu button:hover {
+.user-avatar-menu button:hover,
+.user-avatar-menu a:hover {
   background: var(--surface-2);
   color: var(--ink-strong);
+}
+
+/* One setting per row: its name, then the control. Nothing between them, the control says what it
+   does by what it is set to. */
+.settings-heading {
+  margin: 24px 0 10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.setting-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.setting-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+/* Fixed, so the toggles line up down the column and a row with a mixed state reads as one of the
+   set rather than as its own thing. */
+.setting-label {
+  min-width: 150px;
+  color: var(--muted);
+  font-size: 13px;
 }
 
 .hero {

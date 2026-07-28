@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { activeHref, HREFS, MENU_HREFS, SECTIONS } from "./section-menu";
+import { activeHref, HREFS, MENU_HREFS, SECTIONS, sectionsFor } from "./section-menu";
+
+const listedFor = (trades: boolean | undefined) =>
+  sectionsFor(trades).flatMap((s) => s.items.filter((i) => !i.hidden).map((i) => i.href));
 
 const labelFor = (pathname: string) =>
   SECTIONS.flatMap((s) => s.items).find((i) => i.href === activeHref(pathname))?.label;
@@ -65,5 +68,33 @@ describe("what the menu lists", () => {
       "/bosses/order",
       "/bosses/split",
     ]);
+  });
+});
+
+describe("what an account with nothing to trade is offered", () => {
+  it("drops the Split Utility, which has nothing to split there", () => {
+    expect(listedFor(false)).not.toContain("/bosses/split");
+    expect(listedFor(false)).toContain("/bosses/parties");
+  });
+
+  it("still routes the page it stopped listing", () => {
+    // Off the menu is not gone. A bookmark or an old link has to keep working, and activeHref has
+    // to keep resolving it to itself rather than lighting Individual View.
+    expect(HREFS).toContain("/bosses/split");
+    expect(activeHref("/bosses/split")).toBe("/bosses/split");
+  });
+
+  it("lists everything while any character trades, and while the answer is unknown", () => {
+    // One Interactive character is enough. The trap this replaced read a single account-wide
+    // world, which took the Split Utility away from an account that still had a character
+    // needing it.
+    expect(listedFor(true)).toEqual(MENU_HREFS);
+    expect(listedFor(undefined)).toEqual(MENU_HREFS);
+  });
+
+  it("keeps the Bossing heading, which still has entries under it", () => {
+    // The empty-group filter exists for the day a whole section is Interactive-only. It must not
+    // fire while something is left, or the remaining links lose their heading.
+    expect(sectionsFor(false).some((s) => s.group === "Bossing")).toBe(true);
   });
 });

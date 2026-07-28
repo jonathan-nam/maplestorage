@@ -18,6 +18,10 @@ object Users : Table("users") {
     val email = text("email")
     val createdAt = timestamp("created_at")
 
+    // INTERACTIVE or HEROIC (V26). The account-wide answer, used where there is no character to
+    // ask: what the section menu offers, and what a newly added character inherits.
+    val worldType = text("world_type")
+
     override val primaryKey = PrimaryKey(id)
 }
 
@@ -28,6 +32,11 @@ object Characters : Table("characters") {
     val level = integer("level").nullable()
     val jobName = text("job_name").nullable()
     val worldName = text("world_name").nullable()
+
+    // INTERACTIVE or HEROIC (V26), and the one every party reads: a party hangs off a character,
+    // so this decides whether that party's loot can be sold at all. Not derived from worldName,
+    // which nothing populates.
+    val worldType = text("world_type")
     val spriteImgUrl = text("sprite_img_url").nullable()
     val spriteRefreshedAt = timestamp("sprite_refreshed_at").nullable()
     val createdAt = timestamp("created_at")

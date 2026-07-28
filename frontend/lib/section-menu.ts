@@ -7,6 +7,14 @@ export type SectionItem = {
   href: string;
   label: string;
   /**
+   * Only listed while some character of this account can trade.
+   *
+   * The page still exists and still routes, so an old link is not a dead end. It is off the menu
+   * because a purely Heroic account has nothing to split, and offering them the tool anyway is the
+   * app explaining a control they cannot use. One Interactive character is enough to keep it.
+   */
+  interactiveOnly?: boolean;
+  /**
    * In the menu's routing but not on its list.
    *
    * A page reached from inside another section rather than from the hamburger. It still has to be
@@ -39,18 +47,35 @@ export const SECTIONS: { group?: string; items: SectionItem[] }[] = [
       // View, which is the section they are part of.
       { href: "/bosses/people", label: "People", hidden: true },
       { href: "/bosses/order", label: "Run Order" },
-      { href: "/bosses/split", label: "Split Utility" },
+      { href: "/bosses/split", label: "Split Utility", interactiveOnly: true },
     ],
   },
 ];
 
-/** Every href the menu routes, hidden ones included. */
+/** Every href the menu routes, hidden ones included. Not narrowed by world: routing is not listing. */
 export const HREFS = SECTIONS.flatMap((s) => s.items.map((i) => i.href));
 
 /** Only what is on the list. Prefetching a page the menu cannot reach would warm nothing. */
 export const MENU_HREFS = SECTIONS.flatMap((s) =>
   s.items.filter((i) => !i.hidden).map((i) => i.href),
 );
+
+/**
+ * What to draw for this account, or everything while the answer is not known yet.
+ *
+ * `trades` is "does any character trade", not one world: an account with a foot in both keeps the
+ * Interactive-only entries, because the character that needs them exists. Undefined is the moment
+ * before /api/settings answers. Showing the full menu then is the old behaviour and costs a purely
+ * Heroic account one entry for a few milliseconds; the panel does not even mount until the
+ * hamburger is clicked, which is almost always after.
+ */
+export function sectionsFor(trades: boolean | undefined) {
+  if (trades !== false) return SECTIONS;
+  return SECTIONS.map((section) => ({
+    ...section,
+    items: section.items.filter((item) => !item.interactiveOnly),
+  })).filter((section) => section.items.length > 0);
+}
 
 /**
  * Which entry to light up for this path, or undefined for none.

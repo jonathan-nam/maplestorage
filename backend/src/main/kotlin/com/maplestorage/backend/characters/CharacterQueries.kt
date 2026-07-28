@@ -26,6 +26,7 @@ fun ResultRow.toCharacterResponse() =
         level = this[Characters.level],
         jobName = this[Characters.jobName],
         worldName = this[Characters.worldName],
+        worldType = this[Characters.worldType],
         spriteImgUrl = this[Characters.spriteImgUrl],
         spriteRefreshedAt = this[Characters.spriteRefreshedAt]?.toString(),
         createdAt = this[Characters.createdAt].toString(),
