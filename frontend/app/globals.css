@@ -240,6 +240,12 @@ a:hover {
   position: relative;
   width: 150px;
   padding: 4px;
+  /* A <button> since the whole card is one click target. These four undo the UA button styling
+     that would otherwise box it and shrink its text. */
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -251,14 +257,9 @@ a:hover {
     transform 0.12s ease;
 }
 
-/* Set-as-main star, top-left of the tile. Hidden until the tile is hovered, even on the current
-   main, so it never clutters the strip; on hover it shows filled (--warn gold) for the main and an
-   outline for the others. */
+/* Set-as-main star, on the /characters row. Filled (--warn gold) for the main, outline for the
+   others. It was hover-revealed on the carousel tile, which no longer carries it. */
 .tile-star {
-  position: absolute;
-  top: 4px;
-  left: 4px;
-  z-index: 2;
   border: 0;
   background: none;
   padding: 2px;
@@ -266,12 +267,6 @@ a:hover {
   font-size: 16px;
   cursor: pointer;
   color: var(--warn);
-  opacity: 0;
-  transition: opacity 0.12s ease;
-}
-
-.char-tile:hover .tile-star {
-  opacity: 1;
 }
 
 .tile-star:hover {
@@ -284,62 +279,6 @@ a:hover {
 
 .char-tile.selected {
   opacity: 1;
-}
-
-/* The add control, shaped like the tile it makes and sitting last in the strip. */
-.add-tile {
-  justify-content: center;
-  gap: 6px;
-  border: 1px dashed var(--line);
-  border-radius: 8px;
-  background: none;
-  color: var(--muted);
-  font: inherit;
-  opacity: 0.8;
-}
-
-.add-tile:hover {
-  border-color: var(--accent);
-  color: var(--ink);
-  opacity: 1;
-}
-
-.add-tile-plus {
-  font-size: 34px;
-  line-height: 1;
-}
-
-.add-tile.open {
-  cursor: default;
-  border-style: solid;
-  border-color: var(--accent);
-  opacity: 1;
-}
-
-.add-tile-input {
-  width: 92%;
-  padding: 4px 6px;
-  border: 1px solid var(--line);
-  border-radius: 4px;
-  background: var(--surface);
-  color: var(--ink);
-  font: inherit;
-  text-align: center;
-}
-
-.add-tile-actions {
-  display: flex;
-  gap: 10px;
-  margin-top: 6px;
-}
-
-.add-tile-hint {
-  margin-top: 4px;
-  padding: 0 4px;
-  color: var(--muted-2);
-  font-size: 10px;
-  line-height: 1.3;
-  text-align: center;
 }
 
 .tile-sprite {
@@ -420,32 +359,7 @@ a:hover {
 
 /* Management actions are not what this strip is for. They stay out of the way
    until you're actually on the tile. */
-.tile-actions {
-  margin-top: 6px;
-  min-height: 18px;
-  visibility: hidden;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 2px;
-}
-
-/* Hover only. The selected tile no longer keeps these pinned open. */
-.char-tile:hover .tile-actions {
-  visibility: visible;
-}
-
-.tile-actions a {
-  margin: 0 4px;
-  color: var(--muted-2);
-  font-size: 11px;
-}
-
-.tile-actions a:hover {
-  color: var(--ink-strong);
-}
-
-/* Reorder chevrons flanking the actions; disabled at the ends of the strip. */
+/* Reorder arrows on a /characters row; disabled at the ends of the list. */
 .tile-move {
   border: none;
   background: none;
@@ -914,7 +828,7 @@ img.user-avatar-img {
 
 /* One setting per row: its name, then the control. Nothing between them, the control says what it
    does by what it is set to. */
-/* The section's name on the left, what you can do to all of it on the right. The actions sit up
+/* The page's name on the left, what you can do to every row on the right. The bulk actions sit up
    here rather than in the list, so nothing that changes every row looks like a row. */
 .settings-section-head {
   display: flex;
@@ -925,37 +839,59 @@ img.user-avatar-img {
   margin: 24px 0 10px;
 }
 
-.settings-heading {
-  margin: 0;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--muted);
-}
-
 .settings-bulk {
   display: inline-flex;
   gap: 6px;
 }
 
-.setting-list {
+/* One character per row, read down the page. Wraps rather than squeezes on a narrow viewport:
+   the world toggle carries two full world names and is the thing being compared row to row. */
+.character-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 8px;
 }
 
-.setting-row {
+.character-row {
   display: flex;
   align-items: center;
   gap: 12px;
   flex-wrap: wrap;
+  padding: 8px 4px;
+  border-bottom: 1px solid var(--line);
 }
 
-/* Fixed, so the toggles line up down the column and a row with a mixed state reads as one of the
-   set rather than as its own thing. */
-.setting-label {
-  min-width: 150px;
-  color: var(--muted);
-  font-size: 13px;
+.character-row-sprite {
+  width: 48px;
+  height: 48px;
+  flex: none;
+  object-fit: contain;
+  /* Pixel art. See the 32px note on SharpEyesMark: a non-integer scale drops whole rows. */
+  image-rendering: pixelated;
+}
+
+/* Takes the slack, so the world toggle and the actions line up down the column whatever the
+   names are. */
+.character-row-name {
+  flex: 1 1 12ch;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.character-row-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.add-character {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 16px;
 }
 
 .hero {
@@ -1072,10 +1008,6 @@ img.user-avatar-img {
 
 .char-tile.is-skeleton:hover {
   opacity: 0.65;
-}
-
-.char-tile.is-skeleton:hover .tile-actions {
-  visibility: hidden;
 }
 
 /* The sprite BOX is 116px square (.tile-sprite), but the character inside it is not. The source

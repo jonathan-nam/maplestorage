@@ -1,7 +1,6 @@
 "use client";
 
 import { useClerk, useUser } from "@clerk/nextjs";
-import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
 // The account button, showing the user's chosen main character instead of the OAuth photo. Clerk
@@ -60,11 +59,6 @@ export function UserAvatar() {
 
       {open ? (
         <div className="user-avatar-menu" role="menu">
-          {/* Ours, above Clerk's. Sections in the hamburger are views of your data; this is the
-              account itself, which is what the rest of this menu already is. */}
-          <Link href="/settings" role="menuitem" onClick={() => setOpen(false)}>
-            Settings
-          </Link>
           <button
             type="button"
             role="menuitem"

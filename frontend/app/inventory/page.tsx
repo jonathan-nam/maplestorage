@@ -1,6 +1,7 @@
 "use client";
 
 import { useAuth } from "@clerk/nextjs";
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { InventoryPanel, type InventoryItem } from "@/components/inventory-panel";
 import { CharactersSkeleton } from "@/components/loading-skeleton";
@@ -143,35 +144,12 @@ export default function CharactersPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedId, revision]);
 
-  // Every write drops the cache. A cache that can serve a stale list after you have
-  // added, renamed or deleted a character is worse than no cache at all: the wrong
-  // answer arrives instantly and looks exactly like a backend bug.
+  // Adding is on /characters now. This one path remains, and is not that control: an upload whose
+  // screenshot names a character you do not have offers to create it, and the roster on screen has
+  // to grow to match. Dropping the cache is what stops the next page serving the list from before.
   function handleAdded(character: Character) {
     setCharacters((prev) => [...prev, character]);
     invalidate("/api/");
-  }
-
-  function handleUpdated(character: Character) {
-    setCharacters((prev) => prev.map((c) => (c.id === character.id ? character : c)));
-    invalidate("/api/");
-  }
-
-  function handleDeleted(id: string) {
-    setCharacters((prev) => prev.filter((c) => c.id !== id));
-    if (selectedId === id) setSelectedId(null);
-    invalidate("/api/");
-  }
-
-  // Reorder optimistically so the strip moves the instant you click, then persist. The cache is
-  // updated to match what is shown; a failed save drops it so the next load re-fetches the truth.
-  function handleReorder(ordered: Character[]) {
-    setCharacters(ordered);
-    put(CHARACTERS_KEY, ordered);
-    apiFetch<Character[]>(
-      "/api/characters/order",
-      { method: "PUT", body: JSON.stringify({ orderedIds: ordered.map((c) => c.id) }) },
-      getToken,
-    ).catch(() => invalidate("/api/"));
   }
 
   const selected = characters.find((c) => c.id === selectedId);
@@ -225,10 +203,6 @@ export default function CharactersPage() {
             characters={characters}
             selectedId={selectedId}
             onSelect={setSelectedId}
-            onUpdated={handleUpdated}
-            onDeleted={handleDeleted}
-            onAdded={handleAdded}
-            onReorder={handleReorder}
           />
 
           {/* The selected character's inventory sits directly under the carousel: pick a
@@ -248,7 +222,11 @@ export default function CharactersPage() {
               onSelectItem={handleSelectItem}
             />
           ) : characters.length === 0 ? (
-            <p className="finder-empty">Add a character above to start tracking.</p>
+            // The add control is no longer on this page, so the empty state has to say where it
+            // went. Without this the screen is a search bar over nothing.
+            <p className="finder-empty">
+              No characters yet. <Link href="/characters">Add one</Link> to start tracking.
+            </p>
           ) : (
             <p className="finder-empty">
               No character selected, a screenshot dropped below will be filed by the name read from

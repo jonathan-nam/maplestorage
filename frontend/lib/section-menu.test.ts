@@ -9,6 +9,7 @@ const labelFor = (pathname: string) =>
 
 describe("which section a path belongs to", () => {
   it("lights the entry for its own page", () => {
+    expect(labelFor("/characters")).toBe("Characters");
     expect(labelFor("/inventory")).toBe("Inventory");
     expect(labelFor("/bosses")).toBe("Individual View");
     expect(labelFor("/bosses/parties")).toBe("Party View");
@@ -60,8 +61,9 @@ describe("what the menu lists", () => {
     expect(HREFS.length).toBeGreaterThan(MENU_HREFS.length);
   });
 
-  it("lists the five sections a person navigates between", () => {
+  it("lists the six sections a person navigates between", () => {
     expect(MENU_HREFS).toEqual([
+      "/characters",
       "/inventory",
       "/bosses",
       "/bosses/parties",
