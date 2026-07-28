@@ -5,12 +5,15 @@ import {
   cellState,
   cellStateLabel,
   clearOfCell,
+  clearProgress,
   clearStateLabel,
   formatPeriod,
   formatWeekStart,
   indexClears,
   indexSkips,
   nextClear,
+  progressLabel,
+  progressMark,
   weekEndExclusive,
   weekLabel,
   rowFullyCleared,
@@ -233,6 +236,64 @@ describe("rowNobodyRuns", () => {
   it("is false when nothing has been marked at all", () => {
     // The default state of every account. Nobody having said anything is not everybody opting out.
     expect(rowNobodyRuns(roster, "jupiter", undefined)).toBe(false);
+  });
+});
+
+describe("clearProgress", () => {
+  it("counts the clears against the bosses that are run", () => {
+    expect(clearProgress(["cleared", "cleared", "pending", "skipped"], true)).toEqual({
+      cleared: 2,
+      total: 3,
+    });
+  });
+
+  it("counts a boss nobody has captured as one still to run", () => {
+    // The trap this whole function exists around. Every period starts with every cell unseen, so
+    // dropping them from the denominator would open each Thursday at 0/0, and 0/0 is a week with
+    // nothing left in it. Overstating the work is the only safe direction to be wrong.
+    expect(clearProgress(["unseen", "unseen", "unseen"], true)).toEqual({ cleared: 0, total: 3 });
+  });
+
+  it("keeps a routine off the denominator, which is the return on marking one", () => {
+    const runsFour = clearProgress(
+      ["cleared", "cleared", "cleared", "cleared", "skipped", "skipped"],
+      true,
+    );
+    expect(runsFour).toEqual({ cleared: 4, total: 4 });
+    expect(progressMark(runsFour)).toBe("4/4");
+  });
+
+  it("gives no denominator when the routine is not known, rather than counting every boss", () => {
+    // A past week is served without routine marks, so the same states arrive with nothing marked
+    // skipped. Reaching a denominator by that accident would state a past week's target as
+    // confidently as a live one, and it would be the wrong number.
+    expect(clearProgress(["cleared", "pending", "unseen"], false)).toEqual({
+      cleared: 1,
+      total: null,
+    });
+  });
+
+  it("is empty, not complete, for a character who runs nothing in the band", () => {
+    const runsNothing = clearProgress(["skipped", "skipped"], true);
+    expect(runsNothing).toEqual({ cleared: 0, total: 0 });
+    // 0/0 is a met target. This is the absence of one, and it says so in the matrix's own word.
+    expect(progressMark(runsNothing)).toBe("·");
+    expect(progressLabel(runsNothing)).toBe("none to run");
+  });
+
+  it("counts nothing at all as nothing to run", () => {
+    expect(clearProgress([], true)).toEqual({ cleared: 0, total: 0 });
+  });
+});
+
+describe("progressLabel", () => {
+  it("says what the number is, since a heading has room for the word", () => {
+    expect(progressLabel({ cleared: 8, total: 12 })).toBe("8/12 cleared");
+  });
+
+  it("drops the denominator without dropping the count", () => {
+    expect(progressLabel({ cleared: 12, total: null })).toBe("12 cleared");
+    expect(progressMark({ cleared: 12, total: null })).toBe("12");
   });
 });
 

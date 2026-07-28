@@ -38,6 +38,13 @@ describe("boss clear marks stay visible", () => {
     expect(rule(".boss-mark")).toMatch(/min-height:/);
   });
 
+  it("keeps the per-character count readable, since the bar does not repeat it", () => {
+    // The band's bar is drawn once, at the top. Every character's own progress is the figure in
+    // this cell and nothing else, so dimming it to the background takes the column's answer away
+    // with nothing left standing in for it.
+    expect(rule(".boss-progress-cell")).toMatch(/color:\s*var\(--ink\)/);
+  });
+
   it("does not fill the cells, so the state is the mark and not the background", () => {
     // Colouring the cells was tried twice and taken back out: the fill landed in the same channel
     // as the row striping below, and read as shading rather than as a state.

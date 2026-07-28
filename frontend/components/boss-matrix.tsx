@@ -7,10 +7,13 @@ import {
   cellState,
   cellStateLabel,
   clearOfCell,
+  clearProgress,
   formatPeriod,
   indexClears,
   indexSkips,
   nextClear,
+  progressLabel,
+  progressMark,
   rowFullyCleared,
   rowNobodyRuns,
 } from "@/lib/boss-clears";
@@ -122,6 +125,17 @@ export function BossMatrix({
   const shown = historyWeek ? CADENCE_ORDER.filter((c) => c === "WEEKLY") : CADENCE_ORDER;
   const cadences = shown.filter((c) => rows.some((b) => b.reset === c));
 
+  // Counted per cadence and never pooled across them, for the reason the bands exist at all: a
+  // monthly and a weekly are not counting the same span of time, so one figure over both would be
+  // a total of two different things.
+  //
+  // A past week brings no routine marks, so it gets a count with no denominator. See clearProgress.
+  const routineKnown = !historyWeek;
+  const statesOf = (characterId: string, list: Boss[]) =>
+    list.map((boss) =>
+      cellState(byCharacter.get(characterId), boss.bossKey, skipsBy.get(characterId)),
+    );
+
   return (
     <div
       className="boss-matrix"
@@ -160,22 +174,54 @@ export function BossMatrix({
           </tr>
         </thead>
 
-        {cadences.map((cadence) => (
-          <tbody key={cadence}>
-            <tr className="boss-cadence-row">
-              <th className="boss-cadence" scope="colgroup" colSpan={columns.length + 1}>
-                {cadence}
-                {periodByCadence.has(cadence) && (
-                  <span className="boss-period">
-                    since {formatPeriod(periodByCadence.get(cadence)!)}
+        {cadences.map((cadence) => {
+          const inCadence = rows.filter((boss) => boss.reset === cadence);
+          // Summed over the roster, so the denominator is one per character per boss they run and
+          // not the number of bosses. The week's work is a run, and a boss six characters run is
+          // six of them.
+          const rosterProgress = clearProgress(
+            columns.flatMap((character) => statesOf(character.id, inCadence)),
+            routineKnown,
+          );
+          return (
+            <tbody key={cadence}>
+              <tr className="boss-cadence-row">
+                <th className="boss-cadence" scope="colgroup" colSpan={columns.length + 1}>
+                  {/* Flexed on an inner span for the reason .boss-name-inner is: display:flex on a
+                      cell takes it out of the table layout. */}
+                  <span className="boss-cadence-inner">
+                    <span>
+                      {cadence}
+                      {periodByCadence.has(cadence) && (
+                        <span className="boss-period">
+                          since {formatPeriod(periodByCadence.get(cadence)!)}
+                        </span>
+                      )}
+                    </span>
+                    {/* Withheld while loading rather than drawn at 0: the skeleton's rows are
+                        invented (see SKELETON_BOSSES), so a figure over them would be a real-looking
+                        count of nothing. */}
+                    {!loading && (
+                      <span className="boss-cadence-progress">
+                        {/* Never the bar alone. It is a second reading of the number beside it, so
+                            a proportion nobody can state (a past week) simply has no bar. */}
+                        {rosterProgress.total ? (
+                          <span className="boss-progress-bar" aria-hidden="true">
+                            <span
+                              style={{
+                                width: `${(rosterProgress.cleared / rosterProgress.total) * 100}%`,
+                              }}
+                            />
+                          </span>
+                        ) : null}
+                        {progressLabel(rosterProgress)}
+                      </span>
+                    )}
                   </span>
-                )}
-              </th>
-            </tr>
+                </th>
+              </tr>
 
-            {rows
-              .filter((boss) => boss.reset === cadence)
-              .map((boss) => (
+              {inCadence.map((boss) => (
                 <tr
                   key={boss.bossKey}
                   // Nothing left to do on this boss, so the row steps back. Two ways to get there
@@ -290,8 +336,36 @@ export function BossMatrix({
                   })}
                 </tr>
               ))}
-          </tbody>
-        ))}
+
+              {/* Under the columns rather than beside the names: the question it answers is "who
+                  still has work", and that is read down a character, not across a boss. */}
+              {!loading && (
+                <tr className="boss-progress-row">
+                  <th className="boss-name" scope="row">
+                    Cleared
+                  </th>
+                  {columns.map((character) => {
+                    const progress = clearProgress(statesOf(character.id, inCadence), routineKnown);
+                    return (
+                      <td
+                        key={character.id}
+                        className={`boss-progress-cell${colClass(character.id)}`}
+                        onMouseEnter={() => setHoveredColumn(character.id)}
+                      >
+                        <span aria-hidden="true">{progressMark(progress)}</span>
+                        {/* "8/12" is only an answer once you know whose column it is, and a
+                            screen reader is not reading the column. */}
+                        <span className="visually-hidden">
+                          {character.name} {progressLabel(progress)}
+                        </span>
+                      </td>
+                    );
+                  })}
+                </tr>
+              )}
+            </tbody>
+          );
+        })}
       </table>
 
       {!loading && historyWeek && cadences.length === 0 && (
