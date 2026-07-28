@@ -4256,27 +4256,73 @@ button.link:disabled {
   font-size: 14px;
 }
 
-/* The order itself. Numbered by CSS rather than in the markup: the number is the position in the
-   plan, and a list that renumbers itself cannot disagree with the order it is drawn in. */
-.run-list {
-  margin: 14px 0 0;
-  padding: 0;
-  list-style: none;
+/* The order itself: bosses down the rows, people across the columns, the same way round as the
+   boss matrix. A list of each run's seats could only show who is IN a run, and a group is usually
+   bigger than the six seats a party has, so the gaps in a person's column are half of the plan.
+   Runs are numbered by CSS rather than in the markup: the number is the position in the plan, and
+   a table that renumbers itself cannot disagree with the order it is drawn in. */
+.run-grid {
+  margin-top: 14px;
+  overflow-x: auto;
   counter-reset: run;
 }
 
-.run-row {
-  display: grid;
-  grid-template-columns: 1.5em 40px minmax(9em, max-content) 1fr;
-  align-items: center;
-  gap: 12px;
-  padding: 8px 0;
-  border-top: 1px solid var(--line-soft);
+.run-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.run-col-head,
+.run-person-head {
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--line);
+  color: var(--muted);
+  font-weight: 500;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.run-col-head {
+  text-align: left;
+}
+
+/* Wide enough for a name, capped so a long one cannot push the grid off the column on its own. */
+.run-person-head {
+  max-width: 110px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.run-table tbody tr {
   counter-increment: run;
 }
 
-.run-row:first-child {
-  border-top: none;
+/* The bands are the boss matrix's, for the reason given there: at full width the far column sits
+   a long way from the boss name, so the stripe says which row you are on at rest and the hover
+   band tracks the one you are reading. Hue, not grey, and the two bands compose where they cross. */
+.run-table tbody tr:nth-child(even) {
+  background: var(--surface);
+}
+
+.run-table tbody tr:hover,
+.run-table .run-cell.is-col-hover,
+.run-table .run-person-head.is-col-hover {
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
+}
+
+.run-boss {
+  padding: 6px 8px;
+  border-top: 1px solid var(--line-soft);
+  font-weight: 400;
+  text-align: left;
+}
+
+/* Flexed on an inner span: display:flex on a table cell takes it out of the table layout. */
+.run-boss-inner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
 .run-number {
@@ -4300,7 +4346,7 @@ button.link:disabled {
   display: block;
 }
 
-.run-boss {
+.run-boss-text {
   display: flex;
   flex-direction: column;
   gap: 1px;
@@ -4317,48 +4363,29 @@ button.link:disabled {
   font-variant-numeric: tabular-nums;
 }
 
-.run-seats {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
+.run-cell {
+  min-width: 84px;
+  padding: 5px 8px;
+  border-top: 1px solid var(--line-soft);
+  color: var(--ink);
+  text-align: center;
+  white-space: nowrap;
 }
 
-.run-seat {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 5px;
-  padding: 3px 8px;
-  border: 1px solid var(--line-soft);
-  border-radius: 6px;
-  background: var(--surface);
-  font-size: 12px;
+/* Sitting this one out. Quiet, because a column of X's is the ground the characters read against
+   and not a warning, but legible: at --line it is back to being an empty cell. */
+.run-cell.is-out {
+  color: var(--muted-2);
 }
 
-/* The one thing the tool exists to minimise, so it is the one thing on the row that is coloured.
-   On the seat that moved rather than summarised at the end: which PERSON relogs is the fact, and
-   a count at the end of the row does not say who. */
-.run-seat.is-switch {
-  border-color: var(--warn);
+/* The one thing the tool exists to minimise, so it is the one coloured thing in the grid. On the
+   cell that moved rather than summarised at the end of the row: which PERSON relogs is the fact,
+   and a count does not say who. */
+.run-cell.is-switch {
   color: var(--warn);
 }
 
 .run-swap {
-  font-size: 11px;
-}
-
-.run-seat-character {
-  color: inherit;
-}
-
-.run-seat:not(.is-switch) .run-seat-character {
-  color: var(--ink);
-}
-
-.run-seat-person {
-  color: var(--muted-2);
   font-size: 11px;
 }
 

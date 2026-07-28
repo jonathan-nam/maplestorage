@@ -13,6 +13,7 @@ import {
   rosterFromDrafts,
   runsFromDrafts,
   planAsText,
+  planGrid,
   runsFromParties,
   YOU,
 } from "./boss-night";
@@ -260,7 +261,7 @@ describe("planAsText", () => {
     seats: seats.map(([character, person]) => ({ character, person })),
   });
 
-  it("names the mode in the line people copy, so nobody queues the wrong one", () => {
+  it("names the mode in the row people copy, so nobody queues the wrong one", () => {
     const hard = { ...party("1", "lotus", [mine, chris]), difficulty: "HARD" };
     const runs = runsFromParties(
       [hard],
@@ -273,7 +274,7 @@ describe("planAsText", () => {
       roster.map((p) => p.id),
     );
     const text = planAsText(planNight(eligible, { minutes: 60 }).best, roster);
-    expect(text).toContain("1. Hard Lotus:");
+    expect(text).toContain("Hard Lotus,");
   });
 
   it("opens with what a reader wants before they read anything else", () => {
@@ -294,51 +295,76 @@ describe("planAsText", () => {
     expect(text.split("\n")[0]).toContain("2 character switches");
   });
 
-  it("gives somebody who never moves one line and no run numbers to check off", () => {
-    const text = textFor(
-      [R("1", "Lotus", [["Hero", "Chris"]]), R("2", "Damien", [["Hero", "Chris"]])],
-      120,
-    );
-    expect(text).toContain("Chris: Hero the whole way");
+  /** The rows between the fences, which is the table itself. */
+  const fenced = (text: string) => {
+    const lines = text.split("\n");
+    const open = lines.indexOf("```");
+    const close = lines.indexOf("```", open + 1);
+    expect(open).toBeGreaterThan(-1);
+    expect(close).toBeGreaterThan(open);
+    return lines.slice(open + 1, close);
+  };
+
+  /** The three-run night the size rule splits Dave's runs across. Rows: Lotus, Damien, Lucid. */
+  const SPLIT_NIGHT = [
+    R("1", "Lotus", [
+      ["Bishop", "You"],
+      ["Nightlord", "Dave"],
+      ["Shadower", "Erin"],
+    ]),
+    R("2", "Damien", [
+      ["Bishop", "You"],
+      ["Shadower", "Erin"],
+    ]),
+    R("3", "Lucid", [["Nightlord", "Dave"]]),
+  ];
+
+  it("heads the columns with people and the rows with bosses", () => {
+    const table = fenced(textFor(SPLIT_NIGHT, 180));
+    expect(table[0]).toMatch(/^Boss,\s+Dave,\s+Erin,\s+You$/);
+    expect(table[1]).toMatch(/^Lotus,\s+Nightlord,\s+Shadower,\s+Bishop$/);
   });
 
-  it("says where a switch falls, in the order the night runs", () => {
-    const text = textFor(
-      [
-        R("1", "Lotus", [["Bishop", "You"]]),
-        R("2", "Damien", [["Bishop", "You"]]),
-        R("3", "Lucid", [["Kanna", "You"]]),
-      ],
-      180,
-    );
-    expect(text).toContain("You: Bishop for 1-2, then Kanna for 3");
+  it("marks somebody sitting a run out with an X", () => {
+    // Dave is in the first and last runs and out of the middle one. The night has to run
+    // 3-person, 2-person, 1-person for size, which outranks keeping his two runs together, so
+    // this is the gap the planner cannot close and the one the X has to show.
+    const table = fenced(textFor(SPLIT_NIGHT, 180));
+    expect(table[2]).toMatch(/^Damien,\s+X,\s+Shadower,\s+Bishop$/);
+    expect(table[3]).toMatch(/^Lucid,\s+Nightlord,\s+X,\s+X$/);
   });
 
-  it("compresses a run of consecutive numbers and comma-separates a gap", () => {
-    // Dave sits out the middle boss, so his numbers cannot be a range. The night has to run
-    // 3-person, 2-person, 1-person for size, which is the one thing that outranks keeping Dave's
-    // two runs together, so this gap is the rare one the planner cannot close.
-    const text = textFor(
-      [
-        R("1", "Lotus", [
-          ["Bishop", "You"],
-          ["Nightlord", "Dave"],
-          ["Shadower", "Erin"],
-        ]),
-        R("2", "Damien", [
-          ["Bishop", "You"],
-          ["Shadower", "Erin"],
-        ]),
-        R("3", "Lucid", [["Nightlord", "Dave"]]),
-      ],
-      180,
-    );
-    expect(text).toContain("Dave: Nightlord for 1, 3");
-    expect(text).toContain("You: Bishop for 1-2");
+  it("lines the columns up, so the grid survives being pasted", () => {
+    const table = fenced(textFor(SPLIT_NIGHT, 180));
+    const firstColumn = (line: string) => (/^[^,]*,\s*/.exec(line) as RegExpExecArray)[0].length;
+    expect(new Set(table.map(firstColumn)).size).toBe(1);
   });
 
-  it("leaves out somebody who is in no scheduled run", () => {
-    // Only one boss fits, and it is not the one Dave is in.
+  it("says what the marks mean, because a reader of the paste did not choose them", () => {
+    expect(textFor(SPLIT_NIGHT, 180)).toContain("X = sitting out.");
+    expect(
+      textFor([R("1", "Lotus", [["Bishop", "You"]]), R("2", "Damien", [["Kanna", "You"]])], 120),
+    ).toContain("* = switches character.");
+  });
+
+  it("says nothing about marks it did not use", () => {
+    // One person, one boss: nobody sits out and nobody switches, so there is nothing to explain.
+    const text = textFor([R("1", "Lotus", [["Bishop", "You"]])], 60);
+    expect(text).not.toContain("=");
+  });
+
+  it("marks the character somebody changed to, and no other", () => {
+    const table = fenced(
+      textFor([R("1", "Lotus", [["Bishop", "You"]]), R("2", "Damien", [["Kanna", "You"]])], 120),
+    );
+    expect(table[2]).toContain("Kanna*");
+    // The first run is not a switch. Logging in is not changing character, so the cell is bare.
+    expect(table[1]).not.toContain("Bishop*");
+  });
+
+  it("gives no column to somebody who is in no scheduled run", () => {
+    // Only one boss fits, and it is not the one Dave is in. His run is named in the leftovers on
+    // screen, so a column of nothing but X would be a second telling and a wasted column.
     const text = textFor(
       [R("1", "Lotus", [["Bishop", "You"]]), R("2", "Damien", [["Nightlord", "Dave"]])],
       30,
@@ -346,13 +372,12 @@ describe("planAsText", () => {
     expect(text).not.toContain("Dave");
   });
 
-  it("lists the bosses in order, numbered to match the lines below", () => {
-    const text = textFor(
-      [R("1", "Lotus", [["Bishop", "You"]]), R("2", "Damien", [["Bishop", "You"]])],
-      120,
+  it("keeps the rows in the order the night runs", () => {
+    const table = fenced(
+      textFor([R("1", "Lotus", [["Bishop", "You"]]), R("2", "Damien", [["Bishop", "You"]])], 120),
     );
-    expect(text).toContain("1. Lotus:");
-    expect(text).toContain("2. Damien:");
+    expect(table[1]).toMatch(/^Lotus,/);
+    expect(table[2]).toMatch(/^Damien,/);
   });
 
   it("calls a boss what the party calls it", () => {
@@ -363,92 +388,20 @@ describe("planAsText", () => {
       ],
       120,
     );
-    expect(text).toContain("Star: Bishop");
-    expect(text).toContain("Kalos: Bishop");
+    expect(text).toContain("Star,");
+    expect(text).toContain("Kalos,");
     expect(text).not.toContain("Malefic");
     expect(text).not.toContain("Guardian");
   });
 
   it("keeps the full name for a boss with no shorthand", () => {
-    const text = textFor([R("lotus", "Lotus", [["Bishop", "You"]])], 60);
-    expect(text).toContain("1. Lotus: Bishop");
+    const table = fenced(textFor([R("lotus", "Lotus", [["Bishop", "You"]])], 60));
+    expect(table[1]).toBe("Lotus, Bishop");
   });
 
-  it("puts the whole party on the boss's own line, as characters", () => {
-    const text = textFor(
-      [
-        R("1", "Lotus", [
-          ["Bishop", "You"],
-          ["Nightlord", "Dave"],
-        ]),
-      ],
-      120,
-    );
-    expect(text).toContain("1. Lotus: Bishop, Nightlord");
-  });
-
-  it("names a seat's owner only where they had to change character", () => {
-    const text = textFor(
-      [R("1", "Lotus", [["Bishop", "You"]]), R("2", "Damien", [["Kanna", "You"]])],
-      120,
-    );
-    expect(text).toContain("2. Damien: Kanna (You, swap)");
-    // The first run is not a switch. Logging in is not changing character, so the seat is bare.
-    expect(text).toContain("1. Lotus: Bishop\n");
-  });
-
-  it("says who came in for whom when one person replaces another", () => {
-    const text = textFor(
-      [
-        R("1", "Lotus", [
-          ["Bishop", "You"],
-          ["Nightlord", "Dave"],
-        ]),
-        R("2", "Damien", [
-          ["Bishop", "You"],
-          ["Hero", "Chris"],
-        ]),
-      ],
-      120,
-    );
-    expect(text).toContain("Chris in for Dave.");
-  });
-
-  it("says arrivals and departures apart when they do not pair off", () => {
-    const text = textFor(
-      [
-        R("1", "Lotus", [
-          ["Bishop", "You"],
-          ["Nightlord", "Dave"],
-          ["Shadower", "Erin"],
-        ]),
-        R("2", "Damien", [
-          ["Bishop", "You"],
-          ["Hero", "Chris"],
-        ]),
-      ],
-      120,
-    );
-    expect(text).toContain("Chris in. Dave and Erin out.");
-  });
-
-  it("says nothing about arrivals on the first run, or when the party holds", () => {
-    const text = textFor(
-      [
-        R("1", "Lotus", [
-          ["Bishop", "You"],
-          ["Nightlord", "Dave"],
-        ]),
-        R("2", "Damien", [
-          ["Bishop", "You"],
-          ["Nightlord", "Dave"],
-        ]),
-      ],
-      120,
-    );
-    expect(text).not.toContain(" in.");
-    expect(text).not.toContain(" out.");
-    expect(text).not.toContain(" in for ");
+  it("quotes a name holding a comma, so one typed by hand cannot split a row", () => {
+    const table = fenced(textFor([R("1", "Lotus", [["Bishop", "Dave, Jr"]])], 60));
+    expect(table[0]).toBe('Boss,  "Dave, Jr"');
   });
 
   it("says so plainly when there is nothing to paste", () => {
@@ -457,7 +410,7 @@ describe("planAsText", () => {
     );
   });
 
-  it("indents nothing, because a chat client will not render it monospaced", () => {
+  it("indents nothing, so the table holds up even without its fence", () => {
     const text = textFor(
       [
         R("1", "Lotus", [
@@ -468,5 +421,71 @@ describe("planAsText", () => {
       60,
     );
     expect(text.split("\n").every((line) => line === line.trimStart())).toBe(true);
+  });
+});
+
+describe("planGrid", () => {
+  const R = (id: string, bossName: string, seats: [string, string][]): DraftRun => ({
+    id,
+    bossKey: id,
+    bossName,
+    minutes: 30,
+    seats: seats.map(([character, person]) => ({ character, person })),
+  });
+
+  const gridFor = (drafts: DraftRun[], minutes: number) => {
+    const roster = rosterFromDrafts(drafts);
+    const { eligible } = screenRuns(
+      runsFromDrafts(drafts),
+      roster.map((p) => p.id),
+    );
+    return planGrid(planNight(eligible, { minutes }).best, roster);
+  };
+
+  it("gives every row a cell per person, whether or not they are in the run", () => {
+    const { people, rows } = gridFor(
+      [
+        R("1", "Lotus", [
+          ["Bishop", "You"],
+          ["Nightlord", "Dave"],
+        ]),
+        R("2", "Damien", [["Bishop", "You"]]),
+      ],
+      120,
+    );
+    expect(people.map((person) => person.name)).toEqual(["Dave", "You"]);
+    expect(rows.every((row) => row.cells.length === people.length)).toBe(true);
+  });
+
+  it("empties the cell of somebody sitting the run out, rather than dropping it", () => {
+    const { rows } = gridFor(
+      [
+        R("1", "Lotus", [
+          ["Bishop", "You"],
+          ["Nightlord", "Dave"],
+        ]),
+        R("2", "Damien", [["Bishop", "You"]]),
+      ],
+      120,
+    );
+    // Dave is the first column, and the second run is not his.
+    expect(rows[1]?.cells[0]).toEqual({ character: null, switched: false });
+  });
+
+  it("flags the cell somebody changed character to, and not the run before it", () => {
+    const { rows } = gridFor(
+      [R("1", "Lotus", [["Bishop", "You"]]), R("2", "Damien", [["Kanna", "You"]])],
+      120,
+    );
+    expect(rows[0]?.cells[0]).toEqual({ character: "Bishop", switched: false });
+    expect(rows[1]?.cells[0]).toEqual({ character: "Kanna", switched: true });
+  });
+
+  it("holds no column for somebody the plan never uses", () => {
+    const { people } = gridFor(
+      [R("1", "Lotus", [["Bishop", "You"]]), R("2", "Damien", [["Nightlord", "Dave"]])],
+      30,
+    );
+    expect(people.map((person) => person.name)).toEqual(["You"]);
   });
 });

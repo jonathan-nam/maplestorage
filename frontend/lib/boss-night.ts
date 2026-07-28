@@ -154,133 +154,102 @@ export function formatDuration(minutes: number): string {
   return `${hours}h ${rest}m`;
 }
 
-/** Names as a person would say them: "Dave", "Dave and Erin", "Dave, Erin and Chris". */
-function andList(names: string[]): string {
-  if (names.length < 2) return names.join("");
-  return `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
-}
+// The marks the pasted table uses. ASCII on purpose: the screen draws these as glyphs, and a
+// glyph in a code fence is a monospace font's guess at how wide it is, which is how a lined-up
+// table arrives crooked.
+const SITTING_OUT = "X";
+const SWITCH_MARK = "*";
+
+/** One person's place in one run. */
+export type GridCell = {
+  /** The character they bring, or null when they sit this one out. */
+  character: string | null;
+  /** They changed character to be here, the one thing the ordering is trying to avoid. */
+  switched: boolean;
+};
+
+export type GridRow = { planned: PlannedRun; cells: GridCell[] };
 
 /**
- * One run as a line: the boss, and the characters that turn up to it.
+ * The night with a column per person.
  *
- * A character stands for its owner, so naming both on every seat says the same thing twice. The
- * name appears only where something moved, which is the whole reason to read the line twice. Who
- * arrived and who left is then said in words, because a reader scrolling a chat cannot compare
- * this line against the one above it the way they can glance up a column on screen.
+ * A party is six seats and a group is often more people than that, so who is NOT in a run is half
+ * the plan and a per-run list of seats cannot show it. A column can: it is one person all night,
+ * and the gaps in it are theirs.
+ *
+ * Only people the plan uses get a column. Somebody whose runs all fell out is not sitting through
+ * the night, they are absent from this plan entirely, and the leftovers name them and their boss.
  */
-function runLine(
-  planned: PlannedRun,
-  before: PlannedRun | undefined,
-  number: number,
-  nameOf: (id: string) => string,
-): string {
-  const switched = new Set(planned.switched);
-  const seats = planned.run.seats
-    .map((seat) =>
-      switched.has(seat.personId)
-        ? `${seat.character} (${nameOf(seat.personId)}, swap)`
-        : seat.character,
-    )
-    .join(", ");
+export function planGrid(
+  plan: Plan,
+  roster: NightPerson[],
+): { people: NightPerson[]; rows: GridRow[] } {
+  const inPlan = new Set(
+    plan.runs.flatMap((planned) => planned.run.seats.map((seat) => seat.personId)),
+  );
+  const people = roster.filter((person) => inPlan.has(person.id));
 
-  // What the party calls it, which is what they will scroll past looking for their own run. The
-  // mode goes in front of it: "Chaos Kalos" is the whole name of what is being run.
-  const boss = bossLabel(
+  const rows = plan.runs.map((planned) => {
+    const switched = new Set(planned.switched);
+    return {
+      planned,
+      cells: people.map((person) => {
+        const seat = planned.run.seats.find((s) => s.personId === person.id);
+        return {
+          character: seat ? seat.character : null,
+          switched: seat !== undefined && switched.has(person.id),
+        };
+      }),
+    };
+  });
+
+  return { people, rows };
+}
+
+/** What the party calls a boss, with its mode: "Chaos Kalos" is the whole name of what is run. */
+function bossHeading(planned: PlannedRun): string {
+  return bossLabel(
     BOSS_SHORT_NAMES[planned.run.bossKey] ?? planned.run.bossName,
     planned.run.difficulty,
   );
-  const line = `${number}. ${boss}: ${seats}`;
-  if (!before) return line;
-
-  const here = new Set(planned.run.seats.map((seat) => seat.personId));
-  const was = new Set(before.run.seats.map((seat) => seat.personId));
-  const joined = planned.run.seats
-    .filter((seat) => !was.has(seat.personId))
-    .map((seat) => nameOf(seat.personId));
-  const left = before.run.seats
-    .filter((seat) => !here.has(seat.personId))
-    .map((seat) => nameOf(seat.personId));
-
-  // One out, one in, is a swap of people rather than two separate facts, and reads as one.
-  if (joined.length === 1 && left.length === 1) return `${line}. ${joined[0]} in for ${left[0]}.`;
-
-  const changes = [
-    joined.length > 0 ? `${andList(joined)} in.` : null,
-    left.length > 0 ? `${andList(left)} out.` : null,
-  ].filter((change): change is string => change !== null);
-
-  return changes.length > 0 ? `${line}. ${changes.join(" ")}` : line;
 }
 
-/** Run numbers as a person would write them: "1-3", "1, 3", "1-2, 5". */
-function runRanges(numbers: number[]): string {
-  const parts: string[] = [];
-  let start: number | undefined;
-  let end: number | undefined;
-
-  for (const n of numbers) {
-    if (start === undefined || end === undefined) {
-      start = n;
-      end = n;
-    } else if (n === end + 1) {
-      end = n;
-    } else {
-      parts.push(start === end ? `${start}` : `${start}-${end}`);
-      start = n;
-      end = n;
-    }
-  }
-  if (start !== undefined && end !== undefined) {
-    parts.push(start === end ? `${start}` : `${start}-${end}`);
-  }
-
-  return parts.join(", ");
+/** A field as CSV, quoted only where it has to be so the common case stays readable. */
+function csvField(value: string): string {
+  return /[",\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value;
 }
 
 /**
- * What one person is on, across the whole night.
+ * Rows of fields as CSV, padded so the columns line up.
  *
- * Their runs collapse into stretches on one character, which is the shape the ordering was chosen
- * to produce, so this is the line where the work shows. Somebody in every run on one character is
- * told so in words rather than handed the numbers 1 to 6 to check off.
+ * Padding is trailing only, so no line starts with a space and the table survives being pasted
+ * somewhere that strips the code fence.
  */
-function personLine(person: NightPerson, plan: Plan): { name: string; text: string } | null {
-  const appearances = plan.runs.flatMap((planned, i) => {
-    const seat = planned.run.seats.find((s) => s.personId === person.id);
-    return seat ? [{ at: i + 1, character: seat.character }] : [];
-  });
-  if (appearances.length === 0) return null;
-
-  const stretches: { character: string; at: number[] }[] = [];
-  for (const appearance of appearances) {
-    const last = stretches[stretches.length - 1];
-    if (last && last.character === appearance.character) last.at.push(appearance.at);
-    else stretches.push({ character: appearance.character, at: [appearance.at] });
+function csvTable(rows: string[][]): string[] {
+  const widths: number[] = [];
+  for (const row of rows) {
+    row.forEach((field, i) => {
+      widths[i] = Math.max(widths[i] ?? 0, field.length);
+    });
   }
 
-  const everyRun = appearances.length === plan.runs.length;
-  const only = stretches.length === 1 ? stretches[0] : undefined;
-
-  const text =
-    only && everyRun
-      ? `${only.character} the whole way`
-      : stretches
-          .map((stretch) => `${stretch.character} for ${runRanges(stretch.at)}`)
-          .join(", then ");
-
-  return { name: person.name, text };
+  return rows.map((row) =>
+    row
+      .map((field, i) => (i === row.length - 1 ? field : `${field},`.padEnd((widths[i] ?? 0) + 2)))
+      .join("")
+      .trimEnd(),
+  );
 }
 
 /**
- * The plan as plain text, for pasting where the party actually talks.
+ * The plan as text, for pasting where the party actually talks.
  *
- * Two passes over the same night, because a reader arrives with two questions. The rows are the
- * ones on screen: the boss, the characters in it, and what moved since the last one. The lines
- * under them answer "which character am I on tonight" without making anybody read four rows to
- * work it out, and they are where a character is tied to its owner.
+ * The same grid the page draws: bosses down, people across, and an X where somebody sits one out.
+ * It is fenced because the columns only line up in a monospace font, and a chat client renders
+ * everything outside a code block proportionally.
  *
- * No leading spaces or column alignment: chat clients render this proportionally, and anything
- * lined up in a monospace editor arrives crooked.
+ * The marks get one line of key. An X in a table is read as "this one" about as often as "not
+ * this one", and the reader of a pasted message was not the one who chose it.
  *
  * Built from the Plan it is given, never restated by hand, so it cannot drift from what the page
  * is showing. The same rule explainSplit() follows.
@@ -298,15 +267,32 @@ export function planAsText(plan: Plan, roster: NightPerson[]): string {
     `${plan.runs.length} ${plan.runs.length === 1 ? "boss" : "bosses"} · ` +
     `about ${formatDuration(plan.minutes)} · ${switches}`;
 
-  const nameOf = (id: string) => roster.find((person) => person.id === id)?.name ?? id;
-  const order = plan.runs.map((planned, i) => runLine(planned, plan.runs[i - 1], i + 1, nameOf));
+  const { people, rows } = planGrid(plan, roster);
 
-  const who = roster
-    .map((person) => personLine(person, plan))
-    .filter((line): line is { name: string; text: string } => line !== null)
-    .map((line) => `${line.name}: ${line.text}`);
+  const header = ["Boss", ...people.map((person) => csvField(person.name))];
+  const body = rows.map(({ planned, cells }) => [
+    csvField(bossHeading(planned)),
+    ...cells.map((cell) =>
+      cell.character === null
+        ? SITTING_OUT
+        : csvField(cell.character + (cell.switched ? SWITCH_MARK : "")),
+    ),
+  ]);
 
-  return [headline, "", ...order, "", ...who].join("\n");
+  const sitsOut = rows.some(({ cells }) => cells.some((cell) => cell.character === null));
+  const key = [
+    sitsOut ? `${SITTING_OUT} = sitting out` : null,
+    plan.switches > 0 ? `${SWITCH_MARK} = switches character` : null,
+  ].filter((part): part is string => part !== null);
+
+  return [
+    headline,
+    "",
+    "```",
+    ...csvTable([header, ...body]),
+    "```",
+    ...(key.length > 0 ? [`${key.join(". ")}.`] : []),
+  ].join("\n");
 }
 
 /** Why a run could not be scheduled, in words, given the roster to name people from. */
