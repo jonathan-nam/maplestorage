@@ -23,6 +23,7 @@ import {
   partySizeLabel,
 } from "@/lib/parties";
 import { preloadBossArt } from "@/lib/preload-boss-art";
+import { type CrossedReset, WEEKLY_CADENCE } from "@/lib/reset-countdown";
 import { useAccountSettings } from "@/lib/use-account-settings";
 import { offersWallet } from "@/lib/world";
 import type { Boss, BossClearsView } from "@/types/boss";
@@ -49,15 +50,6 @@ const CLEARS_KEY = "/api/bosses/clears";
 // Only the live view is cached. A past week is a deliberate click and worth a round-trip, and
 // caching every week stepped through would grow without bound. Same reasoning as the boss page.
 const clearsUrl = (week: string | null) => (week ? `${CLEARS_KEY}?week=${week}` : CLEARS_KEY);
-
-/**
- * A past week can only answer for WEEKLY bosses.
- *
- * The server returns weekly rows alone for a history view, so a monthly config in a past week has
- * no row and would draw as "not reported" when the truth is that nobody asked. Dropping those
- * configs is what the matrix does with its monthly and daily bands, for the same reason.
- */
-const WEEKLY = "WEEKLY";
 
 const partyWord = (n: number) => (n === 1 ? "party" : "parties");
 
@@ -94,27 +86,62 @@ export default function PartiesPage() {
   // boss page.
   const latestClears = useRef(0);
 
-  async function loadClears(target: string | null, token?: string | null) {
+  // Answers whether this response was the one that landed, as the boss page's does: a caller that
+  // also moves the week label must not move it behind an overtaken response.
+  async function loadClears(target: string | null, token?: string | null): Promise<boolean> {
     const ticket = ++latestClears.current;
     const result = await apiFetch<BossClearsView>(
       clearsUrl(target),
       { method: "GET" },
       token !== undefined ? () => Promise.resolve(token) : getToken,
     );
-    if (ticket !== latestClears.current) return;
+    if (ticket !== latestClears.current) return false;
     setView(result);
     setReceivedAt(Date.now());
     if (target === null) put(CLEARS_KEY, result);
+    return true;
   }
 
   async function selectWeek(target: string | null) {
     setStepping(true);
     try {
-      await loadClears(target);
-      setWeek(target);
+      if (await loadClears(target)) setWeek(target);
     } catch {
       // Keep the week on screen. Moving the label without the clears behind it would label one
       // week's ticks with another week's date.
+    } finally {
+      setStepping(false);
+    }
+  }
+
+  /**
+   * Picks the new period up when a reset passes under an open tab. See ResetTimer.
+   *
+   * A weekly reset takes the list back to the current week, the way the in-game planner comes back
+   * cleared rather than still showing the week you had open. Every other cadence refreshes the
+   * week on screen and leaves it there, since a daily boundary says nothing about that week.
+   *
+   * Both lists either way, because the page draws its ticks from whichever one the week calls for:
+   * the live view reads party.cleared, a past week reads the clears. Refreshing one would leave
+   * the other answering for the period that just ended.
+   *
+   * The configs themselves are untouched by a reset (the party table has no period), so what
+   * changes for them is only the clear each one carries, back to "nobody has said anything yet".
+   */
+  async function pickUpReset(crossed: CrossedReset) {
+    const target = crossed.cadences.includes(WEEKLY_CADENCE) ? null : week;
+    setStepping(true);
+    try {
+      const [refreshed, landed] = await Promise.all([
+        apiFetch<Party[]>(PARTIES_KEY, { method: "GET" }, getToken),
+        loadClears(target),
+      ]);
+      setParties(refreshed);
+      put(PARTIES_KEY, refreshed);
+      if (landed) setWeek(target);
+    } catch {
+      // The old list under a rolled-over week is wrong, but blanking the page says less than
+      // leaving it up. The next visit or step reloads it.
     } finally {
       setStepping(false);
     }
@@ -184,10 +211,12 @@ export default function PartiesPage() {
   const history = week !== null;
 
   // Two rules narrow a past week, counted apart so the empty line can name the one that applies.
-  // Cadence first: a history view carries weekly rows only, so a config it cannot answer for is
-  // dropped rather than drawn as "not reported". See WEEKLY above.
+  //
+  // Cadence first: the server returns weekly rows alone for a history view, so a monthly config in
+  // a past week has no row and would draw as "not reported" when the truth is that nobody asked.
+  // Dropping those configs is what the matrix does with its monthly and daily bands.
   const weekly = history
-    ? parties.filter((p) => bossByKey.get(p.bossKey)?.reset === WEEKLY)
+    ? parties.filter((p) => bossByKey.get(p.bossKey)?.reset === WEEKLY_CADENCE)
     : parties;
   // Then age, which is existedInWeek's job: today's configs are not last week's parties.
   const shown = week !== null ? existedInWeek(weekly, week) : weekly;
@@ -300,6 +329,7 @@ export default function PartiesPage() {
                 nextResets={view.nextResets}
                 serverNow={view.now}
                 receivedAt={receivedAt}
+                onReset={pickUpReset}
               />
             </div>
           )}
