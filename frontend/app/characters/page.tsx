@@ -28,7 +28,6 @@ export default function CharactersPage() {
   const [characters, setCharacters] = useState<Character[]>(seeded ?? []);
   const [loaded, setLoaded] = useState(Boolean(seeded));
   const [failed, setFailed] = useState(false);
-  const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -43,49 +42,63 @@ export default function CharactersPage() {
   }, []);
 
   /**
-   * Every write here ends in the same place.
+   * Shows the change, then persists it, and puts it back if the server refuses.
+   *
+   * Optimistic because the alternative flickered. This used to set one `busy` flag for the round
+   * trip AND the settings refetch after it, and every control on the page took it: .tile-move and
+   * .party-* all dim when disabled, so clicking one character's world flashed the arrows and
+   * buttons of every other row while the toggle you clicked (.basis-tab, which has no disabled
+   * style) sat still. Nothing is disabled here now.
    *
    * A world decides whether a party can sell and a deletion takes party seats with it, so the
-   * cached /api/parties is wrong either way and the next page to read it would draw from the old
+   * cached /api/parties is wrong either way and the next page to read it would draw the old
    * answer. `trades` is refetched rather than worked out locally: it is what the section menu and
    * the Drop Log's totals key off, and a second answer computed here is a second answer.
    */
-  async function write(run: () => Promise<Character[]>) {
-    setBusy(true);
+  async function persist(apply: (list: Character[]) => Character[], save: () => Promise<unknown>) {
+    const before = characters;
+    const shown = apply(before);
+    setCharacters(shown);
+    put(CHARACTERS_KEY, shown);
     setError(null);
     try {
-      const updated = await run();
-      setCharacters(updated);
-      put(CHARACTERS_KEY, updated);
+      await save();
       invalidate("/api/parties");
       invalidate("/api/bosses");
       setAccountSettings(await apiFetch<Settings>(SETTINGS_KEY, { method: "GET" }, getToken));
     } catch (e) {
+      // Back to what the server still holds. Leaving the optimistic value up would put a world on
+      // screen that no party actually reads.
+      setCharacters(before);
+      put(CHARACTERS_KEY, before);
       setError(e instanceof ApiError ? e.body : "Couldn't save that.");
-    } finally {
-      setBusy(false);
     }
   }
 
   const setAll = (next: WorldType) =>
-    write(async () => {
-      await apiFetch<Settings>(
-        SETTINGS_KEY,
-        { method: "PUT", body: JSON.stringify({ worldType: next }) },
-        getToken,
-      );
-      return characters.map((c) => ({ ...c, worldType: next }));
-    });
+    persist(
+      (list) => list.map((c) => ({ ...c, worldType: next })),
+      () =>
+        apiFetch<Settings>(
+          SETTINGS_KEY,
+          { method: "PUT", body: JSON.stringify({ worldType: next }) },
+          getToken,
+        ),
+    );
 
-  const setWorld = (id: string, next: WorldType) =>
-    write(async () => {
-      const saved = await apiFetch<Character>(
-        `${CHARACTERS_KEY}/${id}`,
-        { method: "PUT", body: JSON.stringify({ worldType: next }) },
-        getToken,
-      );
-      return characters.map((c) => (c.id === id ? saved : c));
-    });
+  const setWorld = (id: string, next: WorldType) => {
+    // Clicking the world a character is already in is not a change to save.
+    if (characters.find((c) => c.id === id)?.worldType === next) return;
+    return persist(
+      (list) => list.map((c) => (c.id === id ? { ...c, worldType: next } : c)),
+      () =>
+        apiFetch<Character>(
+          `${CHARACTERS_KEY}/${id}`,
+          { method: "PUT", body: JSON.stringify({ worldType: next }) },
+          getToken,
+        ),
+    );
+  };
 
   const move = (index: number, direction: -1 | 1) => {
     const target = index + direction;
@@ -97,14 +110,15 @@ export default function CharactersPage() {
     if (!moved || !displaced) return;
     next[index] = displaced;
     next[target] = moved;
-    return write(async () => {
-      await apiFetch<Character[]>(
-        `${CHARACTERS_KEY}/order`,
-        { method: "PUT", body: JSON.stringify({ orderedIds: next.map((c) => c.id) }) },
-        getToken,
-      );
-      return next;
-    });
+    return persist(
+      () => next,
+      () =>
+        apiFetch<Character[]>(
+          `${CHARACTERS_KEY}/order`,
+          { method: "PUT", body: JSON.stringify({ orderedIds: next.map((c) => c.id) }) },
+          getToken,
+        ),
+    );
   };
 
   // Written straight to state rather than through write(): these two already hold the new roster,
@@ -138,7 +152,7 @@ export default function CharactersPage() {
                 key={option}
                 type="button"
                 className="party-cancel"
-                disabled={busy || common === option}
+                disabled={common === option}
                 onClick={() => setAll(option)}
               >
                 Set all {worldLabel(option)}
@@ -158,7 +172,6 @@ export default function CharactersPage() {
               <CharacterRow
                 key={character.id}
                 character={character}
-                busy={busy}
                 onUpdated={updated}
                 onDeleted={deleted}
                 onSetWorld={(next) => setWorld(character.id, next)}
