@@ -94,8 +94,8 @@ export default function SettingsPage() {
       return characters.map((c) => (c.id === id ? saved : c));
     });
 
-  // Null when they differ, which draws neither option as chosen rather than picking one of them to
-  // claim. Same shape as a select-all box with a mixed state.
+  // Null when the characters do not agree, which is what "New characters start in..." keys off and
+  // what stops "Set all X" being offered when they are already all X.
   const worlds = new Set(characters.map((c) => c.worldType));
   const common: WorldType | null = worlds.size === 1 ? ([...worlds][0] ?? null) : null;
 
@@ -114,18 +114,30 @@ export default function SettingsPage() {
 
       {loaded && characters.length > 0 && (
         <>
-          <h2 className="settings-heading">World</h2>
-          <div className="setting-list">
-            {/* Redundant with the one row below it when there is only one character. */}
+          <div className="settings-section-head">
+            <h2 className="settings-heading">World</h2>
+            {/* Two actions, not a third toggle.
+                This was an "All characters" row carrying the same segmented control as the
+                characters under it, and every click in the first session that saw it went there:
+                a select-all drawn as one of the things it selects reads as one of them. Verbs and
+                a different button do what a label could not. */}
             {characters.length > 1 && (
-              <WorldRow
-                id="all"
-                name="All characters"
-                world={common}
-                busy={busy}
-                onChoose={setAll}
-              />
+              <span className="settings-bulk">
+                {WORLD_TYPES.map((option) => (
+                  <button
+                    key={option}
+                    type="button"
+                    className="party-cancel"
+                    disabled={busy || common === option}
+                    onClick={() => setAll(option)}
+                  >
+                    Set all {worldLabel(option)}
+                  </button>
+                ))}
+              </span>
             )}
+          </div>
+          <div className="setting-list">
             {characters.map((character) => (
               <WorldRow
                 key={character.id}
@@ -162,8 +174,7 @@ function WorldRow({
   // by it and a name is not guaranteed to make a unique one.
   id: string;
   name: string;
-  /** Null draws neither option chosen: these characters do not agree. */
-  world: WorldType | null;
+  world: WorldType;
   busy: boolean;
   onChoose: (next: WorldType) => void;
 }) {

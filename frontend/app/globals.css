@@ -914,11 +914,27 @@ img.user-avatar-img {
 
 /* One setting per row: its name, then the control. Nothing between them, the control says what it
    does by what it is set to. */
-.settings-heading {
+/* The section's name on the left, what you can do to all of it on the right. The actions sit up
+   here rather than in the list, so nothing that changes every row looks like a row. */
+.settings-section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
   margin: 24px 0 10px;
+}
+
+.settings-heading {
+  margin: 0;
   font-size: 13px;
   font-weight: 600;
   color: var(--muted);
+}
+
+.settings-bulk {
+  display: inline-flex;
+  gap: 6px;
 }
 
 .setting-list {
