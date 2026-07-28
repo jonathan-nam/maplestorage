@@ -43,9 +43,6 @@ export function CharactersSkeleton() {
                   </span>
                 </div>
               </div>
-              {/* Empty, but .tile-actions is visibility-hidden and min-height'd in the real tile
-                  too, so this reserves exactly what the loaded tile reserves. */}
-              <div className="tile-actions" />
             </div>
           ))}
         </div>

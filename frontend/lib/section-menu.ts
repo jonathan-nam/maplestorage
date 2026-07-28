@@ -36,7 +36,12 @@ export type SectionItem = {
  * under one heading had stopped being a menu and started being a list of every page.
  */
 export const SECTIONS: { group?: string; items: SectionItem[] }[] = [
-  { items: [{ href: "/inventory", label: "Inventory" }] },
+  {
+    items: [
+      { href: "/characters", label: "Characters" },
+      { href: "/inventory", label: "Inventory" },
+    ],
+  },
   {
     group: "Bossing",
     items: [

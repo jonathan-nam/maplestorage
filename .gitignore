@@ -55,6 +55,10 @@ symbol-candidates.png
 # stray build output if next is run from the wrong cwd
 **/.next/
 
+# The dist dir next.config tells you to use so a production build does not poison the running dev
+# server (NEXT_DIST_DIR=.next-prod). It was not ignored, so following that advice staged 300 files.
+**/.next-prod/
+
 # Scratch drop zone for reference captures. Nothing here is a fixture until a
 # test reads it, at which point it moves up into test-fixtures/ proper.
 test-fixtures/scratch/*
