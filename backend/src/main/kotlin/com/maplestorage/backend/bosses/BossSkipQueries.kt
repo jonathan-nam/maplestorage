@@ -1,22 +1,22 @@
 package com.maplestorage.backend.bosses
 
 import com.maplestorage.backend.db.BossCatalog
-import com.maplestorage.backend.db.BossClear
 import com.maplestorage.backend.db.CharacterBossSkip
 import com.maplestorage.backend.db.Characters
 import com.maplestorage.backend.db.Party
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.core.inList
+import org.jetbrains.exposed.v1.core.notInList
+import org.jetbrains.exposed.v1.jdbc.batchUpsert
 import org.jetbrains.exposed.v1.jdbc.deleteWhere
 import org.jetbrains.exposed.v1.jdbc.selectAll
-import org.jetbrains.exposed.v1.jdbc.upsert
 import kotlin.time.Instant
 import kotlin.uuid.Uuid
 
-// Reads and writes for "this character does not run this boss". Split from BossQueries for the
-// reason the table is separate from boss_clear: a clear is an answer about one period, a mark is a
-// standing fact, and the rules that keep the two from contradicting each other all live here.
-// `internal` like the clear queries, so the tests exercise these exact statements.
+// Reads and writes for which bosses a character runs. Split from BossQueries for the reason the
+// table is separate from boss_clear: a clear is an answer about one period, a routine is a standing
+// fact. `internal` like the clear queries, so the tests exercise these exact statements.
 // All of these must be called from inside a `transaction { }` block.
 
 /**
@@ -35,115 +35,115 @@ internal fun bossSkipsFor(userId: String): Map<String, List<String>> =
         .orderBy(BossCatalog.sortOrder)
         .groupBy({ it[CharacterBossSkip.characterId].toString() }) { it[BossCatalog.bossKey] }
 
-/** Why a skip could not be written, or null when it was. */
-internal enum class SkipRefusal {
-    /** Not this user's character, or not a boss in the catalog. */
-    UNKNOWN,
+/** Why a routine could not be saved, or null when it was. */
+internal sealed interface RoutineRefusal {
+    /** Not this user's character, or a boss key that is not in the catalog. */
+    data object Unknown : RoutineRefusal
 
     /**
-     * A party config already says this character runs this boss.
+     * A party config already says this character runs these bosses.
      *
-     * Refused rather than silently letting the newer write win: a config is (character, boss,
-     * difficulty, who with), which is a more detailed statement of the same thing, and the two
-     * cannot both be true. Deleting the config is the way to say they stopped running it.
+     * A config is (character, boss, difficulty, who with), which is the same claim in more detail,
+     * so the two cannot both be true. Deleting the config is how you say they stopped running it.
+     * The editor draws these locked, so this is a backstop rather than something a user meets.
      */
-    HAS_PARTY,
-
-    /**
-     * This character has already cleared this boss in the period it is currently in.
-     *
-     * A clear is proof they ran it. Writing the mark anyway would store a row the matrix then has
-     * to overrule to draw the clear, so the click would appear to do nothing at all.
-     */
-    HAS_CLEAR,
+    data class HasParty(
+        val bossNames: List<String>,
+    ) : RoutineRefusal
 }
 
 /**
- * Says that a character does not run a boss, or takes it back.
+ * Replaces which bosses a character does not run, in one write.
  *
- * No period: the row is a standing fact, and marking one does not touch this period's boss_clear.
- * A pending row underneath is left alone, so un-marking restores what the capture actually said
- * rather than a blank.
+ * The whole set rather than one toggle: the editor is a checklist of every boss, so what it has to
+ * say is "this is the routine now". Sent as the bosses NOT run rather than the ones that are, so a
+ * boss added to the catalog since the page loaded stays unsaid instead of being silently marked as
+ * one nobody runs.
+ *
+ * Deliberately does not touch boss_clear. A clear outranks a mark when the matrix draws a cell, so
+ * a boss cleared once this week shows its tick and goes back to "doesn't run" next week, with the
+ * routine left exactly as it was stated.
  */
-internal fun setBossSkip(
+internal fun setBossRoutine(
     userId: String,
     characterId: Uuid,
-    bossKey: String,
-    skipped: Boolean,
+    skippedBossKeys: List<String>,
     now: Instant,
-): SkipRefusal? {
+): RoutineRefusal? {
+    val bosses =
+        routineTargets(userId, characterId, skippedBossKeys.distinct())
+            ?: return RoutineRefusal.Unknown
+
+    val partied = partiedNames(characterId, bosses)
+    val refusal = if (partied.isEmpty()) null else RoutineRefusal.HasParty(partied)
+    if (refusal == null) replaceSkips(characterId, bosses.map { it.id }, now)
+    return refusal
+}
+
+private data class RoutineBoss(
+    val id: Uuid,
+    val name: String,
+)
+
+/**
+ * The catalog rows behind the keys, or null if this is not the user's character or a key is not in
+ * the catalog.
+ *
+ * All or nothing. A key nobody named means the client and the catalog have drifted, and saving the
+ * rest of the list would write a routine the user did not describe.
+ */
+private fun routineTargets(
+    userId: String,
+    characterId: Uuid,
+    bossKeys: List<String>,
+): List<RoutineBoss>? {
     val owned =
         Characters
             .selectAll()
             .where { (Characters.id eq characterId) and (Characters.userId eq userId) }
             .firstOrNull() != null
-    val boss =
-        if (!owned) null else BossCatalog.selectAll().where { BossCatalog.bossKey eq bossKey }.firstOrNull()
-    if (boss == null) return SkipRefusal.UNKNOWN
+    if (!owned) return null
 
-    val bossCatalogId = boss[BossCatalog.id]
-    // Only a mark can be refused. Taking one back cannot contradict anything, so it always writes.
-    val refusal = if (skipped) skipRefusalFor(characterId, bossCatalogId, boss[BossCatalog.reset], now) else null
-    if (refusal == null) {
-        if (skipped) {
-            CharacterBossSkip.upsert(CharacterBossSkip.characterId, CharacterBossSkip.bossCatalogId) { row ->
-                row[CharacterBossSkip.characterId] = characterId
-                row[CharacterBossSkip.bossCatalogId] = bossCatalogId
-                row[createdAt] = now
-            }
-        } else {
-            CharacterBossSkip.deleteWhere {
-                (CharacterBossSkip.characterId eq characterId) and (CharacterBossSkip.bossCatalogId eq bossCatalogId)
-            }
-        }
-    }
-    return refusal
+    val found =
+        BossCatalog
+            .selectAll()
+            .where { BossCatalog.bossKey inList bossKeys }
+            .map { RoutineBoss(it[BossCatalog.id], it[BossCatalog.name]) }
+    return if (found.size == bossKeys.size) found else null
 }
 
-/** What already on record contradicts a "does not run" mark, or null when nothing does. */
-private fun skipRefusalFor(
+/** The ones a party config already says this character runs, by name, for the refusal message. */
+private fun partiedNames(
     characterId: Uuid,
-    bossCatalogId: Uuid,
-    reset: String,
-    now: Instant,
-): SkipRefusal? {
-    val hasParty =
+    bosses: List<RoutineBoss>,
+): List<String> {
+    val ids = bosses.map { it.id }
+    val partied =
         Party
             .selectAll()
-            .where { (Party.characterId eq characterId) and (Party.bossCatalogId eq bossCatalogId) }
-            .firstOrNull() != null
-    // The period the boss is in NOW. An older clear does not contradict the mark: cleared once and
-    // since dropped from the rotation is the ordinary way a boss comes to be marked.
-    val clearedThisPeriod =
-        BossClear
-            .selectAll()
-            .where {
-                (BossClear.characterId eq characterId) and
-                    (BossClear.bossCatalogId eq bossCatalogId) and
-                    (BossClear.periodStart eq periodStartFor(reset, now)) and
-                    (BossClear.cleared eq true)
-            }.firstOrNull() != null
-    return when {
-        hasParty -> SkipRefusal.HAS_PARTY
-        clearedThisPeriod -> SkipRefusal.HAS_CLEAR
-        else -> null
-    }
+            .where { (Party.characterId eq characterId) and (Party.bossCatalogId inList ids) }
+            .map { it[Party.bossCatalogId] }
+            .toSet()
+    return bosses.filter { it.id in partied }.map { it.name }
 }
 
-/**
- * Drops the "does not run" mark on a boss this character has just cleared.
- *
- * A clear is proof they ran it, so the two cannot stand together and the clear is the stronger
- * statement: one is something that happened, the other is something somebody expected. Only a
- * clear does this. A pending row does not, because a planner still listing a boss says nothing
- * about whether it gets run.
- *
- * This is what keeps the read side a single lookup: a skip row present means the cell is
- * "doesn't run", with no clear to check it against.
- */
-internal fun unskipCleared(
+/** Replaces the character's set, since anything the checklist did not send is a boss they run. */
+private fun replaceSkips(
     characterId: Uuid,
-    bossCatalogId: Uuid,
-) = CharacterBossSkip.deleteWhere {
-    (CharacterBossSkip.characterId eq characterId) and (CharacterBossSkip.bossCatalogId eq bossCatalogId)
+    bossCatalogIds: List<Uuid>,
+    now: Instant,
+) {
+    CharacterBossSkip.deleteWhere {
+        (CharacterBossSkip.characterId eq characterId) and
+            (CharacterBossSkip.bossCatalogId notInList bossCatalogIds)
+    }
+    CharacterBossSkip.batchUpsert(
+        bossCatalogIds,
+        CharacterBossSkip.characterId,
+        CharacterBossSkip.bossCatalogId,
+    ) { bossCatalogId ->
+        this[CharacterBossSkip.characterId] = characterId
+        this[CharacterBossSkip.bossCatalogId] = bossCatalogId
+        this[CharacterBossSkip.createdAt] = now
+    }
 }

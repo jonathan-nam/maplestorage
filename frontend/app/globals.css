@@ -1917,37 +1917,89 @@ button.link:disabled {
   color: var(--muted-2);
 }
 
-/* Sits with the week picker and the clocks. Pressed is a state, not a second button, so it stays
-   in place and only its label changes. */
-.boss-routine-toggle {
-  padding: 2px 8px;
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  background: var(--surface);
-  color: var(--ink);
-  font: inherit;
-  font-size: 14px;
-  line-height: 1.4;
-  cursor: pointer;
+/* A way out to the routine page, sitting with the week picker and the clocks. A link and not a
+   button: it goes somewhere, and the matrix has no mode for it to put the page into. */
+.boss-routine-link {
+  color: var(--muted);
+  font-size: 13px;
 }
 
-.boss-routine-toggle[aria-pressed="true"] {
-  border-color: var(--accent);
-  color: var(--accent);
+/* One character's routine: a checklist of the catalog, grouped by cadence like the matrix. */
+.routine {
+  margin-top: 16px;
 }
 
-.boss-routine-note,
-.boss-routine-refused {
-  margin: 0 0 10px;
-  font-size: 12px;
+.routine-count {
+  margin: 0 0 12px;
+  color: var(--muted-2);
+  font-size: 13px;
 }
 
-.boss-routine-note {
+.routine-group {
+  margin-bottom: 18px;
+}
+
+.routine-cadence {
+  margin: 0 0 6px;
+  color: var(--muted-2);
+  font-size: 11px;
+  font-weight: 400;
+  letter-spacing: 0.08em;
+}
+
+.routine-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.routine-row {
+  border-top: 1px solid var(--line-soft);
+}
+
+/* An unticked boss recedes rather than vanishing: it is still one of the sixteen, and the list is
+   only readable as a routine if what is NOT run stays visible next to what is. */
+.routine-row.is-skipped .routine-name {
   color: var(--muted-2);
 }
 
-.boss-routine-refused {
+.routine-row.is-skipped .boss-portrait {
+  opacity: 0.5;
+  filter: saturate(0.3);
+}
+
+.routine-label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 4px;
+  cursor: pointer;
+}
+
+.routine-check {
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.routine-check:disabled,
+.routine-check:disabled + * {
+  cursor: default;
+}
+
+.routine-name {
+  font-size: 14px;
+}
+
+.routine-locked {
+  margin-left: auto;
+  color: var(--muted-2);
+  font-size: 11px;
+}
+
+.routine-error {
+  margin: 10px 0 0;
   color: var(--ink);
+  font-size: 13px;
 }
 
 /* Week picker on the left, reset clocks on the right, above the table. They wrap onto two lines on

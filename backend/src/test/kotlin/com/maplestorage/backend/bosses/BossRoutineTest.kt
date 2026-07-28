@@ -24,6 +24,7 @@ import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertIs
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlin.time.Clock
@@ -31,16 +32,16 @@ import kotlin.time.Instant
 import kotlin.uuid.Uuid
 
 /**
- * "Doesn't run" against a real Postgres.
+ * Which bosses a character runs, against a real Postgres.
  *
- * The mark exists to keep two absences apart, so what is worth testing is the rules that stop it
+ * The routine exists to keep two absences apart, so what is worth testing is the rules that stop it
  * becoming a third kind of wrong answer: that it outlives a reset (or it is no better than the
- * pending row it replaces), that a clear always beats it, and that it can never be written on top
- * of a fact that contradicts it.
+ * pending row it replaces), that a save replaces the set rather than merging into it, and that
+ * nothing rewrites it on the user's behalf.
  */
-class BossSkipsTest {
-    private val userOneId = "user_test_skips_1"
-    private val userTwoId = "user_test_skips_2"
+class BossRoutineTest {
+    private val userOneId = "user_test_routine_1"
+    private val userTwoId = "user_test_routine_2"
 
     // A Thursday (GMS weekly reset), the Saturday inside that week, and the Thursday after it.
     // Verified against the calendar, not assumed. See BossPeriodTest.
@@ -126,24 +127,44 @@ class BossSkipsTest {
     ): List<String> = bossSkipsFor(userId)[character.toString()].orEmpty()
 
     @Test
-    fun `a mark outlives the reset that wipes the clears`() =
+    fun `a routine outlives the reset that wipes the clears`() =
         transaction {
             // The whole reason it is not a boss_clear row. "Only my main runs Jupiter" said once a
-            // week is said never, so a mark that expired with the period would be no better than
+            // week is said never, so a routine that expired with the period would be no better than
             // the dash it replaces.
             val character = addCharacter(userOneId, "Standing")
-            assertNull(setBossSkip(userOneId, character, "jupiter", true, midWeek))
+            assertNull(setBossRoutine(userOneId, character, listOf("jupiter"), midWeek))
 
-            assertEquals(listOf("jupiter"), skipsOf(userOneId, character))
-            // Read from a later period: nothing about the mark is keyed on one.
             assertEquals(listOf("jupiter"), skipsOf(userOneId, character))
             assertTrue(currentBossClearsFor(userOneId, nextWeek)[character.toString()].isNullOrEmpty())
         }
 
     @Test
-    fun `unmarking leaves the capture's own row alone`() =
+    fun `a save replaces the set rather than adding to it`() =
         transaction {
-            // The mark sits over the planner's answer rather than replacing it, so taking it back
+            // The editor sends the whole checklist, so a boss it did not send is one this character
+            // now runs. Merging instead would make a box impossible to un-tick.
+            val character = addCharacter(userOneId, "Replaced")
+            setBossRoutine(userOneId, character, listOf("jupiter", "limbo"), midWeek)
+            setBossRoutine(userOneId, character, listOf("limbo"), midWeek)
+
+            assertEquals(listOf("limbo"), skipsOf(userOneId, character))
+        }
+
+    @Test
+    fun `an empty save says this character runs everything`() =
+        transaction {
+            val character = addCharacter(userOneId, "Emptied")
+            setBossRoutine(userOneId, character, listOf("jupiter"), midWeek)
+            setBossRoutine(userOneId, character, emptyList(), midWeek)
+
+            assertEquals(emptyList(), skipsOf(userOneId, character))
+        }
+
+    @Test
+    fun `a routine leaves the capture's own rows alone`() =
+        transaction {
+            // The routine sits over the planner's answer rather than replacing it, so un-ticking
             // restores what the capture actually said instead of a blank.
             val character = addCharacter(userOneId, "Restored")
             upsertBossClears(
@@ -152,31 +173,25 @@ class BossSkipsTest {
                 addScreenshot(userOneId),
                 midWeek,
             )
-            setBossSkip(userOneId, character, "jupiter", true, midWeek)
-            setBossSkip(userOneId, character, "jupiter", false, midWeek)
+            setBossRoutine(userOneId, character, listOf("jupiter"), midWeek)
+            setBossRoutine(userOneId, character, emptyList(), midWeek)
 
-            assertEquals(emptyList(), skipsOf(userOneId, character))
             val clears = currentBossClearsFor(userOneId, midWeek).getValue(character.toString())
             assertEquals(listOf("jupiter"), clears.map { it.bossKey })
             assertFalse(clears.single().cleared)
         }
 
     @Test
-    fun `a hand-ticked clear drops the mark, because a clear is proof it was run`() =
+    fun `a one-off clear does not rewrite the routine`() =
         transaction {
-            val character = addCharacter(userOneId, "Ticked")
-            setBossSkip(userOneId, character, "jupiter", true, midWeek)
+            // Ran it once this week, but it is still not what this character does. The matrix draws
+            // the tick (a clear outranks the mark, see lib/boss-clears.ts) and the routine stands,
+            // so next period the cell is back to "doesn't run". Dropping the mark here would be
+            // this app editing a standing statement on the strength of one week.
+            val character = addCharacter(userOneId, "OneOff")
+            setBossRoutine(userOneId, character, listOf("jupiter"), midWeek)
 
-            assertTrue(setBossClearByHand(userOneId, character, "jupiter", true, midWeek))
-
-            assertEquals(emptyList(), skipsOf(userOneId, character))
-        }
-
-    @Test
-    fun `a captured clear drops the mark too`() =
-        transaction {
-            val character = addCharacter(userOneId, "Captured")
-            setBossSkip(userOneId, character, "jupiter", true, midWeek)
+            setBossClearByHand(userOneId, character, "jupiter", true, midWeek)
             upsertBossClears(
                 character,
                 listOf(DetectedBossClear("jupiter", true)),
@@ -184,55 +199,15 @@ class BossSkipsTest {
                 midWeek,
             )
 
-            assertEquals(emptyList(), skipsOf(userOneId, character))
-        }
-
-    @Test
-    fun `a capture that only lists the boss leaves the mark standing`() =
-        transaction {
-            // A planner still listing a boss says nothing about whether it gets run: the row lives
-            // there until somebody removes it. Only a clear is evidence, so only a clear wins.
-            val character = addCharacter(userOneId, "Listed")
-            setBossSkip(userOneId, character, "jupiter", true, midWeek)
-            upsertBossClears(
-                character,
-                listOf(DetectedBossClear("jupiter", false)),
-                addScreenshot(userOneId),
-                midWeek,
-            )
-
             assertEquals(listOf("jupiter"), skipsOf(userOneId, character))
         }
 
     @Test
-    fun `refuses a mark on a boss already cleared this period`() =
-        transaction {
-            // Allowed, it would store a row the matrix then has to overrule in order to draw the
-            // clear, so the click would look like it did nothing at all.
-            val character = addCharacter(userOneId, "Cleared")
-            setBossClearByHand(userOneId, character, "jupiter", true, midWeek)
-
-            assertEquals(SkipRefusal.HAS_CLEAR, setBossSkip(userOneId, character, "jupiter", true, midWeek))
-            assertEquals(emptyList(), skipsOf(userOneId, character))
-        }
-
-    @Test
-    fun `a clear in an earlier period does not block the mark`() =
-        transaction {
-            // Cleared once, three weeks ago, then dropped from the rotation. Only the period now in
-            // progress can contradict the mark.
-            val character = addCharacter(userOneId, "Lapsed")
-            setBossClearByHand(userOneId, character, "jupiter", true, midWeek)
-
-            assertNull(setBossSkip(userOneId, character, "jupiter", true, nextWeek))
-            assertEquals(listOf("jupiter"), skipsOf(userOneId, character))
-        }
-
-    @Test
-    fun `refuses a mark on a boss the character has a party for`() =
+    fun `refuses a routine that unticks a boss the character has a party for`() =
         transaction {
             // A config is (character, boss, difficulty, who with), which is the same claim in more
-            // detail. The two cannot both be true, and the config is the one that says more.
+            // detail. The two cannot both be true, and the config is the one that says more. The
+            // editor locks these, so reaching this means the two got out of step.
             val character = addCharacter(userOneId, "Partied")
             Party.insert {
                 it[id] = Uuid.random()
@@ -243,18 +218,40 @@ class BossSkipsTest {
                 it[updatedAt] = midWeek
             }
 
-            assertEquals(SkipRefusal.HAS_PARTY, setBossSkip(userOneId, character, "jupiter", true, midWeek))
+            val refusal = setBossRoutine(userOneId, character, listOf("jupiter"), midWeek)
+
+            assertIs<RoutineRefusal.HasParty>(refusal)
+            assertEquals(listOf("Jupiter"), refusal.bossNames)
             assertEquals(emptyList(), skipsOf(userOneId, character))
         }
 
     @Test
-    fun `making a party for a marked boss takes the mark back`() =
+    fun `a refused save writes nothing at all, not even the part that was fine`() =
         transaction {
-            // The other order of the same contradiction. The skip route refuses, so this one has to
-            // resolve it, or a config and a "doesn't run" would sit side by side saying the
+            // Half-applying would leave the page showing a routine nobody described.
+            val character = addCharacter(userOneId, "Partial")
+            Party.insert {
+                it[id] = Uuid.random()
+                it[userId] = userOneId
+                it[characterId] = character
+                it[bossCatalogId] = bossId("jupiter")
+                it[createdAt] = midWeek
+                it[updatedAt] = midWeek
+            }
+
+            setBossRoutine(userOneId, character, listOf("limbo", "jupiter"), midWeek)
+
+            assertEquals(emptyList(), skipsOf(userOneId, character))
+        }
+
+    @Test
+    fun `making a party for a boss the character does not run takes the mark back`() =
+        transaction {
+            // The other order of the same contradiction. The routine save refuses, so this one has
+            // to resolve it, or a config and a "doesn't run" would sit side by side saying the
             // opposite of each other.
             val character = addCharacter(userOneId, "Recruited")
-            setBossSkip(userOneId, character, "jupiter", true, midWeek)
+            setBossRoutine(userOneId, character, listOf("jupiter"), midWeek)
 
             createParty(
                 userOneId,
@@ -273,31 +270,50 @@ class BossSkipsTest {
             val mine = addCharacter(userOneId, "Mine")
             val theirs = addCharacter(userTwoId, "Theirs")
 
-            assertEquals(SkipRefusal.UNKNOWN, setBossSkip(userOneId, theirs, "jupiter", true, midWeek))
-            assertEquals(SkipRefusal.UNKNOWN, setBossSkip(userOneId, mine, "not-a-boss", true, midWeek))
+            assertEquals(RoutineRefusal.Unknown, setBossRoutine(userOneId, theirs, listOf("jupiter"), midWeek))
+            assertEquals(RoutineRefusal.Unknown, setBossRoutine(userOneId, mine, listOf("not-a-boss"), midWeek))
+            // Refused whole: the real key alongside it is not saved either.
+            assertEquals(
+                RoutineRefusal.Unknown,
+                setBossRoutine(userOneId, mine, listOf("jupiter", "not-a-boss"), midWeek),
+            )
             assertEquals(emptyList(), skipsOf(userOneId, mine))
             assertEquals(emptyList(), skipsOf(userTwoId, theirs))
         }
 
     @Test
-    fun `one user's marks stay out of another's matrix`() =
+    fun `one user's routine stays out of another's matrix`() =
         transaction {
             val mine = addCharacter(userOneId, "Mine")
             val theirs = addCharacter(userTwoId, "Theirs")
-            setBossSkip(userOneId, mine, "jupiter", true, midWeek)
-            setBossSkip(userTwoId, theirs, "lotus", true, midWeek)
+            setBossRoutine(userOneId, mine, listOf("jupiter"), midWeek)
+            setBossRoutine(userTwoId, theirs, listOf("lotus"), midWeek)
 
             assertEquals(mapOf(mine.toString() to listOf("jupiter")), bossSkipsFor(userOneId))
             assertEquals(mapOf(theirs.toString() to listOf("lotus")), bossSkipsFor(userTwoId))
         }
 
     @Test
-    fun `marking twice is one row, not two`() =
+    fun `saving the same routine twice is one row per boss, not two`() =
         transaction {
             val character = addCharacter(userOneId, "Twice")
-            setBossSkip(userOneId, character, "jupiter", true, midWeek)
-            setBossSkip(userOneId, character, "jupiter", true, nextWeek)
+            setBossRoutine(userOneId, character, listOf("jupiter"), midWeek)
+            setBossRoutine(userOneId, character, listOf("jupiter"), nextWeek)
 
             assertEquals(listOf("jupiter"), skipsOf(userOneId, character))
+        }
+
+    @Test
+    fun `one character's routine says nothing about another's`() =
+        transaction {
+            // The replace is scoped to the character being saved. Without that, setting up your
+            // second character would wipe what you said about your first.
+            val main = addCharacter(userOneId, "Main")
+            val alt = addCharacter(userOneId, "Alt")
+            setBossRoutine(userOneId, alt, listOf("jupiter"), midWeek)
+            setBossRoutine(userOneId, main, listOf("limbo"), midWeek)
+
+            assertEquals(listOf("jupiter"), skipsOf(userOneId, alt))
+            assertEquals(listOf("limbo"), skipsOf(userOneId, main))
         }
 }

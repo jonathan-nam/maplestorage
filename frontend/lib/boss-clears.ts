@@ -65,10 +65,10 @@ export function indexClears(clears: BossClear[] | undefined): Map<string, boolea
 /**
  * Which of the four a cell is.
  *
- * A clear outranks a mark, because it is proof the boss was run and the mark is only what somebody
- * expected. The two are not supposed to coexist (the backend drops the mark when a clear lands and
- * refuses a mark on a boss already cleared this period), so this is the belt to that braces: if
- * they ever do, the matrix draws the thing that happened.
+ * A clear outranks "doesn't run", and that ordering is load-bearing rather than defensive. It is
+ * how a one-off works: a character who does not normally run Jupiter but did this week shows the
+ * tick, and is back to "doesn't run" next period with the routine never touched. Nothing rewrites
+ * the routine on their behalf, which is what a clear silently dropping the mark would amount to.
  */
 export function cellState(
   clears: Map<string, boolean> | undefined,

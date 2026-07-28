@@ -61,9 +61,7 @@ export function BossMatrix({
   skipsByCharacter,
   loading,
   historyWeek,
-  editing = "clears",
   onToggle,
-  onToggleSkip,
   busy,
 }: {
   bosses: Boss[];
@@ -75,14 +73,6 @@ export function BossMatrix({
   // Set when showing a past week rather than the current period. See the cadence filter below.
   historyWeek?: string | null;
   /**
-   * Which question a click answers: did this get cleared, or does this character run it at all.
-   *
-   * A mode rather than a third stop on the click cycle. Ticking clears is the weekly job and
-   * marking a routine is done once, so making every tick step past "doesn't run" would tax the
-   * common case for the rare one.
-   */
-  editing?: "clears" | "routine";
-  /**
    * Answers a cell by hand, without a planner capture. Omitted for a read-only matrix: a past week
    * is shown, not edited, the same rule Party View's cards follow.
    *
@@ -91,8 +81,6 @@ export function BossMatrix({
    * here, so the mark a click leaves is always an answer rather than a return to silence.
    */
   onToggle?: (characterId: string, bossKey: string, cleared: boolean) => void;
-  /** Marks a boss as one this character does not run, or takes the mark back. Routine mode only. */
-  onToggleSkip?: (characterId: string, bossKey: string, skipped: boolean) => void;
   /** A tick is in flight. Ticks serialise, so the matrix always draws what the server last said. */
   busy?: boolean;
 }) {
@@ -112,10 +100,6 @@ export function BossMatrix({
     byCharacter.set(characterId, indexClears(clears));
   }
   const skipsBy = indexSkips(skipsByCharacter ?? {});
-
-  // Whether a click writes a clear or a routine mark. A past week passes neither handler, so it
-  // stays read-only in either mode.
-  const routine = editing === "routine" && !!onToggleSkip;
 
   // The period each cadence is currently in, taken from the data rather than recomputed. The reset
   // boundary lives in the backend (bosses/BossPeriod.kt); working it out again here would be a
@@ -266,16 +250,11 @@ export function BossMatrix({
                         ? `${boss.name} ${cellStateLabel(state)} by ${character.name}`
                         : `${boss.name}, ${character.name} ${cellStateLabel(state)}`;
 
-                    // A cell nobody runs is not a clear to tick, so it takes itself out of the way
-                    // in clear mode. Say so in routine mode instead, which is where it is answered.
-                    const clickable = routine || (!!onToggle && state !== "skipped");
-                    const title = routine
-                      ? state === "skipped"
-                        ? "Mark runs this"
-                        : "Mark doesn't run"
-                      : state === "cleared"
-                        ? "Mark not cleared"
-                        : "Mark cleared";
+                    // A boss this character does not run has no clear to tick, so the cell is a
+                    // mark and not a control. Which bosses they run is answered on the routine
+                    // page, where the whole set is visible at once.
+                    const clickable = !!onToggle && state !== "skipped";
+                    const title = state === "cleared" ? "Mark not cleared" : "Mark cleared";
                     return (
                       <td
                         key={character.id}
@@ -294,13 +273,7 @@ export function BossMatrix({
                             disabled={busy}
                             title={title}
                             onClick={() =>
-                              routine
-                                ? onToggleSkip!(character.id, boss.bossKey, state !== "skipped")
-                                : onToggle!(
-                                    character.id,
-                                    boss.bossKey,
-                                    nextClear(clearOfCell(state)),
-                                  )
+                              onToggle!(character.id, boss.bossKey, nextClear(clearOfCell(state)))
                             }
                           >
                             <span aria-hidden="true">{mark}</span>

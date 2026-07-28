@@ -84,10 +84,10 @@ describe("cellState", () => {
     expect(cellState(clears, "lucid", skips)).toBe("unseen");
   });
 
-  it("lets a clear outrank the mark, so what happened beats what was expected", () => {
-    // The backend is not supposed to hold both (it drops the mark when a clear lands, and refuses
-    // a mark on a boss already cleared this period). If it ever does, the matrix must not hide a
-    // clear behind a stale mark.
+  it("lets a clear outrank the mark, which is how a one-off run shows up", () => {
+    // A character who does not normally run Jupiter but did this week. The tick shows, and the
+    // routine is untouched, so next period the cell is back to "doesn't run". Nothing rewrites
+    // what the user said about the character on the strength of one week.
     const clears = indexClears([clear("jupiter", true)]);
 
     expect(cellState(clears, "jupiter", new Set(["jupiter"]))).toBe("cleared");

@@ -44,16 +44,19 @@ data class SetBossClearRequest(
 )
 
 /**
- * A boss this character does not run, said by hand.
+ * Which bosses a character does not run, as the whole set.
  *
  * No period, unlike SetBossClearRequest. "Only my main runs Jupiter" is a fact about the character,
  * not about this week, so it outlives the reset that wipes the clears.
+ *
+ * The bosses NOT run rather than the ones that are, though the editor is a list of the ones that
+ * are. A boss added to the catalog between the page loading and the save would otherwise arrive as
+ * one nobody runs, which is a claim the user never made.
  */
 @Serializable
-data class SetBossSkipRequest(
+data class SetBossRoutineRequest(
     val characterId: String,
-    val bossKey: String,
-    val skipped: Boolean,
+    val skippedBossKeys: List<String> = emptyList(),
 )
 
 /**

@@ -34,7 +34,7 @@ internal fun createParty(
 ): Uuid {
     // A config for this pair says the character runs the boss, so any "doesn't run" mark on it is
     // now wrong. The config is the more detailed statement of the two, so it wins. The skip route
-    // refuses the opposite order (see SkipRefusal.HAS_PARTY), which leaves one way for the two to
+    // refuses the opposite order (see RoutineRefusal.HasParty), which leaves one way for the two to
     // disagree and one answer to it.
     CharacterBossSkip.deleteWhere {
         (CharacterBossSkip.characterId eq characterId) and (CharacterBossSkip.bossCatalogId eq bossCatalogId)

@@ -19,7 +19,7 @@ fun Route.bossRoutes() {
     get { listBosses() }
     get("/clears") { getCurrentBossClears() }
     put("/clears") { setBossClearRoute() }
-    put("/skips") { setBossSkipRoute() }
+    put("/routine") { setBossRoutineRoute() }
     get("/drops") { getDropTables() }
 }
 
@@ -115,15 +115,15 @@ internal suspend fun RoutingContext.setBossClearRoute() {
 }
 
 /**
- * Marks a boss as one this character does not run, or takes the mark back.
+ * Replaces which bosses a character runs, in one save.
  *
- * Refused with a 409 when a party config already covers the pair: the config says who they run it
- * with and at what difficulty, which is the same claim in more detail, and the two cannot both be
- * true. Answers with the refreshed view for the reason a tick does.
+ * The whole set at once, because the editor is a checklist of every boss and what it has to say is
+ * "this is the routine now". Answers with the refreshed matrix so the page that sent it does not
+ * have to work out what changed.
  */
-internal suspend fun RoutingContext.setBossSkipRoute() {
+internal suspend fun RoutingContext.setBossRoutineRoute() {
     val (userId, email) = call.principalIdAndEmail()
-    val request = call.receive<SetBossSkipRequest>()
+    val request = call.receive<SetBossRoutineRequest>()
     val characterId =
         Uuid.parseOrNull(request.characterId)
             ?: return call.respond(HttpStatusCode.BadRequest, "malformed characterId")
@@ -132,14 +132,18 @@ internal suspend fun RoutingContext.setBossSkipRoute() {
     val outcome =
         transaction {
             ensureUser(userId, email)
-            val refusal = setBossSkip(userId, characterId, request.bossKey, request.skipped, now)
+            val refusal = setBossRoutine(userId, characterId, request.skippedBossKeys, now)
             refusal ?: clearsView(userId, null, now)
         }
     when (outcome) {
-        SkipRefusal.UNKNOWN -> call.respond(HttpStatusCode.NotFound)
-        // Shown to the user as-is, so they are sentences rather than error codes.
-        SkipRefusal.HAS_PARTY -> call.respond(HttpStatusCode.Conflict, "Has a party for that boss.")
-        SkipRefusal.HAS_CLEAR -> call.respond(HttpStatusCode.Conflict, "Cleared this period.")
+        is RoutineRefusal.Unknown -> call.respond(HttpStatusCode.NotFound)
+        // Shown to the user as-is, so it is a sentence rather than an error code. The editor locks
+        // these bosses, so meeting this means the two got out of step.
+        is RoutineRefusal.HasParty ->
+            call.respond(
+                HttpStatusCode.Conflict,
+                "${outcome.bossNames.joinToString(", ")}: remove the party first.",
+            )
         else -> call.respond(outcome as BossClearsViewResponse)
     }
 }

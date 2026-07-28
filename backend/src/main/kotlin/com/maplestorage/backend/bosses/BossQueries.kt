@@ -149,7 +149,6 @@ internal fun setBossClearByHand(
         row[capturedAt] = now
         row[sourceScreenshotId] = null
     }
-    if (cleared) unskipCleared(characterId, boss[BossCatalog.id])
     return true
 }
 
@@ -190,6 +189,5 @@ internal fun upsertBossClears(
             r[BossClear.capturedAt] = capturedAt
             r[sourceScreenshotId] = screenshotId
         }
-        if (clear.cleared) unskipCleared(characterId, row[BossCatalog.id])
     }
 }
