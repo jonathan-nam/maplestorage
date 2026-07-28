@@ -90,10 +90,6 @@ export default function DropLogPage() {
       </p>
 
       <h1 className="page-title">Drop Log</h1>
-      <p className="split-intro">
-        Every drop your parties have logged, newest first
-        {money ? ", and what it made" : ""}. Add drops in a party&apos;s own pool.
-      </p>
 
       {state === "error" && <p>Couldn&apos;t load your drops.</p>}
       {state === "loading" && <p className="party-hint">Loading...</p>}

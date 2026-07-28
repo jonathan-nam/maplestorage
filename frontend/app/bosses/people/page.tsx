@@ -86,9 +86,6 @@ export default function PeoplePage() {
         <Link href="/bosses/parties/edit">&larr; Edit parties</Link>
       </p>
       <h1 className="page-title">People</h1>
-      <p className="split-intro">
-        Who plays which character. Add a person, then list the characters they play.
-      </p>
 
       {state === "error" && <p>Couldn&apos;t load your people.</p>}
       {state === "loading" && <p className="party-hint">Loading...</p>}

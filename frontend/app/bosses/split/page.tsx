@@ -47,10 +47,6 @@ export default function DropSplitPage() {
     <main className="page">
       <h1 className="page-title">Split Utility</h1>
 
-      <p className="split-intro">
-        A simple utility for calculating bossing splits in GMS Interactive worlds.
-      </p>
-
       <div className="split-form">
         <div className="split-field">
           <span className="basis-row">
