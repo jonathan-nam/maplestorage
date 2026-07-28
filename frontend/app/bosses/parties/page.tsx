@@ -120,6 +120,30 @@ export default function PartiesPage() {
     }
   }
 
+  /**
+   * Picks the new period up when the reset passes under an open tab. See ResetTimer.
+   *
+   * Both lists, because the page draws its ticks from whichever one the week calls for: the live
+   * view reads party.cleared, a past week reads the clears. Refreshing one would leave the other
+   * answering for the period that just ended.
+   *
+   * The configs themselves are untouched by a reset (the party table has no period), so what
+   * changes here is only the clear each one carries, back to "nobody has said anything yet".
+   */
+  async function refetchForReset() {
+    try {
+      const [refreshed] = await Promise.all([
+        apiFetch<Party[]>(PARTIES_KEY, { method: "GET" }, getToken),
+        loadClears(week),
+      ]);
+      setParties(refreshed);
+      put(PARTIES_KEY, refreshed);
+    } catch {
+      // The old list under a rolled-over week is wrong, but blanking the page says less than
+      // leaving it up. The next visit or step reloads it.
+    }
+  }
+
   useEffect(() => {
     // One token for the whole burst, as the boss page does: getToken() can round-trip to Clerk,
     // and four calls would pay that four times.
@@ -300,6 +324,7 @@ export default function PartiesPage() {
                 nextResets={view.nextResets}
                 serverNow={view.now}
                 receivedAt={receivedAt}
+                onReset={refetchForReset}
               />
             </div>
           )}

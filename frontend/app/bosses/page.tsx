@@ -199,10 +199,16 @@ export default function BossesPage() {
             {view && (
               <div className="boss-controls">
                 <WeekStepper view={view} onSelect={selectWeek} busy={stepping} />
+                {/* The period rolled over under an open tab, so the matrix on screen is last
+                    week's. Refetched at the week being shown, not forced back to the live view:
+                    stepping the user off a past week they were reading would be the timer moving
+                    the page. A past week's clears do not change, but its navigation does, since
+                    the week just ended became one the arrows may step to. */}
                 <ResetTimer
                   nextResets={view.nextResets}
                   serverNow={view.now}
                   receivedAt={receivedAt}
+                  onReset={refetchClears}
                 />
                 {/* Which bosses a character runs is set one character at a time, on its own page:
                     the whole set is the thing being answered, and a grid of cells cannot show one

@@ -49,3 +49,44 @@ export function msUntil(targetIso: string, serverNow: number): number {
   const target = Date.parse(targetIso);
   return Number.isNaN(target) ? 0 : target - serverNow;
 }
+
+/**
+ * The soonest instant any cadence rolls over at, or null if none of them parse.
+ *
+ * Every cadence, not only the two the timer draws. Hiding the daily countdown is a display choice
+ * (a nightly clock is not something you plan around), but a daily period rolling over makes the
+ * screen just as stale as a weekly one, and a screen nobody told is the whole problem here.
+ */
+export function earliestReset(nextResets: Record<string, string>): string | null {
+  let soonest: string | null = null;
+  let soonestMs = Infinity;
+  for (const at of Object.values(nextResets)) {
+    const ms = Date.parse(at);
+    if (Number.isNaN(ms) || ms >= soonestMs) continue;
+    soonestMs = ms;
+    soonest = at;
+  }
+  return soonest;
+}
+
+/**
+ * The boundary worth telling the page about, or null when there is nothing new to say.
+ *
+ * Reset writes nothing (see backend BossPeriod.kt), so a period rolls over with no request having
+ * been made: an open tab keeps drawing last week until something refetches. This is what notices,
+ * and the pages hang their refetch off it.
+ *
+ * Keyed on the instant rather than a boolean, so it fires ONCE per boundary instead of every tick
+ * past it. That also decides what happens when the refetch fails: the served instant is unchanged,
+ * so it is not announced twice and the page keeps its old data rather than retrying every second.
+ * A stale screen is what a failed request already leaves; a request per second is worse.
+ */
+export function resetToAnnounce(
+  nextResets: Record<string, string>,
+  serverNow: number,
+  announced: string | null,
+): string | null {
+  const soonest = earliestReset(nextResets);
+  if (soonest === null || soonest === announced) return null;
+  return msUntil(soonest, serverNow) <= 0 ? soonest : null;
+}

@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { formatCountdown, msUntil, serverNowMs } from "./reset-countdown";
+import {
+  earliestReset,
+  formatCountdown,
+  msUntil,
+  resetToAnnounce,
+  serverNowMs,
+} from "./reset-countdown";
 
 const SECOND = 1000;
 const MINUTE = 60 * SECOND;
@@ -66,5 +72,65 @@ describe("msUntil", () => {
     // NaN would render as "NaNd NaNh". Showing "now" is wrong too, but it is wrong in a way that
     // resolves on the next poll instead of persisting as garbage.
     expect(msUntil("not-a-date", Date.now())).toBe(0);
+  });
+});
+
+const RESETS = {
+  WEEKLY: "2026-07-30T00:00:00Z",
+  DAILY: "2026-07-29T00:00:00Z",
+  MONTHLY: "2026-08-01T00:00:00Z",
+};
+
+describe("earliestReset", () => {
+  it("takes the soonest cadence, not the first or the one the timer leads with", () => {
+    // DAILY is not drawn, and WEEKLY is listed first. Neither decides staleness.
+    expect(earliestReset(RESETS)).toBe(RESETS.DAILY);
+  });
+
+  it("skips a cadence it cannot parse instead of letting it win as NaN", () => {
+    expect(earliestReset({ DAILY: "not-a-date", WEEKLY: RESETS.WEEKLY })).toBe(RESETS.WEEKLY);
+  });
+
+  it("has nothing to say about an empty or wholly unparseable set", () => {
+    expect(earliestReset({})).toBeNull();
+    expect(earliestReset({ WEEKLY: "not-a-date" })).toBeNull();
+  });
+});
+
+describe("resetToAnnounce", () => {
+  const before = Date.parse("2026-07-28T23:59:59Z");
+  const after = Date.parse("2026-07-29T00:00:01Z");
+
+  it("says nothing while the soonest boundary is still ahead", () => {
+    expect(resetToAnnounce(RESETS, before, null)).toBeNull();
+  });
+
+  it("announces the boundary once it has passed", () => {
+    expect(resetToAnnounce(RESETS, after, null)).toBe(RESETS.DAILY);
+  });
+
+  it("announces the instant itself, with nothing left over", () => {
+    // The tick that lands exactly on the boundary has already rolled over. Requiring it to be
+    // strictly past would hold the refetch for a whole second on the one tick that is certain.
+    expect(resetToAnnounce(RESETS, Date.parse(RESETS.DAILY), null)).toBe(RESETS.DAILY);
+  });
+
+  it("does not announce the same boundary twice", () => {
+    // The timer keeps ticking past a boundary the server has not moved yet, which is exactly what
+    // happens when the refetch fails. One stale screen beats a request every second.
+    expect(resetToAnnounce(RESETS, after, RESETS.DAILY)).toBeNull();
+    expect(resetToAnnounce(RESETS, after + 60_000, RESETS.DAILY)).toBeNull();
+  });
+
+  it("announces the next one after a refetch moves the boundary along", () => {
+    // What the server answers once the daily period it was counting to has started.
+    const moved = { ...RESETS, DAILY: "2026-07-30T00:00:00Z" };
+    expect(resetToAnnounce(moved, Date.parse("2026-07-30T00:00:01Z"), RESETS.DAILY)).toBe(
+      "2026-07-30T00:00:00Z",
+    );
+  });
+
+  it("says nothing when no cadence was served", () => {
+    expect(resetToAnnounce({}, after, null)).toBeNull();
   });
 });
