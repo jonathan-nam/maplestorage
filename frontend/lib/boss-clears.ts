@@ -130,6 +130,56 @@ export function indexSkips(skips: Record<string, string[]>): Map<string, Set<str
   return new Map(Object.entries(skips).map(([characterId, keys]) => [characterId, new Set(keys)]));
 }
 
+/**
+ * How far through a set of bosses a period is.
+ *
+ * `total` is null for "not known", which is not the same as zero. A past week is served without
+ * routine marks (BossRoutes.kt sends emptyMap there), so there is no stated set of bosses to run to
+ * count against. The clears themselves are still known, so the count is shown without a denominator
+ * rather than against one nobody gave.
+ */
+export type ClearProgress = { cleared: number; total: number | null };
+
+/**
+ * Cleared, against the number to run.
+ *
+ * `skipped` leaves the denominator, which is the whole return on marking a routine: a character who
+ * runs four of sixteen bosses reads 4/4 and stops looking behind.
+ *
+ * `unseen` stays IN it, and that asymmetry is the load-bearing part. A boss nobody has captured is
+ * still one to run until someone says otherwise, and dropping it would shrink the denominator to
+ * nothing every Thursday, when no capture has landed yet and every cell is unseen. 0/0 reads as a
+ * week with no work left in it, which is the flattering direction to be wrong in and the one this
+ * project exists to refuse. Counting it can only ever overstate the work remaining.
+ *
+ * `routineKnown` is passed rather than inferred from the absence of skips, which would reach the
+ * same denominator by accident on a past week and state it as confidently as a live one.
+ */
+export function clearProgress(states: CellState[], routineKnown: boolean): ClearProgress {
+  const cleared = states.filter((s) => s === "cleared").length;
+  if (!routineKnown) return { cleared, total: null };
+  return { cleared, total: states.filter((s) => s !== "skipped").length };
+}
+
+/** "8/12 cleared", said in full, for a heading that has room for the words. */
+export function progressLabel(p: ClearProgress): string {
+  if (p.total === null) return `${p.cleared} cleared`;
+  if (p.total === 0) return "none to run";
+  return `${p.cleared}/${p.total} cleared`;
+}
+
+/**
+ * The same answer for a cell, where the row already says "cleared".
+ *
+ * A character with nothing to run gets the matrix's own "doesn't run" glyph rather than 0/0, which
+ * reads as a target of zero that has been met.
+ */
+export function progressMark(p: ClearProgress): string {
+  if (p.total === null) return `${p.cleared}`;
+  if (p.total === 0) return "·";
+  return `${p.cleared}/${p.total}`;
+}
+
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 /**

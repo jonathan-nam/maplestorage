@@ -120,10 +120,7 @@ export default function BossRoutinePage() {
         <Link href="/bosses">&larr; Individual View</Link>
       </p>
       <h1 className="page-title">Who runs what</h1>
-      <p className="split-intro">
-        Pick a character, then untick the bosses they don&apos;t run. Unticked bosses stop counting
-        towards the week.
-      </p>
+      <p className="split-intro">Which bosses each character runs.</p>
 
       {state === "error" && <p>Couldn&apos;t load your bosses.</p>}
       {state === "loading" && <p className="party-hint">Loading...</p>}

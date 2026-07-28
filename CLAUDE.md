@@ -28,6 +28,30 @@ Concretely:
 None of this licenses a screen that hides what it dropped. A count that changed still gets said, and
 "prefer refusing to answer over guessing" still holds. Say it short, not never.
 
+### The default is no prose
+
+Narration is the default failure, so the default has to be silence. **Do not write UI text unless
+something on screen is wrong without it.** Adding a sentence is a decision that needs a reason, the
+same as adding a comment.
+
+The second time this happened it was not a caveat but an intro, on `/bosses/routine`:
+
+> Pick a character, then untick the bosses they don't run. Unticked bosses stop counting towards
+> the week.
+
+A tour of the controls, then the mechanism behind them. The controls are a picker and a list of
+checkboxes, which need no instructions, and what unticking does is visible the moment you do it. It
+was replaced by a label of what the page is:
+
+> Which bosses each character runs.
+
+Which is the shape the sibling page already used ("Which bosses each character has cleared this
+period."). Two rules fall out:
+
+- **Never explain a control.** If a button needs a sentence, fix the button.
+- **A page intro names what the page shows, in one line, or there is no intro.** Not what to do
+  with it, not what happens afterwards.
+
 ## Comments
 
 The bar for a comment is: **it says something the code cannot.** A constraint, a measurement, a

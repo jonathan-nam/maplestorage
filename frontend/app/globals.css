@@ -1673,7 +1673,7 @@ button.link:disabled {
 /* 17 rows of small marks, and full width puts the far column ~400px from the name. Striping tells
    you which row you are on at rest; the hover band tracks the one you are reading. Without both,
    crossing the gap means counting rows. */
-.boss-table tbody tr:not(.boss-cadence-row):nth-child(even) {
+.boss-table tbody tr:not(.boss-cadence-row):not(.boss-progress-row):nth-child(even) {
   background: var(--surface);
 }
 
@@ -1684,8 +1684,9 @@ button.link:disabled {
    Both bands are semi-transparent and the cell one paints over the row one, so where they cross
    (the cell under the cursor) composites to ~28% on its own. That is deliberate: no third rule to
    keep in step with these two. */
-.boss-table tbody tr:not(.boss-cadence-row):hover,
+.boss-table tbody tr:not(.boss-cadence-row):not(.boss-progress-row):hover,
 .boss-table .boss-cell.is-col-hover,
+.boss-table .boss-progress-cell.is-col-hover,
 .boss-table .boss-char-head.is-col-hover {
   background: color-mix(in srgb, var(--accent) 15%, transparent);
 }
@@ -1749,6 +1750,66 @@ button.link:disabled {
   font-weight: 400;
   letter-spacing: 0;
   text-transform: none;
+}
+
+/* Cadence on the left, the band's progress on the right. Flexed on this inner span and not on the
+   <th>, for the reason .boss-name-inner gives. */
+.boss-cadence-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.boss-cadence-progress {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+  white-space: nowrap;
+}
+
+/* A second reading of the number beside it, never a replacement: it is short on purpose, because a
+   bar wide enough to read a value off would be a claim to precision the count already states
+   exactly. */
+.boss-progress-bar {
+  width: 56px;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--surface-2);
+  overflow: hidden;
+}
+
+.boss-progress-bar > span {
+  display: block;
+  height: 100%;
+  border-radius: 2px;
+  background: var(--accent);
+}
+
+/* Closes the band. The line above it is heavier than the one between bosses, so the summary reads
+   as the band's total rather than as a seventeenth boss. */
+.boss-progress-row .boss-name {
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.boss-progress-cell {
+  padding: 5px 8px;
+  border-top: 1px solid var(--line);
+  color: var(--ink);
+  font-size: 12px;
+  text-align: center;
+  white-space: nowrap;
+  /* The counts are read as a column of figures, so the digits have to share a width or 8/12 and
+     11/12 will not line up under each other. */
+  font-variant-numeric: tabular-nums;
 }
 
 /* 180px clears the longest name in the catalog ("Guardian Angel Slime"). It is a floor, not a cap:
