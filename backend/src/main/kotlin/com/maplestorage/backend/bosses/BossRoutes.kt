@@ -19,6 +19,7 @@ fun Route.bossRoutes() {
     get { listBosses() }
     get("/clears") { getCurrentBossClears() }
     put("/clears") { setBossClearRoute() }
+    put("/skips") { setBossSkipRoute() }
     get("/drops") { getDropTables() }
 }
 
@@ -113,6 +114,36 @@ internal suspend fun RoutingContext.setBossClearRoute() {
     if (view == null) call.respond(HttpStatusCode.NotFound) else call.respond(view)
 }
 
+/**
+ * Marks a boss as one this character does not run, or takes the mark back.
+ *
+ * Refused with a 409 when a party config already covers the pair: the config says who they run it
+ * with and at what difficulty, which is the same claim in more detail, and the two cannot both be
+ * true. Answers with the refreshed view for the reason a tick does.
+ */
+internal suspend fun RoutingContext.setBossSkipRoute() {
+    val (userId, email) = call.principalIdAndEmail()
+    val request = call.receive<SetBossSkipRequest>()
+    val characterId =
+        Uuid.parseOrNull(request.characterId)
+            ?: return call.respond(HttpStatusCode.BadRequest, "malformed characterId")
+    val now = Clock.System.now()
+
+    val outcome =
+        transaction {
+            ensureUser(userId, email)
+            val refusal = setBossSkip(userId, characterId, request.bossKey, request.skipped, now)
+            refusal ?: clearsView(userId, null, now)
+        }
+    when (outcome) {
+        SkipRefusal.UNKNOWN -> call.respond(HttpStatusCode.NotFound)
+        // Shown to the user as-is, so they are sentences rather than error codes.
+        SkipRefusal.HAS_PARTY -> call.respond(HttpStatusCode.Conflict, "Has a party for that boss.")
+        SkipRefusal.HAS_CLEAR -> call.respond(HttpStatusCode.Conflict, "Cleared this period.")
+        else -> call.respond(outcome as BossClearsViewResponse)
+    }
+}
+
 /** The matrix as of [now], for the current period when [week] is null. Call inside a transaction. */
 private fun clearsView(
     userId: String,
@@ -127,6 +158,9 @@ private fun clearsView(
     val clears = if (week == null) currentBossClearsFor(userId, now) else weeklyClearsFor(userId, week)
     return BossClearsViewResponse(
         clearsByCharacter = clears,
+        // Current view only. A skip is true as of now, so painting it over a past week would state
+        // it about a week nobody said it about.
+        skipsByCharacter = if (week == null) bossSkipsFor(userId) else emptyMap(),
         weekStart = week?.toString(),
         previousWeekStart = navigation.previous?.toString(),
         nextWeekStart = navigation.next?.toString(),

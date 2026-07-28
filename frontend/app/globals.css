@@ -1831,10 +1831,11 @@ button.link:disabled {
   cursor: default;
 }
 
-/* Three marks, no fills. Each state says its own name: a tick for done, nothing at all for still
-   to do, a dash for nothing reported. Filling the cells was tried and taken back out: colour put
-   the state in the same channel as the row striping, and every palette for it was an argument
-   about the palette rather than about the table. */
+/* Four states, three marks and one gap, no fills. Each says its own name: a tick for done, nothing
+   at all for still to do, a dash for nothing reported, a dot for a boss this character does not
+   run. Filling the cells was tried and taken back out: colour put the state in the same channel as
+   the row striping, and every palette for it was an argument about the palette rather than about
+   the table. */
 .boss-cell.is-cleared {
   color: var(--ink);
 }
@@ -1852,17 +1853,27 @@ button.link:disabled {
   color: var(--muted-2);
 }
 
-/* Nothing left to do on this boss, so the row goes quiet: the name mutes and the portrait
-   desaturates. A row with work left keeps its full weight, so the table reads as the list of what
-   is left.
-   Only when EVERY cell is cleared, see rowFullyCleared: a row holding an unreported character is
-   not a row that is done, and dimming it would be this feature's one unforgivable bug. */
-
-.boss-table tr.is-row-cleared .boss-name {
+/* A boss this character does not run. A mark and not a gap: the gap is already "not cleared", and
+   the whole point of the mark is that those two were the same cell before it existed. Quiet, but
+   not so quiet it reads as the gap, for the reason the dash has a floor. */
+.boss-cell.is-skipped {
   color: var(--muted-2);
 }
 
-.boss-table tr.is-row-cleared .boss-portrait {
+/* Nothing left to do on this boss, so the row goes quiet: the name mutes and the portrait
+   desaturates. A row with work left keeps its full weight, so the table reads as the list of what
+   is left.
+   Only when every character who RUNS it is cleared, see rowFullyCleared: a row holding an
+   unreported character is not a row that is done, and dimming it would be this feature's one
+   unforgivable bug. A row nobody runs dims too but is not the same fact, hence its own class. */
+
+.boss-table tr.is-row-cleared .boss-name,
+.boss-table tr.is-row-unrun .boss-name {
+  color: var(--muted-2);
+}
+
+.boss-table tr.is-row-cleared .boss-portrait,
+.boss-table tr.is-row-unrun .boss-portrait {
   opacity: 0.5;
   filter: saturate(0.3);
 }
@@ -1901,8 +1912,42 @@ button.link:disabled {
   border-radius: 2px;
 }
 
-.boss-key.is-unseen {
+.boss-key.is-unseen,
+.boss-key.is-skipped {
   color: var(--muted-2);
+}
+
+/* Sits with the week picker and the clocks. Pressed is a state, not a second button, so it stays
+   in place and only its label changes. */
+.boss-routine-toggle {
+  padding: 2px 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.4;
+  cursor: pointer;
+}
+
+.boss-routine-toggle[aria-pressed="true"] {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.boss-routine-note,
+.boss-routine-refused {
+  margin: 0 0 10px;
+  font-size: 12px;
+}
+
+.boss-routine-note {
+  color: var(--muted-2);
+}
+
+.boss-routine-refused {
+  color: var(--ink);
 }
 
 /* Week picker on the left, reset clocks on the right, above the table. They wrap onto two lines on

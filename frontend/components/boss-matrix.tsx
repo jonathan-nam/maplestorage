@@ -9,10 +9,12 @@ import {
   clearOfCell,
   formatPeriod,
   indexClears,
+  indexSkips,
   nextClear,
   rowFullyCleared,
+  rowNobodyRuns,
 } from "@/lib/boss-clears";
-import type { Boss, BossClearsByCharacter } from "@/types/boss";
+import type { Boss, BossClearsByCharacter, BossSkipsByCharacter } from "@/types/boss";
 import type { Character } from "@/types/character";
 
 // Bosses on the ROWS, characters on the columns.
@@ -56,17 +58,30 @@ export function BossMatrix({
   bosses,
   characters,
   clearsByCharacter,
+  skipsByCharacter,
   loading,
   historyWeek,
+  editing = "clears",
   onToggle,
+  onToggleSkip,
   busy,
 }: {
   bosses: Boss[];
   characters: Pick<Character, "id" | "name" | "spriteImgUrl">[];
   clearsByCharacter: BossClearsByCharacter;
+  /** Bosses each character does not run. Empty on a past week, which is not a period this answers for. */
+  skipsByCharacter?: BossSkipsByCharacter;
   loading?: boolean;
   // Set when showing a past week rather than the current period. See the cadence filter below.
   historyWeek?: string | null;
+  /**
+   * Which question a click answers: did this get cleared, or does this character run it at all.
+   *
+   * A mode rather than a third stop on the click cycle. Ticking clears is the weekly job and
+   * marking a routine is done once, so making every tick step past "doesn't run" would tax the
+   * common case for the rare one.
+   */
+  editing?: "clears" | "routine";
   /**
    * Answers a cell by hand, without a planner capture. Omitted for a read-only matrix: a past week
    * is shown, not edited, the same rule Party View's cards follow.
@@ -76,6 +91,8 @@ export function BossMatrix({
    * here, so the mark a click leaves is always an answer rather than a return to silence.
    */
   onToggle?: (characterId: string, bossKey: string, cleared: boolean) => void;
+  /** Marks a boss as one this character does not run, or takes the mark back. Routine mode only. */
+  onToggleSkip?: (characterId: string, bossKey: string, skipped: boolean) => void;
   /** A tick is in flight. Ticks serialise, so the matrix always draws what the server last said. */
   busy?: boolean;
 }) {
@@ -89,11 +106,16 @@ export function BossMatrix({
   const [hoveredColumn, setHoveredColumn] = useState<string | null>(null);
   const colClass = (characterId: string) => (hoveredColumn === characterId ? " is-col-hover" : "");
 
-  // Indexed per character; see lib/boss-clears.ts for why the three cell states are three.
+  // Indexed per character; see lib/boss-clears.ts for why the four cell states are four.
   const byCharacter = new Map<string, Map<string, boolean>>();
   for (const [characterId, clears] of Object.entries(clearsByCharacter)) {
     byCharacter.set(characterId, indexClears(clears));
   }
+  const skipsBy = indexSkips(skipsByCharacter ?? {});
+
+  // Whether a click writes a clear or a routine mark. A past week passes neither handler, so it
+  // stays read-only in either mode.
+  const routine = editing === "routine" && !!onToggleSkip;
 
   // The period each cadence is currently in, taken from the data rather than recomputed. The reset
   // boundary lives in the backend (bosses/BossPeriod.kt); working it out again here would be a
@@ -172,17 +194,27 @@ export function BossMatrix({
               .map((boss) => (
                 <tr
                   key={boss.bossKey}
-                  // Nothing left to do on this boss, so the row steps back. See rowFullyCleared for
-                  // why an unreported character does not count towards it.
+                  // Nothing left to do on this boss, so the row steps back. Two ways to get there
+                  // and they are not the same fact: everyone who runs it is done, or nobody runs
+                  // it at all. See rowFullyCleared for why an unreported character counts as
+                  // neither.
                   className={
-                    !loading &&
-                    rowFullyCleared(
-                      byCharacter,
-                      columns.map((c) => c.id),
-                      boss.bossKey,
-                    )
-                      ? "is-row-cleared"
-                      : undefined
+                    loading
+                      ? undefined
+                      : rowNobodyRuns(
+                            columns.map((c) => c.id),
+                            boss.bossKey,
+                            skipsBy,
+                          )
+                        ? "is-row-unrun"
+                        : rowFullyCleared(
+                              byCharacter,
+                              columns.map((c) => c.id),
+                              boss.bossKey,
+                              skipsBy,
+                            )
+                          ? "is-row-cleared"
+                          : undefined
                   }
                 >
                   <th className="boss-name" scope="row">
@@ -212,25 +244,47 @@ export function BossMatrix({
                         </td>
                       );
                     }
-                    const state = cellState(byCharacter.get(character.id), boss.bossKey);
+                    const state = cellState(
+                      byCharacter.get(character.id),
+                      boss.bossKey,
+                      skipsBy.get(character.id),
+                    );
                     // Decorative; `said` is what a screen reader gets, and "not reported" is
-                    // deliberately not "not cleared". Not-cleared is the empty one of the three:
-                    // it is the only state you find by the gap it leaves, and the other two have
-                    // to be marks so that gap means something.
-                    const mark = state === "cleared" ? "✓" : state === "unseen" ? "–" : "";
+                    // deliberately not "not cleared". Not-cleared is the empty one of the four:
+                    // it is the only state you find by the gap it leaves, and the others have to
+                    // be marks so that gap means something.
+                    const mark =
+                      state === "cleared"
+                        ? "✓"
+                        : state === "unseen"
+                          ? "–"
+                          : state === "skipped"
+                            ? "·"
+                            : "";
                     const said =
-                      state === "unseen"
-                        ? `${boss.name} ${cellStateLabel(state)} for ${character.name}`
-                        : `${boss.name} ${cellStateLabel(state)} by ${character.name}`;
+                      state === "cleared" || state === "pending"
+                        ? `${boss.name} ${cellStateLabel(state)} by ${character.name}`
+                        : `${boss.name}, ${character.name} ${cellStateLabel(state)}`;
+
+                    // A cell nobody runs is not a clear to tick, so it takes itself out of the way
+                    // in clear mode. Say so in routine mode instead, which is where it is answered.
+                    const clickable = routine || (!!onToggle && state !== "skipped");
+                    const title = routine
+                      ? state === "skipped"
+                        ? "Mark runs this"
+                        : "Mark doesn't run"
+                      : state === "cleared"
+                        ? "Mark not cleared"
+                        : "Mark cleared";
                     return (
                       <td
                         key={character.id}
                         // is-editable moves the cell's padding onto the button, so the click
                         // target is the whole cell rather than the glyph in the middle of it.
-                        className={`boss-cell is-${state}${onToggle ? " is-editable" : ""}${colClass(character.id)}`}
+                        className={`boss-cell is-${state}${clickable ? " is-editable" : ""}${colClass(character.id)}`}
                         onMouseEnter={() => setHoveredColumn(character.id)}
                       >
-                        {onToggle ? (
+                        {clickable ? (
                           // The cell IS the control, rather than a mark with a control beside it:
                           // 16 bosses by a roster's worth of columns leaves no room for a second
                           // thing per cell, and the mark is already what you are aiming at.
@@ -238,9 +292,15 @@ export function BossMatrix({
                             type="button"
                             className="boss-mark"
                             disabled={busy}
-                            title={state === "cleared" ? "Mark not cleared" : "Mark cleared"}
+                            title={title}
                             onClick={() =>
-                              onToggle(character.id, boss.bossKey, nextClear(clearOfCell(state)))
+                              routine
+                                ? onToggleSkip!(character.id, boss.bossKey, state !== "skipped")
+                                : onToggle!(
+                                    character.id,
+                                    boss.bossKey,
+                                    nextClear(clearOfCell(state)),
+                                  )
                             }
                           >
                             <span aria-hidden="true">{mark}</span>
@@ -274,6 +334,7 @@ export function BossMatrix({
             <span className="boss-key is-pending" /> {cellStateLabel("pending")}
             <span className="boss-key is-unseen">–</span> {cellStateLabel("unseen")}: no capture
             this period
+            <span className="boss-key is-skipped">·</span> {cellStateLabel("skipped")}
           </p>
           {/* Said, not left as an absence: a reader who knows Zakum is in the catalog should not
               read its missing row as the week having lost it. Why only weekly is answerable is in

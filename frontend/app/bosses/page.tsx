@@ -6,7 +6,7 @@ import { BossMatrix } from "@/components/boss-matrix";
 import { PlannerDock } from "@/components/planner-dock";
 import { ResetTimer } from "@/components/reset-timer";
 import { WeekStepper } from "@/components/week-stepper";
-import { apiFetch } from "@/lib/api";
+import { ApiError, apiFetch } from "@/lib/api";
 import { preloadBossArt } from "@/lib/preload-boss-art";
 import { peek, put } from "@/lib/cache";
 import type { Boss, BossClearsView } from "@/types/boss";
@@ -17,6 +17,7 @@ type LoadState = "loading" | "loaded" | "error";
 const BOSSES_KEY = "/api/bosses";
 const CLEARS_KEY = "/api/bosses/clears";
 const CHARACTERS_KEY = "/api/characters";
+const SKIPS_KEY = "/api/bosses/skips";
 
 // Only the current view is cached. A past week is reached by a deliberate click and is worth a
 // round-trip; caching every week stepped through would grow without bound for no visible gain.
@@ -46,6 +47,10 @@ export default function BossesPage() {
   const [stepping, setStepping] = useState(false);
   const [ticking, setTicking] = useState(false);
   const [uploadFor, setUploadFor] = useState<string | null>(null);
+  const [editing, setEditing] = useState<"clears" | "routine">("clears");
+  // Why the last routine mark was refused, straight from the server. Cleared on the next click, so
+  // it never outlives the cell it was about.
+  const [refused, setRefused] = useState<string | null>(null);
 
   // Clicking the arrow twice quickly fires two requests, and they can land in either order. Only
   // the newest one may write state, or the matrix ends up showing a week the label disagrees with.
@@ -101,6 +106,35 @@ export default function BossesPage() {
       put(CLEARS_KEY, result);
     } catch {
       // Leaving the old mark up beats drawing a tick that did not save.
+    } finally {
+      setTicking(false);
+    }
+  }
+
+  /**
+   * Says a character does not run a boss, or takes it back.
+   *
+   * Not a clear, and not filed as one: the row it writes carries no period, so it survives the
+   * reset that wipes the matrix every Thursday. The server refuses a mark that contradicts a party
+   * config or a clear already in this period, and that refusal is shown rather than swallowed: a
+   * click that silently does nothing reads as a bug in the page.
+   */
+  async function toggleSkip(characterId: string, bossKey: string, skipped: boolean) {
+    const ticket = ++latestRequest.current;
+    setTicking(true);
+    setRefused(null);
+    try {
+      const result = await apiFetch<BossClearsView>(
+        SKIPS_KEY,
+        { method: "PUT", body: JSON.stringify({ characterId, bossKey, skipped }) },
+        getToken,
+      );
+      if (ticket !== latestRequest.current) return;
+      setView(result);
+      setReceivedAt(Date.now());
+      put(CLEARS_KEY, result);
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 409) setRefused(error.body);
     } finally {
       setTicking(false);
     }
@@ -177,8 +211,28 @@ export default function BossesPage() {
                   serverNow={view.now}
                   receivedAt={receivedAt}
                 />
+                {/* Offered on the live view only, like the tick and the dock. A past week carries
+                    no marks to edit. */}
+                {week === null && (
+                  <button
+                    type="button"
+                    className="boss-routine-toggle"
+                    aria-pressed={editing === "routine"}
+                    onClick={() => {
+                      setEditing((mode) => (mode === "routine" ? "clears" : "routine"));
+                      setRefused(null);
+                    }}
+                  >
+                    {editing === "routine" ? "Done" : "Who runs what"}
+                  </button>
+                )}
               </div>
             )}
+
+            {editing === "routine" && week === null && (
+              <p className="boss-routine-note">Click a cell to say it isn&apos;t run.</p>
+            )}
+            {refused && <p className="boss-routine-refused">{refused}</p>}
 
             {/* Editable on the live view only, for the reason the dock below is only offered
                 there: a past week carries weekly rows alone, so a tick on it would have no one
@@ -187,8 +241,11 @@ export default function BossesPage() {
               bosses={bosses}
               characters={characters}
               clearsByCharacter={view?.clearsByCharacter ?? {}}
+              skipsByCharacter={view?.skipsByCharacter ?? {}}
               historyWeek={view?.weekStart ?? null}
+              editing={editing}
               onToggle={week === null ? toggleClear : undefined}
+              onToggleSkip={week === null ? toggleSkip : undefined}
               busy={ticking || stepping}
             />
 

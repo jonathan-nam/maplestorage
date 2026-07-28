@@ -44,6 +44,19 @@ data class SetBossClearRequest(
 )
 
 /**
+ * A boss this character does not run, said by hand.
+ *
+ * No period, unlike SetBossClearRequest. "Only my main runs Jupiter" is a fact about the character,
+ * not about this week, so it outlives the reset that wipes the clears.
+ */
+@Serializable
+data class SetBossSkipRequest(
+    val characterId: String,
+    val bossKey: String,
+    val skipped: Boolean,
+)
+
+/**
  * One view of the matrix: either the current period or one past week.
  *
  * The navigation is served rather than computed client side for the reason the period label already
@@ -54,6 +67,10 @@ data class SetBossClearRequest(
 @Serializable
 data class BossClearsViewResponse(
     val clearsByCharacter: Map<String, List<BossClearResponse>>,
+    // character id -> the boss keys that character does not run. Sent on the current view only, and
+    // empty on a past week: the marks say what is true now, and drawing them over an old week would
+    // date a standing fact to a week it may not have been true in.
+    val skipsByCharacter: Map<String, List<String>> = emptyMap(),
     // Null for the current view, which spans three cadences and so has no single period. Set to the
     // week being shown when the user has stepped back.
     val weekStart: String?,

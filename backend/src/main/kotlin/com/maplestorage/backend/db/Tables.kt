@@ -158,6 +158,17 @@ object BossClear : Table("boss_clear") {
     override val primaryKey = PrimaryKey(characterId, bossCatalogId, periodStart)
 }
 
+// Bosses a character does not run, so an empty cell can say which kind of empty it is. A standing
+// fact with no period: see V25__character_boss_skip.sql for why it is an exclusion list and why it
+// is never inferred from a capture.
+object CharacterBossSkip : Table("character_boss_skip") {
+    val characterId = reference("character_id", Characters.id)
+    val bossCatalogId = reference("boss_catalog_id", BossCatalog.id)
+    val createdAt = timestamp("created_at")
+
+    override val primaryKey = PrimaryKey(characterId, bossCatalogId)
+}
+
 // One of YOUR characters, on one boss, with the people that character runs it with. A roster only:
 // what was actually killed stays in BossClear, which comes from a planner capture.
 // See V16__party.sql and V22__party_config.sql.

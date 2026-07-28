@@ -24,11 +24,17 @@ export type BossClear = {
 // Keyed by character id, as /api/bosses/clears returns it.
 export type BossClearsByCharacter = Record<string, BossClear[]>;
 
+// Character id -> the boss keys that character does not run. A standing fact with no period, which
+// is what separates it from a clear: see V25__character_boss_skip.sql.
+export type BossSkipsByCharacter = Record<string, string[]>;
+
 // One view of the matrix, as /api/bosses/clears returns it. The navigation and the reset instants
 // are served, not computed here, so the reset boundary keeps its single implementation in
 // bosses/BossPeriod.kt. See BossClearsViewResponse.
 export type BossClearsView = {
   clearsByCharacter: BossClearsByCharacter;
+  // Empty on a past week. The marks say what is true now, so they are not painted over old weeks.
+  skipsByCharacter: BossSkipsByCharacter;
   // Null when showing the current period, which spans all three cadences.
   weekStart: string | null;
   // Null at either end of the stored history.
