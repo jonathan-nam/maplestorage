@@ -21,7 +21,7 @@ import {
 import { planNight, screenRuns, tradeOffs } from "@/lib/boss-run-plan";
 import { peek, put } from "@/lib/cache";
 import { isCleared } from "@/lib/parties";
-import { preloadBossArt } from "@/lib/preload-boss-art";
+import { preloadRunArt } from "@/lib/preload-boss-art";
 import type { Boss } from "@/types/boss";
 import type { Party } from "@/types/party";
 
@@ -76,7 +76,7 @@ function parseDrafts(raw: string | null): DraftRun[] {
 }
 
 export default function RunOrderPage() {
-  preloadBossArt();
+  preloadRunArt();
   const { getToken } = useAuth();
 
   const seededParties = peek<Party[]>(PARTIES_KEY);

@@ -1,6 +1,6 @@
 import { preload } from "react-dom";
 import { apiAssetUrl } from "./api";
-import { BOSS_ART } from "./boss-art";
+import { BOSS_ART, BOSS_ART_2X } from "./boss-art";
 
 // Start the portraits downloading at first render.
 //
@@ -14,6 +14,13 @@ import { BOSS_ART } from "./boss-art";
 // this is meant to remove. `preload` de-duplicates, so calling it on every render is free.
 export function preloadBossArt(): void {
   for (const path of Object.values(BOSS_ART)) {
+    preload(apiAssetUrl(path), { as: "image" });
+  }
+}
+
+/** The same, for Run Order, which draws the 80px portraits and never the 26px ones. */
+export function preloadRunArt(): void {
+  for (const path of Object.values(BOSS_ART_2X)) {
     preload(apiAssetUrl(path), { as: "image" });
   }
 }

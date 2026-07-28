@@ -64,6 +64,49 @@ def test_the_committed_assets_are_what_the_builder_cuts_today(capture):
         assert np.array_equal(committed, cut[key]), key
 
 
+def test_every_tracked_boss_has_a_committed_run_art():
+    # The 26px asset and the 80px one are drawn in different places, so a boss with only the first
+    # loses its art on Run Order and nowhere else. catalog/build.py checks for both too.
+    missing = sorted(
+        key for key in _tracked() if not (B.OUT / f"{key}{B.RUN_ART_SUFFIX}.png").exists()
+    )
+    assert missing == []
+
+
+def test_the_committed_run_art_is_what_the_builder_makes_today():
+    for key in sorted(_tracked()):
+        tile = cv2.imread(str(B.OUT / f"{key}.png"))
+        committed = cv2.imread(str(B.OUT / f"{key}{B.RUN_ART_SUFFIX}.png"))
+        assert committed is not None, key
+        assert committed.shape[:2] == (B.RUN_ART_PX, B.RUN_ART_PX), key
+        assert np.array_equal(committed, B.run_art(tile)), key
+
+
+def test_run_art_is_an_exact_multiple_of_the_box_it_is_drawn_in():
+    # 80px is 2x the 40px .run-art box, which is what keeps the browser reducing by exactly 2:1
+    # (or 1:1 on a 2x screen) instead of enlarging 26px art by 1.54 and stepping every edge.
+    assert B.RUN_ART_PX % 40 == 0
+
+
+def test_scale2x_leaves_a_flat_image_flat():
+    # The guard against the rounding rule firing on its own: with no contrast there is no corner
+    # to round, and every output pixel must be the input colour.
+    flat = np.full((6, 6, 3), 200, np.uint8)
+    assert np.array_equal(B.scale2x(flat), np.full((12, 12, 3), 200, np.uint8))
+
+
+def test_scale2x_keeps_every_original_pixel_somewhere_in_its_block():
+    # Scale2x may round a corner, but it must never invent a colour: each output pixel is one of
+    # the five it read. This is what separates it from a bicubic upscale, and it is the property
+    # that makes the result still look like the game's own art.
+    src = cv2.imread(str(B.OUT / "lucid.png"))
+    out = B.scale2x(src)
+    assert out.shape == (src.shape[0] * 2, src.shape[1] * 2, 3)
+    src_colours = {tuple(c) for c in src.reshape(-1, 3)}
+    out_colours = {tuple(c) for c in out.reshape(-1, 3)}
+    assert out_colours <= src_colours
+
+
 def test_the_repeated_rows_agree_between_the_two_panels(capture):
     # Seven bosses appear in both windows. The builder keeps the left one; if the two disagreed,
     # "first wins" would be a coin toss rather than a shortcut.

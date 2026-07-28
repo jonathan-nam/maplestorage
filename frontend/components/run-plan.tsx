@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 
 import { apiAssetUrl } from "@/lib/api";
-import { BOSS_ART } from "@/lib/boss-art";
+import { BOSS_ART_2X } from "@/lib/boss-art";
 import { bossLabel } from "@/lib/boss-difficulty";
 import { formatDuration, type NightPerson, planAsText, planGrid } from "@/lib/boss-night";
 import type { Plan } from "@/lib/boss-run-plan";
@@ -61,10 +61,10 @@ export function RunPlan({ plan, roster }: { plan: Plan; roster: NightPerson[] })
                   {/* The position in the night, and not the minute it starts: that was arithmetic
                       on a flat half-hour placeholder, and #188 took it off the row. */}
                   <span className="run-number" aria-hidden="true" />
-                  {BOSS_ART[planned.run.bossKey] ? (
+                  {BOSS_ART_2X[planned.run.bossKey] ? (
                     <img
                       className="run-art"
-                      src={apiAssetUrl(BOSS_ART[planned.run.bossKey] as string)}
+                      src={apiAssetUrl(BOSS_ART_2X[planned.run.bossKey] as string)}
                       alt=""
                       width={40}
                       height={40}

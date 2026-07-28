@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { BOSS_ART, BOSS_NAMES, BOSS_SHORT_NAMES } from "./boss-art";
+import { BOSS_ART, BOSS_ART_2X, BOSS_NAMES, BOSS_SHORT_NAMES } from "./boss-art";
 
 // boss-art.ts is generated from catalog/bosses.yaml, and catalog/build.py --check keeps it in
 // step. These guard the shape rather than the contents: a generator that emitted an empty object
@@ -13,6 +13,24 @@ describe("BOSS_ART", () => {
   it("points at the backend's boss-icons route, keyed by boss key", () => {
     for (const [key, path] of Object.entries(BOSS_ART)) {
       expect(path).toBe(`/boss-icons/${key}.png`);
+    }
+  });
+});
+
+describe("BOSS_ART_2X", () => {
+  it("covers every boss BOSS_ART does, or one loses its art on Run Order alone", () => {
+    expect(Object.keys(BOSS_ART_2X)).toEqual(Object.keys(BOSS_ART));
+  });
+
+  it("names the @2x asset and not the 26px one", () => {
+    for (const [key, path] of Object.entries(BOSS_ART_2X)) {
+      expect(path).toBe(`/boss-icons/${key}@2x.png`);
+    }
+  });
+
+  it("is a different file from BOSS_ART, which is the whole point of having both", () => {
+    for (const key of Object.keys(BOSS_ART)) {
+      expect(BOSS_ART_2X[key]).not.toBe(BOSS_ART[key]);
     }
   });
 });

@@ -15,6 +15,7 @@ Run from vision/:  python -m app.cv.build_boss_portraits
 from pathlib import Path
 
 import cv2
+import numpy as np
 
 from . import planner as P
 
@@ -67,6 +68,52 @@ RIGHT_ROWS = [
 PORTRAIT_X0, PORTRAIT_X1 = 0.049, 0.128
 PORTRAIT_HALF_H = 0.76  # of the state glyph band's height
 
+# A second copy of each portrait for the one place that draws it BIGGER than the game does.
+#
+# The planner portrait is 26px and that is the ceiling: the client's UI is fixed-size bitmaps, so
+# no capture yields more. Run Order draws it in a 40px box, and 26->40 nearest-neighbour is the
+# combination globals.css already warns against, uneven row duplication that puts a step in every
+# straight edge. Scaling in the browser instead only trades the steps for blur.
+#
+# So scale once here, with a filter that knows it is pixel art, and let the browser DOWNSCALE.
+# 80px is 2x the 40px box: a 1x screen gets an exact 2:1 reduction and a 2x screen gets 1:1, so
+# neither has to invent anything. Same principle as the item icons in catalog/build.py.
+RUN_ART_PX = 80
+RUN_ART_SUFFIX = "@2x"
+
+
+def scale2x(a: np.ndarray) -> np.ndarray:
+    """EPX/Scale2x: double a pixel-art image without softening it.
+
+    Each pixel becomes four. A corner is replaced by its neighbour only where the two orthogonal
+    neighbours meeting at it agree AND the two axes disagree, which rounds a staircase and leaves
+    flat runs and 1px details alone. Chosen over a bicubic upscale (blurs the linework) and over
+    hqx/xBRZ (a build-time dependency for a result these 26px tiles do not visibly separate from
+    this one).
+    """
+    h, w = a.shape[:2]
+    p = np.pad(a, ((1, 1), (1, 1), (0, 0)), mode="edge")
+    centre = p[1 : h + 1, 1 : w + 1]
+    up, down = p[0:h, 1 : w + 1], p[2 : h + 2, 1 : w + 1]
+    left, right = p[1 : h + 1, 0:w], p[1 : h + 1, 2 : w + 2]
+
+    same = lambda x, y: np.all(x == y, axis=-1)[..., None]  # noqa: E731
+    # Both axes must have contrast, else this is a flat run and nothing should move.
+    live = ~same(left, right) & ~same(up, down)
+
+    out = np.empty((h * 2, w * 2, a.shape[2]), a.dtype)
+    out[0::2, 0::2] = np.where(same(left, up) & live, left, centre)
+    out[0::2, 1::2] = np.where(same(up, right) & live, right, centre)
+    out[1::2, 0::2] = np.where(same(down, left) & live, left, centre)
+    out[1::2, 1::2] = np.where(same(right, down) & live, right, centre)
+    return out
+
+
+def run_art(tile: np.ndarray) -> np.ndarray:
+    """The 26px portrait as the 80px asset Run Order draws. Up in pixel-art steps, then down."""
+    big = scale2x(scale2x(tile))  # 26 -> 52 -> 104
+    return cv2.resize(big, (RUN_ART_PX, RUN_ART_PX), interpolation=cv2.INTER_AREA)
+
 
 def _portraits(half, keys: list[str]) -> dict[str, "cv2.typing.MatLike"]:
     box = P.find_panel(half)
@@ -110,8 +157,9 @@ def main() -> None:
             print(f"  skipped {key}: on the planner, not in catalog/bosses.yaml")
             continue
         cv2.imwrite(str(OUT / f"{key}.png"), tile)
+        cv2.imwrite(str(OUT / f"{key}{RUN_ART_SUFFIX}.png"), run_art(tile))
         written += 1
-    print(f"wrote {written} boss portraits to {OUT.relative_to(REPO)}")
+    print(f"wrote {written} boss portraits (and {RUN_ART_SUFFIX}) to {OUT.relative_to(REPO)}")
 
 
 if __name__ == "__main__":
