@@ -5,6 +5,7 @@ import {
   msUntil,
   resetToAnnounce,
   serverNowMs,
+  WEEKLY_CADENCE,
 } from "./reset-countdown";
 
 const SECOND = 1000;
@@ -75,9 +76,17 @@ describe("msUntil", () => {
   });
 });
 
+// A Wednesday, so the daily boundary tonight is its own and the weekly one is a day further out.
 const RESETS = {
   WEEKLY: "2026-07-30T00:00:00Z",
   DAILY: "2026-07-29T00:00:00Z",
+  MONTHLY: "2026-08-01T00:00:00Z",
+};
+
+// Reset day itself: the weekly and the daily boundary are the same instant.
+const ON_RESET_DAY = {
+  WEEKLY: "2026-07-30T00:00:00Z",
+  DAILY: "2026-07-30T00:00:00Z",
   MONTHLY: "2026-08-01T00:00:00Z",
 };
 
@@ -106,13 +115,13 @@ describe("resetToAnnounce", () => {
   });
 
   it("announces the boundary once it has passed", () => {
-    expect(resetToAnnounce(RESETS, after, null)).toBe(RESETS.DAILY);
+    expect(resetToAnnounce(RESETS, after, null)?.at).toBe(RESETS.DAILY);
   });
 
   it("announces the instant itself, with nothing left over", () => {
     // The tick that lands exactly on the boundary has already rolled over. Requiring it to be
     // strictly past would hold the refetch for a whole second on the one tick that is certain.
-    expect(resetToAnnounce(RESETS, Date.parse(RESETS.DAILY), null)).toBe(RESETS.DAILY);
+    expect(resetToAnnounce(RESETS, Date.parse(RESETS.DAILY), null)?.at).toBe(RESETS.DAILY);
   });
 
   it("does not announce the same boundary twice", () => {
@@ -124,10 +133,33 @@ describe("resetToAnnounce", () => {
 
   it("announces the next one after a refetch moves the boundary along", () => {
     // What the server answers once the daily period it was counting to has started.
-    const moved = { ...RESETS, DAILY: "2026-07-30T00:00:00Z" };
-    expect(resetToAnnounce(moved, Date.parse("2026-07-30T00:00:01Z"), RESETS.DAILY)).toBe(
-      "2026-07-30T00:00:00Z",
-    );
+    expect(
+      resetToAnnounce(ON_RESET_DAY, Date.parse("2026-07-30T00:00:01Z"), RESETS.DAILY)?.at,
+    ).toBe("2026-07-30T00:00:00Z");
+  });
+
+  it("names only the cadence that turned over on a plain midnight", () => {
+    // The page reads this to decide whether to go back to the current week. A daily boundary on a
+    // Wednesday says nothing about the week on screen, and pulling the user off it would be the
+    // clock taking the page.
+    expect(resetToAnnounce(RESETS, after, null)?.cadences).toEqual(["DAILY"]);
+    expect(resetToAnnounce(RESETS, after, null)?.cadences).not.toContain(WEEKLY_CADENCE);
+  });
+
+  it("names every cadence sharing the instant, so reset day is weekly and not just daily", () => {
+    // Thursday 00:00 UTC is both. Reporting the soonest cadence alone would call the week's own
+    // reset a daily one, and the view would sit on the week that had just ended.
+    const crossed = resetToAnnounce(ON_RESET_DAY, Date.parse("2026-07-30T00:00:01Z"), null);
+    expect(crossed?.cadences).toContain(WEEKLY_CADENCE);
+    expect(crossed?.cadences).toEqual(["WEEKLY", "DAILY"]);
+  });
+
+  it("matches coinciding cadences as instants rather than as strings", () => {
+    // Same moment, spelled two ways. A string compare would drop WEEKLY and the week would not
+    // roll over on screen.
+    const spelled = { WEEKLY: "2026-07-30T00:00:00.000Z", DAILY: "2026-07-30T00:00:00Z" };
+    const crossed = resetToAnnounce(spelled, Date.parse("2026-07-30T00:00:01Z"), null);
+    expect(crossed?.cadences).toContain(WEEKLY_CADENCE);
   });
 
   it("says nothing when no cadence was served", () => {

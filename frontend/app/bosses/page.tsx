@@ -10,6 +10,7 @@ import { ResetTimer } from "@/components/reset-timer";
 import { WeekStepper } from "@/components/week-stepper";
 import { apiFetch } from "@/lib/api";
 import { preloadBossArt } from "@/lib/preload-boss-art";
+import { type CrossedReset, WEEKLY_CADENCE } from "@/lib/reset-countdown";
 import { peek, put } from "@/lib/cache";
 import type { Boss, BossClearsView } from "@/types/boss";
 import type { Character } from "@/types/character";
@@ -53,17 +54,21 @@ export default function BossesPage() {
   // the newest one may write state, or the matrix ends up showing a week the label disagrees with.
   const latestRequest = useRef(0);
 
-  async function loadClears(target: string | null, token?: string | null) {
+  // Answers whether this response was the one that landed. A caller that also moves the week label
+  // has to know: an overtaken response leaves the matrix on somebody else's week, and setting the
+  // label anyway would put this week's date over that week's marks.
+  async function loadClears(target: string | null, token?: string | null): Promise<boolean> {
     const ticket = ++latestRequest.current;
     const result = await apiFetch<BossClearsView>(
       clearsUrl(target),
       { method: "GET" },
       token !== undefined ? () => Promise.resolve(token) : getToken,
     );
-    if (ticket !== latestRequest.current) return;
+    if (ticket !== latestRequest.current) return false;
     setView(result);
     setReceivedAt(Date.now());
     if (target === null) put(CLEARS_KEY, result);
+    return true;
   }
 
   // After a capture saves, the matrix is stale. Only the clears can have changed, so only they are
@@ -111,14 +116,25 @@ export default function BossesPage() {
   async function selectWeek(target: string | null) {
     setStepping(true);
     try {
-      await loadClears(target);
-      setWeek(target);
+      if (await loadClears(target)) setWeek(target);
     } catch {
       // Keep the week that is on screen. Moving the label without the data behind it would label
       // one week's marks with another week's date.
     } finally {
       setStepping(false);
     }
+  }
+
+  /**
+   * Picks the new period up when a reset passes under an open tab.
+   *
+   * A weekly reset takes the matrix back to the current week, the way the in-game planner comes
+   * back cleared rather than still showing the week you had open. Every other cadence refetches
+   * the week on screen and leaves it there: a daily period turning over at midnight says nothing
+   * about the week you were reading, and moving you off it would be the clock taking the page.
+   */
+  async function pickUpReset(crossed: CrossedReset) {
+    await selectWeek(crossed.cadences.includes(WEEKLY_CADENCE) ? null : week);
   }
 
   useEffect(() => {
@@ -199,16 +215,11 @@ export default function BossesPage() {
             {view && (
               <div className="boss-controls">
                 <WeekStepper view={view} onSelect={selectWeek} busy={stepping} />
-                {/* The period rolled over under an open tab, so the matrix on screen is last
-                    week's. Refetched at the week being shown, not forced back to the live view:
-                    stepping the user off a past week they were reading would be the timer moving
-                    the page. A past week's clears do not change, but its navigation does, since
-                    the week just ended became one the arrows may step to. */}
                 <ResetTimer
                   nextResets={view.nextResets}
                   serverNow={view.now}
                   receivedAt={receivedAt}
-                  onReset={refetchClears}
+                  onReset={pickUpReset}
                 />
                 {/* Which bosses a character runs is set one character at a time, on its own page:
                     the whole set is the thing being answered, and a grid of cells cannot show one

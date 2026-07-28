@@ -1,7 +1,13 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { formatCountdown, msUntil, resetToAnnounce, serverNowMs } from "@/lib/reset-countdown";
+import {
+  type CrossedReset,
+  formatCountdown,
+  msUntil,
+  resetToAnnounce,
+  serverNowMs,
+} from "@/lib/reset-countdown";
 
 // Weekly leads because 15 of the 16 tracked bosses are weekly; monthly follows it, smaller. Daily is
 // deliberately absent: it rolls over every night, so a clock on it tells you nothing you would
@@ -26,6 +32,9 @@ const TICK_MS = 1000;
  * with no request having been made and a tab left open keeps drawing last week's ticks under a
  * timer reading "now". This is the only thing on the page that knows the boundary arrived, so the
  * refetch hangs off it. Which boundary, and once per boundary: see resetToAnnounce.
+ *
+ * It is handed which cadences turned over, not just that something did. A weekly boundary ends the
+ * week on screen and a daily one does not, and only the page can decide what to do about that.
  */
 export function ResetTimer({
   nextResets,
@@ -36,7 +45,7 @@ export function ResetTimer({
   nextResets: Record<string, string>;
   serverNow: string;
   receivedAt: number;
-  onReset?: () => void;
+  onReset?: (crossed: CrossedReset) => void;
 }) {
   // Seeded from the clock rather than set in the effect. Safe from a hydration mismatch because
   // this only renders once the clears have arrived over the network, so it never runs on the
@@ -57,8 +66,8 @@ export function ResetTimer({
   useEffect(() => {
     const crossed = resetToAnnounce(nextResets, nowOnServer, announced.current);
     if (crossed === null) return;
-    announced.current = crossed;
-    onReset?.();
+    announced.current = crossed.at;
+    onReset?.(crossed);
   }, [nextResets, nowOnServer, onReset]);
 
   // A cadence the response did not carry is skipped rather than shown counting to nothing.

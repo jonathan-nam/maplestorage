@@ -69,6 +69,23 @@ export function earliestReset(nextResets: Record<string, string>): string | null
   return soonest;
 }
 
+/** The cadence a page goes back to the current week for. See CrossedReset.cadences. */
+export const WEEKLY_CADENCE = "WEEKLY";
+
+/** A boundary that has passed, and which cadences turned over on it. */
+export type CrossedReset = {
+  /** The instant itself, which is what resetToAnnounce dedupes on. */
+  at: string;
+  /**
+   * Every cadence rolling over at that instant, not just the soonest one.
+   *
+   * They coincide, and which ones did is the whole difference between the two things a page does
+   * about it: Thursday 00:00 UTC is a weekly AND a daily boundary, so the week on screen ended; a
+   * Tuesday midnight is daily alone and says nothing about the week you were reading.
+   */
+  cadences: string[];
+};
+
 /**
  * The boundary worth telling the page about, or null when there is nothing new to say.
  *
@@ -85,8 +102,16 @@ export function resetToAnnounce(
   nextResets: Record<string, string>,
   serverNow: number,
   announced: string | null,
-): string | null {
+): CrossedReset | null {
   const soonest = earliestReset(nextResets);
   if (soonest === null || soonest === announced) return null;
-  return msUntil(soonest, serverNow) <= 0 ? soonest : null;
+  if (msUntil(soonest, serverNow) > 0) return null;
+  return {
+    at: soonest,
+    // Compared as instants, not as strings: two cadences landing on the same moment may well be
+    // spelled differently, and a missed WEEKLY here is a week that quietly does not roll over.
+    cadences: Object.entries(nextResets)
+      .filter(([, at]) => Date.parse(at) === Date.parse(soonest))
+      .map(([cadence]) => cadence),
+  };
 }
