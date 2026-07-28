@@ -4267,7 +4267,7 @@ button.link:disabled {
 
 .run-row {
   display: grid;
-  grid-template-columns: 3.5em 40px minmax(9em, max-content) 1fr;
+  grid-template-columns: 1.5em 40px minmax(9em, max-content) 1fr;
   align-items: center;
   gap: 12px;
   padding: 8px 0;
@@ -4279,14 +4279,13 @@ button.link:disabled {
   border-top: none;
 }
 
-.run-time {
-  color: var(--muted-2);
+.run-number {
   font-size: 12px;
   font-variant-numeric: tabular-nums;
 }
 
-.run-time::before {
-  content: counter(run) ". ";
+.run-number::before {
+  content: counter(run) ".";
   color: var(--line);
 }
 

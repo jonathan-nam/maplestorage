@@ -24,7 +24,7 @@ export function RunPlan({ plan, roster }: { plan: Plan; roster: NightPerson[] })
         const switched = new Set(planned.switched);
         return (
           <li key={planned.run.id} className="run-row">
-            <span className="run-time">{formatDuration(planned.startsAt)}</span>
+            <span className="run-number" aria-hidden="true" />
             {BOSS_ART[planned.run.bossKey] ? (
               <img
                 className="run-art"
