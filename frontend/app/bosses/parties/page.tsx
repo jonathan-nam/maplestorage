@@ -259,7 +259,26 @@ export default function PartiesPage() {
 
   return (
     <main className="page">
-      <h1 className="page-title">Party View</h1>
+      {/* Beside the title, not among the tabs below: those pick what the list shows, so a link
+          that leaves the page read as another one of them. */}
+      <div className="page-head">
+        <h1 className="page-title">Party View</h1>
+        {state === "loaded" && (
+          <span className="page-head-links">
+            {showWallet && (
+              <Link className="party-cancel" href="/bosses/parties/wallet">
+                Wallet
+              </Link>
+            )}
+            <Link className="party-cancel" href="/bosses/parties/drops">
+              Drop Log
+            </Link>
+            <Link className="party-cancel" href="/bosses/parties/edit">
+              Edit parties
+            </Link>
+          </span>
+        )}
+      </div>
       {/* Kept to one line, and to about the same length as the Individual View's, for the reason
           given there: the week label below sits at whatever height this wraps to. */}
       <p className="split-intro">Which bosses each character runs, and who they run them with.</p>
@@ -297,66 +316,51 @@ export default function PartiesPage() {
             </p>
           )}
 
-          <div className="party-toolbar">
-            <div className="party-toolbar-tabs">
-              <div className="basis-row" role="group" aria-label="Group parties by">
-                <button
-                  type="button"
-                  className={grouping === "character" ? "basis-tab active" : "basis-tab"}
-                  onClick={() => setGrouping("character")}
-                >
-                  By character
-                </button>
-                <button
-                  type="button"
-                  className={grouping === "boss" ? "basis-tab active" : "basis-tab"}
-                  onClick={() => setGrouping("boss")}
-                >
-                  By boss
-                </button>
-                <button
-                  type="button"
-                  className={grouping === "party" ? "basis-tab active" : "basis-tab"}
-                  onClick={() => setGrouping("party")}
-                >
-                  By party
-                </button>
-              </div>
-
-              {/* What is left this week, without reading past what is done. "Not cleared" holds
-                  the unreported ones too. The counts do not move when you switch tabs: they are of
-                  every config the WEEK admits, which on the live view is all of them and on a past
-                  week is the weekly ones. Counting past that would offer a tab that lists less
-                  than it promises. */}
-              <div className="basis-row" role="group" aria-label="Filter by clear state">
-                {filterTabs.map((tab) => (
-                  <button
-                    key={tab.value}
-                    type="button"
-                    className={clearFilter === tab.value ? "basis-tab active" : "basis-tab"}
-                    aria-pressed={clearFilter === tab.value}
-                    title={tab.title}
-                    onClick={() => setClearFilter(tab.value)}
-                  >
-                    {tab.label}
-                    <span className="tab-count">{tab.count}</span>
-                  </button>
-                ))}
-              </div>
+          <div className="party-toolbar-tabs">
+            <div className="basis-row" role="group" aria-label="Group parties by">
+              <button
+                type="button"
+                className={grouping === "character" ? "basis-tab active" : "basis-tab"}
+                onClick={() => setGrouping("character")}
+              >
+                By character
+              </button>
+              <button
+                type="button"
+                className={grouping === "boss" ? "basis-tab active" : "basis-tab"}
+                onClick={() => setGrouping("boss")}
+              >
+                By boss
+              </button>
+              <button
+                type="button"
+                className={grouping === "party" ? "basis-tab active" : "basis-tab"}
+                onClick={() => setGrouping("party")}
+              >
+                By party
+              </button>
             </div>
-            <span className="party-toolbar-links">
-              {showWallet && (
-                <Link className="party-cancel" href="/bosses/parties/wallet">
-                  Wallet
-                </Link>
-              )}
-              <Link className="party-cancel" href="/bosses/parties/drops">
-                Drop Log
-              </Link>
-              <Link className="party-cancel" href="/bosses/parties/edit">
-                Edit parties
-              </Link>
-            </span>
+
+            {/* What is left this week, without reading past what is done. "Not cleared" holds the
+                unreported ones too. The counts do not move when you switch tabs: they are of every
+                config the WEEK admits, which on the live view is all of them and on a past week is
+                the weekly ones. Counting past that would offer a tab that lists less than it
+                promises. */}
+            <div className="basis-row" role="group" aria-label="Filter by clear state">
+              {filterTabs.map((tab) => (
+                <button
+                  key={tab.value}
+                  type="button"
+                  className={clearFilter === tab.value ? "basis-tab active" : "basis-tab"}
+                  aria-pressed={clearFilter === tab.value}
+                  title={tab.title}
+                  onClick={() => setClearFilter(tab.value)}
+                >
+                  {tab.label}
+                  <span className="tab-count">{tab.count}</span>
+                </button>
+              ))}
+            </div>
           </div>
 
           {parties.length === 0 && (

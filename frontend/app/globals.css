@@ -55,6 +55,26 @@
   color: var(--ink-strong);
 }
 
+/* The title on the left, the ways off the page on the right, on one line. */
+.page-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 12px;
+}
+
+/* Auto rather than space-between: it holds the links right even on the line they wrap onto. */
+.page-head-links {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-left: auto;
+}
+
+.page-head-links .party-cancel {
+  text-decoration: none;
+}
+
 /* Sections open from a hamburger at the far left of the header. The content itself stays on .page,
    centred like every other page, so navigation and content no longer fight over the layout. */
 .section-menu {
@@ -3750,16 +3770,16 @@ button.link:disabled {
   text-decoration: none;
 }
 
-/* The two tab groups, grouping and clear state, kept together at the left so they wrap onto their
-   own line together rather than the filter breaking away next to the links. */
+/* The two tab groups, grouping and clear state, on one line: both say what the list below shows. */
 .party-toolbar-tabs {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 6px 16px;
+  margin-bottom: 8px;
 }
 
-/* The Parties toolbar's links, kept together at the right of the grouping tabs. */
+/* The editor toolbar's links, kept together at its right. */
 .party-toolbar-links {
   display: flex;
   align-items: center;
