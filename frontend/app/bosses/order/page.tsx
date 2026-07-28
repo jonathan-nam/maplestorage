@@ -166,10 +166,14 @@ export default function RunOrderPage() {
 
   const { eligible, rejected } = useMemo(() => screenRuns(runs, here), [runs, here]);
 
-  // Everything above is linear and runs on the tick you click. planNight is not: at 20 parties over
-  // four hours it is ~650ms, which the tick would have to finish before the checkbox could even
-  // redraw ticked. So the search reads deferred inputs. The controls commit at once, the plan
-  // arrives in a second render, and `stale` marks the gap rather than leaving it unexplained.
+  // Everything above is linear and runs on the tick you click. planNight is not, so it reads
+  // deferred inputs: the controls commit at once and the plan lands in a second render, typically
+  // within a frame or two of it.
+  //
+  // Nothing on screen marks that gap. Fading the old plan through it was tried and removed: at the
+  // ~64ms a normal account takes, the fade began and reversed before it finished, and a flicker
+  // reads as a fault where the plain swap reads as the page keeping up. aria-busy still says it,
+  // for anything listening rather than looking.
   const planFor = useDeferredValue(eligible);
   const planWithin = useDeferredValue(budget);
   const stale = planFor !== eligible || planWithin !== budget;
@@ -338,10 +342,7 @@ export default function RunOrderPage() {
       )}
 
       {plan.runs.length > 0 && (
-        <section
-          className={stale ? "night-section is-restating" : "night-section"}
-          aria-busy={stale}
-        >
+        <section className="night-section" aria-busy={stale}>
           <div className="night-headline-row">
             <p className="night-headline">
               <strong>
@@ -394,10 +395,7 @@ export default function RunOrderPage() {
       )}
 
       {unscheduled.length > 0 && (
-        <section
-          className={stale ? "night-section is-restating" : "night-section"}
-          aria-busy={stale}
-        >
+        <section className="night-section" aria-busy={stale}>
           <h2 className="night-heading">Left out, for time</h2>
           <ul className="night-leftovers">
             {unscheduled.map((leftOut) => (
