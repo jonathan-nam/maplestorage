@@ -41,16 +41,15 @@ The second time this happened it was not a caveat but an intro, on `/bosses/rout
 
 A tour of the controls, then the mechanism behind them. The controls are a picker and a list of
 checkboxes, which need no instructions, and what unticking does is visible the moment you do it. It
-was replaced by a label of what the page is:
+was replaced by a label of what the page is ("Which bosses each character runs."), matching the one
+the sibling page carried.
 
-> Which bosses each character runs.
-
-Which is the shape the sibling page already used ("Which bosses each character has cleared this
-period."). Two rules fall out:
+Then both of those went too, along with Party View's, so take the rule at its word:
 
 - **Never explain a control.** If a button needs a sentence, fix the button.
-- **A page intro names what the page shows, in one line, or there is no intro.** Not what to do
-  with it, not what happens afterwards.
+- **Pages do not get intros.** The title and the content say what the page is. A one-line label
+  naming what is shown is the most that has ever been justified, and it was still cut every time,
+  so write none and let it be asked for.
 
 ## Comments
 
