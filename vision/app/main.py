@@ -25,6 +25,7 @@ Two things this service will NOT do, both learned the hard way:
     parse fine. See app/cv/classify.scale_templates.
 """
 
+import base64
 import logging
 import time
 from contextlib import contextmanager
@@ -35,7 +36,9 @@ import numpy as np
 from fastapi import FastAPI, HTTPException, Request, Response
 from pydantic import BaseModel
 
+from app.cv.admit import NotNativeScale, require_native_scale
 from app.cv.classify import classify
+from app.cv.discover import unknown_slots
 from app.cv.grid import coverage, find_grid
 from app.cv.hud import find_hud
 from app.cv.match import load_templates
@@ -119,6 +122,17 @@ def _downscaled_message() -> str:
         "This screenshot was shrunk before upload, and the stack-count digits did not "
         "survive it. Upload the original file at its full resolution."
     )
+
+
+def _decode_upload(body: bytes) -> np.ndarray:
+    if not body:
+        raise HTTPException(400, "empty body")
+    if len(body) > MAX_UPLOAD_BYTES:
+        raise HTTPException(413, f"image exceeds {MAX_UPLOAD_BYTES} bytes")
+    img = cv2.imdecode(np.frombuffer(body, np.uint8), cv2.IMREAD_COLOR)
+    if img is None:
+        raise HTTPException(400, "not a decodable image")
+    return img
 
 
 @app.get("/health")
@@ -206,15 +220,8 @@ class Stages:
 async def parse(request: Request, response: Response) -> ScreenshotParseResult:
     stage = Stages()
     body = await request.body()
-    if not body:
-        raise HTTPException(400, "empty body")
-    if len(body) > MAX_UPLOAD_BYTES:
-        raise HTTPException(413, f"image exceeds {MAX_UPLOAD_BYTES} bytes")
-
     with stage("decode"):
-        img = cv2.imdecode(np.frombuffer(body, np.uint8), cv2.IMREAD_COLOR)
-    if img is None:
-        raise HTTPException(400, "not a decodable image")
+        img = _decode_upload(body)
 
     # Read the planner BEFORE the grid, and independently of it, because one capture can hold
     # both panels. Choosing a single type by precedence would silently drop the other panel's
@@ -382,3 +389,60 @@ async def parse(request: Request, response: Response) -> ScreenshotParseResult:
         reachedListEnd=planner.reached_list_end if boss_rows else None,
         unreadableBossRows=unreadable,
     )
+
+
+class DiscoverableSlot(BaseModel):
+    row: int
+    col: int
+    # The slot's own pixels, PNG, base64. Pixels carry no names and only a human can supply
+    # one, so the picker has to show them the item rather than describe it.
+    imagePng: str
+
+
+class DiscoverResult(BaseModel):
+    # Everything in frame that the catalog has no opinion about, which is MOST of an
+    # inventory: 65-87 of 128 slots across the reference captures. This is a picker feed,
+    # not an anomaly report, and a UI that presents it as "items we failed to read" would be
+    # calling a normal inventory broken.
+    slots: list[DiscoverableSlot]
+    # How many slots the catalog did claim. Context for the picker, nothing depends on it.
+    knownCount: int
+
+
+@app.post("/discover", response_model=DiscoverResult)
+async def discover_items(request: Request) -> DiscoverResult:
+    """Every slot a user could choose to start tracking.
+
+    Separate from /parse on purpose. Parse runs on every upload and its answer is counts;
+    this runs only when someone is adding an item, and its answer is ~80 base64 crops. Put
+    on the parse response, that payload would be paid for by every upload that never asks
+    for it.
+    """
+    img = _decode_upload(await request.body())
+
+    try:
+        g = find_grid(img)
+    except ValueError as e:
+        raise HTTPException(422, "No inventory grid could be located in this image.") from e
+
+    # After normalize, not before: an integer upscale is undone losslessly, so a 2x capture
+    # is native pixels once it has been through it and there is no reason to refuse it.
+    img, g = normalize(img, g)
+    try:
+        require_native_scale(g.pitch)
+    except NotNativeScale as e:
+        raise HTTPException(422, str(e)) from e
+
+    hits = classify(img, g, TOKENS)
+    slots = unknown_slots(img, g, [(h.row, h.col) for h in hits])
+    log.info("discover: %d known, %d offerable", len(hits), len(slots))
+
+    out = []
+    for r, c in slots:
+        x, y, w, h = g.cell(r, c)
+        ok, buf = cv2.imencode(".png", img[y : y + h, x : x + w])
+        if not ok:
+            # Dropping a slot silently would hide an item the user might be looking for.
+            raise HTTPException(500, f"could not encode slot r{r}c{c}")
+        out.append(DiscoverableSlot(row=r, col=c, imagePng=base64.b64encode(buf).decode("ascii")))
+    return DiscoverResult(slots=out, knownCount=len(hits))

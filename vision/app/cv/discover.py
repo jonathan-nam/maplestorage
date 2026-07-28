@@ -15,19 +15,19 @@ Sayram's", and cut_template() does the rest.
 
     python -m app.cv.discover <screenshot.png> [-o sheet.png]
 
-This is the manual half of the feature that will eventually let a user click "track this"
-on their own upload. The hard part (knowing which slots are unknown) is the same either
-way.
+The CLI is the maintainer's half. The same unknown_slots() feeds POST /discover, which is
+the user's: same question, answered with crops instead of a sheet.
 """
 
 import argparse
 import sys
+from collections.abc import Iterable
 
 import cv2
 import numpy as np
 
 from .classify import _busy, classify
-from .grid import NATIVE_PITCH, find_grid
+from .grid import COLS, NATIVE_PITCH, ROWS, find_grid
 from .match import load_templates
 from .pipeline import normalize
 
@@ -37,13 +37,20 @@ LABEL_H = 16
 PAD = 6
 
 
-def unknown_slots(img: np.ndarray, g) -> list[tuple[int, int]]:
-    """Occupied slots that no catalog template claims."""
-    known = {(h.row, h.col) for h in classify(img, g, load_templates())}
+def unknown_slots(img: np.ndarray, g, known: Iterable[tuple[int, int]]) -> list[tuple[int, int]]:
+    """Occupied slots that no catalog template claims.
 
+    `known` comes from the caller's own classify() pass. It is not recomputed here because
+    classify is the expensive half of a parse, and both callers have already run it.
+
+    This is most of the inventory, not a shortlist. Measured on the reference captures, 65
+    to 87 of the 128 slots: a player's tab is mostly scrolls, cubes and coupons the catalog
+    has no opinion about. So this answers "what could be tracked", never "what went wrong".
+    """
+    known = set(known)
     out = []
-    for r in range(8):
-        for c in range(16):
+    for r in range(ROWS):
+        for c in range(COLS):
             if (r, c) in known:
                 continue
             x, y, w, h = g.cell(r, c)
@@ -99,10 +106,10 @@ def main() -> None:
     g = find_grid(img)
     img, g = normalize(img, g)
 
-    slots = unknown_slots(img, g)
-    known = len(classify(img, g, load_templates()))
+    hits = classify(img, g, load_templates())
+    slots = unknown_slots(img, g, [(h.row, h.col) for h in hits])
 
-    print(f"  {known} slots hold items we already know")
+    print(f"  {len(hits)} slots hold items we already know")
     print(f"  {len(slots)} slots hold items we do NOT know")
     for r, c in slots:
         print(f"    r{r}c{c}")
