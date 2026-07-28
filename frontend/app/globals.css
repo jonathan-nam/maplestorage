@@ -301,9 +301,13 @@ a:hover {
   opacity: 1;
 }
 
+/* 96px because that is the Nexon render's own size, drawn 1:1 like every other sprite in here.
+   It was 116, which is 1.21x and the one thing pixel art must never be scaled by: nearest at a
+   non-integer ratio duplicates about one row in five, so a straight edge grows a step and the
+   face takes it worst. There is no bigger source to grow into, the avatar endpoint returns 96. */
 .tile-sprite {
-  width: 116px;
-  height: 116px;
+  width: 96px;
+  height: 96px;
   object-fit: contain;
   object-position: center bottom;
   image-rendering: pixelated;
@@ -808,7 +812,10 @@ img.user-avatar-img {
   background-repeat: no-repeat;
   background-size: 260% auto;
   background-position: 50% 39%;
-  image-rendering: pixelated;
+  /* Not pixelated: 260% of a 32px circle draws the 96px sprite at 83, and nearest at 0.87 drops
+     about one column in eight. On a face that small the dropped column is an eye. The crop
+     numbers above are unaffected, they position the sprite rather than sample it. */
+  image-rendering: auto;
 }
 
 .user-avatar-menu {
@@ -1191,9 +1198,12 @@ img.user-avatar-img {
   background: var(--surface-2);
 }
 
+/* 23 and not 22: the icons are a 46px canvas, so this is exactly half and every source pixel
+   survives as one. At 22 the nearest-neighbour step landed between rows and dropped one in every
+   twelve, which is what put a nick in the straight edges. Matches .finder-row li img. */
 .finder-suggest-row img {
-  width: 22px;
-  height: 22px;
+  width: 23px;
+  height: 23px;
   object-fit: contain;
   image-rendering: pixelated;
 }
@@ -4335,10 +4345,13 @@ button.link:disabled {
   color: var(--line);
 }
 
+/* The only place a boss portrait is drawn LARGER than the game draws it. The source is the 80px
+   asset (BOSS_ART_2X), so this reduces rather than enlarges: 2:1 here, 1:1 on a 2x screen. No
+   `image-rendering` on purpose, the browser's filter is the right one for a reduction and
+   `pixelated` at 80->40 would throw away every other row of what was scaled up for it. */
 .run-art {
   width: 40px;
   height: 40px;
-  image-rendering: pixelated;
 }
 
 /* Holds the column open when a hand-typed boss has no portrait, so the names stay in one line. */

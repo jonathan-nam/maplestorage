@@ -520,6 +520,7 @@ def boss_art_ts(bosses: list[dict]) -> str:
 
     tracked = [b for b in bosses if b.get("tracked", True)]
     rows = "\n".join(f'  {prop(b["key"])}: "/boss-icons/{b["key"]}.png",' for b in tracked)
+    rows2x = "\n".join(f'  {prop(b["key"])}: "/boss-icons/{b["key"]}@2x.png",' for b in tracked)
     names = "\n".join(f'  {prop(b["key"])}: "{b["name"]}",' for b in tracked)
     short = "\n".join(
         f'  {prop(b["key"])}: "{b["short"]}",' for b in tracked if b.get("short")
@@ -527,24 +528,32 @@ def boss_art_ts(bosses: list[dict]) -> str:
     return f"""// GENERATED FROM catalog/bosses.yaml. DO NOT EDIT BY HAND.
 // Regenerate with:  python catalog/build.py
 //
-// Two things that are known before a USER is, which is the whole reason they are shipped in the
-// bundle rather than read off /api/bosses.
+// What is known before a USER is, which is the whole reason these are shipped in the bundle
+// rather than read off /api/bosses.
 //
 // BOSS_ART is backend-relative portrait paths, resolved with apiAssetUrl() like every other
 // served asset. It exists so the browser can start fetching the portraits at first render rather
 // than after getToken() and /api/bosses have both answered. That waterfall is what made the art
 // appear a beat after the rest of the page.
 //
+// BOSS_ART_2X is the same portraits at 80px, for the one place that draws them larger than the
+// game does (Run Order's 40px row). Use it wherever the box is bigger than 26px; use BOSS_ART
+// wherever it is 26px or an exact fraction of it. See vision/app/cv/build_boss_portraits.py.
+//
 // BOSS_NAMES is the display names, in catalog order. The Run Order tool has to offer a boss list
 // with no account behind it, and deriving one from the keys gets "Kalos The Guardian" wrong.
 //
-// Only tracked bosses in both, matching what boss_catalog is seeded with.
+// Only tracked bosses in all three, matching what boss_catalog is seeded with.
 //
 // BOSS_SHORT_NAMES is what a party calls a boss out loud, and holds only the ones that have one.
 // A missing key means the full name is the short name. Never match anything against these.
 
 export const BOSS_ART: Record<string, string> = {{
 {rows}
+}};
+
+export const BOSS_ART_2X: Record<string, string> = {{
+{rows2x}
 }};
 
 export const BOSS_NAMES: Record<string, string> = {{
@@ -563,12 +572,14 @@ def check_boss_art(bosses: list[dict]) -> list[str]:
     for b in bosses:
         if not b.get("tracked", True):
             continue
-        icon = BOSS_ICONS / f"{b['key']}.png"
-        if not icon.exists():
-            problems.append(
-                f"{b['key']}: missing {icon.relative_to(ROOT)} "
-                "(cd vision && python -m app.cv.build_boss_portraits)"
-            )
+        # Both sizes, because they are drawn in different places: a boss with only the 26px asset
+        # loses its art on Run Order alone, which is the half nobody would think to check.
+        for icon in (BOSS_ICONS / f"{b['key']}.png", BOSS_ICONS / f"{b['key']}@2x.png"):
+            if not icon.exists():
+                problems.append(
+                    f"{b['key']}: missing {icon.relative_to(ROOT)} "
+                    "(cd vision && python -m app.cv.build_boss_portraits)"
+                )
     return problems
 
 
