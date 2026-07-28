@@ -44,12 +44,13 @@ checkboxes, which need no instructions, and what unticking does is visible the m
 was replaced by a label of what the page is ("Which bosses each character runs."), matching the one
 the sibling page carried.
 
-Then both of those went too, along with Party View's, so take the rule at its word:
+Then every intro in the app went, that one included, so take the rule at its word:
 
 - **Never explain a control.** If a button needs a sentence, fix the button.
 - **Pages do not get intros.** The title and the content say what the page is. A one-line label
   naming what is shown is the most that has ever been justified, and it was still cut every time,
-  so write none and let it be asked for.
+  so write none and let it be asked for. The `.split-intro` class they all shared is deleted, so
+  writing one back means writing new CSS, which is the point at which to stop.
 
 ## Comments
 

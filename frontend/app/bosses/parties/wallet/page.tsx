@@ -112,10 +112,6 @@ export default function WalletPage() {
       </p>
 
       <h1 className="page-title">Wallet</h1>
-      <p className="split-intro">
-        What you owe and what you&apos;re owed, across every party&apos;s loot pool. Settle a person
-        to clear every share between you at once, or mark them one at a time on their party.
-      </p>
 
       {state === "error" && <p>Couldn&apos;t load your pools.</p>}
       {error && <p className="loot-warn">{error}</p>}
