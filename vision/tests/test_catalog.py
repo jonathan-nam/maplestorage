@@ -21,7 +21,7 @@ import yaml
 from fixtures import INVENTORY
 
 from app.cv import classify as classify_mod
-from app.cv.classify import MAX_LAB_DISTANCE, VERIFY_THRESHOLD, _colour_distance
+from app.cv.admit import clashes, masked_score
 from app.cv.grid import find_grid
 from app.cv.match import load_templates
 
@@ -58,20 +58,6 @@ def test_every_template_is_in_the_manifest():
     )
 
 
-def _masked_score(a: np.ndarray, b: np.ndarray) -> float:
-    """How well template `a` matches template `b`, using b's own mask, i.e. exactly the
-    question the verifier asks of a real slot."""
-    h = min(a.shape[0], b.shape[0])
-    w = min(a.shape[1], b.shape[1])
-    a_rgb = a[:h, :w, :3].astype(np.uint8)
-    b_rgb = b[:h, :w, :3].astype(np.uint8)
-    mask = cv2.cvtColor(b[:h, :w, 3], cv2.COLOR_GRAY2BGR)
-
-    res = cv2.matchTemplate(a_rgb, b_rgb, cv2.TM_CCOEFF_NORMED, mask=mask)
-    res[~np.isfinite(res)] = -1.0
-    return float(res.max())
-
-
 def test_no_two_templates_are_confusable():
     """No icon may pass BOTH of the verifier's tests against a different icon.
 
@@ -87,27 +73,19 @@ def test_no_two_templates_are_confusable():
     lands inside the colour distance. This test used to check shape alone and failed the
     moment the potions arrived. Correctly reporting a clash that the verifier, as it now
     stands, does not actually have.
+
+    The pair check now runs both ways round (admit.clashes), which it did not when it was
+    written: a masked correlation is not symmetric, so a > b passing said nothing about
+    b > a.
     """
     templates = load_templates()
-    names = sorted(templates)
 
-    clashes = []
-    for i, a in enumerate(names):
-        for b in names[i + 1 :]:
-            shape = _masked_score(templates[a], templates[b])
-            if shape < VERIFY_THRESHOLD:
-                continue  # shape already separates them
+    found = []
+    for key in sorted(templates):
+        others = {k: v for k, v in templates.items() if k != key}
+        found += [f"    {key} vs {c}" for c in clashes(templates[key], others)]
 
-            # Same question the verifier asks: is B's colour close enough to A's to pass?
-            colour = _colour_distance(templates[a], templates[b][:, :, :3])
-            if colour is None or colour <= MAX_LAB_DISTANCE:
-                clashes.append((a, b, shape, colour))
-
-    assert not clashes, "icons the verifier cannot tell apart:\n" + "\n".join(
-        f"    {a} vs {b}: shape={s:.3f} (bar {VERIFY_THRESHOLD}), "
-        f"colour={'n/a' if c is None else f'{c:.1f}'} (bar {MAX_LAB_DISTANCE})"
-        for a, b, s, c in clashes
-    )
+    assert not found, "icons the verifier cannot tell apart:\n" + "\n".join(found)
 
 
 @pytest.mark.parametrize("key", sorted(manifest_keys()))
@@ -116,7 +94,7 @@ def test_a_template_matches_itself_perfectly(key):
     ~1.0 against itself. A template that does not is corrupt, or was cut with the wrong
     mask, and will never be found in a real screenshot either."""
     templates = load_templates()
-    assert _masked_score(templates[key], templates[key]) > 0.99
+    assert masked_score(templates[key], templates[key]) > 0.99
 
 
 # --- The shortlist must actually shortlist the right answer -------------------------------
