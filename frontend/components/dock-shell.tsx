@@ -42,15 +42,6 @@ export function DockShell({
           <span className="dock-caret" aria-hidden="true">
             &#9662;
           </span>
-          {/* Decorative, like the one in the dropzone: the label beside it already names the dock,
-              and the mark's own aria-label would read "SharpEyes" into the button's name.
-
-              32 only. See site-header.tsx: the sprite is 32x32 drawn with image-rendering
-              pixelated, so a non-multiple size drops whole rows and columns and the mark visibly
-              alternates between two shapes as zoom changes. */}
-          <span className="dock-bar-mark" aria-hidden="true">
-            <SharpEyesMark size={32} />
-          </span>
           {DOCK_LABELS[name]}
         </button>
       </div>
@@ -109,6 +100,9 @@ export function DockSkeleton({ name, picker = false }: { name: DockName; picker?
       )}
 
       <div className="dock-drop is-skeleton" aria-hidden="true">
+        <span className="dock-drop-mark">
+          <SharpEyesMark size={64} />
+        </span>
         <span className="dock-drop-main">
           <span className="skeleton sk-line" style={{ width: "260px" }} />
         </span>
