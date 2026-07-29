@@ -139,51 +139,66 @@ export default function RunOrderPage() {
 
   const fromAccount = source === "parties";
 
+  // A CONTROL answers on the tick you click it. Everything a control describes is derived from
+  // `shown`, one deferred snapshot of all five of them, so the page it describes changes in a
+  // single commit.
+  //
+  // Deferring only the plan's inputs is what made the filter feel like it loaded in twice: the
+  // roster, the run count and the rejections came from live state and landed immediately, while
+  // the headline, the plan tabs and the grid came from a deferred one and landed a render later.
+  // Two commits, so the top of the page moved and the rest followed it. It also meant that for the
+  // length of the gap the page disagreed with itself, and `unscheduled` below already carried a
+  // comment about the one place that had been noticed and patched.
+  //
+  // Snapshot the INPUTS rather than each derived value: derived values are computed at different
+  // depths of the chain, and deferring them one by one is what allowed them to disagree. Server
+  // data (parties, bosses) is deliberately not in here, so a load still paints the moment it lands.
+  const inputs = useMemo(
+    () => ({ source, budget, openOnly, away, drafts }),
+    [source, budget, openOnly, away, drafts],
+  );
+  const shown = useDeferredValue(inputs);
+  const stale = shown !== inputs;
+
   // Memoised down the chain, and the chain is why. planNight is a beam search: run unmemoised it
   // would re-order the whole night on every keystroke in the draft form.
+  const showingAccount = shown.source === "parties";
+
   const usable = useMemo(
-    () => (openOnly ? parties.filter((party) => !isCleared(party)) : parties),
-    [parties, openOnly],
+    () => (shown.openOnly ? parties.filter((party) => !isCleared(party)) : parties),
+    [parties, shown.openOnly],
   );
 
   const roster: NightPerson[] = useMemo(
-    () => (fromAccount ? rosterFrom(usable) : rosterFromDrafts(drafts)),
-    [fromAccount, usable, drafts],
+    () => (showingAccount ? rosterFrom(usable) : rosterFromDrafts(shown.drafts)),
+    [showingAccount, usable, shown.drafts],
   );
 
   const runs = useMemo(
     () =>
-      fromAccount
+      showingAccount
         ? runsFromParties(usable, bosses, (bossKey) => minutesFor(bossKey))
-        : runsFromDrafts(drafts),
-    [fromAccount, usable, bosses, drafts],
+        : runsFromDrafts(shown.drafts),
+    [showingAccount, usable, bosses, shown.drafts],
   );
 
   // Who is on, as people and as ids. The grid puts a column per person, so it needs the names and
   // the order, not just the set the screening asks for.
   const onTonight = useMemo(
-    () => roster.filter((person) => !away.includes(person.id)),
-    [roster, away],
+    () => roster.filter((person) => !shown.away.includes(person.id)),
+    [roster, shown.away],
   );
   const here = useMemo(() => onTonight.map((person) => person.id), [onTonight]);
 
   const { eligible, rejected } = useMemo(() => screenRuns(runs, here), [runs, here]);
 
-  // Everything above is linear and runs on the tick you click. planNight is not, so it reads
-  // deferred inputs: the controls commit at once and the plan lands in a second render, typically
-  // within a frame or two of it.
-  //
-  // Nothing on screen marks that gap. Fading the old plan through it was tried and removed: at the
+  // Nothing on screen marks the wait. Fading the old plan through it was tried and removed: at the
   // ~64ms a normal account takes, the fade began and reversed before it finished, and a flicker
   // reads as a fault where the plain swap reads as the page keeping up. aria-busy still says it,
   // for anything listening rather than looking.
-  const planFor = useDeferredValue(eligible);
-  const planWithin = useDeferredValue(budget);
-  const stale = planFor !== eligible || planWithin !== budget;
-
   const { best, byCount } = useMemo(
-    () => planNight(planFor, { minutes: planWithin }),
-    [planFor, planWithin],
+    () => planNight(eligible, { minutes: shown.budget }),
+    [eligible, shown.budget],
   );
 
   const options = useMemo(() => tradeOffs(byCount), [byCount]);
@@ -192,9 +207,7 @@ export default function RunOrderPage() {
   const plan = (chosen !== null && options[chosen]) || best;
 
   const scheduled = new Set(plan.runs.map((planned) => planned.run.id));
-  // Read off the same inputs the plan was built from. Against the live list, a run the deferred
-  // plan has not scheduled yet would show as both scheduled and left out.
-  const unscheduled = planFor.filter((run) => !scheduled.has(run.id));
+  const unscheduled = eligible.filter((run) => !scheduled.has(run.id));
 
   return (
     <main className="page">
@@ -257,7 +270,9 @@ export default function RunOrderPage() {
         </label>
       )}
 
-      {fromAccount && state === "loaded" && parties.length > 0 && runs.length === 0 && (
+      {/* showingAccount, not fromAccount: this describes the runs, so it moves with them rather
+          than a render ahead of them. */}
+      {showingAccount && state === "loaded" && parties.length > 0 && runs.length === 0 && (
         <p className="finder-empty">
           {parties.length === 1
             ? "Your party is cleared this period."
@@ -391,9 +406,9 @@ export default function RunOrderPage() {
 
       {runs.length > 0 && plan.runs.length === 0 && (
         <p className="finder-empty">
-          {planFor.length === 0
+          {eligible.length === 0
             ? "No run can go ahead with the people who are on."
-            : `Nothing fits in ${formatDuration(planWithin)}. The shortest run needs longer than that.`}
+            : `Nothing fits in ${formatDuration(shown.budget)}. The shortest run needs longer than that.`}
         </p>
       )}
 
