@@ -244,12 +244,21 @@ function csvTable(rows: string[][]): string[] {
 /**
  * The plan as text, for pasting where the party actually talks.
  *
- * The same grid the page draws: bosses down, people across, and an X where somebody sits one out.
+ * The table and nothing else: bosses down, people across, and an X where somebody sits one out.
  * It is fenced because the columns only line up in a monospace font, and a chat client renders
  * everything outside a code block proportionally.
  *
- * The marks get one line of key. An X in a table is read as "this one" about as often as "not
- * this one", and the reader of a pasted message was not the one who chose it.
+ * It used to carry a headline above and a key below, and the corner cell said "Boss". All three
+ * were dropped: what gets pasted is a table people read off during the night, and a count, a
+ * duration and a glyph key are three lines of talking around it.
+ *
+ * The count, the duration and the switches are still on the page, beside the controls that set
+ * them. The X is not explained anywhere a reader of the paste can see, and that is the cost of
+ * dropping the key rather than an oversight: it is a bare X in a table, and the party reading it
+ * ran the night. Put the key back if that stops being true.
+ *
+ * The corner is left EMPTY rather than removed, so the header still has one field per column and
+ * the padding lines up.
  *
  * Built from the Plan it is given, never restated by hand, so it cannot drift from what the page
  * is showing. The same rule explainSplit() follows.
@@ -257,19 +266,9 @@ function csvTable(rows: string[][]): string[] {
 export function planAsText(plan: Plan, roster: NightPerson[]): string {
   if (plan.runs.length === 0) return "No bosses fit in the time.";
 
-  const switches =
-    plan.switches === 0
-      ? "no character switches"
-      : `${plan.switches} character ${plan.switches === 1 ? "switch" : "switches"}`;
-
-  // "about", because the clock is built on a flat half-hour placeholder. See boss-minutes.ts.
-  const headline =
-    `${plan.runs.length} ${plan.runs.length === 1 ? "boss" : "bosses"} · ` +
-    `about ${formatDuration(plan.minutes)} · ${switches}`;
-
   const { people, rows } = planGrid(plan, roster);
 
-  const header = ["Boss", ...people.map((person) => csvField(person.name))];
+  const header = ["", ...people.map((person) => csvField(person.name))];
   const body = rows.map(({ planned, cells }) => [
     csvField(bossHeading(planned)),
     ...cells.map((cell) =>
@@ -279,20 +278,7 @@ export function planAsText(plan: Plan, roster: NightPerson[]): string {
     ),
   ]);
 
-  const sitsOut = rows.some(({ cells }) => cells.some((cell) => cell.character === null));
-  const key = [
-    sitsOut ? `${SITTING_OUT} = sitting out` : null,
-    plan.switches > 0 ? `${SWITCH_MARK} = switches character` : null,
-  ].filter((part): part is string => part !== null);
-
-  return [
-    headline,
-    "",
-    "```",
-    ...csvTable([header, ...body]),
-    "```",
-    ...(key.length > 0 ? [`${key.join(". ")}.`] : []),
-  ].join("\n");
+  return ["```", ...csvTable([header, ...body]), "```"].join("\n");
 }
 
 /** Why a run could not be scheduled, in words, given the roster to name people from. */
