@@ -277,12 +277,17 @@ describe("planAsText", () => {
     expect(text).toContain("Hard Lotus,");
   });
 
-  it("opens with what a reader wants before they read anything else", () => {
-    const text = textFor([R("1", "Lotus", [["Bishop", "You"]])], 60);
-    expect(text.split("\n")[0]).toBe("1 boss · about 30m · no character switches");
+  it("is the fenced table and nothing else", () => {
+    // The headline, the key and the "Boss" corner all went. What is pasted is a table people read
+    // off during the night, and anything above or below it is talking around that table.
+    const lines = textFor([R("1", "Lotus", [["Bishop", "You"]])], 60).split("\n");
+    expect(lines[0]).toBe("```");
+    expect(lines[lines.length - 1]).toBe("```");
+    // Exactly one fence at each end, so there is no second block hiding in the middle.
+    expect(lines.filter((line) => line === "```")).toHaveLength(2);
   });
 
-  it("counts bosses and switches in the plural when there is more than one", () => {
+  it("says nothing about the plan around the table", () => {
     const text = textFor(
       [
         R("1", "Lotus", [["Bishop", "You"]]),
@@ -291,8 +296,11 @@ describe("planAsText", () => {
       ],
       180,
     );
-    expect(text.split("\n")[0]).toContain("3 bosses");
-    expect(text.split("\n")[0]).toContain("2 character switches");
+    // A count, a duration and a glyph key were the three things it used to add. The page still
+    // says all three, next to the controls that set them.
+    expect(text).not.toContain("bosses");
+    expect(text).not.toContain("about");
+    expect(text).not.toContain("=");
   });
 
   /** The rows between the fences, which is the table itself. */
@@ -319,9 +327,11 @@ describe("planAsText", () => {
     R("3", "Lucid", [["Nightlord", "Dave"]]),
   ];
 
-  it("heads the columns with people and the rows with bosses", () => {
+  it("heads the columns with people, and leaves the corner empty", () => {
+    // Empty and not absent: the header keeps one field per column, which is what holds the
+    // padding in step with the rows below it.
     const table = fenced(textFor(SPLIT_NIGHT, 180));
-    expect(table[0]).toMatch(/^Boss,\s+Dave,\s+Erin,\s+You$/);
+    expect(table[0]).toMatch(/^,\s+Dave,\s+Erin,\s+You$/);
     expect(table[1]).toMatch(/^Lotus,\s+Nightlord,\s+Shadower,\s+Bishop$/);
   });
 
@@ -340,17 +350,12 @@ describe("planAsText", () => {
     expect(new Set(table.map(firstColumn)).size).toBe(1);
   });
 
-  it("says what the marks mean, because a reader of the paste did not choose them", () => {
-    expect(textFor(SPLIT_NIGHT, 180)).toContain("X = sitting out.");
+  it("still uses the marks, it just no longer explains them", () => {
+    // The X and the * are what the grid is made of, so dropping the key must not drop these too.
+    expect(textFor(SPLIT_NIGHT, 180)).toContain("X");
     expect(
       textFor([R("1", "Lotus", [["Bishop", "You"]]), R("2", "Damien", [["Kanna", "You"]])], 120),
-    ).toContain("* = switches character.");
-  });
-
-  it("says nothing about marks it did not use", () => {
-    // One person, one boss: nobody sits out and nobody switches, so there is nothing to explain.
-    const text = textFor([R("1", "Lotus", [["Bishop", "You"]])], 60);
-    expect(text).not.toContain("=");
+    ).toContain("Kanna*");
   });
 
   it("marks the character somebody changed to, and no other", () => {
@@ -401,7 +406,7 @@ describe("planAsText", () => {
 
   it("quotes a name holding a comma, so one typed by hand cannot split a row", () => {
     const table = fenced(textFor([R("1", "Lotus", [["Bishop", "Dave, Jr"]])], 60));
-    expect(table[0]).toBe('Boss,  "Dave, Jr"');
+    expect(table[0]).toBe(',      "Dave, Jr"');
   });
 
   it("says so plainly when there is nothing to paste", () => {
