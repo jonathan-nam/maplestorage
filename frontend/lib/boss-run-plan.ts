@@ -66,15 +66,19 @@ export type EligibleRun = Omit<CandidateRun, "seats"> & { seats: AttributedSeat[
  *
  * `person-twice` is the one that is a mistake in the data rather than a fact about tonight: one
  * person cannot play two characters at once, so a party holding two of somebody's characters is
- * not a party that can be formed. It is reported rather than dropped, because a config that
- * silently vanishes reads as one that was considered and not chosen.
+ * not a party that can be formed.
+ *
+ * NOTHING DRAWS THIS. Run Order used to list the rejections under "Can't be scheduled" and no
+ * longer does, so a config refused here now vanishes from the page with nothing said. Screening
+ * still classifies, and these tests still pin it, because the classification is what produces
+ * `eligible`. Read a UI for it back off `rejected`; do not re-derive the reasons.
  */
 export type RejectionReason = "person-twice" | "person-unavailable" | "unattributed-seat";
 
 export type Rejection = {
   run: CandidateRun;
   reason: RejectionReason;
-  /** Who or what caused it, named so the UI can say more than "excluded". */
+  /** Who or what caused it, named well enough to say more than "excluded" if anything ever does. */
   detail: string[];
 };
 
