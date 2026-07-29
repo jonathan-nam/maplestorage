@@ -10,7 +10,6 @@ import { bossLabel } from "@/lib/boss-difficulty";
 import { DEFAULT_MINUTES, minutesFor } from "@/lib/boss-minutes";
 import {
   type DraftRun,
-  explainRejection,
   formatDuration,
   type NightPerson,
   rosterFrom,
@@ -144,8 +143,8 @@ export default function RunOrderPage() {
   // single commit.
   //
   // Deferring only the plan's inputs is what made the filter feel like it loaded in twice: the
-  // roster, the run count and the rejections came from live state and landed immediately, while
-  // the headline, the plan tabs and the grid came from a deferred one and landed a render later.
+  // roster and the run count came from live state and landed immediately, while the headline, the
+  // plan tabs and the grid came from a deferred one and landed a render later.
   // Two commits, so the top of the page moved and the rest followed it. It also meant that for the
   // length of the gap the page disagreed with itself, and `unscheduled` below already carried a
   // comment about the one place that had been noticed and patched.
@@ -190,7 +189,9 @@ export default function RunOrderPage() {
   );
   const here = useMemo(() => onTonight.map((person) => person.id), [onTonight]);
 
-  const { eligible, rejected } = useMemo(() => screenRuns(runs, here), [runs, here]);
+  // Only the eligible half is read. screenRuns still reports what it rejected, and the page no
+  // longer shows it: a run nobody can staff now just does not appear.
+  const { eligible } = useMemo(() => screenRuns(runs, here), [runs, here]);
 
   // Nothing on screen marks the wait. Fading the old plan through it was tried and removed: at the
   // ~64ms a normal account takes, the fade began and reversed before it finished, and a flicker
@@ -421,24 +422,6 @@ export default function RunOrderPage() {
                 {bossLabel(leftOut.bossName, leftOut.difficulty)}
                 <span className="night-leftover-seats">
                   {leftOut.seats.map((seat) => seat.character).join(", ")}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
-
-      {rejected.length > 0 && (
-        <section className="night-section">
-          <h2 className="night-heading">Can&apos;t be scheduled</h2>
-          <ul className="night-rejects">
-            {rejected.map((rejection) => (
-              <li key={rejection.run.id}>
-                <span className="night-reject-boss">
-                  {bossLabel(rejection.run.bossName, rejection.run.difficulty)}
-                </span>
-                <span className="night-reject-why">
-                  {explainRejection(rejection.reason, rejection.detail, roster)}
                 </span>
               </li>
             ))}

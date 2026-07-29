@@ -42,7 +42,8 @@ export function ownerOf(member: PartyMember): string | null {
  *
  * Drawn from the configs rather than from /api/people, so it lists the people you actually run
  * with instead of everyone you have ever named. Seats nobody has been attributed to contribute
- * nobody, which is why their runs cannot be scheduled. See RejectionReason.
+ * nobody, which is why their runs cannot be scheduled and now simply do not appear. See
+ * RejectionReason.
  */
 export function rosterFrom(parties: Party[]): NightPerson[] {
   const others = new Map<string, string>();
@@ -66,8 +67,9 @@ export function rosterFrom(parties: Party[]): NightPerson[] {
 /**
  * Your configs as candidate runs.
  *
- * Every config becomes one, including the ones that turn out to be unschedulable: screening says
- * why, and a config that never reached screening could not be explained at all.
+ * Every config becomes one, including the ones that turn out to be unschedulable. Screening is
+ * what decides that, and a config that never reached screening could not be refused for a reason
+ * at all. The reason is no longer shown, see RejectionReason.
  */
 export function runsFromParties(
   parties: Party[],
@@ -109,7 +111,7 @@ export function personKey(name: string): string {
  * Hand-typed runs as candidates.
  *
  * A seat with no person named is left unattributed rather than guessed at, so it is refused for
- * the same stated reason a real unattributed seat is. A seat with no character named is dropped:
+ * the same reason a real unattributed seat is. A seat with no character named is dropped:
  * it is a half-filled row of a form, not a claim about the night.
  */
 export function runsFromDrafts(drafts: DraftRun[]): CandidateRun[] {
@@ -279,21 +281,4 @@ export function planAsText(plan: Plan, roster: NightPerson[]): string {
   ]);
 
   return ["```", ...csvTable([header, ...body]), "```"].join("\n");
-}
-
-/** Why a run could not be scheduled, in words, given the roster to name people from. */
-export function explainRejection(
-  reason: "person-twice" | "person-unavailable" | "unattributed-seat",
-  detail: string[],
-  roster: NightPerson[],
-): string {
-  const nameOf = (id: string) => roster.find((p) => p.id === id)?.name ?? id;
-  switch (reason) {
-    case "person-twice":
-      return `One person is down for ${detail.join(" and ")}, and nobody plays two characters at once.`;
-    case "person-unavailable":
-      return `${detail.map(nameOf).join(", ")} is not on tonight.`;
-    case "unattributed-seat":
-      return `Nobody is named as playing ${detail.join(", ")}, so we cannot tell if they are on.`;
-  }
 }

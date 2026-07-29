@@ -5,7 +5,6 @@ import type { Party, PartyMember } from "@/types/party";
 import { DEFAULT_MINUTES, minutesFor } from "./boss-minutes";
 import {
   type DraftRun,
-  explainRejection,
   formatDuration,
   ownerOf,
   personKey,
@@ -220,24 +219,6 @@ describe("formatDuration", () => {
     expect(formatDuration(45)).toBe("45m");
     expect(formatDuration(120)).toBe("2h");
     expect(formatDuration(135)).toBe("2h 15m");
-  });
-});
-
-describe("explainRejection", () => {
-  const roster = [{ id: "p-chris", name: "Chris" }];
-
-  it("names both characters when one person is down for two", () => {
-    expect(explainRejection("person-twice", ["Creed", "Dwight"], roster)).toContain(
-      "Creed and Dwight",
-    );
-  });
-
-  it("names the person who is not on", () => {
-    expect(explainRejection("person-unavailable", ["p-chris"], roster)).toContain("Chris");
-  });
-
-  it("names the character nobody has claimed", () => {
-    expect(explainRejection("unattributed-seat", ["Stranger"], roster)).toContain("Stranger");
   });
 });
 

@@ -4402,16 +4402,14 @@ button.link:disabled {
   font-size: 11px;
 }
 
-.night-leftovers,
-.night-rejects {
+.night-leftovers {
   margin: 0;
   padding: 0;
   list-style: none;
   font-size: 12px;
 }
 
-.night-leftovers li,
-.night-rejects li {
+.night-leftovers li {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
@@ -4419,13 +4417,8 @@ button.link:disabled {
   color: var(--muted);
 }
 
-.night-leftover-seats,
-.night-reject-why {
+.night-leftover-seats {
   color: var(--muted-2);
-}
-
-.night-reject-boss {
-  color: var(--ink);
 }
 
 /* The standalone side: typing in what a party config already holds. */
