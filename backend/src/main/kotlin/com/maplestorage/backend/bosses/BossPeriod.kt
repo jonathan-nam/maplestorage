@@ -138,3 +138,23 @@ fun isPeriodStart(
     reset: String,
     date: LocalDate,
 ): Boolean = periodStartFor(reset, date.atStartOfDayIn(RESET_ZONE)) == date
+
+/**
+ * A `?week=` query parameter, parsed. Absent is the live view, so null succeeds.
+ *
+ * Off-boundary and malformed both fail rather than falling back to the live week. Every endpoint
+ * that takes this serves a week's worth of counts, and answering a Tuesday with some neighbouring
+ * week's numbers is the confidently wrong answer, not the empty one. Shared by the clears and the
+ * party list so the two cannot come to disagree about which dates are weeks.
+ */
+fun parseWeekParam(raw: String?): Result<LocalDate?> {
+    if (raw == null) return Result.success(null)
+    val parsed = runCatching { LocalDate.parse(raw) }.getOrNull()
+    val refusal =
+        when {
+            parsed == null -> "malformed week, expected YYYY-MM-DD"
+            !isPeriodStart(WEEKLY_CADENCE, parsed) -> "week must be a reset day (Thursday, UTC)"
+            else -> null
+        }
+    return refusal?.let { Result.failure(IllegalArgumentException(it)) } ?: Result.success(parsed)
+}

@@ -1,5 +1,6 @@
 package com.maplestorage.backend.parties
 
+import com.maplestorage.backend.bosses.parseWeekParam
 import com.maplestorage.backend.db.BossCatalog
 import com.maplestorage.backend.plugins.parseUuidParam
 import com.maplestorage.backend.plugins.principalIdAndEmail
@@ -47,12 +48,23 @@ fun Route.partyRoutes(nexonLookupService: NexonLookupService) {
 // a character too new to rank, and neither is worth an outbound call on every save.
 private val SPRITE_RETRY_AFTER = 7.days
 
+/**
+ * Every config, for the current week by default or one past week with `?week=YYYY-MM-DD`.
+ *
+ * The week does not change which configs come back. It changes the pool counts each one carries,
+ * which is what lets Party View's drop badges answer for the same week as the ticks beside them.
+ * See lootCountsFor for what a week admits.
+ */
 private suspend fun RoutingContext.listParties() {
     val (userId, email) = call.principalIdAndEmail()
+    val week =
+        parseWeekParam(call.request.queryParameters["week"]).getOrElse {
+            return call.respond(HttpStatusCode.BadRequest, it.message.orEmpty())
+        }
     val parties =
         transaction {
             ensureUser(userId, email)
-            partiesFor(userId)
+            partiesFor(userId, week)
         }
     call.respond(parties)
 }
@@ -171,8 +183,9 @@ private suspend fun RoutingContext.deletePartyRoute() {
             when {
                 !ownsParty(partyId, userId) -> null
                 // Deleting the config would take its pool with it, and a paid-out split is a
-                // record rather than a setting.
-                lootCountsFor(listOf(partyId)).isNotEmpty() ->
+                // record rather than a setting. All time, not the shown week: a settled drop from
+                // months ago is exactly the record this refuses to discard.
+                lootCountsFor(listOf(partyId), week = null).isNotEmpty() ->
                     "this party has loot in its pool, clear the pool first"
                 else -> {
                     deleteParty(partyId, userId)

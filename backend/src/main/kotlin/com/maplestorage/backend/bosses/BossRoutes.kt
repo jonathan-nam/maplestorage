@@ -58,22 +58,10 @@ internal suspend fun RoutingContext.listBosses() {
 internal suspend fun RoutingContext.getCurrentBossClears() {
     val (userId, email) = call.principalIdAndEmail()
     val now = Clock.System.now()
-    val requested = call.request.queryParameters["week"]
 
     val week =
-        if (requested == null) {
-            null
-        } else {
-            val parsed =
-                try {
-                    LocalDate.parse(requested)
-                } catch (_: IllegalArgumentException) {
-                    return call.respond(HttpStatusCode.BadRequest, "malformed week, expected YYYY-MM-DD")
-                }
-            if (!isPeriodStart(WEEKLY_CADENCE, parsed)) {
-                return call.respond(HttpStatusCode.BadRequest, "week must be a reset day (Thursday, UTC)")
-            }
-            parsed
+        parseWeekParam(call.request.queryParameters["week"]).getOrElse {
+            return call.respond(HttpStatusCode.BadRequest, it.message.orEmpty())
         }
 
     val view =
