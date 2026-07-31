@@ -4210,14 +4210,12 @@ button.link:disabled {
   color: var(--muted-2);
   font-size: 12px;
   cursor: pointer;
-  text-decoration: line-through;
 }
 
 .night-person.is-on {
   border-color: var(--accent);
   background: color-mix(in srgb, var(--accent) 12%, var(--surface));
   color: var(--ink-strong);
-  text-decoration: none;
 }
 
 .night-budget {
