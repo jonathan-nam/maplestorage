@@ -3796,6 +3796,20 @@ button.link:disabled {
   gap: 10px;
 }
 
+/* The portrait and the name are one click target, so it holds them the way the header would have. */
+.party-row-heading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  color: inherit;
+  text-decoration: none;
+}
+
+.party-row-heading:hover .party-row-name {
+  color: var(--accent);
+}
+
 .party-row-name {
   margin: 0;
   font-size: 14px;
@@ -3814,11 +3828,6 @@ button.link:disabled {
 .party-row-label {
   color: var(--muted);
   font-size: 12px;
-  text-decoration: none;
-}
-
-.party-row-label:hover {
-  color: var(--accent);
 }
 
 /* Right of everything on the same line, which is the point: the eye runs down one column of
@@ -3829,6 +3838,26 @@ button.link:disabled {
 
 .party-row .roster-strip {
   gap: 10px;
+}
+
+/* What the row opens to: the roster, then the drop picker. Indented past the chevron so it hangs
+   under the heading rather than under the arrow that opened it (18px control + the header's 10px
+   gap). */
+.party-row-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-left: 28px;
+}
+
+/* The picker's own bottom margin is for the loot pool, where a list of drops follows it. Nothing
+   follows it here. */
+.party-row-panel .loot-add {
+  margin-bottom: 0;
+}
+
+.party-row-panel .split-error {
+  margin: 0;
 }
 
 .party-row .party-loot-summary {
