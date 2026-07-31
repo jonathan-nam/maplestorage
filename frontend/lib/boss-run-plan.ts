@@ -177,10 +177,23 @@ export const EMPTY_PLAN: Plan = { runs: [], switches: 0, minutes: 0 };
 // and Sets this replaced were three quarters of the search's time at 30 runs: copying four of them
 // per candidate, then sorting two back into a key.
 //
-// One array of scheduled runs rather than three kept index-aligned. The parallel version
+// One record per scheduled run rather than three arrays kept index-aligned. The parallel version
 // typechecked and was one off-by-one away from attributing a switch to the wrong run.
+
+/**
+ * The runs scheduled so far, newest first, sharing every link with the state it grew from.
+ *
+ * A chain rather than an array because appending is the only thing the search does with it, and
+ * `[...state.order, planned]` copied the whole prefix per candidate: 89k element copies for a
+ * seventeen-run night at two hours, against maybe thirty plans that are ever read back. Reading is
+ * what pays instead, in orderOf, and only the round leaders and the tie-break key ever read.
+ */
+type OrderChain = { planned: PlannedRun; before: OrderChain | null };
+
 type State = {
-  order: PlannedRun[];
+  order: OrderChain | null;
+  /** How many runs are in `order`, since a chain cannot say so in constant time. */
+  depth: number;
   /** One bit per run. */
   taken: number[];
   /** Where each person is parked right now, by person. Undefined means they have not logged in yet. */
@@ -224,6 +237,67 @@ function sizeField(size: number): string {
   return String(Math.min(size, 99)).padStart(2, "0");
 }
 
+/**
+ * The best `k` items, in no particular order, with the single best one first. Sorts in place.
+ *
+ * Equivalent to `items.sort(better).slice(0, k)` for the SET it returns and for the element at 0,
+ * and that is all the beam reads: the next round iterates it to generate candidates and dedupes
+ * them through a comparison that does not depend on the order they arrive in. Sorting the other
+ * 999 was a quarter of the search's time.
+ *
+ * Cutting at the k-th element is only well defined because `better` is a total order. planNight's
+ * is: it breaks its last tie on the run-id sequence, which two distinct states cannot share. Given
+ * that, "the best k" is one particular set rather than any of several equally good ones.
+ *
+ * Hoare partition around a median-of-three pivot, recurring only into the side holding the cut.
+ * Generic over the comparator so pinBestOf can check it against a plain sort without building
+ * States, which is worth it: a selection that quietly keeps the wrong k would change plans on some
+ * inputs and not others, and nothing downstream could tell.
+ */
+export function bestOf<T>(items: T[], k: number, better: (a: T, b: T) => number): T[] {
+  if (k <= 0) return [];
+  if (items.length > k) {
+    let lo = 0;
+    let hi = items.length - 1;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      // Median of three, parked at hi as the pivot, so sorted and reverse-sorted input do not
+      // degrade to O(n^2).
+      if (better(items[mid] as T, items[lo] as T) < 0) swap(items, mid, lo);
+      if (better(items[hi] as T, items[lo] as T) < 0) swap(items, hi, lo);
+      if (better(items[mid] as T, items[hi] as T) < 0) swap(items, mid, hi);
+      const pivot = items[hi] as T;
+
+      let split = lo;
+      for (let i = lo; i < hi; i++) {
+        if (better(items[i] as T, pivot) < 0) swap(items, i, split++);
+      }
+      swap(items, split, hi);
+
+      // The cut sits at index k-1, so a partition landing at or past k means everything from the
+      // pivot rightwards is out.
+      if (split >= k) hi = split - 1;
+      else lo = split + 1;
+    }
+    items.length = k;
+  }
+
+  // The leader has to be exact: it is the plan the round records. Partitioning only guarantees the
+  // SET, so the minimum is found rather than assumed to have landed at the front.
+  let leader = 0;
+  for (let i = 1; i < items.length; i++) {
+    if (better(items[i] as T, items[leader] as T) < 0) leader = i;
+  }
+  if (leader > 0) swap(items, 0, leader);
+  return items;
+}
+
+function swap<T>(items: T[], a: number, b: number): void {
+  const held = items[a] as T;
+  items[a] = items[b] as T;
+  items[b] = held;
+}
+
 function betterState(a: State, b: State): number {
   // Bigger parties earlier. Greater string, not lesser, so this is descending.
   if (a.parties !== b.parties) return a.parties < b.parties ? 1 : -1;
@@ -234,15 +308,28 @@ function betterState(a: State, b: State): number {
   return planKey(a).localeCompare(planKey(b));
 }
 
+/** The chain read back into schedule order, which is the order it was built in reversed. */
+function orderOf(state: State): PlannedRun[] {
+  const runs: PlannedRun[] = new Array(state.depth);
+  let link = state.order;
+  for (let i = state.depth - 1; i >= 0; i--) {
+    runs[i] = (link as OrderChain).planned;
+    link = (link as OrderChain).before;
+  }
+  return runs;
+}
+
 function planKey(state: State): string {
   if (state.orderKey === null) {
-    state.orderKey = state.order.map((planned) => planned.run.id).join();
+    state.orderKey = orderOf(state)
+      .map((planned) => planned.run.id)
+      .join();
   }
   return state.orderKey;
 }
 
 function toPlan(state: State): Plan {
-  return { runs: state.order, switches: state.switches, minutes: state.minutes };
+  return { runs: orderOf(state), switches: state.switches, minutes: state.minutes };
 }
 
 /**
@@ -281,7 +368,8 @@ export function planNight(
   const people = personAt.size;
 
   const start: State = {
-    order: [],
+    order: null,
+    depth: 0,
     taken: noBits(runs.length),
     parked: new Array(people).fill(undefined),
     spent: noBits(pairAt.size),
@@ -331,7 +419,7 @@ export function planNight(
           if (wasOn !== undefined && wasOn !== seat.character) switched.push(seat.personId);
         }
 
-        const at = state.order.length;
+        const at = state.depth;
         const parked = state.parked.slice();
         const lastRunAt = state.lastRunAt.slice();
         const spent = state.spent.slice();
@@ -349,7 +437,8 @@ export function planNight(
         setBit(taken, index);
 
         const candidate: State = {
-          order: [...state.order, { run, switched, startsAt }],
+          order: { planned: { run, switched, startsAt }, before: state.order },
+          depth: at + 1,
           taken,
           parked,
           spent,
@@ -374,7 +463,7 @@ export function planNight(
       }
     }
 
-    beam = [...next.values()].sort(betterState).slice(0, beamWidth);
+    beam = bestOf([...next.values()], beamWidth, betterState);
     const leader = beam[0];
     if (!leader) break;
     byCount.push(toPlan(leader));

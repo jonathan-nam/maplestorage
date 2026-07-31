@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  bestOf,
   type CandidateRun,
   type EligibleRun,
   type Plan,
@@ -415,5 +416,60 @@ describe("tradeOffs", () => {
 
   it("has nothing to offer when there is no plan at all", () => {
     expect(tradeOffs([])).toEqual([]);
+  });
+});
+
+describe("bestOf", () => {
+  // The beam cut. It replaced a full sort, so what has to hold is that it keeps the same k and
+  // names the same winner: a selection quietly keeping the wrong k would change the plan on some
+  // inputs and not others, and no test downstream of it could tell which.
+  const ascending = (a: number, b: number) => a - b;
+
+  /** What it replaced, which is the definition of right. */
+  const bySorting = (items: number[], k: number) => [...items].sort(ascending).slice(0, k);
+
+  function seeded(seed: number) {
+    let a = seed;
+    return () => {
+      a |= 0;
+      a = (a + 0x6d2b79f5) | 0;
+      let t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  it("keeps the same set as a sort, and the same best one first", () => {
+    for (let seed = 1; seed <= 200; seed++) {
+      const rand = seeded(seed);
+      const size = 1 + Math.floor(rand() * 60);
+      // Deliberately narrow, so duplicates are common: ties are where a partition goes wrong.
+      const items = Array.from({ length: size }, () => Math.floor(rand() * 12));
+      const k = 1 + Math.floor(rand() * size);
+
+      const got = bestOf([...items], k, ascending);
+      const want = bySorting(items, k);
+
+      expect([...got].sort(ascending)).toEqual(want);
+      expect(got[0]).toBe(want[0]);
+      expect(got).toHaveLength(Math.min(k, size));
+    }
+  });
+
+  it("holds for input that is already sorted, and for its reverse", () => {
+    const up = Array.from({ length: 500 }, (_, i) => i);
+    const down = [...up].reverse();
+    for (const items of [up, down]) {
+      const got = bestOf([...items], 100, ascending);
+      expect([...got].sort(ascending)).toEqual(bySorting(items, 100));
+      expect(got[0]).toBe(0);
+    }
+  });
+
+  it("returns everything when k is past the end, and nothing when it is zero", () => {
+    expect(bestOf([3, 1, 2], 9, ascending).sort(ascending)).toEqual([1, 2, 3]);
+    expect(bestOf([3, 1, 2], 9, ascending)[0]).toBe(1);
+    expect(bestOf([3, 1, 2], 0, ascending)).toEqual([]);
+    expect(bestOf([], 5, ascending)).toEqual([]);
   });
 });
