@@ -47,11 +47,13 @@ const CHARACTERS_KEY = "/api/characters";
 // clears out of here, because /api/parties can only ever answer for the period it is in.
 const CLEARS_KEY = "/api/bosses/clears";
 
+// Both lists take the week. The clears draw a past week's ticks, and the party list carries that
+// week's drop counts, so the badge beside a tick answers for the same week the tick does.
+//
 // Only the live view is cached. A past week is a deliberate click and worth a round-trip, and
 // caching every week stepped through would grow without bound. Same reasoning as the boss page.
 const clearsUrl = (week: string | null) => (week ? `${CLEARS_KEY}?week=${week}` : CLEARS_KEY);
-
-const partyWord = (n: number) => (n === 1 ? "party" : "parties");
+const partiesUrl = (week: string | null) => (week ? `${PARTIES_KEY}?week=${week}` : PARTIES_KEY);
 
 export default function PartiesPage() {
   // Before anything is fetched: see lib/preload-boss-art.ts.
@@ -80,35 +82,65 @@ export default function PartiesPage() {
   // null is the live view. Anything else is a past week, read-only.
   const [week, setWeek] = useState<string | null>(null);
   const [stepping, setStepping] = useState(false);
+  // Whether anything, in any week, still owes somebody. Held apart from `parties` because that
+  // list is now scoped to the week on screen: a share owed on a drop from three weeks ago is still
+  // a share owed, and stepping back must not retire the link to where it is settled. Written on
+  // the live view only, which is the one that carries every outstanding drop forward.
+  const [owedAnywhere, setOwedAnywhere] = useState(() =>
+    (seededParties ?? []).some((p) => p.awaitingPayout > 0),
+  );
 
   // Stepping twice quickly fires two requests that can land in either order. Only the newest may
   // write state, or the list ends up showing a week the label disagrees with. Same guard as the
-  // boss page.
-  const latestClears = useRef(0);
+  // boss page, and one ticket for both lists so they cannot land out of step with each other.
+  const latestWeek = useRef(0);
 
-  // Answers whether this response was the one that landed, as the boss page's does: a caller that
-  // also moves the week label must not move it behind an overtaken response.
-  async function loadClears(target: string | null, token?: string | null): Promise<boolean> {
-    const ticket = ++latestClears.current;
-    const result = await apiFetch<BossClearsView>(
-      clearsUrl(target),
-      { method: "GET" },
-      token !== undefined ? () => Promise.resolve(token) : getToken,
-    );
-    if (ticket !== latestClears.current) return false;
-    setView(result);
+  /**
+   * The week's two lists, under one ticket.
+   *
+   * Answers whether the week label may move, as the boss page's loader does: a response overtaken
+   * by a newer step must move neither the label nor the lists.
+   *
+   * `clearsOptional` is the first load alone. Losing the clears there costs the stepper and the
+   * countdown and nothing else, and blanking the party list over that says less than leaving it up.
+   * A step is both or neither: badges from one week under a label from another is exactly the
+   * confidently wrong screen this guard exists to prevent.
+   */
+  async function loadWeek(
+    target: string | null,
+    opts: { token?: string | null; clearsOptional?: boolean } = {},
+  ): Promise<boolean> {
+    const { token, clearsOptional } = opts;
+    const auth = token !== undefined ? () => Promise.resolve(token) : getToken;
+    const ticket = ++latestWeek.current;
+    const clearsRequest = apiFetch<BossClearsView>(clearsUrl(target), { method: "GET" }, auth);
+    const [clears, partyList] = await Promise.all([
+      clearsOptional ? clearsRequest.catch(() => null) : clearsRequest,
+      apiFetch<Party[]>(partiesUrl(target), { method: "GET" }, auth),
+    ]);
+    if (ticket !== latestWeek.current) return false;
+
+    setParties(partyList);
+    if (target === null) {
+      // The live view is the one that carries every outstanding drop forward, so it is the only
+      // answer to "is any money owed at all". See owedAnywhere.
+      setOwedAnywhere(partyList.some((p) => p.awaitingPayout > 0));
+      put(PARTIES_KEY, partyList);
+    }
+    if (!clears) return false;
+    setView(clears);
     setReceivedAt(Date.now());
-    if (target === null) put(CLEARS_KEY, result);
+    if (target === null) put(CLEARS_KEY, clears);
     return true;
   }
 
   async function selectWeek(target: string | null) {
     setStepping(true);
     try {
-      if (await loadClears(target)) setWeek(target);
+      if (await loadWeek(target)) setWeek(target);
     } catch {
-      // Keep the week on screen. Moving the label without the clears behind it would label one
-      // week's ticks with another week's date.
+      // Keep the week on screen. Moving the label without the lists behind it would label one
+      // week's ticks and badges with another week's date.
     } finally {
       setStepping(false);
     }
@@ -125,20 +157,15 @@ export default function PartiesPage() {
    * the live view reads party.cleared, a past week reads the clears. Refreshing one would leave
    * the other answering for the period that just ended.
    *
-   * The configs themselves are untouched by a reset (the party table has no period), so what
-   * changes for them is only the clear each one carries, back to "nobody has said anything yet".
+   * Which configs there are is untouched by a reset (the party table has no period). What changes
+   * for them is the clear each one carries, back to "nobody has said anything yet", and the drop
+   * counts, since a settled pool belongs to the week it settled in.
    */
   async function pickUpReset(crossed: CrossedReset) {
     const target = crossed.cadences.includes(WEEKLY_CADENCE) ? null : week;
     setStepping(true);
     try {
-      const [refreshed, landed] = await Promise.all([
-        apiFetch<Party[]>(PARTIES_KEY, { method: "GET" }, getToken),
-        loadClears(target),
-      ]);
-      setParties(refreshed);
-      put(PARTIES_KEY, refreshed);
-      if (landed) setWeek(target);
+      if (await loadWeek(target)) setWeek(target);
     } catch {
       // The old list under a rolled-over week is wrong, but blanking the page says less than
       // leaving it up. The next visit or step reloads it.
@@ -149,28 +176,22 @@ export default function PartiesPage() {
 
   useEffect(() => {
     // One token for the whole burst, as the boss page does: getToken() can round-trip to Clerk,
-    // and four calls would pay that four times.
+    // and three calls would pay that three times.
     getToken()
       .then((token) => {
         const withToken = () => Promise.resolve(token);
         return Promise.all([
-          apiFetch<Party[]>(PARTIES_KEY, { method: "GET" }, withToken),
-          apiFetch<Boss[]>(BOSSES_KEY, { method: "GET" }, withToken),
-          apiFetch<Character[]>(CHARACTERS_KEY, { method: "GET" }, withToken),
-          // Through loadClears so this first read takes a ticket like any other. Stepping
+          // Through loadWeek so this first read takes a ticket like any other. Stepping
           // immediately after opening the page would otherwise have the initial answer land last
           // and overwrite the week you asked for.
-          //
-          // Caught on its own: the clears are the one thing on this page that is not the party
-          // list, and losing them must not take the list down with it.
-          loadClears(null, token).catch(() => null),
+          loadWeek(null, { token, clearsOptional: true }),
+          apiFetch<Boss[]>(BOSSES_KEY, { method: "GET" }, withToken),
+          apiFetch<Character[]>(CHARACTERS_KEY, { method: "GET" }, withToken),
         ]);
       })
-      .then(([partyResult, bossResult, characterResult]) => {
-        setParties(partyResult);
+      .then(([, bossResult, characterResult]) => {
         setBosses(bossResult);
         setCharacters(characterResult);
-        put(PARTIES_KEY, partyResult);
         put(BOSSES_KEY, bossResult);
         put(CHARACTERS_KEY, characterResult);
         setState("loaded");
@@ -223,7 +244,9 @@ export default function PartiesPage() {
   const hiddenByCadence = parties.length - weekly.length;
   const hiddenByAge = weekly.length - shown.length;
 
-  // Either rule can empty a week, and naming the wrong one explains a correct screen wrongly.
+  // Either rule can empty a week, and naming the wrong one explains a correct screen wrongly. Only
+  // for a week with nothing left in it: a week that still has a list says nothing about what it
+  // narrowed, since the list IS the answer.
   const emptyWeekReason =
     hiddenByCadence === 0
       ? "They were all set up later."
@@ -269,12 +292,7 @@ export default function PartiesPage() {
     { value: "cleared", label: "Cleared", count: clearedCount },
   ];
 
-  // Counted off every party, not the filtered set: a share owed on a party this week's filter
-  // hides is still a share owed.
-  const showWallet = offersWallet(
-    settings?.trades,
-    parties.some((p) => p.awaitingPayout > 0),
-  );
+  const showWallet = offersWallet(settings?.trades, owedAnywhere);
 
   const characterGroups = byCharacter(
     visible,
@@ -332,15 +350,6 @@ export default function PartiesPage() {
                 onReset={pickUpReset}
               />
             </div>
-          )}
-
-          {/* Only when there is a list to qualify. With nothing shown the empty line below says it
-              all, and both together said it twice. */}
-          {history && shown.length > 0 && (
-            <p className="boss-history-note">
-              Past week, read-only. Weekly bosses only.
-              {hiddenByAge > 0 && ` ${hiddenByAge} newer ${partyWord(hiddenByAge)} hidden.`}
-            </p>
           )}
 
           <div className="party-toolbar-tabs">

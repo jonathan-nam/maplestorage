@@ -7,7 +7,11 @@ import com.maplestorage.backend.db.Person
 import com.maplestorage.backend.users.WORLD_HEROIC
 import com.maplestorage.backend.users.WORLD_INTERACTIVE
 import com.maplestorage.backend.users.ensureUser
+import kotlinx.datetime.DateTimeUnit
 import kotlinx.datetime.LocalDate
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.minus
+import kotlinx.datetime.toLocalDateTime
 import org.flywaydb.core.Flyway
 import org.jetbrains.exposed.v1.core.inList
 import org.jetbrains.exposed.v1.jdbc.Database
@@ -40,6 +44,16 @@ class PartyLootTest {
     /** A second account, so the account-wide read has something it must not return. */
     private val strangerId = "user_test_loot_2"
     private val dropped = LocalDate.parse("2026-07-20")
+
+    /** The Thursday `dropped` falls after, and the next one. Reset is Thursday 00:00 UTC. */
+    private val weekOf20Jul = LocalDate.parse("2026-07-16")
+    private val weekAfter20Jul = LocalDate.parse("2026-07-23")
+
+    private fun todayUtc() =
+        Clock.System
+            .now()
+            .toLocalDateTime(TimeZone.UTC)
+            .date
 
     @BeforeTest
     fun migrate() {
@@ -104,7 +118,28 @@ class PartyLootTest {
         return addLoot(Uuid.parse(party.id), dropId, null, bossIdForKey("limbo"), dropped, Clock.System.now())
     }
 
+    private fun addGrindstoneOn(
+        party: PartyResponse,
+        on: LocalDate,
+    ): Uuid =
+        addLoot(
+            Uuid.parse(party.id),
+            dropIdForKey("grindstone-of-faith")!!,
+            null,
+            bossIdForKey("limbo"),
+            on,
+            Clock.System.now(),
+        )
+
     private fun sale(sellerId: String) = SellLootRequest(9_500_000_000, "LISTED", "FAIR", sellerId)
+
+    /** Pays every share on a sold drop, so it lands in `settled`. */
+    private fun settle(
+        lootId: Uuid,
+        partyId: Uuid,
+    ) = findLoot(lootId, partyId)!!.payouts.forEach {
+        setPayoutPaid(lootId, Uuid.parse(it.memberId), true, Clock.System.now())
+    }
 
     @Test
     fun `a catalog drop carries its name, art and per-member warning onto the row`() {
@@ -297,16 +332,96 @@ class PartyLootTest {
                 setPayoutPaid(done, Uuid.parse(it.memberId), true, Clock.System.now())
             }
 
-            val counts = lootCountsFor(listOf(partyId))[partyId]!!
+            val counts = lootCountsFor(listOf(partyId), week = null)[partyId]!!
             assertEquals(1, counts.pending)
             assertEquals(1, counts.awaitingPayout)
             assertEquals(1, counts.settled)
 
-            // And it reaches the row the list draws.
+            // And it reaches the row the party's own page draws, which is all time.
             val row = findParty(partyId, userId)!!
             assertEquals(1, row.pendingLoot)
             assertEquals(1, row.awaitingPayout)
             assertEquals(1, row.settledLoot)
+        }
+    }
+
+    // The four claims the week rule is made of. Party View's badge sits beside a clear tick that
+    // already answers for one week, so a badge counting every drop ever put two periods on one row.
+    //
+    // `dropped` is 20 Jul 2026, a Monday, so its week is the one starting Thursday the 16th.
+
+    @Test
+    fun `a settled drop counts in its own week and in no later one`() {
+        transaction {
+            val party = trio()
+            val partyId = Uuid.parse(party.id)
+            val seller = party.members.first { it.name == "Rune" }
+            val done = addGrindstone(party)
+            sellLoot(done, sale(seller.id), Uuid.parse(seller.id), partyId, Clock.System.now())
+            settle(done, partyId)
+
+            assertEquals(1, lootCountsFor(listOf(partyId), weekOf20Jul)[partyId]!!.settled)
+
+            // Nothing left to do with it, so it stays in the week it happened in.
+            val next = lootCountsFor(listOf(partyId), weekAfter20Jul)[partyId]!!
+            assertEquals(0, next.settled)
+            assertEquals(0, next.pending)
+            assertEquals(0, next.awaitingPayout)
+        }
+    }
+
+    @Test
+    fun `an unsold drop and an unpaid one both carry into later weeks`() {
+        transaction {
+            val party = trio()
+            val partyId = Uuid.parse(party.id)
+            val seller = party.members.first { it.name == "Rune" }
+            addGrindstone(party) // never sold
+            val awaiting = addGrindstone(party)
+            sellLoot(awaiting, sale(seller.id), Uuid.parse(seller.id), partyId, Clock.System.now())
+
+            val own = lootCountsFor(listOf(partyId), weekOf20Jul)[partyId]!!
+            assertEquals(1, own.pending)
+            assertEquals(1, own.awaitingPayout)
+
+            // Both are work still to do, and a drop that owes somebody money must not fall off the
+            // list that shows it just because a Thursday went past.
+            val next = lootCountsFor(listOf(partyId), weekAfter20Jul)[partyId]!!
+            assertEquals(1, next.pending)
+            assertEquals(1, next.awaitingPayout)
+        }
+    }
+
+    @Test
+    fun `nothing carries backwards into a week before the drop fell`() {
+        transaction {
+            val party = trio()
+            val partyId = Uuid.parse(party.id)
+            addGrindstone(party)
+
+            // Stepping back must not import a later week's pool, or a week that was quiet reads as
+            // one that was not.
+            val earlier = lootCountsFor(listOf(partyId), LocalDate.parse("2026-07-09"))[partyId]!!
+            assertEquals(0, earlier.pending)
+            assertEquals(0, earlier.awaitingPayout)
+            assertEquals(0, earlier.settled)
+        }
+    }
+
+    @Test
+    fun `the list defaults to this week and the party's own page does not`() {
+        transaction {
+            val party = trio()
+            val partyId = Uuid.parse(party.id)
+            val seller = party.members.first { it.name == "Rune" }
+            // Far enough back to be several weeks ago whenever this runs.
+            val old = addGrindstoneOn(party, todayUtc().minus(60, DateTimeUnit.DAY))
+            sellLoot(old, sale(seller.id), Uuid.parse(seller.id), partyId, Clock.System.now())
+            settle(old, partyId)
+
+            assertEquals(0, partiesFor(userId).single { it.id == party.id }.settledLoot)
+            // Still reachable where it can be corrected or re-split.
+            assertEquals(1, findParty(partyId, userId)!!.settledLoot)
         }
     }
 

@@ -1,5 +1,7 @@
 package com.maplestorage.backend.parties
 
+import com.maplestorage.backend.bosses.WEEKLY_CADENCE
+import com.maplestorage.backend.bosses.periodAfter
 import com.maplestorage.backend.bosses.periodStartFor
 import com.maplestorage.backend.db.BossCatalog
 import com.maplestorage.backend.db.BossClear
@@ -11,6 +13,7 @@ import com.maplestorage.backend.db.PartyMember
 import com.maplestorage.backend.db.Person
 import com.maplestorage.backend.db.PersonCharacter
 import com.maplestorage.backend.users.WORLD_INTERACTIVE
+import kotlinx.datetime.LocalDate
 import org.jetbrains.exposed.v1.core.JoinType
 import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.and
@@ -28,7 +31,19 @@ import kotlin.uuid.Uuid
 /** Six seats, the game's own party limit, so five OTHERS at most beside your own character. */
 internal const val MAX_PARTY_SIZE = 6
 
-internal fun partiesFor(userId: String): List<PartyResponse> {
+/**
+ * Every config, with its pool counted for one week.
+ *
+ * [week] is the week being shown, or null for the live view, which is this week. The configs
+ * themselves are not history and do not move with it (the party table has no period), so what the
+ * week changes is only the three loot counters each row carries. `cleared` likewise answers for the
+ * period the config is in NOW, and Party View reads the clears endpoint rather than this field on a
+ * past week.
+ */
+internal fun partiesFor(
+    userId: String,
+    week: LocalDate? = null,
+): List<PartyResponse> {
     val rows =
         Party
             .innerJoin(BossCatalog)
@@ -43,7 +58,7 @@ internal fun partiesFor(userId: String): List<PartyResponse> {
 
     val partyIds = rows.map { it[Party.id] }
     val membersByParty = membersFor(partyIds, userId)
-    val counts = lootCountsFor(partyIds)
+    val counts = lootCountsFor(partyIds, week ?: periodStartFor(WEEKLY_CADENCE, Clock.System.now()))
     val clears = clearStateFor(rows)
 
     return rows.map { row ->
@@ -69,7 +84,9 @@ internal fun findParty(
             .firstOrNull() ?: return null
     return row.toPartyResponse(
         membersFor(listOf(partyId), userId)[partyId].orEmpty(),
-        lootCountsFor(listOf(partyId))[partyId] ?: LootCounts(0, 0, 0),
+        // All time, unlike the list's. This is the page that sells a drop and pays it out, so a
+        // week that hid an old one would put it beyond the only controls that can settle it.
+        lootCountsFor(listOf(partyId), week = null)[partyId] ?: LootCounts(0, 0, 0),
         clearStateFor(listOf(row))[partyId] ?: ClearState(null, false),
     )
 }
@@ -252,14 +269,37 @@ internal data class LootCounts(
     val settled: Int,
 )
 
+private data class LootRow(
+    val id: Uuid,
+    val partyId: Uuid,
+    val droppedOn: LocalDate,
+    val sold: Boolean,
+)
+
 /**
- * The two pool counts per config, in two queries for the whole page.
+ * The pool counts per config, for one week or for all time.
+ *
+ * A null [week] counts every drop the pool has ever held, which is what the party's own page and
+ * the delete guard want. Otherwise a drop belongs to the week it fell in, so a week that has passed
+ * shows the pool it had rather than today's.
+ *
+ * Outstanding drops are the one exception to that, and they carry FORWARD: something unsold, or
+ * sold with somebody still unpaid, is work left to do rather than history, so it keeps counting in
+ * every later week until it settles. Otherwise a drop from last week that still owes somebody money
+ * would disappear from Party View entirely, which is the silent-omission failure this repo exists
+ * to prevent.
+ *
+ * Nothing carries backwards. A drop that fell after the week being shown is not in that week, so a
+ * settled pool stays settled when you step back to it.
  *
  * "Awaiting payout" is derived the same way the loot rows derive their status: sold, and at least
  * one payout row unpaid. Deriving it in one place and storing it in none is what keeps the card's
  * badge and the drop's own status from disagreeing.
  */
-internal fun lootCountsFor(partyIds: List<Uuid>): Map<Uuid, LootCounts> {
+internal fun lootCountsFor(
+    partyIds: List<Uuid>,
+    week: LocalDate?,
+): Map<Uuid, LootCounts> {
     val loot =
         if (partyIds.isEmpty()) {
             emptyList()
@@ -267,24 +307,40 @@ internal fun lootCountsFor(partyIds: List<Uuid>): Map<Uuid, LootCounts> {
             PartyLoot
                 .selectAll()
                 .where { PartyLoot.partyId inList partyIds }
-                .map { Triple(it[PartyLoot.id], it[PartyLoot.partyId], it[PartyLoot.soldAt] != null) }
+                .map {
+                    LootRow(
+                        it[PartyLoot.id],
+                        it[PartyLoot.partyId],
+                        it[PartyLoot.droppedOn],
+                        it[PartyLoot.soldAt] != null,
+                    )
+                }
         }
     if (loot.isEmpty()) return emptyMap()
 
     val unpaidLootIds =
         PartyLootPayout
             .selectAll()
-            .where { (PartyLootPayout.lootId inList loot.map { it.first }) and (PartyLootPayout.paid eq false) }
+            .where { (PartyLootPayout.lootId inList loot.map { it.id }) and (PartyLootPayout.paid eq false) }
             .map { it[PartyLootPayout.lootId] }
             .toSet()
 
+    // Through periodAfter rather than a +7, so the week a drop is filed under and the week the
+    // stepper walks cannot drift apart.
+    val weekEnd = week?.let { periodAfter(WEEKLY_CADENCE, it) }
+
+    // Two windows, and the difference between them is the carry-forward. Outstanding drops count
+    // from the week they fell in onwards; settled ones count in that week alone.
+    val byThen = { row: LootRow -> weekEnd == null || row.droppedOn < weekEnd }
+    val inWeek = { row: LootRow -> week == null || (row.droppedOn >= week && byThen(row)) }
+
     return loot
-        .groupBy { it.second }
+        .groupBy { it.partyId }
         .mapValues { (_, rows) ->
             LootCounts(
-                pending = rows.count { !it.third },
-                awaitingPayout = rows.count { it.third && it.first in unpaidLootIds },
-                settled = rows.count { it.third && it.first !in unpaidLootIds },
+                pending = rows.count { !it.sold && byThen(it) },
+                awaitingPayout = rows.count { it.sold && it.id in unpaidLootIds && byThen(it) },
+                settled = rows.count { it.sold && it.id !in unpaidLootIds && inWeek(it) },
             )
         }
 }
