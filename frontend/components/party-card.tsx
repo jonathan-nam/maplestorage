@@ -78,10 +78,14 @@ export function PartyCard({
           // The frame is kept so a solo row's heading still lines up with its neighbours'.
           <span className="party-row-toggle is-empty" aria-hidden="true" />
         )}
-        {heading}
-        <Link className="party-row-label" href={`/bosses/parties/${party.id}`}>
-          {partySizeLabel(party.members.length)}
+        {/* The name is the way into the party, in every grouping. It used to be plain text, which
+            left a party with an empty pool reachable only by clicking the word "Duo": the badge
+            below is absent until something drops, and that is exactly when you go looking for
+            where to add one. Filed by party the boss chip already does this job. */}
+        <Link className="party-row-heading" href={`/bosses/parties/${party.id}`}>
+          {heading}
         </Link>
+        <span className="party-row-label">{partySizeLabel(party.members.length)}</span>
 
         {/* Work to do gets the line; a settled pool gets it quietly when there is none. It used
             to say nothing at all once everything was paid, which erased the pool from the row and

@@ -3796,6 +3796,20 @@ button.link:disabled {
   gap: 10px;
 }
 
+/* The portrait and the name are one click target, so it holds them the way the header would have. */
+.party-row-heading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  color: inherit;
+  text-decoration: none;
+}
+
+.party-row-heading:hover .party-row-name {
+  color: var(--accent);
+}
+
 .party-row-name {
   margin: 0;
   font-size: 14px;
@@ -3814,11 +3828,6 @@ button.link:disabled {
 .party-row-label {
   color: var(--muted);
   font-size: 12px;
-  text-decoration: none;
-}
-
-.party-row-label:hover {
-  color: var(--accent);
 }
 
 /* Right of everything on the same line, which is the point: the eye runs down one column of
