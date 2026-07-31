@@ -3840,6 +3840,26 @@ button.link:disabled {
   gap: 10px;
 }
 
+/* What the row opens to: the roster, then the drop picker. Indented past the chevron so it hangs
+   under the heading rather than under the arrow that opened it (18px control + the header's 10px
+   gap). */
+.party-row-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-left: 28px;
+}
+
+/* The picker's own bottom margin is for the loot pool, where a list of drops follows it. Nothing
+   follows it here. */
+.party-row-panel .loot-add {
+  margin-bottom: 0;
+}
+
+.party-row-panel .split-error {
+  margin: 0;
+}
+
 .party-row .party-loot-summary {
   text-decoration: none;
 }

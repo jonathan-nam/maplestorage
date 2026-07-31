@@ -28,6 +28,8 @@ import { useAccountSettings } from "@/lib/use-account-settings";
 import { offersWallet } from "@/lib/world";
 import type { Boss, BossClearsView } from "@/types/boss";
 import type { Character } from "@/types/character";
+import type { DropTables } from "@/types/drop";
+import type { AddLootBody } from "@/types/loot";
 import type { Party } from "@/types/party";
 
 type LoadState = "loading" | "loaded" | "error";
@@ -46,6 +48,9 @@ const CHARACTERS_KEY = "/api/characters";
 // carries its own answer (party.cleared) and that is what is drawn; only a history view reads the
 // clears out of here, because /api/parties can only ever answer for the period it is in.
 const CLEARS_KEY = "/api/bosses/clears";
+// The whole catalog's drop tables, so a row can open its picker without a round-trip. Same key as
+// the party page, so the two share one cached copy.
+const DROPS_KEY = "/api/bosses/drops";
 
 // Both lists take the week. The clears draw a past week's ticks, and the party list carries that
 // week's drop counts, so the badge beside a tick answers for the same week the tick does.
@@ -69,6 +74,7 @@ export default function PartiesPage() {
   const [parties, setParties] = useState<Party[]>(seededParties ?? []);
   const [bosses, setBosses] = useState<Boss[]>(seededBosses ?? []);
   const [characters, setCharacters] = useState<Character[]>(seededCharacters ?? []);
+  const [dropTables, setDropTables] = useState<DropTables>(peek<DropTables>(DROPS_KEY) ?? {});
   const [state, setState] = useState<LoadState>(
     seededParties && seededBosses && seededCharacters ? "loaded" : "loading",
   );
@@ -187,13 +193,21 @@ export default function PartiesPage() {
           loadWeek(null, { token, clearsOptional: true }),
           apiFetch<Boss[]>(BOSSES_KEY, { method: "GET" }, withToken),
           apiFetch<Character[]>(CHARACTERS_KEY, { method: "GET" }, withToken),
+          // Optional, for the same reason the clears are on the first load: losing them costs the
+          // row's drop picker and nothing else, and blanking a page that answers "what is left
+          // this week" over a picker's data says less than leaving it up.
+          apiFetch<DropTables>(DROPS_KEY, { method: "GET" }, withToken).catch(() => null),
         ]);
       })
-      .then(([, bossResult, characterResult]) => {
+      .then(([, bossResult, characterResult, dropResult]) => {
         setBosses(bossResult);
         setCharacters(characterResult);
         put(BOSSES_KEY, bossResult);
         put(CHARACTERS_KEY, characterResult);
+        if (dropResult) {
+          setDropTables(dropResult);
+          put(DROPS_KEY, dropResult);
+        }
         setState("loaded");
       })
       // Only blank the page if there is nothing to show: a failed refresh behind data we already
@@ -227,9 +241,43 @@ export default function PartiesPage() {
     }
   }
 
+  /**
+   * Logs a drop from the row, without leaving the list.
+   *
+   * The pool it lands in is the party page's, the same POST that page makes, so a drop added here
+   * and one added there are the same row. The counts are refetched rather than incremented in
+   * place: which of the three a drop counts towards is the server's to derive.
+   *
+   * Live view only, so PARTIES_KEY is the right list to refetch and to cache. See onAddDrop.
+   * Throws on failure, which is what makes the row say so.
+   */
+  async function addDrop(party: Party, body: AddLootBody) {
+    setBusy(true);
+    try {
+      await apiFetch<unknown>(
+        `${PARTIES_KEY}/${party.id}/loot`,
+        { method: "POST", body: JSON.stringify(body) },
+        getToken,
+      );
+      const refreshed = await apiFetch<Party[]>(PARTIES_KEY, { method: "GET" }, getToken);
+      setParties(refreshed);
+      put(PARTIES_KEY, refreshed);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   const characterById = new Map(characters.map((c) => [c.id, c]));
   const bossByKey = new Map(bosses.map((b) => [b.bossKey, b]));
   const history = week !== null;
+
+  // No tables, no picker. Offering one without them would list nothing and then explain the empty
+  // list as "no drop table recorded for this boss", which is a statement about the catalog we
+  // would not be in a position to make. The link into the party is still there either way.
+  const haveDropTables = Object.keys(dropTables).length > 0;
+  // Never on a past week: the server stamps a drop with today, so one added under last week's
+  // label would land in a week this screen is not showing.
+  const canAddDrops = !history && haveDropTables;
 
   // Two rules narrow a past week, counted apart so the empty line can name the one that applies.
   //
@@ -443,6 +491,8 @@ export default function PartiesPage() {
                         onToggleClear={
                           history ? undefined : (cleared) => toggleClear(party, cleared)
                         }
+                        dropTable={dropTables[party.bossKey]}
+                        onAddDrop={canAddDrops ? (body) => addDrop(party, body) : undefined}
                         heading={
                           <>
                             {bossByKey.get(party.bossKey)?.iconUrl && (
@@ -558,6 +608,8 @@ export default function PartiesPage() {
                       busy={busy}
                       clear={clearOf(party)}
                       onToggleClear={history ? undefined : (cleared) => toggleClear(party, cleared)}
+                      dropTable={dropTables[party.bossKey]}
+                      onAddDrop={canAddDrops ? (body) => addDrop(party, body) : undefined}
                       heading={
                         <>
                           {characterById.get(party.characterId)?.spriteImgUrl && (
