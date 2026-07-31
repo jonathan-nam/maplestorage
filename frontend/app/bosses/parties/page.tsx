@@ -55,8 +55,6 @@ const CLEARS_KEY = "/api/bosses/clears";
 const clearsUrl = (week: string | null) => (week ? `${CLEARS_KEY}?week=${week}` : CLEARS_KEY);
 const partiesUrl = (week: string | null) => (week ? `${PARTIES_KEY}?week=${week}` : PARTIES_KEY);
 
-const partyWord = (n: number) => (n === 1 ? "party" : "parties");
-
 export default function PartiesPage() {
   // Before anything is fetched: see lib/preload-boss-art.ts.
   preloadBossArt();
@@ -245,24 +243,16 @@ export default function PartiesPage() {
   const shown = week !== null ? existedInWeek(weekly, week) : weekly;
   const hiddenByCadence = parties.length - weekly.length;
   const hiddenByAge = weekly.length - shown.length;
-  const hidden = parties.length - shown.length;
 
-  // Either rule can empty a week, and naming the wrong one explains a correct screen wrongly.
+  // Either rule can empty a week, and naming the wrong one explains a correct screen wrongly. Only
+  // for a week with nothing left in it: a week that still has a list says nothing about what it
+  // narrowed, since the list IS the answer.
   const emptyWeekReason =
     hiddenByCadence === 0
       ? "They were all set up later."
       : hiddenByAge === 0
         ? "None are on a weekly boss."
         : "They were set up later, or are not on a weekly boss.";
-
-  // The same two rules, for the tooltip on the hidden count. On screen the count is the fact and
-  // the reason is on hover, which is where a caveat that cannot be said in a few words belongs.
-  const hiddenReason =
-    hiddenByCadence === 0
-      ? "Set up after this week"
-      : hiddenByAge === 0
-        ? "Not on a weekly boss"
-        : "Set up after this week, or not on a weekly boss";
 
   const clearsByCharacter = new Map(
     Object.entries(view?.clearsByCharacter ?? {}).map(([id, clears]) => [id, indexClears(clears)]),
@@ -360,19 +350,6 @@ export default function PartiesPage() {
                 onReset={pickUpReset}
               />
             </div>
-          )}
-
-          {/* What a past week dropped, and nothing else. That it is read-only is visible in the
-              rows (the clear is a label, not a button), and which bosses a week can answer for is
-              a rule, not something on screen.
-
-              The count stays: a list that quietly holds fewer parties than it did is the one thing
-              here worth saying. Only when there is a list to qualify, since the empty line below
-              already says it for a week with nothing in it. */}
-          {history && shown.length > 0 && hidden > 0 && (
-            <p className="boss-history-note" title={hiddenReason}>
-              {hidden} {partyWord(hidden)} hidden
-            </p>
           )}
 
           <div className="party-toolbar-tabs">
