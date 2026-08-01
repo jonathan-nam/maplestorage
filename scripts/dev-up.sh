@@ -23,7 +23,10 @@ if [ ! -f .env ]; then
   exit 0
 fi
 
-if docker compose up -d >/tmp/compose-up.log 2>&1; then
+# Both files, always. docker-compose.dev.yml adds hot reload to vision and is not auto-loaded, so
+# a bare `docker compose up` and smoke.sh keep running the production image. Cost of the two
+# configs: whichever ran last recreates the vision and backend containers, a few seconds.
+if docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d >/tmp/compose-up.log 2>&1; then
   status+=("postgres/vision/backend up")
 else
   status+=("compose FAILED (see /tmp/compose-up.log)")

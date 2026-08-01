@@ -1,0 +1,30 @@
+# Dev-only overlay: makes the vision service reload when you edit its source.
+#
+# Deliberately NOT named docker-compose.override.yml. Compose auto-loads that name, so smoke.sh
+# and a bare `docker compose up` would silently get a bind-mounted dev container instead of the
+# image ECS runs, and running the same images ECS runs is the entire point of docker-compose.yml.
+# Applied only by scripts/dev-up.sh, which passes both files explicitly.
+#
+# The backend is not covered: it is a compiled Kotlin binary, so reloading it needs a Gradle
+# continuous build and a dev image, which would diverge from the production one.
+services:
+  vision:
+    # Read-only: the container runs your working tree, it never writes back to it. Nothing under
+    # app/ is generated at image build time (cv/templates/ is committed), so this shadows nothing.
+    volumes:
+      - ./vision/app:/srv/app:ro
+    # Same as the Dockerfile's CMD plus --reload. --reload-dir keeps the watcher off site-packages.
+    command:
+      [
+        "uvicorn",
+        "app.main:app",
+        "--host",
+        "127.0.0.1",
+        "--port",
+        "8000",
+        "--workers",
+        "1",
+        "--reload",
+        "--reload-dir",
+        "/srv/app",
+      ]
