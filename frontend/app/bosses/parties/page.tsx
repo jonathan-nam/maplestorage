@@ -3,11 +3,11 @@
 import { useAuth } from "@clerk/nextjs";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
+import { ArrangementCard } from "@/components/arrangement-card";
 import { KnownCharacters } from "@/components/known-characters";
 import { PartyCard } from "@/components/party-card";
 import { ResetTimer } from "@/components/reset-timer";
 import { WeekStepper } from "@/components/week-stepper";
-import { RosterStrip } from "@/components/roster-strip";
 import { apiAssetUrl, apiFetch } from "@/lib/api";
 import { cellState, clearOfCell, clearStateLabel, indexClears } from "@/lib/boss-clears";
 import { bossLabel, difficultyLabel } from "@/lib/boss-difficulty";
@@ -22,7 +22,6 @@ import {
   filterByClear,
   knownCharacterNames,
   otherMembers,
-  partySizeLabel,
 } from "@/lib/parties";
 import { preloadBossArt } from "@/lib/preload-boss-art";
 import { type CrossedReset, WEEKLY_CADENCE } from "@/lib/reset-countdown";
@@ -583,20 +582,14 @@ export default function PartiesPage() {
                 members: arrangement.members,
               });
               return (
-                <article className="boss-run" key={arrangement.key}>
-                  <header className="boss-run-head">
-                    {character?.spriteImgUrl && (
-                      <img className="seat-sprite is-large" src={character.spriteImgUrl} alt="" />
-                    )}
-                    <h3 className="boss-run-name">
-                      {character?.name ?? "Unknown character"} +{" "}
-                      {others.map((m) => m.name).join(" + ")}
-                    </h3>
-                    <span className="party-card-size">{partySizeLabel(others.length + 1)}</span>
-                  </header>
-
-                  <RosterStrip members={others} />
-
+                <ArrangementCard
+                  key={arrangement.key}
+                  sprite={character?.spriteImgUrl}
+                  name={`${character?.name ?? "Unknown character"} + ${others
+                    .map((m) => m.name)
+                    .join(" + ")}`}
+                  members={others}
+                >
                   {/* One chip per boss this arrangement runs, each a way into that boss's own
                       pool. The pools stay separate: a drop comes off one boss, and pooling three
                       would be splitting what cannot be split. */}
@@ -645,7 +638,7 @@ export default function PartiesPage() {
                       </li>
                     ))}
                   </ul>
-                </article>
+                </ArrangementCard>
               );
             })}
 
