@@ -3,7 +3,6 @@ package com.maplestorage.backend.parties
 import com.maplestorage.backend.bosses.periodStartFor
 import com.maplestorage.backend.db.BossClear
 import com.maplestorage.backend.db.CharacterBossSkip
-import com.maplestorage.backend.db.Characters
 import com.maplestorage.backend.db.Party
 import com.maplestorage.backend.db.PartyMember
 import com.maplestorage.backend.db.Person
@@ -11,7 +10,6 @@ import com.maplestorage.backend.db.PersonCharacter
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.inList
-import org.jetbrains.exposed.v1.core.notInList
 import org.jetbrains.exposed.v1.jdbc.deleteWhere
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
@@ -49,7 +47,7 @@ internal fun createParty(
         it[createdAt] = now
         it[updatedAt] = now
     }
-    writeMembers(userId, partyId, characterId, request.members, sprites, now)
+    writeMembers(partyId, characterId, request.members, SeatContext(userId, sprites, now))
     return partyId
 }
 
@@ -80,7 +78,7 @@ internal fun saveParty(
         it[difficulty] = request.difficulty
         it[updatedAt] = now
     }
-    writeMembers(userId, partyId, characterId, request.members, sprites, now)
+    writeMembers(partyId, characterId, request.members, SeatContext(userId, sprites, now))
 }
 
 /**
@@ -116,77 +114,51 @@ internal fun deleteParty(
 ): Boolean = Party.deleteWhere { (Party.id eq partyId) and (Party.userId eq userId) } > 0
 
 /**
- * Writes the seats, YOUR character first.
+ * Writes the USUAL seats, YOUR character first.
  *
  * The API takes the others, because that is what you type: the config already knows whose it is.
  * Your character is stored as a seat anyway, and that is not bookkeeping for its own sake. A loot
  * pool's payouts point at seats, and you are usually the one who sold the drop, so leaving
  * yourself out would make the seller of most drops unnameable.
+ *
+ * Seats are matched by NAME, guests included, so promoting somebody who has been guesting names
+ * the seat they already have rather than a second one under the same name.
  */
 private fun writeMembers(
-    userId: String,
     partyId: Uuid,
     ownCharacterId: Uuid,
     members: List<String>,
-    sprites: Map<String, String?>,
-    now: Instant,
+    context: SeatContext,
 ) {
-    val ownName =
-        Characters
-            .selectAll()
-            .where { Characters.id eq ownCharacterId }
-            .first()[Characters.name]
-    val names = listOf(ownName) + members.map { it.trim() }.filterNot { it.equals(ownName, ignoreCase = true) }
-    val existing =
-        PartyMember
-            .selectAll()
-            .where { PartyMember.partyId eq partyId }
-            .associate { it[PartyMember.name].lowercase() to it[PartyMember.id] }
+    val names = seatNames(ownSeatName(ownCharacterId), members)
+    val existing = seatIdsByName(partyId)
 
-    val kept = names.mapNotNull { existing[it.lowercase()] }
-    if (kept.isEmpty()) {
-        PartyMember.deleteWhere { PartyMember.partyId eq partyId }
-    } else {
-        PartyMember.deleteWhere { (PartyMember.partyId eq partyId) and (PartyMember.id notInList kept) }
-    }
+    val kept = names.mapNotNull { existing[it.lowercase()] }.toSet()
+    retireOrDelete(partyId, existing.values.filterNot { it in kept })
 
-    // Your own characters, by lowercased name: a seat naming one of them is linked to it, so it
-    // shows the roster's sprite. Names are unique per world, so this cannot bind somebody else's.
-    val mine =
-        Characters
-            .selectAll()
-            .where { Characters.userId eq userId }
-            .associate { it[Characters.name].lowercase() to it[Characters.id] }
+    val mine = ownCharacterIds(context.userId)
 
     names.forEachIndexed { index, name ->
         val characterId = mine[name.lowercase()]
-        // A seat of yours reads its sprite off the character, so no copy is kept here: a copy
-        // would go stale the moment the character's own sprite is refreshed.
-        val looked = characterId == null && sprites.containsKey(name)
+        val looked = characterId == null && context.sprites.containsKey(name)
         val seatId = existing[name.lowercase()]
         if (seatId == null) {
-            PartyMember.insert {
-                it[id] = Uuid.random()
-                it[PartyMember.partyId] = partyId
-                it[PartyMember.name] = name
-                it[PartyMember.characterId] = characterId
-                it[position] = index
-                it[spriteImgUrl] = if (looked) sprites[name] else null
-                it[spriteRefreshedAt] = if (looked) now else null
-            }
+            insertSeat(partyId, name, characterId, index, isStanding = true, context)
         } else {
             PartyMember.update({ PartyMember.id eq seatId }) {
                 it[PartyMember.name] = name
                 it[PartyMember.characterId] = characterId
                 it[position] = index
+                // A guest named in the usual roster is joining it for good.
+                it[standing] = true
                 // Left alone unless this character was looked up just now, or the seat became one
                 // of yours. Otherwise a save that only reorders seats would wipe every sprite.
                 if (characterId != null) {
                     it[spriteImgUrl] = null
                     it[spriteRefreshedAt] = null
                 } else if (looked) {
-                    it[spriteImgUrl] = sprites[name]
-                    it[spriteRefreshedAt] = now
+                    it[spriteImgUrl] = context.sprites[name]
+                    it[spriteRefreshedAt] = context.now
                 }
             }
         }

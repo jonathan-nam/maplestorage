@@ -19,6 +19,7 @@ const member = (id: string, name: string): PartyMember => ({
   personName: null,
   characterId: null,
   spriteImgUrl: null,
+  guest: false,
 });
 
 const party = [member("m1", "Rune"), member("m2", "Steve"), member("m3", "Bob")];
@@ -42,6 +43,7 @@ const sold = (over: Partial<Loot> = {}): Loot => ({
     { memberId: "m2", paid: false, paidAt: null },
     { memberId: "m3", paid: true, paidAt: "2026-07-21T11:00:00Z" },
   ],
+  ranThatWeek: [],
   ...over,
 });
 

@@ -130,7 +130,7 @@ export function buildDropLog(parties: Party[], pools: PartyLootPool[]): DropLog 
 
     for (const loot of pool.loot) {
       const sold = loot.soldAt !== null;
-      const split = sold ? splitOf(loot, party.members) : null;
+      const split = sold ? splitOf(loot, party.seats) : null;
       const unreadable = sold && split === null;
 
       entries.push({
@@ -148,7 +148,7 @@ export function buildDropLog(parties: Party[], pools: PartyLootPool[]): DropLog 
         splitMethod: loot.splitMethod,
         sellerName: split?.seller.name ?? null,
         pooled: split?.split.sellerReceives ?? null,
-        yourTake: split ? takeFor(loot, party.members) : null,
+        yourTake: split ? takeFor(loot, party.seats) : null,
         unreadable,
       });
     }

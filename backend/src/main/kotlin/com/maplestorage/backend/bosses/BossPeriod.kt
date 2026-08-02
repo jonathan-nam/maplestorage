@@ -69,6 +69,15 @@ fun periodStartFor(
 private fun daysSinceWeeklyReset(date: LocalDate): Int =
     (date.dayOfWeek.isoDayNumber - WEEKLY_RESET_ISO_DAY + DAYS_IN_WEEK) % DAYS_IN_WEEK
 
+/**
+ * The week a DATE falls in, as that week's start.
+ *
+ * The same boundary periodStartFor draws, so the week a drop is filed under and the week the picker
+ * steps cannot come apart. A drop's date is already the UTC day it fell on, so opening it at
+ * midnight UTC re-enters this file's own reckoning rather than a second one.
+ */
+fun weekOf(date: LocalDate): LocalDate = periodStartFor(WEEKLY_CADENCE, date.atStartOfDayIn(RESET_ZONE))
+
 /** The period after this one, for a cadence. Stepping the week picker back and forth goes through here. */
 fun periodAfter(
     reset: String,

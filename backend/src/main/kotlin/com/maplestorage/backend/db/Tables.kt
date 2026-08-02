@@ -238,7 +238,21 @@ object PartyMember : Table("party_member") {
     val spriteImgUrl = text("sprite_img_url").nullable()
     val spriteRefreshedAt = timestamp("sprite_refreshed_at").nullable()
 
+    // In the party's usual roster. False is a guest, or somebody who has left it: either way the
+    // seat stays, because payouts and past weeks point at it. See V27__party_week_roster.sql.
+    val standing = bool("standing")
+
     override val primaryKey = PrimaryKey(id)
+}
+
+// The seats that ran in one week, when that week was not the usual roster. No rows for a week
+// means the standing roster, so reverting is a delete. See V27__party_week_roster.sql.
+object PartyWeekSeat : Table("party_week_seat") {
+    val partyId = reference("party_id", Party.id)
+    val weekStart = date("week_start")
+    val memberId = reference("member_id", PartyMember.id)
+
+    override val primaryKey = PrimaryKey(partyId, weekStart, memberId)
 }
 
 // What a boss can drop, and the art shown beside it. Seeded by R__drop_catalog.sql from

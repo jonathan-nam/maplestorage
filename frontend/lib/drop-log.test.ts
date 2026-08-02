@@ -11,6 +11,7 @@ const mine = (id: string, name: string, characterId = `char-${id}`): PartyMember
   personName: null,
   characterId,
   spriteImgUrl: null,
+  guest: false,
 });
 
 const theirs = (id: string, name: string): PartyMember => ({
@@ -20,6 +21,7 @@ const theirs = (id: string, name: string): PartyMember => ({
   personName: "Chris",
   characterId: null,
   spriteImgUrl: null,
+  guest: false,
 });
 
 const party = (id: string, members: PartyMember[], over: Partial<Party> = {}): Party => ({
@@ -29,6 +31,8 @@ const party = (id: string, members: PartyMember[], over: Partial<Party> = {}): P
   bossKey: "limbo",
   difficulty: null,
   members,
+  seats: members,
+  usualRoster: true,
   pendingLoot: 0,
   awaitingPayout: 0,
   settledLoot: 0,
@@ -55,6 +59,7 @@ const drop = (over: Partial<Loot> = {}): Loot => ({
   sellerMemberId: "m1",
   soldAt: "2026-07-21T10:00:00Z",
   payouts: [{ memberId: "m2", paid: false, paidAt: null }],
+  ranThatWeek: [],
   ...over,
 });
 

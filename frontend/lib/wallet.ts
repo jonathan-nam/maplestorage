@@ -107,13 +107,13 @@ export function buildWallet(parties: Party[], pools: PartyLootPool[]): Wallet {
 
       // Without the party there are no seats to read a share against, which is the same position
       // splitOf refuses from. Counted for the same reason.
-      const split = party ? splitOf(loot, party.members) : null;
+      const split = party ? splitOf(loot, party.seats) : null;
       if (!party || split === null) {
         unreadable += 1;
         continue;
       }
 
-      const byId = new Map(party.members.map((m) => [m.id, m]));
+      const byId = new Map(party.seats.map((m) => [m.id, m]));
       // splitOf already proved both of these resolve, or it would have returned null.
       const seller = byId.get(split.seller.memberId)!;
 

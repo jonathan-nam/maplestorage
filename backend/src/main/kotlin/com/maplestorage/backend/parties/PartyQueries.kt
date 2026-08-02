@@ -1,14 +1,10 @@
 package com.maplestorage.backend.parties
 
-import com.maplestorage.backend.bosses.WEEKLY_CADENCE
-import com.maplestorage.backend.bosses.periodAfter
 import com.maplestorage.backend.bosses.periodStartFor
 import com.maplestorage.backend.db.BossCatalog
 import com.maplestorage.backend.db.BossClear
 import com.maplestorage.backend.db.Characters
 import com.maplestorage.backend.db.Party
-import com.maplestorage.backend.db.PartyLoot
-import com.maplestorage.backend.db.PartyLootPayout
 import com.maplestorage.backend.db.PartyMember
 import com.maplestorage.backend.db.Person
 import com.maplestorage.backend.db.PersonCharacter
@@ -32,13 +28,15 @@ import kotlin.uuid.Uuid
 internal const val MAX_PARTY_SIZE = 6
 
 /**
- * Every config, with its pool counted for one week.
+ * Every config, with its pool counted and its roster read for one week.
  *
- * [week] is the week being shown, or null for the live view, which is this week. The configs
- * themselves are not history and do not move with it (the party table has no period), so what the
- * week changes is only the three loot counters each row carries. `cleared` likewise answers for the
- * period the config is in NOW, and Party View reads the clears endpoint rather than this field on a
- * past week.
+ * [week] is the week being shown, or null for the live view, which is this week. Which CONFIGS
+ * there are does not move with it (the party table has no period), and neither does `cleared`,
+ * which answers for the period the config is in now: Party View reads the clears endpoint rather
+ * than this field on a past week.
+ *
+ * The roster does move with it. A week somebody guested in ran a different party from the usual
+ * one, and drawing today's roster over it would name people who were not there.
  */
 internal fun partiesFor(
     userId: String,
@@ -56,17 +54,23 @@ internal fun partiesFor(
             .toList()
     if (rows.isEmpty()) return emptyList()
 
+    val shown = week ?: currentWeek()
     val partyIds = rows.map { it[Party.id] }
-    val membersByParty = membersFor(partyIds, userId)
-    val counts = lootCountsFor(partyIds, week ?: periodStartFor(WEEKLY_CADENCE, Clock.System.now()))
+    val seatsByParty = seatsFor(partyIds, userId)
+    val rosters = rostersFor(partyIds, shown)
+    val counts = lootCountsFor(partyIds, shown)
     val clears = clearStateFor(rows)
+    val spelledOut = weeksSpelledOut(partyIds, shown)
 
     return rows.map { row ->
         val id = row[Party.id]
+        val seats = seatsByParty[id].orEmpty()
         row.toPartyResponse(
-            membersByParty[id].orEmpty(),
-            counts[id] ?: LootCounts(0, 0, 0),
-            clears[id] ?: ClearState(null, false),
+            members = ranIn(seats, rosters[id].orEmpty()),
+            seats = seats,
+            loot = counts[id] ?: LootCounts(0, 0, 0),
+            clear = clears[id] ?: ClearState(null, false),
+            usualRoster = id !in spelledOut,
         )
     }
 }
@@ -82,12 +86,19 @@ internal fun findParty(
             .selectAll()
             .where { (Party.id eq partyId) and (Party.userId eq userId) }
             .firstOrNull() ?: return null
+    // This week's roster, because this is the page a drop is added and sold on, and those land in
+    // the week it is now. The pool below it is all time, so an old drop stays settleable, and it
+    // reads its payouts against `seats` rather than this.
+    val week = currentWeek()
+    val seats = seatsFor(listOf(partyId), userId)[partyId].orEmpty()
     return row.toPartyResponse(
-        membersFor(listOf(partyId), userId)[partyId].orEmpty(),
+        members = ranIn(seats, rosterFor(partyId, week)),
+        seats = seats,
         // All time, unlike the list's. This is the page that sells a drop and pays it out, so a
         // week that hid an old one would put it beyond the only controls that can settle it.
-        lootCountsFor(listOf(partyId), week = null)[partyId] ?: LootCounts(0, 0, 0),
-        clearStateFor(listOf(row))[partyId] ?: ClearState(null, false),
+        loot = lootCountsFor(listOf(partyId), week = null)[partyId] ?: LootCounts(0, 0, 0),
+        clear = clearStateFor(listOf(row))[partyId] ?: ClearState(null, false),
+        usualRoster = partyId !in weeksSpelledOut(listOf(partyId), week),
     )
 }
 
@@ -143,16 +154,22 @@ internal fun peopleFor(userId: String): List<PersonResponse> {
 }
 
 /**
- * Seats for these configs, with whose character each one is.
+ * EVERY seat these configs have, in seat order, with whose character each one is.
+ *
+ * All of them, guests and retired members included, because this is what a payout is read against:
+ * a share owed to somebody who has since left the party is still owed, and resolving it through
+ * this week's roster would turn the drop unreadable the moment the week rolled over. Who ran a
+ * given week is a narrowing of this, not a different query. See ranIn.
  *
  * The person comes from person_character, matched on the seat's character NAME: that association
  * is account-wide and stated once, so a seat naming CreedBratton shows Chris in every config
  * without storing him on each of them.
  */
-private fun membersFor(
+private fun seatsFor(
     partyIds: List<Uuid>,
     userId: String,
 ): Map<Uuid, List<PartyMemberResponse>> {
+    if (partyIds.isEmpty()) return emptyMap()
     // Every sprite this account has found, by character name. A sprite belongs to the CHARACTER,
     // not to the seat: the same person in three configs is the same character, and looking them up
     // once means the other two seats have a null of their own. Reading through this map is what
@@ -187,8 +204,23 @@ private fun membersFor(
                 personName = owner?.second,
                 characterId = row[PartyMember.characterId]?.toString(),
                 spriteImgUrl = spriteFor(row, spritesByName),
+                guest = !row[PartyMember.standing],
             )
         }
+}
+
+/**
+ * The seats out of [seats] that ran in a week, in seat order.
+ *
+ * A narrowing rather than a second query, so "who ran that week" can never name somebody the pool
+ * cannot read a payout against.
+ */
+private fun ranIn(
+    seats: List<PartyMemberResponse>,
+    roster: List<Uuid>,
+): List<PartyMemberResponse> {
+    val ran = roster.map { it.toString() }.toSet()
+    return seats.filter { it.id in ran }
 }
 
 /**
@@ -259,96 +291,12 @@ private fun spriteFor(
         ?: row[PartyMember.spriteImgUrl]
         ?: spritesByName[row[PartyMember.name].lowercase()]
 
-/** Unsold drops, sold ones with somebody still unpaid, and ones with nothing left to do. */
-internal data class LootCounts(
-    val pending: Int,
-    val awaitingPayout: Int,
-    // Sold and everybody paid. Carried so a pool that is fully settled is still VISIBLE from the
-    // list: with only the two counters above, marking the last share paid made a party's whole
-    // drop history vanish from its row, and there was nothing to say the pool was not empty.
-    val settled: Int,
-)
-
-private data class LootRow(
-    val id: Uuid,
-    val partyId: Uuid,
-    val droppedOn: LocalDate,
-    val sold: Boolean,
-)
-
-/**
- * The pool counts per config, for one week or for all time.
- *
- * A null [week] counts every drop the pool has ever held, which is what the party's own page and
- * the delete guard want. Otherwise a drop belongs to the week it fell in, so a week that has passed
- * shows the pool it had rather than today's.
- *
- * Outstanding drops are the one exception to that, and they carry FORWARD: something unsold, or
- * sold with somebody still unpaid, is work left to do rather than history, so it keeps counting in
- * every later week until it settles. Otherwise a drop from last week that still owes somebody money
- * would disappear from Party View entirely, which is the silent-omission failure this repo exists
- * to prevent.
- *
- * Nothing carries backwards. A drop that fell after the week being shown is not in that week, so a
- * settled pool stays settled when you step back to it.
- *
- * "Awaiting payout" is derived the same way the loot rows derive their status: sold, and at least
- * one payout row unpaid. Deriving it in one place and storing it in none is what keeps the card's
- * badge and the drop's own status from disagreeing.
- */
-internal fun lootCountsFor(
-    partyIds: List<Uuid>,
-    week: LocalDate?,
-): Map<Uuid, LootCounts> {
-    val loot =
-        if (partyIds.isEmpty()) {
-            emptyList()
-        } else {
-            PartyLoot
-                .selectAll()
-                .where { PartyLoot.partyId inList partyIds }
-                .map {
-                    LootRow(
-                        it[PartyLoot.id],
-                        it[PartyLoot.partyId],
-                        it[PartyLoot.droppedOn],
-                        it[PartyLoot.soldAt] != null,
-                    )
-                }
-        }
-    if (loot.isEmpty()) return emptyMap()
-
-    val unpaidLootIds =
-        PartyLootPayout
-            .selectAll()
-            .where { (PartyLootPayout.lootId inList loot.map { it.id }) and (PartyLootPayout.paid eq false) }
-            .map { it[PartyLootPayout.lootId] }
-            .toSet()
-
-    // Through periodAfter rather than a +7, so the week a drop is filed under and the week the
-    // stepper walks cannot drift apart.
-    val weekEnd = week?.let { periodAfter(WEEKLY_CADENCE, it) }
-
-    // Two windows, and the difference between them is the carry-forward. Outstanding drops count
-    // from the week they fell in onwards; settled ones count in that week alone.
-    val byThen = { row: LootRow -> weekEnd == null || row.droppedOn < weekEnd }
-    val inWeek = { row: LootRow -> week == null || (row.droppedOn >= week && byThen(row)) }
-
-    return loot
-        .groupBy { it.partyId }
-        .mapValues { (_, rows) ->
-            LootCounts(
-                pending = rows.count { !it.sold && byThen(it) },
-                awaitingPayout = rows.count { it.sold && it.id in unpaidLootIds && byThen(it) },
-                settled = rows.count { it.sold && it.id !in unpaidLootIds && inWeek(it) },
-            )
-        }
-}
-
 private fun ResultRow.toPartyResponse(
     members: List<PartyMemberResponse>,
+    seats: List<PartyMemberResponse>,
     loot: LootCounts,
     clear: ClearState,
+    usualRoster: Boolean,
 ) = PartyResponse(
     id = this[Party.id].toString(),
     characterId = this[Party.characterId].toString(),
@@ -356,6 +304,8 @@ private fun ResultRow.toPartyResponse(
     bossKey = this[BossCatalog.bossKey],
     difficulty = this[Party.difficulty],
     members = members,
+    seats = seats,
+    usualRoster = usualRoster,
     pendingLoot = loot.pending,
     awaitingPayout = loot.awaitingPayout,
     settledLoot = loot.settled,

@@ -7,6 +7,7 @@ import {
   existedInWeek,
   filterByClear,
   isCleared,
+  knownCharacterNames,
   otherMembers,
   partySizeLabel,
 } from "./parties";
@@ -20,6 +21,7 @@ const seat = (name: string, characterId: string | null = null): PartyMember => (
   personName: null,
   characterId,
   spriteImgUrl: null,
+  guest: false,
 });
 
 const boss = (bossKey: string, name: string): Boss => ({
@@ -37,6 +39,8 @@ const config = (id: string, characterId: string, bossKey: string, others: string
   bossKey,
   difficulty: null,
   members: [seat("mine", characterId), ...others.map((o) => seat(o))],
+  seats: [seat("mine", characterId), ...others.map((o) => seat(o))],
+  usualRoster: true,
   pendingLoot: 0,
   awaitingPayout: 0,
   settledLoot: 0,
@@ -187,5 +191,29 @@ describe("bossesWithoutConfig", () => {
       "limbo",
       "baldrix",
     ]);
+  });
+});
+
+describe("knownCharacterNames", () => {
+  it("gathers every name the app has seen, from all three places it keeps them", () => {
+    // The datalist behind both roster editors. A seat is matched to its existing row by NAME, so a
+    // spelling that misses abandons that seat and makes a second one: this is what stops it.
+    const names = knownCharacterNames(
+      [{ name: "mechyfechy" }],
+      [{ characters: ["CreedBratton", "Cara"] }],
+      [config("p1", "char-1", "limbo", ["Bob"])],
+    );
+
+    // Sorted and deduplicated: "mine" is the config's own seat, and it is a name like any other.
+    expect(names).toEqual(["Bob", "Cara", "CreedBratton", "mechyfechy", "mine"]);
+  });
+
+  it("says the same name once, however many parties it sits in", () => {
+    const twice = [
+      config("p1", "char-1", "limbo", ["Bob"]),
+      config("p2", "char-1", "baldrix", ["Bob"]),
+    ];
+
+    expect(knownCharacterNames([], [], twice).filter((n) => n === "Bob")).toHaveLength(1);
   });
 });

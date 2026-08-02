@@ -17,6 +17,27 @@ export function otherMembers(party: Party) {
 }
 
 /**
+ * Every character name the app already knows: your roster, the people list, and whoever is already
+ * sitting in a party.
+ *
+ * Not a nicety. Seats are matched to existing rows by name, so a spelling that misses does not
+ * rename a seat, it abandons that one and makes another.
+ */
+export function knownCharacterNames(
+  characters: { name: string }[],
+  people: { characters: string[] }[],
+  parties: Party[],
+): string[] {
+  return Array.from(
+    new Set([
+      ...characters.map((c) => c.name),
+      ...people.flatMap((p) => p.characters),
+      ...parties.flatMap((p) => p.members.map((m) => m.name)),
+    ]),
+  ).sort();
+}
+
+/**
  * How a party of this size gets said out loud. "Duo" and "trio" are what people call these; four
  * and up have no such word, so they keep the count.
  */

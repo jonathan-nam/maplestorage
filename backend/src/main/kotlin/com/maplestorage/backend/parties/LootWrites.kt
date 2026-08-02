@@ -1,15 +1,14 @@
 package com.maplestorage.backend.parties
 
+import com.maplestorage.backend.bosses.weekOf
 import com.maplestorage.backend.db.Party
 import com.maplestorage.backend.db.PartyLoot
 import com.maplestorage.backend.db.PartyLootPayout
-import com.maplestorage.backend.db.PartyMember
 import kotlinx.datetime.LocalDate
 import org.jetbrains.exposed.v1.core.JoinType
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.inList
-import org.jetbrains.exposed.v1.core.neq
 import org.jetbrains.exposed.v1.jdbc.deleteWhere
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
@@ -48,6 +47,10 @@ internal fun addLoot(
  * The payout roster is written once, on the first sale, and never re-derived: adding a member next
  * week must not create a debt on a drop they were not there for, and correcting a price must not
  * wipe out who has already been paid.
+ *
+ * Who is owed is the roster of the week the drop FELL in, not of the week it sells in and not of
+ * the party today. A guest who ran that night is owed their share, and a usual member who sat that
+ * week out is not, which is the whole point of a week having its own roster.
  */
 internal fun sellLoot(
     lootId: Uuid,
@@ -56,6 +59,12 @@ internal fun sellLoot(
     partyId: Uuid,
     now: Instant,
 ) {
+    val droppedOn =
+        PartyLoot
+            .selectAll()
+            .where { PartyLoot.id eq lootId }
+            .first()[PartyLoot.droppedOn]
+
     PartyLoot.update({ PartyLoot.id eq lootId }) {
         it[soldAt] = now
         it[saleAmount] = request.amount
@@ -66,13 +75,12 @@ internal fun sellLoot(
     }
 
     if (!PartyLootPayout.selectAll().where { PartyLootPayout.lootId eq lootId }.empty()) return
-    PartyMember
-        .selectAll()
-        .where { (PartyMember.partyId eq partyId) and (PartyMember.id neq sellerMemberId) }
-        .forEach { member ->
+    rosterFor(partyId, weekOf(droppedOn))
+        .filterNot { it == sellerMemberId }
+        .forEach { seatId ->
             PartyLootPayout.insert {
                 it[PartyLootPayout.lootId] = lootId
-                it[memberId] = member[PartyMember.id]
+                it[memberId] = seatId
                 it[paid] = false
             }
         }

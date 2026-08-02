@@ -17,14 +17,10 @@ import io.ktor.server.routing.get
 import io.ktor.server.routing.post
 import io.ktor.server.routing.put
 import io.ktor.server.routing.route
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
-import kotlinx.coroutines.coroutineScope
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import kotlin.time.Clock
-import kotlin.time.Duration.Companion.days
 import kotlin.uuid.Uuid
 
 // A config is one of your characters, on one boss, with the people that character runs it with.
@@ -39,14 +35,11 @@ fun Route.partyRoutes(nexonLookupService: NexonLookupService) {
     post("/loot/settle") { settleRoute() }
     get("/{id}") { getParty() }
     put("/{id}") { savePartyRoute(nexonLookupService) }
+    put("/{id}/roster") { saveWeekRosterRoute(nexonLookupService) }
     put("/{id}/clear") { setClearRoute() }
     delete("/{id}") { deletePartyRoute() }
     route("/{id}/loot") { lootRoutes() }
 }
-
-// A lookup is worth retrying after this long. A name that resolved to nothing is usually a typo or
-// a character too new to rank, and neither is worth an outbound call on every save.
-private val SPRITE_RETRY_AFTER = 7.days
 
 /**
  * Every config, for the current week by default or one past week with `?week=YYYY-MM-DD`.
@@ -100,7 +93,7 @@ private suspend fun RoutingContext.getParty() {
 private suspend fun RoutingContext.createPartyRoute(nexonLookupService: NexonLookupService) {
     val (userId, email) = call.principalIdAndEmail()
     val request = call.receive<SavePartyRequest>()
-    val sprites = lookUpSprites(userId, request, email, nexonLookupService)
+    val sprites = lookUpSprites(userId, request.members, email, nexonLookupService)
 
     val outcome =
         transaction {
@@ -121,7 +114,7 @@ private suspend fun RoutingContext.savePartyRoute(nexonLookupService: NexonLooku
     val (userId, email) = call.principalIdAndEmail()
     val partyId = call.parseUuidParam("id") ?: return
     val request = call.receive<SavePartyRequest>()
-    val sprites = lookUpSprites(userId, request, email, nexonLookupService)
+    val sprites = lookUpSprites(userId, request.members, email, nexonLookupService)
 
     val outcome =
         transaction {
@@ -138,6 +131,52 @@ private suspend fun RoutingContext.savePartyRoute(nexonLookupService: NexonLooku
                     problem
                 } else {
                     saveParty(userId, partyId, request, Clock.System.now(), sprites)
+                    findParty(partyId, userId)!!
+                }
+            }
+        }
+    respondToSave(outcome, HttpStatusCode.OK)
+}
+
+/**
+ * Says who ran this week, or puts the week back to the usual party.
+ *
+ * This week only. A past week's payouts were pinned when its drops sold and are never re-derived,
+ * so rewriting who ran back then would leave the roster and the money owed disagreeing, with
+ * nothing on screen to say which of the two is right.
+ *
+ * The party's own roster is untouched: that is what PUT /{id} is for.
+ */
+private suspend fun RoutingContext.saveWeekRosterRoute(nexonLookupService: NexonLookupService) {
+    val (userId, email) = call.principalIdAndEmail()
+    val partyId = call.parseUuidParam("id") ?: return
+    val request = call.receive<SaveWeekRosterRequest>()
+    val asked =
+        parseWeekParam(request.week).getOrElse {
+            return call.respond(HttpStatusCode.BadRequest, it.message.orEmpty())
+        }
+    val sprites = lookUpSprites(userId, request.members.orEmpty(), email, nexonLookupService)
+
+    val outcome =
+        transaction {
+            ensureUser(userId, email)
+            val characterId = characterIdOfParty(partyId)
+            val thisWeek = currentWeek()
+            // Omitted means this week, which is also the only one allowed. Taken from the server's
+            // clock rather than the payload so a browser a day out cannot file a roster in the
+            // neighbouring week.
+            val problem =
+                if (asked != null && asked != thisWeek) {
+                    "only this week's party can be changed"
+                } else {
+                    request.members?.let { validateMembers(it) }
+                }
+            when {
+                !ownsParty(partyId, userId) || characterId == null -> null
+                problem != null -> problem
+                else -> {
+                    val context = SeatContext(userId, sprites, Clock.System.now())
+                    saveWeekRoster(partyId, characterId, thisWeek, request.members, context)
                     findParty(partyId, userId)!!
                 }
             }
@@ -209,46 +248,5 @@ private suspend fun RoutingContext.respondToSave(
         is String -> call.respond(HttpStatusCode.BadRequest, outcome)
         is PartyResponse -> call.respond(onSuccess, outcome)
         else -> call.respond(HttpStatusCode.InternalServerError)
-    }
-}
-
-/**
- * Sprites for the members that need one, looked up by character name.
- *
- * A member who is one of your own characters is skipped: those read the character's own sprite.
- * A name already carrying a sprite is left alone, and one whose lookup came back empty recently is
- * not asked again. Never throws.
- */
-private suspend fun RoutingContext.lookUpSprites(
-    userId: String,
-    request: SavePartyRequest,
-    email: String,
-    nexonLookupService: NexonLookupService,
-): Map<String, String?> {
-    val known =
-        transaction {
-            ensureUser(userId, email)
-            seatSpritesByCharacter(userId)
-        }
-    val now = Clock.System.now()
-    val wanted =
-        request.members
-            .map { it.trim() }
-            .filter { it.isNotEmpty() }
-            .distinct()
-            .filter { name ->
-                val seat = known[name]
-                val stale = seat?.refreshedAt?.let { now - it > SPRITE_RETRY_AFTER } ?: true
-                seat?.spriteImgUrl == null && stale
-            }
-    if (wanted.isEmpty()) return emptyMap()
-
-    // Outside the transaction above: an outbound HTTP call per name, and holding a connection
-    // across it would tie up the pool for as long as Nexon takes to answer.
-    return coroutineScope {
-        wanted
-            .map { name -> async { name to nexonLookupService.lookup(name)?.spriteImgUrl } }
-            .awaitAll()
-            .toMap()
     }
 }

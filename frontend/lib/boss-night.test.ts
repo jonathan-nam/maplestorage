@@ -25,6 +25,7 @@ function member(over: Partial<PartyMember> & { name: string }): PartyMember {
     personName: null,
     characterId: null,
     spriteImgUrl: null,
+    guest: false,
     ...over,
   };
 }
@@ -37,6 +38,8 @@ function party(id: string, bossKey: string, members: PartyMember[]): Party {
     bossKey,
     difficulty: null,
     members,
+    seats: members,
+    usualRoster: true,
     pendingLoot: 0,
     awaitingPayout: 0,
     settledLoot: 0,

@@ -29,6 +29,9 @@ export type Loot = {
   soldAt: string | null;
   // Who is owed, pinned when the drop sold. Empty before that.
   payouts: LootPayout[];
+  // Seat ids of who ran the week this drop FELL in. Who may be named as its seller and who a sale
+  // will owe, which is neither the party as it stands now nor every seat it has ever had.
+  ranThatWeek: string[];
 };
 
 // One party's whole pool, from GET /api/parties/loot. Grouped by party because reading a split

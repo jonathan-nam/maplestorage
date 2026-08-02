@@ -20,7 +20,14 @@ export function RosterStrip({ members }: { members: PartyMember[] }) {
             <span className="roster-sprite is-empty" aria-hidden="true" />
           )}
           <span className="roster-name">{member.name}</span>
-          {member.personName && <span className="roster-person">{member.personName}</span>}
+          {/* Whose character it is, or that they are not usually in this party. Never both: the
+              tile has one line under the name, and which of the two matters is whichever one is
+              unexpected. A guest you have not attributed is still marked. */}
+          {member.guest ? (
+            <span className="roster-guest">guest</span>
+          ) : (
+            member.personName && <span className="roster-person">{member.personName}</span>
+          )}
         </li>
       ))}
     </ul>

@@ -1,9 +1,11 @@
 "use client";
 
 import { useState } from "react";
+import { KNOWN_CHARACTERS_ID, KnownCharacters } from "@/components/known-characters";
+import { RosterInputs } from "@/components/roster-inputs";
 import { apiAssetUrl } from "@/lib/api";
 import { difficultyLabel } from "@/lib/boss-difficulty";
-import { bossesWithoutConfig, MAX_PARTY, otherMembers } from "@/lib/parties";
+import { bossesWithoutConfig, otherMembers } from "@/lib/parties";
 import type { Boss } from "@/types/boss";
 import type { Party, SavePartyBody } from "@/types/party";
 
@@ -126,7 +128,7 @@ function AddParty({
       <input
         className="split-input"
         value={member}
-        list="known-characters"
+        list={KNOWN_CHARACTERS_ID}
         onChange={(e) => setMember(e.target.value)}
         placeholder="with who?"
         aria-label="First member of the new party"
@@ -144,11 +146,7 @@ function AddParty({
       >
         Add party
       </button>
-      <datalist id="known-characters">
-        {knownCharacters.map((character) => (
-          <option key={character} value={character} />
-        ))}
-      </datalist>
+      <KnownCharacters names={knownCharacters} />
     </>
   );
 }
@@ -228,44 +226,7 @@ function ConfigRow({
         </button>
       </header>
 
-      <div className="config-members">
-        {members.map((member, index) => (
-          // Positions in a list of text: there is nothing else to key on until it is saved.
-          <span className="config-member" key={index}>
-            <input
-              className="split-input"
-              value={member}
-              list="known-characters"
-              onChange={(e) =>
-                setMembers(members.map((m, i) => (i === index ? e.target.value : m)))
-              }
-              placeholder="character"
-              aria-label={`Member ${index + 1}`}
-              maxLength={40}
-            />
-            {members.length > 1 && (
-              <button
-                type="button"
-                className="grid-boss-remove"
-                aria-label={`Remove member ${index + 1}`}
-                onClick={() => setMembers(members.filter((_, i) => i !== index))}
-              >
-                &times;
-              </button>
-            )}
-          </span>
-        ))}
-        {/* Your own character is the config, so the others cap one below the party limit. */}
-        {members.length < MAX_PARTY - 1 && (
-          <button
-            type="button"
-            className="party-add-seat"
-            onClick={() => setMembers([...members, ""])}
-          >
-            + Member
-          </button>
-        )}
-      </div>
+      <RosterInputs members={members} onChange={setMembers} />
 
       {/* Whose character each one is, when the people list says so. Read-only here: it is an
           account-wide fact, kept on the People page rather than per config. */}

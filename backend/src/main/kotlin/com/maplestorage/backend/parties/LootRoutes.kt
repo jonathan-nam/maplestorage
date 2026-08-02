@@ -95,17 +95,19 @@ private suspend fun RoutingContext.sellLootRoute() {
     val outcome =
         transaction {
             ensureUser(userId, email)
+            val loot = findLoot(lootId, partyId)
             when {
                 !ownsParty(partyId, userId) -> null
-                findLoot(lootId, partyId) == null -> null
+                loot == null -> null
                 !partyCanSell(partyId) -> "Heroic worlds do not trade, so this cannot be sold."
                 request.amount < 0 -> "amount must be zero or more"
                 request.amountBasis !in AMOUNT_BASES -> "amountBasis must be LISTED or RECEIVED"
                 request.splitMethod !in SPLIT_METHODS -> "splitMethod must be LAZY or FAIR"
-                // The seller has to be a seat in THIS party: they are who the payouts are measured
-                // against, and a stranger there would make every share wrong.
-                sellerId == null || sellerId !in memberIdsOf(partyId) ->
-                    "sellerMemberId must be a member of this party"
+                // The seller has to have been THERE: they are who the payouts are measured against,
+                // and somebody who did not run that week would make every share wrong. Off the
+                // drop's own row, which is the same list the seller select offers.
+                sellerId == null || sellerId.toString() !in loot.ranThatWeek ->
+                    "sellerMemberId must be somebody who ran this boss that week"
                 else -> {
                     sellLoot(lootId, request, sellerId, partyId, Clock.System.now())
                     findLoot(lootId, partyId)!!
