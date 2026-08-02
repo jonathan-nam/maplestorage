@@ -257,6 +257,24 @@ class PartyWeekRosterTest {
     }
 
     @Test
+    fun `a drop carries the roster of its own week, not of the party today`() {
+        transaction {
+            val party = trio()
+            val partyId = Uuid.parse(party.id)
+            val lootId = addGrindstoneOn(party, todayUtc())
+            caraForBob(party)
+            val cara = findParty(partyId, userId)!!.members.first { it.name == "Cara" }
+            val bob = party.members.first { it.name == "Bob" }
+
+            // What the seller select offers, so it offers exactly what the sell route accepts.
+            // Bob did not run: naming him would make every share on this drop wrong.
+            val ran = findLoot(lootId, partyId)!!.ranThatWeek
+            assertTrue(cara.id in ran, "the guest who ran can be named as seller")
+            assertFalse(bob.id in ran, "the member who sat out cannot")
+        }
+    }
+
+    @Test
     fun `a guest stays readable as a seat after their week has passed`() {
         transaction {
             val party = trio()

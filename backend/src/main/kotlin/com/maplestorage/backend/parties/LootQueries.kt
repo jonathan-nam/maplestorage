@@ -2,6 +2,7 @@ package com.maplestorage.backend.parties
 
 import com.maplestorage.backend.bosses.WEEKLY_CADENCE
 import com.maplestorage.backend.bosses.periodAfter
+import com.maplestorage.backend.bosses.weekOf
 import com.maplestorage.backend.db.BossCatalog
 import com.maplestorage.backend.db.DropCatalog
 import com.maplestorage.backend.db.Party
@@ -51,6 +52,25 @@ private fun payoutsFor(lootIds: List<Uuid>): Map<Uuid, List<LootPayoutResponse>>
             )
         }
 
+/**
+ * The seats that ran each drop's own week, keyed by drop.
+ *
+ * A drop belongs to the week it fell in, so that is the roster it is measured against: who could
+ * have sold it, and who a sale owes. Batched a week at a time rather than asked per drop, since a
+ * pool is usually a handful of drops spread over very few weeks.
+ */
+private fun ranThatWeekFor(rows: List<ResultRow>): Map<Uuid, List<String>> {
+    val rostersByWeek =
+        rows
+            .groupBy({ weekOf(it[PartyLoot.droppedOn]) }) { it[PartyLoot.partyId] }
+            .mapValues { (week, partyIds) -> rostersFor(partyIds.distinct(), week) }
+
+    return rows.associate { row ->
+        val ran = rostersByWeek[weekOf(row[PartyLoot.droppedOn])]?.get(row[PartyLoot.partyId])
+        row[PartyLoot.id] to ran.orEmpty().map { it.toString() }
+    }
+}
+
 internal fun lootFor(partyId: Uuid): List<LootResponse> {
     val rows =
         lootWithCatalog()
@@ -63,7 +83,10 @@ internal fun lootFor(partyId: Uuid): List<LootResponse> {
     if (rows.isEmpty()) return emptyList()
 
     val payoutsByLoot = payoutsFor(rows.map { it[PartyLoot.id] })
-    return rows.map { it.toLootResponse(payoutsByLoot[it[PartyLoot.id]].orEmpty()) }
+    val ranByLoot = ranThatWeekFor(rows)
+    return rows.map {
+        it.toLootResponse(payoutsByLoot[it[PartyLoot.id]].orEmpty(), ranByLoot[it[PartyLoot.id]].orEmpty())
+    }
 }
 
 /**
@@ -84,14 +107,15 @@ internal fun allLootFor(userId: String): List<PartyLootPoolResponse> {
     if (rows.isEmpty()) return emptyList()
 
     val payoutsByLoot = payoutsFor(rows.map { it[PartyLoot.id] })
+    val ranByLoot = ranThatWeekFor(rows)
+    val response = { row: ResultRow ->
+        row.toLootResponse(payoutsByLoot[row[PartyLoot.id]].orEmpty(), ranByLoot[row[PartyLoot.id]].orEmpty())
+    }
     // groupBy keeps the order rows arrived in, so each pool stays newest-first.
     return rows
         .groupBy { it[PartyLoot.partyId] }
         .map { (partyId, pool) ->
-            PartyLootPoolResponse(
-                partyId = partyId.toString(),
-                loot = pool.map { it.toLootResponse(payoutsByLoot[it[PartyLoot.id]].orEmpty()) },
-            )
+            PartyLootPoolResponse(partyId = partyId.toString(), loot = pool.map(response))
         }
 }
 
@@ -132,7 +156,10 @@ private fun statusOf(
         else -> STATUS_SOLD
     }
 
-private fun ResultRow.toLootResponse(payouts: List<LootPayoutResponse>): LootResponse {
+private fun ResultRow.toLootResponse(
+    payouts: List<LootPayoutResponse>,
+    ranThatWeek: List<String>,
+): LootResponse {
     val sold = this[PartyLoot.soldAt] != null
     return LootResponse(
         id = this[PartyLoot.id].toString(),
@@ -152,6 +179,7 @@ private fun ResultRow.toLootResponse(payouts: List<LootPayoutResponse>): LootRes
         sellerMemberId = this[PartyLoot.sellerMemberId]?.toString(),
         soldAt = this[PartyLoot.soldAt]?.toString(),
         payouts = payouts,
+        ranThatWeek = ranThatWeek,
     )
 }
 

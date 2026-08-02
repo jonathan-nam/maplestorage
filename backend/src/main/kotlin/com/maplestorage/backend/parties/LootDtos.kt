@@ -39,6 +39,10 @@ data class LootResponse(
     val soldAt: String?,
     // Who is owed, as pinned when the drop sold. Empty until then.
     val payouts: List<LootPayoutResponse>,
+    // Seat ids of who ran the week this drop FELL in. Who a sale may name as its seller and who it
+    // will owe, which is neither the party as it stands now nor every seat it has ever had. The
+    // seller select reads this, so it offers exactly what the sell route accepts.
+    val ranThatWeek: List<String> = emptyList(),
 )
 
 /**

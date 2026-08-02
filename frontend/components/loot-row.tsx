@@ -36,10 +36,16 @@ export function LootRow({
   const [price, setPrice] = useState("");
   const [amountBasis, setAmountBasis] = useState("LISTED");
   const [splitMethod, setSplitMethod] = useState("FAIR");
-  const [sellerMemberId, setSellerMemberId] = useState(party.members[0]?.id ?? "");
+  // Who could have sold this drop: the seats that ran the week it FELL in, not the party as it
+  // stands now. Offering more than that would offer a seller the sell route refuses, and offering
+  // the week's roster for a guest week is the only way to name the guest who actually sold it.
+  const ran = party.seats.filter((m) => loot.ranThatWeek.includes(m.id));
+  const [sellerMemberId, setSellerMemberId] = useState(ran[0]?.id ?? "");
   const [selling, setSelling] = useState(false);
 
   const amount = parseMesos(price);
+  // Against every seat, not `ran`: a payout pinned before somebody left still names them, and
+  // reading it against the week's roster would refuse a split that is perfectly readable.
   const result = splitOf(loot, party.seats);
   // Heroic worlds do not trade. The row stays, because a Heroic player still logs what fell; what
   // goes is every control that would turn a drop into money. The backend refuses the sale too, so
@@ -133,7 +139,7 @@ export function LootRow({
                 onChange={(e) => setSellerMemberId(e.target.value)}
                 aria-label="Who sold it"
               >
-                {party.seats.map((m) => (
+                {ran.map((m) => (
                   <option key={m.id} value={m.id}>
                     sold by {m.name}
                   </option>
@@ -141,7 +147,13 @@ export function LootRow({
               </select>
             </div>
             <div className="loot-actions">
-              <button type="submit" className="party-save" disabled={busy || amount === null}>
+              {/* Without a seller there is nobody to measure the shares against, and the submit
+                  would return without saying so. */}
+              <button
+                type="submit"
+                className="party-save"
+                disabled={busy || amount === null || !sellerMemberId}
+              >
                 Save sale
               </button>
               <button

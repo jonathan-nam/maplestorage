@@ -1,6 +1,5 @@
 package com.maplestorage.backend.parties
 
-import com.maplestorage.backend.bosses.weekOf
 import com.maplestorage.backend.plugins.parseUuidParam
 import com.maplestorage.backend.plugins.principalIdAndEmail
 import com.maplestorage.backend.users.ensureUser
@@ -97,9 +96,6 @@ private suspend fun RoutingContext.sellLootRoute() {
         transaction {
             ensureUser(userId, email)
             val loot = findLoot(lootId, partyId)
-            // The roster of the week the drop FELL in, which is the same one sellLoot pays. Read
-            // here as well so the seat a sale may name and the seats it owes cannot come apart.
-            val ranThatWeek = loot?.let { rosterFor(partyId, weekOf(LocalDate.parse(it.droppedOn))) }
             when {
                 !ownsParty(partyId, userId) -> null
                 loot == null -> null
@@ -108,8 +104,9 @@ private suspend fun RoutingContext.sellLootRoute() {
                 request.amountBasis !in AMOUNT_BASES -> "amountBasis must be LISTED or RECEIVED"
                 request.splitMethod !in SPLIT_METHODS -> "splitMethod must be LAZY or FAIR"
                 // The seller has to have been THERE: they are who the payouts are measured against,
-                // and somebody who did not run that week would make every share wrong.
-                sellerId == null || sellerId !in ranThatWeek.orEmpty() ->
+                // and somebody who did not run that week would make every share wrong. Off the
+                // drop's own row, which is the same list the seller select offers.
+                sellerId == null || sellerId.toString() !in loot.ranThatWeek ->
                     "sellerMemberId must be somebody who ran this boss that week"
                 else -> {
                     sellLoot(lootId, request, sellerId, partyId, Clock.System.now())

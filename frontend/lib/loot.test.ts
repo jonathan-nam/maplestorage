@@ -43,6 +43,7 @@ const sold = (over: Partial<Loot> = {}): Loot => ({
     { memberId: "m2", paid: false, paidAt: null },
     { memberId: "m3", paid: true, paidAt: "2026-07-21T11:00:00Z" },
   ],
+  ranThatWeek: [],
   ...over,
 });
 

@@ -59,6 +59,7 @@ const drop = (over: Partial<Loot> = {}): Loot => ({
   sellerMemberId: "m1",
   soldAt: "2026-07-21T10:00:00Z",
   payouts: [{ memberId: "m2", paid: false, paidAt: null }],
+  ranThatWeek: [],
   ...over,
 });
 
