@@ -2795,55 +2795,50 @@ button.link:disabled {
   margin-top: 28px;
 }
 
-/* The character on the left, everything it owes the week on the right, in one container. Filed by
-   character the block is the character, so the sprite is the row's subject rather than a mark on a
-   heading above it. */
-.party-group.is-figured {
+/* Whose bosses these are, on a row of its own, with the list at full width beneath it. The sprite
+   was tried in a column beside the list; it made the block read as two things and pushed every
+   boss row 128px in for a sprite that only needed height. */
+.party-banner {
   display: flex;
-  align-items: flex-start;
-  gap: 16px;
-}
-
-.party-figure {
-  display: flex;
-  flex: none;
-  flex-direction: column;
   align-items: center;
-  gap: 2px;
-  width: 112px;
-  text-align: center;
-  /* Held in view while the bosses beside it scroll past. A character with a dozen of them is
-     taller than the window, and the sprite is what says whose dozen it is. */
-  position: sticky;
-  top: 12px;
+  gap: 14px;
+  margin-bottom: 10px;
+  padding: 6px 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
 }
 
 /* 96px is the Nexon render's own size, so this is 1:1 and not an enlargement; see .tile-sprite.
-   112px of frame because the figure does not fill its square: it rests on the bottom edge. */
-.party-figure-sprite {
+   Square, unlike the strip's 96x112: that taller frame is there to line several sprites up by
+   their feet, and one on its own has nothing to line up with. */
+.party-banner-sprite {
   width: 96px;
-  height: 112px;
+  height: 96px;
+  flex: none;
   object-fit: contain;
   object-position: center bottom;
   image-rendering: pixelated;
 }
 
-.party-figure-sprite.is-empty {
+.party-banner-sprite.is-empty {
   border: 1px dashed var(--line);
   border-radius: 4px;
   opacity: 0.5;
 }
 
-/* The list is the flexible side, and min-width:0 is what lets it shrink: a flex item defaults to
-   its content's width, and one long boss name would otherwise push the row wider than the page. */
-.party-group.is-figured .party-list {
-  flex: 1;
-  min-width: 0;
+/* The name carries the banner, so it is not the 15px a heading over a list needed. */
+.party-banner .party-group-name {
+  font-size: 17px;
+  overflow-wrap: anywhere;
 }
 
-.party-group.is-figured .party-group-name {
-  /* A long IGN wraps rather than widening the figure and moving the list's left edge. */
-  overflow-wrap: anywhere;
+/* Hard right, the way the clear state sits on a party row: the eye runs down one edge. */
+.party-banner-count {
+  margin-left: auto;
+  flex: none;
+  color: var(--muted-2);
+  font-size: 12px;
 }
 
 .party-group-head {
