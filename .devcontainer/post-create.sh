@@ -108,4 +108,4 @@ else
   echo "Workspace filesystem: $fs -- file watching works."
 fi
 
-echo "Dev container ready. Next: cd infra && terraform init | cd backend && ./gradlew build | cd frontend && npm install"
+echo "Dev container ready. Next: cd infra && terraform init | cd backend && ./gradlew build | cd frontend && pnpm install"

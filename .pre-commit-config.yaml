@@ -1,4 +1,4 @@
-# Hooks call each project's own tool (Gradle plugin / npm devDependency / Terraform CLI)
+# Hooks call each project's own tool (Gradle plugin / pnpm devDependency / Terraform CLI)
 # rather than a pre-commit-hosted mirror, so the enforced version always matches what's
 # declared in that project. No separate version to keep in sync.
 repos:
@@ -24,14 +24,14 @@ repos:
       # error in a test file rode to master green before it existed.
       - id: typecheck
         name: tsc (frontend)
-        entry: bash -c 'cd frontend && npm run typecheck'
+        entry: bash -c 'cd frontend && pnpm run typecheck'
         language: system
         files: ^frontend/.*\.(ts|tsx)$
         pass_filenames: false
 
       - id: eslint-prettier
         name: eslint + prettier (frontend)
-        entry: bash -c 'cd frontend && npm run lint && npx prettier --check .'
+        entry: bash -c 'cd frontend && pnpm run lint && pnpm exec prettier --check .'
         language: system
         files: ^frontend/.*\.(ts|tsx|js|jsx)$
         pass_filenames: false
@@ -41,7 +41,7 @@ repos:
       # rediscover, so they are checked on every commit that touches the frontend.
       - id: vitest
         name: vitest (frontend)
-        entry: bash -c 'cd frontend && npm test'
+        entry: bash -c 'cd frontend && pnpm test'
         language: system
         files: ^frontend/.*\.(ts|tsx)$
         pass_filenames: false

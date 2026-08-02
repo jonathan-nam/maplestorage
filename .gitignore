@@ -16,6 +16,9 @@ frontend/node_modules
 # Unanchored, so a node_modules anywhere else is ignored too. Running a frontend command from the
 # repo root instead of frontend/ drops a vitest cache in ./node_modules, and `git add -A` staged it.
 node_modules
+# pnpm's content-addressable store, which every worktree hardlinks its node_modules out of. It
+# has to sit inside the repo: /workspaces is a different filesystem, and a hardlink cannot cross one.
+.pnpm-store/
 frontend/.next/
 frontend/out/
 frontend/.env*.local

@@ -70,22 +70,26 @@ jobs:
         working-directory: frontend
     steps:
       - uses: actions/checkout@v4
+      # Before setup-node, which needs pnpm on PATH to resolve the store for its cache.
+      - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: frontend/package.json
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
-          cache: npm
-          cache-dependency-path: frontend/package-lock.json
-      - run: npm ci
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
       # Nothing here type-checked until 2026-07-26, so a type error reached master with the job
       # green: lint does not do it, and `next build` is not run. Test files are the ones that get
       # away with it, since they are outside the build graph, and that is exactly where the one
       # that got through was.
-      - run: npm run typecheck
-      - run: npm run lint
-      - run: npx prettier --check .
+      - run: pnpm run typecheck
+      - run: pnpm run lint
+      - run: pnpm exec prettier --check .
       # The redemption rules. Three ways to produce a confidently wrong number, each of which
       # looks like arithmetic. See lib/redemption.test.ts.
-      - run: npm test
+      - run: pnpm test
 
   # The CV regression corpus: the highest-risk code in the repo, and until now it ran only in a
   # pre-commit hook, so a PR from a machine without hooks installed merged it unchecked.

@@ -39,7 +39,7 @@ fi
 if (exec 3<>/dev/tcp/127.0.0.1/3000) 2>/dev/null; then
   status+=("frontend already on :3000")
 else
-  (cd frontend && nohup npm run dev >/tmp/next.log 2>&1 &) >/dev/null 2>&1
+  (cd frontend && nohup pnpm run dev >/tmp/next.log 2>&1 &) >/dev/null 2>&1
   status+=("frontend starting on :3000 (/tmp/next.log)")
 fi
 
