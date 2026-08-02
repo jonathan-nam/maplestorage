@@ -220,31 +220,14 @@ function bossHeading(planned: PlannedRun): string {
   );
 }
 
-/** A field as CSV, quoted only where it has to be so the common case stays readable. */
-function csvField(value: string): string {
-  return /[",\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value;
+/** A field with nothing in it that can break a row: a tab separates the columns now. */
+function cell(value: string): string {
+  return value.replace(/[\t\n\r]+/g, " ").trim();
 }
 
-/**
- * Rows of fields as CSV, padded so the columns line up.
- *
- * Padding is trailing only, so no line starts with a space and the table survives being pasted
- * somewhere that strips the code fence.
- */
-function csvTable(rows: string[][]): string[] {
-  const widths: number[] = [];
-  for (const row of rows) {
-    row.forEach((field, i) => {
-      widths[i] = Math.max(widths[i] ?? 0, field.length);
-    });
-  }
-
-  return rows.map((row) =>
-    row
-      .map((field, i) => (i === row.length - 1 ? field : `${field},`.padEnd((widths[i] ?? 0) + 2)))
-      .join("")
-      .trimEnd(),
-  );
+/** Rows of fields, one tab between columns, so each column starts at a tab stop. */
+function tabTable(rows: string[][]): string[] {
+  return rows.map((row) => row.join("\t").trimEnd());
 }
 
 /**
@@ -263,8 +246,9 @@ function csvTable(rows: string[][]): string[] {
  * dropping the key rather than an oversight: it is a bare X in a table, and the party reading it
  * ran the night. Put the key back if that stops being true.
  *
- * The corner is left EMPTY rather than removed, so the header still has one field per column and
- * the padding lines up.
+ * The corner is empty, so the header's first character is the tab that pushes the names over their
+ * columns. Every field is otherwise flush left, which is what a tab stop gives for free and what
+ * padding to the widest name did not.
  *
  * Built from the Plan it is given, never restated by hand, so it cannot drift from what the page
  * is showing. The same rule explainSplit() follows.
@@ -274,15 +258,13 @@ export function planAsText(plan: Plan, roster: NightPerson[]): string {
 
   const { people, rows } = planGrid(plan, roster);
 
-  const header = ["", ...people.map((person) => csvField(person.name))];
+  const header = ["", ...people.map((person) => cell(person.name))];
   const body = rows.map(({ planned, cells }) => [
-    csvField(bossHeading(planned)),
-    ...cells.map((cell) =>
-      cell.character === null
-        ? SITTING_OUT
-        : csvField(cell.character + (cell.switched ? SWITCH_MARK : "")),
+    cell(bossHeading(planned)),
+    ...cells.map((c) =>
+      c.character === null ? SITTING_OUT : cell(c.character + (c.switched ? SWITCH_MARK : "")),
     ),
   ]);
 
-  return ["```", ...csvTable([header, ...body]), "```"].join("\n");
+  return ["```", ...tabTable([header, ...body]), "```"].join("\n");
 }
