@@ -4583,11 +4583,6 @@ button.link:disabled {
   color: var(--muted-2);
 }
 
-/* The character the plan already has on that boss, named under the heading that says so. */
-.night-leftover-taken {
-  color: var(--ink);
-}
-
 /* The standalone side: typing in what a party config already holds. */
 .run-drafts {
   display: flex;

@@ -174,43 +174,6 @@ export type Plan = {
 
 export const EMPTY_PLAN: Plan = { runs: [], switches: 0, minutes: 0 };
 
-/** One character on one boss, the thing a night can only hold once. */
-function pairKey(character: string, bossKey: string): string {
-  return `${character}::${bossKey}`;
-}
-
-/** An eligible run the plan does not contain, and whether a longer night would have held it. */
-export type Leftover = {
-  run: EligibleRun;
-  /** Its characters the plan already has on this boss. Empty when the run simply did not fit. */
-  taken: string[];
-};
-
-/**
- * What the plan left behind, and why.
- *
- * Two of these are different answers to "how do I get this boss in?". A run that did not fit comes
- * in if you block out longer. A run whose character is already on that boss tonight never does,
- * because the clear is once a period: it needs a different character or a different party, and
- * calling it "left out, for time" sends you to lengthen a night that was never the constraint.
- */
-export function leftovers(plan: Plan, eligible: EligibleRun[]): Leftover[] {
-  const scheduled = new Set(plan.runs.map((planned) => planned.run.id));
-  const spent = new Set<string>();
-  for (const planned of plan.runs) {
-    for (const seat of planned.run.seats) spent.add(pairKey(seat.character, planned.run.bossKey));
-  }
-
-  return eligible
-    .filter((run) => !scheduled.has(run.id))
-    .map((run) => ({
-      run,
-      taken: run.seats
-        .map((seat) => seat.character)
-        .filter((character) => spent.has(pairKey(character, run.bossKey))),
-    }));
-}
-
 // A state is copied once per candidate, and there are hundreds of thousands of candidates, so it is
 // built out of fixed-length arrays indexed by a number worked out up front. The string-keyed Maps
 // and Sets this replaced were three quarters of the search's time at 30 runs: copying four of them
@@ -396,7 +359,7 @@ export function planNight(
       if (person === undefined) personAt.set(seat.personId, (person = personAt.size));
       persons.push(person);
 
-      const name = pairKey(seat.character, run.bossKey);
+      const name = `${seat.character}::${run.bossKey}`;
       let pair = pairAt.get(name);
       if (pair === undefined) pairAt.set(name, (pair = pairAt.size));
       pairs.push(pair);
