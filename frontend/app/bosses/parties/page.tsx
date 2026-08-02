@@ -518,20 +518,25 @@ export default function PartiesPage() {
             characterGroups.map((group) => {
               const character = characterById.get(group.key);
               return (
-                // The character beside its own bosses rather than above them: filed this way, the
-                // block IS the character, and a heading over a list left them at a size you had to
-                // look for. The figure is the widest the sprite comes, so the list starts where it
-                // ends.
-                <section className="party-group is-figured" key={group.key}>
-                  <header className="party-figure">
+                // A row of its own for the character, then its bosses under it at full width. The
+                // sprite was tried beside the list, in a column of its own, and the list starting
+                // 128px in cost more than the sprite gained.
+                <section className="party-group" key={group.key}>
+                  <header className="party-banner">
                     {/* The frame is drawn either way, so a roster where one lookup came back empty
                         does not go ragged around it. */}
                     {character?.spriteImgUrl ? (
-                      <img className="party-figure-sprite" src={character.spriteImgUrl} alt="" />
+                      <img className="party-banner-sprite" src={character.spriteImgUrl} alt="" />
                     ) : (
-                      <span className="party-figure-sprite is-empty" aria-hidden="true" />
+                      <span className="party-banner-sprite is-empty" aria-hidden="true" />
                     )}
                     <h2 className="party-group-name">{character?.name ?? "Unknown character"}</h2>
+                    {/* Of what is listed below, not of what the character has: under a filter the
+                        two differ, and the number that describes the rows you can see is the one
+                        that cannot be read as a claim about the rows you cannot. */}
+                    <span className="party-banner-count">
+                      {group.parties.length} {group.parties.length === 1 ? "boss" : "bosses"}
+                    </span>
                   </header>
                   <div className="party-list">
                     {group.parties.map((party) => (
