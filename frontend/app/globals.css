@@ -4335,7 +4335,10 @@ button.link:disabled {
   transition: transform 120ms ease;
 }
 
-.party-row.is-open .party-row-chevron {
+/* Both rows that fold: a config in the by-character and by-boss lists, an arrangement in the
+   by-party one. A chevron that does not turn reads as a button that did nothing. */
+.party-row.is-open .party-row-chevron,
+.boss-run.is-open .party-row-chevron {
   transform: rotate(90deg);
 }
 
