@@ -128,6 +128,13 @@ private suspend fun RoutingContext.savePartyRoute(nexonLookupService: NexonLooku
                     bossId?.let { validateDifficulty(it, request.difficulty) }
                         ?: validateMinutes(request.minutes)
                         ?: validateMembers(request.members)
+                        ?: bossId?.let {
+                            // The config's own character, not the request's: the owner is not
+                            // editable, and a payload naming another one must not move the seat
+                            // this rule is checking for.
+                            val roster = rosterOf(characterIdOfParty(partyId), request.members)
+                            validateBossRoster(userId, it, exclude = partyId, roster)
+                        }
                 if (problem != null) {
                     problem
                 } else {
@@ -170,7 +177,18 @@ private suspend fun RoutingContext.saveWeekRosterRoute(nexonLookupService: Nexon
                 if (asked != null && asked != thisWeek) {
                     "only this week's party can be changed"
                 } else {
-                    request.members?.let { validateMembers(it) }
+                    request.members?.let { members ->
+                        validateMembers(members)
+                            ?: bossIdOfParty(partyId)?.let { boss ->
+                                validateWeekRoster(
+                                    userId,
+                                    boss,
+                                    exclude = partyId,
+                                    thisWeek,
+                                    rosterOf(characterId, members),
+                                )
+                            }
+                    }
                 }
             when {
                 !ownsParty(partyId, userId) || characterId == null -> null

@@ -374,6 +374,101 @@ class PartyConfigTest {
     }
 
     @Test
+    fun `refuses a second config that puts the same character on the same boss`() {
+        transaction {
+            val mech = addCharacter(userOneId, "mechyfechy")
+            val warrior = addCharacter(userOneId, "warrior2020")
+            val limbo = bossIdForKey("limbo")!!
+            config(userOneId, mech, "limbo", listOf("CreedBratton", "iPhone69C"))
+
+            fun check(members: List<String>) =
+                validateBossRoster(userOneId, limbo, exclude = null, rosterOf(warrior, members))
+
+            // A character clears a boss once a week, so lending iPhone69C to a second Limbo party
+            // states a night that cannot happen. Refused where it is written, not dropped later.
+            assertEquals(
+                "iPhone69C is already in your mechyfechy party for this boss",
+                check(listOf("Lynn", "iPhone69C")),
+            )
+            // Case and padding are typing, not identity, the same as validateMembers.
+            assertEquals(
+                "iPhone69C is already in your mechyfechy party for this boss",
+                check(listOf(" iphone69c ")),
+            )
+            // The owner of the other config holds its slot too, from either end.
+            assertEquals(
+                "mechyfechy is already in your mechyfechy party for this boss",
+                check(listOf("mechyfechy")),
+            )
+            // Different people is still the whole point: this is what a second character is for.
+            assertNull(check(listOf("Lynn", "Kaiser")))
+            // Another boss is another clear.
+            val lotus = bossIdForKey("lotus")!!
+            assertNull(validateBossRoster(userOneId, lotus, null, rosterOf(warrior, listOf("iPhone69C"))))
+            // And another account's configs are not competition.
+            assertNull(validateBossRoster(userTwoId, limbo, null, listOf("iPhone69C")))
+        }
+    }
+
+    @Test
+    fun `a config is not competition with itself when it is edited`() {
+        transaction {
+            val mech = addCharacter(userOneId, "mechyfechy")
+            val limbo = bossIdForKey("limbo")!!
+            val party = config(userOneId, mech, "limbo", listOf("CreedBratton"))
+
+            // Re-saving the same roster would otherwise trip over the seats it already owns, which
+            // would make every config holding a member uneditable.
+            assertNull(
+                validateBossRoster(
+                    userOneId,
+                    limbo,
+                    exclude = Uuid.parse(party.id),
+                    rosterOf(mech, listOf("CreedBratton")),
+                ),
+            )
+        }
+    }
+
+    @Test
+    fun `a week can lend somebody the party they were dropped from`() {
+        transaction {
+            val mech = addCharacter(userOneId, "mechyfechy")
+            val warrior = addCharacter(userOneId, "warrior2020")
+            val limbo = bossIdForKey("limbo")!!
+            val lender = config(userOneId, mech, "limbo", listOf("CreedBratton"))
+            val borrower = config(userOneId, warrior, "limbo", listOf("Lynn"))
+            val week = currentWeek()
+
+            fun check(members: List<String>) =
+                validateWeekRoster(
+                    userOneId,
+                    limbo,
+                    exclude = Uuid.parse(borrower.id),
+                    week,
+                    rosterOf(warrior, members),
+                )
+
+            // While Creed is in the other party's week, they are holding its Limbo clear.
+            assertEquals(
+                "CreedBratton already ran this boss with your mechyfechy party this week",
+                check(listOf("Lynn", "CreedBratton")),
+            )
+
+            // Dropped from that week, Creed's clear is free, so the other party can have them. The
+            // standing rosters have not moved, which is why this reads through rostersFor.
+            saveWeekRoster(
+                Uuid.parse(lender.id),
+                mech,
+                week,
+                listOf<String>(),
+                SeatContext(userOneId, emptyMap(), Clock.System.now()),
+            )
+            assertNull(check(listOf("Lynn", "CreedBratton")))
+        }
+    }
+
+    @Test
     fun `refuses a people list that claims one character for two people`() {
         transaction {
             ensureUser(userOneId, "$userOneId@example.com")
