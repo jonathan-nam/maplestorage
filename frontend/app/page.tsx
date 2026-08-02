@@ -1,5 +1,5 @@
 import { SignedIn, SignedOut, SignInButton } from "@clerk/nextjs";
-import Link from "next/link";
+import { AccountOverview } from "@/components/account-overview";
 import { SharpEyesMark } from "@/components/sharp-eyes-mark";
 
 export default function Home() {
@@ -22,15 +22,11 @@ export default function Home() {
         </section>
       </SignedOut>
 
+      {/* The front page was a welcome and a link to somewhere else. It is the account's standing
+          now: what the period still owes, and how long is left to do it in. */}
       <SignedIn>
-        <section className="hero">
-          <SharpEyesMark size={64} />
-          <h1>Welcome back</h1>
-          <p>
-            <Link href="/inventory">See where you stand</Link>, and drop a screenshot on whichever
-            character it belongs to.
-          </p>
-        </section>
+        <h1 className="page-title">Overview</h1>
+        <AccountOverview />
       </SignedIn>
     </main>
   );
