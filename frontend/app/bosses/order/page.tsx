@@ -1,7 +1,14 @@
 "use client";
 
 import { useAuth } from "@clerk/nextjs";
-import { useDeferredValue, useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import {
+  Fragment,
+  useDeferredValue,
+  useEffect,
+  useMemo,
+  useState,
+  useSyncExternalStore,
+} from "react";
 
 import { RunDraftEditor } from "@/components/run-draft-editor";
 import { CopyPlan, RunPlan } from "@/components/run-plan";
@@ -17,7 +24,7 @@ import {
   runsFromDrafts,
   runsFromParties,
 } from "@/lib/boss-night";
-import { planNight, screenRuns, tradeOffs } from "@/lib/boss-run-plan";
+import { type Leftover, leftovers, planNight, screenRuns, tradeOffs } from "@/lib/boss-run-plan";
 import { peek, put } from "@/lib/cache";
 import { isCleared } from "@/lib/parties";
 import { preloadRunArt } from "@/lib/preload-boss-art";
@@ -72,6 +79,36 @@ function parseDrafts(raw: string | null): DraftRun[] {
     // would have had anyway.
     return NO_DRAFTS;
   }
+}
+
+/**
+ * The runs a plan does not hold, one row each.
+ *
+ * The seats stay because they are what tells two parties for the same boss apart. The one that is
+ * already on that boss is marked, so the heading's fact has a name against it.
+ */
+function LeftoverList({ left }: { left: Leftover[] }) {
+  return (
+    <ul className="night-leftovers">
+      {left.map(({ run, taken }) => (
+        <li key={run.id}>
+          {bossLabel(run.bossName, run.difficulty)}
+          <span className="night-leftover-seats">
+            {run.seats.map((seat, i) => (
+              <Fragment key={seat.character}>
+                {i > 0 && ", "}
+                <span
+                  className={taken.includes(seat.character) ? "night-leftover-taken" : undefined}
+                >
+                  {seat.character}
+                </span>
+              </Fragment>
+            ))}
+          </span>
+        </li>
+      ))}
+    </ul>
+  );
 }
 
 export default function RunOrderPage() {
@@ -204,8 +241,11 @@ export default function RunOrderPage() {
   // rather than showing one built for a question that is no longer being asked.
   const plan = (chosen !== null && options[chosen]) || best;
 
-  const scheduled = new Set(plan.runs.map((planned) => planned.run.id));
-  const unscheduled = eligible.filter((run) => !scheduled.has(run.id));
+  // Split, not one list: a run that did not fit and a run whose character is already on that boss
+  // want different things done about them. See leftovers().
+  const leftOut = leftovers(plan, eligible);
+  const forTime = leftOut.filter((left) => left.taken.length === 0);
+  const alreadyOn = leftOut.filter((left) => left.taken.length > 0);
   const assumed = plan.runs.filter((planned) => planned.run.assumed).length;
 
   return (
@@ -360,17 +400,7 @@ export default function RunOrderPage() {
 
       {plan.runs.length > 0 && (
         <section className="night-section" aria-busy={stale}>
-          <div className="night-headline-row">
-            <p className="night-headline">
-              <strong>
-                {plan.runs.length} {plan.runs.length === 1 ? "boss" : "bosses"}
-              </strong>{" "}
-              in {formatDuration(plan.minutes)}, with{" "}
-              <strong>
-                {plan.switches} character {plan.switches === 1 ? "switch" : "switches"}
-              </strong>
-              .
-            </p>
+          <div className="night-plan-copy">
             <CopyPlan plan={plan} roster={onTonight} />
           </div>
 
@@ -415,19 +445,17 @@ export default function RunOrderPage() {
         </p>
       )}
 
-      {unscheduled.length > 0 && (
+      {forTime.length > 0 && (
         <section className="night-section" aria-busy={stale}>
           <h2 className="night-heading">Left out, for time</h2>
-          <ul className="night-leftovers">
-            {unscheduled.map((leftOut) => (
-              <li key={leftOut.id}>
-                {bossLabel(leftOut.bossName, leftOut.difficulty)}
-                <span className="night-leftover-seats">
-                  {leftOut.seats.map((seat) => seat.character).join(", ")}
-                </span>
-              </li>
-            ))}
-          </ul>
+          <LeftoverList left={forTime} />
+        </section>
+      )}
+
+      {alreadyOn.length > 0 && (
+        <section className="night-section" aria-busy={stale}>
+          <h2 className="night-heading">Left out, already on that boss</h2>
+          <LeftoverList left={alreadyOn} />
         </section>
       )}
     </main>

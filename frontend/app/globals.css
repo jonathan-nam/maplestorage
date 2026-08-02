@@ -4383,18 +4383,9 @@ button.link:disabled {
   cursor: pointer;
 }
 
-.night-headline-row {
+.night-plan-copy {
   display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 10px;
-}
-
-.night-headline {
-  margin: 0;
-  color: var(--ink);
-  font-size: 14px;
+  justify-content: flex-end;
 }
 
 /* The order itself: bosses down the rows, people across the columns, the same way round as the
@@ -4550,6 +4541,11 @@ button.link:disabled {
 
 .night-leftover-seats {
   color: var(--muted-2);
+}
+
+/* The character the plan already has on that boss, named under the heading that says so. */
+.night-leftover-taken {
+  color: var(--ink);
 }
 
 /* The standalone side: typing in what a party config already holds. */
