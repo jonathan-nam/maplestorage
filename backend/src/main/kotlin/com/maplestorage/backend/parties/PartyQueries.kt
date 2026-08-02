@@ -32,13 +32,15 @@ import kotlin.uuid.Uuid
 internal const val MAX_PARTY_SIZE = 6
 
 /**
- * Every config, with its pool counted for one week.
+ * Every config, with its pool counted and its roster read for one week.
  *
- * [week] is the week being shown, or null for the live view, which is this week. The configs
- * themselves are not history and do not move with it (the party table has no period), so what the
- * week changes is only the three loot counters each row carries. `cleared` likewise answers for the
- * period the config is in NOW, and Party View reads the clears endpoint rather than this field on a
- * past week.
+ * [week] is the week being shown, or null for the live view, which is this week. Which CONFIGS
+ * there are does not move with it (the party table has no period), and neither does `cleared`,
+ * which answers for the period the config is in now: Party View reads the clears endpoint rather
+ * than this field on a past week.
+ *
+ * The roster does move with it. A week somebody guested in ran a different party from the usual
+ * one, and drawing today's roster over it would name people who were not there.
  */
 internal fun partiesFor(
     userId: String,
@@ -56,10 +58,12 @@ internal fun partiesFor(
             .toList()
     if (rows.isEmpty()) return emptyList()
 
+    val shown = week ?: currentWeek()
     val partyIds = rows.map { it[Party.id] }
-    val membersByParty = membersFor(partyIds, userId)
-    val counts = lootCountsFor(partyIds, week ?: periodStartFor(WEEKLY_CADENCE, Clock.System.now()))
+    val membersByParty = membersFor(partyIds, userId, shown)
+    val counts = lootCountsFor(partyIds, shown)
     val clears = clearStateFor(rows)
+    val spelledOut = weeksSpelledOut(partyIds, shown)
 
     return rows.map { row ->
         val id = row[Party.id]
@@ -67,6 +71,7 @@ internal fun partiesFor(
             membersByParty[id].orEmpty(),
             counts[id] ?: LootCounts(0, 0, 0),
             clears[id] ?: ClearState(null, false),
+            usualRoster = id !in spelledOut,
         )
     }
 }
@@ -82,12 +87,16 @@ internal fun findParty(
             .selectAll()
             .where { (Party.id eq partyId) and (Party.userId eq userId) }
             .firstOrNull() ?: return null
+    // This week's roster, because this is the page a drop is added and sold on, and those land in
+    // the week it is now. The pool below it is all time, so an old drop stays settleable.
+    val week = currentWeek()
     return row.toPartyResponse(
-        membersFor(listOf(partyId), userId)[partyId].orEmpty(),
+        membersFor(listOf(partyId), userId, week)[partyId].orEmpty(),
         // All time, unlike the list's. This is the page that sells a drop and pays it out, so a
         // week that hid an old one would put it beyond the only controls that can settle it.
         lootCountsFor(listOf(partyId), week = null)[partyId] ?: LootCounts(0, 0, 0),
         clearStateFor(listOf(row))[partyId] ?: ClearState(null, false),
+        usualRoster = partyId !in weeksSpelledOut(listOf(partyId), week),
     )
 }
 
@@ -143,7 +152,11 @@ internal fun peopleFor(userId: String): List<PersonResponse> {
 }
 
 /**
- * Seats for these configs, with whose character each one is.
+ * The seats that ran in [week], with whose character each one is.
+ *
+ * The roster comes from rostersFor, which answers with the week's own seats where one was spelled
+ * out and the usual ones otherwise. Reading every seat instead would draw a guest into every week
+ * they did not play, and draw a retired member into weeks after they left.
  *
  * The person comes from person_character, matched on the seat's character NAME: that association
  * is account-wide and stated once, so a seat naming CreedBratton shows Chris in every config
@@ -152,7 +165,11 @@ internal fun peopleFor(userId: String): List<PersonResponse> {
 private fun membersFor(
     partyIds: List<Uuid>,
     userId: String,
+    week: LocalDate,
 ): Map<Uuid, List<PartyMemberResponse>> {
+    val rosters = rostersFor(partyIds, week)
+    val seatIds = rosters.values.flatten()
+    if (seatIds.isEmpty()) return emptyMap()
     // Every sprite this account has found, by character name. A sprite belongs to the CHARACTER,
     // not to the seat: the same person in three configs is the same character, and looking them up
     // once means the other two seats have a null of their own. Reading through this map is what
@@ -173,12 +190,17 @@ private fun membersFor(
                     (it[Person.id].toString() to it[Person.name])
             }
 
-    return PartyMember
-        .join(Characters, JoinType.LEFT, PartyMember.characterId, Characters.id)
-        .selectAll()
-        .where { PartyMember.partyId inList partyIds }
-        .orderBy(PartyMember.position)
-        .groupBy({ it[PartyMember.partyId] }) { row ->
+    val seats =
+        PartyMember
+            .join(Characters, JoinType.LEFT, PartyMember.characterId, Characters.id)
+            .selectAll()
+            .where { PartyMember.id inList seatIds }
+            .associateBy { it[PartyMember.id] }
+
+    // Through the roster's own order, not the query's: rostersFor has already put the seats in
+    // seat order, and re-deriving it here is where the two would drift.
+    return rosters.mapValues { (_, ids) ->
+        ids.mapNotNull { seats[it] }.map { row ->
             val owner = owners[row[PartyMember.name].lowercase()]
             PartyMemberResponse(
                 id = row[PartyMember.id].toString(),
@@ -187,8 +209,10 @@ private fun membersFor(
                 personName = owner?.second,
                 characterId = row[PartyMember.characterId]?.toString(),
                 spriteImgUrl = spriteFor(row, spritesByName),
+                guest = !row[PartyMember.standing],
             )
         }
+    }
 }
 
 /**
@@ -349,6 +373,7 @@ private fun ResultRow.toPartyResponse(
     members: List<PartyMemberResponse>,
     loot: LootCounts,
     clear: ClearState,
+    usualRoster: Boolean,
 ) = PartyResponse(
     id = this[Party.id].toString(),
     characterId = this[Party.characterId].toString(),
@@ -356,6 +381,7 @@ private fun ResultRow.toPartyResponse(
     bossKey = this[BossCatalog.bossKey],
     difficulty = this[Party.difficulty],
     members = members,
+    usualRoster = usualRoster,
     pendingLoot = loot.pending,
     awaitingPayout = loot.awaitingPayout,
     settledLoot = loot.settled,

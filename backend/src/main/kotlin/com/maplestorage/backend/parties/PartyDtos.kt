@@ -20,6 +20,9 @@ data class PartyMemberResponse(
     // Set when the seat is one of YOUR characters, which happens when you bring two of your own.
     val characterId: String?,
     val spriteImgUrl: String?,
+    // Not in the party's usual roster: here for this week only, or gone from it since. Said out
+    // loud because "who is in this party" and "who ran it that week" now have different answers.
+    val guest: Boolean = false,
 )
 
 /**
@@ -40,7 +43,11 @@ data class PartyResponse(
     // Which mode this party runs, one of the boss's own difficulties. Null is not NORMAL, it is
     // nobody having said yet, so nothing draws a difficulty for it.
     val difficulty: String? = null,
+    // Who ran in the week being shown, which is not always who usually does. See rostersFor.
     val members: List<PartyMemberResponse>,
+    // False when this week was spelled out with its own roster. The members alone cannot say so: a
+    // week that only drops somebody names no guest and would read as an ordinary one.
+    val usualRoster: Boolean = true,
     // The pool at a glance: dropped but unsold, and sold with somebody still unpaid.
     val pendingLoot: Int = 0,
     val awaitingPayout: Int = 0,
@@ -99,6 +106,22 @@ data class PersonRequest(
     val id: String? = null,
     val name: String,
     val characters: List<String> = emptyList(),
+)
+
+/**
+ * Who ran this week, as submitted.
+ *
+ * A null `members` puts the week back to the usual roster, which is a deletion rather than a copy
+ * of it: copying would leave a week frozen against every later change to the party.
+ *
+ * `week` names the week being changed, and only the current one may be. A past week's payouts were
+ * pinned when the drops sold, so rewriting who ran then would leave the roster and the money owed
+ * disagreeing, with nothing on screen saying which is right.
+ */
+@Serializable
+data class SaveWeekRosterRequest(
+    val week: String? = null,
+    val members: List<String>? = null,
 )
 
 /** Ticking a config's boss cleared for the period it is in, or un-ticking it. */

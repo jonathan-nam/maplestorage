@@ -3,7 +3,6 @@ package com.maplestorage.backend.parties
 import com.maplestorage.backend.db.BossCatalog
 import com.maplestorage.backend.db.Characters
 import com.maplestorage.backend.db.Party
-import com.maplestorage.backend.db.PartyMember
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.selectAll
@@ -72,36 +71,6 @@ internal fun validateDifficulty(
             ?.get(BossCatalog.difficulties)
             .orEmpty()
     return if (difficulty in modes) null else "difficulty must be one of: ${modes.joinToString(", ")}"
-}
-
-/**
- * Why this roster cannot replace the config's seats, or null.
- *
- * A payout row is the record that somebody is owed, and it points at a seat with ON DELETE CASCADE
- * behind it, so dropping a seat the pool names would delete the record while the money stays real.
- * Refused rather than cascaded, which is what V18__party_loot.sql says this table's cascade is for:
- * the party being deleted whole, and nothing else.
- *
- * Only reachable on a save, not a create: a new config has no pool yet.
- * Must run inside a transaction.
- */
-internal fun validateSeatRemovals(
-    partyId: Uuid,
-    ownCharacterId: Uuid,
-    members: List<String>,
-): String? {
-    val locked = seatsWithLootHistory(partyId)
-    if (locked.isEmpty()) return null
-    val keeping = seatNames(ownSeatName(ownCharacterId), members).map { it.lowercase() }.toSet()
-    val doomed =
-        PartyMember
-            .selectAll()
-            .where { PartyMember.partyId eq partyId }
-            .filter { it[PartyMember.id] in locked && it[PartyMember.name].lowercase() !in keeping }
-            .map { it[PartyMember.name] }
-    return doomed
-        .takeIf { it.isNotEmpty() }
-        ?.let { "cannot remove ${it.joinToString(", ")}: a drop in this pool points at them" }
 }
 
 /** The rules a config's roster has to keep, wherever it is being written. */

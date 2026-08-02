@@ -3,6 +3,7 @@ package com.maplestorage.backend.parties
 import com.maplestorage.backend.config.Env
 import com.maplestorage.backend.db.Characters
 import com.maplestorage.backend.db.Party
+import com.maplestorage.backend.db.PartyMember
 import com.maplestorage.backend.db.Person
 import com.maplestorage.backend.users.WORLD_HEROIC
 import com.maplestorage.backend.users.WORLD_INTERACTIVE
@@ -13,10 +14,13 @@ import kotlinx.datetime.TimeZone
 import kotlinx.datetime.minus
 import kotlinx.datetime.toLocalDateTime
 import org.flywaydb.core.Flyway
+import org.jetbrains.exposed.v1.core.and
+import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.inList
 import org.jetbrains.exposed.v1.jdbc.Database
 import org.jetbrains.exposed.v1.jdbc.deleteWhere
 import org.jetbrains.exposed.v1.jdbc.insert
+import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
@@ -133,6 +137,26 @@ class PartyLootTest {
 
     private fun sale(sellerId: String) = SellLootRequest(9_500_000_000, "LISTED", "FAIR", sellerId)
 
+    /** The same party with Bob out of the usual roster. */
+    private fun withoutBob(party: PartyResponse) =
+        SavePartyRequest(
+            party.characterId,
+            "limbo",
+            party.members
+                .drop(1)
+                .filter { it.name != "Bob" }
+                .map { it.name },
+        )
+
+    /** Seats under this name, retired ones included: the roster read cannot see those. */
+    private fun seatsNamed(
+        partyId: Uuid,
+        name: String,
+    ) = PartyMember
+        .selectAll()
+        .where { (PartyMember.partyId eq partyId) and (PartyMember.name eq name) }
+        .count()
+
     /** Pays every share on a sold drop, so it lands in `settled`. */
     private fun settle(
         lootId: Uuid,
@@ -236,67 +260,61 @@ class PartyLootTest {
     }
 
     @Test
-    fun `a seat the loot pool points at cannot be dropped from the party`() {
+    fun `a seat the loot pool points at leaves the roster but not the record`() {
         transaction {
             val party = trio()
             val partyId = Uuid.parse(party.id)
             val lootId = addGrindstone(party)
             val seller = party.members[0]
+            val bob = party.members.first { it.name == "Bob" }
             sellLoot(lootId, sale(seller.id), Uuid.parse(seller.id), partyId, Clock.System.now())
 
             // Bob's payout points at his seat, and party_loot_payout cascades on it, so deleting
-            // the seat would delete the record while the money stays real. Refused instead.
-            val withoutBob =
-                party.members
-                    .drop(1)
-                    .filter { it.name != "Bob" }
-                    .map { it.name }
-            val characterId = Uuid.parse(party.characterId)
-            val problem = validateSeatRemovals(partyId, characterId, withoutBob)
-            assertNotNull(problem)
-            assertTrue(problem.contains("Bob"), problem)
+            // the seat would delete the record while the money stays real. He is RETIRED: out of
+            // the roster, still owed.
+            saveParty(userId, partyId, withoutBob(party), Clock.System.now())
 
-            // And the one it is protecting is untouched by the refusal.
-            assertTrue(findParty(partyId, userId)!!.members.any { it.name == "Bob" })
-            assertEquals(2, findLoot(lootId, partyId)!!.payouts.size)
-        }
-    }
-
-    @Test
-    fun `a seat with no loot behind it still leaves`() {
-        transaction {
-            val party = trio()
-            val partyId = Uuid.parse(party.id)
-            val characterId = Uuid.parse(party.characterId)
-
-            // Nothing has dropped, so nothing points at anybody: an ordinary roster change.
-            val withoutBob =
-                party.members
-                    .drop(1)
-                    .filter { it.name != "Bob" }
-                    .map { it.name }
-            assertNull(validateSeatRemovals(partyId, characterId, withoutBob))
-
-            saveParty(userId, partyId, SavePartyRequest(party.characterId, "limbo", withoutBob), Clock.System.now())
             assertTrue(findParty(partyId, userId)!!.members.none { it.name == "Bob" })
+            val payouts = findLoot(lootId, partyId)!!.payouts
+            assertEquals(2, payouts.size)
+            assertTrue(payouts.any { it.memberId == bob.id })
         }
     }
 
     @Test
-    fun `a seat that joined after the sale can still leave`() {
+    fun `a seat nothing points at is deleted rather than kept forever`() {
         transaction {
             val party = trio()
             val partyId = Uuid.parse(party.id)
-            val characterId = Uuid.parse(party.characterId)
+
+            // Nothing has dropped and no week names him, so there is nothing to preserve. A
+            // misspelling corrected on the day it was typed should not sit in the party for good.
+            saveParty(userId, partyId, withoutBob(party), Clock.System.now())
+
+            assertEquals(0, seatsNamed(partyId, "Bob"))
+        }
+    }
+
+    @Test
+    fun `somebody added back takes the seat they had, not a second one`() {
+        transaction {
+            val party = trio()
+            val partyId = Uuid.parse(party.id)
             val lootId = addGrindstone(party)
             val seller = party.members[0]
+            val bob = party.members.first { it.name == "Bob" }
             sellLoot(lootId, sale(seller.id), Uuid.parse(seller.id), partyId, Clock.System.now())
 
-            // The lock is per SEAT, not per party: a sale does not freeze the roster, it pins the
-            // people it owes. Cara was not there for it, so she comes and goes freely.
-            val withCara = party.members.drop(1).map { it.name } + "Cara"
-            saveParty(userId, partyId, SavePartyRequest(party.characterId, "limbo", withCara), Clock.System.now())
-            assertNull(validateSeatRemovals(partyId, characterId, party.members.drop(1).map { it.name }))
+            // Out, then back in. A second seat under the same name would leave the old payout
+            // pointing at a Bob who is no longer in the party, beside a Bob who is owed nothing.
+            saveParty(userId, partyId, withoutBob(party), Clock.System.now())
+            val request = SavePartyRequest(party.characterId, "limbo", party.members.drop(1).map { it.name })
+            saveParty(userId, partyId, request, Clock.System.now())
+
+            assertEquals(1, seatsNamed(partyId, "Bob"))
+            val back = findParty(partyId, userId)!!.members.first { it.name == "Bob" }
+            assertEquals(bob.id, back.id)
+            assertTrue(findLoot(lootId, partyId)!!.payouts.any { it.memberId == bob.id })
         }
     }
 
