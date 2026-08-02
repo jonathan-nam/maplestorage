@@ -19,6 +19,13 @@ import kotlin.uuid.Uuid
 // The loot pool's writes, split from its reads the way PartyWrites.kt is split from PartyQueries.kt.
 // Inside a transaction, like the rest. Nothing here computes money: see LootDtos.kt.
 
+/**
+ * Logs a drop, and marks its boss cleared where nothing has said otherwise.
+ *
+ * The clear is written here rather than by the route, so a drop cannot be logged without it: the
+ * two are one fact, and a second way in that skipped it would leave a pool of drops beside a boss
+ * reading "not reported". What it will and will not overwrite is clearFromDrop's.
+ */
 internal fun addLoot(
     partyId: Uuid,
     dropCatalogId: Uuid?,
@@ -37,6 +44,14 @@ internal fun addLoot(
         it[PartyLoot.droppedOn] = droppedOn
         it[createdAt] = now
         it[updatedAt] = now
+    }
+    // A drop with no boss names nothing to clear. The pickers always send one, so this is the
+    // API-only case rather than an ordinary one.
+    if (bossCatalogId != null) {
+        // Both present by the FKs the insert above just satisfied: the party exists, and the boss
+        // id came out of the catalog.
+        val reset = bossResetOf(bossCatalogId)!!
+        clearFromDrop(characterIdOfParty(partyId)!!, bossCatalogId, reset, droppedOn, now)
     }
     return lootId
 }

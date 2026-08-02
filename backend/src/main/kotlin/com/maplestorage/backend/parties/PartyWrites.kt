@@ -1,5 +1,6 @@
 package com.maplestorage.backend.parties
 
+import com.maplestorage.backend.bosses.periodOf
 import com.maplestorage.backend.bosses.periodStartFor
 import com.maplestorage.backend.db.BossClear
 import com.maplestorage.backend.db.CharacterBossSkip
@@ -7,6 +8,7 @@ import com.maplestorage.backend.db.Party
 import com.maplestorage.backend.db.PartyMember
 import com.maplestorage.backend.db.Person
 import com.maplestorage.backend.db.PersonCharacter
+import kotlinx.datetime.LocalDate
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.inList
@@ -105,6 +107,50 @@ internal fun setPartyClear(
         row[BossClear.bossCatalogId] = bossCatalogId
         row[periodStart] = periodStartFor(reset, now)
         row[BossClear.cleared] = cleared
+        row[capturedAt] = now
+        row[sourceScreenshotId] = null
+    }
+}
+
+/**
+ * The clear a drop implies: something fell, so the boss died.
+ *
+ * Only ever writes true, and only over silence or a "not cleared". A clear already recorded is
+ * left alone rather than rewritten, which is what keeps the screenshot behind a captured one and
+ * stops it being relabelled as a hand tick.
+ *
+ * The period is the DROP'S, not today's. A drop carries the date it fell on, so filing the clear
+ * against the day the request arrived would tick this week for a kill in the last one. That also
+ * makes this the one clear a past period can gain: unlike a tick, a drop says which period it
+ * belongs to.
+ *
+ * Nothing here goes the other way. Deleting the drop does not un-clear the boss, since removing
+ * the record of what fell says nothing about whether it died.
+ */
+internal fun clearFromDrop(
+    characterId: Uuid,
+    bossCatalogId: Uuid,
+    reset: String,
+    droppedOn: LocalDate,
+    now: Instant,
+) {
+    val period = periodOf(reset, droppedOn)
+    val already =
+        BossClear
+            .selectAll()
+            .where {
+                (BossClear.characterId eq characterId) and
+                    (BossClear.bossCatalogId eq bossCatalogId) and
+                    (BossClear.periodStart eq period)
+            }.firstOrNull()
+            ?.get(BossClear.cleared) == true
+    if (already) return
+
+    BossClear.upsert(BossClear.characterId, BossClear.bossCatalogId, BossClear.periodStart) { row ->
+        row[BossClear.characterId] = characterId
+        row[BossClear.bossCatalogId] = bossCatalogId
+        row[periodStart] = period
+        row[cleared] = true
         row[capturedAt] = now
         row[sourceScreenshotId] = null
     }
