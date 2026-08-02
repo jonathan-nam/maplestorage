@@ -4,6 +4,8 @@ import {
   bestOf,
   type CandidateRun,
   type EligibleRun,
+  EMPTY_PLAN,
+  leftovers,
   type Plan,
   planNight,
   screenRuns,
@@ -391,6 +393,54 @@ describe("planNight", () => {
     expect(best.runs).toHaveLength(4);
     // One turn: both people move from their A character to their B character, once.
     expect(best.switches).toBe(2);
+  });
+});
+
+describe("leftovers", () => {
+  it("says nothing when the plan holds everything", () => {
+    const runs = [eligible("a", "lotus", 10, [["Mechy", "me"]])];
+    const { best } = planNight(runs, { minutes: 120 });
+    expect(leftovers(best, runs)).toEqual([]);
+  });
+
+  it("blames the clock for a run that would fit in a longer night", () => {
+    const runs = [
+      eligible("a", "lotus", 30, [["Mechy", "me"]]),
+      eligible("b", "damien", 30, [["Mechy", "me"]]),
+    ];
+    const { best } = planNight(runs, { minutes: 30 });
+    const left = leftovers(best, runs);
+
+    expect(left).toHaveLength(1);
+    expect(left[0]?.taken).toEqual([]);
+  });
+
+  // The bug this exists for: a duplicate config was filed under "left out, for time", so raising
+  // the budget to 300 minutes changed nothing and the page still blamed the clock.
+  it("names the character already on the boss, however long the night is", () => {
+    const runs = [
+      eligible("a", "lotus", 10, [
+        ["Mechy", "me"],
+        ["Creed", "chris"],
+      ]),
+      eligible("b", "lotus", 10, [
+        ["Mechy", "me"],
+        ["Dwight", "dave"],
+      ]),
+    ];
+    const { best } = planNight(runs, { minutes: 600 });
+    const left = leftovers(best, runs);
+
+    expect(left).toHaveLength(1);
+    expect(left[0]?.taken).toEqual(["Mechy"]);
+  });
+
+  it("blames the clock, not the clash, for a run whose boss the plan never reached", () => {
+    const runs = [
+      eligible("a", "lotus", 30, [["Mechy", "me"]]),
+      eligible("b", "lotus", 30, [["Mechy", "me"]]),
+    ];
+    expect(leftovers(EMPTY_PLAN, runs).map((left) => left.taken)).toEqual([[], []]);
   });
 });
 
