@@ -257,6 +257,25 @@ class PartyWeekRosterTest {
     }
 
     @Test
+    fun `a guest stays readable as a seat after their week has passed`() {
+        transaction {
+            val party = trio()
+            val partyId = Uuid.parse(party.id)
+            caraForBob(party)
+            val cara = findParty(partyId, userId)!!.members.first { it.name == "Cara" }
+
+            // Cara is owed for the drop she was there for, and the wallet reads a payout against
+            // `seats`. If she were only in `members`, the week rolling over would take her out of
+            // it and the split would go unreadable with the debt still real.
+            val next = partiesFor(userId, thisWeek().plus(DAYS_IN_WEEK, DateTimeUnit.DAY))
+            val row = next.first { it.id == party.id }
+            assertTrue(row.members.none { it.name == "Cara" }, "not in next week's roster")
+            assertTrue(row.seats.any { it.id == cara.id }, "still a seat the pool can name")
+            assertTrue(row.usualRoster)
+        }
+    }
+
+    @Test
     fun `your own character is in the week whether or not you name them`() {
         transaction {
             val party = trio()

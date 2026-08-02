@@ -12,6 +12,7 @@ const mine = (id: string, name: string): PartyMember => ({
   personName: null,
   characterId: `char-${id}`,
   spriteImgUrl: null,
+  guest: false,
 });
 
 // Somebody else's seat. personId set means you have said whose character it is.
@@ -22,6 +23,7 @@ const theirs = (id: string, name: string, person?: { id: string; name: string })
   personName: person?.name ?? null,
   characterId: null,
   spriteImgUrl: null,
+  guest: false,
 });
 
 const chris = { id: "p-chris", name: "Chris" };
@@ -33,6 +35,8 @@ const party = (id: string, members: PartyMember[], over: Partial<Party> = {}): P
   bossKey: "limbo",
   difficulty: null,
   members,
+  seats: members,
+  usualRoster: true,
   pendingLoot: 0,
   awaitingPayout: 0,
   settledLoot: 0,
@@ -416,5 +420,24 @@ describe("netLabel", () => {
     expect(netLabel(5)).toBe("they owe you");
     expect(netLabel(-5)).toBe("you owe them");
     expect(netLabel(0)).toBe("square");
+  });
+});
+
+describe("buildWallet, across a week the roster changed in", () => {
+  it("still reads a share owed to somebody who did not run this week", () => {
+    // A guest ran last week and is owed for a drop that sold. This week the party is back to
+    // normal, so `members` no longer names them. Read against the roster the share would resolve
+    // to nobody, splitOf would refuse the whole drop, and a real debt would leave the wallet as
+    // "unreadable" with nothing saying whose it was.
+    const you = mine("m1", "mechyfechy");
+    const guest = theirs("m9", "Cara", chris);
+    const p = party("pa", [you], { seats: [you, guest] });
+    const loot = sold({ payouts: [{ memberId: "m9", paid: false, paidAt: null }] });
+
+    const wallet = buildWallet([p], [pool("pa", [loot])]);
+
+    expect(wallet.unreadable).toBe(0);
+    expect(wallet.owe).toBe(splitOf(loot, p.seats)!.shares[0]!.pay);
+    expect(wallet.counterparties.map((c) => c.name)).toEqual(["Chris"]);
   });
 });

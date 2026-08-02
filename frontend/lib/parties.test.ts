@@ -21,6 +21,7 @@ const seat = (name: string, characterId: string | null = null): PartyMember => (
   personName: null,
   characterId,
   spriteImgUrl: null,
+  guest: false,
 });
 
 const boss = (bossKey: string, name: string): Boss => ({
@@ -38,6 +39,8 @@ const config = (id: string, characterId: string, bossKey: string, others: string
   bossKey,
   difficulty: null,
   members: [seat("mine", characterId), ...others.map((o) => seat(o))],
+  seats: [seat("mine", characterId), ...others.map((o) => seat(o))],
+  usualRoster: true,
   pendingLoot: 0,
   awaitingPayout: 0,
   settledLoot: 0,

@@ -19,6 +19,7 @@ const member = (id: string, name: string): PartyMember => ({
   personName: null,
   characterId: null,
   spriteImgUrl: null,
+  guest: false,
 });
 
 const party = [member("m1", "Rune"), member("m2", "Steve"), member("m3", "Bob")];

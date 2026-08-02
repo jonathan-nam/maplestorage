@@ -3739,6 +3739,14 @@ button.link:disabled {
   color: var(--muted-2);
 }
 
+/* Not in the usual party. Sits where the owner's name would, and is picked out because it is the
+   one thing on the tile that says this week is not like the others. */
+.roster-guest {
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  color: var(--accent);
+}
+
 /* The row's own header: boss on the left, state on the right, everything on one line. */
 .boss-run {
   padding: 14px 16px;

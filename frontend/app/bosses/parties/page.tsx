@@ -32,7 +32,7 @@ import type { Boss, BossClearsView } from "@/types/boss";
 import type { Character } from "@/types/character";
 import type { DropTables } from "@/types/drop";
 import type { AddLootBody } from "@/types/loot";
-import type { Party, Person, SavePartyBody } from "@/types/party";
+import type { Party, Person, SaveWeekRosterBody } from "@/types/party";
 
 type LoadState = "loading" | "loaded" | "error";
 
@@ -255,29 +255,21 @@ export default function PartiesPage() {
   }
 
   /**
-   * Changes who this config runs with, without leaving the list.
+   * Sets who ran THIS week, or puts the week back to the usual party with null.
    *
-   * The same PUT the edit page makes, so a roster changed here and one changed there are the same
-   * write. The boss and the difficulty are carried through unchanged: the endpoint replaces the
-   * config, and omitting the difficulty would quietly unsay which mode the party runs.
+   * Not the config's own roster: that is the edit page's, and changing it here would rewrite every
+   * week rather than the one on screen. The week is left off the body on purpose, so the server's
+   * clock decides which one this is.
    *
    * Live view only, so PARTIES_KEY is the right list to refetch. Throws on failure, which is what
-   * lets the row show the server's reason: it refuses to drop a seat the loot pool points at.
+   * lets the row show the server's reason.
    */
-  async function saveRoster(party: Party, members: string[]) {
+  async function saveRoster(party: Party, members: string[] | null) {
     setBusy(true);
     try {
       await apiFetch<Party>(
-        `${PARTIES_KEY}/${party.id}`,
-        {
-          method: "PUT",
-          body: JSON.stringify({
-            characterId: party.characterId,
-            bossKey: party.bossKey,
-            members,
-            difficulty: party.difficulty,
-          } satisfies SavePartyBody),
-        },
+        `${PARTIES_KEY}/${party.id}/roster`,
+        { method: "PUT", body: JSON.stringify({ members } satisfies SaveWeekRosterBody) },
         getToken,
       );
       const refreshed = await apiFetch<Party[]>(PARTIES_KEY, { method: "GET" }, getToken);

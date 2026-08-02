@@ -45,6 +45,10 @@ data class PartyResponse(
     val difficulty: String? = null,
     // Who ran in the week being shown, which is not always who usually does. See rostersFor.
     val members: List<PartyMemberResponse>,
+    // EVERY seat this party has ever had, guests and departed members included. What a payout is
+    // read against: a share owed to somebody who has since left is still owed, and resolving it
+    // through `members` would make the drop unreadable the week after they left.
+    val seats: List<PartyMemberResponse> = emptyList(),
     // False when this week was spelled out with its own roster. The members alone cannot say so: a
     // week that only drops somebody names no guest and would read as an ordinary one.
     val usualRoster: Boolean = true,

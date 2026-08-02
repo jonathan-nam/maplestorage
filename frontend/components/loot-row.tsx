@@ -40,7 +40,7 @@ export function LootRow({
   const [selling, setSelling] = useState(false);
 
   const amount = parseMesos(price);
-  const result = splitOf(loot, party.members);
+  const result = splitOf(loot, party.seats);
   // Heroic worlds do not trade. The row stays, because a Heroic player still logs what fell; what
   // goes is every control that would turn a drop into money. The backend refuses the sale too, so
   // this is what the rule looks like rather than the whole of it.
@@ -133,7 +133,7 @@ export function LootRow({
                 onChange={(e) => setSellerMemberId(e.target.value)}
                 aria-label="Who sold it"
               >
-                {party.members.map((m) => (
+                {party.seats.map((m) => (
                   <option key={m.id} value={m.id}>
                     sold by {m.name}
                   </option>

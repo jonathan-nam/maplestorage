@@ -14,6 +14,9 @@ export type PartyMember = {
   // seat, so this is set on at least one of them.
   characterId: string | null;
   spriteImgUrl: string | null;
+  // Not in the party's usual roster: here for this week only, or gone from it since. Said out loud
+  // because "who is in this party" and "who ran it that week" now have different answers.
+  guest: boolean;
 };
 
 // One config: your character, one boss, and who they run it with. A boss your character solos has
@@ -28,8 +31,15 @@ export type Party = {
   // Which mode this party runs, one of the boss's own difficulties. Null is not NORMAL, it is
   // nobody having said yet, and nothing draws a difficulty for it.
   difficulty: string | null;
-  // Your character first, then the others.
+  // Who ran in the week being shown, your character first. Not always who usually does.
   members: PartyMember[];
+  // Every seat this party has ever had, guests and departed members included. What a payout is
+  // read against: a share owed to somebody who has since left is still owed, and resolving it
+  // through `members` would make the drop unreadable the week after they left.
+  seats: PartyMember[];
+  // False when this week was spelled out with its own roster. The members alone cannot say so: a
+  // week that only drops somebody names no guest and would read as an ordinary one.
+  usualRoster: boolean;
   // The pool at a glance: dropped but unsold, sold with somebody still unpaid, and sold with
   // nothing left to do. The last one is carried so a fully settled pool is still visible from the
   // list rather than reading as a party that never dropped anything.
@@ -62,6 +72,20 @@ export type SavePartyBody = {
   // One of the boss's own difficulties. Omitted or null says nothing, which the server keeps as
   // nothing; anything the boss does not have is refused rather than stored.
   difficulty?: string | null;
+};
+
+/**
+ * What PUT /api/parties/{id}/roster takes: who ran one week.
+ *
+ * `members` null puts the week back to the usual roster, which is a deletion rather than a copy of
+ * it: a copy would freeze the week against every later change to the party.
+ *
+ * `week` omitted means this week, which is also the only one the server will write. It is taken
+ * from the server's clock either way, so a browser a day out cannot file a roster in the wrong one.
+ */
+export type SaveWeekRosterBody = {
+  week?: string | null;
+  members: string[] | null;
 };
 
 // The whole people list, every time.
