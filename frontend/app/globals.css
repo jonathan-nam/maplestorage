@@ -3558,6 +3558,25 @@ button.link:disabled {
   max-width: 130px;
 }
 
+/* Wide enough for three digits and the spinner Chrome puts inside the box, no wider: a run time
+   is two digits, and a field sized for prose reads as one that wants prose. */
+.config-minutes {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.config-minutes-input {
+  font-size: 12px;
+  padding: 5px 8px;
+  width: 74px;
+}
+
+.config-minutes-unit {
+  font-size: 12px;
+  color: var(--muted-2);
+}
+
 .config-head .party-delete {
   margin-left: auto;
 }

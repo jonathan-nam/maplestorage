@@ -12,6 +12,7 @@ import type { Party, PartyMember } from "@/types/party";
 
 import { BOSS_SHORT_NAMES } from "./boss-art";
 import { bossLabel } from "./boss-difficulty";
+import { runMinutes } from "./boss-minutes";
 
 import type { CandidateRun, Plan, PlannedRun } from "./boss-run-plan";
 
@@ -70,12 +71,11 @@ export function rosterFrom(parties: Party[]): NightPerson[] {
  * Every config becomes one, including the ones that turn out to be unschedulable. Screening is
  * what decides that, and a config that never reached screening could not be refused for a reason
  * at all. The reason is no longer shown, see RejectionReason.
+ *
+ * The run time comes off the config rather than the boss: two of your characters can run the same
+ * Hard Lucid at different speeds, so there is no per-boss answer to take.
  */
-export function runsFromParties(
-  parties: Party[],
-  bosses: Boss[],
-  minutesFor: (bossKey: string) => number,
-): CandidateRun[] {
+export function runsFromParties(parties: Party[], bosses: Boss[]): CandidateRun[] {
   const nameFor = new Map(bosses.map((boss) => [boss.bossKey, boss.name]));
 
   return parties.map((party) => ({
@@ -83,7 +83,11 @@ export function runsFromParties(
     bossKey: party.bossKey,
     bossName: nameFor.get(party.bossKey) ?? party.bossKey,
     difficulty: party.difficulty,
-    minutes: minutesFor(party.bossKey),
+    // The config's own time, or the flat fallback said out loud. A party that has been timed and
+    // one that happens to fall on thirty minutes are not the same claim, so the night marks which
+    // is which rather than presenting both as measured.
+    minutes: runMinutes(party.minutes),
+    assumed: party.minutes === null,
     seats: party.members.map((member) => ({
       character: member.name,
       personId: ownerOf(member),

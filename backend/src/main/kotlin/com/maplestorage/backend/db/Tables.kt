@@ -194,6 +194,11 @@ object Party : Table("party") {
     // NORMAL, it is nobody having said yet.
     val difficulty = text("difficulty").nullable()
 
+    // How long this party takes on this boss, door to door. Null is not the default estimate, it
+    // is nobody having timed it. See V28__party_minutes.sql for why it is not a property of the
+    // boss.
+    val minutes = integer("minutes").nullable()
+
     val createdAt = timestamp("created_at")
     val updatedAt = timestamp("updated_at")
 

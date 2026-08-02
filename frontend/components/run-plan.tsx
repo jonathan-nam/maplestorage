@@ -76,7 +76,11 @@ export function RunPlan({ plan, roster }: { plan: Plan; roster: NightPerson[] })
                     <span className="run-boss-name">
                       {bossLabel(planned.run.bossName, planned.run.difficulty)}
                     </span>
-                    <span className="run-boss-minutes">{formatDuration(planned.run.minutes)}</span>
+                    {/* A tilde where nobody has timed this party, so a guessed half hour and a
+                        measured one are not read as the same claim. */}
+                    <span className="run-boss-minutes">
+                      {`${planned.run.assumed ? "~" : ""}${formatDuration(planned.run.minutes)}`}
+                    </span>
                   </span>
                 </span>
               </th>
