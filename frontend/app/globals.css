@@ -4520,3 +4520,125 @@ button.link:disabled {
   grid-template-columns: 1fr 1fr auto;
   gap: 6px;
 }
+
+/* --- The overview's "still to run" ------------------------------------------------------- */
+
+.owed-heading {
+  margin: 22px 0 8px;
+  font-size: 13px;
+  color: var(--ink);
+}
+
+.owed-band {
+  margin-bottom: 14px;
+}
+
+/* Cadence on the left, the band's progress on the right, matching the matrix's own bands. The two
+   are the same count over the same set, so they are drawn the same way. */
+.owed-cadence {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 0;
+  padding: 0 2px 4px;
+  color: var(--muted-2);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+.owed-progress {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-weight: 400;
+  letter-spacing: 0;
+  white-space: nowrap;
+}
+
+.owed-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--line-soft);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+/* An empty band is its head and nothing else: no rounded box standing open with nothing in it. */
+.owed-list:empty {
+  display: none;
+}
+
+.owed-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 7px 10px;
+  border-top: 1px solid var(--line-soft);
+}
+
+.owed-row:first-child {
+  border-top: none;
+}
+
+/* Fixed, so the characters start at the same place down the list however long the boss's name is.
+   214px is the matrix's boss column, and this row is built the same way (a 26px portrait, an 8px
+   gap, then the name), so the width that stopped "Guardian Angel Slime" clipping there is the one
+   that stops it clipping here. */
+.owed-boss {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+  width: 214px;
+  min-width: 0;
+}
+
+.owed-boss-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  color: var(--ink);
+}
+
+/* Wraps rather than scrolls: a boss six characters owe is a long row, and cutting it off would
+   hide the half of the answer that says how much work it is. */
+.owed-runners {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 12px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.owed-runner {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+/* Half the roster strip's tile, which is as small as the sprite reads at. Bottom-aligned for the
+   same reason it is there: the sprites have different amounts of headroom, so aligning on the
+   centre stands them at different heights. */
+.owed-sprite {
+  width: 24px;
+  height: 28px;
+  object-fit: contain;
+  object-position: center bottom;
+  image-rendering: pixelated;
+}
+
+.owed-sprite.is-empty {
+  border: 1px dashed var(--line);
+  border-radius: 4px;
+  opacity: 0.5;
+}

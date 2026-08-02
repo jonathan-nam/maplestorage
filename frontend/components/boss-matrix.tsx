@@ -4,6 +4,7 @@ import { useState } from "react";
 
 import { apiAssetUrl } from "@/lib/api";
 import {
+  CADENCE_ORDER,
   cellState,
   cellStateLabel,
   clearOfCell,
@@ -27,13 +28,8 @@ import type { Character } from "@/types/character";
 // everyone, and it is also how the same information is kept by hand today
 // (test-fixtures/occluded/boss matrix.png), so the layout matches how it is already read.
 
-// The planner itself groups by cadence (MONTHLY / WEEKLY / DAILY, see test-fixtures/occluded/boss
-// planner.png), and the grouping is load-bearing here rather than decorative: two bosses in one
-// matrix are not counting the same span of time, and a check under MONTHLY means something quite
-// different from a check under WEEKLY. DAILY stays in the order though the tracker no longer keeps
-// dailies: the list is filtered to the cadences actually present, so it costs nothing and is what
-// this would need if they ever come back.
-const CADENCE_ORDER = ["MONTHLY", "WEEKLY", "DAILY"];
+// The bands are the planner's own grouping, and a check under MONTHLY means something quite
+// different from a check under WEEKLY. The order is shared with the overview, see CADENCE_ORDER.
 
 // On a cold load neither the catalog nor the roster has arrived, so the loading state has nothing
 // real to lay out. These stand in: the shape is right (one monthly and a run of weeklies, which is
