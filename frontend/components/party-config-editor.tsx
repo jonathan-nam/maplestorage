@@ -5,6 +5,7 @@ import { KNOWN_CHARACTERS_ID, KnownCharacters } from "@/components/known-charact
 import { RosterInputs } from "@/components/roster-inputs";
 import { apiAssetUrl } from "@/lib/api";
 import { difficultyLabel } from "@/lib/boss-difficulty";
+import { MAX_MINUTES, parseMinutes } from "@/lib/boss-minutes";
 import { bossesWithoutConfig, otherMembers } from "@/lib/parties";
 import type { Boss } from "@/types/boss";
 import type { Party, SavePartyBody } from "@/types/party";
@@ -56,8 +57,8 @@ export function PartyConfigEditor({
           party={party}
           boss={bossByKey.get(party.bossKey) ?? null}
           busy={busy}
-          onSave={(members, difficulty) =>
-            onSave({ characterId, bossKey: party.bossKey, members, difficulty }, party.id)
+          onSave={(members, difficulty, minutes) =>
+            onSave({ characterId, bossKey: party.bossKey, members, difficulty, minutes }, party.id)
           }
           onDelete={() => onDelete(party)}
         />
@@ -189,6 +190,49 @@ function DifficultySelect({
   );
 }
 
+/**
+ * How long this party takes on its boss, door to door.
+ *
+ * Empty is a real answer and stays one: a config nobody has timed gets the flat estimate on Run
+ * Order, marked there as a guess. It is asked per config rather than per boss because the boss
+ * cannot answer for it, the same Hard Lucid being twenty minutes for one party and five for a
+ * stronger one.
+ *
+ * The box holds text rather than a number, so half-typed input is refused at the Save button
+ * instead of being silently rounded into something. See parseMinutes.
+ */
+function RunMinutes({
+  value,
+  label,
+  disabled,
+  onChange,
+}: {
+  value: string;
+  label: string;
+  disabled?: boolean;
+  onChange: (minutes: string) => void;
+}) {
+  return (
+    <span className="config-minutes">
+      <input
+        className="split-input config-minutes-input"
+        type="number"
+        inputMode="numeric"
+        min={0}
+        max={MAX_MINUTES}
+        step={5}
+        value={value}
+        aria-label={label}
+        disabled={disabled}
+        onChange={(e) => onChange(e.target.value)}
+      />
+      <span className="config-minutes-unit" aria-hidden="true">
+        min
+      </span>
+    </span>
+  );
+}
+
 function ConfigRow({
   party,
   boss,
@@ -199,14 +243,20 @@ function ConfigRow({
   party: Party;
   boss: Boss | null;
   busy: boolean;
-  onSave: (members: string[], difficulty: string | null) => void;
+  onSave: (members: string[], difficulty: string | null, minutes: number | null) => void;
   onDelete: () => void;
 }) {
   const saved = otherMembers(party).map((m) => m.name);
   const savedDifficulty = party.difficulty ?? "";
+  const savedMinutes = party.minutes === null ? "" : String(party.minutes);
   const [members, setMembers] = useState<string[]>(saved.length > 0 ? saved : [""]);
   const [difficulty, setDifficulty] = useState(savedDifficulty);
-  const dirty = members.join(" ") !== saved.join(" ") || difficulty !== savedDifficulty;
+  const [minutes, setMinutes] = useState(savedMinutes);
+  const parsed = parseMinutes(minutes);
+  const dirty =
+    members.join(" ") !== saved.join(" ") ||
+    difficulty !== savedDifficulty ||
+    minutes !== savedMinutes;
   const attributed = otherMembers(party).filter((m) => m.personName);
 
   return (
@@ -220,6 +270,12 @@ function ConfigRow({
           label={`Difficulty for ${boss?.name ?? party.bossKey}`}
           disabled={busy}
           onChange={setDifficulty}
+        />
+        <RunMinutes
+          value={minutes}
+          label={`Minutes for ${boss?.name ?? party.bossKey}`}
+          disabled={busy}
+          onChange={setMinutes}
         />
         <button type="button" className="party-delete" onClick={onDelete} disabled={busy}>
           Remove
@@ -241,11 +297,13 @@ function ConfigRow({
           <button
             type="button"
             className="party-save"
-            disabled={busy}
+            disabled={busy || !parsed.ok}
             onClick={() =>
+              parsed.ok &&
               onSave(
                 members.map((m) => m.trim()).filter((m) => m !== ""),
                 difficulty === "" ? null : difficulty,
+                parsed.minutes,
               )
             }
           >
@@ -258,6 +316,7 @@ function ConfigRow({
             onClick={() => {
               setMembers(saved.length > 0 ? saved : [""]);
               setDifficulty(savedDifficulty);
+              setMinutes(savedMinutes);
             }}
           >
             Revert

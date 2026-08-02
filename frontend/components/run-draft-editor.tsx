@@ -1,8 +1,10 @@
 "use client";
 
+import { useState } from "react";
+
 import { BOSS_NAMES } from "@/lib/boss-art";
 import type { DraftRun } from "@/lib/boss-night";
-import { DEFAULT_MINUTES } from "@/lib/boss-minutes";
+import { DEFAULT_MINUTES, MAX_MINUTES, parseMinutes } from "@/lib/boss-minutes";
 import { MAX_PARTY } from "@/lib/parties";
 
 const BOSS_KEYS = Object.keys(BOSS_NAMES);
@@ -36,6 +38,51 @@ function blankRun(id: string): DraftRun {
       { character: "", person: "" },
     ],
   };
+}
+
+/**
+ * How long a hand-typed run takes.
+ *
+ * Always a number, unlike a config's, which may be left untimed: there is no account behind this
+ * side to hold an answer, so the figure the night is ordered by is on screen from the start.
+ *
+ * Its own text state, because the run cannot hold the half-typed states. Emptying the box to type
+ * a new number would otherwise read as a run of no length and immediately put the old one back.
+ */
+function DraftMinutes({
+  minutes,
+  onChange,
+}: {
+  minutes: number;
+  onChange: (minutes: number) => void;
+}) {
+  const [text, setText] = useState(String(minutes));
+
+  return (
+    <span className="config-minutes">
+      <input
+        className="split-input config-minutes-input"
+        type="number"
+        inputMode="numeric"
+        min={0}
+        max={MAX_MINUTES}
+        step={5}
+        value={text}
+        aria-label="Minutes"
+        onChange={(e) => {
+          setText(e.target.value);
+          const parsed = parseMinutes(e.target.value);
+          if (parsed.ok && parsed.minutes !== null) onChange(parsed.minutes);
+        }}
+        // Puts back the number the plan is actually using, so a box left mid-edit does not sit
+        // there disagreeing with the night below it.
+        onBlur={() => setText(String(minutes))}
+      />
+      <span className="config-minutes-unit" aria-hidden="true">
+        min
+      </span>
+    </span>
+  );
 }
 
 /**
@@ -78,6 +125,10 @@ export function RunDraftEditor({
                 </option>
               ))}
             </select>
+            <DraftMinutes
+              minutes={run.minutes}
+              onChange={(minutes) => update(run.id, (r) => ({ ...r, minutes }))}
+            />
             <button
               type="button"
               className="party-delete"

@@ -52,6 +52,8 @@ export type CandidateRun = {
   difficulty: string | null;
   /** Door to door, in minutes: getting in, the fight, and looting. */
   minutes: number;
+  /** The minutes are the flat fallback, nobody having timed this party. Drawn as "~30m". */
+  assumed?: boolean;
   seats: RunSeat[];
 };
 

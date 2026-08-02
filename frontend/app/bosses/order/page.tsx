@@ -7,7 +7,7 @@ import { RunDraftEditor } from "@/components/run-draft-editor";
 import { CopyPlan, RunPlan } from "@/components/run-plan";
 import { apiFetch } from "@/lib/api";
 import { bossLabel } from "@/lib/boss-difficulty";
-import { DEFAULT_MINUTES, minutesFor } from "@/lib/boss-minutes";
+import { DEFAULT_MINUTES } from "@/lib/boss-minutes";
 import {
   type DraftRun,
   formatDuration,
@@ -174,10 +174,7 @@ export default function RunOrderPage() {
   );
 
   const runs = useMemo(
-    () =>
-      showingAccount
-        ? runsFromParties(usable, bosses, (bossKey) => minutesFor(bossKey))
-        : runsFromDrafts(shown.drafts),
+    () => (showingAccount ? runsFromParties(usable, bosses) : runsFromDrafts(shown.drafts)),
     [showingAccount, usable, bosses, shown.drafts],
   );
 
@@ -209,6 +206,7 @@ export default function RunOrderPage() {
 
   const scheduled = new Set(plan.runs.map((planned) => planned.run.id));
   const unscheduled = eligible.filter((run) => !scheduled.has(run.id));
+  const assumed = plan.runs.filter((planned) => planned.run.assumed).length;
 
   return (
     <main className="page">
@@ -397,11 +395,15 @@ export default function RunOrderPage() {
 
           <RunPlan plan={plan} roster={onTonight} />
 
-          {/* The assumed durations stay on screen. They are what the finishing time is built from,
-              and a time presented without them reads as a measurement of your party. */}
-          <p className="split-caveat">
-            Every run is assumed to take {formatDuration(DEFAULT_MINUTES)}.
-          </p>
+          {/* What was guessed stays on screen. It is what the finishing time is built from, and a
+              time presented without it reads as a measurement of your parties. */}
+          {assumed > 0 && (
+            <p className="split-caveat">
+              {assumed === plan.runs.length
+                ? `Every run is assumed to take ${formatDuration(DEFAULT_MINUTES)}.`
+                : `${assumed} ${assumed === 1 ? "run" : "runs"} assumed at ${formatDuration(DEFAULT_MINUTES)}.`}
+            </p>
+          )}
         </section>
       )}
 

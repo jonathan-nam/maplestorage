@@ -27,6 +27,9 @@ import kotlin.uuid.Uuid
 /** Six seats, the game's own party limit, so five OTHERS at most beside your own character. */
 internal const val MAX_PARTY_SIZE = 6
 
+/** Ten hours, longer than any night. A typo guard, not a claim about how long a boss takes. */
+internal const val MAX_RUN_MINUTES = 600
+
 /**
  * Every config, with its pool counted and its roster read for one week.
  *
@@ -303,6 +306,7 @@ private fun ResultRow.toPartyResponse(
     worldType = this[Characters.worldType],
     bossKey = this[BossCatalog.bossKey],
     difficulty = this[Party.difficulty],
+    minutes = this[Party.minutes],
     members = members,
     seats = seats,
     usualRoster = usualRoster,

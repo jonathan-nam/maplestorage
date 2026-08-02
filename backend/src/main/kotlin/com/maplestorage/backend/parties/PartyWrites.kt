@@ -44,6 +44,7 @@ internal fun createParty(
         it[Party.characterId] = characterId
         it[Party.bossCatalogId] = bossCatalogId
         it[difficulty] = request.difficulty
+        it[minutes] = request.minutes
         it[createdAt] = now
         it[updatedAt] = now
     }
@@ -52,7 +53,7 @@ internal fun createParty(
 }
 
 /**
- * Replaces the config's difficulty and members.
+ * Replaces the config's difficulty, run time and members.
  *
  * The character and the boss are not editable: they are what the config IS, and changing either
  * would silently turn "Kalos on mechyfechy" into a different question with the same loot pool
@@ -76,6 +77,7 @@ internal fun saveParty(
             .first()[Party.characterId]
     Party.update({ (Party.id eq partyId) and (Party.userId eq userId) }) {
         it[difficulty] = request.difficulty
+        it[minutes] = request.minutes
         it[updatedAt] = now
     }
     writeMembers(partyId, characterId, request.members, SeatContext(userId, sprites, now))

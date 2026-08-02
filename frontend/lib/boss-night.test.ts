@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { Party, PartyMember } from "@/types/party";
 
-import { DEFAULT_MINUTES, minutesFor } from "./boss-minutes";
+import { DEFAULT_MINUTES, MAX_MINUTES, parseMinutes, runMinutes } from "./boss-minutes";
 import {
   type DraftRun,
   formatDuration,
@@ -30,13 +30,19 @@ function member(over: Partial<PartyMember> & { name: string }): PartyMember {
   };
 }
 
-function party(id: string, bossKey: string, members: PartyMember[]): Party {
+function party(
+  id: string,
+  bossKey: string,
+  members: PartyMember[],
+  minutes: number | null = null,
+): Party {
   return {
     id,
     characterId: members[0]?.characterId ?? "c1",
     worldType: "INTERACTIVE",
     bossKey,
     difficulty: null,
+    minutes,
     members,
     seats: members,
     usualRoster: true,
@@ -107,14 +113,15 @@ describe("runsFromParties", () => {
   ];
 
   it("turns a config into a run with its seats attributed", () => {
-    const runs = runsFromParties([party("1", "lotus", [mine, chris])], bosses, () => 5);
+    const runs = runsFromParties([party("1", "lotus", [mine, chris], 20)], bosses);
     expect(runs).toEqual([
       {
         id: "1",
         bossKey: "lotus",
         bossName: "Lotus",
         difficulty: null,
-        minutes: 5,
+        minutes: 20,
+        assumed: false,
         seats: [
           { character: "Mechy", personId: YOU },
           { character: "Creed", personId: "p-chris" },
@@ -127,19 +134,46 @@ describe("runsFromParties", () => {
     const runs = runsFromParties(
       [party("1", "lotus", [mine, member({ name: "Stranger" })])],
       bosses,
-      () => 5,
     );
     expect(runs).toHaveLength(1);
   });
 
   it("carries the mode the config says it runs", () => {
     const hard = { ...party("1", "lotus", [mine, chris]), difficulty: "HARD" };
-    expect(runsFromParties([hard], bosses, () => 5)[0]?.difficulty).toBe("HARD");
+    expect(runsFromParties([hard], bosses)[0]?.difficulty).toBe("HARD");
   });
 
   it("falls back to the key when the catalog has no name for the boss", () => {
-    const runs = runsFromParties([party("1", "mystery", [mine])], bosses, () => 5);
+    const runs = runsFromParties([party("1", "mystery", [mine])], bosses);
     expect(runs[0]?.bossName).toBe("mystery");
+  });
+
+  it("marks an untimed config, so its half hour is not read as measured", () => {
+    const [run] = runsFromParties([party("1", "lotus", [mine, chris])], bosses);
+    expect(run?.minutes).toBe(DEFAULT_MINUTES);
+    expect(run?.assumed).toBe(true);
+  });
+
+  // The two are the same claim if the flag is dropped, which is the whole reason it exists.
+  it("does not call a timed half hour an assumption", () => {
+    const [run] = runsFromParties([party("1", "lotus", [mine, chris], DEFAULT_MINUTES)], bosses);
+    expect(run?.assumed).toBe(false);
+  });
+
+  it("takes a party at its word when it says a boss costs it nothing", () => {
+    const [run] = runsFromParties([party("1", "lotus", [mine, chris], 0)], bosses);
+    expect(run?.minutes).toBe(0);
+    expect(run?.assumed).toBe(false);
+  });
+
+  // Two characters of yours on the same boss are two paces, which is why the number is not on the
+  // boss. A per-boss table could not hold this.
+  it("lets two configs for one boss run at different speeds", () => {
+    const runs = runsFromParties(
+      [party("1", "lotus", [mine, chris], 20), party("2", "lotus", [mine, chris], 35)],
+      bosses,
+    );
+    expect(runs.map((run) => run.minutes)).toEqual([20, 35]);
   });
 });
 
@@ -206,14 +240,36 @@ describe("personKey", () => {
   });
 });
 
-describe("minutesFor", () => {
-  it("assumes the same half hour for every boss until told otherwise", () => {
-    expect(minutesFor("limbo")).toBe(DEFAULT_MINUTES);
-    expect(minutesFor("lotus")).toBe(minutesFor("black-mage"));
+describe("runMinutes", () => {
+  it("assumes the same half hour for a config nobody has timed", () => {
+    expect(runMinutes(null)).toBe(DEFAULT_MINUTES);
   });
 
-  it("honours an override of zero instead of reading it as absent", () => {
-    expect(minutesFor("lotus", { lotus: 0 })).toBe(0);
+  it("honours a zero instead of reading it as untimed", () => {
+    expect(runMinutes(0)).toBe(0);
+  });
+});
+
+describe("parseMinutes", () => {
+  it("reads an empty box as untimed rather than as no time at all", () => {
+    expect(parseMinutes("")).toEqual({ ok: true, minutes: null });
+    expect(parseMinutes("  ")).toEqual({ ok: true, minutes: null });
+  });
+
+  it("reads whole minutes, zero included", () => {
+    expect(parseMinutes("20")).toEqual({ ok: true, minutes: 20 });
+    expect(parseMinutes("0")).toEqual({ ok: true, minutes: 0 });
+  });
+
+  // Refusing, not repairing: a 3000 clamped to 600 would order the night by a number nobody typed.
+  it("refuses what it cannot read as whole minutes in range", () => {
+    for (const text of ["20 mins", "-5", "12.5", "abc", String(MAX_MINUTES + 1)]) {
+      expect(parseMinutes(text)).toEqual({ ok: false });
+    }
+  });
+
+  it("takes the ceiling itself", () => {
+    expect(parseMinutes(String(MAX_MINUTES))).toEqual({ ok: true, minutes: MAX_MINUTES });
   });
 });
 
@@ -250,7 +306,6 @@ describe("planAsText", () => {
     const runs = runsFromParties(
       [hard],
       [{ bossKey: "lotus", name: "Lotus", reset: "WEEKLY", iconUrl: null, difficulties: ["HARD"] }],
-      () => 30,
     );
     const roster = rosterFrom([hard]);
     const { eligible } = screenRuns(

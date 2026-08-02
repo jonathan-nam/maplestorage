@@ -126,6 +126,7 @@ private suspend fun RoutingContext.savePartyRoute(nexonLookupService: NexonLooku
                 val bossId = bossIdOfParty(partyId)
                 val problem =
                     bossId?.let { validateDifficulty(it, request.difficulty) }
+                        ?: validateMinutes(request.minutes)
                         ?: validateMembers(request.members)
                 if (problem != null) {
                     problem

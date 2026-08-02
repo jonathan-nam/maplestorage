@@ -43,6 +43,9 @@ data class PartyResponse(
     // Which mode this party runs, one of the boss's own difficulties. Null is not NORMAL, it is
     // nobody having said yet, so nothing draws a difficulty for it.
     val difficulty: String? = null,
+    // How long this party takes on this boss, door to door. Null is nobody having timed it, not
+    // the flat estimate Run Order falls back to, so the two can be told apart on screen.
+    val minutes: Int? = null,
     // Who ran in the week being shown, which is not always who usually does. See rostersFor.
     val members: List<PartyMemberResponse>,
     // EVERY seat this party has ever had, guests and departed members included. What a payout is
@@ -91,6 +94,8 @@ data class SavePartyRequest(
     // One of the boss's own difficulties, or null for "not said". Anything else is refused rather
     // than dropped: a config claiming Normal Black Mage would read as a fact somebody entered.
     val difficulty: String? = null,
+    // Minutes door to door, or null for "not timed". Zero is a real answer and is kept as one.
+    val minutes: Int? = null,
 )
 
 /**

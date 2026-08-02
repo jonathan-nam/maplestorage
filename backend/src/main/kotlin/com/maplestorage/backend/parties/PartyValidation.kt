@@ -44,9 +44,30 @@ internal fun validateNewParty(
         !owned -> "characterId must be one of your characters"
         bossCatalogId == null -> "unknown bossKey"
         taken -> "that character already has a party for this boss"
-        else -> validateDifficulty(bossCatalogId, request.difficulty) ?: validateMembers(request.members)
+        else ->
+            validateDifficulty(bossCatalogId, request.difficulty)
+                ?: validateMinutes(request.minutes)
+                ?: validateMembers(request.members)
     }
 }
+
+/**
+ * Why this run time cannot be stored, or null.
+ *
+ * Null passes, meaning nobody has timed this party. Zero passes too: a boss walked through in
+ * under a minute is a real thing to say, and rounding it up to "at least one" would be this app
+ * disagreeing with the person who timed it.
+ *
+ * The ceiling is a typo guard, not a rule about bossing. Refusing rather than clamping, because a
+ * 3000 silently kept as 600 would order somebody's night around a number they never entered.
+ */
+internal fun validateMinutes(minutes: Int?): String? =
+    when {
+        minutes == null -> null
+        minutes < 0 -> "minutes cannot be negative"
+        minutes > MAX_RUN_MINUTES -> "minutes must be at most $MAX_RUN_MINUTES"
+        else -> null
+    }
 
 /**
  * Why this difficulty cannot stand against this boss, or null.

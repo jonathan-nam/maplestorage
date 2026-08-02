@@ -100,11 +100,11 @@ class PartyConfigTest {
         characterId: Uuid,
         bossKey: String,
         members: List<String>,
-        sprites: Map<String, String?> = emptyMap(),
         difficulty: String? = null,
+        minutes: Int? = null,
     ): PartyResponse {
-        val request = SavePartyRequest(characterId.toString(), bossKey, members, difficulty)
-        val id = createParty(userId, characterId, bossIdForKey(bossKey)!!, request, Clock.System.now(), sprites)
+        val request = SavePartyRequest(characterId.toString(), bossKey, members, difficulty, minutes)
+        val id = createParty(userId, characterId, bossIdForKey(bossKey)!!, request, Clock.System.now())
         return findParty(id, userId)!!
     }
 
@@ -231,6 +231,57 @@ class PartyConfigTest {
             // it would put a mode on screen that nobody chose.
             assertNull(config(userOneId, mine, "limbo", listOf("Lynn")).difficulty)
         }
+    }
+
+    @Test
+    fun `a config says how long it takes, and can be re-timed`() {
+        transaction {
+            val mine = addCharacter(userOneId, "mechyfechy")
+            val party = config(userOneId, mine, "lucid", listOf("CreedBratton"), minutes = 20)
+            assertEquals(20, party.minutes)
+
+            saveParty(
+                userOneId,
+                Uuid.parse(party.id),
+                SavePartyRequest(mine.toString(), "lucid", listOf("CreedBratton"), minutes = 12),
+                Clock.System.now(),
+            )
+            assertEquals(12, findParty(Uuid.parse(party.id), userOneId)!!.minutes)
+        }
+    }
+
+    @Test
+    fun `a config nobody has timed is not given a time`() {
+        transaction {
+            val mine = addCharacter(userOneId, "mechyfechy")
+            // Null, not thirty. The flat estimate is Run Order's fallback and is marked there as
+            // one; storing it here would turn a guess into something that reads as measured.
+            assertNull(config(userOneId, mine, "limbo", listOf("Lynn")).minutes)
+        }
+    }
+
+    @Test
+    fun `the same boss on two characters can be timed differently`() {
+        transaction {
+            // Why the time is on the config and not the boss: one character walks Lucid and
+            // another takes twenty minutes over it, and both are true at once.
+            val fast = addCharacter(userOneId, "mechyfechy")
+            val slow = addCharacter(userOneId, "runebae")
+            assertEquals(5, config(userOneId, fast, "lucid", listOf("Lynn"), minutes = 5).minutes)
+            assertEquals(20, config(userOneId, slow, "lucid", listOf("Lynn"), minutes = 20).minutes)
+        }
+    }
+
+    @Test
+    fun `refuses a run time it cannot store, rather than clamping it`() {
+        // Zero is a real answer: a boss walked through in under a minute. Rounding it up would be
+        // the app disagreeing with the person who timed it.
+        assertNull(validateMinutes(0))
+        assertNull(validateMinutes(null))
+        assertNull(validateMinutes(MAX_RUN_MINUTES))
+        assertEquals("minutes cannot be negative", validateMinutes(-1))
+        // Clamped to 600, a typo'd 3000 would order somebody's night by a number they never typed.
+        assertEquals("minutes must be at most 600", validateMinutes(MAX_RUN_MINUTES + 1))
     }
 
     @Test

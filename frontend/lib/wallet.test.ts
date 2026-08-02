@@ -34,6 +34,7 @@ const party = (id: string, members: PartyMember[], over: Partial<Party> = {}): P
   worldType: "INTERACTIVE",
   bossKey: "limbo",
   difficulty: null,
+  minutes: null,
   members,
   seats: members,
   usualRoster: true,
