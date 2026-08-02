@@ -313,7 +313,7 @@ describe("planAsText", () => {
       roster.map((p) => p.id),
     );
     const text = planAsText(planNight(eligible, { minutes: 60 }).best, roster);
-    expect(text).toContain("Hard Lotus,");
+    expect(text).toContain("Hard Lotus\t");
   });
 
   it("is the fenced table and nothing else", () => {
@@ -367,11 +367,11 @@ describe("planAsText", () => {
   ];
 
   it("heads the columns with people, and leaves the corner empty", () => {
-    // Empty and not absent: the header keeps one field per column, which is what holds the
-    // padding in step with the rows below it.
+    // Empty and not absent: the header keeps one field per column, so the names land over the
+    // characters below them.
     const table = fenced(textFor(SPLIT_NIGHT, 180));
-    expect(table[0]).toMatch(/^,\s+Dave,\s+Erin,\s+You$/);
-    expect(table[1]).toMatch(/^Lotus,\s+Nightlord,\s+Shadower,\s+Bishop$/);
+    expect(table[0]).toBe("\tDave\tErin\tYou");
+    expect(table[1]).toBe("Lotus\tNightlord\tShadower\tBishop");
   });
 
   it("marks somebody sitting a run out with an X", () => {
@@ -379,14 +379,17 @@ describe("planAsText", () => {
     // 3-person, 2-person, 1-person for size, which outranks keeping his two runs together, so
     // this is the gap the planner cannot close and the one the X has to show.
     const table = fenced(textFor(SPLIT_NIGHT, 180));
-    expect(table[2]).toMatch(/^Damien,\s+X,\s+Shadower,\s+Bishop$/);
-    expect(table[3]).toMatch(/^Lucid,\s+Nightlord,\s+X,\s+X$/);
+    expect(table[2]).toBe("Damien\tX\tShadower\tBishop");
+    expect(table[3]).toBe("Lucid\tNightlord\tX\tX");
   });
 
-  it("lines the columns up, so the grid survives being pasted", () => {
+  it("gives every row the same columns, so the grid survives being pasted", () => {
+    // A tab stop is what lines the columns up, so what this can check is that no row is short a
+    // field: a missing cell would slide everything after it one column left.
     const table = fenced(textFor(SPLIT_NIGHT, 180));
-    const firstColumn = (line: string) => (/^[^,]*,\s*/.exec(line) as RegExpExecArray)[0].length;
-    expect(new Set(table.map(firstColumn)).size).toBe(1);
+    const widths = table.map((line) => line.split("\t").length);
+    expect(new Set(widths).size).toBe(1);
+    expect(widths[0]).toBe(4);
   });
 
   it("still uses the marks, it just no longer explains them", () => {
@@ -420,8 +423,8 @@ describe("planAsText", () => {
     const table = fenced(
       textFor([R("1", "Lotus", [["Bishop", "You"]]), R("2", "Damien", [["Bishop", "You"]])], 120),
     );
-    expect(table[1]).toMatch(/^Lotus,/);
-    expect(table[2]).toMatch(/^Damien,/);
+    expect(table[1]).toMatch(/^Lotus\t/);
+    expect(table[2]).toMatch(/^Damien\t/);
   });
 
   it("calls a boss what the party calls it", () => {
@@ -432,20 +435,20 @@ describe("planAsText", () => {
       ],
       120,
     );
-    expect(text).toContain("Star,");
-    expect(text).toContain("Kalos,");
+    expect(text).toContain("Star\t");
+    expect(text).toContain("Kalos\t");
     expect(text).not.toContain("Malefic");
     expect(text).not.toContain("Guardian");
   });
 
   it("keeps the full name for a boss with no shorthand", () => {
     const table = fenced(textFor([R("lotus", "Lotus", [["Bishop", "You"]])], 60));
-    expect(table[1]).toBe("Lotus, Bishop");
+    expect(table[1]).toBe("Lotus\tBishop");
   });
 
-  it("quotes a name holding a comma, so one typed by hand cannot split a row", () => {
+  it("leaves a name holding a comma alone, since a tab is what splits a row", () => {
     const table = fenced(textFor([R("1", "Lotus", [["Bishop", "Dave, Jr"]])], 60));
-    expect(table[0]).toBe(',      "Dave, Jr"');
+    expect(table[0]).toBe("\tDave, Jr");
   });
 
   it("says so plainly when there is nothing to paste", () => {
@@ -454,17 +457,30 @@ describe("planAsText", () => {
     );
   });
 
-  it("indents nothing, so the table holds up even without its fence", () => {
-    const text = textFor(
-      [
-        R("1", "Lotus", [
-          ["Bishop", "You"],
-          ["Hero", "Chris"],
-        ]),
-      ],
-      60,
+  it("pads nothing, so every name starts flush at its column", () => {
+    const table = fenced(
+      textFor(
+        [
+          R("1", "Lotus", [
+            ["Bishop", "You"],
+            ["Hero", "Christopher"],
+          ]),
+        ],
+        60,
+      ),
     );
-    expect(text.split("\n").every((line) => line === line.trimStart())).toBe(true);
+    // The empty corner is the one leading tab. Nothing else is indented, and no field is padded
+    // out to the width of a longer one in its column.
+    expect(table[0]).toBe("\tChristopher\tYou");
+    expect(table.every((line) => !line.startsWith(" "))).toBe(true);
+    expect(table.every((line) => line.split("\t").every((field) => field === field.trim()))).toBe(
+      true,
+    );
+  });
+
+  it("keeps a name with a tab in it from splitting a row", () => {
+    const table = fenced(textFor([R("1", "Lotus", [["Bishop", "Dave\tJr"]])], 60));
+    expect(table[0]).toBe("\tDave Jr");
   });
 });
 
