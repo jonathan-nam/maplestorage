@@ -25,7 +25,7 @@ const NATURAL = {
   ".character-row-sprite": 96,
   ".boss-char-sprite": 96,
   ".roster-sprite": 96,
-  ".party-group-sprite": 96,
+  ".party-figure-sprite": 96,
   ".seat-sprite": 96,
   ".seat-sprite.is-large": 96,
 } as const;

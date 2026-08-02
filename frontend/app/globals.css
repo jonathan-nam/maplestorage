@@ -2795,6 +2795,57 @@ button.link:disabled {
   margin-top: 28px;
 }
 
+/* The character on the left, everything it owes the week on the right, in one container. Filed by
+   character the block is the character, so the sprite is the row's subject rather than a mark on a
+   heading above it. */
+.party-group.is-figured {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.party-figure {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  width: 112px;
+  text-align: center;
+  /* Held in view while the bosses beside it scroll past. A character with a dozen of them is
+     taller than the window, and the sprite is what says whose dozen it is. */
+  position: sticky;
+  top: 12px;
+}
+
+/* 96px is the Nexon render's own size, so this is 1:1 and not an enlargement; see .tile-sprite.
+   112px of frame because the figure does not fill its square: it rests on the bottom edge. */
+.party-figure-sprite {
+  width: 96px;
+  height: 112px;
+  object-fit: contain;
+  object-position: center bottom;
+  image-rendering: pixelated;
+}
+
+.party-figure-sprite.is-empty {
+  border: 1px dashed var(--line);
+  border-radius: 4px;
+  opacity: 0.5;
+}
+
+/* The list is the flexible side, and min-width:0 is what lets it shrink: a flex item defaults to
+   its content's width, and one long boss name would otherwise push the row wider than the page. */
+.party-group.is-figured .party-list {
+  flex: 1;
+  min-width: 0;
+}
+
+.party-group.is-figured .party-group-name {
+  /* A long IGN wraps rather than widening the figure and moving the list's left edge. */
+  overflow-wrap: anywhere;
+}
+
 .party-group-head {
   display: flex;
   align-items: center;
@@ -2802,17 +2853,6 @@ button.link:disabled {
   margin-bottom: 12px;
   padding-bottom: 8px;
   border-bottom: 1px solid var(--line-soft);
-}
-
-/* Whose block this is, so it is drawn at half the Nexon render rather than a third: it is the only
-   sprite on a closed list, since every party's own roster is behind a chevron. */
-.party-group-sprite {
-  width: 48px;
-  height: 48px;
-  object-fit: contain;
-  /* The sprite sheet is drawn for a light window; scaling it down here is display only, the
-     inventory's own window keeps the size the game uses. */
-  image-rendering: pixelated;
 }
 
 .party-group-name {
