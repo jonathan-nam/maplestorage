@@ -573,7 +573,7 @@ export default function PartiesPage() {
                 <article className="boss-run" key={arrangement.key}>
                   <header className="boss-run-head">
                     {character?.spriteImgUrl && (
-                      <img className="seat-sprite" src={character.spriteImgUrl} alt="" />
+                      <img className="seat-sprite is-large" src={character.spriteImgUrl} alt="" />
                     )}
                     <h3 className="boss-run-name">
                       {character?.name ?? "Unknown character"} +{" "}
@@ -660,7 +660,7 @@ export default function PartiesPage() {
                         <>
                           {characterById.get(party.characterId)?.spriteImgUrl && (
                             <img
-                              className="seat-sprite"
+                              className="seat-sprite is-large"
                               src={characterById.get(party.characterId)!.spriteImgUrl!}
                               alt=""
                             />
