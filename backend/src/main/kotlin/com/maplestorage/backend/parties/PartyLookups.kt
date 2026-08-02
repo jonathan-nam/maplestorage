@@ -57,6 +57,14 @@ internal fun bossIdOfParty(partyId: Uuid): Uuid? =
         .firstOrNull()
         ?.get(Party.bossCatalogId)
 
+/** The character a config belongs to, or null when there is no such config. */
+internal fun characterIdOfParty(partyId: Uuid): Uuid? =
+    Party
+        .selectAll()
+        .where { Party.id eq partyId }
+        .firstOrNull()
+        ?.get(Party.characterId)
+
 /** The catalog id for a boss key, or null when it is not a tracked boss. */
 internal fun bossIdForKey(bossKey: String): Uuid? =
     BossCatalog

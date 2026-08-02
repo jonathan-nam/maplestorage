@@ -128,12 +128,15 @@ private suspend fun RoutingContext.savePartyRoute(nexonLookupService: NexonLooku
             if (!ownsParty(partyId, userId)) {
                 null
             } else {
-                // Against the config's OWN boss, not the request's: the boss is not editable, so a
-                // payload naming another one must not widen what difficulties are allowed.
+                // Against the config's OWN boss and character, not the request's: neither is
+                // editable, so a payload naming another one must not widen what difficulties are
+                // allowed or move the seat check onto a different party's roster.
                 val bossId = bossIdOfParty(partyId)
+                val characterId = characterIdOfParty(partyId)
                 val problem =
                     bossId?.let { validateDifficulty(it, request.difficulty) }
                         ?: validateMembers(request.members)
+                        ?: characterId?.let { validateSeatRemovals(partyId, it, request.members) }
                 if (problem != null) {
                     problem
                 } else {

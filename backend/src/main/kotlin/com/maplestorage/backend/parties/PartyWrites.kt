@@ -115,6 +115,24 @@ internal fun deleteParty(
     userId: String,
 ): Boolean = Party.deleteWhere { (Party.id eq partyId) and (Party.userId eq userId) } > 0
 
+/** The name on a character of yours, which is the seat the config itself occupies. */
+internal fun ownSeatName(ownCharacterId: Uuid): String =
+    Characters
+        .selectAll()
+        .where { Characters.id eq ownCharacterId }
+        .first()[Characters.name]
+
+/**
+ * The seats a save leaves behind, YOUR character first.
+ *
+ * Read by the write and by the check that refuses to drop a seat the loot pool points at, so a
+ * refusal cannot disagree with the save about which seats would have gone.
+ */
+internal fun seatNames(
+    ownName: String,
+    members: List<String>,
+): List<String> = listOf(ownName) + members.map { it.trim() }.filterNot { it.equals(ownName, ignoreCase = true) }
+
 /**
  * Writes the seats, YOUR character first.
  *
@@ -131,12 +149,7 @@ private fun writeMembers(
     sprites: Map<String, String?>,
     now: Instant,
 ) {
-    val ownName =
-        Characters
-            .selectAll()
-            .where { Characters.id eq ownCharacterId }
-            .first()[Characters.name]
-    val names = listOf(ownName) + members.map { it.trim() }.filterNot { it.equals(ownName, ignoreCase = true) }
+    val names = seatNames(ownSeatName(ownCharacterId), members)
     val existing =
         PartyMember
             .selectAll()

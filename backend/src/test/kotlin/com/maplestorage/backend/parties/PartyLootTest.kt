@@ -244,20 +244,59 @@ class PartyLootTest {
             val seller = party.members[0]
             sellLoot(lootId, sale(seller.id), Uuid.parse(seller.id), partyId, Clock.System.now())
 
-            // Dropping Bob from the roster deletes the seat his payout points at, and the payout
-            // goes with it. That is why the route refuses to delete a config whose pool still has
-            // anything in it: the record has to outlive the editing.
+            // Bob's payout points at his seat, and party_loot_payout cascades on it, so deleting
+            // the seat would delete the record while the money stays real. Refused instead.
             val withoutBob =
                 party.members
                     .drop(1)
                     .filter { it.name != "Bob" }
                     .map { it.name }
-            val request = SavePartyRequest(party.characterId, "limbo", withoutBob)
-            saveParty(userId, partyId, request, Clock.System.now())
+            val characterId = Uuid.parse(party.characterId)
+            val problem = validateSeatRemovals(partyId, characterId, withoutBob)
+            assertNotNull(problem)
+            assertTrue(problem.contains("Bob"), problem)
 
-            val after = findParty(partyId, userId)!!
-            assertTrue(after.members.none { it.name == "Bob" })
-            assertEquals(1, findLoot(lootId, partyId)!!.payouts.size)
+            // And the one it is protecting is untouched by the refusal.
+            assertTrue(findParty(partyId, userId)!!.members.any { it.name == "Bob" })
+            assertEquals(2, findLoot(lootId, partyId)!!.payouts.size)
+        }
+    }
+
+    @Test
+    fun `a seat with no loot behind it still leaves`() {
+        transaction {
+            val party = trio()
+            val partyId = Uuid.parse(party.id)
+            val characterId = Uuid.parse(party.characterId)
+
+            // Nothing has dropped, so nothing points at anybody: an ordinary roster change.
+            val withoutBob =
+                party.members
+                    .drop(1)
+                    .filter { it.name != "Bob" }
+                    .map { it.name }
+            assertNull(validateSeatRemovals(partyId, characterId, withoutBob))
+
+            saveParty(userId, partyId, SavePartyRequest(party.characterId, "limbo", withoutBob), Clock.System.now())
+            assertTrue(findParty(partyId, userId)!!.members.none { it.name == "Bob" })
+        }
+    }
+
+    @Test
+    fun `a seat that joined after the sale can still leave`() {
+        transaction {
+            val party = trio()
+            val partyId = Uuid.parse(party.id)
+            val characterId = Uuid.parse(party.characterId)
+            val lootId = addGrindstone(party)
+            val seller = party.members[0]
+            sellLoot(lootId, sale(seller.id), Uuid.parse(seller.id), partyId, Clock.System.now())
+
+            // The lock is per SEAT, not per party: a sale does not freeze the roster, it pins the
+            // people it owes. Cara was not there for it, so she comes and goes freely.
+            val withCara = party.members.drop(1).map { it.name } + "Cara"
+            saveParty(userId, partyId, SavePartyRequest(party.characterId, "limbo", withCara), Clock.System.now())
+            assertNull(validateSeatRemovals(partyId, characterId, party.members.drop(1).map { it.name }))
         }
     }
 
