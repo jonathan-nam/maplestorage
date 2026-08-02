@@ -27,6 +27,7 @@ const NATURAL = {
   ".roster-sprite": 96,
   ".party-group-sprite": 96,
   ".seat-sprite": 96,
+  ".seat-sprite.is-large": 96,
 } as const;
 
 /** The declared width of a rule, and whether it asks for nearest-neighbour. */

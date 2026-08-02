@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { type CSSProperties, useState } from "react";
 
 import { apiAssetUrl } from "@/lib/api";
 import {
@@ -51,7 +51,11 @@ const SKELETON_BOSSES: Boss[] = [
   })),
 ];
 
-const SKELETON_CHARACTERS = Array.from({ length: 4 }, (_, i) => ({
+// Four characters on screen at once, and the rest are scrolled to. A roster of ten split a 730px
+// column into 53px slices, which is narrower than the sprite that has to sit in one.
+const VISIBLE_COLUMNS = 4;
+
+const SKELETON_CHARACTERS = Array.from({ length: VISIBLE_COLUMNS }, (_, i) => ({
   id: `sk-char-${i}`,
   name: "",
   spriteImgUrl: null,
@@ -125,6 +129,12 @@ export function BossMatrix({
   const shown = historyWeek ? CADENCE_ORDER.filter((c) => c === "WEEKLY") : CADENCE_ORDER;
   const cadences = shown.filter((c) => rows.some((b) => b.reset === c));
 
+  // How many screens wide the table is: 1 up to four characters, 2 at eight, and so on. The width
+  // itself is the stylesheet's, which is the only place that knows how much of the column the boss
+  // names take. This is the part it cannot know.
+  const roster = Math.max(columns.length, 1);
+  const span = roster / Math.min(roster, VISIBLE_COLUMNS);
+
   // Counted per cadence and never pooled across them, for the reason the bands exist at all: a
   // monthly and a weekly are not counting the same span of time, so one figure over both would be
   // a total of two different things.
@@ -139,6 +149,7 @@ export function BossMatrix({
   return (
     <div
       className="boss-matrix"
+      style={{ "--boss-span": span, "--boss-cols": roster } as CSSProperties}
       role="status"
       aria-label={loading ? "Loading boss clears" : undefined}
       // Cleared here rather than per cell: leaving one cell for its neighbour would blank the band
