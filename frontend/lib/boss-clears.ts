@@ -1,11 +1,5 @@
 import type { BossClear, BossClearsView } from "@/types/boss";
 
-// The planner's own grouping (test-fixtures/occluded/boss planner.png), and load-bearing rather
-// than decorative: two bosses in one list are not counting the same span of time, so one figure
-// over both would be a total of two different things. Callers filter it to the cadences they
-// actually hold, so DAILY costs nothing while the tracker keeps no dailies.
-export const CADENCE_ORDER = ["MONTHLY", "WEEKLY", "DAILY"];
-
 // Four states, and the last two are both kinds of empty.
 //
 // A boss with no row has not been reported for this period: no capture has said anything about it.
