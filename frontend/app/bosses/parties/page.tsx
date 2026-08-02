@@ -3,6 +3,7 @@
 import { useAuth } from "@clerk/nextjs";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
+import { KnownCharacters } from "@/components/known-characters";
 import { PartyCard } from "@/components/party-card";
 import { ResetTimer } from "@/components/reset-timer";
 import { WeekStepper } from "@/components/week-stepper";
@@ -19,6 +20,7 @@ import {
   consolidate,
   existedInWeek,
   filterByClear,
+  knownCharacterNames,
   otherMembers,
   partySizeLabel,
 } from "@/lib/parties";
@@ -30,7 +32,7 @@ import type { Boss, BossClearsView } from "@/types/boss";
 import type { Character } from "@/types/character";
 import type { DropTables } from "@/types/drop";
 import type { AddLootBody } from "@/types/loot";
-import type { Party } from "@/types/party";
+import type { Party, Person, SavePartyBody } from "@/types/party";
 
 type LoadState = "loading" | "loaded" | "error";
 
@@ -44,6 +46,9 @@ type Grouping = "character" | "boss" | "party";
 const PARTIES_KEY = "/api/parties";
 const BOSSES_KEY = "/api/bosses";
 const CHARACTERS_KEY = "/api/characters";
+// Whose character is whose, for the roster editor's datalist. Same key as the edit page, so the
+// two share one cached copy and offer the same spellings.
+const PEOPLE_KEY = "/api/people";
 // The countdown, the week being shown, AND the clears for a past week. On the live view a config
 // carries its own answer (party.cleared) and that is what is drawn; only a history view reads the
 // clears out of here, because /api/parties can only ever answer for the period it is in.
@@ -75,6 +80,7 @@ export default function PartiesPage() {
   const [bosses, setBosses] = useState<Boss[]>(seededBosses ?? []);
   const [characters, setCharacters] = useState<Character[]>(seededCharacters ?? []);
   const [dropTables, setDropTables] = useState<DropTables>(peek<DropTables>(DROPS_KEY) ?? {});
+  const [people, setPeople] = useState<Person[]>(peek<Person[]>(PEOPLE_KEY) ?? []);
   const [state, setState] = useState<LoadState>(
     seededParties && seededBosses && seededCharacters ? "loaded" : "loading",
   );
@@ -197,9 +203,12 @@ export default function PartiesPage() {
           // row's drop picker and nothing else, and blanking a page that answers "what is left
           // this week" over a picker's data says less than leaving it up.
           apiFetch<DropTables>(DROPS_KEY, { method: "GET" }, withToken).catch(() => null),
+          // Optional too. Losing it costs the roster editor's suggestions, and a name can still
+          // be typed out.
+          apiFetch<Person[]>(PEOPLE_KEY, { method: "GET" }, withToken).catch(() => null),
         ]);
       })
-      .then(([, bossResult, characterResult, dropResult]) => {
+      .then(([, bossResult, characterResult, dropResult, peopleResult]) => {
         setBosses(bossResult);
         setCharacters(characterResult);
         put(BOSSES_KEY, bossResult);
@@ -207,6 +216,10 @@ export default function PartiesPage() {
         if (dropResult) {
           setDropTables(dropResult);
           put(DROPS_KEY, dropResult);
+        }
+        if (peopleResult) {
+          setPeople(peopleResult);
+          put(PEOPLE_KEY, peopleResult);
         }
         setState("loaded");
       })
@@ -236,6 +249,40 @@ export default function PartiesPage() {
       put(PARTIES_KEY, refreshed);
     } catch {
       // Leaving the old state up beats showing a tick that did not save.
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  /**
+   * Changes who this config runs with, without leaving the list.
+   *
+   * The same PUT the edit page makes, so a roster changed here and one changed there are the same
+   * write. The boss and the difficulty are carried through unchanged: the endpoint replaces the
+   * config, and omitting the difficulty would quietly unsay which mode the party runs.
+   *
+   * Live view only, so PARTIES_KEY is the right list to refetch. Throws on failure, which is what
+   * lets the row show the server's reason: it refuses to drop a seat the loot pool points at.
+   */
+  async function saveRoster(party: Party, members: string[]) {
+    setBusy(true);
+    try {
+      await apiFetch<Party>(
+        `${PARTIES_KEY}/${party.id}`,
+        {
+          method: "PUT",
+          body: JSON.stringify({
+            characterId: party.characterId,
+            bossKey: party.bossKey,
+            members,
+            difficulty: party.difficulty,
+          } satisfies SavePartyBody),
+        },
+        getToken,
+      );
+      const refreshed = await apiFetch<Party[]>(PARTIES_KEY, { method: "GET" }, getToken);
+      setParties(refreshed);
+      put(PARTIES_KEY, refreshed);
     } finally {
       setBusy(false);
     }
@@ -278,6 +325,9 @@ export default function PartiesPage() {
   // Never on a past week: the server stamps a drop with today, so one added under last week's
   // label would land in a week this screen is not showing.
   const canAddDrops = !history && haveDropTables;
+  // The names already spelled somewhere, for the editor's datalist. Built from what the page has:
+  // people is optional, and its absence costs suggestions rather than the editor.
+  const knownCharacters = knownCharacterNames(characters, people, parties);
 
   // Two rules narrow a past week, counted apart so the empty line can name the one that applies.
   //
@@ -380,6 +430,8 @@ export default function PartiesPage() {
 
       {state === "loaded" && (
         <>
+          {/* Once for the page, not once per row: every roster editor points at this one id. */}
+          <KnownCharacters names={knownCharacters} />
           {/* The same controls the Individual View carries, in the same order and the same row:
               the stepper on the left, the countdown on the right. The WeekStepper component
               itself, not a copy of its label, so the two pages cannot drift in wording, spacing
@@ -493,6 +545,7 @@ export default function PartiesPage() {
                         }
                         dropTable={dropTables[party.bossKey]}
                         onAddDrop={canAddDrops ? (body) => addDrop(party, body) : undefined}
+                        onSaveRoster={history ? undefined : (members) => saveRoster(party, members)}
                         heading={
                           <>
                             {bossByKey.get(party.bossKey)?.iconUrl && (
@@ -610,6 +663,7 @@ export default function PartiesPage() {
                       onToggleClear={history ? undefined : (cleared) => toggleClear(party, cleared)}
                       dropTable={dropTables[party.bossKey]}
                       onAddDrop={canAddDrops ? (body) => addDrop(party, body) : undefined}
+                      onSaveRoster={history ? undefined : (members) => saveRoster(party, members)}
                       heading={
                         <>
                           {characterById.get(party.characterId)?.spriteImgUrl && (
