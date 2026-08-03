@@ -1873,12 +1873,11 @@ button.link:disabled {
   text-transform: none;
 }
 
-/* Cadence on the left, the band's progress on the right. Flexed on this inner span and not on the
-   <th>, for the reason .boss-name-inner gives. */
+/* Cadence, then the band's progress beside it. Flexed on this inner span and not on the <th>, for
+   the reason .boss-name-inner gives. */
 .boss-cadence-inner {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 12px;
 }
 
