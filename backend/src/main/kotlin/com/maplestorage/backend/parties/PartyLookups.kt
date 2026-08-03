@@ -65,6 +65,14 @@ internal fun characterIdOfParty(partyId: Uuid): Uuid? =
         .firstOrNull()
         ?.get(Party.characterId)
 
+/** A boss's reset cadence, which is what filing a clear against a date needs. See BossPeriod.kt. */
+internal fun bossResetOf(bossCatalogId: Uuid): String? =
+    BossCatalog
+        .selectAll()
+        .where { BossCatalog.id eq bossCatalogId }
+        .firstOrNull()
+        ?.get(BossCatalog.reset)
+
 /** The catalog id for a boss key, or null when it is not a tracked boss. */
 internal fun bossIdForKey(bossKey: String): Uuid? =
     BossCatalog

@@ -1,10 +1,12 @@
 package com.maplestorage.backend.parties
 
 import com.maplestorage.backend.config.Env
+import com.maplestorage.backend.db.BossClear
 import com.maplestorage.backend.db.Characters
 import com.maplestorage.backend.db.Party
 import com.maplestorage.backend.db.PartyMember
 import com.maplestorage.backend.db.Person
+import com.maplestorage.backend.db.Screenshots
 import com.maplestorage.backend.users.WORLD_HEROIC
 import com.maplestorage.backend.users.WORLD_INTERACTIVE
 import com.maplestorage.backend.users.ensureUser
@@ -32,15 +34,19 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlin.time.Clock
 import kotlin.time.Duration.Companion.days
+import kotlin.time.Instant
 import kotlin.uuid.Uuid
 
 /**
  * The loot pool, against a real Postgres.
  *
- * The claims worth a database to check are all about the PAYOUT ROSTER: that it is pinned when the
- * drop sells rather than re-read from the party afterwards, that correcting a price does not wipe
- * out who has been paid, and that a seat the roster names cannot be quietly removed. Getting any
- * of those wrong produces a payout list that looks right and owes the wrong people.
+ * Most of the claims worth a database to check are about the PAYOUT ROSTER: that it is pinned when
+ * the drop sells rather than re-read from the party afterwards, that correcting a price does not
+ * wipe out who has been paid, and that a seat the roster names cannot be quietly removed. Getting
+ * any of those wrong produces a payout list that looks right and owes the wrong people.
+ *
+ * The rest are about the clear a drop implies: which period it lands in, and what it refuses to
+ * overwrite. See clearFromDrop.
  */
 class PartyLootTest {
     private val userId = "user_test_loot_1"
@@ -90,6 +96,9 @@ class PartyLootTest {
             Party.deleteWhere { Party.userId inList owners }
             Person.deleteWhere { Person.userId inList owners }
             Characters.deleteWhere { Characters.userId inList owners }
+            // After the characters: boss_clear cascades with them, and a clear pointing at a
+            // screenshot is what would otherwise hold this delete up.
+            Screenshots.deleteWhere { Screenshots.userId inList owners }
         }
     }
 
@@ -640,6 +649,135 @@ class PartyLootTest {
             assertEquals(WORLD_INTERACTIVE, party.worldType)
             assertTrue(partyCanSell(Uuid.parse(party.id)))
         }
+    }
+
+    @Test
+    fun `a drop logged today marks the config cleared`() {
+        transaction {
+            val party = trio()
+            assertNull(findParty(Uuid.parse(party.id), userId)!!.cleared)
+
+            addGrindstoneOn(party, todayUtc())
+
+            val after = findParty(Uuid.parse(party.id), userId)!!
+            assertEquals(true, after.cleared)
+            // No screenshot behind it, so it reads as a hand tick, which is what it is.
+            assertTrue(after.clearedByHand)
+        }
+    }
+
+    @Test
+    fun `a drop is filed against the week it fell in, not the week it was logged`() {
+        transaction {
+            val party = trio()
+            // `dropped` is weeks behind today, so a clear stamped with the request's own date
+            // would tick this week for a kill in that one.
+            addGrindstone(party)
+
+            val clears = clearsOf(party)
+            assertEquals(setOf(weekOf20Jul), clears.keys)
+            assertEquals(true, clears[weekOf20Jul])
+            // And this week is left saying nothing, rather than saying not cleared.
+            assertNull(findParty(Uuid.parse(party.id), userId)!!.cleared)
+        }
+    }
+
+    @Test
+    fun `a drop ticks a week that was answered not cleared`() {
+        transaction {
+            val party = trio()
+            writeClear(party, weekOf20Jul, cleared = false, screenshot = null)
+
+            addGrindstone(party)
+
+            assertEquals(true, clearsOf(party)[weekOf20Jul])
+        }
+    }
+
+    @Test
+    fun `a drop leaves a captured clear alone, screenshot and all`() {
+        transaction {
+            val party = trio()
+            val screenshot = addScreenshot()
+            writeClear(party, weekOf20Jul, cleared = true, screenshot = screenshot)
+
+            addGrindstone(party)
+
+            // Rewriting it would null the source and relabel a captured clear as a hand tick, so
+            // the row is left exactly as the capture wrote it.
+            val row = clearRow(party, weekOf20Jul)!!
+            assertTrue(row[BossClear.cleared])
+            assertEquals(screenshot, row[BossClear.sourceScreenshotId])
+            assertEquals(capturedLongAgo, row[BossClear.capturedAt])
+        }
+    }
+
+    @Test
+    fun `deleting the drop leaves the boss cleared`() {
+        transaction {
+            val party = trio()
+            val partyId = Uuid.parse(party.id)
+            val lootId = addGrindstone(party)
+
+            deleteLoot(lootId, partyId)
+
+            // Removing the record of what fell says nothing about whether the boss died.
+            assertEquals(true, clearsOf(party)[weekOf20Jul])
+        }
+    }
+
+    /** When the clears written by hand below claim to have been captured. */
+    private val capturedLongAgo = Instant.parse("2026-07-20T09:00:00Z")
+
+    /** This config's clears for its own boss, cleared-or-not by period. */
+    private fun clearsOf(party: PartyResponse): Map<LocalDate, Boolean> =
+        BossClear
+            .selectAll()
+            .where {
+                (BossClear.characterId eq Uuid.parse(party.characterId)) and
+                    (BossClear.bossCatalogId eq bossIdForKey("limbo")!!)
+            }.associate { it[BossClear.periodStart] to it[BossClear.cleared] }
+
+    private fun clearRow(
+        party: PartyResponse,
+        period: LocalDate,
+    ) = BossClear
+        .selectAll()
+        .where {
+            (BossClear.characterId eq Uuid.parse(party.characterId)) and
+                (BossClear.bossCatalogId eq bossIdForKey("limbo")!!) and
+                (BossClear.periodStart eq period)
+        }.firstOrNull()
+
+    /** A clear already on record, as a capture or a tick would have left it. */
+    private fun writeClear(
+        party: PartyResponse,
+        period: LocalDate,
+        cleared: Boolean,
+        screenshot: Uuid?,
+    ) {
+        BossClear.insert {
+            it[characterId] = Uuid.parse(party.characterId)
+            it[bossCatalogId] = bossIdForKey("limbo")!!
+            it[periodStart] = period
+            it[BossClear.cleared] = cleared
+            it[capturedAt] = capturedLongAgo
+            it[sourceScreenshotId] = screenshot
+        }
+    }
+
+    // boss_clear.source_screenshot_id is a real FK, so a made-up id will not insert.
+    private fun addScreenshot(): Uuid {
+        val id = Uuid.random()
+        val owner = userId
+        Screenshots.insert {
+            it[Screenshots.id] = id
+            it[Screenshots.userId] = owner
+            it[uploadedAt] = Clock.System.now()
+            it[parseStatus] = "SUCCESS"
+            it[type] = "PLANNER"
+        }
+        return id
     }
 
     /** A second account with a config of its own, to prove the ownership filter above. */

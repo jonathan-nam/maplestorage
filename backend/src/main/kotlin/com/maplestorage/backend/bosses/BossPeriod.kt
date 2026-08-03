@@ -70,13 +70,19 @@ private fun daysSinceWeeklyReset(date: LocalDate): Int =
     (date.dayOfWeek.isoDayNumber - WEEKLY_RESET_ISO_DAY + DAYS_IN_WEEK) % DAYS_IN_WEEK
 
 /**
- * The week a DATE falls in, as that week's start.
+ * The period a DATE falls in, per the boss's own cadence.
  *
- * The same boundary periodStartFor draws, so the week a drop is filed under and the week the picker
- * steps cannot come apart. A drop's date is already the UTC day it fell on, so opening it at
- * midnight UTC re-enters this file's own reckoning rather than a second one.
+ * The same boundary periodStartFor draws, so the period a drop is filed under and the one the
+ * picker steps cannot come apart. A drop's date is already the UTC day it fell on, so opening it
+ * at midnight UTC re-enters this file's own reckoning rather than a second one.
  */
-fun weekOf(date: LocalDate): LocalDate = periodStartFor(WEEKLY_CADENCE, date.atStartOfDayIn(RESET_ZONE))
+fun periodOf(
+    reset: String,
+    date: LocalDate,
+): LocalDate = periodStartFor(reset, date.atStartOfDayIn(RESET_ZONE))
+
+/** The week a date falls in, as that week's start. periodOf, for the cadence a roster is kept by. */
+fun weekOf(date: LocalDate): LocalDate = periodOf(WEEKLY_CADENCE, date)
 
 /** The period after this one, for a cadence. Stepping the week picker back and forth goes through here. */
 fun periodAfter(
