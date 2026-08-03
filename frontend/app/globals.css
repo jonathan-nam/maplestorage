@@ -4421,9 +4421,21 @@ button.link:disabled {
   cursor: pointer;
 }
 
+/* Plan tabs at the left, copy button at the right. The button is pushed rather than the row
+   spaced, so it stays at the right end on a plan with no tabs. */
 .night-plan-copy {
   display: flex;
-  justify-content: flex-end;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.night-plan-copy .basis-row {
+  margin-bottom: 0;
+}
+
+.night-plan-copy .copy-amount {
+  margin-left: auto;
 }
 
 /* The order itself: bosses down the rows, people across the columns, the same way round as the
