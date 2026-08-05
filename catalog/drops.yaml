@@ -29,13 +29,22 @@
 # behaves differently per boss. Move one down to `tables` the day that stops being true.
 
 drops:
-  # --- Weapons and medals ------------------------------------------------------------
+  # --- Brilliant Boss Set, one accessory per boss -------------------------------------
+  # Four pieces, in release order. Each drops from one boss and nowhere else, so a boss has at
+  # most one of them.
+  - key: whisper-of-the-source
+    name: Whisper of the Source
+    icon_id: 1113341
   - key: oath-of-death
     name: Oath of Death
     icon_id: 1122447
   - key: immortal-legacy
     name: Immortal Legacy
     icon_id: 1143471
+  # No icon_id, for the reason given on eternal-armor-of-radiance-box: GMS v268 predates
+  # Malefic Star.
+  - key: blissful-nightmare
+    name: Blissful Nightmare
 
   # --- Exceptional Hammers, one slot per boss ----------------------------------------
   - key: exceptional-hammer-face
@@ -130,6 +139,7 @@ drops:
 # simply has no table recorded yet, which the UI says rather than showing an empty one.
 tables:
   limbo:
+    - whisper-of-the-source
     - grindstone-of-faith
     - premium-scroll-accessory-coupon
     - premium-scroll-pet-equipment-coupon
@@ -180,6 +190,7 @@ tables:
     - continuous-ring-4
 
   malefic-star:
+    - blissful-nightmare
     - grindstone-of-faith
     - premium-scroll-accessory-coupon
     - premium-scroll-pet-equipment-coupon
