@@ -27,6 +27,7 @@ const theirs = (id: string, name: string): PartyMember => ({
 const party = (id: string, members: PartyMember[], over: Partial<Party> = {}): Party => ({
   id,
   characterId: members[0]!.characterId!,
+  solo: false,
   worldType: "INTERACTIVE",
   bossKey: "limbo",
   difficulty: null,
@@ -107,6 +108,21 @@ describe("buildDropLog", () => {
     expect(entry.pooled).toBe(expected.split.sellerReceives);
     expect(entry.yourTake).toBe(expected.seller.keeps);
     expect(entry.sellerName).toBe("mechyfechy");
+  });
+
+  it("logs a drop off a boss run alone, with the whole of it yours", () => {
+    // A solo pool is a config with one seat, so nothing about the reading changes: the split has
+    // no shares, and what there was to split is what you kept. The log is where these appear at
+    // all, since Party View does not list them.
+    const alone = party("pa", [mine("m1", "mechyfechy")], { solo: true });
+    const loot = drop({ payouts: [] });
+
+    const log = buildDropLog([alone], [pool("pa", [loot])]);
+    const entry = log.months[0]!.entries[0]!;
+
+    expect(entry.yourTake).toBe(entry.pooled);
+    expect(log.totals.pooled).toBe(splitOf(loot, alone.seats)!.split.sellerReceives);
+    expect(log.totals.unreadable).toBe(0);
   });
 
   it("counts your take as what you netted when somebody else sold it", () => {

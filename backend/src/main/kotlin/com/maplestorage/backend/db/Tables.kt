@@ -199,6 +199,10 @@ object Party : Table("party") {
     // boss.
     val minutes = integer("minutes").nullable()
 
+    // One seat, because nobody else was there. It owns a pool like any other config and is listed
+    // as a party nowhere. See V30__party_solo.sql.
+    val solo = bool("solo")
+
     val createdAt = timestamp("created_at")
     val updatedAt = timestamp("updated_at")
 

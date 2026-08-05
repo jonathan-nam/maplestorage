@@ -126,32 +126,41 @@ export function LootRow({
                 <option value="LISTED">listed for</option>
                 <option value="RECEIVED">received</option>
                 {/* No listing, so no Auction House cut off the top: the price is the whole pot.
-                    The payouts are still taxed, so the split is the same one. */}
-                <option value="BOUGHT">member bought</option>
+                    The payouts are still taxed, so the split is the same one. Not offered on a
+                    solo pool: there is no party for a member to buy it off. */}
+                {!party.solo && <option value="BOUGHT">member bought</option>}
               </select>
-              <select
-                className="split-input"
-                value={splitMethod}
-                onChange={(e) => setSplitMethod(e.target.value)}
-                aria-label="Split method"
-              >
-                {/* Both are offered for the reason lib/drop-split.ts gives: "lazy" is what most
-                    parties do, and only showing "fair" would hide what it costs. */}
-                <option value="FAIR">fair split</option>
-                <option value="LAZY">lazy split</option>
-              </select>
-              <select
-                className="split-input"
-                value={sellerMemberId}
-                onChange={(e) => setSellerMemberId(e.target.value)}
-                aria-label={amountBasis === "BOUGHT" ? "Who bought it" : "Who sold it"}
-              >
-                {ran.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {amountBasis === "BOUGHT" ? "bought by" : "sold by"} {m.name}
-                  </option>
-                ))}
-              </select>
+              {/* Neither control is a question on a solo pool: one seat means nobody to divide
+                  with and nobody else it could have been sold by. The stored method is whichever
+                  the state holds, and with no members splitDrop's two branches are the same
+                  arithmetic (see the test). */}
+              {!party.solo && (
+                <select
+                  className="split-input"
+                  value={splitMethod}
+                  onChange={(e) => setSplitMethod(e.target.value)}
+                  aria-label="Split method"
+                >
+                  {/* Both are offered for the reason lib/drop-split.ts gives: "lazy" is what most
+                      parties do, and only showing "fair" would hide what it costs. */}
+                  <option value="FAIR">fair split</option>
+                  <option value="LAZY">lazy split</option>
+                </select>
+              )}
+              {!party.solo && (
+                <select
+                  className="split-input"
+                  value={sellerMemberId}
+                  onChange={(e) => setSellerMemberId(e.target.value)}
+                  aria-label={amountBasis === "BOUGHT" ? "Who bought it" : "Who sold it"}
+                >
+                  {ran.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {amountBasis === "BOUGHT" ? "bought by" : "sold by"} {m.name}
+                    </option>
+                  ))}
+                </select>
+              )}
             </div>
             <div className="loot-actions">
               {/* Without a seller there is nobody to measure the shares against, and the submit

@@ -11,6 +11,7 @@ import com.maplestorage.backend.db.PersonCharacter
 import com.maplestorage.backend.users.WORLD_INTERACTIVE
 import kotlinx.datetime.LocalDate
 import org.jetbrains.exposed.v1.core.JoinType
+import org.jetbrains.exposed.v1.core.Op
 import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
@@ -40,11 +41,17 @@ internal const val MAX_RUN_MINUTES = 600
  *
  * The roster does move with it. A week somebody guested in ran a different party from the usual
  * one, and drawing today's roster over it would name people who were not there.
+ *
+ * Solo configs are left out unless [includeSolo]. They are pools, not parties, and every caller
+ * that draws a roster, plans a night around one or attributes a seat to a person would be showing
+ * a party of one. The Drop Log asks for them, because a drop is exactly what they hold.
  */
 internal fun partiesFor(
     userId: String,
     week: LocalDate? = null,
+    includeSolo: Boolean = false,
 ): List<PartyResponse> {
+    val wanted = if (includeSolo) Op.TRUE else (Party.solo eq false)
     val rows =
         Party
             .innerJoin(BossCatalog)
@@ -52,7 +59,7 @@ internal fun partiesFor(
             // overload: party_member also references characters, so "which link" is worth stating.
             .join(Characters, JoinType.INNER, Party.characterId, Characters.id)
             .selectAll()
-            .where { Party.userId eq userId }
+            .where { (Party.userId eq userId) and wanted }
             .orderBy(BossCatalog.sortOrder)
             .toList()
     if (rows.isEmpty()) return emptyList()
@@ -307,6 +314,7 @@ private fun ResultRow.toPartyResponse(
     bossKey = this[BossCatalog.bossKey],
     difficulty = this[Party.difficulty],
     minutes = this[Party.minutes],
+    solo = this[Party.solo],
     members = members,
     seats = seats,
     usualRoster = usualRoster,

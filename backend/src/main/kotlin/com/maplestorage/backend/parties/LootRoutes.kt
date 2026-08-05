@@ -14,9 +14,6 @@ import io.ktor.server.routing.delete
 import io.ktor.server.routing.get
 import io.ktor.server.routing.post
 import io.ktor.server.routing.put
-import kotlinx.datetime.LocalDate
-import kotlinx.datetime.TimeZone
-import kotlinx.datetime.todayIn
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import kotlin.time.Clock
 import kotlin.uuid.Uuid
@@ -51,16 +48,7 @@ private suspend fun RoutingContext.addLootRoute() {
     val (userId, email) = call.principalIdAndEmail()
     val partyId = call.parseUuidParam("id") ?: return
     val request = call.receive<AddLootRequest>()
-
-    // A malformed date is refused rather than replaced with today: a drop filed on the wrong day
-    // is a row you cannot find again.
-    val droppedOn =
-        when (val raw = request.droppedOn) {
-            null -> Clock.System.todayIn(TimeZone.UTC)
-            else ->
-                runCatching { LocalDate.parse(raw.trim()) }.getOrNull()
-                    ?: return call.respond(HttpStatusCode.BadRequest, "malformed droppedOn, expected YYYY-MM-DD")
-        }
+    val droppedOn = parseDroppedOn(request.droppedOn) ?: return
     val customName = request.customName?.trim()?.ifBlank { null }
 
     val outcome =
@@ -221,7 +209,7 @@ private suspend fun ApplicationCall.parseUuidParams(vararg names: String): List<
 }
 
 /** null is a 404, a String is a refusal with its reason, a LootResponse is the answer. */
-private suspend fun RoutingContext.respondToLoot(
+internal suspend fun RoutingContext.respondToLoot(
     outcome: Any?,
     onSuccess: HttpStatusCode,
 ) {

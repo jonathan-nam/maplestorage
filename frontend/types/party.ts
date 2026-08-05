@@ -20,10 +20,13 @@ export type PartyMember = {
 };
 
 // One config: your character, one boss, and who they run it with. A boss your character solos has
-// no config, which is why solo runs appear nowhere.
+// one of these too, flagged `solo`, so what fell on it has a pool to sit in.
 export type Party = {
   id: string;
   characterId: string;
+  // Nobody else was there. One seat, nothing to split, and off every list of parties: only the
+  // Drop Log asks for these, and only /api/parties?solo=include returns them.
+  solo: boolean;
   // The character's world. Heroic worlds do not trade, so this decides whether this pool's drops
   // can be sold at all: see lib/world.ts.
   worldType: WorldType;

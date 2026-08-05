@@ -56,6 +56,34 @@ internal fun validateNewParty(
 }
 
 /**
+ * Why this config cannot be written over an existing one, or null.
+ *
+ * Read against the config's OWN character and boss rather than the request's. Neither is editable,
+ * so a payload naming another one must not widen which difficulties are allowed, nor move the seat
+ * the roster rule is looking for.
+ *
+ * Must run inside a transaction.
+ */
+internal fun validateSavedParty(
+    userId: String,
+    partyId: Uuid,
+    request: SavePartyRequest,
+): String? {
+    val bossCatalogId = bossIdOfParty(partyId)
+    return bossCatalogId?.let { validateDifficulty(it, request.difficulty) }
+        ?: validateMinutes(request.minutes)
+        ?: validateMembers(request.members)
+        ?: bossCatalogId?.let {
+            validateBossRoster(
+                userId,
+                it,
+                exclude = partyId,
+                rosterOf(characterIdOfParty(partyId), request.members),
+            )
+        }
+}
+
+/**
  * Why this week's roster cannot stand against the boss's other configs, or null.
  *
  * The same rule as validateBossRoster, against who actually RAN rather than the usual roster, which
