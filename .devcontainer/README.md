@@ -72,8 +72,8 @@ secrets. Git will never bring them, so a clone that skips this step builds fine 
 401s every request, with nothing saying why.
 
 ```bash
-cp backend/.env.example        backend/.env
 cp frontend/.env.local.example frontend/.env.local
+echo 'CLERK_JWKS_URL=https://your-instance.clerk.accounts.dev/.well-known/jwks.json' > .env
 ```
 
 Then fill in the Clerk values. **three, all from one page** of the Clerk dashboard
@@ -81,11 +81,16 @@ Then fill in the Clerk values. **three, all from one page** of the Clerk dashboa
 
 | file | key | what it is |
 | --- | --- | --- |
-| `backend/.env` | `CLERK_JWKS_URL` | the JWKS endpoint the backend verifies tokens against |
+| `.env` (repo root) | `CLERK_JWKS_URL` | the JWKS endpoint the backend verifies tokens against |
 | `frontend/.env.local` | `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | public, safe in the browser |
 | `frontend/.env.local` | `CLERK_SECRET_KEY` | server-side only |
 
 Everything else in those files already works as-is against the local stack.
+
+The root `.env` is the one that matters, because that is the file `docker compose` reads, and
+compose refuses to start without `CLERK_JWKS_URL` rather than booting a backend that 401s. Note
+that `backend/.env.example` tells you to copy it to `backend/.env`: nothing loads that file. The
+backend reads its configuration from the process environment (`Env.kt`), and compose supplies it.
 
 > **Trap.** A wrong `CLERK_JWKS_URL` does not fail loudly. The backend boots happily and
 > then 401s every request, and the UI reports that as *"Upload failed, check your
@@ -154,9 +159,97 @@ Then the day-to-day:
 ```bash
 cd backend  && ./gradlew test     # against real Postgres
 cd vision   && pytest tests/      # the CV regression corpus, against real screenshots
-cd frontend && npm test           # the redemption + search rules
-cd frontend && npm run dev        # http://localhost:3000
+cd frontend && pnpm test          # the redemption + search rules
+cd frontend && pnpm run dev       # http://localhost:3000
 ```
+
+Day to day after this, start everything with `./scripts/dev-up.sh`. See *Starting the stack by
+hand* below, and note the warning there before running `smoke.sh` a second time: it destroys the
+database it builds, so it is safe now and not once you have data.
+
+---
+
+## Starting the stack by hand
+
+`scripts/dev-up.sh` brings up everything: Postgres, vision and the backend via compose, plus
+the Next dev server. Claude Code runs it from a `SessionStart` hook (`.claude/settings.json`),
+and it is written to be run by hand too, so turning Claude off costs you nothing but the
+automatic invocation. It is idempotent: running it against a live stack is a no-op.
+
+```bash
+cd /workspaces/maplestorage && ./scripts/dev-up.sh
+```
+
+It prints one JSON line, e.g. `{"systemMessage":"MapleStorage: postgres/vision/backend up,
+frontend already on :3000."}`. That is the hook's output format, not an error.
+
+### From a powered-off machine
+
+The stack runs inside the dev container's **own** Docker daemon (the docker-in-docker feature),
+and the repo lives in a container volume rather than on `C:`. So none of these containers appear
+in Docker Desktop's list, and there is no way to start them without opening the dev container
+first.
+
+1. Start **Docker Desktop** and wait for it to be ready.
+2. VS Code → `Ctrl+Shift+P` → *WSL: Connect to WSL using Distro…* → **Ubuntu**. Not `code .`
+   from a WSL shell, which fails with `Exec format error` where interop is disabled.
+3. Open the repo folder, then *Reopen in Container*. Wait for `post-create.sh` to print
+   `Workspace filesystem: ... file watching works.`
+4. `./scripts/dev-up.sh`
+5. <http://localhost:3000>
+
+### The two commands it wraps
+
+```bash
+# Postgres, vision, backend. Both -f files, always.
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d
+
+# The Next dev server, detached so it outlives the terminal.
+cd frontend && nohup pnpm run dev > /tmp/next.log 2>&1 &
+```
+
+Both `-f` flags matter. `docker-compose.dev.yml` is what bind-mounts `vision/app` and adds
+`--reload`, and it is deliberately not named `override.yml` (the reason is at the top of that
+file), so a bare `docker compose up` runs the production vision image with the source baked in
+at build time.
+
+Ports: **3000** frontend, **8080** backend, **5432** Postgres. 8000 is published too, but the
+vision service binds `127.0.0.1` inside the shared namespace, so `curl localhost:8000/health`
+returning nothing is correct rather than a fault. Check it through the container instead:
+
+```bash
+docker compose exec -T vision python -c \
+  "import urllib.request; print(urllib.request.urlopen('http://127.0.0.1:8000/health').read())"
+```
+
+### Checking it, and stopping it
+
+```bash
+docker compose ps              # postgres and vision should read healthy
+curl localhost:8080/health     # {"status":"ok"}
+tail -f /tmp/next.log          # frontend compile log
+docker compose stop            # stop the containers, KEEP the database
+fuser -k 3000/tcp              # stop the dev server
+```
+
+> **Trap.** Never `pkill -f "next dev"`. The pattern matches its own shell, and it kills *every*
+> dev server on the machine, including the one you are using on 3000. Kill by port.
+
+> **Trap.** Never `docker compose down -v`, and never `./scripts/smoke.sh` without `--keep`. The
+> `-v` deletes the Postgres volume, which is every character, count and boss clear in the dev
+> database, and there is no backup. smoke.sh ends in that same `down -v` on the same compose
+> project, including when it fails: it builds its own stack to test and is not a probe against a
+> running one. Dump first if the data matters (`dev-snapshots/` is gitignored, and a dump carries
+> a real Clerk user ID, so keep it out of a commit):
+>
+> ```bash
+> mkdir -p dev-snapshots
+> docker compose exec -T postgres pg_dump -U maplestorage maplestorage > dev-snapshots/local.sql
+> ```
+
+Unpushed work does not leave this environment. The repo is a container volume, not a mount of a
+Windows directory, so a branch that exists only here cannot be seen from `C:` and does not
+survive the volume. Push it.
 
 ---
 
@@ -201,7 +294,7 @@ After **every** frontend edit:
 
 ```bash
 cd frontend && fuser -k 3000/tcp; sleep 2; rm -rf .next
-nohup npm run dev > /tmp/next.log 2>&1 & disown
+nohup pnpm run dev > /tmp/next.log 2>&1 & disown
 ```
 
 and hard-refresh the browser (`Ctrl+Shift+R`), the CSS filename never changes between

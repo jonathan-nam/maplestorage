@@ -55,6 +55,10 @@ symbol-candidates.png
 # local Clerk config for docker compose
 .env
 
+# Dev database dumps. This repo is public and a dump carries the Clerk user ID of whoever
+# took it, so a dump must never be committable by an absent-minded `git add -A`.
+dev-snapshots/
+
 # stray build output if next is run from the wrong cwd
 **/.next/
 
