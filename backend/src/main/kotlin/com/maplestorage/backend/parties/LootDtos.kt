@@ -29,6 +29,10 @@ data class LootResponse(
     val perMember: String?,
     val bossKey: String?,
     val droppedOn: String,
+    // The reset week droppedOn falls in, as that week's Thursday. Sent rather than derived on the
+    // client so the week a drop is filed under is the same one ranThatWeek was read against, and
+    // so the reset boundary keeps its single implementation in BossPeriod.kt.
+    val weekStart: String,
     // PENDING (not sold), SOLD (sold, someone still unpaid), PAID_OUT (everyone paid). Derived
     // from the sale and the payout rows rather than stored, so it cannot drift from them.
     val status: String,

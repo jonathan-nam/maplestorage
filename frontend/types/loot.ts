@@ -18,6 +18,9 @@ export type Loot = {
   perMember: string | null;
   bossKey: string | null;
   droppedOn: string;
+  // The reset week droppedOn falls in, as that week's Thursday. The server's, so the Drop Log's
+  // weeks are the same ones the clears matrix steps through. See BossPeriod.kt.
+  weekStart: string;
   // PENDING, SOLD or PAID_OUT. Derived by the server from the sale and the payout rows.
   status: string;
   saleAmount: number | null;

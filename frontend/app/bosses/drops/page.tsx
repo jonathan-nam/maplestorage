@@ -6,7 +6,14 @@ import { useEffect, useState } from "react";
 import { LogDrop } from "@/components/log-drop";
 import { ApiError, apiAssetUrl, apiFetch } from "@/lib/api";
 import { peek, put } from "@/lib/cache";
-import { buildDropLog, forCharacter, type DropEntry, type DropMonth } from "@/lib/drop-log";
+import {
+  buildDropLog,
+  forCharacter,
+  groupDrops,
+  type DropEntry,
+  type DropGroup,
+  type Grouping,
+} from "@/lib/drop-log";
 import { formatMesos } from "@/lib/drop-split";
 import { formatDropped, statusLabel } from "@/lib/loot";
 import { preloadBossArt } from "@/lib/preload-boss-art";
@@ -51,6 +58,7 @@ export default function DropLogPage() {
   );
   const [state, setState] = useState<LoadState>("loading");
   const [character, setCharacter] = useState<string | null>(null);
+  const [grouping, setGrouping] = useState<Grouping>("month");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -119,8 +127,12 @@ export default function DropLogPage() {
 
   const bossByKey = new Map(bosses.map((b) => [b.bossKey, b]));
   const characterById = new Map(characters.map((c) => [c.id, c]));
-  const log = forCharacter(buildDropLog(parties, pools), character);
+  // The whole log is kept alongside the filtered one so the toolbar does not come and go: which
+  // controls exist is a property of the account, not of what the filter currently leaves.
+  const whole = buildDropLog(parties, pools);
+  const log = forCharacter(whole, character);
   const { totals } = log;
+  const groups = groupDrops(log.entries, grouping);
 
   // Only characters that actually have drops. A filter offering a name with nothing behind it
   // reads as a bug the first time it is picked.
@@ -178,21 +190,35 @@ export default function DropLogPage() {
             )}
           </div>
 
-          {withDrops.length > 1 && (
+          {whole.totals.drops > 0 && (
             <div className="party-toolbar">
+              {withDrops.length > 1 && (
+                <label className="droplog-filter">
+                  <span className="stat-label">Character</span>
+                  <select
+                    className="split-input"
+                    value={character ?? ""}
+                    onChange={(e) => setCharacter(e.target.value || null)}
+                  >
+                    <option value="">All characters</option>
+                    {withDrops.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
+
               <label className="droplog-filter">
-                <span className="stat-label">Character</span>
+                <span className="stat-label">Group</span>
                 <select
                   className="split-input"
-                  value={character ?? ""}
-                  onChange={(e) => setCharacter(e.target.value || null)}
+                  value={grouping}
+                  onChange={(e) => setGrouping(e.target.value as Grouping)}
                 >
-                  <option value="">All characters</option>
-                  {withDrops.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
-                    </option>
-                  ))}
+                  <option value="month">Month</option>
+                  <option value="week">Week</option>
                 </select>
               </label>
             </div>
@@ -201,10 +227,10 @@ export default function DropLogPage() {
           {/* The form to fix it is directly above, so this says what is here and nothing else. */}
           {totals.drops === 0 && <p className="finder-empty">No drops logged yet.</p>}
 
-          {log.months.map((month) => (
-            <MonthSection
-              key={month.key}
-              month={month}
+          {groups.map((group) => (
+            <GroupSection
+              key={group.key}
+              group={group}
               bossByKey={bossByKey}
               characterById={characterById}
               showCharacter={character === null}
@@ -227,15 +253,15 @@ export default function DropLogPage() {
   );
 }
 
-/** One month of the log, with what that month made on its heading. */
-function MonthSection({
-  month,
+/** One month or one week of the log, with what it made on its heading. */
+function GroupSection({
+  group,
   bossByKey,
   characterById,
   showCharacter,
   money,
 }: {
-  month: DropMonth;
+  group: DropGroup;
   bossByKey: Map<string, Boss>;
   characterById: Map<string, Character>;
   showCharacter: boolean;
@@ -243,17 +269,17 @@ function MonthSection({
 }) {
   return (
     <section className="party-group">
-      <header className="droplog-month-head">
-        <h2 className="party-group-name">{month.label}</h2>
+      <header className="droplog-group-head">
+        <h2 className="party-group-name">{group.label}</h2>
         {money && (
-          <span className="droplog-month-total">
-            {formatMesos(month.yourTake, true)}
+          <span className="droplog-group-total">
+            {formatMesos(group.yourTake, true)}
             <span className="stat-label"> your take</span>
           </span>
         )}
       </header>
       <ul className="droplog-list">
-        {month.entries.map((entry) => (
+        {group.entries.map((entry) => (
           <DropRow
             key={entry.lootId}
             entry={entry}

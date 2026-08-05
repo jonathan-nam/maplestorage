@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildDropLog, forCharacter, monthLabel } from "./drop-log";
+import { buildDropLog, forCharacter, groupDrops, monthLabel, weekLabel } from "./drop-log";
 import { splitOf } from "./loot";
 import type { Loot, PartyLootPool } from "@/types/loot";
 import type { Party, PartyMember } from "@/types/party";
@@ -45,25 +45,41 @@ const party = (id: string, members: PartyMember[], over: Partial<Party> = {}): P
   ...over,
 });
 
-const drop = (over: Partial<Loot> = {}): Loot => ({
-  id: "l1",
-  dropKey: "grindstone-of-faith",
-  customName: null,
-  name: "Grindstone of Faith",
-  iconUrl: null,
-  perMember: null,
-  bossKey: "limbo",
-  droppedOn: "2026-07-20",
-  status: "SOLD",
-  saleAmount: 10_000_000_000,
-  amountBasis: "LISTED",
-  splitMethod: "FAIR",
-  sellerMemberId: "m1",
-  soldAt: "2026-07-21T10:00:00Z",
-  payouts: [{ memberId: "m2", paid: false, paidAt: null }],
-  ranThatWeek: [],
-  ...over,
-});
+/**
+ * The Thursday of the week a date falls in, so a fixture cannot say a drop fell on one day and
+ * belongs to another week. The real one is the server's (BossPeriod.kt) and arrives on the row;
+ * this only builds rows shaped like the server's.
+ */
+const weekStartOf = (iso: string): string => {
+  const day = new Date(`${iso}T00:00:00Z`);
+  // 0 on Thursday itself, counting up to 6 the Wednesday after it.
+  day.setUTCDate(day.getUTCDate() - ((day.getUTCDay() + 3) % 7));
+  return day.toISOString().slice(0, 10);
+};
+
+const drop = (over: Partial<Loot> = {}): Loot => {
+  const droppedOn = over.droppedOn ?? "2026-07-20";
+  return {
+    id: "l1",
+    dropKey: "grindstone-of-faith",
+    customName: null,
+    name: "Grindstone of Faith",
+    iconUrl: null,
+    perMember: null,
+    bossKey: "limbo",
+    droppedOn,
+    weekStart: weekStartOf(droppedOn),
+    status: "SOLD",
+    saleAmount: 10_000_000_000,
+    amountBasis: "LISTED",
+    splitMethod: "FAIR",
+    sellerMemberId: "m1",
+    soldAt: "2026-07-21T10:00:00Z",
+    payouts: [{ memberId: "m2", paid: false, paidAt: null }],
+    ranThatWeek: [],
+    ...over,
+  };
+};
 
 const pending = (over: Partial<Loot> = {}): Loot =>
   drop({
@@ -103,7 +119,7 @@ describe("buildDropLog", () => {
     const expected = splitOf(loot, p.members)!;
 
     const log = buildDropLog([p], [pool("pa", [loot])]);
-    const entry = log.months[0]!.entries[0]!;
+    const entry = log.entries[0]!;
 
     expect(entry.pooled).toBe(expected.split.sellerReceives);
     expect(entry.yourTake).toBe(expected.seller.keeps);
@@ -118,7 +134,7 @@ describe("buildDropLog", () => {
     const loot = drop({ payouts: [] });
 
     const log = buildDropLog([alone], [pool("pa", [loot])]);
-    const entry = log.months[0]!.entries[0]!;
+    const entry = log.entries[0]!;
 
     expect(entry.yourTake).toBe(entry.pooled);
     expect(log.totals.pooled).toBe(splitOf(loot, alone.seats)!.split.sellerReceives);
@@ -154,7 +170,7 @@ describe("buildDropLog", () => {
   it("keeps unsold drops in the history with no money on them", () => {
     const p = duo();
     const log = buildDropLog([p], [pool("pa", [pending({ id: "l9" })])]);
-    const entry = log.months[0]!.entries[0]!;
+    const entry = log.entries[0]!;
 
     expect(log.totals.drops).toBe(1);
     expect(log.totals.pending).toBe(1);
@@ -172,10 +188,10 @@ describe("buildDropLog", () => {
     expect(log.totals.sold).toBe(1);
     expect(log.totals.pooled).toBe(0);
     expect(log.totals.yourTake).toBe(0);
-    expect(log.months[0]!.entries[0]!.unreadable).toBe(true);
+    expect(log.entries[0]!.unreadable).toBe(true);
   });
 
-  it("groups by month, newest first, and subtotals each", () => {
+  it("orders the history newest first", () => {
     const p = duo();
     const log = buildDropLog(
       [p],
@@ -188,17 +204,81 @@ describe("buildDropLog", () => {
       ],
     );
 
-    expect(log.months.map((m) => m.key)).toEqual(["2026-07", "2026-06"]);
-    expect(log.months[0]!.entries.map((e) => e.droppedOn)).toEqual(["2026-07-20", "2026-07-04"]);
-    // Each month's subtotal is its own rows, and together they are the whole.
-    expect(log.months[0]!.pooled + log.months[1]!.pooled).toBe(log.totals.pooled);
-    expect(log.months[0]!.entries).toHaveLength(2);
+    expect(log.entries.map((e) => e.droppedOn)).toEqual(["2026-07-20", "2026-07-04", "2026-06-02"]);
   });
 
   it("skips a pool whose party it cannot see", () => {
     const log = buildDropLog([], [pool("ghost", [drop()])]);
     expect(log.totals.drops).toBe(0);
-    expect(log.months).toHaveLength(0);
+    expect(log.entries).toHaveLength(0);
+  });
+});
+
+describe("groupDrops", () => {
+  const p = duo();
+  const july = () =>
+    buildDropLog(
+      [p],
+      [
+        pool("pa", [
+          drop({ id: "l1", droppedOn: "2026-06-02" }),
+          drop({ id: "l2", droppedOn: "2026-07-20" }),
+          drop({ id: "l3", droppedOn: "2026-07-04" }),
+        ]),
+      ],
+    );
+
+  it("groups by month, newest first, and subtotals each", () => {
+    const log = july();
+    const groups = groupDrops(log.entries, "month");
+
+    expect(groups.map((g) => g.key)).toEqual(["2026-07", "2026-06"]);
+    expect(groups[0]!.label).toBe("July 2026");
+    expect(groups[0]!.entries.map((e) => e.droppedOn)).toEqual(["2026-07-20", "2026-07-04"]);
+    // Each section's subtotal is its own rows, and together they are the whole.
+    expect(groups[0]!.pooled + groups[1]!.pooled).toBe(log.totals.pooled);
+  });
+
+  it("groups by week on the reset day the row carries, not on the calendar", () => {
+    // July 15 is a Wednesday and July 16 the Thursday after it, so these two fell a day apart and
+    // in different weeks. Grouping them together would read as one week that ran twice.
+    const log = buildDropLog(
+      [p],
+      [
+        pool("pa", [
+          drop({ id: "l1", droppedOn: "2026-07-15" }),
+          drop({ id: "l2", droppedOn: "2026-07-16" }),
+          drop({ id: "l3", droppedOn: "2026-07-20" }),
+        ]),
+      ],
+    );
+    const groups = groupDrops(log.entries, "week");
+
+    expect(groups.map((g) => g.key)).toEqual(["2026-07-16", "2026-07-09"]);
+    expect(groups[0]!.entries.map((e) => e.droppedOn)).toEqual(["2026-07-20", "2026-07-16"]);
+    expect(groups[1]!.entries.map((e) => e.droppedOn)).toEqual(["2026-07-15"]);
+    expect(groups[0]!.label).toBe("Week of July 16, 2026");
+  });
+
+  it("moves no money when the grouping changes", () => {
+    // The tiles above the sections are the log's, not a section sum, and switching the view must
+    // not be able to disagree with them.
+    const log = july();
+    const byMonth = groupDrops(log.entries, "month");
+    const byWeek = groupDrops(log.entries, "week");
+
+    const summed = (groups: { pooled: number; yourTake: number }[]) => [
+      groups.reduce((sum, g) => sum + g.pooled, 0),
+      groups.reduce((sum, g) => sum + g.yourTake, 0),
+    ];
+    expect(summed(byMonth)).toEqual([log.totals.pooled, log.totals.yourTake]);
+    expect(summed(byWeek)).toEqual([log.totals.pooled, log.totals.yourTake]);
+  });
+
+  it("has no section for a stretch with nothing in it", () => {
+    const log = buildDropLog([p], [pool("pa", [drop({ id: "l1", droppedOn: "2026-07-20" })])]);
+    expect(groupDrops(log.entries, "week")).toHaveLength(1);
+    expect(groupDrops([], "week")).toHaveLength(0);
   });
 });
 
@@ -227,15 +307,13 @@ describe("forCharacter", () => {
 
     expect(log.totals.drops).toBe(2);
     expect(only.totals.drops).toBe(1);
-    expect(only.totals.pooled).toBe(only.months[0]!.entries[0]!.pooled);
-    expect(
-      only.months.every((m) => m.entries.every((e) => e.characterId === one.characterId)),
-    ).toBe(true);
+    expect(only.totals.pooled).toBe(only.entries[0]!.pooled);
+    expect(only.entries.every((e) => e.characterId === one.characterId)).toBe(true);
     // Null means every character, unfiltered.
     expect(forCharacter(log, null)).toBe(log);
   });
 
-  it("drops a month that has nothing left in it", () => {
+  it("leaves no section for a month the filter emptied", () => {
     const one = party("pa", [mine("m1", "mechyfechy"), theirs("m2", "CreedBratton")]);
     const two = party("pb", [mine("m3", "otherchar"), theirs("m4", "CreedBratton")]);
     const log = buildDropLog(
@@ -243,8 +321,9 @@ describe("forCharacter", () => {
       [pool("pa", [drop({ id: "l1", droppedOn: "2026-06-01" })]), pool("pb", [drop({ id: "l2" })])],
     );
 
-    expect(log.months).toHaveLength(2);
-    expect(forCharacter(log, one.characterId).months.map((m) => m.key)).toEqual(["2026-06"]);
+    expect(groupDrops(log.entries, "month")).toHaveLength(2);
+    const only = forCharacter(log, one.characterId);
+    expect(groupDrops(only.entries, "month").map((g) => g.key)).toEqual(["2026-06"]);
   });
 });
 
@@ -254,5 +333,16 @@ describe("monthLabel", () => {
     expect(monthLabel("2026-07-01")).toBe("July 2026");
     expect(monthLabel("2026-01-31")).toBe("January 2026");
     expect(monthLabel("2026-12-25")).toBe("December 2026");
+  });
+});
+
+describe("weekLabel", () => {
+  it("carries the year, which two Julys apart would otherwise share", () => {
+    expect(weekLabel("2026-07-16")).toBe("Week of July 16, 2026");
+    expect(weekLabel("2025-07-16")).toBe("Week of July 16, 2025");
+  });
+
+  it("reads the day as written, not as a timezone reads it", () => {
+    expect(weekLabel("2026-01-01")).toBe("Week of January 1, 2026");
   });
 });

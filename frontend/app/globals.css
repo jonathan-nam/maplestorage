@@ -4217,8 +4217,8 @@ button.link:disabled {
   }
 }
 
-/* The Drop Log: a month at a time, each row a drop and what it made. */
-.droplog-month-head {
+/* The Drop Log: a month or a week at a time, each row a drop and what it made. */
+.droplog-group-head {
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
@@ -4227,7 +4227,7 @@ button.link:disabled {
   margin-bottom: 8px;
 }
 
-.droplog-month-total {
+.droplog-group-total {
   color: var(--good);
   font-size: 14px;
   font-variant-numeric: tabular-nums;
