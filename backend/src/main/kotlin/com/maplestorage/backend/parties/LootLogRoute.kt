@@ -27,6 +27,10 @@ import kotlin.uuid.Uuid
  * character's config for the boss takes it if there is one, and a solo config is opened if there is
  * not. Registered under /api/parties rather than /api/parties/{id}/loot because the pool is what it
  * resolves, so there is no id to be under.
+ *
+ * The form offers only bosses that character has no party for, so the config this finds is normally
+ * that boss's own solo pool, on its second drop and after. A caller naming a partied boss anyway
+ * lands in the party's pool: one config per character per boss, so there is no second pool to open.
  */
 internal suspend fun RoutingContext.logDropRoute() {
     val (userId, email) = call.principalIdAndEmail()
