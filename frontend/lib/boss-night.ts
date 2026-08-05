@@ -160,6 +160,97 @@ export function formatDuration(minutes: number): string {
   return `${hours}h ${rest}m`;
 }
 
+// --- The reset clock -----------------------------------------------------------------------
+//
+// A party arranges itself in hours since daily reset, which is 00:00 UTC: "+3.5" is half past
+// three in the morning UTC, and everybody in the chat knows what that means without knowing where
+// anybody lives. So the night is anchored to one of those and every time on the page is one.
+//
+// Written back as +H:MM rather than the decimal it was typed as. Runs are 15, 20 and 45 minutes
+// long, so a decimal clock has to round, and a rounded time drawn beside an exact one is the
+// confidently-wrong number this whole app is trying not to produce. Decimals still parse, because
+// that is what gets typed.
+
+/** Past two days is a typo, not a night. Reset is daily, so even one wrap is generous. */
+const LATEST_OFFSET = 48 * 60;
+
+const OFFSET = /^\+?(\d{1,2})(?::([0-5]\d)|\.(\d+))?$/;
+
+/** Minutes since reset as the page draws them: "+3:30". */
+export function formatOffset(minutes: number): string {
+  const whole = Math.max(0, Math.round(minutes));
+  return `+${Math.floor(whole / 60)}:${String(whole % 60).padStart(2, "0")}`;
+}
+
+/**
+ * "+3.5", "3.5", "3:30" and "+3:30" as minutes since reset. Null when it is not one of those.
+ *
+ * All four spellings get typed, and a box that took only its own is a box people would get wrong
+ * while holding a Discord message that says 3.5.
+ */
+export function parseOffset(text: string): number | null {
+  const match = OFFSET.exec(text.trim());
+  if (match === null) return null;
+
+  const hours = Number(match[1]);
+  const clock = match[2];
+  const decimal = match[3];
+  const rest =
+    clock !== undefined
+      ? Number(clock)
+      : decimal !== undefined
+        ? Math.round(Number(`0.${decimal}`) * 60)
+        : 0;
+
+  const total = hours * 60 + rest;
+  return total > LATEST_OFFSET ? null : total;
+}
+
+/** Minutes since reset right now. Quantised, so it is stable within the minute it is read in. */
+export function offsetNow(at: number): number {
+  return Math.floor(at / 60_000) % (24 * 60);
+}
+
+/** Where one run sits on the reset clock. */
+export type RunTime = {
+  /** "+2:30". */
+  at: string;
+  /**
+   * The clock reached this by adding up a duration nobody timed, so the time is not one either.
+   * Drawn with the same tilde the run's own length carries, for the same reason.
+   */
+  approx: boolean;
+  /** Who the night is waiting for to start this one, when it starts late. Usually nobody. */
+  waitingFor: NightPerson[];
+};
+
+/**
+ * Every run's place on the clock, for the grid and the paste both.
+ *
+ * One implementation because two would drift, and the times are the half of the plan somebody acts
+ * on hours later. Same rule planAsText follows about building from the Plan it is handed.
+ *
+ * A wait CLEARS the approximation rather than inheriting it: the night sitting until somebody is
+ * free lands on a time that was stated out loud, so nothing guessed before it moves that time.
+ */
+export function runTimes(plan: Plan, roster: NightPerson[], startAt: number): RunTime[] {
+  const personAt = new Map(roster.map((person) => [person.id, person]));
+  let guessed = false;
+
+  return plan.runs.map((planned) => {
+    if (planned.waitingFor.length > 0) guessed = false;
+    const time: RunTime = {
+      at: formatOffset(startAt + planned.startsAt),
+      approx: guessed,
+      waitingFor: planned.waitingFor
+        .map((id) => personAt.get(id))
+        .filter((person): person is NightPerson => person !== undefined),
+    };
+    if (planned.run.assumed) guessed = true;
+    return time;
+  });
+}
+
 // The marks the pasted table uses. ASCII on purpose: the screen draws these as glyphs, and a
 // glyph in a code fence is a monospace font's guess at how wide it is, which is how a lined-up
 // table arrives crooked.
@@ -246,25 +337,35 @@ function tabTable(rows: string[][]): string[] {
  * dropping the key rather than an oversight: it is a bare X in a table, and the party reading it
  * ran the night. Put the key back if that stops being true.
  *
- * The corner is empty, so the header's first character is the tab that pushes the names over their
- * columns. Every field is otherwise flush left, which is what a tab stop gives for free and what
- * padding to the widest name did not.
+ * It leads with the time on the reset clock, which is the one thing here that is worth anything to
+ * somebody reading it hours later in a chat window. A boss list says what the night is; "+2:30"
+ * says when to be there. A tilde marks a time the runs above it only guessed at, the same mark the
+ * page puts on the run's length.
+ *
+ * Both corner cells are empty, so the header's first characters are the tabs that push the names
+ * over their columns. Every field is otherwise flush left, which is what a tab stop gives for free
+ * and what padding to the widest name did not.
  *
  * Built from the Plan it is given, never restated by hand, so it cannot drift from what the page
  * is showing. The same rule explainSplit() follows.
  */
-export function planAsText(plan: Plan, roster: NightPerson[]): string {
+export function planAsText(plan: Plan, roster: NightPerson[], startAt: number): string {
   if (plan.runs.length === 0) return "No bosses fit in the time.";
 
   const { people, rows } = planGrid(plan, roster);
+  const times = runTimes(plan, roster, startAt);
 
-  const header = ["", ...people.map((person) => cell(person.name))];
-  const body = rows.map(({ planned, cells }) => [
-    cell(bossHeading(planned)),
-    ...cells.map((c) =>
-      c.character === null ? SITTING_OUT : cell(c.character + (c.switched ? SWITCH_MARK : "")),
-    ),
-  ]);
+  const header = ["", "", ...people.map((person) => cell(person.name))];
+  const body = rows.map(({ planned, cells }, i) => {
+    const time = times[i] as RunTime;
+    return [
+      `${time.approx ? "~" : ""}${time.at}`,
+      cell(bossHeading(planned)),
+      ...cells.map((c) =>
+        c.character === null ? SITTING_OUT : cell(c.character + (c.switched ? SWITCH_MARK : "")),
+      ),
+    ];
+  });
 
   return ["```", ...tabTable([header, ...body]), "```"].join("\n");
 }

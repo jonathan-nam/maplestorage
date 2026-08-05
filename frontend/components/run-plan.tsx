@@ -1,12 +1,33 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 
 import { apiAssetUrl } from "@/lib/api";
 import { BOSS_ART_2X } from "@/lib/boss-art";
 import { bossLabel } from "@/lib/boss-difficulty";
-import { formatDuration, type NightPerson, planAsText, planGrid } from "@/lib/boss-night";
+import {
+  formatDuration,
+  type NightPerson,
+  planAsText,
+  planGrid,
+  type RunTime,
+  runTimes,
+} from "@/lib/boss-night";
 import type { Plan } from "@/lib/boss-run-plan";
+
+/**
+ * "Rinlow is free at +3:00".
+ *
+ * The only sentence this page draws, and it is here because the alternative is worse: a schedule
+ * that jumps from +2:50 to +3:00 with a twenty minute run above it is either a rounding error or a
+ * wait, and nothing on the row says which.
+ */
+function waitLine(time: RunTime): string {
+  const names = time.waitingFor.map((person) => person.name);
+  if (names.length === 1) return `${names[0]} is free at ${time.at}`;
+  const last = names[names.length - 1];
+  return `${names.slice(0, -1).join(", ")} and ${last} are free at ${time.at}`;
+}
 
 /**
  * The night, in order: bosses down the rows, people across the columns.
@@ -18,8 +39,17 @@ import type { Plan } from "@/lib/boss-run-plan";
  * A switch is the one coloured thing here, because it is the one thing the ordering exists to
  * minimise, and it is marked on the cell that moved rather than counted at the end of the row.
  */
-export function RunPlan({ plan, roster }: { plan: Plan; roster: NightPerson[] }) {
+export function RunPlan({
+  plan,
+  roster,
+  startAt,
+}: {
+  plan: Plan;
+  roster: NightPerson[];
+  startAt: number;
+}) {
   const { people, rows } = planGrid(plan, roster);
+  const times = runTimes(plan, roster, startAt);
 
   // A row band alone answers "which boss", not "which person": the header sits rows away, so
   // reading a cell still means tracing a column by eye. CSS can do a row on its own and cannot do
@@ -52,74 +82,89 @@ export function RunPlan({ plan, roster }: { plan: Plan; roster: NightPerson[] })
           </tr>
         </thead>
         <tbody>
-          {rows.map(({ planned, cells }) => (
-            <tr key={planned.run.id}>
-              <th className="run-boss" scope="row">
-                {/* Flexed on an inner span: display:flex on a table cell takes it out of the
+          {rows.map(({ planned, cells }, row) => {
+            const time = times[row] as RunTime;
+            return (
+              <Fragment key={planned.run.id}>
+                {time.waitingFor.length > 0 && (
+                  <tr className="run-wait">
+                    <td colSpan={people.length + 1}>{waitLine(time)}</td>
+                  </tr>
+                )}
+                {/* Striped from the row's own index rather than :nth-child, which counts the wait
+                    rows above and flips the banding under every gap. */}
+                <tr className={row % 2 === 1 ? "is-banded" : undefined}>
+                  <th className="run-boss" scope="row">
+                    {/* Flexed on an inner span: display:flex on a table cell takes it out of the
                     table layout and the columns stop aligning. */}
-                <span className="run-boss-inner">
-                  {/* The position in the night, and not the minute it starts: that was arithmetic
-                      on a flat half-hour placeholder, and #188 took it off the row. */}
-                  <span className="run-number" aria-hidden="true" />
-                  {BOSS_ART_2X[planned.run.bossKey] ? (
-                    <img
-                      className="run-art"
-                      src={apiAssetUrl(BOSS_ART_2X[planned.run.bossKey] as string)}
-                      alt=""
-                      width={40}
-                      height={40}
-                    />
-                  ) : (
-                    <span className="run-art is-empty" aria-hidden="true" />
-                  )}
-                  <span className="run-boss-text">
-                    <span className="run-boss-name">
-                      {bossLabel(planned.run.bossName, planned.run.difficulty)}
-                    </span>
-                    {/* A tilde where nobody has timed this party, so a guessed half hour and a
+                    <span className="run-boss-inner">
+                      {/* #188 took a running clock off this row for being arithmetic on a flat
+                      half-hour placeholder. It is back because the night now has a start on the
+                      reset clock, so this is a time the party can turn up for rather than a
+                      distance from a button press. The tilde is the same objection, answered:
+                      a time reached by adding up guesses is marked as one. */}
+                      <span className="run-time">{time.approx ? `~${time.at}` : time.at}</span>
+                      {BOSS_ART_2X[planned.run.bossKey] ? (
+                        <img
+                          className="run-art"
+                          src={apiAssetUrl(BOSS_ART_2X[planned.run.bossKey] as string)}
+                          alt=""
+                          width={40}
+                          height={40}
+                        />
+                      ) : (
+                        <span className="run-art is-empty" aria-hidden="true" />
+                      )}
+                      <span className="run-boss-text">
+                        <span className="run-boss-name">
+                          {bossLabel(planned.run.bossName, planned.run.difficulty)}
+                        </span>
+                        {/* A tilde where nobody has timed this party, so a guessed half hour and a
                         measured one are not read as the same claim. */}
-                    <span className="run-boss-minutes">
-                      {`${planned.run.assumed ? "~" : ""}${formatDuration(planned.run.minutes)}`}
+                        <span className="run-boss-minutes">
+                          {`${planned.run.assumed ? "~" : ""}${formatDuration(planned.run.minutes)}`}
+                        </span>
+                      </span>
                     </span>
-                  </span>
-                </span>
-              </th>
+                  </th>
 
-              {cells.map((cell, i) => {
-                const person = people[i] as NightPerson;
-                const classes = ["run-cell"];
-                if (cell.character === null) classes.push("is-out");
-                if (cell.switched) classes.push("is-switch");
-                if (hovered === person.id) classes.push("is-col-hover");
-                return (
-                  <td
-                    key={person.id}
-                    className={classes.join(" ")}
-                    title={
-                      cell.switched ? `${person.name} switches to ${cell.character}` : undefined
-                    }
-                    onMouseEnter={() => setHovered(person.id)}
-                  >
-                    {cell.character === null ? (
-                      <>
-                        <span aria-hidden="true">&#10005;</span>
-                        <span className="visually-hidden">Not running</span>
-                      </>
-                    ) : (
-                      <>
-                        {cell.switched && (
-                          <span className="run-swap" aria-hidden="true">
-                            &#8644;{" "}
-                          </span>
+                  {cells.map((cell, i) => {
+                    const person = people[i] as NightPerson;
+                    const classes = ["run-cell"];
+                    if (cell.character === null) classes.push("is-out");
+                    if (cell.switched) classes.push("is-switch");
+                    if (hovered === person.id) classes.push("is-col-hover");
+                    return (
+                      <td
+                        key={person.id}
+                        className={classes.join(" ")}
+                        title={
+                          cell.switched ? `${person.name} switches to ${cell.character}` : undefined
+                        }
+                        onMouseEnter={() => setHovered(person.id)}
+                      >
+                        {cell.character === null ? (
+                          <>
+                            <span aria-hidden="true">&#10005;</span>
+                            <span className="visually-hidden">Not running</span>
+                          </>
+                        ) : (
+                          <>
+                            {cell.switched && (
+                              <span className="run-swap" aria-hidden="true">
+                                &#8644;{" "}
+                              </span>
+                            )}
+                            {cell.character}
+                          </>
                         )}
-                        {cell.character}
-                      </>
-                    )}
-                  </td>
-                );
-              })}
-            </tr>
-          ))}
+                      </td>
+                    );
+                  })}
+                </tr>
+              </Fragment>
+            );
+          })}
         </tbody>
       </table>
     </div>
@@ -127,7 +172,15 @@ export function RunPlan({ plan, roster }: { plan: Plan; roster: NightPerson[] })
 }
 
 /** The plan as text on the clipboard, which is where a party actually reads it. */
-export function CopyPlan({ plan, roster }: { plan: Plan; roster: NightPerson[] }) {
+export function CopyPlan({
+  plan,
+  roster,
+  startAt,
+}: {
+  plan: Plan;
+  roster: NightPerson[];
+  startAt: number;
+}) {
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
@@ -142,7 +195,7 @@ export function CopyPlan({ plan, roster }: { plan: Plan; roster: NightPerson[] }
       className={copied ? "copy-amount copied" : "copy-amount"}
       onClick={() => {
         navigator.clipboard
-          ?.writeText(planAsText(plan, roster))
+          ?.writeText(planAsText(plan, roster, startAt))
           .then(() => setCopied(true))
           .catch(() => setCopied(false));
       }}
