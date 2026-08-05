@@ -28,8 +28,9 @@ data class PartyMemberResponse(
 /**
  * One config: your character, one boss, and who they run it with.
  *
- * A boss your character solos has no config, which is why solo runs do not appear anywhere. The
- * members are the OTHER characters; your own is `characterId` on the config itself.
+ * The members are the OTHER characters; your own is `characterId` on the config itself. A boss
+ * your character solos has one of these too, flagged `solo`, so that what fell on it has a pool to
+ * sit in. It is not a party and is not listed as one: see V30__party_solo.sql.
  */
 @Serializable
 data class PartyResponse(
@@ -46,6 +47,8 @@ data class PartyResponse(
     // How long this party takes on this boss, door to door. Null is nobody having timed it, not
     // the flat estimate Run Order falls back to, so the two can be told apart on screen.
     val minutes: Int? = null,
+    // Nobody else was there. One seat, no shares to pay, and off every list of parties.
+    val solo: Boolean = false,
     // Who ran in the week being shown, which is not always who usually does. See rostersFor.
     val members: List<PartyMemberResponse>,
     // EVERY seat this party has ever had, guests and departed members included. What a payout is

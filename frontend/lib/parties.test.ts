@@ -35,6 +35,7 @@ const boss = (bossKey: string, name: string): Boss => ({
 const config = (id: string, characterId: string, bossKey: string, others: string[]): Party => ({
   id,
   characterId,
+  solo: false,
   worldType: "INTERACTIVE",
   bossKey,
   difficulty: null,

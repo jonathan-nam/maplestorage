@@ -39,6 +39,7 @@ function party(
   return {
     id,
     characterId: members[0]?.characterId ?? "c1",
+    solo: false,
     worldType: "INTERACTIVE",
     bossKey,
     difficulty: null,

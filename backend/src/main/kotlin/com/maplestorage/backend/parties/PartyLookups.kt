@@ -1,9 +1,11 @@
 package com.maplestorage.backend.parties
 
 import com.maplestorage.backend.db.BossCatalog
+import com.maplestorage.backend.db.Characters
 import com.maplestorage.backend.db.DropCatalog
 import com.maplestorage.backend.db.Party
 import com.maplestorage.backend.db.PartyMember
+import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.inList
 import org.jetbrains.exposed.v1.jdbc.selectAll
@@ -56,6 +58,17 @@ internal fun bossIdOfParty(partyId: Uuid): Uuid? =
         .where { Party.id eq partyId }
         .firstOrNull()
         ?.get(Party.bossCatalogId)
+
+/** True when this character is one of the user's. The check every write on a character starts with. */
+internal fun ownsCharacter(
+    characterId: Uuid,
+    userId: String,
+): Boolean =
+    Characters
+        .selectAll()
+        .where { (Characters.id eq characterId) and (Characters.userId eq userId) }
+        .empty()
+        .not()
 
 /** The character a config belongs to, or null when there is no such config. */
 internal fun characterIdOfParty(partyId: Uuid): Uuid? =

@@ -70,6 +70,26 @@ data class AddLootRequest(
 )
 
 /**
+ * A drop logged without naming a pool: whose character it fell on, and which boss.
+ *
+ * The pool is resolved rather than sent, because a drop that fell on a boss you solo has no party
+ * to name and the client cannot know which one it would be otherwise. That character's config for
+ * that boss takes it if there is one, and a solo config is opened if there is not. Sending a party
+ * id instead would let the Drop Log file a drop in the wrong pool the moment a config is created
+ * or deleted between the page loading and the submit.
+ */
+@Serializable
+data class LogDropRequest(
+    val characterId: String,
+    // Required here, unlike AddLootRequest's: it is half of which pool this drop belongs to.
+    val bossKey: String,
+    // Exactly one of these, as AddLootRequest.
+    val dropKey: String? = null,
+    val customName: String? = null,
+    val droppedOn: String? = null,
+)
+
+/**
  * Marking a drop sold: the facts of the sale, none of its arithmetic.
  *
  * Sending this again updates the figures (a corrected price, the other split method) and leaves

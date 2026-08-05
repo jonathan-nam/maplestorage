@@ -1,33 +1,44 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { apiAssetUrl } from "@/lib/api";
 import { OTHER, addDropBody, dropOptionLabel, pickableDrops } from "@/lib/drop-picker";
+import type { WorldType } from "@/lib/world";
 import type { Boss } from "@/types/boss";
 import type { BossDrop } from "@/types/drop";
 import type { AddLootBody } from "@/types/loot";
-import type { Party } from "@/types/party";
 
-// Log a drop. Carried by the party's loot pool and by a row on Party View, the same component in
-// both so the two cannot offer different drops for the same boss.
+// Log a drop. Carried by the party's loot pool, by a row on Party View and by the Drop Log's own
+// form, the same component in all three so no two can offer different drops for the same boss.
 //
 // The item comes from the boss's own drop table (catalog/drops.yaml) rather than a text box,
 // because a pool full of "grindstone", "Grindstone" and "grindstone of faith" is a pool you cannot
 // count. Anything the tables do not list is still typeable.
+//
+// The boss is a prop, not a control here: a pool belongs to a config, and a config IS one boss. A
+// caller that has to ask which boss (the Drop Log does, since it covers all of them) asks in
+// `lead`, and the answer arrives as `bossKey`.
 
 export function DropPicker({
-  party,
+  bossKey,
+  worldType,
   table,
   boss,
   busy,
+  lead,
   onAdd,
 }: {
-  party: Party;
-  /** This boss's whole table. Narrowing to the party's world is pickableDrops' job, not a caller's. */
+  /** Which boss this drop is for. Empty until a caller that asks has an answer. */
+  bossKey: string;
+  /** Whose world the drop fell in. Narrowing the table to it is pickableDrops' job, not a caller's. */
+  worldType: WorldType;
+  /** This boss's whole table. */
   table: BossDrop[] | undefined;
   /** Leads the form where the surrounding screen does not already say which boss this is. */
   boss?: Boss | null;
   busy: boolean;
+  /** Controls the caller needs answered first, inside this form so there is one submit. */
+  lead?: ReactNode;
   /**
    * Rejecting keeps what was picked on screen, so a failed save can be retried without choosing
    * again. Callers that report the failure themselves reject; the loot pool handles its own and
@@ -35,11 +46,10 @@ export function DropPicker({
    */
   onAdd: (body: AddLootBody) => void | Promise<void>;
 }) {
-  const bossKey = party.bossKey;
   const [dropKey, setDropKey] = useState("");
   const [customName, setCustomName] = useState("");
 
-  const drops = pickableDrops(table, party.worldType);
+  const drops = pickableDrops(table, worldType);
   const chosen = drops.find((d) => d.dropKey === dropKey);
   const body = addDropBody(bossKey, dropKey, customName);
 
@@ -59,10 +69,10 @@ export function DropPicker({
           setCustomName("");
         }}
       >
+        {lead}
+
         {boss?.iconUrl && <img className="boss-portrait" src={apiAssetUrl(boss.iconUrl)} alt="" />}
 
-        {/* No boss picker: a pool belongs to a config, and a config IS one boss. Choosing again
-            here would let a Kalos drop be filed under Limbo in Kalos's own pool. */}
         <select
           className="split-input loot-drop-select"
           value={dropKey}
@@ -72,7 +82,7 @@ export function DropPicker({
           <option value="">pick a drop</option>
           {drops.map((drop) => (
             <option key={drop.dropKey} value={drop.dropKey}>
-              {dropOptionLabel(drop, party.worldType)}
+              {dropOptionLabel(drop, worldType)}
             </option>
           ))}
           <option value={OTHER}>something else...</option>

@@ -38,7 +38,8 @@ export function LootPool({
       <h2 className="loot-pool-title">Loot pool</h2>
 
       <DropPicker
-        party={party}
+        bossKey={party.bossKey}
+        worldType={party.worldType}
         table={dropTables[party.bossKey]}
         boss={bossByKey.get(party.bossKey) ?? null}
         busy={busy}

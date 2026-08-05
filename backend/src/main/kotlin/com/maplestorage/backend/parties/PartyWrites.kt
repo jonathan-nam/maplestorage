@@ -172,7 +172,7 @@ internal fun deleteParty(
  * Seats are matched by NAME, guests included, so promoting somebody who has been guesting names
  * the seat they already have rather than a second one under the same name.
  */
-private fun writeMembers(
+internal fun writeMembers(
     partyId: Uuid,
     ownCharacterId: Uuid,
     members: List<String>,

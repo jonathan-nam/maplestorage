@@ -29,6 +29,10 @@ export function dropOptionLabel(drop: BossDrop, world: WorldType): string {
  * They were separate expressions before, which is how a button ends up enabled on a rule the body
  * does not hold to and posts a drop with no name.
  *
+ * No boss is not an answer either. It used to be sent as null, from a caller that always had one
+ * anyway; the Drop Log asks for the boss, and a drop filed under none is one nothing can find or
+ * count. The field stays nullable because the API accepts a drop that names no boss.
+ *
  * `droppedOn` is deliberately absent: the server stamps today. A caller that let you add to a week
  * it is not currently in would have to send one, and none may.
  */
@@ -37,9 +41,10 @@ export function addDropBody(
   dropKey: string,
   customName: string,
 ): AddLootBody | null {
+  if (bossKey === "") return null;
   if (dropKey === OTHER) {
     const typed = customName.trim();
-    return typed === "" ? null : { bossKey: bossKey || null, dropKey: null, customName: typed };
+    return typed === "" ? null : { bossKey, dropKey: null, customName: typed };
   }
-  return dropKey === "" ? null : { bossKey: bossKey || null, dropKey, customName: null };
+  return dropKey === "" ? null : { bossKey, dropKey, customName: null };
 }

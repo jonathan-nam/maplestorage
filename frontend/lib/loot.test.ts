@@ -134,6 +134,20 @@ describe("splitOf", () => {
     expect(result.shares).toEqual([]);
     expect(result.seller.keeps).toBe(result.split.sellerReceives);
   });
+
+  it("reads a one-seat pool the same way whichever split method it stores", () => {
+    // What lets the sell form on a solo pool drop the method select: with nobody to divide with,
+    // both branches of splitDrop are the same arithmetic. Pinned here so hiding the control cannot
+    // start hiding a choice that matters.
+    const alone = [member("m1", "Rune")];
+    const loot = sold({ payouts: [] });
+    const fair = splitOf({ ...loot, splitMethod: "FAIR" }, alone)!;
+    const lazy = splitOf({ ...loot, splitMethod: "LAZY" }, alone)!;
+
+    expect(fair.split).toEqual(lazy.split);
+    expect(fair.shares).toEqual([]);
+    expect(fair.seller.keeps).toBe(fair.split.sellerReceives);
+  });
 });
 
 describe("summarize", () => {

@@ -112,7 +112,13 @@ private fun routineTargets(
     return if (found.size == bossKeys.size) found else null
 }
 
-/** The ones a party config already says this character runs, by name, for the refusal message. */
+/**
+ * The ones a party config already says this character runs, by name, for the refusal message.
+ *
+ * Solo configs do not count. One is a pool holding what fell on a boss this character ran once,
+ * not a standing arrangement, and there is nothing to "remove first": the routine editor locks
+ * bosses that have a party, and it reads the same list this skips.
+ */
 private fun partiedNames(
     characterId: Uuid,
     bosses: List<RoutineBoss>,
@@ -121,8 +127,9 @@ private fun partiedNames(
     val partied =
         Party
             .selectAll()
-            .where { (Party.characterId eq characterId) and (Party.bossCatalogId inList ids) }
-            .map { it[Party.bossCatalogId] }
+            .where {
+                (Party.characterId eq characterId) and (Party.bossCatalogId inList ids) and (Party.solo eq false)
+            }.map { it[Party.bossCatalogId] }
             .toSet()
     return bosses.filter { it.id in partied }.map { it.name }
 }

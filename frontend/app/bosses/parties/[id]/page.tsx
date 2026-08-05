@@ -115,8 +115,14 @@ export default function PartyPage() {
 
   return (
     <main className="page">
+      {/* Back where this page was reached from. A solo pool is not on Party View, so sending it
+          there would be sending it to a list it is not in. */}
       <p className="loot-back">
-        <Link href="/bosses/parties">&larr; Party View</Link>
+        {party?.solo ? (
+          <Link href="/bosses/drops">&larr; Drop Log</Link>
+        ) : (
+          <Link href="/bosses/parties">&larr; Party View</Link>
+        )}
       </p>
 
       {state === "error" && <p>Couldn&apos;t load that party.</p>}
@@ -124,12 +130,15 @@ export default function PartyPage() {
 
       {state === "loaded" && party && (
         <>
-          {/* The boss and the roster ARE the title: there is nothing else it could be called. */}
+          {/* The boss and the roster ARE the title: there is nothing else it could be called. A
+              solo pool has no roster to name, and "with" trailing off into nothing was what the
+              same line drew for it. */}
           <h1 className="page-title">
-            {bossLabel(bossByKey.get(party.bossKey)?.name ?? party.bossKey, party.difficulty)} with{" "}
-            {otherMembers(party)
-              .map((m) => m.name)
-              .join(", ")}
+            {bossLabel(bossByKey.get(party.bossKey)?.name ?? party.bossKey, party.difficulty)}
+            {!party.solo &&
+              ` with ${otherMembers(party)
+                .map((m) => m.name)
+                .join(", ")}`}
           </h1>
           <div className="party-card-head">
             <ul className="party-roster">

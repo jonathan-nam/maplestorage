@@ -85,6 +85,14 @@ internal fun weeksSpelledOut(
         .toSet()
 }
 
+/** Every week of this one party that names its own roster, rather than running the usual one. */
+internal fun weeksSpelledOutFor(partyId: Uuid): Set<LocalDate> =
+    PartyWeekSeat
+        .selectAll()
+        .where { PartyWeekSeat.partyId eq partyId }
+        .map { it[PartyWeekSeat.weekStart] }
+        .toSet()
+
 /** The seats any week of this party names, so one a week still needs is retired and not deleted. */
 internal fun seatsInAnyWeekRoster(partyId: Uuid): Set<Uuid> =
     PartyWeekSeat

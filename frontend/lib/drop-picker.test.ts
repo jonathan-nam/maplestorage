@@ -76,7 +76,10 @@ describe("what the picker posts", () => {
     });
   });
 
-  it("sends a null boss rather than an empty key", () => {
-    expect(addDropBody("", "grindstone", "")?.bossKey).toBeNull();
+  it("refuses a drop with no boss, however complete the rest of it is", () => {
+    // The Drop Log picks the boss, so an empty key there is a question not yet answered. Posting
+    // it would file a drop nothing can find: the pool is resolved from the boss.
+    expect(addDropBody("", "grindstone", "")).toBeNull();
+    expect(addDropBody("", OTHER, "Some Cape")).toBeNull();
   });
 });

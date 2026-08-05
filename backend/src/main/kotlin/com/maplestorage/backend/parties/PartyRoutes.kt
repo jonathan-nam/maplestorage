@@ -32,6 +32,8 @@ fun Route.partyRoutes(nexonLookupService: NexonLookupService) {
     // Before /{id}, and matched ahead of it whatever the order: Ktor scores a constant segment
     // above a parameter. Every pool at once, for the wallet, and the wallet's one settle back.
     get("/loot") { listAllLoot() }
+    // A drop logged by character and boss rather than by pool, for the Drop Log. See logDropRoute.
+    post("/loot") { logDropRoute() }
     post("/loot/settle") { settleRoute() }
     get("/{id}") { getParty() }
     put("/{id}") { savePartyRoute(nexonLookupService) }
@@ -47,6 +49,9 @@ fun Route.partyRoutes(nexonLookupService: NexonLookupService) {
  * The week does not change which configs come back. It changes the pool counts each one carries,
  * which is what lets Party View's drop badges answer for the same week as the ticks beside them.
  * See lootCountsFor for what a week admits.
+ *
+ * `?solo=include` adds the pools for bosses run alone. Off by default: they are not parties, and a
+ * caller that draws a roster or plans a night would be showing a party of one.
  */
 private suspend fun RoutingContext.listParties() {
     val (userId, email) = call.principalIdAndEmail()
@@ -54,10 +59,11 @@ private suspend fun RoutingContext.listParties() {
         parseWeekParam(call.request.queryParameters["week"]).getOrElse {
             return call.respond(HttpStatusCode.BadRequest, it.message.orEmpty())
         }
+    val includeSolo = call.request.queryParameters["solo"] == "include"
     val parties =
         transaction {
             ensureUser(userId, email)
-            partiesFor(userId, week)
+            partiesFor(userId, week, includeSolo)
         }
     call.respond(parties)
 }
@@ -90,6 +96,14 @@ private suspend fun RoutingContext.getParty() {
     if (party == null) call.respond(HttpStatusCode.NotFound) else call.respond(party)
 }
 
+/**
+ * Makes the config, or fills in the one a solo pool already opened for this pair.
+ *
+ * Logging a drop on a boss nobody else was there for opens a solo config (see createSoloParty),
+ * and it holds the same unique slot a party would. Saying who you run it with is not a second
+ * config for the pair, it is that one becoming a party, so it is adopted rather than refused. The
+ * drops already in the pool stay where they are, and adoptSoloParty pins the weeks they fell in.
+ */
 private suspend fun RoutingContext.createPartyRoute(nexonLookupService: NexonLookupService) {
     val (userId, email) = call.principalIdAndEmail()
     val request = call.receive<SavePartyRequest>()
@@ -99,12 +113,30 @@ private suspend fun RoutingContext.createPartyRoute(nexonLookupService: NexonLoo
         transaction {
             val characterId = Uuid.parseOrNull(request.characterId)
             val bossId = bossIdForKey(request.bossKey)
-            val problem = validateNewParty(request, userId, characterId, bossId)
-            if (problem != null) {
-                problem
+            // Ownership first, so a characterId that is not this user's cannot reach a config
+            // through the pair lookup, which does not filter by user.
+            val solo =
+                if (characterId == null || bossId == null || !ownsCharacter(characterId, userId)) {
+                    null
+                } else {
+                    partyIdFor(characterId, bossId)?.takeIf { isSoloParty(it) }
+                }
+            if (solo != null) {
+                val problem = validateSavedParty(userId, solo, request)
+                if (problem != null) {
+                    problem
+                } else {
+                    adoptSoloParty(userId, solo, request, Clock.System.now(), sprites)
+                    findParty(solo, userId)!!
+                }
             } else {
-                val id = createParty(userId, characterId!!, bossId!!, request, Clock.System.now(), sprites)
-                findParty(id, userId)!!
+                val problem = validateNewParty(request, userId, characterId, bossId)
+                if (problem != null) {
+                    problem
+                } else {
+                    val id = createParty(userId, characterId!!, bossId!!, request, Clock.System.now(), sprites)
+                    findParty(id, userId)!!
+                }
             }
         }
     respondToSave(outcome, HttpStatusCode.Created)
@@ -121,20 +153,7 @@ private suspend fun RoutingContext.savePartyRoute(nexonLookupService: NexonLooku
             if (!ownsParty(partyId, userId)) {
                 null
             } else {
-                // Against the config's OWN boss, not the request's: the boss is not editable, so a
-                // payload naming another one must not widen what difficulties are allowed.
-                val bossId = bossIdOfParty(partyId)
-                val problem =
-                    bossId?.let { validateDifficulty(it, request.difficulty) }
-                        ?: validateMinutes(request.minutes)
-                        ?: validateMembers(request.members)
-                        ?: bossId?.let {
-                            // The config's own character, not the request's: the owner is not
-                            // editable, and a payload naming another one must not move the seat
-                            // this rule is checking for.
-                            val roster = rosterOf(characterIdOfParty(partyId), request.members)
-                            validateBossRoster(userId, it, exclude = partyId, roster)
-                        }
+                val problem = validateSavedParty(userId, partyId, request)
                 if (problem != null) {
                     problem
                 } else {

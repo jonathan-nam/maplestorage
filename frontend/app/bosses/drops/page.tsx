@@ -3,7 +3,8 @@
 import { useAuth } from "@clerk/nextjs";
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { apiAssetUrl, apiFetch } from "@/lib/api";
+import { LogDrop } from "@/components/log-drop";
+import { ApiError, apiAssetUrl, apiFetch } from "@/lib/api";
 import { peek, put } from "@/lib/cache";
 import { buildDropLog, forCharacter, type DropEntry, type DropMonth } from "@/lib/drop-log";
 import { formatMesos } from "@/lib/drop-split";
@@ -13,17 +14,22 @@ import { useAccountSettings } from "@/lib/use-account-settings";
 import { showsMoney } from "@/lib/world";
 import type { Boss } from "@/types/boss";
 import type { Character } from "@/types/character";
-import type { PartyLootPool } from "@/types/loot";
+import type { DropTables } from "@/types/drop";
+import type { LogDropBody, PartyLootPool } from "@/types/loot";
 import type { Party } from "@/types/party";
 
-// The history of what dropped, and what it made. Every meso is lib/drop-log.ts's, which is
-// splitOf()'s, which is splitDrop()'s. Nothing here adds anything up.
+// The history of what dropped, and what it made, and where a drop is logged. Every meso is
+// lib/drop-log.ts's, which is splitOf()'s, which is splitDrop()'s. Nothing here adds anything up.
 
 type LoadState = "loading" | "loaded" | "error";
 
-const PARTIES_KEY = "/api/parties";
+// Solo pools included, which no other page asks for: they hold what fell on bosses run alone, and
+// without their configs those drops have no seats to be read against and would be left out of the
+// log entirely. See partiesFor.
+const PARTIES_KEY = "/api/parties?solo=include";
 const POOLS_KEY = "/api/parties/loot";
 const BOSSES_KEY = "/api/bosses";
+const DROPS_KEY = "/api/bosses/drops";
 const CHARACTERS_KEY = "/api/characters";
 
 export default function DropLogPage() {
@@ -39,11 +45,25 @@ export default function DropLogPage() {
   const [parties, setParties] = useState<Party[]>(peek<Party[]>(PARTIES_KEY) ?? []);
   const [pools, setPools] = useState<PartyLootPool[]>([]);
   const [bosses, setBosses] = useState<Boss[]>(peek<Boss[]>(BOSSES_KEY) ?? []);
+  const [dropTables, setDropTables] = useState<DropTables>(peek<DropTables>(DROPS_KEY) ?? {});
   const [characters, setCharacters] = useState<Character[]>(
     peek<Character[]>(CHARACTERS_KEY) ?? [],
   );
   const [state, setState] = useState<LoadState>("loading");
   const [character, setCharacter] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function load(token?: string | null) {
+    const withToken = token !== undefined ? () => Promise.resolve(token) : getToken;
+    const [partyResult, poolResult] = await Promise.all([
+      apiFetch<Party[]>(PARTIES_KEY, { method: "GET" }, withToken),
+      apiFetch<PartyLootPool[]>(POOLS_KEY, { method: "GET" }, withToken),
+    ]);
+    setParties(partyResult);
+    setPools(poolResult);
+    put(PARTIES_KEY, partyResult);
+  }
 
   useEffect(() => {
     // One token for the whole burst: getToken() can round-trip to Clerk.
@@ -51,19 +71,20 @@ export default function DropLogPage() {
       .then((token) => {
         const withToken = () => Promise.resolve(token);
         return Promise.all([
-          apiFetch<Party[]>(PARTIES_KEY, { method: "GET" }, withToken),
-          apiFetch<PartyLootPool[]>(POOLS_KEY, { method: "GET" }, withToken),
+          load(token),
           apiFetch<Boss[]>(BOSSES_KEY, { method: "GET" }, withToken),
+          // The whole catalog's drop tables, as the party page fetches them: a few dozen rows, and
+          // the picker needs whichever boss is chosen next.
+          apiFetch<DropTables>(DROPS_KEY, { method: "GET" }, withToken),
           apiFetch<Character[]>(CHARACTERS_KEY, { method: "GET" }, withToken),
         ]);
       })
-      .then(([partyResult, poolResult, bossResult, characterResult]) => {
-        setParties(partyResult);
-        setPools(poolResult);
+      .then(([, bossResult, dropResult, characterResult]) => {
         setBosses(bossResult);
+        setDropTables(dropResult);
         setCharacters(characterResult);
-        put(PARTIES_KEY, partyResult);
         put(BOSSES_KEY, bossResult);
+        put(DROPS_KEY, dropResult);
         put(CHARACTERS_KEY, characterResult);
         setState("loaded");
       })
@@ -71,6 +92,30 @@ export default function DropLogPage() {
       .catch(() => setState("error"));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  /**
+   * Logs the drop, then reads the log back.
+   *
+   * Both lists, not just the pools: a drop on a boss run alone opens a config for it, and without
+   * that config the drop has no seats to be read against and would not appear at all.
+   */
+  async function logDrop(body: LogDropBody) {
+    setBusy(true);
+    setError(null);
+    try {
+      await apiFetch<unknown>(
+        "/api/parties/loot",
+        { method: "POST", body: JSON.stringify(body) },
+        getToken,
+      );
+      await load();
+    } catch (e) {
+      setError(e instanceof ApiError ? e.body : "That didn't save.");
+      throw e;
+    } finally {
+      setBusy(false);
+    }
+  }
 
   const bossByKey = new Map(bosses.map((b) => [b.bossKey, b]));
   const characterById = new Map(characters.map((c) => [c.id, c]));
@@ -85,10 +130,6 @@ export default function DropLogPage() {
 
   return (
     <main className="page">
-      <p className="loot-back">
-        <Link href="/bosses/parties">&larr; Party View</Link>
-      </p>
-
       <h1 className="page-title">Drop Log</h1>
 
       {state === "error" && <p>Couldn&apos;t load your drops.</p>}
@@ -96,6 +137,19 @@ export default function DropLogPage() {
 
       {state === "loaded" && (
         <>
+          {/* Above the totals it changes. Nothing to log against with no roster, and a picker of
+              nobody is not worth holding the space for. */}
+          {characters.length > 0 && (
+            <LogDrop
+              characters={characters}
+              bosses={bosses}
+              dropTables={dropTables}
+              busy={busy}
+              onLog={logDrop}
+            />
+          )}
+          {error && <p className="split-error">{error}</p>}
+
           <div className="stat-row">
             <div className="stat-tile">
               <span className="stat-label">Drops</span>
@@ -143,12 +197,8 @@ export default function DropLogPage() {
             </div>
           )}
 
-          {totals.drops === 0 && (
-            <p className="finder-empty">
-              No drops logged yet. Open a party from <Link href="/bosses/parties">Party View</Link>{" "}
-              and add what dropped.
-            </p>
-          )}
+          {/* The form to fix it is directly above, so this says what is here and nothing else. */}
+          {totals.drops === 0 && <p className="finder-empty">No drops logged yet.</p>}
 
           {log.months.map((month) => (
             <MonthSection

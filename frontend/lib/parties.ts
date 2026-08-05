@@ -1,8 +1,9 @@
 // Reading a set of party configs.
 //
 // A config is one of your characters, on one boss, with the people that character runs it with:
-// "mechyfechy runs Kalos with CreedBratton". A boss that character solos has no config, so solo
-// runs appear nowhere, which is what makes the list short enough to read.
+// "mechyfechy runs Kalos with CreedBratton". A boss that character solos has a config too, holding
+// what fell on it, but it is not a party and is not in any list this file reads: /api/parties leaves
+// solo configs out unless asked, which is what keeps the list short enough to read.
 
 import { weekEndExclusive } from "@/lib/boss-clears";
 import type { Boss } from "@/types/boss";

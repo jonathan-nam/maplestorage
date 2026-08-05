@@ -406,7 +406,9 @@ export default function PartiesPage() {
                 Wallet
               </Link>
             )}
-            <Link className="party-cancel" href="/bosses/parties/drops">
+            {/* Kept beside the Wallet even though the Drop Log is on the menu now: it is one
+                click from the parties whose drops it holds, and that is where it is wanted. */}
+            <Link className="party-cancel" href="/bosses/drops">
               Drop Log
             </Link>
             <Link className="party-cancel" href="/bosses/parties/edit">

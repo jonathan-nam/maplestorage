@@ -50,6 +50,15 @@ export type AddLootBody = {
   droppedOn?: string | null;
 };
 
+// POST /api/parties/loot. A drop named by character and boss, for the Drop Log: the pool is the
+// server's to resolve, since a boss run alone has no party to name and may not have a pool yet.
+export type LogDropBody = {
+  characterId: string;
+  bossKey: string;
+  dropKey?: string | null;
+  customName?: string | null;
+};
+
 export type SellLootBody = {
   amount: number;
   amountBasis: string;
