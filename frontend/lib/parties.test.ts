@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   bossesWithoutConfig,
+  bossesWithoutParty,
   byBoss,
   byCharacter,
   consolidate,
@@ -190,6 +191,35 @@ describe("bossesWithoutConfig", () => {
     ]);
     // Another character of yours can still run it.
     expect(bossesWithoutConfig([taken], catalog, "char-2").map((b) => b.bossKey)).toEqual([
+      "limbo",
+      "baldrix",
+    ]);
+  });
+});
+
+describe("bossesWithoutParty", () => {
+  const catalog = [boss("limbo", "Limbo"), boss("baldrix", "Baldrix")];
+
+  it("leaves out the bosses this character runs with a party", () => {
+    // Their drops belong to the party that ran it, and are logged there.
+    const partied = config("p1", "char-1", "limbo", ["CreedBratton"]);
+
+    expect(bossesWithoutParty([partied], catalog, "char-1").map((b) => b.bossKey)).toEqual([
+      "baldrix",
+    ]);
+    expect(bossesWithoutParty([partied], catalog, "char-2").map((b) => b.bossKey)).toEqual([
+      "limbo",
+      "baldrix",
+    ]);
+  });
+
+  it("keeps a boss that only has a solo pool", () => {
+    // The trap this function exists for. A solo pool IS a config, so narrowing on "has a config"
+    // would drop the boss off the list the moment its first drop was logged, and the second drop
+    // on it could never be logged at all.
+    const alone = { ...config("p1", "char-1", "limbo", []), solo: true };
+
+    expect(bossesWithoutParty([alone], catalog, "char-1").map((b) => b.bossKey)).toEqual([
       "limbo",
       "baldrix",
     ]);

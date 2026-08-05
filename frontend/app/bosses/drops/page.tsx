@@ -142,6 +142,7 @@ export default function DropLogPage() {
           {characters.length > 0 && (
             <LogDrop
               characters={characters}
+              parties={parties}
               bosses={bosses}
               dropTables={dropTables}
               busy={busy}
