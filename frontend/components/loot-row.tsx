@@ -207,13 +207,18 @@ export function LootRow({
           ) : (
             <>
               {/* The buyer keeps the item, not the mesos, so "they keep" would be naming the wrong
-                  thing. The figure is the same one either way: their own share of the pot. */}
+                  thing. The figure is the same one either way: their own share of the pot.
+
+                  Their share and what they hand over add up to the price. Both are here because a
+                  payout on its own reads as more than a share of it, being grossed up for the 5%
+                  its receiver pays. */}
               {bought ? (
                 <p className="loot-sold-line">
                   Bought by {result.seller.name} for{" "}
                   <strong>{formatMesos(loot.saleAmount ?? 0, true)}</strong>,{" "}
                   {loot.splitMethod === "FAIR" ? "fair" : "lazy"} split. Their share is{" "}
-                  <strong>{formatMesos(result.seller.keeps, true)}</strong>.
+                  <strong>{formatMesos(result.seller.keeps, true)}</strong>, and they hand over{" "}
+                  <strong>{formatMesos(result.seller.paysOut, true)}</strong>.
                 </p>
               ) : (
                 <p className="loot-sold-line">

@@ -63,7 +63,12 @@ describe("splitOf", () => {
     const result = splitOf(loot, party)!;
     expect(result.shares.map((s) => s.pay)).toEqual(expected.members.map((m) => m.pay));
     expect(result.shares.map((s) => s.nets)).toEqual(expected.members.map((m) => m.nets));
-    expect(result.seller).toEqual({ memberId: "m1", name: "Rune", keeps: expected.sellerKeeps });
+    expect(result.seller).toEqual({
+      memberId: "m1",
+      name: "Rune",
+      keeps: expected.sellerKeeps,
+      paysOut: expected.sellerReceives - expected.sellerKeeps,
+    });
   });
 
   it("carries who has already been paid onto the shares", () => {
@@ -91,6 +96,14 @@ describe("splitOf", () => {
     expect(bought.split.grossSale).toBeNull();
     expect(bought.seller.keeps).toBe(received.seller.keeps);
     expect(bought.shares.map((s) => s.pay)).toEqual(received.shares.map((s) => s.pay));
+  });
+
+  it("splits a buy into what the buyer keeps and what they hand over", () => {
+    // The two figures the row shows, and the reason it shows both: they add up to the price the
+    // buyer handed over, where a single payout does not, being grossed up for its receiver's fee.
+    const result = splitOf(sold({ amountBasis: "BOUGHT" }), party)!;
+    expect(result.seller.keeps + result.seller.paysOut).toBe(9_500_000_000);
+    expect(result.seller.paysOut).toBe(result.shares.reduce((sum, s) => sum + s.pay, 0));
   });
 
   it("refuses a basis it cannot read rather than guessing at the fee", () => {

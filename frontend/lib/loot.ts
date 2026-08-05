@@ -34,9 +34,10 @@ export type Share = {
 export type LootSplit = {
   /**
    * The seat the shares are measured from: who sold it, or who bought it off the party. `keeps` is
-   * mesos on a sale and the value of their own share of the item on a buy.
+   * mesos on a sale and the value of their own share of the item on a buy. `paysOut` is what
+   * leaves their hands, so `keeps` plus `paysOut` is the whole pot.
    */
-  seller: { memberId: string; name: string; keeps: number };
+  seller: { memberId: string; name: string; keeps: number; paysOut: number };
   shares: Share[];
   split: Split;
 };
@@ -94,7 +95,13 @@ export function splitOf(loot: Loot, members: PartyMember[]): LootSplit | null {
   });
 
   return {
-    seller: { memberId: seller.id, name: seller.name, keeps: split.sellerKeeps },
+    seller: {
+      memberId: seller.id,
+      name: seller.name,
+      keeps: split.sellerKeeps,
+      // Read off the split rather than summed from the payouts: same figure, one source.
+      paysOut: split.sellerReceives - split.sellerKeeps,
+    },
     shares: owed.map((o, i) => ({
       memberId: o.payout.memberId,
       name: o.member!.name,
