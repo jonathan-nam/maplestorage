@@ -162,39 +162,59 @@ export function formatDuration(minutes: number): string {
 
 // --- The reset clock -----------------------------------------------------------------------
 //
-// A party arranges itself in hours since daily reset, which is 00:00 UTC: "+3.5" is half past
-// three in the morning UTC, and everybody in the chat knows what that means without knowing where
-// anybody lives. So the night is anchored to one of those and every time on the page is one.
+// A party arranges itself against daily reset, which is 00:00 UTC. "+3.5" is half past three in
+// the morning UTC and everybody in the chat knows what that means without knowing where anybody
+// lives, so the night is anchored to one of those and every time on the page is one.
+//
+// SIGNED, and the half day either side of reset rather than a ray counting up from it. Reset is
+// the thing people arrange around, so half of what gets said is before it, and the hours before it
+// are said as "-2" and not as "+22". The first version counted up: at 23:45 UTC it offered a night
+// starting at "+24:00" and finishing at "+28:00", which is fifteen minutes away written as a day
+// and a night written as tomorrow.
+//
+// A night crossing reset therefore reads -1:00, -0:30, +0:00, +0:30 and needs no special case,
+// where counting up it either wrapped to zero halfway down the table or ran off to +25:30.
 //
 // Written back as +H:MM rather than the decimal it was typed as. Runs are 15, 20 and 45 minutes
 // long, so a decimal clock has to round, and a rounded time drawn beside an exact one is the
 // confidently-wrong number this whole app is trying not to produce. Decimals still parse, because
 // that is what gets typed.
 
-/** Past two days is a typo, not a night. Reset is daily, so even one wrap is generous. */
-const LATEST_OFFSET = 48 * 60;
+const HALF_DAY = 12 * 60;
+const DAY = 24 * 60;
 
-const OFFSET = /^\+?(\d{1,2})(?::([0-5]\d)|\.(\d+))?$/;
+const OFFSET = /^([+-]?)(\d{1,2})(?::([0-5]\d)|\.(\d+))?$/;
 
-/** Minutes since reset as the page draws them: "+3:30". */
+/**
+ * Into the half day either side of reset.
+ *
+ * Every instant has one spelling here, and -12:00 is it for noon UTC. "+12:00" parses to the same
+ * instant and is written back as -12:00, which is the only place the round trip changes the text.
+ */
+function wrapToReset(minutes: number): number {
+  return ((((minutes + HALF_DAY) % DAY) + DAY) % DAY) - HALF_DAY;
+}
+
+/** A time against reset as the page draws it: "+3:30", "-0:15". */
 export function formatOffset(minutes: number): string {
-  const whole = Math.max(0, Math.round(minutes));
-  return `+${Math.floor(whole / 60)}:${String(whole % 60).padStart(2, "0")}`;
+  const wrapped = wrapToReset(Math.round(minutes));
+  const size = Math.abs(wrapped);
+  return `${wrapped < 0 ? "-" : "+"}${Math.floor(size / 60)}:${String(size % 60).padStart(2, "0")}`;
 }
 
 /**
- * "+3.5", "3.5", "3:30" and "+3:30" as minutes since reset. Null when it is not one of those.
+ * "3.5", "+3.5", "3:30", "+3:30" and "-0:30" as minutes against reset. Null when it is not one.
  *
- * All four spellings get typed, and a box that took only its own is a box people would get wrong
- * while holding a Discord message that says 3.5.
+ * Every one of those spellings gets typed, and a box that took only its own is a box people would
+ * get wrong while holding a Discord message that says 3.5.
  */
 export function parseOffset(text: string): number | null {
   const match = OFFSET.exec(text.trim());
   if (match === null) return null;
 
-  const hours = Number(match[1]);
-  const clock = match[2];
-  const decimal = match[3];
+  const hours = Number(match[2]);
+  const clock = match[3];
+  const decimal = match[4];
   const rest =
     clock !== undefined
       ? Number(clock)
@@ -202,13 +222,43 @@ export function parseOffset(text: string): number | null {
         ? Math.round(Number(`0.${decimal}`) * 60)
         : 0;
 
-  const total = hours * 60 + rest;
-  return total > LATEST_OFFSET ? null : total;
+  // Past twelve either way is the other side of reset said the long way round, and far more often
+  // it is a typo. Refused rather than wrapped, so "+25" is a question and not a silent "+1".
+  const size = hours * 60 + rest;
+  if (size > HALF_DAY) return null;
+  return match[1] === "-" ? -size : size;
 }
 
-/** Minutes since reset right now. Quantised, so it is stable within the minute it is read in. */
+/** Where now sits against reset. Quantised, so it is stable within the minute it is read in. */
 export function offsetNow(at: number): number {
-  return Math.floor(at / 60_000) % (24 * 60);
+  return wrapToReset(Math.floor(at / 60_000));
+}
+
+/**
+ * The next half hour, which is when a night arranged now would start.
+ *
+ * Rounding up rather than to nearest, because a night is arranged for a time that has not happened
+ * yet. It lives here rather than on the page so the thing that went wrong has a test: at 23:45 UTC
+ * this used to round 1425 up to 1440 and the page offered to start the night at "+24:00".
+ */
+export function nextHalfHour(offset: number): number {
+  return Math.ceil(offset / 30) * 30;
+}
+
+/**
+ * How long a night from one time to another runs, in minutes. Zero when that is not a night.
+ *
+ * Forwards through reset, because the times wrap and subtracting them does not: a night from
+ * +11:00 to -9:00 is four hours, and the page DRAWS that end itself, so reading its own output
+ * back as a night of minus twenty hours was a real way to get a zero-length night on screen.
+ *
+ * Past half a day is where it stops being a wrap and starts being an end typed before the start.
+ * Nobody bosses for thirteen hours, so that is refused as zero rather than believed.
+ */
+export function spanBetween(from: number, to: number): number {
+  const span = to - from;
+  const forwards = span < 0 ? span + DAY : span;
+  return forwards > HALF_DAY ? 0 : forwards;
 }
 
 /** Where one run sits on the reset clock. */

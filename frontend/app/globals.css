@@ -4594,8 +4594,9 @@ button.link:disabled {
 }
 
 /* Fixed width, so a tilde or a two-digit hour does not step the art beside it in and out. 4.6em
-   holds the widest string this can draw, "~+25:30" at 54.7px on its own 12px font, measured in
-   chromium. A night running through reset is what produces that one. Pinned by run-time-css. */
+   holds the widest string this can draw, "~+11:30" at 54.7px on its own 12px font, measured in
+   chromium. A minus is narrower than a plus here, so the far side of reset is not the wide case
+   even though it looks like it. Pinned by run-time-css. */
 .run-time {
   min-width: 4.6em;
   color: var(--muted-2);
