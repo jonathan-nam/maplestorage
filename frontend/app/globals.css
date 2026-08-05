@@ -4388,6 +4388,82 @@ button.link:disabled {
   color: var(--ink-strong);
 }
 
+/* Two buttons drawn as one pill. The name has to stay a one-click on/off, and a window needs
+   somewhere else to be set from, so the chevron is its own hit target rather than a second meaning
+   for the same one. Nested buttons are not markup. */
+.night-chip {
+  display: inline-flex;
+}
+
+.night-chip .night-person {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.night-chip-set {
+  padding: 4px 8px;
+  border: 1px solid var(--line);
+  border-left: 0;
+  border-radius: 0 999px 999px 0;
+  background: var(--surface);
+  color: var(--muted-2);
+  font-size: 10px;
+  line-height: 18px;
+  cursor: pointer;
+}
+
+.night-chip-set:hover,
+.night-chip-set.is-open {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 26%, var(--surface));
+  color: var(--ink-strong);
+}
+
+/* A window the chip is carrying. Coloured, because the difference between a person who is on and a
+   person who is on until 3 is the whole plan, and it has to be readable with the row shut. */
+.night-pin {
+  margin-left: 4px;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+
+/* One row, reused by whichever chip is open, so four people are not four sets of controls. */
+.night-detail {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 14px;
+  margin-top: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface);
+}
+
+.night-detail-who {
+  color: var(--ink-strong);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.night-detail .split-input {
+  width: 5em;
+}
+
+/* Right of the presets, and out of the tab order: it is a readout, not a control. */
+.night-now {
+  margin-left: auto;
+  color: var(--muted-2);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.night-now b {
+  color: var(--ink-strong);
+  font-weight: 600;
+}
+
 .night-budget {
   display: flex;
   flex-wrap: wrap;
@@ -4445,7 +4521,6 @@ button.link:disabled {
 .run-grid {
   margin-top: 14px;
   overflow-x: auto;
-  counter-reset: run;
 }
 
 .run-table {
@@ -4475,15 +4550,27 @@ button.link:disabled {
   text-overflow: ellipsis;
 }
 
-.run-table tbody tr {
-  counter-increment: run;
-}
-
 /* The bands are the boss matrix's, for the reason given there: at full width the far column sits
    a long way from the boss name, so the stripe says which row you are on at rest and the hover
-   band tracks the one you are reading. Hue, not grey, and the two bands compose where they cross. */
-.run-table tbody tr:nth-child(even) {
+   band tracks the one you are reading. Hue, not grey, and the two bands compose where they cross.
+
+   Banded from a class rather than :nth-child, because a wait row between two runs is a row to the
+   selector and the striping under every gap inverted. */
+.run-table tbody tr.is-banded {
   background: var(--surface);
+}
+
+/* A gap in a night that is otherwise back to back, so it is drawn as one: a dashed rule across the
+   full width rather than a row of its own. */
+.run-wait td {
+  padding: 5px 8px;
+  border-top: 1px dashed var(--line);
+  color: var(--muted-2);
+  font-size: 12px;
+}
+
+.run-wait:hover {
+  background: none;
 }
 
 .run-table tbody tr:hover,
@@ -4506,14 +4593,15 @@ button.link:disabled {
   gap: 10px;
 }
 
-.run-number {
+/* Fixed width, so a tilde or a two-digit hour does not step the art beside it in and out. 4.6em
+   holds the widest string this can draw, "~+25:30" at 54.7px on its own 12px font, measured in
+   chromium. A night running through reset is what produces that one. Pinned by run-time-css. */
+.run-time {
+  min-width: 4.6em;
+  color: var(--muted-2);
   font-size: 12px;
   font-variant-numeric: tabular-nums;
-}
-
-.run-number::before {
-  content: counter(run) ".";
-  color: var(--line);
+  text-align: right;
 }
 
 /* The only place a boss portrait is drawn LARGER than the game draws it. The source is the 80px

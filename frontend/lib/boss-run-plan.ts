@@ -12,10 +12,11 @@
 // What is optimised, in order:
 //
 //   1. the number of runs that fit in the time
-//   2. the fullest parties first
-//   3. the least waiting around
-//   4. the number of switches
-//   5. finishing earlier
+//   2. the runs of whoever is being kept
+//   3. the fullest parties first
+//   4. the least waiting around
+//   5. the number of switches
+//   6. finishing earlier
 //
 // Count first is deliberate: the point of the night is dead bosses, and a plan that saves two
 // relogs by dropping a boss is not obviously better. It is often not much worse either, which is
@@ -35,6 +36,17 @@
 // A switch is counted and ordered on, never billed to the clock. The night is measured in whole
 // runs, so at the default half hour a run the schedule reads 0:00, 0:30, 1:00. Charging a relog
 // against an estimate that coarse only bought a finishing time that looked precise and was not.
+//
+// AVAILABILITY is a window per person, in minutes from the start of the night. `until` is hard:
+// somebody with other bossing booked at the end of theirs is not going to be late for it, so a run
+// that would overrun the window is never scheduled and its boss drops out of the plan. `from` makes
+// the night WAIT, since a run starts at the later of the clock and everybody in it being free. That
+// is the only thing that ever puts idle time in a schedule which is otherwise back to back, so a
+// gap in the plan always has a person's name on it. See PlannedRun.waitingFor.
+//
+// KEEPING somebody outranks party size and not run count. It picks WHOSE bosses when the same
+// number fit either way, so it never trades a dead boss for a preference on its own. Buying one
+// with a boss is a different question and `byCount` already holds the shorter plan to offer.
 
 /** One seat in a run: a character, and whose it is. Null means nobody has claimed it. */
 export type RunSeat = {
@@ -147,6 +159,17 @@ export function screenRuns(runs: CandidateRun[], availablePersonIds: Iterable<st
   return { eligible, rejected };
 }
 
+/**
+ * When one person can play, in minutes from the start of the night. An end left out is open.
+ *
+ * `until` is when they have to be FINISHED, not when they can last start something: the point of
+ * saying it is that they have somewhere else to be.
+ */
+export type Availability = {
+  from?: number;
+  until?: number;
+};
+
 export type PlanOptions = {
   /** The window, in minutes. */
   minutes: number;
@@ -155,24 +178,35 @@ export type PlanOptions = {
    * orderings of even fifteen runs do not fit in a browser tab. Wider is slower and no worse.
    */
   beamWidth?: number;
+  /** By person id. Anybody not in here is free for the whole night. */
+  available?: Record<string, Availability>;
+  /** People whose runs are the last to be dropped. See KEEPING. */
+  keep?: Iterable<string>;
 };
 
 export type PlannedRun = {
   run: EligibleRun;
   /** Who changed character to start this run, in seat order. Empty for most runs, and that is the point. */
   switched: string[];
-  /** Minutes from the start of the night: the runs before this one, and nothing else. */
+  /** Minutes from the start of the night. */
   startsAt: number;
+  /**
+   * Who the plan is waiting for, when this run starts later than the one before it finished.
+   * Empty for every run in a night nobody turns up late to, which is most of them.
+   */
+  waitingFor: string[];
 };
 
 export type Plan = {
   runs: PlannedRun[];
   switches: number;
-  /** Minutes the whole plan occupies: the runs added up, and nothing else. */
+  /** Minutes from the start of the night to the end of the last run, waiting included. */
   minutes: number;
+  /** How many runs the kept people are in, summed over them. Zero when nobody is being kept. */
+  kept: number;
 };
 
-export const EMPTY_PLAN: Plan = { runs: [], switches: 0, minutes: 0 };
+export const EMPTY_PLAN: Plan = { runs: [], switches: 0, minutes: 0, kept: 0 };
 
 // A state is copied once per candidate, and there are hundreds of thousands of candidates, so it is
 // built out of fixed-length arrays indexed by a number worked out up front. The string-keyed Maps
@@ -214,6 +248,8 @@ type State = {
   waiting: number;
   minutes: number;
   switches: number;
+  /** Seats taken by a kept person so far. See KEEPING. */
+  kept: number;
   /** Filled in by planKey on first use, which only happens on a tie. */
   orderKey: string | null;
 };
@@ -301,6 +337,9 @@ function swap<T>(items: T[], a: number, b: number): void {
 }
 
 function betterState(a: State, b: State): number {
+  // More of the kept people's runs. Above party size because party size is only a GUESS at who
+  // will still be here later, and this is somebody having said.
+  if (a.kept !== b.kept) return b.kept - a.kept;
   // Bigger parties earlier. Greater string, not lesser, so this is descending.
   if (a.parties !== b.parties) return a.parties < b.parties ? 1 : -1;
   if (a.waiting !== b.waiting) return a.waiting - b.waiting;
@@ -331,7 +370,12 @@ function planKey(state: State): string {
 }
 
 function toPlan(state: State): Plan {
-  return { runs: orderOf(state), switches: state.switches, minutes: state.minutes };
+  return {
+    runs: orderOf(state),
+    switches: state.switches,
+    minutes: state.minutes,
+    kept: state.kept,
+  };
 }
 
 /**
@@ -346,6 +390,8 @@ export function planNight(
   options: PlanOptions,
 ): { best: Plan; byCount: Plan[] } {
   const beamWidth = options.beamWidth ?? 1000;
+  const available = options.available ?? {};
+  const keeping = new Set(options.keep ?? []);
 
   // Everything a run needs during the search, numbered once. The inner loop then never touches an
   // IGN or a boss key, only indices into these.
@@ -364,7 +410,37 @@ export function planNight(
       if (pair === undefined) pairAt.set(name, (pair = pairAt.size));
       pairs.push(pair);
     }
-    return { run, index, persons, pairs, size: sizeField(run.seats.length) };
+
+    // A run's own window is the tightest of its seats', and it does not depend on what has been
+    // scheduled, so it is worked out once here rather than per candidate.
+    let readyAt = 0;
+    let dueBy = Infinity;
+    for (const seat of run.seats) {
+      const window = available[seat.personId];
+      if (window === undefined) continue;
+      if (window.from !== undefined && window.from > readyAt) readyAt = window.from;
+      if (window.until !== undefined && window.until < dueBy) dueBy = window.until;
+    }
+    // Only the people the wait is actually for, so a run held up until 3:00 does not also name
+    // somebody who was free at 2:40.
+    const waitsFor =
+      readyAt > 0
+        ? run.seats
+            .filter((seat) => available[seat.personId]?.from === readyAt)
+            .map((seat) => seat.personId)
+        : [];
+
+    return {
+      run,
+      index,
+      persons,
+      pairs,
+      size: sizeField(run.seats.length),
+      readyAt,
+      dueBy,
+      waitsFor,
+      keptSeats: run.seats.filter((seat) => keeping.has(seat.personId)).length,
+    };
   });
 
   const people = personAt.size;
@@ -380,6 +456,7 @@ export function planNight(
     waiting: 0,
     minutes: 0,
     switches: 0,
+    kept: 0,
     orderKey: null,
   };
 
@@ -395,12 +472,26 @@ export function planNight(
     const next = new Map<string, State>();
 
     for (const state of beam) {
-      for (const { run, index, persons, pairs, size } of prepared) {
+      for (const {
+        run,
+        index,
+        persons,
+        pairs,
+        size,
+        readyAt,
+        dueBy,
+        waitsFor,
+        keptSeats,
+      } of prepared) {
         if (hasBit(state.taken, index)) continue;
 
-        const startsAt = state.minutes;
+        // The later of the clock and everybody in it being free. Nothing else ever moves a run
+        // later than the one before it, so idle time only exists where somebody is not here yet.
+        const startsAt = readyAt > state.minutes ? readyAt : state.minutes;
         const minutes = startsAt + run.minutes;
         if (minutes > options.minutes) continue;
+        // Hard. Somebody who has to be done by their cutoff does not run one that ends after it.
+        if (minutes > dueBy) continue;
 
         let clashes = false;
         for (const pair of pairs) {
@@ -439,7 +530,15 @@ export function planNight(
         setBit(taken, index);
 
         const candidate: State = {
-          order: { planned: { run, switched, startsAt }, before: state.order },
+          order: {
+            planned: {
+              run,
+              switched,
+              startsAt,
+              waitingFor: startsAt > state.minutes ? waitsFor : [],
+            },
+            before: state.order,
+          },
           depth: at + 1,
           taken,
           parked,
@@ -449,12 +548,18 @@ export function planNight(
           waiting,
           minutes,
           switches: state.switches + switched.length,
+          kept: state.kept + keptSeats,
           orderKey: null,
         };
 
-        // Only ever compared for equality, so the shape is free: the taken words, then everyone who
-        // has logged in, in person order.
-        let key = taken.join();
+        // Only ever compared for equality, so the shape is free: the taken words, the clock, then
+        // everyone who has logged in, in person order.
+        //
+        // The clock is in here because waiting for somebody makes it depend on the ORDER the runs
+        // were taken in and not just on which ones. Without an arrival it is the sum of the taken
+        // runs and therefore already implied by the words in front of it, which is why adding it
+        // cannot change a plan for a night nobody turns up late to.
+        let key = `${taken.join()}@${minutes}`;
         for (let person = 0; person < people; person++) {
           const on = parked[person];
           if (on !== undefined) key += `|${person}>${on}@${lastRunAt[person]}`;
@@ -477,19 +582,26 @@ export function planNight(
 /**
  * The plans actually worth choosing between, longest first.
  *
- * Out of `byCount`, the ones that buy something: a shorter plan earns its place only by costing
- * strictly fewer switches than every longer one. Dropping a boss to save nothing is not an option
- * anybody wants offered, and listing all of them would bury the two that matter.
+ * Out of `byCount`, the ones that buy something: a shorter plan earns its place by costing strictly
+ * fewer switches than every longer one, or by fitting in more of the kept people's runs than any of
+ * them managed. Dropping a boss to save nothing is not an option anybody wants offered, and listing
+ * all of them would bury the two that matter.
+ *
+ * The second half is the whole point of keeping somebody. The search will not spend a boss on them
+ * by itself, so the plan where their last run fits is a SHORTER one, and it only reaches the page
+ * if this lets it through.
  */
 export function tradeOffs(byCount: Plan[]): Plan[] {
   const worthwhile: Plan[] = [];
   let fewest = Infinity;
+  let most = -Infinity;
 
   for (let i = byCount.length - 1; i >= 0; i--) {
     const plan = byCount[i];
-    if (plan && plan.switches < fewest) {
+    if (plan && (plan.switches < fewest || plan.kept > most)) {
       worthwhile.push(plan);
-      fewest = plan.switches;
+      if (plan.switches < fewest) fewest = plan.switches;
+      if (plan.kept > most) most = plan.kept;
     }
   }
 

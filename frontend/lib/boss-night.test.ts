@@ -6,7 +6,10 @@ import { DEFAULT_MINUTES, MAX_MINUTES, parseMinutes, runMinutes } from "./boss-m
 import {
   type DraftRun,
   formatDuration,
+  formatOffset,
+  offsetNow,
   ownerOf,
+  parseOffset,
   personKey,
   rosterFrom,
   rosterFromDrafts,
@@ -14,9 +17,10 @@ import {
   planAsText,
   planGrid,
   runsFromParties,
+  runTimes,
   YOU,
 } from "./boss-night";
-import { planNight, screenRuns } from "./boss-run-plan";
+import { type EligibleRun, planNight, screenRuns } from "./boss-run-plan";
 
 function member(over: Partial<PartyMember> & { name: string }): PartyMember {
   return {
@@ -283,6 +287,9 @@ describe("formatDuration", () => {
 });
 
 describe("planAsText", () => {
+  /** A night starting at +2:00, so the times in here read like ones a party would be given. */
+  const AT = 120;
+
   // Built through the real planner rather than a hand-made Plan, so the text is pinned against
   // what the tool actually produces.
   const textFor = (drafts: DraftRun[], minutes: number) => {
@@ -291,7 +298,7 @@ describe("planAsText", () => {
       runsFromDrafts(drafts),
       roster.map((p) => p.id),
     );
-    return planAsText(planNight(eligible, { minutes }).best, roster);
+    return planAsText(planNight(eligible, { minutes }).best, roster, AT);
   };
 
   const R = (id: string, bossName: string, seats: [string, string][]): DraftRun => ({
@@ -313,7 +320,7 @@ describe("planAsText", () => {
       runs,
       roster.map((p) => p.id),
     );
-    const text = planAsText(planNight(eligible, { minutes: 60 }).best, roster);
+    const text = planAsText(planNight(eligible, { minutes: 60 }).best, roster, AT);
     expect(text).toContain("Hard Lotus\t");
   });
 
@@ -371,8 +378,8 @@ describe("planAsText", () => {
     // Empty and not absent: the header keeps one field per column, so the names land over the
     // characters below them.
     const table = fenced(textFor(SPLIT_NIGHT, 180));
-    expect(table[0]).toBe("\tDave\tErin\tYou");
-    expect(table[1]).toBe("Lotus\tNightlord\tShadower\tBishop");
+    expect(table[0]).toBe("\t\tDave\tErin\tYou");
+    expect(table[1]).toBe("+2:00\tLotus\tNightlord\tShadower\tBishop");
   });
 
   it("marks somebody sitting a run out with an X", () => {
@@ -380,8 +387,8 @@ describe("planAsText", () => {
     // 3-person, 2-person, 1-person for size, which outranks keeping his two runs together, so
     // this is the gap the planner cannot close and the one the X has to show.
     const table = fenced(textFor(SPLIT_NIGHT, 180));
-    expect(table[2]).toBe("Damien\tX\tShadower\tBishop");
-    expect(table[3]).toBe("Lucid\tNightlord\tX\tX");
+    expect(table[2]).toBe("+2:30\tDamien\tX\tShadower\tBishop");
+    expect(table[3]).toBe("+3:00\tLucid\tNightlord\tX\tX");
   });
 
   it("gives every row the same columns, so the grid survives being pasted", () => {
@@ -390,7 +397,7 @@ describe("planAsText", () => {
     const table = fenced(textFor(SPLIT_NIGHT, 180));
     const widths = table.map((line) => line.split("\t").length);
     expect(new Set(widths).size).toBe(1);
-    expect(widths[0]).toBe(4);
+    expect(widths[0]).toBe(5);
   });
 
   it("still uses the marks, it just no longer explains them", () => {
@@ -424,8 +431,8 @@ describe("planAsText", () => {
     const table = fenced(
       textFor([R("1", "Lotus", [["Bishop", "You"]]), R("2", "Damien", [["Bishop", "You"]])], 120),
     );
-    expect(table[1]).toMatch(/^Lotus\t/);
-    expect(table[2]).toMatch(/^Damien\t/);
+    expect(table[1]).toMatch(/^\+2:00\tLotus\t/);
+    expect(table[2]).toMatch(/^\+2:30\tDamien\t/);
   });
 
   it("calls a boss what the party calls it", () => {
@@ -444,16 +451,16 @@ describe("planAsText", () => {
 
   it("keeps the full name for a boss with no shorthand", () => {
     const table = fenced(textFor([R("lotus", "Lotus", [["Bishop", "You"]])], 60));
-    expect(table[1]).toBe("Lotus\tBishop");
+    expect(table[1]).toBe("+2:00\tLotus\tBishop");
   });
 
   it("leaves a name holding a comma alone, since a tab is what splits a row", () => {
     const table = fenced(textFor([R("1", "Lotus", [["Bishop", "Dave, Jr"]])], 60));
-    expect(table[0]).toBe("\tDave, Jr");
+    expect(table[0]).toBe("\t\tDave, Jr");
   });
 
   it("says so plainly when there is nothing to paste", () => {
-    expect(planAsText({ runs: [], switches: 0, minutes: 0 }, [])).toBe(
+    expect(planAsText({ runs: [], switches: 0, minutes: 0, kept: 0 }, [], 0)).toBe(
       "No bosses fit in the time.",
     );
   });
@@ -470,9 +477,9 @@ describe("planAsText", () => {
         60,
       ),
     );
-    // The empty corner is the one leading tab. Nothing else is indented, and no field is padded
+    // The empty corners are the leading tabs. Nothing else is indented, and no field is padded
     // out to the width of a longer one in its column.
-    expect(table[0]).toBe("\tChristopher\tYou");
+    expect(table[0]).toBe("\t\tChristopher\tYou");
     expect(table.every((line) => !line.startsWith(" "))).toBe(true);
     expect(table.every((line) => line.split("\t").every((field) => field === field.trim()))).toBe(
       true,
@@ -481,7 +488,7 @@ describe("planAsText", () => {
 
   it("keeps a name with a tab in it from splitting a row", () => {
     const table = fenced(textFor([R("1", "Lotus", [["Bishop", "Dave\tJr"]])], 60));
-    expect(table[0]).toBe("\tDave Jr");
+    expect(table[0]).toBe("\t\tDave Jr");
   });
 });
 
@@ -548,5 +555,123 @@ describe("planGrid", () => {
       30,
     );
     expect(people.map((person) => person.name)).toEqual(["You"]);
+  });
+});
+
+describe("parseOffset", () => {
+  it("takes all four spellings, because all four get typed", () => {
+    expect(parseOffset("3.5")).toBe(210);
+    expect(parseOffset("+3.5")).toBe(210);
+    expect(parseOffset("3:30")).toBe(210);
+    expect(parseOffset("+3:30")).toBe(210);
+  });
+
+  it("takes a bare hour, and a decimal that is not a half", () => {
+    expect(parseOffset("3")).toBe(180);
+    expect(parseOffset("2.25")).toBe(135);
+    expect(parseOffset(" +2 ")).toBe(120);
+  });
+
+  it("takes one past reset, since a night can run through it", () => {
+    expect(parseOffset("+25:30")).toBe(1530);
+  });
+
+  it("refuses what is not a time rather than guessing at it", () => {
+    for (const bad of ["", "+", "soon", "3:60", "-2", "99", "3:5"]) {
+      expect(parseOffset(bad)).toBeNull();
+    }
+  });
+});
+
+describe("formatOffset", () => {
+  it("writes it on the clock, not as the decimal it was typed as", () => {
+    expect(formatOffset(210)).toBe("+3:30");
+    expect(formatOffset(0)).toBe("+0:00");
+    expect(formatOffset(1530)).toBe("+25:30");
+  });
+
+  it("pads the minutes, so a column of times is a column", () => {
+    expect(formatOffset(125)).toBe("+2:05");
+  });
+
+  it("survives the round trip for every time a box can hold", () => {
+    for (let minutes = 0; minutes <= 48 * 60; minutes += 5) {
+      expect(parseOffset(formatOffset(minutes))).toBe(minutes);
+    }
+  });
+});
+
+describe("offsetNow", () => {
+  it("is minutes since 00:00 UTC, which is when reset is", () => {
+    expect(offsetNow(Date.UTC(2026, 7, 5, 0, 0))).toBe(0);
+    expect(offsetNow(Date.UTC(2026, 7, 5, 3, 30))).toBe(210);
+  });
+
+  it("drops the seconds, so two reads in one render agree", () => {
+    expect(offsetNow(Date.UTC(2026, 7, 5, 3, 30, 59))).toBe(210);
+  });
+});
+
+describe("runTimes", () => {
+  const ME = { id: "me", name: "You" };
+  const DAVE = { id: "dave", name: "Dave" };
+
+  const E = (
+    id: string,
+    minutes: number,
+    assumed: boolean,
+    seats: [string, string][],
+  ): EligibleRun => ({
+    id,
+    bossKey: id,
+    bossName: id,
+    difficulty: null,
+    minutes,
+    assumed,
+    seats: seats.map(([character, personId]) => ({ character, personId })),
+  });
+
+  it("counts from the night's start, on the reset clock", () => {
+    const { best } = planNight(
+      [E("a", 30, false, [["Bishop", "me"]]), E("b", 30, false, [["Bishop", "me"]])],
+      { minutes: 120 },
+    );
+    expect(runTimes(best, [ME], 120).map((time) => time.at)).toEqual(["+2:00", "+2:30"]);
+  });
+
+  it("marks a time it only reached by adding up a guess", () => {
+    const { best } = planNight(
+      [E("a", 30, true, [["Bishop", "me"]]), E("b", 30, false, [["Bishop", "me"]])],
+      { minutes: 120 },
+    );
+    const times = runTimes(best, [ME], 120);
+    // The first is the start that was typed in. The second is that plus a guessed half hour.
+    expect(times[0]?.approx).toBe(false);
+    expect(times[1]?.approx).toBe(true);
+  });
+
+  it("stops guessing at a time somebody stated out loud", () => {
+    // Both runs are the same size on purpose. Party size outranks the clock, so a two-seat run
+    // beside a one-seat one is ordered on size and this stops testing what it says it tests.
+    const { best } = planNight(
+      [
+        E("a", 30, true, [
+          ["Bishop", "me"],
+          ["Night", "erin"],
+        ]),
+        E("b", 30, true, [
+          ["Kanna", "me"],
+          ["Hero", "dave"],
+        ]),
+      ],
+      { minutes: 180, available: { dave: { from: 60 } } },
+    );
+    const times = runTimes(best, [ME, DAVE, { id: "erin", name: "Erin" }], 120);
+
+    expect(times[1]?.at).toBe("+3:00");
+    // Both runs are guesses, but the night sat until Dave said he was free, so the clock is his
+    // number rather than a total of theirs.
+    expect(times[1]?.approx).toBe(false);
+    expect(times[1]?.waitingFor.map((person) => person.name)).toEqual(["Dave"]);
   });
 });

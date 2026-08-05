@@ -11,13 +11,16 @@ import { DEFAULT_MINUTES } from "@/lib/boss-minutes";
 import {
   type DraftRun,
   formatDuration,
+  formatOffset,
   type NightPerson,
+  offsetNow,
+  parseOffset,
   rosterFrom,
   rosterFromDrafts,
   runsFromDrafts,
   runsFromParties,
 } from "@/lib/boss-night";
-import { planNight, screenRuns, tradeOffs } from "@/lib/boss-run-plan";
+import { type Availability, planNight, screenRuns, tradeOffs } from "@/lib/boss-run-plan";
 import { peek, put } from "@/lib/cache";
 import { isCleared } from "@/lib/parties";
 import { preloadRunArt } from "@/lib/preload-boss-art";
@@ -35,6 +38,57 @@ const NO_DRAFTS: DraftRun[] = [];
 
 type Source = "parties" | "byHand";
 type LoadState = "loading" | "loaded" | "error";
+
+/** One person's window, as typed. Parsed where it is used, so a half-finished "+3" is not a time. */
+type WindowText = { from: string; until: string };
+
+const NO_WINDOW: WindowText = { from: "", until: "" };
+const NO_WINDOWS: Record<string, WindowText> = {};
+const NOBODY: string[] = [];
+
+// The clock only has to be right to the minute it is drawn to, and it is read on every render, so
+// it ticks on its own rather than being recomputed. Same primitive as the drafts below and for the
+// same reason: there is no clock during the prerender, and seeding one from an effect is a
+// setState cascade that also renders the wrong minute first.
+const CLOCK_TICK = 20_000;
+
+function subscribeToClock(onChange: () => void) {
+  const timer = setInterval(onChange, CLOCK_TICK);
+  return () => clearInterval(timer);
+}
+
+/** Quantised to the minute by offsetNow, so repeated reads inside one render agree. */
+function readClock(): number {
+  return offsetNow(Date.now());
+}
+
+function noClock(): null {
+  return null;
+}
+
+/** The next half hour. Defaulting the night to "in seven minutes" is not a night anybody arranged. */
+function nextHalfHour(offset: number): number {
+  return Math.ceil(offset / 30) * 30;
+}
+
+/**
+ * What a chip says about somebody without being opened: "· +2:00 to +4:00", "· to +3:00 · kept".
+ *
+ * Null when there is nothing to say, which is the usual case and the reason the chip row still
+ * reads as a row of names.
+ */
+function pinOf(window: WindowText | undefined, kept: boolean): string | null {
+  const from = window ? parseOffset(window.from) : null;
+  const until = window ? parseOffset(window.until) : null;
+
+  const said: string[] = [];
+  if (from !== null && until !== null) said.push(`${formatOffset(from)} to ${formatOffset(until)}`);
+  else if (from !== null) said.push(`from ${formatOffset(from)}`);
+  else if (until !== null) said.push(`to ${formatOffset(until)}`);
+  if (kept) said.push("kept");
+
+  return said.length === 0 ? null : `· ${said.join(" · ")}`;
+}
 
 // Hand-typed runs are read through useSyncExternalStore rather than an effect. localStorage does
 // not exist during the prerender, so seeding useState from it hydrates to different markup than
@@ -86,11 +140,30 @@ export default function RunOrderPage() {
   const [state, setState] = useState<LoadState>(seededParties ? "loaded" : "loading");
 
   const [source, setSource] = useState<Source>("parties");
-  const [budget, setBudget] = useState(120);
+  const [duration, setDuration] = useState(120);
   const [openOnly, setOpenOnly] = useState(true);
   const [away, setAway] = useState<string[]>([]);
   const [chosen, setChosen] = useState<number | null>(null);
   const [edited, setEdited] = useState<DraftRun[] | null>(null);
+
+  // The night on the reset clock: when it starts, when it has to be over, and who is only here for
+  // part of it. Every one of these is a time since 00:00 UTC, which is what the party already says.
+  const [startText, setStartText] = useState("");
+  const [endText, setEndText] = useState<string | null>(null);
+  const [windows, setWindows] = useState<Record<string, WindowText>>(NO_WINDOWS);
+  const [keep, setKeep] = useState<string[]>(NOBODY);
+  const [opened, setOpened] = useState<string | null>(null);
+
+  const now = useSyncExternalStore(subscribeToClock, readClock, noClock);
+  // Now, rounded up, until you say otherwise. The prerender has no clock and lands on zero, which
+  // nothing draws: every section holding a time is behind data that is empty until the fetch.
+  const startAt = parseOffset(startText) ?? (now === null ? 0 : nextHalfHour(now));
+
+  // The end is what people say ("done by +2"), the duration is what they pick, and either can be
+  // the one that moves. Typing an end wins while it parses; a preset hands it back to the duration.
+  const endAt = endText === null ? null : parseOffset(endText);
+  const budget = endAt === null ? duration : Math.max(0, endAt - startAt);
+  const endShown = endText ?? formatOffset(startAt + budget);
 
   const storedRaw = useSyncExternalStore(subscribeToDrafts, readStoredDrafts, noStoredDrafts);
   const stored = useMemo(() => parseDrafts(storedRaw), [storedRaw]);
@@ -153,8 +226,8 @@ export default function RunOrderPage() {
   // depths of the chain, and deferring them one by one is what allowed them to disagree. Server
   // data (parties, bosses) is deliberately not in here, so a load still paints the moment it lands.
   const inputs = useMemo(
-    () => ({ source, budget, openOnly, away, drafts }),
-    [source, budget, openOnly, away, drafts],
+    () => ({ source, budget, openOnly, away, drafts, startAt, windows, keep }),
+    [source, budget, openOnly, away, drafts, startAt, windows, keep],
   );
   const shown = useDeferredValue(inputs);
   const stale = shown !== inputs;
@@ -186,6 +259,8 @@ export default function RunOrderPage() {
   );
   const here = useMemo(() => onTonight.map((person) => person.id), [onTonight]);
 
+  const openedPerson = roster.find((person) => person.id === opened) ?? null;
+
   // Only the eligible half is read. screenRuns still reports what it rejected, and the page no
   // longer shows it: a run nobody can staff now just does not appear.
   const { eligible } = useMemo(() => screenRuns(runs, here), [runs, here]);
@@ -194,9 +269,25 @@ export default function RunOrderPage() {
   // ~64ms a normal account takes, the fade began and reversed before it finished, and a flicker
   // reads as a fault where the plain swap reads as the page keeping up. aria-busy still says it,
   // for anything listening rather than looking.
+  // Windows are stated on the reset clock and the search counts from the start of the night, so
+  // this is where the one becomes the other. A half-typed "+" parses to nothing and constrains
+  // nothing, which is what stops the plan lurching about while somebody types a time.
+  const available = useMemo(() => {
+    const byPerson: Record<string, Availability> = {};
+    for (const [id, window] of Object.entries(shown.windows)) {
+      const from = parseOffset(window.from);
+      const until = parseOffset(window.until);
+      const said: Availability = {};
+      if (from !== null) said.from = Math.max(0, from - shown.startAt);
+      if (until !== null) said.until = Math.max(0, until - shown.startAt);
+      if (said.from !== undefined || said.until !== undefined) byPerson[id] = said;
+    }
+    return byPerson;
+  }, [shown.windows, shown.startAt]);
+
   const { best, byCount } = useMemo(
-    () => planNight(eligible, { minutes: shown.budget }),
-    [eligible, shown.budget],
+    () => planNight(eligible, { minutes: shown.budget, available, keep: shown.keep }),
+    [eligible, shown.budget, available, shown.keep],
   );
 
   const options = useMemo(() => tradeOffs(byCount), [byCount]);
@@ -207,6 +298,19 @@ export default function RunOrderPage() {
   const scheduled = new Set(plan.runs.map((planned) => planned.run.id));
   const unscheduled = eligible.filter((run) => !scheduled.has(run.id));
   const assumed = plan.runs.filter((planned) => planned.run.assumed).length;
+
+  // What "all of theirs" would mean tonight: every seat the kept people hold across every run that
+  // could be scheduled at all. A plan reaching it is the one worth offering as the second tab.
+  const keptPossible = eligible.reduce(
+    (total, run) => total + run.seats.filter((seat) => shown.keep.includes(seat.personId)).length,
+    0,
+  );
+  const keptNames = onTonight
+    .filter((person) => shown.keep.includes(person.id))
+    .map((person) => person.name);
+  const keepsAll = (option: { kept: number }) => keptPossible > 0 && option.kept === keptPossible;
+  // Only worth saying where it distinguishes the tabs. Every plan keeping everything says nothing.
+  const keepDivides = options.some(keepsAll) && options.some((option) => !keepsAll(option));
 
   return (
     <main className="page">
@@ -298,8 +402,9 @@ export default function RunOrderPage() {
           <ul className="night-roster">
             {roster.map((person) => {
               const on = !away.includes(person.id);
+              const pin = pinOf(windows[person.id], keep.includes(person.id));
               return (
-                <li key={person.id}>
+                <li className="night-chip" key={person.id}>
                   <button
                     type="button"
                     className={on ? "night-person is-on" : "night-person"}
@@ -312,18 +417,103 @@ export default function RunOrderPage() {
                     }}
                   >
                     {person.name}
+                    {pin && <span className="night-pin">{pin}</span>}
+                  </button>
+                  <button
+                    type="button"
+                    className={opened === person.id ? "night-chip-set is-open" : "night-chip-set"}
+                    aria-expanded={opened === person.id}
+                    aria-label={`When ${person.name} is free`}
+                    onClick={() =>
+                      setOpened((current) => (current === person.id ? null : person.id))
+                    }
+                  >
+                    <span aria-hidden="true">&#9662;</span>
                   </button>
                 </li>
               );
             })}
           </ul>
+
+          {/* Named off the roster rather than off `opened` alone: switching source swaps everybody
+              out, and a row headed by nothing is worse than no row. */}
+          {openedPerson !== null && (
+            <div className="night-detail">
+              <span className="night-detail-who">{openedPerson.name}</span>
+              <label className="night-custom">
+                <span>Free from</span>
+                <input
+                  className="split-input"
+                  type="text"
+                  inputMode="decimal"
+                  value={(windows[openedPerson.id] ?? NO_WINDOW).from}
+                  placeholder={formatOffset(startAt)}
+                  onChange={(e) => {
+                    const from = e.target.value;
+                    setWindows((current) => ({
+                      ...current,
+                      [openedPerson.id]: { ...(current[openedPerson.id] ?? NO_WINDOW), from },
+                    }));
+                    setChosen(null);
+                  }}
+                />
+              </label>
+              <label className="night-custom">
+                <span>until</span>
+                <input
+                  className="split-input"
+                  type="text"
+                  inputMode="decimal"
+                  value={(windows[openedPerson.id] ?? NO_WINDOW).until}
+                  placeholder={formatOffset(startAt + budget)}
+                  onChange={(e) => {
+                    const until = e.target.value;
+                    setWindows((current) => ({
+                      ...current,
+                      [openedPerson.id]: { ...(current[openedPerson.id] ?? NO_WINDOW), until },
+                    }));
+                    setChosen(null);
+                  }}
+                />
+              </label>
+              <label className="night-toggle">
+                <input
+                  type="checkbox"
+                  checked={keep.includes(openedPerson.id)}
+                  onChange={(e) => {
+                    setKeep((current) =>
+                      e.target.checked
+                        ? [...current, openedPerson.id]
+                        : current.filter((id) => id !== openedPerson.id),
+                    );
+                    setChosen(null);
+                  }}
+                />
+                <span>Keep their runs</span>
+              </label>
+            </div>
+          )}
         </section>
       )}
 
       {runs.length > 0 && (
         <section className="night-section">
-          <h2 className="night-heading">How long you have</h2>
+          <h2 className="night-heading">When you&apos;re running</h2>
           <div className="night-budget">
+            <label className="night-custom">
+              <span>From</span>
+              <input
+                className="split-input"
+                type="text"
+                inputMode="decimal"
+                value={startText}
+                placeholder={now === null ? "" : formatOffset(nextHalfHour(now))}
+                onChange={(e) => {
+                  setStartText(e.target.value);
+                  setChosen(null);
+                }}
+              />
+            </label>
             <span className="basis-row">
               {PRESETS.map((preset) => (
                 <button
@@ -332,7 +522,8 @@ export default function RunOrderPage() {
                   className={budget === preset ? "basis-tab active" : "basis-tab"}
                   aria-pressed={budget === preset}
                   onClick={() => {
-                    setBudget(preset);
+                    setDuration(preset);
+                    setEndText(null);
                     setChosen(null);
                   }}
                 >
@@ -340,20 +531,26 @@ export default function RunOrderPage() {
                 </button>
               ))}
             </span>
+            {/* An end rather than a length, because "we need to be done by +2" is what gets said.
+                It follows the presets until it is typed in, and then it is what sets the length. */}
             <label className="night-custom">
-              <span>Minutes</span>
+              <span>until</span>
               <input
                 className="split-input"
-                type="number"
-                min={0}
-                step={15}
-                value={budget}
+                type="text"
+                inputMode="decimal"
+                value={endShown}
                 onChange={(e) => {
-                  setBudget(Math.max(0, Number(e.target.value) || 0));
+                  setEndText(e.target.value);
                   setChosen(null);
                 }}
               />
             </label>
+            {now !== null && (
+              <span className="night-now">
+                now <b>{formatOffset(now)}</b>
+              </span>
+            )}
           </div>
         </section>
       )}
@@ -374,17 +571,23 @@ export default function RunOrderPage() {
                     onClick={() => setChosen(i)}
                   >
                     {option.runs.length} {option.runs.length === 1 ? "boss" : "bosses"}
+                    {/* What the shorter plan bought. Keeping somebody costs a boss, so the tab
+                        that says so is the only place that trade is ever offered. */}
                     <span className="tab-count">
-                      {option.switches} {option.switches === 1 ? "switch" : "switches"}
+                      {keepDivides && keepsAll(option)
+                        ? keptNames.length === 1
+                          ? `all of ${keptNames[0]}'s`
+                          : "all kept runs"
+                        : `${option.switches} ${option.switches === 1 ? "switch" : "switches"}`}
                     </span>
                   </button>
                 ))}
               </div>
             )}
-            <CopyPlan plan={plan} roster={onTonight} />
+            <CopyPlan plan={plan} roster={onTonight} startAt={shown.startAt} />
           </div>
 
-          <RunPlan plan={plan} roster={onTonight} />
+          <RunPlan plan={plan} roster={onTonight} startAt={shown.startAt} />
 
           {/* What was guessed stays on screen. It is what the finishing time is built from, and a
               time presented without it reads as a measurement of your parties. */}

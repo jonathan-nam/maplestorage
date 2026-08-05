@@ -473,3 +473,132 @@ describe("bestOf", () => {
     expect(bestOf([], 5, ascending)).toEqual([]);
   });
 });
+
+describe("availability", () => {
+  it("puts a run before the cutoff of somebody in it", () => {
+    const runs = [
+      eligible("a", "lotus", 30, [["Bishop", "me"]]),
+      eligible("b", "damien", 30, [
+        ["Kanna", "me"],
+        ["Hero", "dave"],
+      ]),
+    ];
+    // Dave has other bossing 45 minutes in, so the run he is in has to be the one that goes first.
+    const { best } = planNight(runs, { minutes: 120, available: { dave: { until: 45 } } });
+    expect(order(best)).toEqual(["b", "a"]);
+  });
+
+  it("drops the boss rather than run it past a cutoff", () => {
+    const runs = [
+      eligible("a", "lotus", 30, [["Bishop", "me"]]),
+      eligible("b", "damien", 30, [["Kanna", "me"]]),
+      eligible("c", "lucid", 30, [
+        ["Hero", "me"],
+        ["Shade", "dave"],
+      ]),
+    ];
+    // Dave is gone at 20 and every run is 30, so his cannot happen even first. A cutoff is hard:
+    // the boss goes, and the leftovers on screen are where it turns up.
+    const { best } = planNight(runs, { minutes: 120, available: { dave: { until: 20 } } });
+    expect(best.runs).toHaveLength(2);
+    expect(order(best)).not.toContain("c");
+  });
+
+  it("waits for somebody who is not on yet, and says whose wait it is", () => {
+    const runs = [
+      eligible("a", "lotus", 30, [
+        ["Bishop", "me"],
+        ["Night", "erin"],
+      ]),
+      eligible("b", "damien", 30, [
+        ["Kanna", "me"],
+        ["Hero", "dave"],
+      ]),
+    ];
+    const { best } = planNight(runs, { minutes: 180, available: { dave: { from: 60 } } });
+
+    expect(order(best)).toEqual(["a", "b"]);
+    expect(best.runs[1]?.startsAt).toBe(60);
+    expect(best.runs[1]?.waitingFor).toEqual(["dave"]);
+    // The idle half hour is in the length, because it is time the night takes.
+    expect(best.minutes).toBe(90);
+  });
+
+  it("names only the person the wait is actually for", () => {
+    const runs = [
+      eligible("a", "lotus", 30, [
+        ["Bishop", "me"],
+        ["Hero", "dave"],
+        ["Shade", "erin"],
+      ]),
+    ];
+    // Erin is free at 40 and Dave at 60, so the run starts at 60 and it is Dave being waited on.
+    const { best } = planNight(runs, {
+      minutes: 180,
+      available: { dave: { from: 60 }, erin: { from: 40 } },
+    });
+    expect(best.runs[0]?.waitingFor).toEqual(["dave"]);
+  });
+
+  it("leaves waitingFor empty when nobody held anything up", () => {
+    const runs = [eligible("a", "lotus", 30, [["Bishop", "me"]])];
+    const { best } = planNight(runs, { minutes: 60, available: { me: { from: 0, until: 60 } } });
+    expect(best.runs[0]?.waitingFor).toEqual([]);
+    expect(best.runs[0]?.startsAt).toBe(0);
+  });
+});
+
+describe("keeping somebody", () => {
+  const TWO_WAYS: EligibleRun[] = [
+    eligible("a", "lotus", 60, [
+      ["Bishop", "me"],
+      ["Hero", "dave"],
+    ]),
+    eligible("b", "damien", 60, [
+      ["Bishop", "me"],
+      ["Shade", "erin"],
+    ]),
+  ];
+
+  it("picks whose boss when the same number fit either way", () => {
+    // One run fits and the two are alike in size, length and switches, so keeping somebody is the
+    // only thing left to separate them.
+    expect(order(planNight(TWO_WAYS, { minutes: 60, keep: ["dave"] }).best)).toEqual(["a"]);
+    expect(order(planNight(TWO_WAYS, { minutes: 60, keep: ["erin"] }).best)).toEqual(["b"]);
+  });
+
+  it("counts nobody when nobody is being kept", () => {
+    expect(planNight(TWO_WAYS, { minutes: 60 }).best.kept).toBe(0);
+  });
+
+  const ONE_OR_TWO: EligibleRun[] = [
+    eligible("a", "lotus", 30, [["Bishop", "me"]]),
+    eligible("b", "damien", 30, [["Bishop", "me"]]),
+    eligible("c", "lucid", 60, [
+      ["Bishop", "me"],
+      ["Shade", "dave"],
+    ]),
+  ];
+
+  it("will not spend a boss on them", () => {
+    // An hour holds a and b, or c on its own. Keeping Dave does not make one boss beat two, so
+    // the preference never quietly costs the night a dead boss.
+    const { best } = planNight(ONE_OR_TWO, { minutes: 60, keep: ["dave"] });
+    expect(best.runs).toHaveLength(2);
+    expect(order(best)).not.toContain("c");
+  });
+
+  it("offers the shorter plan that does fit theirs in", () => {
+    // Nothing here saves a switch, so this plan reaches the tabs on the kept count or not at all.
+    const offered = tradeOffs(planNight(ONE_OR_TWO, { minutes: 60, keep: ["dave"] }).byCount);
+    expect(offered.map((plan) => plan.runs.length)).toEqual([2, 1]);
+    expect(offered[1]?.kept).toBe(1);
+    expect(offered.every((plan) => plan.switches === 0)).toBe(true);
+  });
+
+  it("does not offer it when nobody is being kept", () => {
+    expect(
+      tradeOffs(planNight(ONE_OR_TWO, { minutes: 60 }).byCount).map((plan) => plan.runs.length),
+    ).toEqual([2]);
+  });
+});
