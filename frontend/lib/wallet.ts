@@ -31,6 +31,8 @@ export type WalletLine = {
   bossKey: string | null;
   droppedOn: string;
   direction: Direction;
+  /** A member bought it off the party rather than selling it, so no sale can be named. */
+  bought: boolean;
   /** The seat on your side, and the seat on theirs. Names, because that is what the game knows. */
   mine: string;
   theirs: string;
@@ -161,6 +163,7 @@ export function buildWallet(parties: Party[], pools: PartyLootPool[]): Wallet {
           bossKey: loot.bossKey,
           droppedOn: loot.droppedOn,
           direction,
+          bought: loot.amountBasis === "BOUGHT",
           mine: mine.name,
           theirs: theirs.name,
           theirsId: theirs.id,

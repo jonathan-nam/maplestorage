@@ -290,9 +290,11 @@ function WalletRow({
                 <Link href={`/bosses/parties/${line.partyId}`}>{line.name}</Link>
               </span>
               <span className="wallet-line-who">
+                {/* "sold" on a drop a member bought off the party would name a sale that never
+                    happened. The debt is the same one either way, which is why it is here. */}
                 {line.direction === "owe"
-                  ? `${line.mine} sold, owes ${line.theirs}`
-                  : `${line.theirs} sold, owes ${line.mine}`}
+                  ? `${line.mine} ${line.bought ? "bought" : "sold"}, owes ${line.theirs}`
+                  : `${line.theirs} ${line.bought ? "bought" : "sold"}, owes ${line.mine}`}
                 {" · "}
                 {formatDropped(line.droppedOn)}
               </span>
