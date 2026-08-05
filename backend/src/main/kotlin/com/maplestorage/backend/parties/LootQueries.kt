@@ -30,7 +30,9 @@ internal const val STATUS_SOLD = "SOLD"
 /** Sold and everyone has been paid. */
 internal const val STATUS_PAID_OUT = "PAID_OUT"
 
-internal val AMOUNT_BASES = setOf("LISTED", "RECEIVED")
+// BOUGHT is a party member buying the drop off the party: no Auction House cut came off the top,
+// and sellerMemberId is the buyer. See V29__loot_bought_by_member.sql.
+internal val AMOUNT_BASES = setOf("LISTED", "RECEIVED", "BOUGHT")
 internal val SPLIT_METHODS = setOf("LAZY", "FAIR")
 
 /** A drop with its catalog name, icon and boss attached, which is every read of the pool. */

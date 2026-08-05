@@ -309,6 +309,9 @@ object PartyLoot : Table("party_loot") {
     val saleAmount = long("sale_amount").nullable()
     val amountBasis = text("amount_basis").nullable()
     val splitMethod = text("split_method").nullable()
+
+    // Whoever ended up holding the value and owing the rest: the seller, or on a BOUGHT basis the
+    // member who bought it.
     val sellerMemberId = optReference("seller_member_id", PartyMember.id)
 
     val createdAt = timestamp("created_at")

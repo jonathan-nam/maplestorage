@@ -83,6 +83,21 @@ describe("splitOf", () => {
     expect(received.seller.keeps).toBeGreaterThan(listed.seller.keeps);
   });
 
+  it("takes no Auction House cut off a drop a party member bought", () => {
+    // Nothing was listed, so the price is the whole pot and the buyer holds it, exactly as a
+    // received figure does. The payouts are still taxed, which is why the shares match too.
+    const received = splitOf(sold({ amountBasis: "RECEIVED" }), party)!;
+    const bought = splitOf(sold({ amountBasis: "BOUGHT" }), party)!;
+    expect(bought.split.grossSale).toBeNull();
+    expect(bought.seller.keeps).toBe(received.seller.keeps);
+    expect(bought.shares.map((s) => s.pay)).toEqual(received.shares.map((s) => s.pay));
+  });
+
+  it("refuses a basis it cannot read rather than guessing at the fee", () => {
+    // Defaulting an unknown basis to "received" would skip a 5% hop on a row a newer build wrote.
+    expect(splitOf(sold({ amountBasis: "AUCTIONED" }), party)).toBeNull();
+  });
+
   it("refuses a drop that is not sold", () => {
     expect(
       splitOf(sold({ saleAmount: null, sellerMemberId: null, status: "PENDING" }), party),

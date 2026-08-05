@@ -112,7 +112,7 @@ export default function DropLogPage() {
                   <span className="stat-value is-good">{formatMesos(totals.pooled, true)}</span>
                   {/* Labelled precisely, because the obvious reading of "total sales" is a number
                       that cannot be computed. See the header of lib/drop-log.ts. */}
-                  <span className="stat-note">landed in inventories, fee off</span>
+                  <span className="stat-note">what there was to split</span>
                 </div>
                 <div className="stat-tile">
                   <span className="stat-label">Your take</span>
@@ -231,7 +231,9 @@ function DropRow({
     boss?.name,
     showCharacter ? characterName : null,
     formatDropped(entry.droppedOn),
-    entry.sellerName ? `sold by ${entry.sellerName}` : null,
+    entry.sellerName
+      ? `${entry.amountBasis === "BOUGHT" ? "bought by" : "sold by"} ${entry.sellerName}`
+      : null,
   ].filter(Boolean);
 
   return (
