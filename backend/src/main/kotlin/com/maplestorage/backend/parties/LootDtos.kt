@@ -35,6 +35,7 @@ data class LootResponse(
     val saleAmount: Long?,
     val amountBasis: String?,
     val splitMethod: String?,
+    // Who holds the value and owes the rest: the seller, or the buyer when a member bought it.
     val sellerMemberId: String?,
     val soldAt: String?,
     // Who is owed, as pinned when the drop sold. Empty until then.
@@ -77,10 +78,13 @@ data class AddLootRequest(
 @Serializable
 data class SellLootRequest(
     val amount: Long,
-    // LISTED (what it was listed at) or RECEIVED (what landed in the seller's inventory).
+    // LISTED (what it was listed at), RECEIVED (what landed in the seller's inventory), or BOUGHT
+    // (what a party member paid the party for it, no Auction House cut off the top).
     val amountBasis: String,
     // LAZY or FAIR. See lib/drop-split.ts for what the difference costs.
     val splitMethod: String,
+    // The seller, or on a BOUGHT basis the member who bought it. Either way the seat the shares
+    // are measured from, and the one seat the sale does not owe.
     val sellerMemberId: String,
 )
 

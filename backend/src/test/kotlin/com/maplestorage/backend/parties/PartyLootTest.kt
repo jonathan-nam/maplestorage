@@ -248,6 +248,27 @@ class PartyLootTest {
     }
 
     @Test
+    fun `a party member buying it owes the same shares a seller would`() {
+        transaction {
+            val party = trio()
+            val partyId = Uuid.parse(party.id)
+            val lootId = addGrindstone(party)
+            val buyer = party.members[0]
+
+            // The buyer holds the value instead of the seller, so they take the same column and
+            // are the one seat the payouts skip. The basis is what says no fee came off the top.
+            val bought = SellLootRequest(9_500_000_000, "BOUGHT", "FAIR", buyer.id)
+            sellLoot(lootId, bought, Uuid.parse(buyer.id), partyId, Clock.System.now())
+
+            val loot = findLoot(lootId, partyId)!!
+            assertEquals("BOUGHT", loot.amountBasis)
+            assertEquals(buyer.id, loot.sellerMemberId)
+            val owed = party.members.drop(1).map { it.id }
+            assertEquals(owed.toSet(), loot.payouts.map { it.memberId }.toSet())
+        }
+    }
+
+    @Test
     fun `a member who joins after the sale is not owed for it`() {
         transaction {
             val party = trio()

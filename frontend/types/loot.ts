@@ -21,10 +21,12 @@ export type Loot = {
   // PENDING, SOLD or PAID_OUT. Derived by the server from the sale and the payout rows.
   status: string;
   saleAmount: number | null;
-  // LISTED or RECEIVED. See AmountBasis in lib/drop-split.ts.
+  // LISTED, RECEIVED, or BOUGHT when a party member bought it off the party (no Auction House cut
+  // off the top). Read by basisOf() in lib/loot.ts, which refuses anything else.
   amountBasis: string | null;
   // LAZY or FAIR.
   splitMethod: string | null;
+  // Who holds the value and owes the rest: the seller, or the buyer on a BOUGHT basis.
   sellerMemberId: string | null;
   soldAt: string | null;
   // Who is owed, pinned when the drop sold. Empty before that.

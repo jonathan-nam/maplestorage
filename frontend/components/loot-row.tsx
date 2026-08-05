@@ -42,6 +42,10 @@ export function LootRow({
   const ran = party.seats.filter((m) => loot.ranThatWeek.includes(m.id));
   const [sellerMemberId, setSellerMemberId] = useState(ran[0]?.id ?? "");
   const [selling, setSelling] = useState(false);
+  // A member buying it off the party is the same shape as a sale: they hold the value and owe
+  // everyone else. So it is a third basis rather than a second form, and the only thing it changes
+  // on screen is who the last select names.
+  const bought = loot.amountBasis === "BOUGHT";
 
   const amount = parseMesos(price);
   // Against every seat, not `ran`: a payout pinned before somebody left still names them, and
@@ -121,6 +125,9 @@ export function LootRow({
               >
                 <option value="LISTED">listed for</option>
                 <option value="RECEIVED">received</option>
+                {/* No listing, so no Auction House cut off the top: the price is the whole pot.
+                    The payouts are still taxed, so the split is the same one. */}
+                <option value="BOUGHT">member bought</option>
               </select>
               <select
                 className="split-input"
@@ -137,11 +144,11 @@ export function LootRow({
                 className="split-input"
                 value={sellerMemberId}
                 onChange={(e) => setSellerMemberId(e.target.value)}
-                aria-label="Who sold it"
+                aria-label={amountBasis === "BOUGHT" ? "Who bought it" : "Who sold it"}
               >
                 {ran.map((m) => (
                   <option key={m.id} value={m.id}>
-                    sold by {m.name}
+                    {amountBasis === "BOUGHT" ? "bought by" : "sold by"} {m.name}
                   </option>
                 ))}
               </select>
@@ -199,12 +206,23 @@ export function LootRow({
             </p>
           ) : (
             <>
-              <p className="loot-sold-line">
-                {loot.amountBasis === "LISTED" ? "Listed at" : "Received"}{" "}
-                <strong>{formatMesos(loot.saleAmount ?? 0, true)}</strong> by {result.seller.name},{" "}
-                {loot.splitMethod === "FAIR" ? "fair" : "lazy"} split. They keep{" "}
-                <strong>{formatMesos(result.seller.keeps, true)}</strong>.
-              </p>
+              {/* The buyer keeps the item, not the mesos, so "they keep" would be naming the wrong
+                  thing. The figure is the same one either way: their own share of the pot. */}
+              {bought ? (
+                <p className="loot-sold-line">
+                  Bought by {result.seller.name} for{" "}
+                  <strong>{formatMesos(loot.saleAmount ?? 0, true)}</strong>,{" "}
+                  {loot.splitMethod === "FAIR" ? "fair" : "lazy"} split. Their share is{" "}
+                  <strong>{formatMesos(result.seller.keeps, true)}</strong>.
+                </p>
+              ) : (
+                <p className="loot-sold-line">
+                  {loot.amountBasis === "LISTED" ? "Listed at" : "Received"}{" "}
+                  <strong>{formatMesos(loot.saleAmount ?? 0, true)}</strong> by {result.seller.name}
+                  , {loot.splitMethod === "FAIR" ? "fair" : "lazy"} split. They keep{" "}
+                  <strong>{formatMesos(result.seller.keeps, true)}</strong>.
+                </p>
+              )}
 
               <ul className="loot-shares">
                 {result.shares.map((share) => (

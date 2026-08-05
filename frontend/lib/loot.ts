@@ -5,7 +5,7 @@
 // its input, and the payout rows say who is in it. A second implementation of the split is the one
 // thing this feature must not grow, because two answers to "what do I send you" is worse than none.
 
-import { FEE_STANDARD, type Split, splitDrop } from "./drop-split";
+import { type AmountBasis, FEE_STANDARD, type Split, splitDrop } from "./drop-split";
 import type { Loot } from "@/types/loot";
 import type { PartyMember } from "@/types/party";
 
@@ -32,17 +32,38 @@ export type Share = {
 };
 
 export type LootSplit = {
+  /**
+   * The seat the shares are measured from: who sold it, or who bought it off the party. `keeps` is
+   * mesos on a sale and the value of their own share of the item on a buy.
+   */
   seller: { memberId: string; name: string; keeps: number };
   shares: Share[];
   split: Split;
 };
 
 /**
+ * How to read the stored figure, or null for a basis this build does not know.
+ *
+ * BOUGHT is a party member buying the drop off the party. Nothing was listed, so no Auction House
+ * cut came off the top and the whole figure is the pot, which is `received`'s arithmetic exactly.
+ * The payout hops are still taxed, so the split itself is unchanged.
+ *
+ * Null rather than a default, because defaulting an unknown basis to `received` would silently
+ * skip a fee on a row written by a newer build.
+ */
+function basisOf(stored: string): AmountBasis | null {
+  if (stored === "LISTED") return "listed";
+  if (stored === "RECEIVED" || stored === "BOUGHT") return "received";
+  return null;
+}
+
+/**
  * What this sold drop owes each member, or null when it cannot be worked out.
  *
- * Null rather than a partial answer in three cases: the drop is not sold, the seller is no longer
- * a seat we can read a fee from, or a payout names a seat that is not in the party. Each would
- * otherwise produce a payout list that looks complete and is short a person or wrong on a rate.
+ * Null rather than a partial answer in four cases: the drop is not sold, its basis is one this
+ * build cannot read, the seller is no longer a seat we can read a fee from, or a payout names a
+ * seat that is not in the party. Each would otherwise produce a payout list that looks complete
+ * and is short a person or wrong on a rate.
  */
 export function splitOf(loot: Loot, members: PartyMember[]): LootSplit | null {
   if (
@@ -54,6 +75,9 @@ export function splitOf(loot: Loot, members: PartyMember[]): LootSplit | null {
     return null;
   }
 
+  const amountIs = basisOf(loot.amountBasis);
+  if (amountIs === null) return null;
+
   const byId = new Map(members.map((m) => [m.id, m]));
   const seller = byId.get(loot.sellerMemberId);
   if (!seller) return null;
@@ -63,7 +87,7 @@ export function splitOf(loot: Loot, members: PartyMember[]): LootSplit | null {
 
   const split = splitDrop({
     amount: loot.saleAmount,
-    amountIs: loot.amountBasis === "LISTED" ? "listed" : "received",
+    amountIs,
     sellerFee: memberFee(),
     memberFees: owed.map(() => memberFee()),
     method: loot.splitMethod === "FAIR" ? "fair" : "lazy",

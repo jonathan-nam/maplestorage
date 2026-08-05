@@ -11,9 +11,10 @@
 // drop-split.ts refuses to infer it, because that would put a number on screen the tool was told
 // rather than shown.
 //
-// So the total is what LANDED IN INVENTORIES (Split.sellerReceives). That one is defined for both
-// bases: a listed price less the seller's fee, or the received figure as entered. It is the only
-// cross-basis sum that means one thing.
+// So the total is WHAT THERE WAS TO SPLIT (Split.sellerReceives). That one is defined for all
+// three bases: a listed price less the seller's fee, a received figure as entered, or the price a
+// party member bought it for, which no fee came off. It is the only cross-basis sum that means one
+// thing.
 
 import { splitOf } from "./loot";
 import type { Loot, PartyLootPool } from "@/types/loot";
@@ -39,11 +40,11 @@ export type DropEntry = {
   saleAmount: number | null;
   amountBasis: string | null;
   splitMethod: string | null;
-  /** Who sold it. Null while it is still in the pool. */
+  /** Who sold it, or who bought it on a BOUGHT basis. Null while it is still in the pool. */
   sellerName: string | null;
   /**
-   * What landed in the seller's inventory, fee already off. Null when unsold, or when the split
-   * cannot be read.
+   * What there was to split: what landed in the seller's inventory, fee already off, or the price
+   * a member bought it for. Null when unsold, or when the split cannot be read.
    */
   pooled: number | null;
   /** Your side of it: what you kept selling it, plus anything owed to a character of yours. */
@@ -95,7 +96,10 @@ export function monthLabel(iso: string): string {
   return `${MONTHS[month - 1] ?? month} ${year}`;
 }
 
-/** Your side of a sale: what you kept if you sold it, plus anything owed to a character of yours. */
+/**
+ * Your side of a sale: what you kept if you sold it (or your share of it if you bought it off the
+ * party), plus anything owed to a character of yours.
+ */
 function takeFor(loot: Loot, members: PartyMember[]): number | null {
   const split = splitOf(loot, members);
   if (split === null) return null;
