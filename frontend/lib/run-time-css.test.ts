@@ -10,8 +10,9 @@ const css = readFileSync(join(__dirname, "..", "app", "globals.css"), "utf8");
 // as a marked estimate.
 //
 // Measured in chromium against the rule's own 12px font: "+2:00" is 37.0px, "~+2:30" is 47.1px,
-// and "~+25:30" is 54.7px, which is 4.56em. The last one is a night that runs through reset, and
-// it is the one that sets the number.
+// and "~+11:30" is 54.7px, which is 4.56em. The last one sets the number. Times run -12:00 to
+// +12:00 against reset, and a minus is NARROWER than a plus in this font ("-0:15" is 31.3px
+// against 37.0px for "+0:00"), so the widest string is the two-digit hour on the plus side.
 describe("the run time column", () => {
   const rule = () => {
     const at = css.indexOf(".run-time {");

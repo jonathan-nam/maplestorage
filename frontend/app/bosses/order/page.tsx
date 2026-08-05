@@ -18,7 +18,9 @@ import {
   rosterFrom,
   rosterFromDrafts,
   runsFromDrafts,
+  nextHalfHour,
   runsFromParties,
+  spanBetween,
 } from "@/lib/boss-night";
 import { type Availability, planNight, screenRuns, tradeOffs } from "@/lib/boss-run-plan";
 import { peek, put } from "@/lib/cache";
@@ -64,11 +66,6 @@ function readClock(): number {
 
 function noClock(): null {
   return null;
-}
-
-/** The next half hour. Defaulting the night to "in seven minutes" is not a night anybody arranged. */
-function nextHalfHour(offset: number): number {
-  return Math.ceil(offset / 30) * 30;
 }
 
 /**
@@ -147,7 +144,7 @@ export default function RunOrderPage() {
   const [edited, setEdited] = useState<DraftRun[] | null>(null);
 
   // The night on the reset clock: when it starts, when it has to be over, and who is only here for
-  // part of it. Every one of these is a time since 00:00 UTC, which is what the party already says.
+  // part of it. Every one is a time against reset, signed, which is what the party already says.
   const [startText, setStartText] = useState("");
   const [endText, setEndText] = useState<string | null>(null);
   const [windows, setWindows] = useState<Record<string, WindowText>>(NO_WINDOWS);
@@ -162,7 +159,7 @@ export default function RunOrderPage() {
   // The end is what people say ("done by +2"), the duration is what they pick, and either can be
   // the one that moves. Typing an end wins while it parses; a preset hands it back to the duration.
   const endAt = endText === null ? null : parseOffset(endText);
-  const budget = endAt === null ? duration : Math.max(0, endAt - startAt);
+  const budget = endAt === null ? duration : spanBetween(startAt, endAt);
   const endShown = endText ?? formatOffset(startAt + budget);
 
   const storedRaw = useSyncExternalStore(subscribeToDrafts, readStoredDrafts, noStoredDrafts);
@@ -272,14 +269,17 @@ export default function RunOrderPage() {
   // Windows are stated on the reset clock and the search counts from the start of the night, so
   // this is where the one becomes the other. A half-typed "+" parses to nothing and constrains
   // nothing, which is what stops the plan lurching about while somebody types a time.
+  //
+  // spanBetween rather than a subtraction: the clock wraps at reset, and it also answers the
+  // person who was already free before the night started with a nought rather than most of a day.
   const available = useMemo(() => {
     const byPerson: Record<string, Availability> = {};
     for (const [id, window] of Object.entries(shown.windows)) {
       const from = parseOffset(window.from);
       const until = parseOffset(window.until);
       const said: Availability = {};
-      if (from !== null) said.from = Math.max(0, from - shown.startAt);
-      if (until !== null) said.until = Math.max(0, until - shown.startAt);
+      if (from !== null) said.from = spanBetween(shown.startAt, from);
+      if (until !== null) said.until = spanBetween(shown.startAt, until);
       if (said.from !== undefined || said.until !== undefined) byPerson[id] = said;
     }
     return byPerson;

@@ -7,6 +7,7 @@ import {
   type DraftRun,
   formatDuration,
   formatOffset,
+  nextHalfHour,
   offsetNow,
   ownerOf,
   parseOffset,
@@ -18,6 +19,7 @@ import {
   planGrid,
   runsFromParties,
   runTimes,
+  spanBetween,
   YOU,
 } from "./boss-night";
 import { type EligibleRun, planNight, screenRuns } from "./boss-run-plan";
@@ -572,12 +574,23 @@ describe("parseOffset", () => {
     expect(parseOffset(" +2 ")).toBe(120);
   });
 
-  it("takes one past reset, since a night can run through it", () => {
-    expect(parseOffset("+25:30")).toBe(1530);
+  it("takes the hours before reset, which is half of what gets said", () => {
+    expect(parseOffset("-2")).toBe(-120);
+    expect(parseOffset("-0:30")).toBe(-30);
+    expect(parseOffset("-1.5")).toBe(-90);
+    expect(parseOffset("-12:00")).toBe(-720);
+  });
+
+  it("refuses past twelve either way, rather than wrapping it to the far side", () => {
+    // "+25" is a typo far more often than it is half past one tomorrow, and wrapping it silently
+    // to "+1" is the confident wrong number. Refusing makes it a question.
+    expect(parseOffset("+25:30")).toBeNull();
+    expect(parseOffset("+13")).toBeNull();
+    expect(parseOffset("-13")).toBeNull();
   });
 
   it("refuses what is not a time rather than guessing at it", () => {
-    for (const bad of ["", "+", "soon", "3:60", "-2", "99", "3:5"]) {
+    for (const bad of ["", "+", "-", "soon", "3:60", "99", "3:5", "--2"]) {
       expect(parseOffset(bad)).toBeNull();
     }
   });
@@ -587,28 +600,102 @@ describe("formatOffset", () => {
   it("writes it on the clock, not as the decimal it was typed as", () => {
     expect(formatOffset(210)).toBe("+3:30");
     expect(formatOffset(0)).toBe("+0:00");
-    expect(formatOffset(1530)).toBe("+25:30");
+  });
+
+  it("says the hours before reset as before, not as almost a whole day after", () => {
+    // The bug this replaced: a quarter to midnight UTC drew "+23:45", and a night defaulting to
+    // the next half hour from it started at "+24:00" and finished at "+28:00".
+    expect(formatOffset(-15)).toBe("-0:15");
+    expect(formatOffset(1425)).toBe("-0:15");
+    expect(formatOffset(1440)).toBe("+0:00");
+    expect(formatOffset(1680)).toBe("+4:00");
   });
 
   it("pads the minutes, so a column of times is a column", () => {
     expect(formatOffset(125)).toBe("+2:05");
+    expect(formatOffset(-125)).toBe("-2:05");
+  });
+
+  it("gives noon UTC one spelling, and it is the negative one", () => {
+    expect(formatOffset(720)).toBe("-12:00");
+    expect(formatOffset(-720)).toBe("-12:00");
   });
 
   it("survives the round trip for every time a box can hold", () => {
-    for (let minutes = 0; minutes <= 48 * 60; minutes += 5) {
+    for (let minutes = -720; minutes < 720; minutes += 5) {
       expect(parseOffset(formatOffset(minutes))).toBe(minutes);
     }
   });
 });
 
 describe("offsetNow", () => {
-  it("is minutes since 00:00 UTC, which is when reset is", () => {
+  it("is where now sits against reset, which is 00:00 UTC", () => {
     expect(offsetNow(Date.UTC(2026, 7, 5, 0, 0))).toBe(0);
     expect(offsetNow(Date.UTC(2026, 7, 5, 3, 30))).toBe(210);
   });
 
+  it("counts the last hours of the day down to reset rather than up from it", () => {
+    expect(offsetNow(Date.UTC(2026, 7, 5, 23, 45))).toBe(-15);
+    expect(offsetNow(Date.UTC(2026, 7, 5, 22, 0))).toBe(-120);
+  });
+
   it("drops the seconds, so two reads in one render agree", () => {
     expect(offsetNow(Date.UTC(2026, 7, 5, 3, 30, 59))).toBe(210);
+  });
+});
+
+describe("nextHalfHour", () => {
+  it("rounds up to the next half hour", () => {
+    expect(nextHalfHour(0)).toBe(0);
+    expect(nextHalfHour(1)).toBe(30);
+    expect(nextHalfHour(31)).toBe(60);
+  });
+
+  it("starts the night at reset rather than a day past it", () => {
+    // The bug, end to end. A quarter to midnight UTC is -0:15, whose next half hour is reset
+    // itself. Counting up from reset it was 1425, whose next half hour was 1440, drawn "+24:00",
+    // and a two hour night off that finished at "+26:00".
+    const quarterTo = offsetNow(Date.UTC(2026, 7, 5, 23, 45));
+    expect(formatOffset(nextHalfHour(quarterTo))).toBe("+0:00");
+    expect(formatOffset(nextHalfHour(quarterTo) + 120)).toBe("+2:00");
+  });
+
+  it("stays put on a time that is already a half hour", () => {
+    expect(nextHalfHour(-30)).toBe(-30);
+    expect(formatOffset(nextHalfHour(-30))).toBe("-0:30");
+  });
+});
+
+describe("spanBetween", () => {
+  it("is the plain difference for a night that stays one side of reset", () => {
+    expect(spanBetween(120, 240)).toBe(120);
+    expect(spanBetween(-120, -60)).toBe(60);
+  });
+
+  it("runs forwards through reset instead of backwards around the clock", () => {
+    // A night from -1:00 to +1:00 is two hours, not minus twenty two.
+    expect(spanBetween(-60, 60)).toBe(120);
+    expect(spanBetween(660, -540)).toBe(240);
+  });
+
+  it("reads its own drawn end back as the night it drew", () => {
+    // The page shows the end as formatOffset(start + budget) and lets you type in that box, so
+    // what it draws has to parse back to what it drew. Across the wrap it did not: +11:00 with
+    // four hours draws "-9:00", and subtracting gave a night of minus twenty hours, which clamped
+    // to zero and emptied the plan the moment you touched the box.
+    const start = parseOffset("+11:00") as number;
+    const drawn = formatOffset(start + 240);
+    expect(drawn).toBe("-9:00");
+    expect(spanBetween(start, parseOffset(drawn) as number)).toBe(240);
+  });
+
+  it("refuses an end typed before the start rather than calling it most of a day", () => {
+    expect(spanBetween(120, 60)).toBe(0);
+    expect(spanBetween(0, -30)).toBe(0);
+  });
+
+  it("is nothing when the two are the same time", () => {
+    expect(spanBetween(120, 120)).toBe(0);
   });
 });
 
