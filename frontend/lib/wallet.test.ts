@@ -105,6 +105,17 @@ describe("buildWallet", () => {
     expect(theySold.net).toBeGreaterThan(0);
   });
 
+  it("marks a line whose drop a member bought, so no sale is named for it", () => {
+    // The debt is the same one and belongs in the same fold. What differs is only that the line
+    // cannot say "sold": nothing was.
+    const p = party("pa", [mine("m1", "mechyfechy"), theirs("m2", "CreedBratton", chris)]);
+    const bought = buildWallet([p], [pool("pa", [sold({ amountBasis: "BOUGHT" })])]);
+    const listed = buildWallet([p], [pool("pa", [sold()])]);
+
+    expect(bought.counterparties[0]!.lines[0]!.bought).toBe(true);
+    expect(listed.counterparties[0]!.lines[0]!.bought).toBe(false);
+  });
+
   it("folds a person's characters into one debt", () => {
     // The whole point of attributing characters: two of Chris's names are one person to settle up
     // with, not two.
