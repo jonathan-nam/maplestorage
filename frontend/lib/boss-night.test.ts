@@ -462,7 +462,7 @@ describe("planAsText", () => {
   });
 
   it("says so plainly when there is nothing to paste", () => {
-    expect(planAsText({ runs: [], switches: 0, minutes: 0, kept: 0 }, [], 0)).toBe(
+    expect(planAsText({ runs: [], switches: 0, minutes: 0 }, [], 0)).toBe(
       "No bosses fit in the time.",
     );
   });

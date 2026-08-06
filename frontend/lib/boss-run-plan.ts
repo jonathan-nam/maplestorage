@@ -12,11 +12,10 @@
 // What is optimised, in order:
 //
 //   1. the number of runs that fit in the time
-//   2. the runs of whoever is being kept
-//   3. the fullest parties first
-//   4. the least waiting around
-//   5. the number of switches
-//   6. finishing earlier
+//   2. the fullest parties first
+//   3. the least waiting around
+//   4. the number of switches
+//   5. finishing earlier
 //
 // Count first is deliberate: the point of the night is dead bosses, and a plan that saves two
 // relogs by dropping a boss is not obviously better. It is often not much worse either, which is
@@ -44,9 +43,10 @@
 // is the only thing that ever puts idle time in a schedule which is otherwise back to back, so a
 // gap in the plan always has a person's name on it. See PlannedRun.waitingFor.
 //
-// KEEPING somebody outranks party size and not run count. It picks WHOSE bosses when the same
-// number fit either way, so it never trades a dead boss for a preference on its own. Buying one
-// with a boss is a different question and `byCount` already holds the shorter plan to offer.
+// Nothing here says WHOSE bosses to drop when they will not all fit. A "keep their runs" tick was
+// built and taken out again: it read as a promise it could not make, and it sat next to the
+// windows looking like it ordered the night, which is the thing people actually ask for and the
+// thing it did not do. Say the ordering ask out loud before building for it again.
 
 /** One seat in a run: a character, and whose it is. Null means nobody has claimed it. */
 export type RunSeat = {
@@ -180,8 +180,6 @@ export type PlanOptions = {
   beamWidth?: number;
   /** By person id. Anybody not in here is free for the whole night. */
   available?: Record<string, Availability>;
-  /** People whose runs are the last to be dropped. See KEEPING. */
-  keep?: Iterable<string>;
 };
 
 export type PlannedRun = {
@@ -202,11 +200,9 @@ export type Plan = {
   switches: number;
   /** Minutes from the start of the night to the end of the last run, waiting included. */
   minutes: number;
-  /** How many runs the kept people are in, summed over them. Zero when nobody is being kept. */
-  kept: number;
 };
 
-export const EMPTY_PLAN: Plan = { runs: [], switches: 0, minutes: 0, kept: 0 };
+export const EMPTY_PLAN: Plan = { runs: [], switches: 0, minutes: 0 };
 
 // A state is copied once per candidate, and there are hundreds of thousands of candidates, so it is
 // built out of fixed-length arrays indexed by a number worked out up front. The string-keyed Maps
@@ -248,8 +244,6 @@ type State = {
   waiting: number;
   minutes: number;
   switches: number;
-  /** Seats taken by a kept person so far. See KEEPING. */
-  kept: number;
   /** Filled in by planKey on first use, which only happens on a tie. */
   orderKey: string | null;
 };
@@ -337,9 +331,6 @@ function swap<T>(items: T[], a: number, b: number): void {
 }
 
 function betterState(a: State, b: State): number {
-  // More of the kept people's runs. Above party size because party size is only a GUESS at who
-  // will still be here later, and this is somebody having said.
-  if (a.kept !== b.kept) return b.kept - a.kept;
   // Bigger parties earlier. Greater string, not lesser, so this is descending.
   if (a.parties !== b.parties) return a.parties < b.parties ? 1 : -1;
   if (a.waiting !== b.waiting) return a.waiting - b.waiting;
@@ -374,7 +365,6 @@ function toPlan(state: State): Plan {
     runs: orderOf(state),
     switches: state.switches,
     minutes: state.minutes,
-    kept: state.kept,
   };
 }
 
@@ -391,7 +381,6 @@ export function planNight(
 ): { best: Plan; byCount: Plan[] } {
   const beamWidth = options.beamWidth ?? 1000;
   const available = options.available ?? {};
-  const keeping = new Set(options.keep ?? []);
 
   // Everything a run needs during the search, numbered once. The inner loop then never touches an
   // IGN or a boss key, only indices into these.
@@ -439,7 +428,6 @@ export function planNight(
       readyAt,
       dueBy,
       waitsFor,
-      keptSeats: run.seats.filter((seat) => keeping.has(seat.personId)).length,
     };
   });
 
@@ -456,7 +444,6 @@ export function planNight(
     waiting: 0,
     minutes: 0,
     switches: 0,
-    kept: 0,
     orderKey: null,
   };
 
@@ -472,17 +459,7 @@ export function planNight(
     const next = new Map<string, State>();
 
     for (const state of beam) {
-      for (const {
-        run,
-        index,
-        persons,
-        pairs,
-        size,
-        readyAt,
-        dueBy,
-        waitsFor,
-        keptSeats,
-      } of prepared) {
+      for (const { run, index, persons, pairs, size, readyAt, dueBy, waitsFor } of prepared) {
         if (hasBit(state.taken, index)) continue;
 
         // The later of the clock and everybody in it being free. Nothing else ever moves a run
@@ -548,7 +525,6 @@ export function planNight(
           waiting,
           minutes,
           switches: state.switches + switched.length,
-          kept: state.kept + keptSeats,
           orderKey: null,
         };
 
@@ -582,26 +558,19 @@ export function planNight(
 /**
  * The plans actually worth choosing between, longest first.
  *
- * Out of `byCount`, the ones that buy something: a shorter plan earns its place by costing strictly
- * fewer switches than every longer one, or by fitting in more of the kept people's runs than any of
- * them managed. Dropping a boss to save nothing is not an option anybody wants offered, and listing
- * all of them would bury the two that matter.
- *
- * The second half is the whole point of keeping somebody. The search will not spend a boss on them
- * by itself, so the plan where their last run fits is a SHORTER one, and it only reaches the page
- * if this lets it through.
+ * Out of `byCount`, the ones that buy something: a shorter plan earns its place only by costing
+ * strictly fewer switches than every longer one. Dropping a boss to save nothing is not an option
+ * anybody wants offered, and listing all of them would bury the two that matter.
  */
 export function tradeOffs(byCount: Plan[]): Plan[] {
   const worthwhile: Plan[] = [];
   let fewest = Infinity;
-  let most = -Infinity;
 
   for (let i = byCount.length - 1; i >= 0; i--) {
     const plan = byCount[i];
-    if (plan && (plan.switches < fewest || plan.kept > most)) {
+    if (plan && plan.switches < fewest) {
       worthwhile.push(plan);
-      if (plan.switches < fewest) fewest = plan.switches;
-      if (plan.kept > most) most = plan.kept;
+      fewest = plan.switches;
     }
   }
 
