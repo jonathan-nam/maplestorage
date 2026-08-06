@@ -46,7 +46,6 @@ type WindowText = { from: string; until: string };
 
 const NO_WINDOW: WindowText = { from: "", until: "" };
 const NO_WINDOWS: Record<string, WindowText> = {};
-const NOBODY: string[] = [];
 
 // The clock only has to be right to the minute it is drawn to, and it is read on every render, so
 // it ticks on its own rather than being recomputed. Same primitive as the drafts below and for the
@@ -69,12 +68,12 @@ function noClock(): null {
 }
 
 /**
- * What a chip says about somebody without being opened: "· +2:00 to +4:00", "· to +3:00 · kept".
+ * What a chip says about somebody without being opened: "· +2:00 to +4:00", "· to +3:00".
  *
  * Null when there is nothing to say, which is the usual case and the reason the chip row still
  * reads as a row of names.
  */
-function pinOf(window: WindowText | undefined, kept: boolean): string | null {
+function pinOf(window: WindowText | undefined): string | null {
   const from = window ? parseOffset(window.from) : null;
   const until = window ? parseOffset(window.until) : null;
 
@@ -82,7 +81,6 @@ function pinOf(window: WindowText | undefined, kept: boolean): string | null {
   if (from !== null && until !== null) said.push(`${formatOffset(from)} to ${formatOffset(until)}`);
   else if (from !== null) said.push(`from ${formatOffset(from)}`);
   else if (until !== null) said.push(`to ${formatOffset(until)}`);
-  if (kept) said.push("kept");
 
   return said.length === 0 ? null : `· ${said.join(" · ")}`;
 }
@@ -148,7 +146,6 @@ export default function RunOrderPage() {
   const [startText, setStartText] = useState("");
   const [endText, setEndText] = useState<string | null>(null);
   const [windows, setWindows] = useState<Record<string, WindowText>>(NO_WINDOWS);
-  const [keep, setKeep] = useState<string[]>(NOBODY);
   const [opened, setOpened] = useState<string | null>(null);
 
   const now = useSyncExternalStore(subscribeToClock, readClock, noClock);
@@ -223,8 +220,8 @@ export default function RunOrderPage() {
   // depths of the chain, and deferring them one by one is what allowed them to disagree. Server
   // data (parties, bosses) is deliberately not in here, so a load still paints the moment it lands.
   const inputs = useMemo(
-    () => ({ source, budget, openOnly, away, drafts, startAt, windows, keep }),
-    [source, budget, openOnly, away, drafts, startAt, windows, keep],
+    () => ({ source, budget, openOnly, away, drafts, startAt, windows }),
+    [source, budget, openOnly, away, drafts, startAt, windows],
   );
   const shown = useDeferredValue(inputs);
   const stale = shown !== inputs;
@@ -286,8 +283,8 @@ export default function RunOrderPage() {
   }, [shown.windows, shown.startAt]);
 
   const { best, byCount } = useMemo(
-    () => planNight(eligible, { minutes: shown.budget, available, keep: shown.keep }),
-    [eligible, shown.budget, available, shown.keep],
+    () => planNight(eligible, { minutes: shown.budget, available }),
+    [eligible, shown.budget, available],
   );
 
   const options = useMemo(() => tradeOffs(byCount), [byCount]);
@@ -298,19 +295,6 @@ export default function RunOrderPage() {
   const scheduled = new Set(plan.runs.map((planned) => planned.run.id));
   const unscheduled = eligible.filter((run) => !scheduled.has(run.id));
   const assumed = plan.runs.filter((planned) => planned.run.assumed).length;
-
-  // What "all of theirs" would mean tonight: every seat the kept people hold across every run that
-  // could be scheduled at all. A plan reaching it is the one worth offering as the second tab.
-  const keptPossible = eligible.reduce(
-    (total, run) => total + run.seats.filter((seat) => shown.keep.includes(seat.personId)).length,
-    0,
-  );
-  const keptNames = onTonight
-    .filter((person) => shown.keep.includes(person.id))
-    .map((person) => person.name);
-  const keepsAll = (option: { kept: number }) => keptPossible > 0 && option.kept === keptPossible;
-  // Only worth saying where it distinguishes the tabs. Every plan keeping everything says nothing.
-  const keepDivides = options.some(keepsAll) && options.some((option) => !keepsAll(option));
 
   return (
     <main className="page">
@@ -402,7 +386,7 @@ export default function RunOrderPage() {
           <ul className="night-roster">
             {roster.map((person) => {
               const on = !away.includes(person.id);
-              const pin = pinOf(windows[person.id], keep.includes(person.id));
+              const pin = pinOf(windows[person.id]);
               return (
                 <li className="night-chip" key={person.id}>
                   <button
@@ -475,21 +459,6 @@ export default function RunOrderPage() {
                     setChosen(null);
                   }}
                 />
-              </label>
-              <label className="night-toggle">
-                <input
-                  type="checkbox"
-                  checked={keep.includes(openedPerson.id)}
-                  onChange={(e) => {
-                    setKeep((current) =>
-                      e.target.checked
-                        ? [...current, openedPerson.id]
-                        : current.filter((id) => id !== openedPerson.id),
-                    );
-                    setChosen(null);
-                  }}
-                />
-                <span>Keep their runs</span>
               </label>
             </div>
           )}
@@ -571,14 +540,8 @@ export default function RunOrderPage() {
                     onClick={() => setChosen(i)}
                   >
                     {option.runs.length} {option.runs.length === 1 ? "boss" : "bosses"}
-                    {/* What the shorter plan bought. Keeping somebody costs a boss, so the tab
-                        that says so is the only place that trade is ever offered. */}
                     <span className="tab-count">
-                      {keepDivides && keepsAll(option)
-                        ? keptNames.length === 1
-                          ? `all of ${keptNames[0]}'s`
-                          : "all kept runs"
-                        : `${option.switches} ${option.switches === 1 ? "switch" : "switches"}`}
+                      {option.switches} {option.switches === 1 ? "switch" : "switches"}
                     </span>
                   </button>
                 ))}
