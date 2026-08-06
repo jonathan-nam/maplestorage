@@ -11,7 +11,7 @@
 import { describe, expect, it } from "vitest";
 
 import baseline from "./boss-run-plan.baseline.json";
-import { type EligibleRun, type Plan, planNight } from "./boss-run-plan";
+import { type EligibleRun, type Plan, planNight, scheduleInOrder } from "./boss-run-plan";
 
 /** Seeded, because a corpus that differs per run cannot pin anything. */
 function mulberry32(a: number) {
@@ -81,6 +81,22 @@ describe("planNight, against the recorded plans", () => {
     // One compare over the whole corpus, so a failure diffs every night that moved at once rather
     // than stopping at the first.
     expect(planned).toEqual(recorded);
+  }, 60000);
+
+  // The page draws every plan through scheduleInOrder, so that a night whose rows have been moved
+  // and one straight out of the search are the same kind of thing. That only holds if the two agree
+  // exactly: same times, same waits, same switch marks, on every night in the corpus. Where they
+  // disagreed, a plan would change the moment it was drawn.
+  it("re-derives its own plans from nothing but their order", () => {
+    for (const seed of seeds) {
+      const { runs, minutes } = caseFor(seed);
+      const { best } = planNight(runs, { minutes });
+      const again = scheduleInOrder(
+        best.runs.map((planned) => planned.run),
+        { minutes },
+      );
+      expect(again.plan).toEqual(best);
+    }
   }, 60000);
 
   // The tie-break exists to make this true. Without it the beam keeps whichever equal-ranked state

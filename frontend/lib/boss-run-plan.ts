@@ -48,6 +48,12 @@
 // windows looking like it ordered the night, which is the thing people actually ask for and the
 // thing it did not do. Say the ordering ask out loud before building for it again.
 
+// The order is also EDITABLE, and scheduleInOrder is what makes that safe. A moved row changes the
+// clock, who is waited for and who relogs, so the plan is re-derived from the new order rather than
+// having its rows swapped: keeping the old times beside a new order is the confidently-wrong number
+// this app exists not to produce. A move that would break a stated window or overrun the night is
+// refused rather than drawn with a warning, so what is on screen is always a night that can happen.
+
 /** One seat in a run: a character, and whose it is. Null means nobody has claimed it. */
 export type RunSeat = {
   /** The character's IGN. Identity here is the character, not the class or the level. */
@@ -203,6 +209,41 @@ export type Plan = {
 };
 
 export const EMPTY_PLAN: Plan = { runs: [], switches: 0, minutes: 0 };
+
+/** When a run can start and when it has to be finished: the tightest window of its seats. */
+type RunWindow = {
+  readyAt: number;
+  dueBy: number;
+  /** Who a wait would be for, named only where the run is actually held up. */
+  waitsFor: string[];
+};
+
+/**
+ * One run's window. Shared, because the search and scheduleInOrder have to read a night the same
+ * way: two copies of this drift, and the drift is a plan that changes when a row is moved and put
+ * straight back.
+ */
+function windowOf(run: EligibleRun, available: Record<string, Availability>): RunWindow {
+  let readyAt = 0;
+  let dueBy = Infinity;
+  for (const seat of run.seats) {
+    const window = available[seat.personId];
+    if (window === undefined) continue;
+    if (window.from !== undefined && window.from > readyAt) readyAt = window.from;
+    if (window.until !== undefined && window.until < dueBy) dueBy = window.until;
+  }
+
+  // Only the people the wait is actually for, so a run held up until 3:00 does not also name
+  // somebody who was free at 2:40.
+  const waitsFor =
+    readyAt > 0
+      ? run.seats
+          .filter((seat) => available[seat.personId]?.from === readyAt)
+          .map((seat) => seat.personId)
+      : [];
+
+  return { readyAt, dueBy, waitsFor };
+}
 
 // A state is copied once per candidate, and there are hundreds of thousands of candidates, so it is
 // built out of fixed-length arrays indexed by a number worked out up front. The string-keyed Maps
@@ -400,24 +441,9 @@ export function planNight(
       pairs.push(pair);
     }
 
-    // A run's own window is the tightest of its seats', and it does not depend on what has been
-    // scheduled, so it is worked out once here rather than per candidate.
-    let readyAt = 0;
-    let dueBy = Infinity;
-    for (const seat of run.seats) {
-      const window = available[seat.personId];
-      if (window === undefined) continue;
-      if (window.from !== undefined && window.from > readyAt) readyAt = window.from;
-      if (window.until !== undefined && window.until < dueBy) dueBy = window.until;
-    }
-    // Only the people the wait is actually for, so a run held up until 3:00 does not also name
-    // somebody who was free at 2:40.
-    const waitsFor =
-      readyAt > 0
-        ? run.seats
-            .filter((seat) => available[seat.personId]?.from === readyAt)
-            .map((seat) => seat.personId)
-        : [];
+    // A run's own window does not depend on what has been scheduled, so it is worked out once here
+    // rather than per candidate.
+    const { readyAt, dueBy, waitsFor } = windowOf(run, available);
 
     return {
       run,
@@ -575,4 +601,79 @@ export function tradeOffs(byCount: Plan[]): Plan[] {
   }
 
   return worthwhile;
+}
+
+/**
+ * A night run in the order it was given, and what stops it if anything does.
+ *
+ * `plan` is null exactly when the order cannot happen, and then `broken` and `overruns` say why, so
+ * a move that is refused can be refused out loud.
+ */
+export type OrderedPlan = {
+  plan: Plan | null;
+  /** People a run would end after the cutoff they gave. */
+  broken: string[];
+  /** The night would not fit in the time. */
+  overruns: boolean;
+};
+
+/**
+ * The plan for one exact order of runs, as the page would draw it.
+ *
+ * The search decides an order; this says what that order costs. Everything a row shows is derived
+ * here and nothing is carried over from the plan a run came out of, so moving a row moves its time,
+ * its wait and its switch marks with it.
+ *
+ * A character clears a boss once a period, and both that and who is in a run are properties of the
+ * SET, so no permutation can break either and neither is rechecked. What an order CAN break is the
+ * clock: a run pushed later can end after somebody's cutoff or past the end of the night.
+ *
+ * planNight's answers have to come back out of this unchanged, or a plan would change on being
+ * drawn. That is pinned over the whole baseline corpus.
+ */
+export function scheduleInOrder(runs: EligibleRun[], options: PlanOptions): OrderedPlan {
+  const available = options.available ?? {};
+  const parked = new Map<string, string>();
+  const planned: PlannedRun[] = [];
+  const broken = new Set<string>();
+  let clock = 0;
+  let switches = 0;
+
+  for (const run of runs) {
+    const { readyAt, waitsFor } = windowOf(run, available);
+    const startsAt = readyAt > clock ? readyAt : clock;
+    const ends = startsAt + run.minutes;
+
+    // In seat order, because that is the order the marks are drawn in.
+    const switched: string[] = [];
+    for (const seat of run.seats) {
+      const wasOn = parked.get(seat.personId);
+      if (wasOn !== undefined && wasOn !== seat.character) switched.push(seat.personId);
+      parked.set(seat.personId, seat.character);
+    }
+
+    for (const seat of run.seats) {
+      const until = available[seat.personId]?.until;
+      if (until !== undefined && ends > until) broken.add(seat.personId);
+    }
+
+    planned.push({ run, switched, startsAt, waitingFor: startsAt > clock ? waitsFor : [] });
+    switches += switched.length;
+    clock = ends;
+  }
+
+  const overruns = clock > options.minutes;
+  return {
+    plan: broken.size > 0 || overruns ? null : { runs: planned, switches, minutes: clock },
+    broken: [...broken],
+    overruns,
+  };
+}
+
+/** The same runs with the one at `from` moved to `to`. */
+export function movedTo<T>(runs: T[], from: number, to: number): T[] {
+  const next = runs.slice();
+  const [held] = next.splice(from, 1);
+  if (held !== undefined) next.splice(to, 0, held);
+  return next;
 }
