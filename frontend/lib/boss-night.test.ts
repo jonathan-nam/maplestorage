@@ -461,6 +461,47 @@ describe("planAsText", () => {
     expect(table[0]).toBe("\t\tDave, Jr");
   });
 
+  // A night that is not being run to the clock pastes as the ORDER: the rows are still in the order
+  // they run, and nothing in the table claims a time somebody might turn up for.
+  describe("with the times off", () => {
+    const untimed = (drafts: DraftRun[], minutes: number) => {
+      const roster = rosterFromDrafts(drafts);
+      const { eligible } = screenRuns(
+        runsFromDrafts(drafts),
+        roster.map((p) => p.id),
+      );
+      return planAsText(planNight(eligible, { minutes }).best, roster, AT, false);
+    };
+
+    it("drops the time column, corner cell and all", () => {
+      const table = fenced(untimed(SPLIT_NIGHT, 180));
+      expect(table[0]).toBe("\tDave\tErin\tYou");
+      expect(table[1]).toBe("Lotus\tNightlord\tShadower\tBishop");
+      expect(table[2]).toBe("Damien\tX\tShadower\tBishop");
+      expect(table[3]).toBe("Lucid\tNightlord\tX\tX");
+    });
+
+    it("says no time anywhere, not even a tilde on a guessed one", () => {
+      const text = untimed(SPLIT_NIGHT, 180);
+      expect(text).not.toMatch(/[+-]\d+:\d\d/);
+      expect(text).not.toContain("~");
+    });
+
+    it("still gives every row the same columns", () => {
+      const widths = fenced(untimed(SPLIT_NIGHT, 180)).map((line) => line.split("\t").length);
+      expect(new Set(widths).size).toBe(1);
+      expect(widths[0]).toBe(4);
+    });
+
+    it("keeps the marks, which are what the table is made of", () => {
+      const table = fenced(
+        untimed([R("1", "Lotus", [["Bishop", "You"]]), R("2", "Damien", [["Kanna", "You"]])], 120),
+      );
+      expect(table[2]).toContain("Kanna*");
+      expect(fenced(untimed(SPLIT_NIGHT, 180)).join("\n")).toContain("X");
+    });
+  });
+
   it("says so plainly when there is nothing to paste", () => {
     expect(planAsText({ runs: [], switches: 0, minutes: 0 }, [], 0)).toBe(
       "No bosses fit in the time.",
