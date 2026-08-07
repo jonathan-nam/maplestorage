@@ -174,6 +174,7 @@ private fun ResultRow.toLootResponse(
         perMember = this.getOrNull(DropCatalog.perMember),
         bossKey = this.getOrNull(BossCatalog.bossKey),
         droppedOn = this[PartyLoot.droppedOn].toString(),
+        weekStart = weekOf(this[PartyLoot.droppedOn]).toString(),
         status = statusOf(sold, payouts),
         saleAmount = this[PartyLoot.saleAmount],
         amountBasis = this[PartyLoot.amountBasis],

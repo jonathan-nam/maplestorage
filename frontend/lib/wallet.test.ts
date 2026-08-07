@@ -58,6 +58,7 @@ const sold = (over: Partial<Loot> = {}): Loot => ({
   perMember: null,
   bossKey: "limbo",
   droppedOn: "2026-07-20",
+  weekStart: "2026-07-16",
   status: "SOLD",
   saleAmount: 9_500_000_000,
   amountBasis: "LISTED",

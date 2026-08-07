@@ -16,6 +16,7 @@
 // party member bought it for, which no fee came off. It is the only cross-basis sum that means one
 // thing.
 
+import { formatWeekStart } from "./boss-clears";
 import { splitOf } from "./loot";
 import type { Loot, PartyLootPool } from "@/types/loot";
 import type { Party, PartyMember } from "@/types/party";
@@ -34,6 +35,8 @@ export type DropEntry = {
   iconUrl: string | null;
   bossKey: string | null;
   droppedOn: string;
+  /** The reset week it fell in, as that week's Thursday. The server's reckoning, never redone here. */
+  weekStart: string;
   /** ALWAYS / HEROIC when everyone gets their own copy, so the sale is one person's, not a pool's. */
   perMember: string | null;
   status: string;
@@ -53,8 +56,11 @@ export type DropEntry = {
   unreadable: boolean;
 };
 
-export type DropMonth = {
-  /** YYYY-MM, which sorts lexically. */
+/** How the log is broken up. A view choice: the totals above it are the same either way. */
+export type Grouping = "month" | "week";
+
+export type DropGroup = {
+  /** YYYY-MM for a month, the week's Thursday for a week. Both sort lexically. */
   key: string;
   label: string;
   entries: DropEntry[];
@@ -75,7 +81,8 @@ export type DropLogTotals = {
 };
 
 export type DropLog = {
-  months: DropMonth[];
+  /** Newest first. Grouping is applied at draw time, by groupDrops. */
+  entries: DropEntry[];
   totals: DropLogTotals;
 };
 
@@ -94,6 +101,19 @@ export function monthLabel(iso: string): string {
   const [year, month] = iso.split("-").map(Number);
   if (!year || !month) return iso;
   return `${MONTHS[month - 1] ?? month} ${year}`;
+}
+
+/**
+ * "2026-07-16" -> "Week of July 16, 2026".
+ *
+ * The stem is the week picker's, so a week is worded the same wherever it is named. The year is
+ * carried, which the picker does not need: it shows one week, while a log shows every week there
+ * has been, and two Julys a year apart would otherwise head two sections identically.
+ */
+export function weekLabel(weekStart: string): string {
+  const year = Number(weekStart.slice(0, 4));
+  if (!year) return weekStart;
+  return `Week of ${formatWeekStart(weekStart)}, ${year}`;
 }
 
 /**
@@ -119,7 +139,7 @@ function takeFor(loot: Loot, members: PartyMember[]): number | null {
 }
 
 /**
- * The whole history, newest month first.
+ * The whole history, newest first. Cut into sections by groupDrops.
  *
  * Every logged drop is here, sold or not: "what have we got off Limbo this year" is as much the
  * question as "what did it make".
@@ -145,6 +165,7 @@ export function buildDropLog(parties: Party[], pools: PartyLootPool[]): DropLog 
         iconUrl: loot.iconUrl,
         bossKey: loot.bossKey,
         droppedOn: loot.droppedOn,
+        weekStart: loot.weekStart,
         perMember: loot.perMember,
         status: loot.status,
         saleAmount: loot.saleAmount,
@@ -163,20 +184,12 @@ export function buildDropLog(parties: Party[], pools: PartyLootPool[]): DropLog 
     (a, b) => b.droppedOn.localeCompare(a.droppedOn) || a.lootId.localeCompare(b.lootId),
   );
 
-  const months = new Map<string, DropMonth>();
-  for (const entry of entries) {
-    const key = entry.droppedOn.slice(0, 7);
-    let month = months.get(key);
-    if (!month) {
-      month = { key, label: monthLabel(entry.droppedOn), entries: [], pooled: 0, yourTake: 0 };
-      months.set(key, month);
-    }
-    month.entries.push(entry);
-    month.pooled += entry.pooled ?? 0;
-    month.yourTake += entry.yourTake ?? 0;
-  }
+  return { entries, totals: totalsOf(entries) };
+}
 
-  const totals: DropLogTotals = {
+/** The counts and the money, read off the entries in hand. Never scaled from a wider set. */
+function totalsOf(entries: DropEntry[]): DropLogTotals {
+  return {
     drops: entries.length,
     sold: entries.filter((e) => e.status !== "PENDING").length,
     pending: entries.filter((e) => e.status === "PENDING").length,
@@ -184,35 +197,40 @@ export function buildDropLog(parties: Party[], pools: PartyLootPool[]): DropLog 
     yourTake: entries.reduce((sum, e) => sum + (e.yourTake ?? 0), 0),
     unreadable: entries.filter((e) => e.unreadable).length,
   };
-
-  return { months: [...months.values()], totals };
 }
 
 /** The log narrowed to one character, or all of it. Totals are recomputed, never scaled. */
 export function forCharacter(log: DropLog, characterId: string | null): DropLog {
   if (characterId === null) return log;
-  const months = log.months
-    .map((month) => {
-      const entries = month.entries.filter((e) => e.characterId === characterId);
-      return {
-        ...month,
-        entries,
-        pooled: entries.reduce((sum, e) => sum + (e.pooled ?? 0), 0),
-        yourTake: entries.reduce((sum, e) => sum + (e.yourTake ?? 0), 0),
-      };
-    })
-    .filter((month) => month.entries.length > 0);
+  const entries = log.entries.filter((e) => e.characterId === characterId);
+  return { entries, totals: totalsOf(entries) };
+}
 
-  const all = months.flatMap((m) => m.entries);
-  return {
-    months,
-    totals: {
-      drops: all.length,
-      sold: all.filter((e) => e.status !== "PENDING").length,
-      pending: all.filter((e) => e.status === "PENDING").length,
-      pooled: all.reduce((sum, e) => sum + (e.pooled ?? 0), 0),
-      yourTake: all.reduce((sum, e) => sum + (e.yourTake ?? 0), 0),
-      unreadable: all.filter((e) => e.unreadable).length,
-    },
-  };
+/**
+ * The log cut into sections, newest first, each subtotalled.
+ *
+ * Grouping happens here rather than in buildDropLog because it is a view choice: switching between
+ * months and weeks re-heads the same entries, and no total above can move.
+ *
+ * A week is the reset week the drop fell in, straight off the row. The Thursday boundary is the
+ * server's (BossPeriod.kt) and is not recomputed here, so the weeks this heads are the weeks the
+ * clears matrix steps through.
+ */
+export function groupDrops(entries: DropEntry[], grouping: Grouping): DropGroup[] {
+  const groups = new Map<string, DropGroup>();
+  for (const entry of entries) {
+    const key = grouping === "week" ? entry.weekStart : entry.droppedOn.slice(0, 7);
+    let group = groups.get(key);
+    if (!group) {
+      const label = grouping === "week" ? weekLabel(key) : monthLabel(entry.droppedOn);
+      group = { key, label, entries: [], pooled: 0, yourTake: 0 };
+      groups.set(key, group);
+    }
+    group.entries.push(entry);
+    group.pooled += entry.pooled ?? 0;
+    group.yourTake += entry.yourTake ?? 0;
+  }
+  // Insertion order: the entries are newest first, and a group's dates are contiguous, so the
+  // sections come out newest first without a second sort.
+  return [...groups.values()];
 }

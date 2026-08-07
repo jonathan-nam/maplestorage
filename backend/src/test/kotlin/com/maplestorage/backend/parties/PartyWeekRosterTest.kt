@@ -275,6 +275,24 @@ class PartyWeekRosterTest {
     }
 
     @Test
+    fun `a drop names the week it fell in, cut on Thursday`() {
+        transaction {
+            val party = trio()
+            val partyId = Uuid.parse(party.id)
+            // The Drop Log heads its sections with this. July 16 2026 is a Thursday, so the drop
+            // the day before belongs to the week before: off by one and a drop is filed under the
+            // neighbouring week, which reads as a quiet week sitting beside a doubled one.
+            val eve = addGrindstoneOn(party, LocalDate.parse("2026-07-15"))
+            val resetDay = addGrindstoneOn(party, LocalDate.parse("2026-07-16"))
+            val midweek = addGrindstoneOn(party, LocalDate.parse("2026-07-20"))
+
+            assertEquals("2026-07-09", findLoot(eve, partyId)!!.weekStart)
+            assertEquals("2026-07-16", findLoot(resetDay, partyId)!!.weekStart)
+            assertEquals("2026-07-16", findLoot(midweek, partyId)!!.weekStart)
+        }
+    }
+
+    @Test
     fun `a guest stays readable as a seat after their week has passed`() {
         transaction {
             val party = trio()
