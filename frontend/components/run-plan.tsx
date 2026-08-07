@@ -116,15 +116,18 @@ export function RunPlan({
   plan,
   roster,
   startAt,
+  timed = true,
   reorder,
 }: {
   plan: Plan;
   roster: NightPerson[];
   startAt: number;
+  /** Off where the night is an order rather than a schedule: no times, no lengths, no waits. */
+  timed?: boolean;
   reorder?: Reorder;
 }) {
   const { people, rows } = planGrid(plan, roster);
-  const times = runTimes(plan, roster, startAt);
+  const times = timed ? runTimes(plan, roster, startAt) : [];
 
   // A row band alone answers "which boss", not "which person": the header sits rows away, so
   // reading a cell still means tracing a column by eye. CSS can do a row on its own and cannot do
@@ -175,10 +178,10 @@ export function RunPlan({
         </thead>
         <tbody>
           {rows.map(({ planned, cells }, row) => {
-            const time = times[row] as RunTime;
+            const time = times[row];
             return (
               <Fragment key={planned.run.id}>
-                {time.waitingFor.length > 0 && (
+                {time !== undefined && time.waitingFor.length > 0 && (
                   <tr className="run-wait">
                     <td colSpan={people.length + 1}>{waitLine(time)}</td>
                   </tr>
@@ -208,7 +211,9 @@ export function RunPlan({
                       reset clock, so this is a time the party can turn up for rather than a
                       distance from a button press. The tilde is the same objection, answered:
                       a time reached by adding up guesses is marked as one. */}
-                      <span className="run-time">{time.approx ? `~${time.at}` : time.at}</span>
+                      {time !== undefined && (
+                        <span className="run-time">{time.approx ? `~${time.at}` : time.at}</span>
+                      )}
                       {BOSS_ART_2X[planned.run.bossKey] ? (
                         <img
                           className="run-art"
@@ -226,9 +231,11 @@ export function RunPlan({
                         </span>
                         {/* A tilde where nobody has timed this party, so a guessed half hour and a
                         measured one are not read as the same claim. */}
-                        <span className="run-boss-minutes">
-                          {`${planned.run.assumed ? "~" : ""}${formatDuration(planned.run.minutes)}`}
-                        </span>
+                        {timed && (
+                          <span className="run-boss-minutes">
+                            {`${planned.run.assumed ? "~" : ""}${formatDuration(planned.run.minutes)}`}
+                          </span>
+                        )}
                       </span>
                     </span>
                   </th>
@@ -281,10 +288,12 @@ export function CopyPlan({
   plan,
   roster,
   startAt,
+  timed = true,
 }: {
   plan: Plan;
   roster: NightPerson[];
   startAt: number;
+  timed?: boolean;
 }) {
   const [copied, setCopied] = useState(false);
 
@@ -300,7 +309,7 @@ export function CopyPlan({
       className={copied ? "copy-amount copied" : "copy-amount"}
       onClick={() => {
         navigator.clipboard
-          ?.writeText(planAsText(plan, roster, startAt))
+          ?.writeText(planAsText(plan, roster, startAt, timed))
           .then(() => setCopied(true))
           .catch(() => setCopied(false));
       }}

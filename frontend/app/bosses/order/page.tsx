@@ -150,6 +150,12 @@ export default function RunOrderPage() {
   /** The order as it has been moved about by hand, by run id. Null while the search's own holds. */
   const [order, setOrder] = useState<string[] | null>(null);
 
+  // Whether the night runs to the clock at all. Off, it is an ORDER: nothing bounds it, the windows
+  // people gave are not applied, and no time is drawn anywhere. That is a night where the length of
+  // a run is a guess nobody is holding to, and showing one would be reading a schedule into a list.
+  // The windows are kept while it is off, so ticking it back on gets the same night back.
+  const [timed, setTimed] = useState(true);
+
   // The night on the reset clock: when it starts, when it has to be over, and who is only here for
   // part of it. Every one is a time against reset, signed, which is what the party already says.
   const [startText, setStartText] = useState("");
@@ -229,8 +235,8 @@ export default function RunOrderPage() {
   // depths of the chain, and deferring them one by one is what allowed them to disagree. Server
   // data (parties, bosses) is deliberately not in here, so a load still paints the moment it lands.
   const inputs = useMemo(
-    () => ({ source, budget, openOnly, away, drafts, startAt, windows }),
-    [source, budget, openOnly, away, drafts, startAt, windows],
+    () => ({ source, budget, openOnly, away, drafts, startAt, windows, timed }),
+    [source, budget, openOnly, away, drafts, startAt, windows, timed],
   );
   const shown = useDeferredValue(inputs);
   const stale = shown !== inputs;
@@ -280,6 +286,9 @@ export default function RunOrderPage() {
   // person who was already free before the night started with a nought rather than most of a day.
   const available = useMemo(() => {
     const byPerson: Record<string, Availability> = {};
+    // A window is a time, so an untimed night has none. Not cleared, just not applied: the boxes
+    // still hold what was typed for when the clock comes back.
+    if (!shown.timed) return byPerson;
     for (const [id, window] of Object.entries(shown.windows)) {
       const from = parseOffset(window.from);
       const until = parseOffset(window.until);
@@ -289,11 +298,16 @@ export default function RunOrderPage() {
       if (said.from !== undefined || said.until !== undefined) byPerson[id] = said;
     }
     return byPerson;
-  }, [shown.windows, shown.startAt]);
+  }, [shown.windows, shown.startAt, shown.timed]);
+
+  // What the night is allowed to take. Nothing, when it is not being run to the clock: the point of
+  // that mode is that the length is not the question, so every boss that can be run is in the plan
+  // and none is dropped for a reason the page is no longer showing.
+  const night = shown.timed ? shown.budget : Infinity;
 
   const { best, byCount } = useMemo(
-    () => planNight(eligible, { minutes: shown.budget, available }),
-    [eligible, shown.budget, available],
+    () => planNight(eligible, { minutes: night, available }),
+    [eligible, night, available],
   );
 
   const options = useMemo(() => tradeOffs(byCount), [byCount]);
@@ -315,19 +329,16 @@ export default function RunOrderPage() {
     // Every run, once. A shorter order is one for a different night, and a repeated id would run a
     // boss twice and drop another.
     const complete = asked.length === runs.length && new Set(asked).size === runs.length;
-    const ordered = scheduleInOrder(complete ? asked : runs, {
-      minutes: shown.budget,
-      available,
-    });
+    const ordered = scheduleInOrder(complete ? asked : runs, { minutes: night, available });
     // Null is a night that cannot happen, which the arrows do not offer and the search never
     // produces. Falling back to what was picked keeps a plan on screen either way.
     return ordered.plan ?? picked;
-  }, [picked, order, shown.budget, available]);
+  }, [picked, order, night, available]);
 
   // Held still, so the arrows only work out what a move would cost when something has changed.
   const reorder = useMemo(
-    () => ({ minutes: shown.budget, available, onChange: setOrder }),
-    [shown.budget, available],
+    () => ({ minutes: night, available, onChange: setOrder }),
+    [night, available],
   );
 
   const scheduled = new Set(plan.runs.map((planned) => planned.run.id));
@@ -424,7 +435,7 @@ export default function RunOrderPage() {
           <ul className="night-roster">
             {roster.map((person) => {
               const on = !away.includes(person.id);
-              const pin = pinOf(windows[person.id]);
+              const pin = timed ? pinOf(windows[person.id]) : null;
               return (
                 <li className="night-chip" key={person.id}>
                   <button
@@ -441,17 +452,19 @@ export default function RunOrderPage() {
                     {person.name}
                     {pin && <span className="night-pin">{pin}</span>}
                   </button>
-                  <button
-                    type="button"
-                    className={opened === person.id ? "night-chip-set is-open" : "night-chip-set"}
-                    aria-expanded={opened === person.id}
-                    aria-label={`When ${person.name} is free`}
-                    onClick={() =>
-                      setOpened((current) => (current === person.id ? null : person.id))
-                    }
-                  >
-                    <span aria-hidden="true">&#9662;</span>
-                  </button>
+                  {timed && (
+                    <button
+                      type="button"
+                      className={opened === person.id ? "night-chip-set is-open" : "night-chip-set"}
+                      aria-expanded={opened === person.id}
+                      aria-label={`When ${person.name} is free`}
+                      onClick={() =>
+                        setOpened((current) => (current === person.id ? null : person.id))
+                      }
+                    >
+                      <span aria-hidden="true">&#9662;</span>
+                    </button>
+                  )}
                 </li>
               );
             })}
@@ -459,7 +472,7 @@ export default function RunOrderPage() {
 
           {/* Named off the roster rather than off `opened` alone: switching source swaps everybody
               out, and a row headed by nothing is worse than no row. */}
-          {openedPerson !== null && (
+          {timed && openedPerson !== null && (
             <div className="night-detail">
               <span className="night-detail-who">{openedPerson.name}</span>
               <label className="night-custom">
@@ -503,7 +516,24 @@ export default function RunOrderPage() {
         </section>
       )}
 
+      {/* Sat where the times are, so the way back to them is where they went. Everything the clock
+          drives hangs off this one box: the window below, the windows people gave, and every time
+          in the plan and in what gets pasted. */}
       {runs.length > 0 && (
+        <label className="night-toggle">
+          <input
+            type="checkbox"
+            checked={timed}
+            onChange={(e) => {
+              setTimed(e.target.checked);
+              setChosen(null);
+            }}
+          />
+          <span>Show times</span>
+        </label>
+      )}
+
+      {runs.length > 0 && timed && (
         <section className="night-section">
           <h2 className="night-heading">When you&apos;re running</h2>
           <div className="night-budget">
@@ -590,14 +620,20 @@ export default function RunOrderPage() {
                 ))}
               </div>
             )}
-            <CopyPlan plan={plan} roster={onTonight} startAt={shown.startAt} />
+            <CopyPlan plan={plan} roster={onTonight} startAt={shown.startAt} timed={shown.timed} />
           </div>
 
-          <RunPlan plan={plan} roster={onTonight} startAt={shown.startAt} reorder={reorder} />
+          <RunPlan
+            plan={plan}
+            roster={onTonight}
+            startAt={shown.startAt}
+            timed={shown.timed}
+            reorder={reorder}
+          />
 
           {/* What was guessed stays on screen. It is what the finishing time is built from, and a
               time presented without it reads as a measurement of your parties. */}
-          {assumed > 0 && (
+          {shown.timed && assumed > 0 && (
             <p className="split-caveat">
               {assumed === plan.runs.length
                 ? `Every run is assumed to take ${formatDuration(DEFAULT_MINUTES)}.`
@@ -607,9 +643,12 @@ export default function RunOrderPage() {
         </section>
       )}
 
+      {/* The second is a claim about the clock, so it is not made where there is not one. Nothing
+          untimed reaches it anyway: with nothing bounding the night, a run that can be staffed
+          fits. */}
       {runs.length > 0 && plan.runs.length === 0 && (
         <p className="finder-empty">
-          {eligible.length === 0
+          {eligible.length === 0 || !shown.timed
             ? "No run can go ahead with the people who are on."
             : `Nothing fits in ${formatDuration(shown.budget)}. The shortest run needs longer than that.`}
         </p>

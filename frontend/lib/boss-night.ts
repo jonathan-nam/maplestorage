@@ -392,24 +392,34 @@ function tabTable(rows: string[][]): string[] {
  * says when to be there. A tilde marks a time the runs above it only guessed at, the same mark the
  * page puts on the run's length.
  *
- * Both corner cells are empty, so the header's first characters are the tabs that push the names
+ * Unless the night is not being run to the clock, and then there is no time column at all: the
+ * order is the whole answer, and a column of times nobody is holding to would be read as one they
+ * are. See the times toggle on the page.
+ *
+ * Every corner cell is empty, so the header's first characters are the tabs that push the names
  * over their columns. Every field is otherwise flush left, which is what a tab stop gives for free
  * and what padding to the widest name did not.
  *
  * Built from the Plan it is given, never restated by hand, so it cannot drift from what the page
  * is showing. The same rule explainSplit() follows.
  */
-export function planAsText(plan: Plan, roster: NightPerson[], startAt: number): string {
+export function planAsText(
+  plan: Plan,
+  roster: NightPerson[],
+  startAt: number,
+  timed = true,
+): string {
   if (plan.runs.length === 0) return "No bosses fit in the time.";
 
   const { people, rows } = planGrid(plan, roster);
-  const times = runTimes(plan, roster, startAt);
+  const times = timed ? runTimes(plan, roster, startAt) : [];
 
-  const header = ["", "", ...people.map((person) => cell(person.name))];
+  const corners = timed ? ["", ""] : [""];
+  const header = [...corners, ...people.map((person) => cell(person.name))];
   const body = rows.map(({ planned, cells }, i) => {
-    const time = times[i] as RunTime;
+    const time = times[i];
     return [
-      `${time.approx ? "~" : ""}${time.at}`,
+      ...(time === undefined ? [] : [`${time.approx ? "~" : ""}${time.at}`]),
       cell(bossHeading(planned)),
       ...cells.map((c) =>
         c.character === null ? SITTING_OUT : cell(c.character + (c.switched ? SWITCH_MARK : "")),
