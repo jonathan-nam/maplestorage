@@ -4395,7 +4395,9 @@ button.link:disabled {
   display: inline-flex;
 }
 
-.night-chip .night-person {
+/* Only where the chevron is there to close the pill. An untimed night has no windows to set, so
+   the name is the whole chip and keeps both its ends. */
+.night-chip .night-person:not(:last-child) {
   border-top-right-radius: 0;
   border-bottom-right-radius: 0;
 }
