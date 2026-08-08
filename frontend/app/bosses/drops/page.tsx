@@ -4,6 +4,7 @@ import { useAuth } from "@clerk/nextjs";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { LogDrop } from "@/components/log-drop";
+import { PieceLedger } from "@/components/piece-ledger";
 import { ApiError, apiAssetUrl, apiFetch } from "@/lib/api";
 import { peek, put } from "@/lib/cache";
 import {
@@ -20,12 +21,14 @@ import {
 import { formatMesos } from "@/lib/drop-split";
 import { formatDropped, statusLabel } from "@/lib/loot";
 import { useAccountSettings } from "@/lib/use-account-settings";
+import { looterKey, looterLedgers, outstanding, salesByLooter } from "@/lib/vestige-ledger";
 import { showsMoney } from "@/lib/world";
 import type { Boss } from "@/types/boss";
 import type { Character } from "@/types/character";
 import type { DropTables } from "@/types/drop";
 import type { LogDropBody, PartyLootPool } from "@/types/loot";
 import type { Party } from "@/types/party";
+import type { VestigeTranche } from "@/types/vestige";
 
 // The history of what dropped, and what it made, and where a drop is logged. Every meso is
 // lib/drop-log.ts's, which is splitOf()'s, which is splitDrop()'s. Nothing here adds anything up.
@@ -40,6 +43,11 @@ const POOLS_KEY = "/api/parties/loot";
 const BOSSES_KEY = "/api/bosses";
 const DROPS_KEY = "/api/bosses/drops";
 const CHARACTERS_KEY = "/api/characters";
+const TRANCHES_KEY = "/api/vestige-tranches";
+
+// The stacking drop the piece ledger is for. One key, because one item behaves this way: a boss
+// drops it in bundles that do not divide by looting alone. See lib/piece-ledger.ts.
+const VESTIGE = "vestige-of-erion";
 
 export default function DropLogPage() {
   const { getToken } = useAuth();
@@ -55,6 +63,7 @@ export default function DropLogPage() {
   const [characters, setCharacters] = useState<Character[]>(
     peek<Character[]>(CHARACTERS_KEY) ?? [],
   );
+  const [tranches, setTranches] = useState<VestigeTranche[]>([]);
   const [state, setState] = useState<LoadState>("loading");
   const [character, setCharacter] = useState<string | null>(null);
   const [grouping, setGrouping] = useState<Grouping>("month");
@@ -63,12 +72,14 @@ export default function DropLogPage() {
 
   async function load(token?: string | null) {
     const withToken = token !== undefined ? () => Promise.resolve(token) : getToken;
-    const [partyResult, poolResult] = await Promise.all([
+    const [partyResult, poolResult, trancheResult] = await Promise.all([
       apiFetch<Party[]>(PARTIES_KEY, { method: "GET" }, withToken),
       apiFetch<PartyLootPool[]>(POOLS_KEY, { method: "GET" }, withToken),
+      apiFetch<VestigeTranche[]>(TRANCHES_KEY, { method: "GET" }, withToken),
     ]);
     setParties(partyResult);
     setPools(poolResult);
+    setTranches(trancheResult);
     put(PARTIES_KEY, partyResult);
   }
 
@@ -124,6 +135,26 @@ export default function DropLogPage() {
     }
   }
 
+  /**
+   * Records one tranche, or removes one.
+   *
+   * Both answer with the whole tally rather than the row touched, because the queue is re-spent
+   * from all of it: a sale entered now can be what covers a boss cleared in July, and redrawing
+   * from one row would be guessing at where its pieces landed.
+   */
+  async function saleWrite(path: string, options: RequestInit) {
+    setBusy(true);
+    try {
+      setTranches(await apiFetch<VestigeTranche[]>(path, options, getToken));
+    } catch (e) {
+      // Thrown on, not shown here: the card that asked for it is a screen away from this page's
+      // error line, and a refusal nobody is looking at is a refusal that did not happen.
+      throw new Error(e instanceof ApiError ? e.body : "That didn't save.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   const bossByKey = new Map(bosses.map((b) => [b.bossKey, b]));
   const characterById = new Map(characters.map((c) => [c.id, c]));
   // The whole log is kept alongside the filtered one so the toolbar does not come and go: which
@@ -138,6 +169,28 @@ export default function DropLogPage() {
   const withDrops = characters.filter((c) =>
     parties.some((p) => p.characterId === c.id && pools.some((pool) => pool.partyId === p.id)),
   );
+
+  // The ledger reads the WHOLE account, not the filtered log. A pile is one character's inventory
+  // spanning every boss they loot for, so showing the part of it that falls in the chosen month
+  // would price those bosses off a fraction of the sales that paid for them.
+  const partyById = new Map(parties.map((p) => [p.id, p]));
+  // The catalog's own order, which is what /api/bosses returns, so two bosses cleared in one week
+  // never swap places in the queue and re-price each other.
+  const bossOrder = new Map(bosses.map((b, i) => [b.bossKey, i]));
+  const ledgers = looterLedgers(
+    outstanding(parties, pools, VESTIGE, bossOrder),
+    salesByLooter(tranches),
+  );
+  const tranchesByLooter = new Map<string, VestigeTranche[]>();
+  for (const tranche of tranches) {
+    const key = looterKey(tranche.looterName);
+    tranchesByLooter.set(key, [...(tranchesByLooter.get(key) ?? []), tranche]);
+  }
+  // The coupon's sprite, off whichever boss table carries it. Every table names the same drop.
+  const vestigeIcon =
+    Object.values(dropTables)
+      .flat()
+      .find((drop) => drop.dropKey === VESTIGE)?.iconUrl ?? null;
 
   return (
     <main className="page">
@@ -188,6 +241,24 @@ export default function DropLogPage() {
               </>
             )}
           </div>
+
+          <PieceLedger
+            ledgers={ledgers}
+            tranches={tranchesByLooter}
+            bossByKey={bossByKey}
+            partyById={partyById}
+            iconUrl={vestigeIcon}
+            busy={busy}
+            onAddSale={(looterName, pieces, amount) =>
+              saleWrite(TRANCHES_KEY, {
+                method: "POST",
+                body: JSON.stringify({ looterName, pieces, amount }),
+              })
+            }
+            onRemoveSale={(trancheId) =>
+              saleWrite(`${TRANCHES_KEY}/${trancheId}`, { method: "DELETE" })
+            }
+          />
 
           {whole.totals.drops > 0 && (
             <div className="party-toolbar">
