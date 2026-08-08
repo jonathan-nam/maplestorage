@@ -163,7 +163,9 @@ html:not(.has-session) .header-reserved {
   flex-direction: column;
 }
 
-.section-menu-group {
+/* A rule between blocks, on the block rather than on the group: Inventory sits after the Bossing
+   group, and without one it reads as a fourth entry under that heading. */
+.section-menu-panel > div + div {
   margin-top: 6px;
   padding-top: 6px;
   border-top: 1px solid var(--line-soft);

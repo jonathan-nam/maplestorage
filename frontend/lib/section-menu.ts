@@ -41,10 +41,7 @@ export type SectionItem = {
  */
 export const SECTIONS: { group?: string; items: SectionItem[] }[] = [
   {
-    items: [
-      { href: "/characters", label: "Characters" },
-      { href: "/inventory", label: "Inventory" },
-    ],
+    items: [{ href: "/characters", label: "Characters" }],
   },
   {
     group: "Bossing",
@@ -59,6 +56,9 @@ export const SECTIONS: { group?: string; items: SectionItem[] }[] = [
       { href: "/bosses/order", label: "Run Order" },
       { href: "/bosses/split", label: "Split Utility", interactiveOnly: true },
     ],
+  },
+  {
+    items: [{ href: "/inventory", label: "Inventory" }],
   },
 ];
 

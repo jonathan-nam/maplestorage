@@ -69,12 +69,12 @@ describe("what the menu lists", () => {
   it("lists the sections a person navigates between", () => {
     expect(MENU_HREFS).toEqual([
       "/characters",
-      "/inventory",
       "/bosses",
       "/bosses/parties",
       "/bosses/drops",
       "/bosses/order",
       "/bosses/split",
+      "/inventory",
     ]);
   });
 });
