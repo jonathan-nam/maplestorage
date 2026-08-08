@@ -156,6 +156,61 @@ describe("buildWallet", () => {
     expect(wallet.counterparties[0]!.owe).toBe(wallet.owe);
   });
 
+  it("owes a bigger share to whoever took one, still reading it off splitOf", () => {
+    // The wallet is where "who owes who what" is finally answered, so an uneven night has to reach
+    // it. Two seats on one drop, one of them on a double share.
+    const p = party("pa", [
+      mine("m1", "mechyfechy"),
+      theirs("m2", "CreedBratton", chris),
+      theirs("m3", "Ana"),
+    ]);
+    const loot = sold({
+      payouts: [
+        { memberId: "m2", paid: false, paidAt: null, shares: 2 },
+        { memberId: "m3", paid: false, paidAt: null, shares: 1 },
+      ],
+    });
+    const expected = splitOf(loot, p.members)!;
+
+    const wallet = buildWallet([p], [pool("pa", [loot])]);
+    const carry = wallet.counterparties.find((c) => c.name === "Chris")!;
+    const other = wallet.counterparties.find((c) => c.name === "Ana")!;
+
+    // Not "roughly twice": the exact figures the drop's own row shows, or one of the two is a
+    // second implementation.
+    expect(carry.owe).toBe(expected.shares[0]!.pay);
+    expect(other.owe).toBe(expected.shares[1]!.pay);
+    expect(carry.owe).toBeGreaterThan(other.owe * 1.99);
+    expect(wallet.owe).toBe(carry.owe + other.owe);
+  });
+
+  it("folds two seats of one person on one drop, shares and all", () => {
+    // A double share on one of their characters and a single on the other is still ONE person to
+    // settle with, and the total is the sum rather than either seat's.
+    const p = party("pa", [
+      mine("m1", "mechyfechy"),
+      theirs("m2", "CreedBratton", chris),
+      theirs("m3", "CreedBratton2", chris),
+    ]);
+    const loot = sold({
+      payouts: [
+        { memberId: "m2", paid: false, paidAt: null, shares: 3 },
+        { memberId: "m3", paid: false, paidAt: null, shares: 1 },
+      ],
+    });
+    const expected = splitOf(loot, p.members)!;
+
+    const wallet = buildWallet([p], [pool("pa", [loot])]);
+    expect(wallet.counterparties).toHaveLength(1);
+    expect(wallet.counterparties[0]!.lines).toHaveLength(2);
+    expect(wallet.counterparties[0]!.owe).toBe(expected.shares[0]!.pay + expected.shares[1]!.pay);
+    // Both seats are still named, because two transfers is what has to happen.
+    expect(settlementFor(wallet.counterparties[0]!)).toEqual([
+      { lootId: "l1", memberId: "m2" },
+      { lootId: "l1", memberId: "m3" },
+    ]);
+  });
+
   it("owes one person twice when two of their characters are in the party", () => {
     // Two seats, one person, one drop: two transfers, not one line drawn twice. Their ids are what
     // keeps them apart, and the pair (drop, seat) is what makes a line unique.
