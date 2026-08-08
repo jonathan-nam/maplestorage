@@ -4,6 +4,7 @@ import com.maplestorage.backend.bosses.bossRoutes
 import com.maplestorage.backend.characters.characterRoutes
 import com.maplestorage.backend.parties.partyRoutes
 import com.maplestorage.backend.parties.peopleRoutes
+import com.maplestorage.backend.parties.vestigeRoutes
 import com.maplestorage.backend.screenshots.screenshotRoutes
 import com.maplestorage.backend.services.NexonLookupService
 import com.maplestorage.backend.services.ScreenshotParser
@@ -114,6 +115,12 @@ fun Application.configureRouting(
 
             route("/api/people") {
                 peopleRoutes()
+            }
+
+            // Not under /api/parties: a looter's pile spans every party they loot for, and keying it
+            // to one of them is the per-boss ledger this replaced. See VestigeRoutes.kt.
+            route("/api/vestige-tranches") {
+                vestigeRoutes()
             }
 
             route("/api/settings") {
