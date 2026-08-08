@@ -155,10 +155,11 @@ drops:
   # matches against it, which is the only reason that is acceptable. Replace it with a native cut,
   # or with the mirror's own sprite once a dataset carries it.
   #
-  # Cut by keying the slot's own background out: it measured as neutral (saturation under 0.28) at
-  # middling brightness, where the star is gold, its outline dark brown and its core pure white. A
-  # flood fill from the corners alone left the grey enclosed by the star's arms behind it, which is
-  # visible at any size once you look for it.
+  # The cut keeps the star's BODY and drops its glow, which is the only version with no grey in it.
+  # The glow is semi-transparent and the capture flattened it over the grey slot, so those pixels are
+  # part grey and no threshold takes that back: keying by brightness left the slot's light top half
+  # behind, and keying harder ate the star. Warm gold, the dark outline and the white core, largest
+  # connected run, trimmed to the bbox. At the size this is drawn the glow was never visible.
   - key: vestige-of-erion
     name: Vestige of Erion Coupon
     art: cut
