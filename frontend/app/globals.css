@@ -4595,34 +4595,6 @@ button.link:disabled {
   gap: 10px;
 }
 
-/* The one edit the finished plan takes. Ahead of the time and stacked, so it costs the row a
-   glyph's width and stays out of the columns people read across. */
-.run-move {
-  display: flex;
-  flex-direction: column;
-}
-
-.run-move-arrow {
-  padding: 0 2px;
-  border: 0;
-  background: none;
-  color: var(--muted);
-  font-size: 12px;
-  line-height: 1.1;
-  cursor: pointer;
-}
-
-.run-move-arrow:hover {
-  color: var(--ink-strong);
-}
-
-/* A move that would break somebody's window, which the title on it names. Not `disabled`: that
-   takes the pointer events the tooltip needs. */
-.run-move-arrow[aria-disabled="true"] {
-  color: var(--line);
-  cursor: default;
-}
-
 /* Fixed width, so a tilde or a two-digit hour does not step the art beside it in and out. 4.6em
    holds the widest string this can draw, "~+11:30" at 54.7px on its own 12px font, measured in
    chromium. A minus is narrower than a plus here, so the far side of reset is not the wide case
