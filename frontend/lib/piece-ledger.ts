@@ -1,0 +1,195 @@
+// Who owes who, when a drop arrives in pieces and one person picks up more than their share.
+//
+// A boss drops vestige coupons in bundles, more bundles than a small party has members, so they do
+// not divide by looting alone: somebody ends up holding pieces that are not theirs. This works out
+// who is short, who is over, what the transfers between them are, and what those are worth once the
+// pieces have actually been sold.
+//
+// It is NOT the money split in drop-split.ts, and it is not a second copy of it. That file divides
+// one pot among seats and grosses each payout up for the fee on its hop. This one divides a COUNT,
+// which is exact, and turns into mesos only through the prices the seller really got.
+//
+// Pieces are liquid and the price moves, so a stack goes out in tranches: 100 at 25m, then 80 at
+// 24m. Nothing here stores an average. The tranches are what a human entered and the average is
+// derived from them, so a price nobody got cannot end up in a payout.
+
+import { FEE_STANDARD } from "./drop-split";
+
+/** One tranche, as the seller entered it. */
+export type PieceSale = {
+  pieces: number;
+  /** Listed price of ONE piece in that tranche. */
+  priceEach: number;
+};
+
+/** One seat on a stacking drop: what they took, and what fraction of it is theirs. */
+export type LedgerSeat = {
+  memberId: string;
+  name: string;
+  /** Pieces they picked up. */
+  looted: number;
+  /** Their weight in the even share. 1 unless the party agreed somebody takes more. */
+  shares: number;
+};
+
+/** What one seat was entitled to against what they took. */
+export type SeatBalance = {
+  memberId: string;
+  name: string;
+  entitled: number;
+  looted: number;
+  /** Pieces owed TO them. Negative means they are holding that many that are not theirs. */
+  balance: number;
+};
+
+/** How far through the stack the seller is. */
+export type SaleProgress = {
+  piecesSold: number;
+  unsold: number;
+  /** Listed value of everything sold so far. */
+  gross: number;
+  /** Exact average listed price of a piece sold, or null before anything has. */
+  averagePrice: number | null;
+  /**
+   * Every piece is accounted for, so what each seat is owed can be stated as a final figure. Until
+   * then it cannot: the pieces still to shift may go at a different price, and the average so far
+   * would put a number on screen that the last tranche is about to change.
+   */
+  complete: boolean;
+  /** More pieces sold than the row says dropped, which is a miscount rather than a payout. */
+  oversold: boolean;
+};
+
+/** One transfer that clears part of the ledger. */
+export type PieceTransfer = {
+  fromId: string;
+  toId: string;
+  from: string;
+  to: string;
+  pieces: number;
+  /**
+   * Mesos to send, or null while pieces are still unsold.
+   *
+   * Sending exactly this leaves the receiver holding what they would have held had they looted those
+   * pieces and sold them themselves: they pay the Auction House once on the way in, which is the one
+   * fee their own sale would have cost them. The sender pays a fee on their sale too, so the second
+   * hop is theirs to eat, and that is what taking somebody else's pieces costs.
+   */
+  send: number | null;
+  /** What the receiver is left holding after the fee on that transfer. Null with `send`. */
+  nets: number | null;
+};
+
+/** What has sold, and whether that is all of it. Money is derived here and stored nowhere. */
+export function saleProgress(total: number, sales: PieceSale[]): SaleProgress {
+  const piecesSold = sales.reduce((sum, s) => sum + s.pieces, 0);
+  const gross = sales.reduce((sum, s) => sum + s.pieces * s.priceEach, 0);
+  return {
+    piecesSold,
+    unsold: Math.max(0, total - piecesSold),
+    gross,
+    averagePrice: piecesSold > 0 ? gross / piecesSold : null,
+    complete: piecesSold === total && total > 0,
+    oversold: piecesSold > total,
+  };
+}
+
+/**
+ * What each seat was entitled to, by the largest remainder.
+ *
+ * Pieces are whole, so a share of them usually is not: 181 across four is 45.25 each. Everyone gets
+ * the floor, then the odd pieces go to the biggest fractions, ties in seat order. The point is that
+ * the entitlements add up to exactly what dropped, which is what makes the balances below sum to
+ * zero and the transfers clear the ledger completely rather than nearly.
+ */
+export function entitlements(total: number, seats: LedgerSeat[]): Map<string, number> {
+  const weight = seats.reduce((sum, s) => sum + s.shares, 0);
+  if (seats.length === 0 || weight <= 0 || total <= 0) {
+    return new Map(seats.map((s) => [s.memberId, 0]));
+  }
+
+  const exact = seats.map((s) => (total * s.shares) / weight);
+  const floors = exact.map(Math.floor);
+  let left = total - floors.reduce((sum, n) => sum + n, 0);
+
+  // Biggest fraction first, seat order breaking ties, so the same ledger always produces the same
+  // entitlements and a transfer already paid does not move to a different pair on the next read.
+  const order = seats
+    .map((_, i) => ({ i, fraction: (exact[i] ?? 0) - (floors[i] ?? 0) }))
+    .sort((a, b) => b.fraction - a.fraction || a.i - b.i);
+
+  const share = [...floors];
+  for (const { i } of order) {
+    if (left <= 0) break;
+    share[i] = (share[i] ?? 0) + 1;
+    left -= 1;
+  }
+  return new Map(seats.map((s, i) => [s.memberId, share[i] ?? 0]));
+}
+
+/** Every seat's position: what they should have, what they took, and the difference. */
+export function balances(total: number, seats: LedgerSeat[]): SeatBalance[] {
+  const entitled = entitlements(total, seats);
+  return seats.map((s) => {
+    const owed = entitled.get(s.memberId) ?? 0;
+    return {
+      memberId: s.memberId,
+      name: s.name,
+      entitled: owed,
+      looted: s.looted,
+      balance: owed - s.looted,
+    };
+  });
+}
+
+/**
+ * The transfers that clear the ledger, and what each is worth once everything has sold.
+ *
+ * Deterministic on purpose: seats over their share pay seats under it, both in seat order. A stable
+ * list is what lets "paid" be remembered against a pair, and it means two people reading the same
+ * row are told to send the same things.
+ *
+ * Empty when the pieces were looted the way they divide, which is the ordinary night. Nothing to
+ * say beats a list of zeroes.
+ *
+ * Every figure is rounded UP, so the person who took somebody else's pieces absorbs the dust rather
+ * than the person waiting to be paid. Same rule as the money split, for the same reason.
+ */
+export function transfers(total: number, seats: LedgerSeat[], sales: PieceSale[]): PieceTransfer[] {
+  const progress = saleProgress(total, sales);
+  const position = balances(total, seats);
+  const owing = position.filter((p) => p.balance < 0).map((p) => ({ ...p, left: -p.balance }));
+  const owed = position.filter((p) => p.balance > 0).map((p) => ({ ...p, left: p.balance }));
+
+  // Priced only when the stack is gone, and refused outright when more has sold than dropped: an
+  // average over a miscount is a wrong number with a straight face.
+  const priced = progress.complete && !progress.oversold ? progress.gross / total : null;
+
+  const out: PieceTransfer[] = [];
+  let next = 0;
+  for (const debtor of owing) {
+    while (debtor.left > 0 && next < owed.length) {
+      const creditor = owed[next]!;
+      const pieces = Math.min(debtor.left, creditor.left);
+      const send = priced === null ? null : Math.ceil(pieces * priced);
+      out.push({
+        fromId: debtor.memberId,
+        toId: creditor.memberId,
+        from: debtor.name,
+        to: creditor.name,
+        pieces,
+        send,
+        nets: send === null ? null : Math.floor(send * (1 - FEE_STANDARD)),
+      });
+      debtor.left -= pieces;
+      creditor.left -= pieces;
+      if (creditor.left === 0) next += 1;
+    }
+  }
+  return out;
+}
+
+/** The key a transfer is remembered by. One pair, one debt, however the row is redrawn. */
+export function transferKey(transfer: { fromId: string; toId: string }): string {
+  return `${transfer.fromId}>${transfer.toId}`;
+}
