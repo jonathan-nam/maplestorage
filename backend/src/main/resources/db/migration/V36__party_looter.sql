@@ -1,0 +1,13 @@
+-- Who picks up the pieces for this party.
+--
+-- Some parties agree that one member loots everything, because a coupon can be traded once and a
+-- stack in one inventory is one stack to sell. It is not always the account's own character: a duo
+-- where the partner does the looting and selling is the easier arrangement when the boss is run on a
+-- character that is not yours.
+--
+-- Standing rather than per night, because it is an arrangement and not an event. What it buys is
+-- everything downstream: a boss marked cleared can attribute its pieces without anybody typing them.
+--
+-- SET NULL rather than CASCADE. If the seat leaves the party the designation lapses, which is true;
+-- taking the party with it would not be.
+ALTER TABLE party ADD COLUMN looter_member_id UUID REFERENCES party_member(id) ON DELETE SET NULL;
