@@ -434,11 +434,8 @@ function RunRow({
 
   return (
     <li className="droplog-run">
-      {boss?.iconUrl ? (
-        <img className="boss-portrait is-small" src={apiAssetUrl(boss.iconUrl)} alt="" />
-      ) : (
-        <span className="boss-portrait is-small is-empty" aria-hidden="true" />
-      )}
+      {/* No portrait: the drop's own icon is on the line above, and a second column of art told
+          nobody which run this was that the boss name did not already say. */}
       <Link href={`/bosses/parties/${entry.partyId}`} className="loot-name">
         {/* The drop is named by the line above, so the run is named by its boss. Free text can be
             filed with no boss at all, and then the date is all there is to click. */}
