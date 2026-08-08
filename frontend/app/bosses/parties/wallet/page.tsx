@@ -27,11 +27,12 @@ import type { Party } from "@/types/party";
 
 type LoadState = "loading" | "loaded" | "error";
 
-// Solo pools included, and cached under their own key so nothing that lists parties reads them.
-// The pools below are every pool this account has, so a solo one arrives whether its config does
-// or not, and without the config its drops have no seats to be read against: buildWallet counts
-// those as unreadable, which would put a made-up warning on a wallet that is perfectly settled.
-const PARTIES_KEY = "/api/parties?solo=include";
+// Solo pools included, and retired configs too, cached under their own key so nothing that lists
+// parties reads them. The pools below are every pool this account has, so one arrives whether its
+// config is listable or not, and without the config its drops have no seats to be read against:
+// buildWallet counts those as unreadable, which would put a made-up warning on a wallet that is
+// perfectly settled, or drop a real debt off a party that has been taken off Party View.
+const PARTIES_KEY = "/api/parties?solo=include&retired=include";
 const POOLS_KEY = "/api/parties/loot";
 const SETTLE_KEY = "/api/parties/loot/settle";
 const BOSSES_KEY = "/api/bosses";

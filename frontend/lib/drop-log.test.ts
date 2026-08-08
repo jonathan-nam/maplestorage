@@ -28,6 +28,7 @@ const party = (id: string, members: PartyMember[], over: Partial<Party> = {}): P
   id,
   characterId: members[0]!.characterId!,
   solo: false,
+  retired: false,
   worldType: "INTERACTIVE",
   bossKey: "limbo",
   difficulty: null,
@@ -140,6 +141,20 @@ describe("buildDropLog", () => {
 
     expect(entry.yourTake).toBe(entry.pooled);
     expect(log.totals.pooled).toBe(splitOf(loot, alone.seats)!.split.sellerReceives);
+    expect(log.totals.unreadable).toBe(0);
+  });
+
+  it("logs a drop on a retired party, given the config", () => {
+    // buildDropLog skips a pool whose config it cannot find, so this is what the Drop Log's
+    // ?retired=include is for: without the config the drop is not counted short, it is simply
+    // absent, and a history that quietly loses rows is the wrong number this repo exists to stop.
+    const gone = { ...duo(), retired: true };
+    const loot = drop();
+
+    const log = buildDropLog([gone], [pool("pa", [loot])]);
+
+    expect(log.entries.map((e) => e.lootId)).toEqual([loot.id]);
+    expect(log.totals.drops).toBe(1);
     expect(log.totals.unreadable).toBe(0);
   });
 

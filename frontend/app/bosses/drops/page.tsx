@@ -29,10 +29,10 @@ import type { Party } from "@/types/party";
 
 type LoadState = "loading" | "loaded" | "error";
 
-// Solo pools included, which no other page asks for: they hold what fell on bosses run alone, and
-// without their configs those drops have no seats to be read against and would be left out of the
-// log entirely. See partiesFor.
-const PARTIES_KEY = "/api/parties?solo=include";
+// Solo pools included, and retired configs too, which only the wallet also asks for: both hold
+// drops whose configs are off every list, and buildDropLog skips a pool whose config it cannot
+// find, so without these the log would quietly be missing them. See partiesFor.
+const PARTIES_KEY = "/api/parties?solo=include&retired=include";
 const POOLS_KEY = "/api/parties/loot";
 const BOSSES_KEY = "/api/bosses";
 const DROPS_KEY = "/api/bosses/drops";

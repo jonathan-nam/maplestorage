@@ -29,7 +29,6 @@ import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
-import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlin.time.Clock
@@ -366,23 +365,6 @@ class PartyLootTest {
             assertTrue(loot.payouts.isEmpty())
             // The seat is free again once nothing points at it.
             assertTrue(seatsWithLootHistory(partyId).isEmpty())
-        }
-    }
-
-    @Test
-    fun `deleting a party takes its loot and payouts with it`() {
-        transaction {
-            val party = trio()
-            val partyId = Uuid.parse(party.id)
-            val lootId = addGrindstone(party)
-            val seller = party.members[0]
-            sellLoot(lootId, sale(seller.id), Uuid.parse(seller.id), partyId, Clock.System.now())
-            assertNotNull(findLoot(lootId, partyId))
-
-            // party_loot_payout points at party_member, which cascades from party. If that FK were
-            // RESTRICT this would fail rather than clean up.
-            assertTrue(deleteParty(partyId, userId))
-            assertTrue(lootFor(partyId).isEmpty())
         }
     }
 

@@ -585,7 +585,7 @@ class PartyConfigTest {
             assertTrue(partiesFor(userOneId).isEmpty())
             assertNull(findParty(Uuid.parse(party.id), userOneId))
             assertTrue(!ownsParty(Uuid.parse(party.id), userOneId))
-            assertTrue(!deleteParty(Uuid.parse(party.id), userOneId))
+            assertEquals(Removal.NOT_FOUND, retireOrDeleteParty(Uuid.parse(party.id), userOneId))
         }
     }
 }

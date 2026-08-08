@@ -137,6 +137,11 @@ internal fun isSpentOneOff(
  *
  * A solo pool asked for as a one-off becomes one, so a drop logged before the party was named does
  * not quietly turn a single night into a standing arrangement.
+ *
+ * A RETIRED config comes back standing, which is what adding a boss a character used to run means.
+ * Its drops are already in the wallet and the Drop Log and stay exactly where they were: the weeks
+ * they fell in are spelled out first, so the roster being written now is not back-dated over a
+ * night it was not the roster for. Same hazard adoptSoloParty guards, same guard.
  */
 internal fun takeOverParty(
     userId: String,
@@ -150,6 +155,10 @@ internal fun takeOverParty(
     if (solo) {
         adoptSoloParty(userId, partyId, request, now, sprites)
     } else {
+        if (isRetiredParty(partyId)) {
+            pinWeeksAlreadyDropped(partyId)
+            Party.update({ Party.id eq partyId }) { it[standing] = true }
+        }
         saveParty(userId, partyId, request, now, sprites)
     }
 

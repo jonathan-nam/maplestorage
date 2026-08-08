@@ -53,6 +53,10 @@ fun Route.partyRoutes(nexonLookupService: NexonLookupService) {
  *
  * `?solo=include` adds the pools for bosses run alone. Off by default: they are not parties, and a
  * caller that draws a roster or plans a night would be showing a party of one.
+ *
+ * `?retired=include` adds the configs taken off the lists whose pools were kept. Off by default,
+ * and only the wallet and the Drop Log ask: they read the loot rows against the configs they are
+ * given, so without it a retired party's drops go missing from one and unreadable in the other.
  */
 private suspend fun RoutingContext.listParties() {
     val (userId, email) = call.principalIdAndEmail()
@@ -61,10 +65,11 @@ private suspend fun RoutingContext.listParties() {
             return call.respond(HttpStatusCode.BadRequest, it.message.orEmpty())
         }
     val includeSolo = call.request.queryParameters["solo"] == "include"
+    val includeRetired = call.request.queryParameters["retired"] == "include"
     val parties =
         transaction {
             ensureUser(userId, email)
-            partiesFor(userId, week, includeSolo)
+            partiesFor(userId, week, includeSolo, includeRetired)
         }
     call.respond(parties)
 }
@@ -127,7 +132,7 @@ private suspend fun RoutingContext.createPartyRoute(nexonLookupService: NexonLoo
                 } else {
                     partyIdFor(characterId, bossId)
                 }
-            val takeOver = held?.takeIf { isSoloParty(it) || isSpentOneOff(it, now) }
+            val takeOver = held?.takeIf { isSoloParty(it) || isSpentOneOff(it, now) || isRetiredParty(it) }
             if (takeOver != null) {
                 val problem = validateSavedParty(userId, takeOver, request)
                 if (problem != null) {
@@ -261,26 +266,18 @@ private suspend fun RoutingContext.deletePartyRoute() {
     val (userId, email) = call.principalIdAndEmail()
     val partyId = call.parseUuidParam("id") ?: return
 
+    // A pool is kept rather than refused over: the config retires instead of being deleted, and its
+    // drops stay in the wallet and the Drop Log. See retireOrDeleteParty. Both answers are 204,
+    // because both mean the same thing to the caller: it is off the list.
     val outcome =
         transaction {
             ensureUser(userId, email)
-            when {
-                !ownsParty(partyId, userId) -> null
-                // Deleting the config would take its pool with it, and a paid-out split is a
-                // record rather than a setting. All time, not the shown week: a settled drop from
-                // months ago is exactly the record this refuses to discard.
-                lootCountsFor(listOf(partyId), week = null).isNotEmpty() ->
-                    "this party has loot in its pool, clear the pool first"
-                else -> {
-                    deleteParty(partyId, userId)
-                    HttpStatusCode.NoContent
-                }
-            }
+            retireOrDeleteParty(partyId, userId)
         }
-    when (outcome) {
-        null -> call.respond(HttpStatusCode.NotFound)
-        is String -> call.respond(HttpStatusCode.BadRequest, outcome)
-        else -> call.respond(HttpStatusCode.NoContent)
+    if (outcome == Removal.NOT_FOUND) {
+        call.respond(HttpStatusCode.NotFound)
+    } else {
+        call.respond(HttpStatusCode.NoContent)
     }
 }
 

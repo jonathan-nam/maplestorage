@@ -52,6 +52,10 @@ data class PartyResponse(
     // On for one period rather than every one. A boss run once, which is gone next period without
     // being told to, as against a standing arrangement that is on until somebody says otherwise.
     val oneOff: Boolean = false,
+    // Taken off the lists, pool kept. Only the wallet and the Drop Log ever see one, and both need
+    // to tell it from a live party: it holds real drops, but it is not a boss this character runs.
+    // See V33__party_standing.sql.
+    val retired: Boolean = false,
     // Who ran in the week being shown, which is not always who usually does. See rostersFor.
     val members: List<PartyMemberResponse>,
     // EVERY seat this party has ever had, guests and departed members included. What a payout is

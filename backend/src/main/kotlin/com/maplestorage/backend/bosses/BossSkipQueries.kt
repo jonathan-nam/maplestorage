@@ -128,7 +128,10 @@ private fun partiedNames(
         Party
             .selectAll()
             .where {
-                (Party.characterId eq characterId) and (Party.bossCatalogId inList ids) and (Party.solo eq false)
+                (Party.characterId eq characterId) and
+                    (Party.bossCatalogId inList ids) and
+                    (Party.solo eq false) and
+                    (Party.standing eq true)
             }.map { it[Party.bossCatalogId] }
             .toSet()
     return bosses.filter { it.id in partied }.map { it.name }

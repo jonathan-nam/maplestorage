@@ -107,8 +107,13 @@ internal fun adoptSoloParty(
     saveParty(userId, partyId, request, now, sprites)
 }
 
-/** Spells out every week this pool already has a drop in, as the seats it has right now. */
-private fun pinWeeksAlreadyDropped(partyId: Uuid) {
+/**
+ * Spells out every week this pool already has a drop in, as the seats it has right now.
+ *
+ * Called before any roster rewrite that could reach back over a night already played: adopting a
+ * solo pool, and reviving a retired config. See takeOverParty.
+ */
+internal fun pinWeeksAlreadyDropped(partyId: Uuid) {
     val seats = PartyMember.selectAll().where { PartyMember.partyId eq partyId }.map { it[PartyMember.id] }
     val spelledOut = weeksSpelledOutFor(partyId)
     PartyLoot

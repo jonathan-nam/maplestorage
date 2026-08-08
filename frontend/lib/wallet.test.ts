@@ -32,6 +32,7 @@ const party = (id: string, members: PartyMember[], over: Partial<Party> = {}): P
   id,
   characterId: members[0]!.characterId!,
   solo: false,
+  retired: false,
   worldType: "INTERACTIVE",
   bossKey: "limbo",
   difficulty: null,
@@ -299,6 +300,20 @@ describe("buildWallet", () => {
 
     expect(wallet.unreadable).toBe(2);
     expect(wallet.owe).toBe(0);
+  });
+
+  it("still owes a debt on a retired party, given the config", () => {
+    // The reason the wallet asks for ?retired=include. A retired config still holds real drops, so
+    // handed one the split reads exactly as it did before the party left Party View. Without it
+    // this same pool falls into the unreadable branch above and the debt stops being owed.
+    const p = party("pa", [mine("m1", "mechyfechy"), theirs("m2", "CreedBratton", chris)], {
+      retired: true,
+    });
+    const wallet = buildWallet([p], [pool("pa", [sold({ sellerMemberId: "m1" })])]);
+
+    expect(wallet.unreadable).toBe(0);
+    expect(wallet.owe).toBeGreaterThan(0);
+    expect(wallet.counterparties.map((c) => c.name)).toEqual(["Chris"]);
   });
 
   it("has nothing to say about an account with no parties", () => {

@@ -191,6 +191,9 @@ export function consolidate(parties: Party[], characterOrder: string[]): Consoli
  * A STANDING party taken off the period is not here. It has a config, it is on again next period,
  * and adding over it would overwrite the roster and difficulty it already carries. Putting that one
  * back is the edit page's own button.
+ *
+ * A RETIRED one is offered, and has to be: it holds the pair's slot too, so the boss would
+ * otherwise be unaddable forever. Adding it revives that config, pool and all. See takeOverParty.
  */
 export function bossesWithoutConfig(parties: Party[], bosses: Boss[], characterId: string): Boss[] {
   const taken = new Set(
@@ -209,10 +212,16 @@ export function bossesWithoutConfig(parties: Party[], bosses: Boss[], characterI
  *
  * Read against a list that includes solo configs, which only the Drop Log asks for. Given the
  * ordinary list it still answers correctly, since a config that is not there cannot be a party.
+ *
+ * A RETIRED config is not a party either. The Drop Log now holds these so its entries stay
+ * readable, and counting one here would make a boss you used to run in a party unloggable: the
+ * only pool it could go in is the retired one, which addLoot revives.
  */
 export function bossesWithoutParty(parties: Party[], bosses: Boss[], characterId: string): Boss[] {
   const partied = new Set(
-    parties.filter((p) => p.characterId === characterId && !p.solo).map((p) => p.bossKey),
+    parties
+      .filter((p) => p.characterId === characterId && !p.solo && !p.retired)
+      .map((p) => p.bossKey),
   );
   return bosses.filter((boss) => !partied.has(boss.bossKey));
 }
