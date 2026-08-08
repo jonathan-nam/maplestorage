@@ -10,6 +10,8 @@ import com.maplestorage.backend.db.PartyMember
 import com.maplestorage.backend.db.Person
 import com.maplestorage.backend.db.PersonCharacter
 import kotlinx.datetime.LocalDate
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.inList
@@ -136,7 +138,18 @@ internal fun setPartyClear(
         row[capturedAt] = now
         row[sourceScreenshotId] = null
     }
+    // What the clear guarantees, or taking it back. See LootFromClear.kt.
+    val own = Uuid.parse(party.characterId)
+    val today = todayIn(now)
+    if (cleared) {
+        lootFromClear(own, bossCatalogId, reset, today, now)
+    } else {
+        unlootFromClear(own, bossCatalogId, reset, today)
+    }
 }
+
+/** Today, as the clock the periods are measured on sees it. */
+private fun todayIn(now: Instant): LocalDate = now.toLocalDateTime(TimeZone.UTC).date
 
 /**
  * The clear a drop implies: something fell, so the boss died.

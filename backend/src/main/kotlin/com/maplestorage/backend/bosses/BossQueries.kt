@@ -3,8 +3,12 @@ package com.maplestorage.backend.bosses
 import com.maplestorage.backend.db.BossCatalog
 import com.maplestorage.backend.db.BossClear
 import com.maplestorage.backend.db.Characters
+import com.maplestorage.backend.parties.lootFromClear
+import com.maplestorage.backend.parties.unlootFromClear
 import com.maplestorage.backend.services.DetectedBossClear
 import kotlinx.datetime.LocalDate
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
 import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
@@ -149,6 +153,12 @@ internal fun setBossClearByHand(
         row[capturedAt] = now
         row[sourceScreenshotId] = null
     }
+    val day = now.toLocalDateTime(TimeZone.UTC).date
+    if (cleared) {
+        lootFromClear(characterId, boss[BossCatalog.id], boss[BossCatalog.reset], day, now)
+    } else {
+        unlootFromClear(characterId, boss[BossCatalog.id], boss[BossCatalog.reset], day)
+    }
     return true
 }
 
@@ -188,6 +198,15 @@ internal fun upsertBossClears(
             r[cleared] = clear.cleared
             r[BossClear.capturedAt] = capturedAt
             r[sourceScreenshotId] = screenshotId
+        }
+        // A capture files what the clear guarantees too, or takes it back on a boss it reads as
+        // pending. Skipping it here would make a ticked clear and a captured one disagree about
+        // whether the pieces exist, silently. See LootFromClear.kt.
+        val day = capturedAt.toLocalDateTime(TimeZone.UTC).date
+        if (clear.cleared) {
+            lootFromClear(characterId, row[BossCatalog.id], row[BossCatalog.reset], day, capturedAt)
+        } else {
+            unlootFromClear(characterId, row[BossCatalog.id], row[BossCatalog.reset], day)
         }
     }
 }
