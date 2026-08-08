@@ -46,6 +46,9 @@ export type Party = {
   // False when this week was spelled out with its own roster. The members alone cannot say so: a
   // week that only drops somebody names no guest and would read as an ordinary one.
   usualRoster: boolean;
+  // The party stands, but is not running this boss in the period being shown. Answers for the week
+  // the list was asked for, unlike `cleared` below, which always answers for now.
+  skippedThisPeriod: boolean;
   // The pool at a glance: dropped but unsold, sold with somebody still unpaid, and sold with
   // nothing left to do. The last one is carried so a fully settled pool is still visible from the
   // list rather than reading as a party that never dropped anything.
@@ -94,6 +97,18 @@ export type SavePartyBody = {
 export type SaveWeekRosterBody = {
   week?: string | null;
   members: string[] | null;
+};
+
+/**
+ * What PUT /api/parties/{id}/skip takes: whether this boss is being run this period.
+ *
+ * False puts it back, by deleting the mark rather than storing a false, so the next period runs as
+ * usual without being told to. `week` is omitted for the same reason the roster omits it: only this
+ * period may be changed, and the server's clock is the one that decides which it is.
+ */
+export type SetPartySkipBody = {
+  week?: string | null;
+  skipped: boolean;
 };
 
 // The whole people list, every time.

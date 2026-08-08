@@ -209,6 +209,17 @@ object Party : Table("party") {
     override val primaryKey = PrimaryKey(id)
 }
 
+// The periods a party is not running its boss, the config left standing. No rows for a period means
+// it runs as usual, so putting it back is a deletion. Filed by the boss's own cadence like a clear,
+// not by Thursday weeks like a roster. See V31__party_period_skip.sql.
+object PartyPeriodSkip : Table("party_period_skip") {
+    val partyId = reference("party_id", Party.id)
+    val periodStart = date("period_start")
+    val createdAt = timestamp("created_at")
+
+    override val primaryKey = PrimaryKey(partyId, periodStart)
+}
+
 // The people you run with. See V21__person.sql.
 object Person : Table("person") {
     val id = uuid("id")

@@ -60,6 +60,18 @@ export function isCleared(party: Party): boolean {
   return party.cleared === true;
 }
 
+/**
+ * The configs actually being run in the period on screen.
+ *
+ * A party taken off a period is still a party: the config stands, its pool stands, and it comes
+ * back on its own next period. What it is not is work outstanding, so it is out of the list and out
+ * of every count beside it. Shared with Run Order so a night cannot be planned around a boss this
+ * page has already dropped.
+ */
+export function runningThisPeriod(parties: Party[]): Party[] {
+  return parties.filter((party) => !party.skippedThisPeriod);
+}
+
 /** What the party list is narrowed to. "not-cleared" is everything `isCleared` rejects. */
 export type ClearFilter = "all" | "not-cleared" | "cleared";
 

@@ -22,6 +22,7 @@ import {
   filterByClear,
   knownCharacterNames,
   otherMembers,
+  runningThisPeriod,
 } from "@/lib/parties";
 import { preloadBossArt } from "@/lib/preload-boss-art";
 import { type CrossedReset, WEEKLY_CADENCE } from "@/lib/reset-countdown";
@@ -31,7 +32,7 @@ import type { Boss, BossClearsView } from "@/types/boss";
 import type { Character } from "@/types/character";
 import type { DropTables } from "@/types/drop";
 import type { AddLootBody } from "@/types/loot";
-import type { Party, Person, SaveWeekRosterBody } from "@/types/party";
+import type { Party, Person, SaveWeekRosterBody, SetPartySkipBody } from "@/types/party";
 
 type LoadState = "loading" | "loaded" | "error";
 
@@ -280,6 +281,32 @@ export default function PartiesPage() {
   }
 
   /**
+   * Takes a boss off this period, or puts it back, leaving the config alone.
+   *
+   * A week off is not the party ending, so nothing is deleted: the seats, the pool and the standing
+   * roster all survive it, and next period runs as usual without being told to. The row leaves the
+   * list, and the count above it is what says so.
+   *
+   * Live view only, so PARTIES_KEY is the right list to refetch. Throws on failure, which is what
+   * lets the row show it did not save.
+   */
+  async function setSkipped(party: Party, skipped: boolean) {
+    setBusy(true);
+    try {
+      await apiFetch<Party>(
+        `${PARTIES_KEY}/${party.id}/skip`,
+        { method: "PUT", body: JSON.stringify({ skipped } satisfies SetPartySkipBody) },
+        getToken,
+      );
+      const refreshed = await apiFetch<Party[]>(PARTIES_KEY, { method: "GET" }, getToken);
+      setParties(refreshed);
+      put(PARTIES_KEY, refreshed);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  /**
    * Logs a drop from the row, without leaving the list.
    *
    * The pool it lands in is the party page's, the same POST that page makes, so a drop added here
@@ -332,6 +359,12 @@ export default function PartiesPage() {
   const shown = week !== null ? existedInWeek(weekly, week) : weekly;
   const hiddenByCadence = parties.length - weekly.length;
   const hiddenByAge = weekly.length - shown.length;
+  // Last, what was taken off this period by hand. Held apart from the two rules above because those
+  // are about the week and this is about the boss: a config taken off is in the week, it is just not
+  // being run in it. Everything below counts `running`, so a boss taken off is out of the tabs and
+  // out of the group headings as well as out of the list.
+  const running = runningThisPeriod(shown);
+  const takenOff = shown.length - running.length;
 
   // Either rule can empty a week, and naming the wrong one explains a correct screen wrongly. Only
   // for a week with nothing left in it: a week that still has a list says nothing about what it
@@ -366,16 +399,23 @@ export default function PartiesPage() {
   // the ticks on a past week instead of narrowing by this week's state.
   const showsCleared = (party: Party) => clearOf(party).cleared === true;
 
+  // A boss taken off is off its OWN period, which for the Black Mage is a month. The button names
+  // which, because one reading "not this week" that takes off a month is a control that lies.
+  const periodWord = (party: Party) =>
+    ({ WEEKLY: "week", MONTHLY: "month", DAILY: "day" })[
+      bossByKey.get(party.bossKey)?.reset ?? ""
+    ] ?? "period";
+
   // Filtered by week first, then by clear state, then grouped, so all three groupings answer the
   // same question and a group with nothing left in it drops out rather than sitting there empty.
-  const visible = filterByClear(shown, clearFilter, showsCleared);
-  const clearedCount = shown.filter(showsCleared).length;
+  const visible = filterByClear(running, clearFilter, showsCleared);
+  const clearedCount = running.filter(showsCleared).length;
   const filterTabs: { value: ClearFilter; label: string; count: number; title?: string }[] = [
-    { value: "all", label: "All", count: shown.length },
+    { value: "all", label: "All", count: running.length },
     {
       value: "not-cleared",
       label: "Not cleared",
-      count: shown.length - clearedCount,
+      count: running.length - clearedCount,
       title: "Includes bosses no planner capture has mentioned this period",
     },
     { value: "cleared", label: "Cleared", count: clearedCount },
@@ -472,9 +512,9 @@ export default function PartiesPage() {
 
             {/* What is left this week, without reading past what is done. "Not cleared" holds the
                 unreported ones too. The counts do not move when you switch tabs: they are of every
-                config the WEEK admits, which on the live view is all of them and on a past week is
-                the weekly ones. Counting past that would offer a tab that lists less than it
-                promises. */}
+                config being RUN in the week, which on the live view is all of them bar the ones
+                taken off and on a past week is the weekly ones. Counting past that would offer a tab
+                that lists less than it promises. */}
             <div className="basis-row" role="group" aria-label="Filter by clear state">
               {filterTabs.map((tab) => (
                 <button
@@ -505,9 +545,36 @@ export default function PartiesPage() {
             <p className="finder-empty">No parties in this week. {emptyWeekReason}</p>
           )}
 
+          {/* The rows are gone from the list on purpose, so the count is what keeps them from being
+              gone silently, and on the live view it doubles as the way back. One line for the page,
+              not a note per row: the rows it is about are not on screen to be noted beside. A past
+              week says the same number without the link, since only this week can be put back. */}
+          {takenOff > 0 && (
+            <p className="party-hint">
+              {history ? (
+                `${takenOff} off that week`
+              ) : (
+                <Link href="/bosses/parties/edit">{takenOff} off this week</Link>
+              )}
+            </p>
+          )}
+
+          {shown.length > 0 && running.length === 0 && (
+            <p className="finder-empty">
+              {history ? (
+                "Every boss was off that week."
+              ) : (
+                <>
+                  Every boss is off this week. <Link href="/bosses/parties/edit">Put one back</Link>
+                  .
+                </>
+              )}
+            </p>
+          )}
+
           {/* An empty list under a filter is an answer, not a blank page. Kept apart from the no
               parties at all case above, which is a different thing to say. */}
-          {shown.length > 0 && visible.length === 0 && (
+          {running.length > 0 && visible.length === 0 && (
             <p className="finder-empty">
               {clearFilter === "cleared"
                 ? "Nothing cleared this week yet."
@@ -552,6 +619,8 @@ export default function PartiesPage() {
                         dropTable={dropTables[party.bossKey]}
                         onAddDrop={canAddDrops ? (body) => addDrop(party, body) : undefined}
                         onSaveRoster={history ? undefined : (members) => saveRoster(party, members)}
+                        onTakeOff={history ? undefined : () => setSkipped(party, true)}
+                        periodWord={periodWord(party)}
                         heading={
                           <>
                             {bossByKey.get(party.bossKey)?.iconUrl && (
@@ -664,6 +733,8 @@ export default function PartiesPage() {
                       dropTable={dropTables[party.bossKey]}
                       onAddDrop={canAddDrops ? (body) => addDrop(party, body) : undefined}
                       onSaveRoster={history ? undefined : (members) => saveRoster(party, members)}
+                      onTakeOff={history ? undefined : () => setSkipped(party, true)}
+                      periodWord={periodWord(party)}
                       heading={
                         <>
                           {characterById.get(party.characterId)?.spriteImgUrl && (

@@ -58,6 +58,9 @@ data class PartyResponse(
     // False when this week was spelled out with its own roster. The members alone cannot say so: a
     // week that only drops somebody names no guest and would read as an ordinary one.
     val usualRoster: Boolean = true,
+    // The party is standing but is not running this boss in the period being shown. Answers for the
+    // week the list was asked for, unlike `cleared` below, which always answers for now.
+    val skippedThisPeriod: Boolean = false,
     // The pool at a glance: dropped but unsold, and sold with somebody still unpaid.
     val pendingLoot: Int = 0,
     val awaitingPayout: Int = 0,
@@ -134,6 +137,22 @@ data class PersonRequest(
 data class SaveWeekRosterRequest(
     val week: String? = null,
     val members: List<String>? = null,
+)
+
+/**
+ * Whether the party is running its boss this period.
+ *
+ * False puts it back, and puts it back by deleting the mark rather than storing a false, so the next
+ * period runs as usual without being told to.
+ *
+ * `week` names the period being changed, and only the current one may be, for the reason the roster
+ * gives: a past week's pools were settled against what actually happened, and re-answering "did you
+ * run it" afterwards would leave the two disagreeing with nothing on screen saying which is right.
+ */
+@Serializable
+data class SetPartySkipRequest(
+    val week: String? = null,
+    val skipped: Boolean,
 )
 
 /** Ticking a config's boss cleared for the period it is in, or un-ticking it. */

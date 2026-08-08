@@ -31,7 +31,7 @@ import {
   tradeOffs,
 } from "@/lib/boss-run-plan";
 import { peek, put } from "@/lib/cache";
-import { isCleared } from "@/lib/parties";
+import { isCleared, runningThisPeriod } from "@/lib/parties";
 import { preloadRunArt } from "@/lib/preload-boss-art";
 import type { Boss } from "@/types/boss";
 import type { Party } from "@/types/party";
@@ -245,9 +245,15 @@ export default function RunOrderPage() {
   // would re-order the whole night on every keystroke in the draft form.
   const showingAccount = shown.source === "parties";
 
+  // A boss taken off this period is out of the night whatever the toggle says. "Only bosses not
+  // cleared" is a narrowing you can turn off to see the rest; "we are not running it" is not one of
+  // those, and a plan that scheduled it anyway would be a night built around a boss Party View has
+  // already dropped.
+  const running = useMemo(() => runningThisPeriod(parties), [parties]);
+
   const usable = useMemo(
-    () => (shown.openOnly ? parties.filter((party) => !isCleared(party)) : parties),
-    [parties, shown.openOnly],
+    () => (shown.openOnly ? running.filter((party) => !isCleared(party)) : running),
+    [running, shown.openOnly],
   );
 
   const roster: NightPerson[] = useMemo(
@@ -407,12 +413,16 @@ export default function RunOrderPage() {
       )}
 
       {/* showingAccount, not fromAccount: this describes the runs, so it moves with them rather
-          than a render ahead of them. */}
+          than a render ahead of them. Counted over the parties still ON the period: counting every
+          config would call a boss taken off by hand a boss that is cleared, which is a different
+          answer to "why is there nothing to run". */}
       {showingAccount && state === "loaded" && parties.length > 0 && runs.length === 0 && (
         <p className="finder-empty">
-          {parties.length === 1
-            ? "Your party is cleared this period."
-            : `All ${parties.length} parties are cleared this period.`}
+          {running.length === 0
+            ? "Every boss is off this period."
+            : running.length === 1
+              ? "Your party is cleared this period."
+              : `All ${running.length} parties are cleared this period.`}
         </p>
       )}
 
