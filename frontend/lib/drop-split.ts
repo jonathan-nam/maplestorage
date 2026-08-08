@@ -41,10 +41,16 @@ export type SplitInput = {
   /** One rate per OTHER party member. Its length is the party size less the seller. */
   memberFees: number[];
   method: SplitMethod;
+  /** The seller's own share count. Absent is 1, which is an even split. */
+  sellerShares?: number;
+  /** One share count per OTHER member, positional with `memberFees`. Absent is 1 each. */
+  memberShares?: number[];
 };
 
 export type MemberShare = {
   fee: number;
+  /** How many shares of the pot this member takes. 1 in an even split. */
+  shares: number;
   /** Mesos to send this member, before the fee on that transfer. */
   pay: number;
   /** What they actually end up holding. */
@@ -58,6 +64,13 @@ export type Split = {
   sellerReceives: number;
   /** What the seller is left holding, after absorbing the rounding dust. */
   sellerKeeps: number;
+  /** The seller's own share count, as used. */
+  sellerShares: number;
+  /**
+   * What one share nets on a fair split, before it is grossed up for the receiver's fee. Zero on a
+   * lazy split, which never solves for it.
+   */
+  netPerShare: number;
   members: MemberShare[];
   /** Lost to the AH: both hops when the listed price is known, the payouts alone when it is not. */
   totalFee: number;
@@ -92,10 +105,21 @@ export function parseMesos(input: string): number | null {
  * act on. A rate of 1 would mean the AH takes everything, and dividing by what is left is where an
  * Infinity would enter and be rendered as a payout.
  *
+ * Shares are the same kind of refusal. A `memberShares` of the wrong length would silently pay some
+ * members a share they never agreed to, so it is rejected rather than padded.
+ *
  * Mesos are integers, so each payout is rounded UP and the seller absorbs the dust. It is a meso
  * per member at most, and it is the distributor's to eat rather than the party's.
  */
-export function splitDrop({ amount, amountIs, sellerFee, memberFees, method }: SplitInput): Split {
+export function splitDrop({
+  amount,
+  amountIs,
+  sellerFee,
+  memberFees,
+  method,
+  sellerShares = 1,
+  memberShares,
+}: SplitInput): Split {
   // The seller's own rate is unused on a `received` basis, so a nonsense value there must not
   // reject input the split does not depend on.
   const rates = amountIs === "listed" ? [sellerFee, ...memberFees] : memberFees;
@@ -108,22 +132,40 @@ export function splitDrop({ amount, amountIs, sellerFee, memberFees, method }: S
     throw new RangeError(`amount must be zero or more, got ${amount}`);
   }
 
+  const shares = memberShares ?? memberFees.map(() => 1);
+  if (shares.length !== memberFees.length) {
+    throw new RangeError(`memberShares must be one per member, got ${shares.length}`);
+  }
+  for (const count of [sellerShares, ...shares]) {
+    if (!Number.isInteger(count) || count < 1) {
+      throw new RangeError(`a share count must be a whole number of 1 or more, got ${count}`);
+    }
+  }
+
   const entered = Math.floor(amount);
   const grossSale = amountIs === "listed" ? entered : null;
   const sellerReceives = amountIs === "listed" ? Math.floor(entered * (1 - sellerFee)) : entered;
 
-  // Fair, with a rate per member. Everyone is to hold the same amount X afterwards, so the seller
-  // keeps X and must send member i enough that X survives THEIR fee, X / (1 - fee_i). Those have
-  // to add up to what the seller is holding:
-  //   X + SUM X / (1 - fee_i) = received
-  // so X = received / (1 + SUM 1 / (1 - fee_i)). With one shared rate this collapses to the flat
-  // formula, which is what the equal-rate tests pin.
-  const equalNet = sellerReceives / (1 + memberFees.reduce((sum, fee) => sum + 1 / (1 - fee), 0));
+  // Fair, with a rate per member and a share count per seat. Every SHARE is to be worth the same X
+  // afterwards, so the seller keeps X times their own shares and must send member i enough that
+  // X * shares_i survives THEIR fee. Those have to add up to what the seller is holding:
+  //   X * shares_s + SUM X * shares_i / (1 - fee_i) = received
+  // so X = received / (shares_s + SUM shares_i / (1 - fee_i)). All shares at 1 collapses this to
+  // the even-split formula, which is what the equal-share tests pin.
+  //
+  // A party of one gets zero, not the whole purse: with nobody to send to there is no share to
+  // price, and a figure here would make the two methods differ on a pool that cannot split.
+  const netPerShare =
+    method === "fair" && memberFees.length > 0
+      ? sellerReceives /
+        (sellerShares + memberFees.reduce((sum, fee, i) => sum + (shares[i] ?? 1) / (1 - fee), 0))
+      : 0;
 
-  const partySize = memberFees.length + 1;
-  const exact = (fee: number) =>
-    method === "fair" ? equalNet / (1 - fee) : sellerReceives / partySize;
-  const payouts = (round: (n: number) => number) => memberFees.map((fee) => round(exact(fee)));
+  const totalShares = sellerShares + shares.reduce((sum, count) => sum + count, 0);
+  const exact = (fee: number, count: number) =>
+    method === "fair" ? (netPerShare * count) / (1 - fee) : (sellerReceives * count) / totalShares;
+  const payouts = (round: (n: number) => number) =>
+    memberFees.map((fee, i) => round(exact(fee, shares[i] ?? 1)));
 
   // Round payouts UP, so the seller absorbs the rounding dust rather than the party. It is a meso
   // or two, but it is the distributor's to eat, and it matches the split bot people already
@@ -137,7 +179,7 @@ export function splitDrop({ amount, amountIs, sellerFee, memberFees, method }: S
 
   const members = memberFees.map((fee, i) => {
     const pay = pays[i] ?? 0;
-    return { fee, pay, nets: Math.floor(pay * (1 - fee)) };
+    return { fee, shares: shares[i] ?? 1, pay, nets: Math.floor(pay * (1 - fee)) };
   });
 
   const paidOut = members.reduce((sum, m) => sum + m.pay, 0);
@@ -148,6 +190,8 @@ export function splitDrop({ amount, amountIs, sellerFee, memberFees, method }: S
     grossSale,
     sellerReceives,
     sellerKeeps,
+    sellerShares,
+    netPerShare,
     members,
     totalFee: (grossSale ?? sellerReceives) - sellerKeeps - received,
     totalFeeCoversSale: grossSale !== null,
@@ -204,22 +248,35 @@ export function explainSplit(
     return steps;
   }
 
-  const uniform = memberFees.every((fee) => fee === memberFees[0]);
+  // Even shares are what makes the one-line form true. A seat on a double share pays out a
+  // different figure from its neighbours even at one rate, so it takes the line-per-member form
+  // below and the share count goes in the line: without it the numbers look arbitrary.
+  const evenShares = split.sellerShares === 1 && split.members.every((m) => m.shares === 1);
+  const uniform = memberFees.every((fee) => fee === memberFees[0]) && evenShares;
   const fee = memberFees[0] ?? 0;
+  const totalShares = split.sellerShares + split.members.reduce((sum, m) => sum + m.shares, 0);
   const paidOut = split.members.reduce((sum, m) => sum + m.pay, 0);
   const netted = split.members.reduce((sum, m) => sum + m.nets, 0);
 
   if (method === "fair") {
-    const divisor = 1 + memberFees.reduce((sum, f) => sum + 1 / (1 - f), 0);
+    const divisor =
+      split.sellerShares + split.members.reduce((sum, m) => sum + m.shares / (1 - m.fee), 0);
     steps.push({
-      label: "X",
+      label: evenShares ? "X" : "X per share",
       expression: uniform
         ? `${n(split.sellerReceives)} / (1 + ${others} / ${keptOf(fee)}) = ${n(
-            Math.floor(split.sellerReceives / divisor),
+            Math.floor(split.netPerShare),
           )}`
-        : `${n(split.sellerReceives)} / ${divisor.toFixed(4)} = ${n(
-            Math.floor(split.sellerReceives / divisor),
-          )}`,
+        : `${n(split.sellerReceives)} / ${divisor.toFixed(4)} = ${n(Math.floor(split.netPerShare))}`,
+    });
+  } else if (!evenShares) {
+    // A lazy split solves for nothing, so with uneven shares there is no line saying where a
+    // payout came from unless one share is priced first.
+    steps.push({
+      label: "per share",
+      expression: `${n(split.sellerReceives)} / ${totalShares} = ${n(
+        Math.floor(split.sellerReceives / totalShares),
+      )}`,
     });
   }
 
@@ -241,9 +298,10 @@ export function explainSplit(
     );
   } else {
     split.members.forEach((m, i) => {
+      const on = m.shares === 1 ? "" : `${m.shares} shares: `;
       steps.push({
         label: `member ${i + 1}`,
-        expression: `send ${n(m.pay)} x ${keptOf(m.fee)} = ${n(m.nets)}`,
+        expression: `${on}send ${n(m.pay)} x ${keptOf(m.fee)} = ${n(m.nets)}`,
       });
     });
   }
@@ -252,7 +310,9 @@ export function explainSplit(
     label: "you keep",
     expression: uniform
       ? `${n(split.sellerReceives)} - ${others} x ${n(split.members[0]?.pay ?? 0)} = ${n(split.sellerKeeps)}`
-      : `${n(split.sellerReceives)} - ${n(paidOut)} = ${n(split.sellerKeeps)}`,
+      : `${split.sellerShares === 1 ? "" : `${split.sellerShares} shares: `}${n(
+          split.sellerReceives,
+        )} - ${n(paidOut)} = ${n(split.sellerKeeps)}`,
   });
 
   steps.push({

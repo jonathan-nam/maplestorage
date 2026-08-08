@@ -31,7 +31,8 @@ FROM (VALUES
     ('mitras-rage-selection-box', 'Mitra''s Rage Selection Box', 'mitras-rage-selection-box.png', NULL, NULL, 1, 19),
     ('ring-of-restraint-4', 'Ring of Restraint Lv. 4', 'ring-of-restraint-4.png', 'HEROIC', NULL, 1, 20),
     ('continuous-ring-4', 'Continuous Ring Lv. 4', 'continuous-ring-4.png', 'HEROIC', NULL, 1, 21),
-    ('distorted-ambition', 'Distorted Ambition', 'distorted-ambition.png', 'ALWAYS', NULL, 2, 22)
+    ('vestige-of-erion', 'Vestige of Erion Coupon', NULL, NULL, NULL, 1, 22),
+    ('distorted-ambition', 'Distorted Ambition', 'distorted-ambition.png', 'ALWAYS', NULL, 2, 23)
 ) AS v (drop_key, name, icon_ref_key, per_member, worlds, quantity, sort_order)
 LEFT JOIN drop_catalog existing ON existing.drop_key = v.drop_key
 ON CONFLICT (drop_key) DO UPDATE SET
@@ -56,6 +57,7 @@ FROM (VALUES
     ('limbo', 'eternal-armor-of-desire-box', 6),
     ('limbo', 'ring-of-restraint-4', 7),
     ('limbo', 'continuous-ring-4', 8),
+    ('limbo', 'vestige-of-erion', 9),
     ('chosen-seren', 'exceptional-hammer-face', 0),
     ('chosen-seren', 'premium-scroll-accessory-coupon', 1),
     ('chosen-seren', 'premium-scroll-pet-equipment-coupon', 2),
@@ -63,6 +65,7 @@ FROM (VALUES
     ('chosen-seren', 'mitras-rage-selection-box', 4),
     ('chosen-seren', 'ring-of-restraint-4', 5),
     ('chosen-seren', 'continuous-ring-4', 6),
+    ('chosen-seren', 'vestige-of-erion', 7),
     ('kalos-the-guardian', 'exceptional-hammer-eye', 0),
     ('kalos-the-guardian', 'grindstone-of-life', 1),
     ('kalos-the-guardian', 'premium-scroll-accessory-coupon', 2),
@@ -71,6 +74,7 @@ FROM (VALUES
     ('kalos-the-guardian', 'divine-eternal-armor-box', 5),
     ('kalos-the-guardian', 'ring-of-restraint-4', 6),
     ('kalos-the-guardian', 'continuous-ring-4', 7),
+    ('kalos-the-guardian', 'vestige-of-erion', 8),
     ('kaling', 'exceptional-hammer-earrings', 0),
     ('kaling', 'grindstone-of-faith', 1),
     ('kaling', 'premium-scroll-accessory-coupon', 2),
@@ -79,6 +83,7 @@ FROM (VALUES
     ('kaling', 'ferocious-beast-eternal-armor-box', 5),
     ('kaling', 'ring-of-restraint-4', 6),
     ('kaling', 'continuous-ring-4', 7),
+    ('kaling', 'vestige-of-erion', 8),
     ('first-adversary', 'immortal-legacy', 0),
     ('first-adversary', 'exceptional-hammer-medal', 1),
     ('first-adversary', 'grindstone-of-life', 2),
@@ -88,6 +93,7 @@ FROM (VALUES
     ('first-adversary', 'ancient-eternal-armor-box', 6),
     ('first-adversary', 'ring-of-restraint-4', 7),
     ('first-adversary', 'continuous-ring-4', 8),
+    ('first-adversary', 'vestige-of-erion', 9),
     ('malefic-star', 'blissful-nightmare', 0),
     ('malefic-star', 'grindstone-of-faith', 1),
     ('malefic-star', 'premium-scroll-accessory-coupon', 2),
@@ -96,6 +102,7 @@ FROM (VALUES
     ('malefic-star', 'eternal-armor-of-radiance-box', 5),
     ('malefic-star', 'ring-of-restraint-4', 6),
     ('malefic-star', 'continuous-ring-4', 7),
+    ('malefic-star', 'vestige-of-erion', 8),
     ('baldrix', 'oath-of-death', 0),
     ('baldrix', 'grindstone-of-faith', 1),
     ('baldrix', 'premium-scroll-accessory-coupon', 2),
@@ -103,7 +110,8 @@ FROM (VALUES
     ('baldrix', 'magical-scroll-weapon-coupon', 4),
     ('baldrix', 'eternal-armor-of-oaths-box', 5),
     ('baldrix', 'ring-of-restraint-4', 6),
-    ('baldrix', 'continuous-ring-4', 7)
+    ('baldrix', 'continuous-ring-4', 7),
+    ('baldrix', 'vestige-of-erion', 8)
 ) AS v (boss_key, drop_key, sort_order)
 JOIN boss_catalog b ON b.boss_key = v.boss_key
 JOIN drop_catalog d ON d.drop_key = v.drop_key;
