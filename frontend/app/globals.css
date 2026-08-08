@@ -3748,6 +3748,13 @@ button.link:disabled {
 /* Who picks up the pieces, when the party agreed one member loots the lot. */
 .config-looter {
   display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.config-looter-label {
+  font-size: 12px;
+  color: var(--muted);
 }
 
 .config-looter .split-input {

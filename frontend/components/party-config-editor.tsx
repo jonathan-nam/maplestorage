@@ -328,14 +328,18 @@ function ConfigRow({
           Named from the roster being edited, not from the saved seats, so choosing somebody you
           added in this same edit works and a renamed seat keeps the designation. */}
       <div className="config-looter">
+        {/* Named, because "the pieces" alone does not say which. The one drop this is for is
+            vestige-of-erion in catalog/drops.yaml: it is the only one that arrives in a stack big
+            enough that a party has to decide who picks it up. */}
+        <span className="config-looter-label">Vestige of Erion</span>
         <select
           className="split-input"
           value={looter}
           onChange={(e) => setLooter(e.target.value)}
-          aria-label="Who loots the pieces"
+          aria-label="Who loots the Vestige of Erion pieces"
           disabled={busy}
         >
-          <option value="">everyone loots their own</option>
+          <option value="">split, everyone loots their own</option>
           {[ownName, ...members.map((m) => m.trim())]
             .filter((name) => name !== "")
             .map((name) => (

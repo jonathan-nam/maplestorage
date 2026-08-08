@@ -1,0 +1,11 @@
+-- Which rows the app put in the pool itself, rather than a human logging them.
+--
+-- Some drops are guaranteed: clearing Extreme Kalos gives 180 vestige coupons, every time, and the
+-- amount is in the catalog. So the clear already carries everything the row needs and typing it is
+-- busywork. clearFromDrop has read the pair the other way round since V18 (a drop implies the boss
+-- died); this is the same fact from the other end.
+--
+-- The flag exists so the app can take back only what it added. Un-ticking a clear removes a row the
+-- clear created, because it was never something anybody said; it leaves a row a human logged, and it
+-- leaves one that has been sold, since that is money somebody is owed.
+ALTER TABLE party_loot ADD COLUMN from_clear BOOLEAN NOT NULL DEFAULT false;
