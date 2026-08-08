@@ -113,7 +113,9 @@ data class LogDropRequest(
 data class SellLootRequest(
     val amount: Long,
     // LISTED (what it was listed at), RECEIVED (what landed in the seller's inventory), or BOUGHT
-    // (what a party member paid the party for it, no Auction House cut off the top).
+    // (what the whole drop is worth, the buyer's own share included, with no Auction House cut off
+    // the top). BOUGHT is the pot and not what changed hands: the buyer keeps their share of it and
+    // hands over the rest, so entering only what they handed over shorts every other seat.
     val amountBasis: String,
     // LAZY or FAIR. See lib/drop-split.ts for what the difference costs.
     val splitMethod: String,
