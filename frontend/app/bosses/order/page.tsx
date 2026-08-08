@@ -570,8 +570,8 @@ export default function RunOrderPage() {
 
       {plan.runs.length > 0 && (
         <section className="night-section" aria-busy={stale}>
-          {/* The copy button and the plan tabs share a line: both act on the plan below them, and
-              the copy leads so it holds the same place whether or not there are tabs beside it. */}
+          {/* The copy button sits a line above the plan tabs: both act on the plan below them, and
+              the button keeps its place however many tabs there are. */}
           <div className="night-plan-copy">
             <CopyPlan plan={plan} roster={onTonight} />
             {options.length > 1 && (
