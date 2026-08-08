@@ -3,12 +3,13 @@
 import { useAuth } from "@clerk/nextjs";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
+import { AddForWeek } from "@/components/add-for-week";
 import { ArrangementCard } from "@/components/arrangement-card";
 import { KnownCharacters } from "@/components/known-characters";
 import { PartyCard } from "@/components/party-card";
 import { ResetTimer } from "@/components/reset-timer";
 import { WeekStepper } from "@/components/week-stepper";
-import { apiAssetUrl, apiFetch } from "@/lib/api";
+import { ApiError, apiAssetUrl, apiFetch } from "@/lib/api";
 import { cellState, clearOfCell, clearStateLabel, indexClears } from "@/lib/boss-clears";
 import { bossLabel, difficultyLabel } from "@/lib/boss-difficulty";
 import { peek, put } from "@/lib/cache";
@@ -23,6 +24,7 @@ import {
   knownCharacterNames,
   otherMembers,
   runningThisPeriod,
+  takenOffThisPeriod,
 } from "@/lib/parties";
 import { preloadBossArt } from "@/lib/preload-boss-art";
 import { type CrossedReset, WEEKLY_CADENCE } from "@/lib/reset-countdown";
@@ -32,7 +34,13 @@ import type { Boss, BossClearsView } from "@/types/boss";
 import type { Character } from "@/types/character";
 import type { DropTables } from "@/types/drop";
 import type { AddLootBody } from "@/types/loot";
-import type { Party, Person, SaveWeekRosterBody, SetPartySkipBody } from "@/types/party";
+import type {
+  Party,
+  Person,
+  SavePartyBody,
+  SaveWeekRosterBody,
+  SetPartySkipBody,
+} from "@/types/party";
 
 type LoadState = "loading" | "loaded" | "error";
 
@@ -94,6 +102,7 @@ export default function PartiesPage() {
   // null is the live view. Anything else is a past week, read-only.
   const [week, setWeek] = useState<string | null>(null);
   const [stepping, setStepping] = useState(false);
+  const [addError, setAddError] = useState<string | null>(null);
   // Whether anything, in any week, still owes somebody. Held apart from `parties` because that
   // list is now scoped to the week on screen: a share owed on a drop from three weeks ago is still
   // a share owed, and stepping back must not retire the link to where it is settled. Written on
@@ -307,6 +316,30 @@ export default function PartiesPage() {
   }
 
   /**
+   * Adds a boss for this period alone.
+   *
+   * A one-off, not a config: it is on the week you are looking at and gone from the next one with
+   * nobody saying so. The server arms the config a spent one-off already left behind rather than
+   * making a second one for the pair, so running the same boss again a month later lands in the
+   * same pool.
+   */
+  async function addOneOff(body: SavePartyBody) {
+    setBusy(true);
+    setAddError(null);
+    try {
+      await apiFetch<Party>(PARTIES_KEY, { method: "POST", body: JSON.stringify(body) }, getToken);
+      const refreshed = await apiFetch<Party[]>(PARTIES_KEY, { method: "GET" }, getToken);
+      setParties(refreshed);
+      put(PARTIES_KEY, refreshed);
+    } catch (e) {
+      // The server's own reason. It is the only part of a refusal you can act on.
+      setAddError(e instanceof ApiError ? e.body : "Couldn't add that boss.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  /**
    * Logs a drop from the row, without leaving the list.
    *
    * The pool it lands in is the party page's, the same POST that page makes, so a drop added here
@@ -364,7 +397,9 @@ export default function PartiesPage() {
   // being run in it. Everything below counts `running`, so a boss taken off is out of the tabs and
   // out of the group headings as well as out of the list.
   const running = runningThisPeriod(shown);
-  const takenOff = shown.length - running.length;
+  // Standing parties only. A one-off whose week has passed is also off, but nobody took it off:
+  // counting those would grow this line for ever with nights that are simply over.
+  const takenOff = takenOffThisPeriod(shown).length;
 
   // Either rule can empty a week, and naming the wrong one explains a correct screen wrongly. Only
   // for a week with nothing left in it: a week that still has a list says nothing about what it
@@ -557,6 +592,20 @@ export default function PartiesPage() {
                 <Link href="/bosses/parties/edit">{takenOff} off this week</Link>
               )}
             </p>
+          )}
+
+          {/* Live view only. The server writes a one-off into the period its own clock is in, so
+              offering this under a past week's label would file the night in a week the screen is
+              not showing. Same rule as the drop picker. */}
+          {!history && characters.length > 0 && (
+            <AddForWeek
+              characters={characters}
+              bosses={bosses}
+              parties={parties}
+              busy={busy}
+              error={addError}
+              onAdd={addOneOff}
+            />
           )}
 
           {shown.length > 0 && running.length === 0 && (

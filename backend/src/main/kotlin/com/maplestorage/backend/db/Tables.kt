@@ -203,6 +203,10 @@ object Party : Table("party") {
     // as a party nowhere. See V30__party_solo.sql.
     val solo = bool("solo")
 
+    // On for one period rather than every one, so a boss run once is gone next Thursday without
+    // being told to. It inverts which of the two exception tables applies. See V32__party_one_off.sql.
+    val oneOff = bool("one_off")
+
     val createdAt = timestamp("created_at")
     val updatedAt = timestamp("updated_at")
 
@@ -213,6 +217,16 @@ object Party : Table("party") {
 // it runs as usual, so putting it back is a deletion. Filed by the boss's own cadence like a clear,
 // not by Thursday weeks like a roster. See V31__party_period_skip.sql.
 object PartyPeriodSkip : Table("party_period_skip") {
+    val partyId = reference("party_id", Party.id)
+    val periodStart = date("period_start")
+    val createdAt = timestamp("created_at")
+
+    override val primaryKey = PrimaryKey(partyId, periodStart)
+}
+
+// The twin of the above, for a one-off config: the periods it DID run. Off in every period this
+// does not name, so next period drops it with nobody saying so. See V32__party_one_off.sql.
+object PartyPeriodRun : Table("party_period_run") {
     val partyId = reference("party_id", Party.id)
     val periodStart = date("period_start")
     val createdAt = timestamp("created_at")

@@ -72,6 +72,17 @@ export function runningThisPeriod(parties: Party[]): Party[] {
   return parties.filter((party) => !party.skippedThisPeriod);
 }
 
+/**
+ * The standing parties somebody took off the period on screen.
+ *
+ * What the count above the list is of. Deliberately not every config that is off: a one-off whose
+ * week has passed is not something anybody took off, it is a night that happened, and counting
+ * those would grow that line for ever until it described nothing you could act on.
+ */
+export function takenOffThisPeriod(parties: Party[]): Party[] {
+  return parties.filter((party) => party.skippedThisPeriod && !party.oneOff);
+}
+
 /** What the party list is narrowed to. "not-cleared" is everything `isCleared` rejects. */
 export type ClearFilter = "all" | "not-cleared" | "cleared";
 
@@ -181,9 +192,23 @@ export function consolidate(parties: Party[], characterOrder: string[]): Consoli
   return [...groups.values()];
 }
 
-/** The bosses this character has no config for: what "add a party" can still be added for. */
+/**
+ * The bosses this character can still be given a party for.
+ *
+ * Everything with no config, plus the one-offs whose period has passed. Those still hold the pair's
+ * slot (idx_party_character_boss), and the server takes the config over rather than making a second
+ * one, so offering them offers something that works.
+ *
+ * A STANDING party taken off the period is not here. It has a config, it is on again next period,
+ * and adding over it would overwrite the roster and difficulty it already carries. Putting that one
+ * back is the edit page's own button.
+ */
 export function bossesWithoutConfig(parties: Party[], bosses: Boss[], characterId: string): Boss[] {
-  const taken = new Set(parties.filter((p) => p.characterId === characterId).map((p) => p.bossKey));
+  const taken = new Set(
+    parties
+      .filter((p) => p.characterId === characterId && !(p.oneOff && p.skippedThisPeriod))
+      .map((p) => p.bossKey),
+  );
   return bosses.filter((boss) => !taken.has(boss.bossKey));
 }
 

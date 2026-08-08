@@ -27,6 +27,9 @@ export type Party = {
   // Nobody else was there. One seat, nothing to split, and off every list of parties: only the
   // Drop Log asks for these, and only /api/parties?solo=include returns them.
   solo: boolean;
+  // On for one period rather than every one. A boss run once, gone next period without being told
+  // to, as against a standing arrangement that is on until somebody says otherwise.
+  oneOff: boolean;
   // The character's world. Heroic worlds do not trade, so this decides whether this pool's drops
   // can be sold at all: see lib/world.ts.
   worldType: WorldType;
@@ -46,8 +49,9 @@ export type Party = {
   // False when this week was spelled out with its own roster. The members alone cannot say so: a
   // week that only drops somebody names no guest and would read as an ordinary one.
   usualRoster: boolean;
-  // The party stands, but is not running this boss in the period being shown. Answers for the week
-  // the list was asked for, unlike `cleared` below, which always answers for now.
+  // Not running this boss in the period being shown, whichever way it got there: a standing party
+  // taken off the week, or a one-off whose week has passed. Answers for the week the list was asked
+  // for, unlike `cleared` below, which always answers for now.
   skippedThisPeriod: boolean;
   // The pool at a glance: dropped but unsold, sold with somebody still unpaid, and sold with
   // nothing left to do. The last one is carried so a fully settled pool is still visible from the
@@ -83,6 +87,10 @@ export type SavePartyBody = {
   difficulty?: string | null;
   // Minutes door to door, or null for "not timed". Zero is a real answer and is kept as one.
   minutes?: number | null;
+  // Make this a one-off, on for this period alone. Read at create only: which kind of config it is
+  // decides how every later period reads, so flipping it afterwards would rewrite weeks it has
+  // already answered for.
+  oneOff?: boolean;
 };
 
 /**

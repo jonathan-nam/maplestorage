@@ -49,6 +49,9 @@ data class PartyResponse(
     val minutes: Int? = null,
     // Nobody else was there. One seat, no shares to pay, and off every list of parties.
     val solo: Boolean = false,
+    // On for one period rather than every one. A boss run once, which is gone next period without
+    // being told to, as against a standing arrangement that is on until somebody says otherwise.
+    val oneOff: Boolean = false,
     // Who ran in the week being shown, which is not always who usually does. See rostersFor.
     val members: List<PartyMemberResponse>,
     // EVERY seat this party has ever had, guests and departed members included. What a payout is
@@ -58,8 +61,9 @@ data class PartyResponse(
     // False when this week was spelled out with its own roster. The members alone cannot say so: a
     // week that only drops somebody names no guest and would read as an ordinary one.
     val usualRoster: Boolean = true,
-    // The party is standing but is not running this boss in the period being shown. Answers for the
-    // week the list was asked for, unlike `cleared` below, which always answers for now.
+    // Not running this boss in the period being shown, whichever way it got there: a standing party
+    // taken off the week, or a one-off whose week has passed. Answers for the week the list was
+    // asked for, unlike `cleared` below, which always answers for now.
     val skippedThisPeriod: Boolean = false,
     // The pool at a glance: dropped but unsold, and sold with somebody still unpaid.
     val pendingLoot: Int = 0,
@@ -102,6 +106,10 @@ data class SavePartyRequest(
     val difficulty: String? = null,
     // Minutes door to door, or null for "not timed". Zero is a real answer and is kept as one.
     val minutes: Int? = null,
+    // Create this as a one-off, on for this period alone. Read at create only: which kind of config
+    // it is decides how every later period reads, so turning a standing party into a one-off after
+    // the fact would rewrite weeks it has already answered for.
+    val oneOff: Boolean = false,
 )
 
 /**

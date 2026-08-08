@@ -54,6 +54,7 @@ function party(
     seats: members,
     usualRoster: true,
     skippedThisPeriod: false,
+    oneOff: false,
     pendingLoot: 0,
     awaitingPayout: 0,
     settledLoot: 0,
