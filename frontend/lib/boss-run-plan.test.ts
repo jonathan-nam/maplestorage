@@ -4,10 +4,8 @@ import {
   bestOf,
   type CandidateRun,
   type EligibleRun,
-  movedTo,
   type Plan,
   planNight,
-  scheduleInOrder,
   screenRuns,
   tradeOffs,
 } from "./boss-run-plan";
@@ -547,109 +545,5 @@ describe("availability", () => {
     const { best } = planNight(runs, { minutes: 60, available: { me: { from: 0, until: 60 } } });
     expect(best.runs[0]?.waitingFor).toEqual([]);
     expect(best.runs[0]?.startsAt).toBe(0);
-  });
-});
-
-// Moving a row is not swapping two rows of a table: the time, the wait and the switch marks are
-// all consequences of the order, so they are worked out again from it.
-describe("scheduleInOrder", () => {
-  it("moves a run's time and its switch marks with it", () => {
-    const runs = [
-      eligible("a", "lotus", 30, [["Bishop", "me"]]),
-      eligible("b", "damien", 45, [["Kanna", "me"]]),
-    ];
-    const { plan } = scheduleInOrder(movedTo(runs, 1, 0), { minutes: 120 });
-
-    expect(order(plan as Plan)).toEqual(["b", "a"]);
-    expect(plan?.runs[0]?.startsAt).toBe(0);
-    // Second now, so it starts 45 minutes in rather than at nought, and it is the run that relogs.
-    expect(plan?.runs[1]?.startsAt).toBe(45);
-    expect(plan?.runs[0]?.switched).toEqual([]);
-    expect(plan?.runs[1]?.switched).toEqual(["me"]);
-    expect(plan?.switches).toBe(1);
-    expect(plan?.minutes).toBe(75);
-  });
-
-  it("hands the wait to whoever the new order waits on", () => {
-    const runs = [
-      eligible("a", "lotus", 30, [["Bishop", "me"]]),
-      eligible("b", "damien", 30, [
-        ["Bishop", "me"],
-        ["Hero", "dave"],
-      ]),
-    ];
-    const available = { dave: { from: 60 } };
-
-    const asIs = scheduleInOrder(runs, { minutes: 180, available });
-    expect(asIs.plan?.runs[1]?.startsAt).toBe(60);
-    expect(asIs.plan?.runs[1]?.waitingFor).toEqual(["dave"]);
-
-    // Dave's run first means the night sits idle for an hour before it, and the run after it does
-    // not wait at all.
-    const moved = scheduleInOrder(movedTo(runs, 1, 0), { minutes: 180, available });
-    expect(moved.plan?.runs[0]?.startsAt).toBe(60);
-    expect(moved.plan?.runs[0]?.waitingFor).toEqual(["dave"]);
-    expect(moved.plan?.runs[1]?.waitingFor).toEqual([]);
-    expect(moved.plan?.minutes).toBe(120);
-  });
-
-  it("refuses an order that would run somebody past their cutoff, and says whose", () => {
-    const runs = [
-      eligible("a", "lotus", 30, [
-        ["Bishop", "me"],
-        ["Hero", "dave"],
-      ]),
-      eligible("b", "damien", 30, [["Kanna", "me"]]),
-    ];
-    const available = { dave: { until: 40 } };
-
-    expect(scheduleInOrder(runs, { minutes: 120, available }).plan).not.toBeNull();
-
-    const moved = scheduleInOrder(movedTo(runs, 0, 1), { minutes: 120, available });
-    expect(moved.plan).toBeNull();
-    expect(moved.broken).toEqual(["dave"]);
-    expect(moved.overruns).toBe(false);
-  });
-
-  it("refuses an order that no longer fits in the night", () => {
-    const runs = [
-      eligible("a", "lotus", 30, [["Bishop", "me"]]),
-      eligible("b", "damien", 30, [["Hero", "dave"]]),
-    ];
-    // Dave is not on until 60, which costs an idle hour the night can only afford at the front.
-    const available = { dave: { from: 60 } };
-
-    expect(scheduleInOrder(runs, { minutes: 90, available }).plan?.minutes).toBe(90);
-
-    const moved = scheduleInOrder(movedTo(runs, 1, 0), { minutes: 90, available });
-    expect(moved.plan).toBeNull();
-    expect(moved.overruns).toBe(true);
-    expect(moved.broken).toEqual([]);
-  });
-
-  it("counts a stretch on one character as no switch, however long", () => {
-    const runs = [
-      eligible("a", "lotus", 20, [["Bishop", "me"]]),
-      eligible("b", "damien", 20, [["Bishop", "me"]]),
-      eligible("c", "lucid", 20, [["Bishop", "me"]]),
-    ];
-    const { plan } = scheduleInOrder(movedTo(runs, 2, 0), { minutes: 120 });
-    expect(plan?.switches).toBe(0);
-    expect(plan?.minutes).toBe(60);
-  });
-
-  it("plans nothing out of nothing", () => {
-    const { plan, broken, overruns } = scheduleInOrder([], { minutes: 120 });
-    expect(plan).toEqual({ runs: [], switches: 0, minutes: 0 });
-    expect(broken).toEqual([]);
-    expect(overruns).toBe(false);
-  });
-});
-
-describe("movedTo", () => {
-  it("takes the row out and puts it back at the index asked for", () => {
-    expect(movedTo(["a", "b", "c", "d"], 2, 0)).toEqual(["c", "a", "b", "d"]);
-    expect(movedTo(["a", "b", "c", "d"], 0, 3)).toEqual(["b", "c", "d", "a"]);
-    expect(movedTo(["a", "b", "c"], 1, 1)).toEqual(["a", "b", "c"]);
   });
 });

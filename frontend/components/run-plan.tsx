@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 
 import { apiAssetUrl } from "@/lib/api";
 import { BOSS_ART_2X } from "@/lib/boss-art";
@@ -13,14 +13,7 @@ import {
   type RunTime,
   runTimes,
 } from "@/lib/boss-night";
-import {
-  type Availability,
-  type EligibleRun,
-  movedTo,
-  type OrderedPlan,
-  type Plan,
-  scheduleInOrder,
-} from "@/lib/boss-run-plan";
+import type { Plan } from "@/lib/boss-run-plan";
 
 /** Names as a person would say them: "Rinlow", "Rinlow and Kade", "Rinlow, Kade and Bel". */
 function said(names: string[]): string {
@@ -41,67 +34,6 @@ function waitLine(time: RunTime): string {
   return `${said(names)} are free at ${time.at}`;
 }
 
-/** What the plan is ordered against, and where a new order goes. Absent where it cannot be moved. */
-export type Reorder = {
-  /** The night, in minutes. */
-  minutes: number;
-  available: Record<string, Availability>;
-  /** The run ids in their new order. */
-  onChange: (ids: string[]) => void;
-};
-
-/**
- * Why a row cannot go there, or null when it can.
- *
- * A move that would break a window is refused rather than drawn with a warning on it, so the plan
- * on screen is always a night that can actually happen.
- */
-function blockedBy(moved: OrderedPlan, roster: NightPerson[]): string | null {
-  if (moved.plan !== null) return null;
-  if (moved.overruns) return "The night is not long enough for that.";
-  const names = moved.broken.map(
-    (id) => roster.find((person) => person.id === id)?.name ?? "Somebody",
-  );
-  return `${said(names)} ${names.length === 1 ? "has" : "have"} to be gone before that.`;
-}
-
-/** One row's move in one direction: where it would leave the night, and what stops it. */
-type Move = { order: EligibleRun[]; blocked: string | null };
-
-/**
- * One arrow. Nothing happens on a blocked one, and hovering it says why.
- *
- * aria-disabled rather than disabled: a disabled button does not reliably take pointer events, and
- * the tooltip is the whole point of refusing a move rather than allowing it and marking it.
- */
-function MoveArrow({
-  move,
-  way,
-  boss,
-  onChange,
-}: {
-  move: Move | null;
-  way: "up" | "down";
-  boss: string;
-  onChange: (ids: string[]) => void;
-}) {
-  const allowed = move !== null && move.blocked === null;
-  return (
-    <button
-      type="button"
-      className="run-move-arrow"
-      aria-disabled={!allowed}
-      aria-label={`Move ${boss} ${way}`}
-      title={move?.blocked ?? undefined}
-      onClick={() => {
-        if (allowed) onChange(move.order.map((run) => run.id));
-      }}
-    >
-      <span aria-hidden="true">{way === "up" ? "▴" : "▾"}</span>
-    </button>
-  );
-}
-
 /**
  * The night, in order: bosses down the rows, people across the columns.
  *
@@ -117,14 +49,12 @@ export function RunPlan({
   roster,
   startAt,
   timed = true,
-  reorder,
 }: {
   plan: Plan;
   roster: NightPerson[];
   startAt: number;
   /** Off where the night is an order rather than a schedule: no times, no lengths, no waits. */
   timed?: boolean;
-  reorder?: Reorder;
 }) {
   const { people, rows } = planGrid(plan, roster);
   const times = timed ? runTimes(plan, roster, startAt) : [];
@@ -133,23 +63,6 @@ export function RunPlan({
   // reading a cell still means tracing a column by eye. CSS can do a row on its own and cannot do
   // a column, hence the state. Same reason the boss matrix carries one.
   const [hovered, setHovered] = useState<string | null>(null);
-
-  // Each arrow knows what its own move would cost before it is pressed, which is what lets one be
-  // refused with a reason instead of moving the row and then taking it back. Two schedules per run
-  // of a night that is twenty runs at the outside.
-  const moves = useMemo(() => {
-    if (!reorder || plan.runs.length < 2) return null;
-    const runs = plan.runs.map((planned) => planned.run);
-    const options = { minutes: reorder.minutes, available: reorder.available };
-    const to = (from: number, at: number) => {
-      const order = movedTo(runs, from, at);
-      return { order, blocked: blockedBy(scheduleInOrder(order, options), roster) };
-    };
-    return runs.map((_, row) => ({
-      up: row === 0 ? null : to(row, row - 1),
-      down: row === runs.length - 1 ? null : to(row, row + 1),
-    }));
-  }, [plan, reorder, roster]);
 
   return (
     // Cleared here rather than per cell, so leaving one cell for its neighbour does not blank the
@@ -193,19 +106,6 @@ export function RunPlan({
                     {/* Flexed on an inner span: display:flex on a table cell takes it out of the
                     table layout and the columns stop aligning. */}
                     <span className="run-boss-inner">
-                      {moves !== null && reorder !== undefined && (
-                        <span className="run-move">
-                          {(["up", "down"] as const).map((way) => (
-                            <MoveArrow
-                              key={way}
-                              move={moves[row]?.[way] ?? null}
-                              way={way}
-                              boss={bossLabel(planned.run.bossName, planned.run.difficulty)}
-                              onChange={reorder.onChange}
-                            />
-                          ))}
-                        </span>
-                      )}
                       {/* #188 took a running clock off this row for being arithmetic on a flat
                       half-hour placeholder. It is back because the night now has a start on the
                       reset clock, so this is a time the party can turn up for rather than a

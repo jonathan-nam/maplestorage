@@ -22,14 +22,7 @@ import {
   runsFromParties,
   spanBetween,
 } from "@/lib/boss-night";
-import {
-  type Availability,
-  type EligibleRun,
-  planNight,
-  scheduleInOrder,
-  screenRuns,
-  tradeOffs,
-} from "@/lib/boss-run-plan";
+import { type Availability, planNight, screenRuns, tradeOffs } from "@/lib/boss-run-plan";
 import { peek, put } from "@/lib/cache";
 import { isCleared, runningThisPeriod } from "@/lib/parties";
 import { preloadRunArt } from "@/lib/preload-boss-art";
@@ -147,8 +140,6 @@ export default function RunOrderPage() {
   const [away, setAway] = useState<string[]>([]);
   const [chosen, setChosen] = useState<number | null>(null);
   const [edited, setEdited] = useState<DraftRun[] | null>(null);
-  /** The order as it has been moved about by hand, by run id. Null while the search's own holds. */
-  const [order, setOrder] = useState<string[] | null>(null);
 
   // Whether the night runs to the clock at all. Off, it is an ORDER: nothing bounds it, the windows
   // people gave are not applied, and no time is drawn anywhere. That is a night where the length of
@@ -319,33 +310,7 @@ export default function RunOrderPage() {
   const options = useMemo(() => tradeOffs(byCount), [byCount]);
   // Clamps by itself: a stale index from a previous set of inputs falls back to the full plan
   // rather than showing one built for a question that is no longer being asked.
-  const picked = (chosen !== null && options[chosen]) || best;
-
-  // What is drawn, ordered by hand or not, comes out of the same scheduler, so a moved night and a
-  // searched one are the same kind of thing rather than one being the other with its rows swapped.
-  // An order is only honoured while it names exactly the runs in the plan being shown. Anything
-  // that changes which runs those are leaves it describing a night nobody is having, and then the
-  // search's own order is what is drawn.
-  const plan = useMemo(() => {
-    const runs = picked.runs.map((planned) => planned.run);
-    const byId = new Map(runs.map((run) => [run.id, run]));
-    const asked = (order ?? [])
-      .map((id) => byId.get(id))
-      .filter((run): run is EligibleRun => run !== undefined);
-    // Every run, once. A shorter order is one for a different night, and a repeated id would run a
-    // boss twice and drop another.
-    const complete = asked.length === runs.length && new Set(asked).size === runs.length;
-    const ordered = scheduleInOrder(complete ? asked : runs, { minutes: night, available });
-    // Null is a night that cannot happen, which the arrows do not offer and the search never
-    // produces. Falling back to what was picked keeps a plan on screen either way.
-    return ordered.plan ?? picked;
-  }, [picked, order, night, available]);
-
-  // Held still, so the arrows only work out what a move would cost when something has changed.
-  const reorder = useMemo(
-    () => ({ minutes: night, available, onChange: setOrder }),
-    [night, available],
-  );
+  const plan = (chosen !== null && options[chosen]) || best;
 
   const scheduled = new Set(plan.runs.map((planned) => planned.run.id));
   const unscheduled = eligible.filter((run) => !scheduled.has(run.id));
@@ -613,14 +578,9 @@ export default function RunOrderPage() {
                   <button
                     key={option.runs.length}
                     type="button"
-                    className={picked === option ? "basis-tab active" : "basis-tab"}
-                    aria-pressed={picked === option}
-                    onClick={() => {
-                      setChosen(i);
-                      // A different plan is a different set of runs, so an order moved about in
-                      // the one before it has nothing to say about this one.
-                      setOrder(null);
-                    }}
+                    className={plan === option ? "basis-tab active" : "basis-tab"}
+                    aria-pressed={plan === option}
+                    onClick={() => setChosen(i)}
                   >
                     {option.runs.length} {option.runs.length === 1 ? "boss" : "bosses"}
                     <span className="tab-count">
@@ -633,13 +593,7 @@ export default function RunOrderPage() {
             <CopyPlan plan={plan} roster={onTonight} startAt={shown.startAt} timed={shown.timed} />
           </div>
 
-          <RunPlan
-            plan={plan}
-            roster={onTonight}
-            startAt={shown.startAt}
-            timed={shown.timed}
-            reorder={reorder}
-          />
+          <RunPlan plan={plan} roster={onTonight} startAt={shown.startAt} timed={shown.timed} />
 
           {/* What was guessed stays on screen. It is what the finishing time is built from, and a
               time presented without it reads as a measurement of your parties. */}
