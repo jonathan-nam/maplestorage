@@ -26,35 +26,3 @@ export function parseShares(input: string): number | null {
 export function sharesLabel(shares: number): string {
   return shares === 1 ? "" : `${shares} shares`;
 }
-
-/** A stored count as it is typed: one share is blank, so an even party shows empty boxes. */
-export function shareText(shares: number | undefined): string {
-  return shares === undefined || shares === 1 ? "" : String(shares);
-}
-
-/**
- * What each named seat takes, for a party save.
- *
- * A single share is left out rather than sent as 1. The server reads an absent name as one share,
- * so omitting is how a weight is cleared, and a body of nothing is an evenly-split party.
- *
- * Names come from the roster being saved, and blank rows are dropped: a share cannot be pinned to a
- * seat that has no name yet.
- */
-export function sharesBody(
-  ownName: string | undefined,
-  members: string[],
-  entered: { own: string; members: string[] },
-): Record<string, number> {
-  const typed: [string, string][] = [
-    ...(ownName === undefined ? [] : [[ownName, entered.own] as [string, string]]),
-    ...members.map((name, i): [string, string] => [name.trim(), entered.members[i] ?? ""]),
-  ];
-
-  const body: Record<string, number> = {};
-  for (const [name, text] of typed) {
-    const count = parseShares(text);
-    if (name !== "" && count !== null && count !== 1) body[name] = count;
-  }
-  return body;
-}
