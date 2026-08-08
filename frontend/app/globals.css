@@ -4331,13 +4331,13 @@ button.link:disabled {
   gap: 10px;
 }
 
-/* The runs behind a fold, newest first, indented to start where the drop's name does: the chevron,
-   the icon and both their gaps (18 + 10 + 46 + 10). Left at the chevron's width alone, each run
-   began to the LEFT of the line it belongs to. */
+/* The runs behind a fold, newest first, indented past the chevron and its gap (18 + 10) so they
+   start where the drop's icon does. Aligning them with the drop's NAME instead put them 84px in,
+   which was more empty gutter than nesting. */
 .droplog-runs {
   list-style: none;
   margin: 0;
-  padding: 8px 0 0 84px;
+  padding: 8px 0 0 28px;
   border-top: 1px solid var(--line-soft);
   display: flex;
   flex-direction: column;
