@@ -4562,6 +4562,34 @@ button.link:disabled {
   background: var(--surface);
 }
 
+/* The half-hour grid the night is read against. A solid rule across the table with the time on it,
+   so a run's place is which pair of rules it falls between rather than a number on its row.
+
+   Solid where a wait is dashed, and above it in the markup: this one is the grid, which is there
+   whatever the night does, and the dashed one is something that happened to this night. */
+.run-tick td {
+  padding: 10px 8px 2px;
+  border-top: 1px solid var(--line);
+}
+
+/* First rule of the table, which already has the header's border above it. */
+.run-table tbody tr.run-tick:first-child td {
+  padding-top: 2px;
+  border-top: 0;
+}
+
+.run-tick-at {
+  color: var(--muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+}
+
+.run-tick:hover {
+  background: none;
+}
+
 /* A gap in a night that is otherwise back to back, so it is drawn as one: a dashed rule across the
    full width rather than a row of its own. */
 .run-wait td {
@@ -4595,18 +4623,6 @@ button.link:disabled {
   gap: 10px;
 }
 
-/* Fixed width, so a tilde or a two-digit hour does not step the art beside it in and out. 4.6em
-   holds the widest string this can draw, "~+11:30" at 54.7px on its own 12px font, measured in
-   chromium. A minus is narrower than a plus here, so the far side of reset is not the wide case
-   even though it looks like it. Pinned by run-time-css. */
-.run-time {
-  min-width: 4.6em;
-  color: var(--muted-2);
-  font-size: 12px;
-  font-variant-numeric: tabular-nums;
-  text-align: right;
-}
-
 /* The only place a boss portrait is drawn LARGER than the game draws it. The source is the 80px
    asset (BOSS_ART_2X), so this reduces rather than enlarges: 2:1 here, 1:1 on a 2x screen. No
    `image-rendering` on purpose, the browser's filter is the right one for a reduction and
@@ -4621,10 +4637,13 @@ button.link:disabled {
   display: block;
 }
 
+/* Along, not stacked: the length sits beside the name because it is the one number the row still
+   carries now that the clock is a rule across the table rather than a column. Baseline rather than
+   centre, so the 11px length sits on the same line as the 13px name. */
 .run-boss-text {
   display: flex;
-  flex-direction: column;
-  gap: 1px;
+  align-items: baseline;
+  gap: 8px;
 }
 
 .run-boss-name {

@@ -1,0 +1,46 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import { describe, expect, it } from "vitest";
+
+const css = readFileSync(join(__dirname, "..", "app", "globals.css"), "utf8");
+
+// The per-row time column is gone: the clock is a rule across the table every half hour, so no row
+// draws a time and nothing has to reserve the width of one. What is left to pin is that the rule
+// reads as a gridline rather than as another row of the plan.
+describe("the half-hour rule", () => {
+  const rule = () => {
+    const at = css.indexOf(".run-tick td {");
+    expect(at, ".run-tick td is missing").toBeGreaterThan(-1);
+    return css.slice(at, css.indexOf("}", at));
+  };
+
+  it("draws a solid line, where a wait row draws a dashed one", () => {
+    expect(rule()).toMatch(/border-top:\s*1px solid/);
+    const wait = css.indexOf(".run-wait td {");
+    expect(css.slice(wait, css.indexOf("}", wait))).toMatch(/border-top:\s*1px dashed/);
+  });
+
+  it("lines the times up, being a column of numbers", () => {
+    const at = css.indexOf(".run-tick-at {");
+    expect(at, ".run-tick-at is missing").toBeGreaterThan(-1);
+    expect(css.slice(at, css.indexOf("}", at))).toMatch(/font-variant-numeric:\s*tabular-nums/);
+  });
+
+  it("takes no hover, being a rule and not a row you can read across", () => {
+    expect(css).toMatch(/\.run-tick:hover\s*\{[^}]*background:\s*none/);
+  });
+
+  it("keeps no width reserved for a time on the row", () => {
+    expect(css).not.toMatch(/\.run-time\s*\{/);
+  });
+});
+
+// A wait row sits between two runs, and now a rule row does too, so :nth-child banding counts both
+// and inverts the stripes under every gap. The component bands from the row's own index instead,
+// which only works if the CSS is asking for the class rather than the position.
+describe("the plan's banding", () => {
+  it("bands on a class, not on where the row happens to sit", () => {
+    expect(css).toMatch(/\.run-table tbody tr\.is-banded/);
+    expect(css).not.toMatch(/\.run-table tbody tr:nth-child/);
+  });
+});
