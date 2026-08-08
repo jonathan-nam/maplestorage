@@ -570,9 +570,10 @@ export default function RunOrderPage() {
 
       {plan.runs.length > 0 && (
         <section className="night-section" aria-busy={stale}>
-          {/* The plan tabs and the copy button share a line: both act on the plan below them, and
-              the copy holds the right end whether or not there are tabs to choose between. */}
+          {/* The copy button and the plan tabs share a line: both act on the plan below them, and
+              the copy leads so it holds the same place whether or not there are tabs beside it. */}
           <div className="night-plan-copy">
+            <CopyPlan plan={plan} roster={onTonight} />
             {options.length > 1 && (
               <div className="basis-row" role="group" aria-label="Plans to choose between">
                 {options.map((option, i) => (
@@ -591,7 +592,6 @@ export default function RunOrderPage() {
                 ))}
               </div>
             )}
-            <CopyPlan plan={plan} roster={onTonight} />
           </div>
 
           <RunPlan plan={plan} roster={onTonight} startAt={shown.startAt} timed={shown.timed} />
