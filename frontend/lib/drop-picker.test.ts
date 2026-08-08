@@ -3,6 +3,7 @@ import {
   MAX_QUANTITY,
   OTHER,
   addDropBody,
+  defaultQuantity,
   dropOptionLabel,
   parseQuantity,
   pickableDrops,
@@ -17,6 +18,7 @@ function drop(overrides: Partial<BossDrop> = {}): BossDrop {
     perMember: null,
     worlds: null,
     quantity: 1,
+    pieces: {},
     ...overrides,
   };
 }
@@ -116,5 +118,43 @@ describe("how many fell", () => {
     expect(addDropBody("kalos", "grindstone", "", "180")?.quantity).toBe(180);
     expect(addDropBody("kalos", OTHER, "Some Cape", "6")?.quantity).toBe(6);
     expect(addDropBody("kalos", "grindstone", "", "18O")).toBeNull();
+  });
+});
+
+describe("the count the box opens with", () => {
+  const vestige = drop({
+    dropKey: "vestige-of-erion",
+    name: "Vestige of Erion Coupon",
+    pieces: { HARD: 60, EXTREME: 480 },
+  });
+
+  it("fills the boss's own figure for the difficulty being run", () => {
+    expect(defaultQuantity(vestige, "EXTREME")).toBe("480");
+    expect(defaultQuantity(vestige, "HARD")).toBe("60");
+  });
+
+  it("fills nothing for a difficulty that drops none", () => {
+    // Only the difficulties in the tables drop them, and a pre-filled zero would be a claim the
+    // catalog does not make.
+    expect(defaultQuantity(vestige, "NORMAL")).toBe("");
+    expect(defaultQuantity(vestige, "EASY")).toBe("");
+  });
+
+  it("fills nothing when nobody has said which difficulty", () => {
+    // A config with no difficulty, and the Drop Log, which never asks for one.
+    expect(defaultQuantity(vestige, null)).toBe("");
+    expect(defaultQuantity(vestige, undefined)).toBe("");
+  });
+
+  it("fills nothing for a drop that has no amounts, or no drop at all", () => {
+    expect(defaultQuantity(drop(), "EXTREME")).toBe("");
+    expect(defaultQuantity(undefined, "EXTREME")).toBe("");
+  });
+
+  it("survives an answer from before amounts existed", () => {
+    // pieces absent rather than empty, which is what a cached older response looks like.
+    const older = { ...drop() } as Partial<typeof vestige>;
+    delete older.pieces;
+    expect(defaultQuantity(older as typeof vestige, "EXTREME")).toBe("");
   });
 });

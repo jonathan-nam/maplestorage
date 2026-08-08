@@ -27,6 +27,17 @@
 #
 # Flags sit on the item rather than on the (boss, item) pair because nothing in these tables
 # behaves differently per boss. Move one down to `tables` the day that stops being true.
+#
+# That day arrived for `pieces`. How many vestige coupons a boss drops is per (boss, difficulty),
+# not per item, so a table entry may be a mapping instead of a bare key:
+#
+#     - key: vestige-of-erion
+#       pieces:
+#         EXTREME: 180
+#
+# It fills the count when a drop is logged, so the number is one somebody can correct rather than
+# one they have to remember. Only the difficulties listed drop any; a difficulty left out fills
+# nothing, which is not the same as filling zero.
 
 drops:
   # --- Brilliant Boss Set, one accessory per boss -------------------------------------
@@ -162,7 +173,9 @@ tables:
     - eternal-armor-of-desire-box
     - ring-of-restraint-4
     - continuous-ring-4
-    - vestige-of-erion
+    - key: vestige-of-erion
+      pieces:
+        HARD: 60
 
   chosen-seren:
     - exceptional-hammer-face
@@ -172,7 +185,9 @@ tables:
     - mitras-rage-selection-box
     - ring-of-restraint-4
     - continuous-ring-4
-    - vestige-of-erion
+    - key: vestige-of-erion
+      pieces:
+        EXTREME: 30
 
   kalos-the-guardian:
     - exceptional-hammer-eye
@@ -183,7 +198,9 @@ tables:
     - divine-eternal-armor-box
     - ring-of-restraint-4
     - continuous-ring-4
-    - vestige-of-erion
+    - key: vestige-of-erion
+      pieces:
+        EXTREME: 180
 
   kaling:
     - exceptional-hammer-earrings
@@ -194,7 +211,10 @@ tables:
     - ferocious-beast-eternal-armor-box
     - ring-of-restraint-4
     - continuous-ring-4
-    - vestige-of-erion
+    - key: vestige-of-erion
+      pieces:
+        HARD: 60
+        EXTREME: 480
 
   first-adversary:
     - immortal-legacy
@@ -206,7 +226,10 @@ tables:
     - ancient-eternal-armor-box
     - ring-of-restraint-4
     - continuous-ring-4
-    - vestige-of-erion
+    - key: vestige-of-erion
+      pieces:
+        HARD: 30
+        EXTREME: 240
 
   malefic-star:
     - blissful-nightmare
@@ -217,7 +240,17 @@ tables:
     - eternal-armor-of-radiance-box
     - ring-of-restraint-4
     - continuous-ring-4
-    - vestige-of-erion
+    - key: vestige-of-erion
+      pieces:
+        HARD: 90
+
+  # Jupiter's table starts here and holds only this. The rest of what it drops is not recorded
+  # yet, which the drop table page says rather than showing an empty one.
+  jupiter:
+    - key: vestige-of-erion
+      pieces:
+        NORMAL: 45
+        HARD: 360
 
   baldrix:
     - oath-of-death
@@ -228,4 +261,6 @@ tables:
     - eternal-armor-of-oaths-box
     - ring-of-restraint-4
     - continuous-ring-4
-    - vestige-of-erion
+    - key: vestige-of-erion
+      pieces:
+        HARD: 120

@@ -44,6 +44,7 @@ ON CONFLICT (drop_key) DO UPDATE SET
     sort_order = EXCLUDED.sort_order;
 
 DELETE FROM boss_drop;
+DELETE FROM boss_drop_amount;
 
 INSERT INTO boss_drop (boss_catalog_id, drop_catalog_id, sort_order)
 SELECT b.id, d.id, v.sort_order
@@ -103,6 +104,7 @@ FROM (VALUES
     ('malefic-star', 'ring-of-restraint-4', 6),
     ('malefic-star', 'continuous-ring-4', 7),
     ('malefic-star', 'vestige-of-erion', 8),
+    ('jupiter', 'vestige-of-erion', 0),
     ('baldrix', 'oath-of-death', 0),
     ('baldrix', 'grindstone-of-faith', 1),
     ('baldrix', 'premium-scroll-accessory-coupon', 2),
@@ -113,5 +115,23 @@ FROM (VALUES
     ('baldrix', 'continuous-ring-4', 7),
     ('baldrix', 'vestige-of-erion', 8)
 ) AS v (boss_key, drop_key, sort_order)
+JOIN boss_catalog b ON b.boss_key = v.boss_key
+JOIN drop_catalog d ON d.drop_key = v.drop_key;
+
+INSERT INTO boss_drop_amount (boss_catalog_id, drop_catalog_id, difficulty, pieces)
+SELECT b.id, d.id, v.difficulty, v.pieces
+FROM (VALUES
+    ('limbo', 'vestige-of-erion', 'HARD', 60),
+    ('chosen-seren', 'vestige-of-erion', 'EXTREME', 30),
+    ('kalos-the-guardian', 'vestige-of-erion', 'EXTREME', 180),
+    ('kaling', 'vestige-of-erion', 'HARD', 60),
+    ('kaling', 'vestige-of-erion', 'EXTREME', 480),
+    ('first-adversary', 'vestige-of-erion', 'HARD', 30),
+    ('first-adversary', 'vestige-of-erion', 'EXTREME', 240),
+    ('malefic-star', 'vestige-of-erion', 'HARD', 90),
+    ('jupiter', 'vestige-of-erion', 'NORMAL', 45),
+    ('jupiter', 'vestige-of-erion', 'HARD', 360),
+    ('baldrix', 'vestige-of-erion', 'HARD', 120)
+) AS v (boss_key, drop_key, difficulty, pieces)
 JOIN boss_catalog b ON b.boss_key = v.boss_key
 JOIN drop_catalog d ON d.drop_key = v.drop_key;

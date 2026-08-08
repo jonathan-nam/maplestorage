@@ -2,6 +2,7 @@ package com.maplestorage.backend.bosses
 
 import com.maplestorage.backend.db.BossCatalog
 import com.maplestorage.backend.db.BossDrop
+import com.maplestorage.backend.db.BossDropAmount
 import com.maplestorage.backend.db.DropCatalog
 import kotlinx.serialization.Serializable
 import org.jetbrains.exposed.v1.jdbc.selectAll
@@ -23,6 +24,13 @@ data class BossDropResponse(
     // INTERACTIVE for the coupons that do not drop in Reboot. Null means everywhere.
     val worlds: String?,
     val quantity: Int,
+    /**
+     * How many pieces this boss drops of it, by difficulty, for the count to be filled in with.
+     *
+     * Only the difficulties that drop any are in here. An absent one means nothing to fill, which is
+     * not the same as none: a pre-filled zero would be a claim the drop table does not make.
+     */
+    val pieces: Map<String, Int> = emptyMap(),
 )
 
 /**
@@ -31,8 +39,19 @@ data class BossDropResponse(
  * One query for the lot rather than one per boss: the whole catalog is a few dozen rows, and the
  * client needs the table for whichever boss the user picks next. Must run inside a transaction.
  */
-internal fun dropTables(): Map<String, List<BossDropResponse>> =
-    BossDrop
+internal fun dropTables(): Map<String, List<BossDropResponse>> {
+    // One query for every amount, keyed the way the rows below need it. A join would multiply each
+    // drop by its difficulties and the group-by would count one drop several times.
+    val piecesFor =
+        BossDropAmount
+            .innerJoin(BossCatalog)
+            .innerJoin(DropCatalog)
+            .selectAll()
+            .groupBy({ it[BossCatalog.bossKey] to it[DropCatalog.dropKey] }) {
+                it[BossDropAmount.difficulty] to it[BossDropAmount.pieces]
+            }.mapValues { (_, pairs) -> pairs.toMap() }
+
+    return BossDrop
         .innerJoin(BossCatalog)
         .innerJoin(DropCatalog)
         .selectAll()
@@ -46,5 +65,7 @@ internal fun dropTables(): Map<String, List<BossDropResponse>> =
                 perMember = row[DropCatalog.perMember],
                 worlds = row[DropCatalog.worlds],
                 quantity = row[DropCatalog.quantity],
+                pieces = piecesFor[row[BossCatalog.bossKey] to row[DropCatalog.dropKey]].orEmpty(),
             )
         }
+}
