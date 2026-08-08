@@ -20,6 +20,7 @@ const member = (id: string, name: string): PartyMember => ({
   characterId: null,
   spriteImgUrl: null,
   guest: false,
+  shares: 1,
 });
 
 const party = [member("m1", "Rune"), member("m2", "Steve"), member("m3", "Bob")];
@@ -32,17 +33,19 @@ const sold = (over: Partial<Loot> = {}): Loot => ({
   iconUrl: "/drop-icons/grindstone-of-faith.png",
   perMember: null,
   bossKey: "limbo",
+  quantity: 1,
   droppedOn: "2026-07-20",
   weekStart: "2026-07-16",
   status: "SOLD",
   saleAmount: 9_500_000_000,
   amountBasis: "LISTED",
   splitMethod: "FAIR",
+  sellerShares: 1,
   sellerMemberId: "m1",
   soldAt: "2026-07-21T10:00:00Z",
   payouts: [
-    { memberId: "m2", paid: false, paidAt: null },
-    { memberId: "m3", paid: true, paidAt: "2026-07-21T11:00:00Z" },
+    { memberId: "m2", paid: false, paidAt: null, shares: 1 },
+    { memberId: "m3", paid: true, paidAt: "2026-07-21T11:00:00Z", shares: 1 },
   ],
   ranThatWeek: [],
   ...over,
@@ -69,6 +72,7 @@ describe("splitOf", () => {
       name: "Rune",
       keeps: expected.sellerKeeps,
       paysOut: expected.sellerReceives - expected.sellerKeeps,
+      shares: 1,
     });
   });
 
@@ -121,7 +125,7 @@ describe("splitOf", () => {
   it("refuses rather than guessing when a payout names a seat the party does not have", () => {
     // A seat we cannot read means we cannot read its fee, and a share computed at the wrong rate
     // is the confident wrong number. Better to show nothing.
-    const loot = sold({ payouts: [{ memberId: "gone", paid: false, paidAt: null }] });
+    const loot = sold({ payouts: [{ memberId: "gone", paid: false, paidAt: null, shares: 1 }] });
     expect(splitOf(loot, party)).toBeNull();
   });
 
@@ -220,5 +224,47 @@ describe("poolSize", () => {
     expect(poolSize({ pendingLoot: 1, awaitingPayout: 2, settledLoot: 3 })).toBe(6);
     expect(poolSize({ pendingLoot: 0, awaitingPayout: 0, settledLoot: 4 })).toBe(4);
     expect(poolSize({ pendingLoot: 0, awaitingPayout: 0, settledLoot: 0 })).toBe(0);
+  });
+});
+
+describe("splitOf reads the shares the sale was split on", () => {
+  it("hands a pinned share count to splitDrop rather than assuming an even split", () => {
+    const loot = sold({
+      sellerShares: 2,
+      payouts: [
+        { memberId: "m2", paid: false, paidAt: null, shares: 3 },
+        { memberId: "m3", paid: false, paidAt: null, shares: 1 },
+      ],
+    });
+    const expected = splitDrop({
+      amount: 9_500_000_000,
+      amountIs: "listed",
+      sellerFee: memberFee(),
+      memberFees: [memberFee(), memberFee()],
+      method: "fair",
+      sellerShares: 2,
+      memberShares: [3, 1],
+    });
+
+    const result = splitOf(loot, party)!;
+    expect(result.shares.map((s) => s.pay)).toEqual(expected.members.map((m) => m.pay));
+    expect(result.shares.map((s) => s.shares)).toEqual([3, 1]);
+    expect(result.seller.shares).toBe(2);
+    expect(result.seller.keeps).toBe(expected.sellerKeeps);
+  });
+
+  it("reads a row from before shares existed as an even split", () => {
+    // sellerShares null is a sale recorded by an older build. One share each is what it was.
+    const result = splitOf(sold({ sellerShares: null }), party)!;
+    expect(result.seller.shares).toBe(1);
+    expect(result.shares.every((s) => s.shares === 1)).toBe(true);
+  });
+
+  it("refuses a share count it cannot read rather than defaulting it to one", () => {
+    for (const shares of [0, -1, 1.5, Number.NaN]) {
+      const loot = sold({ payouts: [{ memberId: "m2", paid: false, paidAt: null, shares }] });
+      expect(splitOf(loot, party)).toBeNull();
+      expect(splitOf(sold({ sellerShares: shares }), party)).toBeNull();
+    }
   });
 });

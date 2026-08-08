@@ -3306,6 +3306,47 @@ button.link:disabled {
   font-variant-numeric: tabular-nums;
 }
 
+/* A count box: two or three digits, so it does not read as somewhere to type a price. */
+.loot-count-input {
+  width: 56px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+/* How many of a stacking drop the row holds, beside its name. */
+.loot-count {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* One box per seat on the sale form. A name and a number, which is the whole of what is being said. */
+.loot-share-inputs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.loot-share-input {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+/* Your own character on the roster line: the config, so it is named rather than typed. */
+.config-own-name {
+  font-size: 13px;
+  padding: 6px 8px;
+  color: var(--ink-strong);
+}
+
+/* A share box keeps its own width against the seat-name rule above it. */
+.config-member .loot-count-input {
+  width: 44px;
+}
+
 .loot-paid {
   font: inherit;
   font-size: 12px;

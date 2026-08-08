@@ -32,6 +32,12 @@ internal const val MAX_PARTY_SIZE = 6
 internal const val MAX_RUN_MINUTES = 600
 
 /**
+ * The most shares one seat can take of a split. A typo guard on a party of six, and the bound
+ * V34__loot_quantity_and_shares.sql checks, so refusing here is the reason instead of a 500.
+ */
+internal const val MAX_SHARES = 99
+
+/**
  * Every config, with its pool counted and its roster read for one week.
  *
  * [week] is the week being shown, or null for the live view, which is this week. Which CONFIGS
@@ -231,6 +237,7 @@ private fun seatsFor(
                 characterId = row[PartyMember.characterId]?.toString(),
                 spriteImgUrl = spriteFor(row, spritesByName),
                 guest = !row[PartyMember.standing],
+                shares = row[PartyMember.shares],
             )
         }
 }

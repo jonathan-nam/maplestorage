@@ -58,7 +58,7 @@ internal fun createParty(
         val period = periodShown(bossResetOf(bossCatalogId)!!, week = null, now = now)
         setRunsInPeriod(partyId, oneOff = true, period, runs = true, now = now)
     }
-    writeMembers(partyId, characterId, request.members, SeatContext(userId, sprites, now))
+    writeMembers(partyId, characterId, request.members, SeatContext(userId, sprites, now), request.shares)
     return partyId
 }
 
@@ -90,7 +90,7 @@ internal fun saveParty(
         it[minutes] = request.minutes
         it[updatedAt] = now
     }
-    writeMembers(partyId, characterId, request.members, SeatContext(userId, sprites, now))
+    writeMembers(partyId, characterId, request.members, SeatContext(userId, sprites, now), request.shares)
 }
 
 /**
@@ -215,6 +215,9 @@ internal fun writeMembers(
     ownCharacterId: Uuid,
     members: List<String>,
     context: SeatContext,
+    // What each seat usually takes, by character name. A name left out takes one: the roster passed
+    // in is the whole party, so absence is the answer rather than a gap to preserve.
+    shares: Map<String, Int> = emptyMap(),
 ) {
     val names = seatNames(ownSeatName(ownCharacterId), members)
     val existing = seatIdsByName(partyId)
@@ -223,18 +226,21 @@ internal fun writeMembers(
     retireOrDelete(partyId, existing.values.filterNot { it in kept })
 
     val mine = ownCharacterIds(context.userId)
+    val sharesByName = shares.mapKeys { (name, _) -> name.trim().lowercase() }
 
     names.forEachIndexed { index, name ->
         val characterId = mine[name.lowercase()]
         val looked = characterId == null && context.sprites.containsKey(name)
         val seatId = existing[name.lowercase()]
+        val seatShares = sharesByName[name.lowercase()] ?: 1
         if (seatId == null) {
-            insertSeat(partyId, name, characterId, index, isStanding = true, context)
+            insertSeat(partyId, name, characterId, index, NewSeat(standing = true, shares = seatShares), context)
         } else {
             PartyMember.update({ PartyMember.id eq seatId }) {
                 it[PartyMember.name] = name
                 it[PartyMember.characterId] = characterId
                 it[position] = index
+                it[PartyMember.shares] = seatShares
                 // A guest named in the usual roster is joining it for good.
                 it[standing] = true
                 // Left alone unless this character was looked up just now, or the seat became one

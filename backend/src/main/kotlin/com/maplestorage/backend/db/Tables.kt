@@ -281,6 +281,10 @@ object PartyMember : Table("party_member") {
     // seat stays, because payouts and past weeks point at it. See V27__party_week_roster.sql.
     val standing = bool("standing")
 
+    // What this seat usually takes of a split, 1 unless somebody carries. A sale copies it as its
+    // default and pins its own, so editing this cannot rewrite a settled night.
+    val shares = integer("shares")
+
     override val primaryKey = PrimaryKey(id)
 }
 
@@ -338,11 +342,18 @@ object PartyLoot : Table("party_loot") {
     val bossCatalogId = optReference("boss_catalog_id", BossCatalog.id)
     val droppedOn = date("dropped_on")
 
-    // The sale, all five columns or none of them (party_loot_sale_complete).
+    // How many of it the row holds. 1 for a drop that is one item; a stack of coupons is one row
+    // with the count on it. See V34__loot_quantity_and_shares.sql.
+    val quantity = integer("quantity")
+
+    // The sale, all six columns or none of them (party_loot_sale_complete).
     val soldAt = timestamp("sold_at").nullable()
     val saleAmount = long("sale_amount").nullable()
     val amountBasis = text("amount_basis").nullable()
     val splitMethod = text("split_method").nullable()
+
+    // The seller's own share count, pinned with the rest of the sale.
+    val sellerShares = integer("seller_shares").nullable()
 
     // Whoever ended up holding the value and owing the rest: the seller, or on a BOUGHT basis the
     // member who bought it.
@@ -361,6 +372,9 @@ object PartyLootPayout : Table("party_loot_payout") {
     val memberId = reference("member_id", PartyMember.id)
     val paid = bool("paid")
     val paidAt = timestamp("paid_at").nullable()
+
+    // How many shares of this sale they take, pinned with it. 1 in an even split.
+    val shares = integer("shares")
 
     override val primaryKey = PrimaryKey(lootId, memberId)
 }

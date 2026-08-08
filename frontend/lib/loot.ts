@@ -24,6 +24,8 @@ export type Share = {
   memberId: string;
   name: string;
   fee: number;
+  /** Shares of the pot they take. 1 in an even split. */
+  shares: number;
   /** Mesos to send them, before the fee on that transfer. */
   pay: number;
   /** What they end up holding. */
@@ -37,7 +39,7 @@ export type LootSplit = {
    * mesos on a sale and the value of their own share of the item on a buy. `paysOut` is what
    * leaves their hands, so `keeps` plus `paysOut` is the whole pot.
    */
-  seller: { memberId: string; name: string; keeps: number; paysOut: number };
+  seller: { memberId: string; name: string; keeps: number; paysOut: number; shares: number };
   shares: Share[];
   split: Split;
 };
@@ -61,10 +63,10 @@ function basisOf(stored: string): AmountBasis | null {
 /**
  * What this sold drop owes each member, or null when it cannot be worked out.
  *
- * Null rather than a partial answer in four cases: the drop is not sold, its basis is one this
- * build cannot read, the seller is no longer a seat we can read a fee from, or a payout names a
- * seat that is not in the party. Each would otherwise produce a payout list that looks complete
- * and is short a person or wrong on a rate.
+ * Null rather than a partial answer in five cases: the drop is not sold, its basis is one this
+ * build cannot read, the seller is no longer a seat we can read a fee from, a payout names a seat
+ * that is not in the party, or a share count is not a whole number of at least one. Each would
+ * otherwise produce a payout list that looks complete and is short a person or wrong on a rate.
  */
 export function splitOf(loot: Loot, members: PartyMember[]): LootSplit | null {
   if (
@@ -86,12 +88,22 @@ export function splitOf(loot: Loot, members: PartyMember[]): LootSplit | null {
   const owed = loot.payouts.map((payout) => ({ payout, member: byId.get(payout.memberId) }));
   if (owed.some((o) => !o.member)) return null;
 
+  // A count that is not there at all is one share: that is what a sale recorded before shares
+  // existed was, and what the column's own backfill said. A count that is there and unreadable is
+  // refused, because a split whose figures look ordinary and pay the wrong amounts is worse than
+  // one that says nothing.
+  const sellerShares = loot.sellerShares ?? 1;
+  const memberShares = owed.map((o) => o.payout.shares ?? 1);
+  if ([sellerShares, ...memberShares].some((n) => !Number.isInteger(n) || n < 1)) return null;
+
   const split = splitDrop({
     amount: loot.saleAmount,
     amountIs,
     sellerFee: memberFee(),
     memberFees: owed.map(() => memberFee()),
     method: loot.splitMethod === "FAIR" ? "fair" : "lazy",
+    sellerShares,
+    memberShares,
   });
 
   return {
@@ -101,11 +113,13 @@ export function splitOf(loot: Loot, members: PartyMember[]): LootSplit | null {
       keeps: split.sellerKeeps,
       // Read off the split rather than summed from the payouts: same figure, one source.
       paysOut: split.sellerReceives - split.sellerKeeps,
+      shares: split.sellerShares,
     },
     shares: owed.map((o, i) => ({
       memberId: o.payout.memberId,
       name: o.member!.name,
       fee: split.members[i]?.fee ?? 0,
+      shares: split.members[i]?.shares ?? 1,
       pay: split.members[i]?.pay ?? 0,
       nets: split.members[i]?.nets ?? 0,
       paid: o.payout.paid,

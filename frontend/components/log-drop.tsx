@@ -100,6 +100,7 @@ export function LogDrop({
             bossKey: body.bossKey!,
             dropKey: body.dropKey,
             customName: body.customName,
+            quantity: body.quantity,
           })
         }
       />

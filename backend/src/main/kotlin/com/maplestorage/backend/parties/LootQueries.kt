@@ -51,6 +51,7 @@ private fun payoutsFor(lootIds: List<Uuid>): Map<Uuid, List<LootPayoutResponse>>
                 memberId = it[PartyLootPayout.memberId].toString(),
                 paid = it[PartyLootPayout.paid],
                 paidAt = it[PartyLootPayout.paidAt]?.toString(),
+                shares = it[PartyLootPayout.shares],
             )
         }
 
@@ -173,12 +174,14 @@ private fun ResultRow.toLootResponse(
         iconUrl = this.getOrNull(DropCatalog.iconRefKey)?.let { "/drop-icons/$it" },
         perMember = this.getOrNull(DropCatalog.perMember),
         bossKey = this.getOrNull(BossCatalog.bossKey),
+        quantity = this[PartyLoot.quantity],
         droppedOn = this[PartyLoot.droppedOn].toString(),
         weekStart = weekOf(this[PartyLoot.droppedOn]).toString(),
         status = statusOf(sold, payouts),
         saleAmount = this[PartyLoot.saleAmount],
         amountBasis = this[PartyLoot.amountBasis],
         splitMethod = this[PartyLoot.splitMethod],
+        sellerShares = this[PartyLoot.sellerShares],
         sellerMemberId = this[PartyLoot.sellerMemberId]?.toString(),
         soldAt = this[PartyLoot.soldAt]?.toString(),
         payouts = payouts,

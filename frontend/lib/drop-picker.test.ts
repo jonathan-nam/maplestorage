@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { OTHER, addDropBody, dropOptionLabel, pickableDrops } from "./drop-picker";
+import {
+  MAX_QUANTITY,
+  OTHER,
+  addDropBody,
+  dropOptionLabel,
+  parseQuantity,
+  pickableDrops,
+} from "./drop-picker";
 import type { BossDrop } from "@/types/drop";
 
 function drop(overrides: Partial<BossDrop> = {}): BossDrop {
@@ -65,6 +72,7 @@ describe("what the picker posts", () => {
       bossKey: "kalos",
       dropKey: "grindstone",
       customName: null,
+      quantity: 1,
     });
   });
 
@@ -73,6 +81,7 @@ describe("what the picker posts", () => {
       bossKey: "kalos",
       dropKey: null,
       customName: "Some Cape",
+      quantity: 1,
     });
   });
 
@@ -81,5 +90,31 @@ describe("what the picker posts", () => {
     // it would file a drop nothing can find: the pool is resolved from the boss.
     expect(addDropBody("", "grindstone", "")).toBeNull();
     expect(addDropBody("", OTHER, "Some Cape")).toBeNull();
+  });
+});
+
+describe("how many fell", () => {
+  it("reads a blank count as one, so a single item takes no typing", () => {
+    expect(parseQuantity("")).toBe(1);
+    expect(parseQuantity("  ")).toBe(1);
+  });
+
+  it("reads a count as typed, commas included", () => {
+    expect(parseQuantity("180")).toBe(180);
+    expect(parseQuantity("1,080")).toBe(1080);
+  });
+
+  it("refuses what it cannot read rather than falling back to one", () => {
+    // A count that quietly became 1 would file 180 coupons as a single one, and the sale beside it
+    // would look like the price of one.
+    for (const bad of ["18O", "-1", "0", "1.5", "abc", String(MAX_QUANTITY + 1)]) {
+      expect(parseQuantity(bad)).toBeNull();
+    }
+  });
+
+  it("carries the count into what the picker posts, and refuses a body it cannot count", () => {
+    expect(addDropBody("kalos", "grindstone", "", "180")?.quantity).toBe(180);
+    expect(addDropBody("kalos", OTHER, "Some Cape", "6")?.quantity).toBe(6);
+    expect(addDropBody("kalos", "grindstone", "", "18O")).toBeNull();
   });
 });

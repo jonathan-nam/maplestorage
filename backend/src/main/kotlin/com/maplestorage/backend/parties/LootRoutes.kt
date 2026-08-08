@@ -64,8 +64,16 @@ private suspend fun RoutingContext.addLootRoute() {
                     "send exactly one of dropKey or customName"
                 request.dropKey != null && dropId == null -> "unknown dropKey"
                 request.bossKey != null && bossId == null -> "unknown bossKey"
+                quantityRefusal(request.quantity) != null -> quantityRefusal(request.quantity)
                 else -> {
-                    val lootId = addLoot(partyId, dropId, customName, bossId, droppedOn, Clock.System.now())
+                    val lootId =
+                        addLoot(
+                            partyId,
+                            LootedDrop(dropId, customName, request.quantity),
+                            bossId,
+                            droppedOn,
+                            Clock.System.now(),
+                        )
                     findLoot(lootId, partyId)!!
                 }
             }
@@ -97,6 +105,8 @@ private suspend fun RoutingContext.sellLootRoute() {
                 // drop's own row, which is the same list the seller select offers.
                 sellerId == null || sellerId.toString() !in loot.ranThatWeek ->
                     "sellerMemberId must be somebody who ran this boss that week"
+                sharesRefusal(request.shares, loot.ranThatWeek) != null ->
+                    sharesRefusal(request.shares, loot.ranThatWeek)
                 else -> {
                     sellLoot(lootId, request, sellerId, partyId, Clock.System.now())
                     findLoot(lootId, partyId)!!

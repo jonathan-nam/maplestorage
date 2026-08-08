@@ -13,6 +13,7 @@ const mine = (id: string, name: string): PartyMember => ({
   characterId: `char-${id}`,
   spriteImgUrl: null,
   guest: false,
+  shares: 1,
 });
 
 // Somebody else's seat. personId set means you have said whose character it is.
@@ -24,6 +25,7 @@ const theirs = (id: string, name: string, person?: { id: string; name: string })
   characterId: null,
   spriteImgUrl: null,
   guest: false,
+  shares: 1,
 });
 
 const chris = { id: "p-chris", name: "Chris" };
@@ -60,15 +62,17 @@ const sold = (over: Partial<Loot> = {}): Loot => ({
   iconUrl: null,
   perMember: null,
   bossKey: "limbo",
+  quantity: 1,
   droppedOn: "2026-07-20",
   weekStart: "2026-07-16",
   status: "SOLD",
   saleAmount: 9_500_000_000,
   amountBasis: "LISTED",
   splitMethod: "FAIR",
+  sellerShares: 1,
   sellerMemberId: "m1",
   soldAt: "2026-07-21T10:00:00Z",
-  payouts: [{ memberId: "m2", paid: false, paidAt: null }],
+  payouts: [{ memberId: "m2", paid: false, paidAt: null, shares: 1 }],
   ranThatWeek: [],
   ...over,
 });
@@ -97,7 +101,10 @@ describe("buildWallet", () => {
       [p],
       [
         pool("pa", [
-          sold({ sellerMemberId: "m2", payouts: [{ memberId: "m1", paid: false, paidAt: null }] }),
+          sold({
+            sellerMemberId: "m2",
+            payouts: [{ memberId: "m1", paid: false, paidAt: null, shares: 1 }],
+          }),
         ]),
       ],
     );
@@ -137,7 +144,7 @@ describe("buildWallet", () => {
           sold({
             id: "l2",
             sellerMemberId: "m3",
-            payouts: [{ memberId: "m4", paid: false, paidAt: null }],
+            payouts: [{ memberId: "m4", paid: false, paidAt: null, shares: 1 }],
           }),
         ]),
       ],
@@ -147,6 +154,61 @@ describe("buildWallet", () => {
     expect(wallet.counterparties[0]!.name).toBe("Chris");
     expect(wallet.counterparties[0]!.lines).toHaveLength(2);
     expect(wallet.counterparties[0]!.owe).toBe(wallet.owe);
+  });
+
+  it("owes a bigger share to whoever took one, still reading it off splitOf", () => {
+    // The wallet is where "who owes who what" is finally answered, so an uneven night has to reach
+    // it. Two seats on one drop, one of them on a double share.
+    const p = party("pa", [
+      mine("m1", "mechyfechy"),
+      theirs("m2", "CreedBratton", chris),
+      theirs("m3", "Ana"),
+    ]);
+    const loot = sold({
+      payouts: [
+        { memberId: "m2", paid: false, paidAt: null, shares: 2 },
+        { memberId: "m3", paid: false, paidAt: null, shares: 1 },
+      ],
+    });
+    const expected = splitOf(loot, p.members)!;
+
+    const wallet = buildWallet([p], [pool("pa", [loot])]);
+    const carry = wallet.counterparties.find((c) => c.name === "Chris")!;
+    const other = wallet.counterparties.find((c) => c.name === "Ana")!;
+
+    // Not "roughly twice": the exact figures the drop's own row shows, or one of the two is a
+    // second implementation.
+    expect(carry.owe).toBe(expected.shares[0]!.pay);
+    expect(other.owe).toBe(expected.shares[1]!.pay);
+    expect(carry.owe).toBeGreaterThan(other.owe * 1.99);
+    expect(wallet.owe).toBe(carry.owe + other.owe);
+  });
+
+  it("folds two seats of one person on one drop, shares and all", () => {
+    // A double share on one of their characters and a single on the other is still ONE person to
+    // settle with, and the total is the sum rather than either seat's.
+    const p = party("pa", [
+      mine("m1", "mechyfechy"),
+      theirs("m2", "CreedBratton", chris),
+      theirs("m3", "CreedBratton2", chris),
+    ]);
+    const loot = sold({
+      payouts: [
+        { memberId: "m2", paid: false, paidAt: null, shares: 3 },
+        { memberId: "m3", paid: false, paidAt: null, shares: 1 },
+      ],
+    });
+    const expected = splitOf(loot, p.members)!;
+
+    const wallet = buildWallet([p], [pool("pa", [loot])]);
+    expect(wallet.counterparties).toHaveLength(1);
+    expect(wallet.counterparties[0]!.lines).toHaveLength(2);
+    expect(wallet.counterparties[0]!.owe).toBe(expected.shares[0]!.pay + expected.shares[1]!.pay);
+    // Both seats are still named, because two transfers is what has to happen.
+    expect(settlementFor(wallet.counterparties[0]!)).toEqual([
+      { lootId: "l1", memberId: "m2" },
+      { lootId: "l1", memberId: "m3" },
+    ]);
   });
 
   it("owes one person twice when two of their characters are in the party", () => {
@@ -163,8 +225,8 @@ describe("buildWallet", () => {
         pool("pa", [
           sold({
             payouts: [
-              { memberId: "m2", paid: false, paidAt: null },
-              { memberId: "m3", paid: false, paidAt: null },
+              { memberId: "m2", paid: false, paidAt: null, shares: 1 },
+              { memberId: "m3", paid: false, paidAt: null, shares: 1 },
             ],
           }),
         ]),
@@ -186,8 +248,8 @@ describe("buildWallet", () => {
         pool("pa", [
           sold({
             payouts: [
-              { memberId: "m2", paid: false, paidAt: null },
-              { memberId: "m3", paid: false, paidAt: null },
+              { memberId: "m2", paid: false, paidAt: null, shares: 1 },
+              { memberId: "m3", paid: false, paidAt: null, shares: 1 },
             ],
           }),
         ]),
@@ -214,7 +276,7 @@ describe("buildWallet", () => {
             id: "l2",
             saleAmount: 4_000_000_000,
             sellerMemberId: "m4",
-            payouts: [{ memberId: "m3", paid: false, paidAt: null }],
+            payouts: [{ memberId: "m3", paid: false, paidAt: null, shares: 1 }],
           }),
         ]),
       ],
@@ -233,7 +295,9 @@ describe("buildWallet", () => {
       [p],
       [
         pool("pa", [
-          sold({ payouts: [{ memberId: "m2", paid: true, paidAt: "2026-07-22T00:00:00Z" }] }),
+          sold({
+            payouts: [{ memberId: "m2", paid: true, paidAt: "2026-07-22T00:00:00Z", shares: 1 }],
+          }),
           // Still in the pool: nobody holds the mesos, so nobody owes them.
           sold({
             id: "l2",
@@ -264,8 +328,8 @@ describe("buildWallet", () => {
           sold({
             sellerMemberId: "m2",
             payouts: [
-              { memberId: "m1", paid: true, paidAt: "2026-07-22T00:00:00Z" },
-              { memberId: "m3", paid: false, paidAt: null },
+              { memberId: "m1", paid: true, paidAt: "2026-07-22T00:00:00Z", shares: 1 },
+              { memberId: "m3", paid: false, paidAt: null, shares: 1 },
             ],
           }),
         ]),
@@ -344,7 +408,7 @@ describe("buildWallet", () => {
             id: "l2",
             saleAmount: 1_000_000_000,
             sellerMemberId: "m3",
-            payouts: [{ memberId: "m4", paid: false, paidAt: null }],
+            payouts: [{ memberId: "m4", paid: false, paidAt: null, shares: 1 }],
           }),
         ]),
       ],
@@ -370,7 +434,7 @@ describe("settlementFor", () => {
             id: "l2",
             saleAmount: 1_000_000_000,
             sellerMemberId: "m4",
-            payouts: [{ memberId: "m3", paid: false, paidAt: null }],
+            payouts: [{ memberId: "m3", paid: false, paidAt: null, shares: 1 }],
           }),
         ]),
       ],
@@ -410,8 +474,8 @@ describe("settlementFor", () => {
         pool("pa", [
           sold({
             payouts: [
-              { memberId: "m2", paid: false, paidAt: null },
-              { memberId: "m3", paid: false, paidAt: null },
+              { memberId: "m2", paid: false, paidAt: null, shares: 1 },
+              { memberId: "m3", paid: false, paidAt: null, shares: 1 },
             ],
           }),
         ]),
@@ -464,7 +528,7 @@ describe("buildWallet, across a week the roster changed in", () => {
     const you = mine("m1", "mechyfechy");
     const guest = theirs("m9", "Cara", chris);
     const p = party("pa", [you], { seats: [you, guest] });
-    const loot = sold({ payouts: [{ memberId: "m9", paid: false, paidAt: null }] });
+    const loot = sold({ payouts: [{ memberId: "m9", paid: false, paidAt: null, shares: 1 }] });
 
     const wallet = buildWallet([p], [pool("pa", [loot])]);
 

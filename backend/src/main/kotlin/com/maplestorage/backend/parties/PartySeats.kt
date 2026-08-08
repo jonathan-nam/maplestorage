@@ -49,12 +49,23 @@ internal fun ownCharacterIds(userId: String): Map<String, Uuid> =
         // Names are unique per world, so this cannot bind somebody else's character.
         .associate { it[Characters.name].lowercase() to it[Characters.id] }
 
+/**
+ * What a seat starts out as: in the usual roster or a guest, and what it takes of a split.
+ *
+ * One value rather than two parameters because both are the seat's standing, and both are read from
+ * the same place at every call.
+ */
+internal data class NewSeat(
+    val standing: Boolean,
+    val shares: Int = 1,
+)
+
 internal fun insertSeat(
     partyId: Uuid,
     name: String,
     characterId: Uuid?,
     seatPosition: Int,
-    isStanding: Boolean,
+    seat: NewSeat,
     context: SeatContext,
 ): Uuid {
     val seatId = Uuid.random()
@@ -67,7 +78,8 @@ internal fun insertSeat(
         it[PartyMember.name] = name
         it[PartyMember.characterId] = characterId
         it[position] = seatPosition
-        it[standing] = isStanding
+        it[standing] = seat.standing
+        it[shares] = seat.shares
         it[spriteImgUrl] = if (looked) context.sprites[name] else null
         it[spriteRefreshedAt] = if (looked) context.now else null
     }

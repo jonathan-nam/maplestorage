@@ -54,6 +54,7 @@ internal fun validateNewParty(
             validateDifficulty(bossCatalogId, request.difficulty)
                 ?: validateMinutes(request.minutes)
                 ?: validateMembers(request.members)
+                ?: validateShares(request.shares, characterId, request.members)
                 ?: validateBossRoster(userId, bossCatalogId, exclude = null, rosterOf(characterId, request.members))
     }
 }
@@ -76,6 +77,7 @@ internal fun validateSavedParty(
     return bossCatalogId?.let { validateDifficulty(it, request.difficulty) }
         ?: validateMinutes(request.minutes)
         ?: validateMembers(request.members)
+        ?: validateShares(request.shares, characterIdOfParty(partyId), request.members)
         ?: bossCatalogId?.let {
             validateBossRoster(
                 userId,
@@ -230,6 +232,29 @@ internal fun validateBossRoster(
 
     return clash?.let {
         "${it[PartyMember.name]} is already in your ${characterName(it[Party.characterId])} party for this boss"
+    }
+}
+
+/**
+ * Why these standing share counts cannot be written, or null.
+ *
+ * A name the party does not have is refused rather than ignored: silently dropping it would leave
+ * the party believing a seat takes double when nothing recorded it.
+ */
+internal fun validateShares(
+    shares: Map<String, Int>,
+    ownCharacterId: Uuid?,
+    members: List<String>,
+): String? {
+    if (shares.isEmpty()) return null
+    val named =
+        (listOfNotNull(ownCharacterId?.let(::ownSeatName)) + members)
+            .map { it.trim().lowercase() }
+            .toSet()
+    return when {
+        shares.keys.any { it.trim().lowercase() !in named } -> "shares may only name somebody in this party"
+        shares.values.any { it < 1 || it > MAX_SHARES } -> "a share count must be between 1 and $MAX_SHARES"
+        else -> null
     }
 }
 

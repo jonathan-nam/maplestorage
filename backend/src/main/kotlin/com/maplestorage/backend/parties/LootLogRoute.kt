@@ -52,6 +52,7 @@ internal suspend fun RoutingContext.logDropRoute() {
                 (request.dropKey == null) == (customName == null) ->
                     "send exactly one of dropKey or customName"
                 request.dropKey != null && dropId == null -> "unknown dropKey"
+                quantityRefusal(request.quantity) != null -> quantityRefusal(request.quantity)
                 else -> {
                     val existing = partyIdFor(characterId, bossId)
                     // A character clears a boss once a period, so opening a solo pool for one it
@@ -68,7 +69,14 @@ internal suspend fun RoutingContext.logDropRoute() {
                         clash
                     } else {
                         val partyId = poolFor(userId, characterId, bossId, now)
-                        val lootId = addLoot(partyId, dropId, customName, bossId, droppedOn, now)
+                        val lootId =
+                            addLoot(
+                                partyId,
+                                LootedDrop(dropId, customName, request.quantity),
+                                bossId,
+                                droppedOn,
+                                now,
+                            )
                         findLoot(lootId, partyId)!!
                     }
                 }

@@ -93,6 +93,126 @@ describe("a lazy split quietly favours the seller", () => {
   });
 });
 
+describe("a seat can take more than one share", () => {
+  // 180 vestige coupons off Extreme Kalos that would not divide by the party, so one member took
+  // them all and sold them, and the carry was agreed a double share.
+  const uneven = (method: SplitMethod, memberShares: number[], sellerShares = 1) =>
+    splitDrop({
+      amount: 9_500_000_000,
+      amountIs: "received",
+      sellerFee: FEE_STANDARD,
+      memberFees: memberShares.map(() => FEE_STANDARD),
+      method,
+      sellerShares,
+      memberShares,
+    });
+
+  it("is the even split exactly, when every share is one", () => {
+    for (const method of ["lazy", "fair"] as const) {
+      expect(uneven(method, [1, 1, 1])).toEqual(
+        splitDrop({
+          amount: 9_500_000_000,
+          amountIs: "received",
+          sellerFee: FEE_STANDARD,
+          memberFees: [FEE_STANDARD, FEE_STANDARD, FEE_STANDARD],
+          method,
+        }),
+      );
+    }
+  });
+
+  it("pays a double share twice a single one, lazily", () => {
+    const s = uneven("lazy", [2, 1, 1]);
+    // 5 shares of 9.5b: 3.8b to the double seat, 1.9b to each single one.
+    expect(s.members.map((m) => m.pay)).toEqual([3_800_000_000, 1_900_000_000, 1_900_000_000]);
+    expect(s.sellerKeeps).toBe(1_900_000_000);
+  });
+
+  it("makes every share net the same on a fair split, not every member", () => {
+    const s = uneven("fair", [2, 1, 1]);
+    const perShare = s.members.map((m) => m.nets / m.shares);
+    for (const each of perShare) {
+      expect(Math.abs(each - s.sellerKeeps / s.sellerShares)).toBeLessThanOrEqual(5);
+    }
+    expect(s.members[0]?.nets).toBeGreaterThan((s.members[1]?.nets ?? 0) * 1.99);
+  });
+
+  it("gives the seller their own bigger cut without paying it to themselves", () => {
+    const s = uneven("fair", [1, 1, 1], 2);
+    expect(s.sellerShares).toBe(2);
+    // Their share is what is left after the others are sent theirs, so it is never a payout row.
+    expect(s.sellerKeeps).toBeGreaterThan((s.members[0]?.nets ?? 0) * 1.99);
+  });
+
+  it.each([
+    ["lazy", [3, 1, 1]],
+    ["fair", [3, 1, 1]],
+    ["lazy", [5, 5, 2]],
+    ["fair", [1, 2, 3]],
+  ] as const)("still accounts for every meso (%s)", (method, memberShares) => {
+    const s = uneven(method, [...memberShares]);
+    const paidOut = s.members.reduce((sum, m) => sum + m.pay, 0);
+    expect(s.sellerKeeps + paidOut).toBe(s.sellerReceives);
+    expect(s.sellerKeeps).toBeGreaterThanOrEqual(0);
+  });
+
+  it.each([0, -1, 1.5, Number.NaN])(
+    "refuses a share count of %s rather than rounding it",
+    (bad) => {
+      expect(() => uneven("fair", [bad, 1])).toThrow(RangeError);
+      expect(() => uneven("fair", [1, 1], bad)).toThrow(RangeError);
+    },
+  );
+
+  it("refuses a share list that is not one per member", () => {
+    expect(() =>
+      splitDrop({
+        amount: B,
+        amountIs: "received",
+        sellerFee: FEE_STANDARD,
+        memberFees: [FEE_STANDARD, FEE_STANDARD],
+        method: "fair",
+        memberShares: [2],
+      }),
+    ).toThrow(RangeError);
+  });
+
+  it("says which figures came from a bigger share in the working", () => {
+    const input: SplitInput = {
+      amount: 9_500_000_000,
+      amountIs: "received",
+      sellerFee: FEE_STANDARD,
+      memberFees: [FEE_STANDARD, FEE_STANDARD],
+      method: "fair",
+      memberShares: [2, 1],
+    };
+    const split = splitDrop(input);
+    const steps = explainSplit(input, split);
+    expect(steps.map((s) => s.label)).toContain("X per share");
+    expect(steps.some((s) => s.expression.includes("2 shares"))).toBe(true);
+    // The same pin the even-share cases carry: every figure it computed is quoted.
+    const text = steps.map((s) => s.expression).join(" | ");
+    for (const m of split.members) {
+      expect(text).toContain(String(m.pay));
+      expect(text).toContain(String(m.nets));
+    }
+  });
+
+  it("prices one share first on a lazy split, which solves for nothing", () => {
+    const input: SplitInput = {
+      amount: 9_500_000_000,
+      amountIs: "received",
+      sellerFee: FEE_STANDARD,
+      memberFees: [FEE_STANDARD, FEE_STANDARD],
+      method: "lazy",
+      memberShares: [2, 1],
+    };
+    const steps = explainSplit(input, splitDrop(input));
+    expect(steps.map((s) => s.label)).toContain("per share");
+    expect(steps.map((s) => s.label)).not.toContain("X per share");
+  });
+});
+
 describe("nothing is invented and nothing is lost", () => {
   it.each([
     [B, 2],

@@ -12,6 +12,8 @@ data class LootPayoutResponse(
     val memberId: String,
     val paid: Boolean,
     val paidAt: String?,
+    // Shares of the pot this member takes, as pinned when the drop sold. 1 in an even split.
+    val shares: Int = 1,
 )
 
 @Serializable
@@ -28,6 +30,9 @@ data class LootResponse(
     // the pool can say a split is not what this drop needs.
     val perMember: String?,
     val bossKey: String?,
+    // How many of it fell. 1 for a drop that is one item; a stack of coupons is one row with its
+    // count, which is what a night that will not divide evenly leaves one member holding.
+    val quantity: Int = 1,
     val droppedOn: String,
     // The reset week droppedOn falls in, as that week's Thursday. Sent rather than derived on the
     // client so the week a drop is filed under is the same one ranThatWeek was read against, and
@@ -39,6 +44,8 @@ data class LootResponse(
     val saleAmount: Long?,
     val amountBasis: String?,
     val splitMethod: String?,
+    // The seller's own share count, pinned with the sale. Null until it sells.
+    val sellerShares: Int? = null,
     // Who holds the value and owes the rest: the seller, or the buyer when a member bought it.
     val sellerMemberId: String?,
     val soldAt: String?,
@@ -69,6 +76,8 @@ data class AddLootRequest(
     val dropKey: String? = null,
     val customName: String? = null,
     val bossKey: String? = null,
+    // How many fell. 1 unless the drop stacks.
+    val quantity: Int = 1,
     // ISO date. Defaults to today on the server, which is the day you are almost always logging.
     val droppedOn: String? = null,
 )
@@ -90,6 +99,7 @@ data class LogDropRequest(
     // Exactly one of these, as AddLootRequest.
     val dropKey: String? = null,
     val customName: String? = null,
+    val quantity: Int = 1,
     val droppedOn: String? = null,
 )
 
@@ -103,13 +113,24 @@ data class LogDropRequest(
 data class SellLootRequest(
     val amount: Long,
     // LISTED (what it was listed at), RECEIVED (what landed in the seller's inventory), or BOUGHT
-    // (what a party member paid the party for it, no Auction House cut off the top).
+    // (what the whole drop is worth, the buyer's own share included, with no Auction House cut off
+    // the top). BOUGHT is the pot and not what changed hands: the buyer keeps their share of it and
+    // hands over the rest, so entering only what they handed over shorts every other seat.
     val amountBasis: String,
     // LAZY or FAIR. See lib/drop-split.ts for what the difference costs.
     val splitMethod: String,
     // The seller, or on a BOUGHT basis the member who bought it. Either way the seat the shares
     // are measured from, and the one seat the sale does not owe.
     val sellerMemberId: String,
+    /**
+     * How many shares each seat takes, keyed by seat id, the seller's own included. A seat left out
+     * takes one, so an even split sends nothing at all.
+     *
+     * Named seats have to be seats that RAN that week, the same list the seller comes from. A share
+     * for somebody the sale cannot owe would be accepted and then never paid, which is a split
+     * silently short a person.
+     */
+    val shares: Map<String, Int> = emptyMap(),
 )
 
 @Serializable

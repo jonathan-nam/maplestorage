@@ -6,7 +6,8 @@ import { RosterInputs } from "@/components/roster-inputs";
 import { apiAssetUrl } from "@/lib/api";
 import { difficultyLabel } from "@/lib/boss-difficulty";
 import { MAX_MINUTES, parseMinutes } from "@/lib/boss-minutes";
-import { bossesWithoutConfig, otherMembers } from "@/lib/parties";
+import { bossesWithoutConfig, otherMembers, ownSeat } from "@/lib/parties";
+import { parseShares, shareText, sharesBody } from "@/lib/shares";
 import type { Boss } from "@/types/boss";
 import type { Party, SavePartyBody } from "@/types/party";
 
@@ -60,8 +61,11 @@ export function PartyConfigEditor({
           party={party}
           boss={bossByKey.get(party.bossKey) ?? null}
           busy={busy}
-          onSave={(members, difficulty, minutes) =>
-            onSave({ characterId, bossKey: party.bossKey, members, difficulty, minutes }, party.id)
+          onSave={(members, difficulty, minutes, shares) =>
+            onSave(
+              { characterId, bossKey: party.bossKey, members, difficulty, minutes, shares },
+              party.id,
+            )
           }
           onDelete={() => onDelete(party)}
           onPutBack={() => onPutBack(party)}
@@ -248,21 +252,36 @@ function ConfigRow({
   party: Party;
   boss: Boss | null;
   busy: boolean;
-  onSave: (members: string[], difficulty: string | null, minutes: number | null) => void;
+  onSave: (
+    members: string[],
+    difficulty: string | null,
+    minutes: number | null,
+    shares: Record<string, number>,
+  ) => void;
   onDelete: () => void;
   onPutBack: () => void;
 }) {
   const saved = otherMembers(party).map((m) => m.name);
   const savedDifficulty = party.difficulty ?? "";
   const savedMinutes = party.minutes === null ? "" : String(party.minutes);
+  // A single share is blank, so an evenly-split party shows empty boxes and reads as untouched.
+  const savedShares = {
+    own: shareText(ownSeat(party)?.shares),
+    members: otherMembers(party).map((m) => shareText(m.shares)),
+  };
   const [members, setMembers] = useState<string[]>(saved.length > 0 ? saved : [""]);
   const [difficulty, setDifficulty] = useState(savedDifficulty);
   const [minutes, setMinutes] = useState(savedMinutes);
+  const [shares, setShares] = useState(savedShares);
   const parsed = parseMinutes(minutes);
+  // Every box has to read, or Save would post a share nobody typed. Blank reads as one.
+  const sharesOk = [shares.own, ...shares.members].every((s) => parseShares(s) !== null);
   const dirty =
     members.join(" ") !== saved.join(" ") ||
     difficulty !== savedDifficulty ||
-    minutes !== savedMinutes;
+    minutes !== savedMinutes ||
+    shares.own !== savedShares.own ||
+    shares.members.join(" ") !== savedShares.members.join(" ");
   const attributed = otherMembers(party).filter((m) => m.personName);
 
   return (
@@ -304,7 +323,12 @@ function ConfigRow({
         </button>
       </header>
 
-      <RosterInputs members={members} onChange={setMembers} />
+      <RosterInputs
+        members={members}
+        onChange={setMembers}
+        shares={{ ...shares, onChange: setShares }}
+        ownName={ownSeat(party)?.name}
+      />
 
       {/* Whose character each one is, when the people list says so. Read-only here: it is an
           account-wide fact, kept on the People page rather than per config. */}
@@ -319,13 +343,15 @@ function ConfigRow({
           <button
             type="button"
             className="party-save"
-            disabled={busy || !parsed.ok}
+            disabled={busy || !parsed.ok || !sharesOk}
             onClick={() =>
               parsed.ok &&
+              sharesOk &&
               onSave(
                 members.map((m) => m.trim()).filter((m) => m !== ""),
                 difficulty === "" ? null : difficulty,
                 parsed.minutes,
+                sharesBody(ownSeat(party)?.name, members, shares),
               )
             }
           >
@@ -337,6 +363,7 @@ function ConfigRow({
             disabled={busy}
             onClick={() => {
               setMembers(saved.length > 0 ? saved : [""]);
+              setShares(savedShares);
               setDifficulty(savedDifficulty);
               setMinutes(savedMinutes);
             }}
