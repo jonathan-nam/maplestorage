@@ -142,8 +142,72 @@ export function balances(total: number, seats: LedgerSeat[]): SeatBalance[] {
   });
 }
 
+/** One boss's pieces in the queue: what dropped, who took it, and where it sits in line. */
+export type LedgerDrop = {
+  id: string;
+  /** The reset week it was cleared in. Drops from one week share a place in the queue. */
+  weekStart: string;
+  /** Tie-break inside a week: the boss's own progression order, so the queue never shuffles. */
+  order: number;
+  total: number;
+  seats: LedgerSeat[];
+};
+
+/** How much of one drop the sales so far have covered, and what those pieces fetched. */
+export type DropCoverage = {
+  covered: number;
+  /** Its pieces are all sold, so its debts can be settled. */
+  complete: boolean;
+  /** Weighted average listed price of the pieces that covered it. Null until it is covered. */
+  averagePrice: number | null;
+};
+
 /**
- * The transfers that clear the ledger, and what each is worth once everything has sold.
+ * Which sales paid for which drop, oldest boss first.
+ *
+ * A looter accumulates pieces week after week and sells them in tranches, so "wait until everything
+ * has sold" would never come true: next week's clear always adds more. Instead the tranches drain
+ * into the queue in order, and a drop is payable as soon as ITS pieces are covered.
+ *
+ * First cleared, first paid. Drops from the same week are one place in the queue, broken by the
+ * boss's own order so the answer never depends on which row was read first.
+ *
+ * The reason this beats a running average over everything: once a drop is covered, later tranches
+ * flow past it into the next one, so its average can never move again. A figure somebody has already
+ * been paid stays the figure they were paid, with nothing stored to keep it that way.
+ */
+export function allocate(drops: LedgerDrop[], sales: PieceSale[]): Map<string, DropCoverage> {
+  const queue = [...drops].sort(
+    (a, b) =>
+      a.weekStart.localeCompare(b.weekStart) || a.order - b.order || a.id.localeCompare(b.id),
+  );
+  const tranches = sales.map((s) => ({ left: s.pieces, priceEach: s.priceEach }));
+
+  let next = 0;
+  const out = new Map<string, DropCoverage>();
+  for (const drop of queue) {
+    let covered = 0;
+    let cost = 0;
+    while (covered < drop.total && next < tranches.length) {
+      const tranche = tranches[next]!;
+      const take = Math.min(drop.total - covered, tranche.left);
+      covered += take;
+      cost += take * tranche.priceEach;
+      tranche.left -= take;
+      if (tranche.left === 0) next += 1;
+    }
+    const complete = covered === drop.total && drop.total > 0;
+    out.set(drop.id, {
+      covered,
+      complete,
+      averagePrice: complete ? cost / drop.total : null,
+    });
+  }
+  return out;
+}
+
+/**
+ * The transfers that clear one drop, and what each is worth once its pieces are covered.
  *
  * Deterministic on purpose: seats over their share pay seats under it, both in seat order. A stable
  * list is what lets "paid" be remembered against a pair, and it means two people reading the same
@@ -155,15 +219,14 @@ export function balances(total: number, seats: LedgerSeat[]): SeatBalance[] {
  * Every figure is rounded UP, so the person who took somebody else's pieces absorbs the dust rather
  * than the person waiting to be paid. Same rule as the money split, for the same reason.
  */
-export function transfers(total: number, seats: LedgerSeat[], sales: PieceSale[]): PieceTransfer[] {
-  const progress = saleProgress(total, sales);
-  const position = balances(total, seats);
+export function transfersOf(drop: LedgerDrop, coverage: DropCoverage | undefined): PieceTransfer[] {
+  const position = balances(drop.total, drop.seats);
   const owing = position.filter((p) => p.balance < 0).map((p) => ({ ...p, left: -p.balance }));
   const owed = position.filter((p) => p.balance > 0).map((p) => ({ ...p, left: p.balance }));
 
-  // Priced only when the stack is gone, and refused outright when more has sold than dropped: an
-  // average over a miscount is a wrong number with a straight face.
-  const priced = progress.complete && !progress.oversold ? progress.gross / total : null;
+  // Priced only once this drop's own pieces are covered. Before that the tranches that will pay for
+  // it have not happened, and a figure would be a guess at what they will fetch.
+  const priced = coverage?.complete ? coverage.averagePrice : null;
 
   const out: PieceTransfer[] = [];
   let next = 0;
@@ -171,7 +234,7 @@ export function transfers(total: number, seats: LedgerSeat[], sales: PieceSale[]
     while (debtor.left > 0 && next < owed.length) {
       const creditor = owed[next]!;
       const pieces = Math.min(debtor.left, creditor.left);
-      const send = priced === null ? null : Math.ceil(pieces * priced);
+      const send = priced === null || priced === undefined ? null : Math.ceil(pieces * priced);
       out.push({
         fromId: debtor.memberId,
         toId: creditor.memberId,

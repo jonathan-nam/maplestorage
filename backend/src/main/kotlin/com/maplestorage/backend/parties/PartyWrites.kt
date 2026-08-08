@@ -59,7 +59,24 @@ internal fun createParty(
         setRunsInPeriod(partyId, oneOff = true, period, runs = true, now = now)
     }
     writeMembers(partyId, characterId, request.members, SeatContext(userId, sprites, now), request.shares)
+    setLooter(partyId, request.looterName)
     return partyId
+}
+
+/**
+ * Records which seat picks up the pieces, by name.
+ *
+ * After the seats are written, never before: a party being created has none yet, and a name that was
+ * corrected in the same save has to resolve to the row it was corrected to. A name the party does not
+ * have is refused by validateLooter long before this, so one that fails to resolve here clears the
+ * designation rather than pointing at the wrong seat.
+ */
+private fun setLooter(
+    partyId: Uuid,
+    looterName: String?,
+) {
+    val seatId = looterName?.trim()?.lowercase()?.let { seatIdsByName(partyId)[it] }
+    Party.update({ Party.id eq partyId }) { it[looterMemberId] = seatId }
 }
 
 /**
@@ -91,6 +108,7 @@ internal fun saveParty(
         it[updatedAt] = now
     }
     writeMembers(partyId, characterId, request.members, SeatContext(userId, sprites, now), request.shares)
+    setLooter(partyId, request.looterName)
 }
 
 /**

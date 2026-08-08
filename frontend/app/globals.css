@@ -3745,6 +3745,16 @@ button.link:disabled {
   width: 160px;
 }
 
+/* Who picks up the pieces, when the party agreed one member loots the lot. */
+.config-looter {
+  display: flex;
+}
+
+.config-looter .split-input {
+  font-size: 13px;
+  padding: 6px 8px;
+}
+
 /* Whose character a seat is, said by the People page rather than repeated per party. */
 .party-person {
   font-size: 10px;

@@ -60,8 +60,11 @@ export function PartyConfigEditor({
           party={party}
           boss={bossByKey.get(party.bossKey) ?? null}
           busy={busy}
-          onSave={(members, difficulty, minutes) =>
-            onSave({ characterId, bossKey: party.bossKey, members, difficulty, minutes }, party.id)
+          onSave={(members, difficulty, minutes, looterName) =>
+            onSave(
+              { characterId, bossKey: party.bossKey, members, difficulty, minutes, looterName },
+              party.id,
+            )
           }
           onDelete={() => onDelete(party)}
           onPutBack={() => onPutBack(party)}
@@ -248,21 +251,33 @@ function ConfigRow({
   party: Party;
   boss: Boss | null;
   busy: boolean;
-  onSave: (members: string[], difficulty: string | null, minutes: number | null) => void;
+  onSave: (
+    members: string[],
+    difficulty: string | null,
+    minutes: number | null,
+    looterName: string | null,
+  ) => void;
   onDelete: () => void;
   onPutBack: () => void;
 }) {
   const saved = otherMembers(party).map((m) => m.name);
   const savedDifficulty = party.difficulty ?? "";
   const savedMinutes = party.minutes === null ? "" : String(party.minutes);
+  // Your own character's seat, which the roster inputs leave out because it IS the config.
+  const ownName = party.members.find((m) => m.characterId === party.characterId)?.name ?? "";
+  // The seat that loots, held as a NAME: it is what the save sends, and it survives the seat being
+  // renamed in the same edit.
+  const savedLooter = party.seats.find((s) => s.id === party.looterMemberId)?.name ?? "";
   const [members, setMembers] = useState<string[]>(saved.length > 0 ? saved : [""]);
   const [difficulty, setDifficulty] = useState(savedDifficulty);
   const [minutes, setMinutes] = useState(savedMinutes);
+  const [looter, setLooter] = useState(savedLooter);
   const parsed = parseMinutes(minutes);
   const dirty =
     members.join(" ") !== saved.join(" ") ||
     difficulty !== savedDifficulty ||
-    minutes !== savedMinutes;
+    minutes !== savedMinutes ||
+    looter !== savedLooter;
   const attributed = otherMembers(party).filter((m) => m.personName);
 
   return (
@@ -306,6 +321,31 @@ function ConfigRow({
 
       <RosterInputs members={members} onChange={setMembers} />
 
+      {/* Who picks up the pieces, when the party agreed one member loots the lot. One select rather
+          than a box per seat: it is one fact about the party, and it is what lets a boss marked
+          cleared attribute its pieces without anybody typing them.
+
+          Named from the roster being edited, not from the saved seats, so choosing somebody you
+          added in this same edit works and a renamed seat keeps the designation. */}
+      <div className="config-looter">
+        <select
+          className="split-input"
+          value={looter}
+          onChange={(e) => setLooter(e.target.value)}
+          aria-label="Who loots the pieces"
+          disabled={busy}
+        >
+          <option value="">everyone loots their own</option>
+          {[ownName, ...members.map((m) => m.trim())]
+            .filter((name) => name !== "")
+            .map((name) => (
+              <option key={name} value={name}>
+                {name} loots the pieces
+              </option>
+            ))}
+        </select>
+      </div>
+
       {/* Whose character each one is, when the people list says so. Read-only here: it is an
           account-wide fact, kept on the People page rather than per config. */}
       {attributed.length > 0 && (
@@ -326,6 +366,7 @@ function ConfigRow({
                 members.map((m) => m.trim()).filter((m) => m !== ""),
                 difficulty === "" ? null : difficulty,
                 parsed.minutes,
+                looter === "" ? null : looter,
               )
             }
           >
@@ -337,6 +378,7 @@ function ConfigRow({
             disabled={busy}
             onClick={() => {
               setMembers(saved.length > 0 ? saved : [""]);
+              setLooter(savedLooter);
               setDifficulty(savedDifficulty);
               setMinutes(savedMinutes);
             }}
