@@ -10,7 +10,7 @@ import { peek, put } from "@/lib/cache";
 import { preloadBossArt } from "@/lib/preload-boss-art";
 import type { Boss } from "@/types/boss";
 import type { Character } from "@/types/character";
-import type { Party, Person, SavePartyBody } from "@/types/party";
+import type { Party, Person, SavePartyBody, SetPartySkipBody } from "@/types/party";
 
 type LoadState = "loading" | "loaded" | "error";
 
@@ -95,6 +95,30 @@ export default function EditPartiesPage() {
     }
   }
 
+  /**
+   * Puts a boss back on the period Party View took it off.
+   *
+   * Only this direction is offered here. Taking one off is a decision about the week you are looking
+   * at, which is Party View's screen; this page is where you come to undo it, because that is where
+   * the row still is.
+   */
+  async function putBack(party: Party) {
+    setBusy(true);
+    setError(null);
+    try {
+      await apiFetch<Party>(
+        `${PARTIES_KEY}/${party.id}/skip`,
+        { method: "PUT", body: JSON.stringify({ skipped: false } satisfies SetPartySkipBody) },
+        getToken,
+      );
+      await loadParties();
+    } catch (e) {
+      setError(e instanceof ApiError ? e.body : "Couldn't put that boss back.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function remove(party: Party) {
     setBusy(true);
     setError(null);
@@ -164,6 +188,7 @@ export default function EditPartiesPage() {
                 error={error}
                 onSave={save}
                 onDelete={remove}
+                onPutBack={putBack}
               />
             )}
           </>

@@ -71,6 +71,9 @@ internal fun partiesFor(
     val counts = lootCountsFor(partyIds, shown)
     val clears = clearStateFor(rows)
     val spelledOut = weeksSpelledOut(partyIds, shown)
+    // Against the week being SHOWN, not against now, so stepping back says what was said about that
+    // week rather than what is true today. The trap `cleared` falls into: see clearStateFor.
+    val skipped = periodSkipsFor(rows, week, Clock.System.now())
 
     return rows.map { row ->
         val id = row[Party.id]
@@ -81,6 +84,7 @@ internal fun partiesFor(
             loot = counts[id] ?: LootCounts(0, 0, 0),
             clear = clears[id] ?: ClearState(null, false),
             usualRoster = id !in spelledOut,
+            skippedThisPeriod = id in skipped,
         )
     }
 }
@@ -109,6 +113,9 @@ internal fun findParty(
         loot = lootCountsFor(listOf(partyId), week = null)[partyId] ?: LootCounts(0, 0, 0),
         clear = clearStateFor(listOf(row))[partyId] ?: ClearState(null, false),
         usualRoster = partyId !in weeksSpelledOut(listOf(partyId), week),
+        // The live view, which is the only one this reads: the period the boss is in now, which for
+        // a monthly boss is not the month `week` started in. See periodShown.
+        skippedThisPeriod = partyId in periodSkipsFor(listOf(row), week = null, now = Clock.System.now()),
     )
 }
 
@@ -307,6 +314,7 @@ private fun ResultRow.toPartyResponse(
     loot: LootCounts,
     clear: ClearState,
     usualRoster: Boolean,
+    skippedThisPeriod: Boolean,
 ) = PartyResponse(
     id = this[Party.id].toString(),
     characterId = this[Party.characterId].toString(),
@@ -318,6 +326,7 @@ private fun ResultRow.toPartyResponse(
     members = members,
     seats = seats,
     usualRoster = usualRoster,
+    skippedThisPeriod = skippedThisPeriod,
     pendingLoot = loot.pending,
     awaitingPayout = loot.awaitingPayout,
     settledLoot = loot.settled,

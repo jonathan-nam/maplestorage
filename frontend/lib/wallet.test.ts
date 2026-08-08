@@ -39,6 +39,7 @@ const party = (id: string, members: PartyMember[], over: Partial<Party> = {}): P
   members,
   seats: members,
   usualRoster: true,
+  skippedThisPeriod: false,
   pendingLoot: 0,
   awaitingPayout: 0,
   settledLoot: 0,

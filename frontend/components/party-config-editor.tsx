@@ -26,6 +26,7 @@ export function PartyConfigEditor({
   error,
   onSave,
   onDelete,
+  onPutBack,
 }: {
   characterId: string;
   characterName: string;
@@ -37,6 +38,8 @@ export function PartyConfigEditor({
   error: string | null;
   onSave: (body: SavePartyBody, partyId?: string) => void;
   onDelete: (party: Party) => void;
+  /** Puts a boss back on the period Party View took it off. Only that direction lives here. */
+  onPutBack: (party: Party) => void;
 }) {
   const [addingBoss, setAddingBoss] = useState("");
   const bossByKey = new Map(bosses.map((b) => [b.bossKey, b]));
@@ -61,6 +64,7 @@ export function PartyConfigEditor({
             onSave({ characterId, bossKey: party.bossKey, members, difficulty, minutes }, party.id)
           }
           onDelete={() => onDelete(party)}
+          onPutBack={() => onPutBack(party)}
         />
       ))}
 
@@ -239,12 +243,14 @@ function ConfigRow({
   busy,
   onSave,
   onDelete,
+  onPutBack,
 }: {
   party: Party;
   boss: Boss | null;
   busy: boolean;
   onSave: (members: string[], difficulty: string | null, minutes: number | null) => void;
   onDelete: () => void;
+  onPutBack: () => void;
 }) {
   const saved = otherMembers(party).map((m) => m.name);
   const savedDifficulty = party.difficulty ?? "";
@@ -277,6 +283,14 @@ function ConfigRow({
           disabled={busy}
           onChange={setMinutes}
         />
+        {/* Where a boss taken off on Party View is found again. The row is off that page entirely,
+            so this is the only place it can be said, and it belongs beside Remove: one is the week,
+            the other is for good. */}
+        {party.skippedThisPeriod && (
+          <button type="button" className="party-save" onClick={onPutBack} disabled={busy}>
+            Put back this week
+          </button>
+        )}
         <button type="button" className="party-delete" onClick={onDelete} disabled={busy}>
           Remove
         </button>

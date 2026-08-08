@@ -11,6 +11,7 @@ import {
   knownCharacterNames,
   otherMembers,
   partySizeLabel,
+  runningThisPeriod,
 } from "./parties";
 import type { Boss } from "@/types/boss";
 import type { Party, PartyMember } from "@/types/party";
@@ -44,6 +45,7 @@ const config = (id: string, characterId: string, bossKey: string, others: string
   members: [seat("mine", characterId), ...others.map((o) => seat(o))],
   seats: [seat("mine", characterId), ...others.map((o) => seat(o))],
   usualRoster: true,
+  skippedThisPeriod: false,
   pendingLoot: 0,
   awaitingPayout: 0,
   settledLoot: 0,
@@ -118,6 +120,30 @@ describe("filterByClear", () => {
     expect(filterByClear([cleared, notCleared, unreported], "cleared").map((p) => p.id)).toEqual([
       "p1",
     ]);
+  });
+});
+
+describe("runningThisPeriod", () => {
+  const on = config("p1", "char-1", "limbo", ["X"]);
+  const off = { ...config("p2", "char-1", "kalos", ["X"]), skippedThisPeriod: true };
+
+  it("drops a config taken off the period and keeps the rest", () => {
+    expect(runningThisPeriod([on, off]).map((p) => p.id)).toEqual(["p1"]);
+  });
+
+  it("counts a boss taken off as neither cleared nor outstanding", () => {
+    // The failure this guards: a boss nobody is running this week sits in the "Not cleared" count
+    // for ever, so the number that says what is left to do never reaches zero. Narrowing first is
+    // what keeps the tab counts and the rows they promise in agreement.
+    const running = runningThisPeriod([on, off]);
+    expect(filterByClear(running, "not-cleared")).toHaveLength(1);
+    expect(filterByClear(running, "cleared")).toHaveLength(0);
+    expect(filterByClear(running, "all")).toHaveLength(1);
+  });
+
+  it("leaves a cleared config alone: the two marks are different answers", () => {
+    const cleared = { ...config("p3", "char-1", "baldrix", ["X"]), cleared: true };
+    expect(runningThisPeriod([cleared]).map((p) => p.id)).toEqual(["p3"]);
   });
 });
 

@@ -39,6 +39,7 @@ fun Route.partyRoutes(nexonLookupService: NexonLookupService) {
     put("/{id}") { savePartyRoute(nexonLookupService) }
     put("/{id}/roster") { saveWeekRosterRoute(nexonLookupService) }
     put("/{id}/clear") { setClearRoute() }
+    put("/{id}/skip") { setSkipRoute() }
     delete("/{id}") { deletePartyRoute() }
     route("/{id}/loot") { lootRoutes() }
 }
@@ -277,7 +278,7 @@ private suspend fun RoutingContext.deletePartyRoute() {
     }
 }
 
-private suspend fun RoutingContext.respondToSave(
+internal suspend fun RoutingContext.respondToSave(
     outcome: Any?,
     onSuccess: HttpStatusCode,
 ) {
