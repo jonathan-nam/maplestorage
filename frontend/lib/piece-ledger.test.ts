@@ -2,11 +2,12 @@ import { describe, expect, it } from "vitest";
 import {
   type LedgerSeat,
   type PieceSale,
+  allocate,
   balances,
   entitlements,
   saleProgress,
   transferKey,
-  transfers,
+  transfersOf,
 } from "./piece-ledger";
 
 const M = 1_000_000;
@@ -112,86 +113,103 @@ describe("selling a stack in tranches", () => {
   });
 });
 
-describe("the transfers that clear it", () => {
-  const sales: PieceSale[] = [
-    { pieces: 100, priceEach: 25 * M },
-    { pieces: 80, priceEach: 24 * M },
+describe("the queue: first cleared, first paid", () => {
+  const drop = (id: string, weekStart: string, order: number, total: number, looted: number) => ({
+    id,
+    weekStart,
+    order,
+    total,
+    seats: [seat("Rune", looted), seat("Steve", 0), seat("Bob", 0), seat("Ana", 0)],
+  });
+
+  // Week one: Kalos then Limbo. Week two: Baldrix.
+  const queue = [
+    drop("kalos", "2026-07-16", 1, 180, 180),
+    drop("limbo", "2026-07-16", 2, 60, 60),
+    drop("baldrix", "2026-07-23", 3, 120, 120),
   ];
 
-  it("pays the short seats from the over seats, in seat order", () => {
-    const out = transfers(180, kalos([120, 60, 0, 0]), sales);
-    expect(out.map((t) => [t.from, t.to, t.pieces])).toEqual([
-      ["Rune", "Bob", 45],
-      ["Rune", "Ana", 30],
-      ["Steve", "Ana", 15],
+  it("fills the oldest boss first, whatever order the drops arrive in", () => {
+    const covered = allocate([...queue].reverse(), [{ pieces: 200, priceEach: 25 * M }]);
+    expect(covered.get("kalos")!.complete).toBe(true);
+    expect(covered.get("limbo")!.covered).toBe(20);
+    expect(covered.get("limbo")!.complete).toBe(false);
+    expect(covered.get("baldrix")!.covered).toBe(0);
+  });
+
+  it("pays a boss out as soon as its own pieces are covered, not the whole pile", () => {
+    // The rule this replaced would have waited for all 360, which next week's clear pushes out of
+    // reach again.
+    const covered = allocate(queue, [{ pieces: 180, priceEach: 25 * M }]);
+    expect(transfersOf(queue[0]!, covered.get("kalos"))[0]!.send).toBe(1_125_000_000);
+    expect(transfersOf(queue[1]!, covered.get("limbo"))[0]!.send).toBeNull();
+  });
+
+  it("prices a boss from the tranches that actually covered it", () => {
+    const covered = allocate(queue, [
+      { pieces: 100, priceEach: 25 * M },
+      { pieces: 80, priceEach: 24 * M },
     ]);
+    expect(covered.get("kalos")!.averagePrice).toBeCloseTo(24_555_555.56, 1);
+    expect(transfersOf(queue[0]!, covered.get("kalos"))[0]!.send).toBe(1_105_000_000);
   });
 
-  it("moves exactly the pieces that were over-looted, no more", () => {
-    const out = transfers(180, kalos([120, 60, 0, 0]), sales);
-    expect(out.reduce((sum, t) => sum + t.pieces, 0)).toBe(90);
+  it("splits one tranche across two bosses when it spans them", () => {
+    const covered = allocate(queue, [{ pieces: 240, priceEach: 20 * M }]);
+    expect(covered.get("kalos")!.complete).toBe(true);
+    expect(covered.get("limbo")!.complete).toBe(true);
+    expect(covered.get("limbo")!.averagePrice).toBe(20 * M);
+    expect(covered.get("baldrix")!.covered).toBe(0);
   });
 
-  it("says nothing at all on an evenly looted night", () => {
-    expect(transfers(180, kalos([45, 45, 45, 45]), sales)).toEqual([]);
+  it("cannot re-price a boss that is already covered, which is why nothing is stored", () => {
+    // The property FIFO buys: a later tranche drains into the NEXT boss, so a figure somebody has
+    // already been paid stays the figure they were paid.
+    const before = allocate(queue, [{ pieces: 180, priceEach: 25 * M }]);
+    const after = allocate(queue, [
+      { pieces: 180, priceEach: 25 * M },
+      { pieces: 500, priceEach: 1 * M },
+    ]);
+    expect(after.get("kalos")).toEqual(before.get("kalos"));
+    expect(after.get("limbo")!.averagePrice).toBe(1 * M);
   });
 
-  it("values a debt at what the stack really averaged", () => {
-    const out = transfers(180, kalos([180, 0, 0, 0]), sales);
-    // 45 pieces of a stack that fetched 4.42b over 180 pieces.
-    expect(out[0]!.send).toBe(1_105_000_000);
-    // The receiver pays the Auction House once, exactly as their own sale would have cost them.
-    expect(out[0]!.nets).toBe(1_049_750_000);
-    // Nothing is invented: the three debts are the whole stack less the looter's own share.
-    expect(out.reduce((sum, t) => sum + (t.send ?? 0), 0)).toBe(3_315_000_000);
+  it("says nothing at all for a boss looted the way it divides", () => {
+    const even = {
+      id: "even",
+      weekStart: "2026-07-16",
+      order: 1,
+      total: 180,
+      seats: kalos([45, 45, 45, 45]),
+    };
+    const covered = allocate([even], [{ pieces: 180, priceEach: 25 * M }]);
+    expect(transfersOf(even, covered.get("even"))).toEqual([]);
   });
 
-  it("refuses to price a debt while pieces are still unsold", () => {
-    // The provisional average is about to be changed by the last tranche, so a figure here would be
-    // one somebody might act on and it would be wrong.
-    const out = transfers(180, kalos([180, 0, 0, 0]), [sales[0]!]);
-    expect(out[0]!.pieces).toBe(45);
-    expect(out[0]!.send).toBeNull();
-    expect(out[0]!.nets).toBeNull();
-  });
-
-  it("refuses to price it when more sold than dropped", () => {
-    const out = transfers(180, kalos([180, 0, 0, 0]), [{ pieces: 200, priceEach: 25 * M }]);
-    expect(out[0]!.send).toBeNull();
+  it("keys a transfer by the pair, so paid survives a redraw", () => {
+    const covered = allocate(queue, [{ pieces: 180, priceEach: 25 * M }]);
+    const out = transfersOf(queue[0]!, covered.get("kalos"));
+    expect(out.map(transferKey)).toEqual(["m-Rune>m-Steve", "m-Rune>m-Bob", "m-Rune>m-Ana"]);
   });
 
   it("rounds a debt up, so the person waiting is not the one short", () => {
-    // Three pieces, two sold at 5 and one at 4: an average of 4.67 that no piece actually fetched.
-    // A piece owed is worth 5 rather than 4, and the looter absorbs the two thirds.
-    const out = transfers(
-      3,
-      [seat("A", 3), seat("B", 0), seat("C", 0)],
+    const odd = {
+      id: "odd",
+      weekStart: "2026-07-16",
+      order: 1,
+      total: 3,
+      seats: [seat("A", 3), seat("B", 0), seat("C", 0)],
+    };
+    const covered = allocate(
+      [odd],
       [
         { pieces: 2, priceEach: 5 },
         { pieces: 1, priceEach: 4 },
       ],
     );
-    expect(out.map((t) => [t.pieces, t.send])).toEqual([
+    expect(transfersOf(odd, covered.get("odd")).map((t) => [t.pieces, t.send])).toEqual([
       [1, 5],
       [1, 5],
     ]);
-  });
-
-  it("keys a transfer by the pair, so paid survives a redraw", () => {
-    const out = transfers(180, kalos([120, 60, 0, 0]), sales);
-    expect(out.map(transferKey)).toEqual(["m-Rune>m-Bob", "m-Rune>m-Ana", "m-Steve>m-Ana"]);
-    expect(new Set(out.map(transferKey)).size).toBe(out.length);
-  });
-
-  it("clears a weighted night, where the carry is entitled to more", () => {
-    // Rune carried and takes a double share of 180: 72 to him, 36 to each of the others. He looted
-    // everything, so he owes each of them 36.
-    const out = transfers(
-      180,
-      [seat("Rune", 180, 2), seat("Steve", 0), seat("Bob", 0), seat("Ana", 0)],
-      sales,
-    );
-    expect(out.map((t) => t.pieces)).toEqual([36, 36, 36]);
-    expect(out.every((t) => t.from === "Rune")).toBe(true);
   });
 });
