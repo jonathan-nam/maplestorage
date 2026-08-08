@@ -3752,7 +3752,6 @@ button.link:disabled {
 .party-row-guaranteed {
   width: 18px;
   height: 18px;
-  image-rendering: pixelated;
   flex: none;
 }
 
