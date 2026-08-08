@@ -152,8 +152,7 @@ class PartyPeriodSkipTest {
             val party = partyOn(mine(), "limbo")
             addLoot(
                 Uuid.parse(party.id),
-                dropIdForKey("grindstone-of-faith")!!,
-                null,
+                LootedDrop(dropIdForKey("grindstone-of-faith")!!),
                 bossIdForKey("limbo"),
                 todayUtc(),
                 Clock.System.now(),
@@ -299,8 +298,7 @@ class PartyPeriodSkipTest {
             val party = partyOn(mine(), "limbo", oneOff = true)
             addLoot(
                 Uuid.parse(party.id),
-                dropIdForKey("grindstone-of-faith")!!,
-                null,
+                LootedDrop(dropIdForKey("grindstone-of-faith")!!),
                 bossIdForKey("limbo"),
                 todayUtc(),
                 Clock.System.now(),

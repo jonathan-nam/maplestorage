@@ -91,7 +91,7 @@ class PartySoloTest {
         val now = Clock.System.now()
         val bossId = bossIdForKey("limbo")!!
         val partyId = poolFor(userId, characterId, bossId, now)
-        val lootId = addLoot(partyId, dropIdForKey("grindstone-of-faith")!!, null, bossId, on, now)
+        val lootId = addLoot(partyId, LootedDrop(dropIdForKey("grindstone-of-faith")!!), bossId, on, now)
         return partyId to lootId
     }
 

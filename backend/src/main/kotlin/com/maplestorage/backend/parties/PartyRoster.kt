@@ -135,7 +135,7 @@ internal fun saveWeekRoster(
     seatNames(ownSeatName(ownCharacterId), members).forEach { name ->
         val seatId =
             existing[name.lowercase()]
-                ?: insertSeat(partyId, name, mine[name.lowercase()], nextPosition++, isStanding = false, context)
+                ?: insertSeat(partyId, name, mine[name.lowercase()], nextPosition++, NewSeat(standing = false), context)
         PartyWeekSeat.insert {
             it[PartyWeekSeat.partyId] = partyId
             it[weekStart] = week

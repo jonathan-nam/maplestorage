@@ -23,6 +23,9 @@ data class PartyMemberResponse(
     // Not in the party's usual roster: here for this week only, or gone from it since. Said out
     // loud because "who is in this party" and "who ran it that week" now have different answers.
     val guest: Boolean = false,
+    // What this seat usually takes of a split. 1 unless somebody carries and the party agreed they
+    // take more. Only ever a DEFAULT: a sale pins its own counts, so this cannot rewrite one.
+    val shares: Int = 1,
 )
 
 /**
@@ -105,6 +108,13 @@ data class SavePartyRequest(
     val characterId: String,
     val bossKey: String,
     val members: List<String> = emptyList(),
+    /**
+     * What each seat usually takes of a split, keyed by character name, your own included.
+     *
+     * The request is the whole roster, so a name left out takes one share: that is what makes
+     * clearing a weight a matter of typing 1 rather than a second call to undo it.
+     */
+    val shares: Map<String, Int> = emptyMap(),
     // One of the boss's own difficulties, or null for "not said". Anything else is refused rather
     // than dropped: a config claiming Normal Black Mage would read as a fact somebody entered.
     val difficulty: String? = null,

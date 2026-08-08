@@ -91,8 +91,7 @@ class PartyRetireTest {
     ): Uuid =
         addLoot(
             Uuid.parse(party.id),
-            dropIdForKey("grindstone-of-faith")!!,
-            null,
+            LootedDrop(dropIdForKey("grindstone-of-faith")!!),
             bossIdForKey("limbo"),
             on,
             Clock.System.now(),

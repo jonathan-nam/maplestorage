@@ -28,8 +28,7 @@ import kotlin.uuid.Uuid
  */
 internal fun addLoot(
     partyId: Uuid,
-    dropCatalogId: Uuid?,
-    customName: String?,
+    item: LootedDrop,
     bossCatalogId: Uuid?,
     droppedOn: LocalDate,
     now: Instant,
@@ -38,9 +37,10 @@ internal fun addLoot(
     PartyLoot.insert {
         it[id] = lootId
         it[PartyLoot.partyId] = partyId
-        it[PartyLoot.dropCatalogId] = dropCatalogId
-        it[PartyLoot.customName] = customName
+        it[dropCatalogId] = item.dropCatalogId
+        it[customName] = item.customName
         it[PartyLoot.bossCatalogId] = bossCatalogId
+        it[quantity] = item.quantity
         it[PartyLoot.droppedOn] = droppedOn
         it[createdAt] = now
         it[updatedAt] = now
@@ -61,6 +61,18 @@ internal fun addLoot(
 }
 
 /**
+ * What fell: which drop it is, and how many.
+ *
+ * Exactly one of the two names it, which party_loot_named_once requires and the routes refuse
+ * before it reaches here. The count is one unless the drop stacks.
+ */
+internal data class LootedDrop(
+    val dropCatalogId: Uuid?,
+    val customName: String? = null,
+    val quantity: Int = 1,
+)
+
+/**
  * Records the sale, and pins who is owed for it.
  *
  * The payout roster is written once, on the first sale, and never re-derived: adding a member next
@@ -70,6 +82,11 @@ internal fun addLoot(
  * Who is owed is the roster of the week the drop FELL in, not of the week it sells in and not of
  * the party today. A guest who ran that night is owed their share, and a usual member who sat that
  * week out is not, which is the whole point of a week having its own roster.
+ *
+ * Share counts are part of the figures, so a re-sale corrects them on the rows that already exist
+ * rather than adding or dropping any. That keeps who has been paid while letting a mistyped double
+ * share be fixed, and a seat left out of the request goes back to one rather than keeping the
+ * count from the sale being corrected.
  */
 internal fun sellLoot(
     lootId: Uuid,
@@ -84,16 +101,35 @@ internal fun sellLoot(
             .where { PartyLoot.id eq lootId }
             .first()[PartyLoot.droppedOn]
 
+    // Absent is one share, which is the even split every sale was before this could be said.
+    val sharesFor = { seatId: Uuid -> request.shares[seatId.toString()] ?: 1 }
+
     PartyLoot.update({ PartyLoot.id eq lootId }) {
         it[soldAt] = now
         it[saleAmount] = request.amount
         it[amountBasis] = request.amountBasis
         it[splitMethod] = request.splitMethod
         it[PartyLoot.sellerMemberId] = sellerMemberId
+        it[sellerShares] = sharesFor(sellerMemberId)
         it[updatedAt] = now
     }
 
-    if (!PartyLootPayout.selectAll().where { PartyLootPayout.lootId eq lootId }.empty()) return
+    val owed =
+        PartyLootPayout
+            .selectAll()
+            .where { PartyLootPayout.lootId eq lootId }
+            .map { it[PartyLootPayout.memberId] }
+    if (owed.isNotEmpty()) {
+        owed.forEach { seatId ->
+            PartyLootPayout.update({
+                (PartyLootPayout.lootId eq lootId) and (PartyLootPayout.memberId eq seatId)
+            }) {
+                it[shares] = sharesFor(seatId)
+            }
+        }
+        return
+    }
+
     rosterFor(partyId, weekOf(droppedOn))
         .filterNot { it == sellerMemberId }
         .forEach { seatId ->
@@ -101,6 +137,7 @@ internal fun sellLoot(
                 it[PartyLootPayout.lootId] = lootId
                 it[memberId] = seatId
                 it[paid] = false
+                it[shares] = sharesFor(seatId)
             }
         }
 }
@@ -117,6 +154,7 @@ internal fun unsellLoot(
         it[amountBasis] = null
         it[splitMethod] = null
         it[sellerMemberId] = null
+        it[sellerShares] = null
         it[updatedAt] = now
     }
 }

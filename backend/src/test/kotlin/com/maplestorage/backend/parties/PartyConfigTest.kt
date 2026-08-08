@@ -103,7 +103,8 @@ class PartyConfigTest {
         difficulty: String? = null,
         minutes: Int? = null,
     ): PartyResponse {
-        val request = SavePartyRequest(characterId.toString(), bossKey, members, difficulty, minutes)
+        val request =
+            SavePartyRequest(characterId.toString(), bossKey, members, difficulty = difficulty, minutes = minutes)
         val id = createParty(userId, characterId, bossIdForKey(bossKey)!!, request, Clock.System.now())
         return findParty(id, userId)!!
     }
@@ -216,7 +217,7 @@ class PartyConfigTest {
             saveParty(
                 userOneId,
                 Uuid.parse(party.id),
-                SavePartyRequest(mine.toString(), "kalos-the-guardian", listOf("CreedBratton"), "EXTREME"),
+                SavePartyRequest(mine.toString(), "kalos-the-guardian", listOf("CreedBratton"), difficulty = "EXTREME"),
                 Clock.System.now(),
             )
             assertEquals("EXTREME", findParty(Uuid.parse(party.id), userOneId)!!.difficulty)

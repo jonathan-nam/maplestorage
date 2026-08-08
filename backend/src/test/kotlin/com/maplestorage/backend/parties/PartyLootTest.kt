@@ -127,7 +127,7 @@ class PartyLootTest {
 
     private fun addGrindstone(party: PartyResponse): Uuid {
         val dropId = dropIdForKey("grindstone-of-faith")!!
-        return addLoot(Uuid.parse(party.id), dropId, null, bossIdForKey("limbo"), dropped, Clock.System.now())
+        return addLoot(Uuid.parse(party.id), LootedDrop(dropId), bossIdForKey("limbo"), dropped, Clock.System.now())
     }
 
     private fun addGrindstoneOn(
@@ -136,8 +136,7 @@ class PartyLootTest {
     ): Uuid =
         addLoot(
             Uuid.parse(party.id),
-            dropIdForKey("grindstone-of-faith")!!,
-            null,
+            LootedDrop(dropIdForKey("grindstone-of-faith")!!),
             bossIdForKey("limbo"),
             on,
             Clock.System.now(),
@@ -179,7 +178,7 @@ class PartyLootTest {
             val party = trio()
             val partyId = Uuid.parse(party.id)
             val ringId = dropIdForKey("ring-of-restraint-4")!!
-            addLoot(partyId, ringId, null, bossIdForKey("limbo"), dropped, Clock.System.now())
+            addLoot(partyId, LootedDrop(ringId), bossIdForKey("limbo"), dropped, Clock.System.now())
 
             val loot = lootFor(partyId).single()
             assertEquals("Ring of Restraint Lv. 4", loot.name)
@@ -373,7 +372,7 @@ class PartyLootTest {
         transaction {
             val party = trio()
             val partyId = Uuid.parse(party.id)
-            addLoot(partyId, null, "Some untabled mount", null, dropped, Clock.System.now())
+            addLoot(partyId, LootedDrop(null, "Some untabled mount"), null, dropped, Clock.System.now())
 
             val loot = lootFor(partyId).single()
             assertEquals("Some untabled mount", loot.name)
@@ -511,8 +510,8 @@ class PartyLootTest {
                     Clock.System.now(),
                 )
             addGrindstone(limbo)
-            addLoot(kalos, dropIdForKey("grindstone-of-faith")!!, null, null, dropped, Clock.System.now())
-            addLoot(Uuid.parse(strangerParty().id), null, "Not yours", null, dropped, Clock.System.now())
+            addLoot(kalos, LootedDrop(dropIdForKey("grindstone-of-faith")!!), null, dropped, Clock.System.now())
+            addLoot(Uuid.parse(strangerParty().id), LootedDrop(null, "Not yours"), null, dropped, Clock.System.now())
 
             val pools = allLootFor(userId)
             assertEquals(setOf(limbo.id, kalos.toString()), pools.map { it.partyId }.toSet())
@@ -548,7 +547,7 @@ class PartyLootTest {
             sellLoot(yourSale, sale(you.id), Uuid.parse(you.id), limboId, Clock.System.now())
 
             val theirSale =
-                addLoot(kalosId, dropIdForKey("grindstone-of-faith")!!, null, null, dropped, Clock.System.now())
+                addLoot(kalosId, LootedDrop(dropIdForKey("grindstone-of-faith")!!), null, dropped, Clock.System.now())
             val them = kalos.members.first { it.name == "Steve" }
             sellLoot(theirSale, sale(them.id), Uuid.parse(them.id), kalosId, Clock.System.now())
 
@@ -577,8 +576,7 @@ class PartyLootTest {
             val strangerLoot =
                 addLoot(
                     strangerPartyId,
-                    dropIdForKey("grindstone-of-faith")!!,
-                    null,
+                    LootedDrop(dropIdForKey("grindstone-of-faith")!!),
                     null,
                     dropped,
                     Clock.System.now(),
