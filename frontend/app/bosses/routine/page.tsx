@@ -2,12 +2,14 @@
 
 import { useAuth } from "@clerk/nextjs";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { BossRoutineEditor } from "@/components/boss-routine-editor";
 import { CharacterPicker } from "@/components/character-picker";
 import { ApiError, apiFetch } from "@/lib/api";
+import { nextSkips } from "@/lib/boss-clears";
 import { peek, put } from "@/lib/cache";
 import { preloadBossArt } from "@/lib/preload-boss-art";
+import { useRowWrites } from "@/lib/use-row-writes";
 import type { Boss, BossClearsView } from "@/types/boss";
 import type { Character } from "@/types/character";
 import type { Party } from "@/types/party";
@@ -39,7 +41,13 @@ export default function BossRoutinePage() {
   const [view, setView] = useState<BossClearsView | null>(peek<BossClearsView>(CLEARS_KEY) ?? null);
   const [state, setState] = useState<LoadState>("loading");
   const [selected, setSelected] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
+  // Per box, so ticking one boss does not grey out the rest of the catalog with it. One write at a
+  // time still, which this page needs most: it sends the whole set. See lib/use-row-writes.ts.
+  const { isSaving, write } = useRowWrites();
+  // The set this page last ASKED for, which is not always the set on screen. A second tick queued
+  // behind the first has to build on what the first sent, or it would undo it. Null means the
+  // server's answer is the truth again: nothing outstanding, a refusal, or a different character.
+  const asked = useRef<Set<string> | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -83,27 +91,28 @@ export default function BossRoutinePage() {
    */
   async function toggle(bossKey: string, runs: boolean) {
     if (!selected) return;
-    const next = new Set(skipped);
-    if (runs) next.delete(bossKey);
-    else next.add(bossKey);
+    const next = nextSkips(asked.current, skipped, bossKey, runs);
+    asked.current = next;
 
-    setBusy(true);
     setError(null);
     try {
-      const result = await apiFetch<BossClearsView>(
-        ROUTINE_KEY,
-        {
-          method: "PUT",
-          body: JSON.stringify({ characterId: selected, skippedBossKeys: Array.from(next) }),
-        },
-        getToken,
-      );
-      setView(result);
-      put(CLEARS_KEY, result);
+      await write(bossKey, async () => {
+        const result = await apiFetch<BossClearsView>(
+          ROUTINE_KEY,
+          {
+            method: "PUT",
+            body: JSON.stringify({ characterId: selected, skippedBossKeys: Array.from(next) }),
+          },
+          getToken,
+        );
+        setView(result);
+        put(CLEARS_KEY, result);
+      });
     } catch (e) {
+      // Back to the server's set: what we asked for is not what it holds, and building the next
+      // tick on it would send a set nobody has agreed to.
+      asked.current = null;
       setError(e instanceof ApiError ? e.body : "Couldn't save that.");
-    } finally {
-      setBusy(false);
     }
   }
 
@@ -134,6 +143,7 @@ export default function BossRoutinePage() {
               selectedId={selected}
               onSelect={(id) => {
                 setSelected(id);
+                asked.current = null;
                 setError(null);
               }}
             />
@@ -146,7 +156,7 @@ export default function BossRoutinePage() {
                 bosses={bosses}
                 skipped={skipped}
                 lockedBossKeys={lockedBossKeys}
-                busy={busy}
+                isSaving={isSaving}
                 onToggle={toggle}
               />
             )}

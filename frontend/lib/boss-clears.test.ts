@@ -12,6 +12,7 @@ import {
   indexClears,
   indexSkips,
   nextClear,
+  nextSkips,
   progressLabel,
   progressMark,
   weekEndExclusive,
@@ -375,5 +376,41 @@ describe("weekLabel", () => {
     const view = { weekStart: null, currentWeekStart: "2026-01-01" };
     expect(weekLabel(view)).toBe(weekLabel({ ...view }));
     expect(weekLabel(view)).toBe("Week of January 1");
+  });
+});
+
+// The routine PUT sends the whole set, so a tick queued behind another has to build on it. Two ticks
+// derived from the same render would have the second undo the first, and nothing on screen would say
+// so: the page would draw the set it asked for while the server held one boss less.
+describe("nextSkips", () => {
+  it("un-ticks a boss into the set", () => {
+    expect(Array.from(nextSkips(null, new Set(), "lotus", false))).toEqual(["lotus"]);
+  });
+
+  it("ticks one back out of it", () => {
+    expect(Array.from(nextSkips(null, new Set(["lotus", "damien"]), "lotus", true))).toEqual([
+      "damien",
+    ]);
+  });
+
+  it("builds on the tick still in flight, not on the set on screen", () => {
+    const onScreen = new Set<string>();
+    const inFlight = nextSkips(null, onScreen, "lotus", false);
+    const second = nextSkips(inFlight, onScreen, "damien", false);
+    expect(Array.from(second).sort()).toEqual(["damien", "lotus"]);
+  });
+
+  it("goes back to the set on screen once nothing is outstanding", () => {
+    // Which is what a refusal and a change of character both do: the server's set is the truth.
+    expect(Array.from(nextSkips(null, new Set(["lotus"]), "damien", false)).sort()).toEqual([
+      "damien",
+      "lotus",
+    ]);
+  });
+
+  it("does not touch what it was given", () => {
+    const asked = new Set(["lotus"]);
+    nextSkips(asked, new Set(), "damien", false);
+    expect(Array.from(asked)).toEqual(["lotus"]);
   });
 });

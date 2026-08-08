@@ -9,6 +9,7 @@ import { SeatChip } from "@/components/seat-chip";
 import { apiAssetUrl } from "@/lib/api";
 import { bossLabel } from "@/lib/boss-difficulty";
 import { preloadBossArt } from "@/lib/preload-boss-art";
+import { useRowWrites } from "@/lib/use-row-writes";
 import { ApiError, apiFetch } from "@/lib/api";
 import { peek, put } from "@/lib/cache";
 import { poolLabel, summarize } from "@/lib/loot";
@@ -22,6 +23,9 @@ type LoadState = "loading" | "loaded" | "error";
 
 const BOSSES_KEY = "/api/bosses";
 const DROPS_KEY = "/api/bosses/drops";
+// Rows are keyed by their drop's id while they save. The picker is not a row, so it takes a name of
+// its own. See lib/use-row-writes.ts.
+const ADD_DROP = "add-drop";
 
 export default function PartyPage() {
   // Before anything is fetched: see lib/preload-boss-art.ts.
@@ -36,7 +40,9 @@ export default function PartyPage() {
   const [bosses, setBosses] = useState<Boss[]>(peek<Boss[]>(BOSSES_KEY) ?? []);
   const [dropTables, setDropTables] = useState<DropTables>(peek<DropTables>(DROPS_KEY) ?? {});
   const [state, setState] = useState<LoadState>("loading");
-  const [busy, setBusy] = useState(false);
+  // Per drop, so marking one share paid does not grey out every other row in the pool. One write at
+  // a time still, because each one refetches the pool. See lib/use-row-writes.ts.
+  const { isSaving, write } = useRowWrites();
   const [error, setError] = useState<string | null>(null);
 
   const partyUrl = `/api/parties/${partyId}`;
@@ -78,30 +84,31 @@ export default function PartyPage() {
 
   // Every mutation refetches the pool rather than patching it in place: status is derived from the
   // sale and the payout rows server side, so the server's answer is the only one that is right.
-  async function mutate(path: string, options: RequestInit) {
-    setBusy(true);
+  async function mutate(key: string, path: string, options: RequestInit) {
     setError(null);
     try {
-      await apiFetch<unknown>(path, options, getToken);
-      await loadLoot();
+      await write(key, async () => {
+        await apiFetch<unknown>(path, options, getToken);
+        await loadLoot();
+      });
     } catch (e) {
       setError(e instanceof ApiError ? e.body : "That didn't save.");
-    } finally {
-      setBusy(false);
     }
   }
 
+  // Keyed by the drop being written, so only that row is drawn as saving.
   const add = (body: AddLootBody) =>
-    mutate(lootUrl, { method: "POST", body: JSON.stringify(body) });
+    mutate(ADD_DROP, lootUrl, { method: "POST", body: JSON.stringify(body) });
   const sell = (lootId: string, body: SellLootBody) =>
-    mutate(`${lootUrl}/${lootId}/sale`, { method: "PUT", body: JSON.stringify(body) });
-  const unsell = (lootId: string) => mutate(`${lootUrl}/${lootId}/sale`, { method: "DELETE" });
+    mutate(lootId, `${lootUrl}/${lootId}/sale`, { method: "PUT", body: JSON.stringify(body) });
+  const unsell = (lootId: string) =>
+    mutate(lootId, `${lootUrl}/${lootId}/sale`, { method: "DELETE" });
   const setPaid = (lootId: string, memberId: string, paid: boolean) =>
-    mutate(`${lootUrl}/${lootId}/payouts/${memberId}`, {
+    mutate(lootId, `${lootUrl}/${lootId}/payouts/${memberId}`, {
       method: "PUT",
       body: JSON.stringify({ paid }),
     });
-  const remove = (lootId: string) => mutate(`${lootUrl}/${lootId}`, { method: "DELETE" });
+  const remove = (lootId: string) => mutate(lootId, `${lootUrl}/${lootId}`, { method: "DELETE" });
 
   const bossByKey = new Map(bosses.map((b) => [b.bossKey, b]));
   // Counted from the rows on screen rather than from the party's stored counters, which were read
@@ -175,7 +182,8 @@ export default function PartyPage() {
             loot={loot}
             dropTables={dropTables}
             bossByKey={bossByKey}
-            busy={busy}
+            adding={isSaving(ADD_DROP)}
+            isSaving={isSaving}
             onAdd={add}
             onSell={sell}
             onUnsell={unsell}

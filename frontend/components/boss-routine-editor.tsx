@@ -20,7 +20,7 @@ export function BossRoutineEditor({
   bosses,
   skipped,
   lockedBossKeys,
-  busy,
+  isSaving,
   onToggle,
 }: {
   characterName: string;
@@ -35,7 +35,8 @@ export function BossRoutineEditor({
    * is to delete the config.
    */
   lockedBossKeys: Set<string>;
-  busy: boolean;
+  /** Whether THIS box's write is in flight. One flag for the page greyed the whole list on one tick. */
+  isSaving: (bossKey: string) => boolean;
   onToggle: (bossKey: string, runs: boolean) => void;
 }) {
   const cadences = CADENCE_ORDER.filter((c) => bosses.some((b) => b.reset === c));
@@ -63,7 +64,7 @@ export function BossRoutineEditor({
                         type="checkbox"
                         className="routine-check"
                         checked={runs}
-                        disabled={busy || locked}
+                        disabled={locked || isSaving(boss.bossKey)}
                         onChange={(e) => onToggle(boss.bossKey, e.target.checked)}
                       />
                       {boss.iconUrl ? (

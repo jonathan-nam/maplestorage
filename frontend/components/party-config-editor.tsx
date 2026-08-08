@@ -22,7 +22,8 @@ export function PartyConfigEditor({
   parties,
   bosses,
   knownCharacters,
-  busy,
+  isSaving,
+  adding,
   error,
   onSave,
   onDelete,
@@ -34,7 +35,13 @@ export function PartyConfigEditor({
   bosses: Boss[];
   /** Characters named anywhere already, for the datalist. Picking beats remembering a spelling. */
   knownCharacters: string[];
-  busy: boolean;
+  /**
+   * Whether THIS config's write is in flight, by its id. Fed one flag for the page, saving a single
+   * config dimmed every row's buttons at once.
+   */
+  isSaving: (partyId: string) => boolean;
+  /** The add form's own write. Adding one party does not lock the rows above it. */
+  adding: boolean;
   error: string | null;
   onSave: (body: SavePartyBody, partyId?: string) => void;
   onDelete: (party: Party) => void;
@@ -59,7 +66,7 @@ export function PartyConfigEditor({
           key={party.id}
           party={party}
           boss={bossByKey.get(party.bossKey) ?? null}
-          busy={busy}
+          busy={isSaving(party.id)}
           onSave={(members, difficulty, minutes, looterName) =>
             onSave(
               { characterId, bossKey: party.bossKey, members, difficulty, minutes, looterName },
@@ -91,7 +98,7 @@ export function PartyConfigEditor({
           ))}
         </select>
         <AddParty
-          busy={busy || addingBoss === ""}
+          busy={adding || addingBoss === ""}
           difficulties={bossByKey.get(addingBoss)?.difficulties ?? []}
           onAdd={(member, difficulty) => {
             onSave({ characterId, bossKey: addingBoss, members: [member], difficulty });
