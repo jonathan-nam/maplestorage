@@ -154,6 +154,11 @@ drops:
   # That capture is not native scale, so the art is a little soft. It is a DISPLAY icon and nothing
   # matches against it, which is the only reason that is acceptable. Replace it with a native cut,
   # or with the mirror's own sprite once a dataset carries it.
+  #
+  # Cut by keying the slot's own background out: it measured as neutral (saturation under 0.28) at
+  # middling brightness, where the star is gold, its outline dark brown and its core pure white. A
+  # flood fill from the corners alone left the grey enclosed by the star's arms behind it, which is
+  # visible at any size once you look for it.
   - key: vestige-of-erion
     name: Vestige of Erion Coupon
     art: cut
