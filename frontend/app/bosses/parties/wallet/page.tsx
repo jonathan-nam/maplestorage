@@ -16,6 +16,7 @@ import {
   type Counterparty,
 } from "@/lib/wallet";
 import { preloadBossArt } from "@/lib/preload-boss-art";
+import { useRowWrites } from "@/lib/use-row-writes";
 import type { Boss } from "@/types/boss";
 import type { PartyLootPool, SettleBody } from "@/types/loot";
 import type { Party } from "@/types/party";
@@ -52,7 +53,9 @@ export default function WalletPage() {
   const [state, setState] = useState<LoadState>("loading");
   const [open, setOpen] = useState<string | null>(null);
   const [confirming, setConfirming] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
+  // Per counterparty, so settling with one person does not grey out everybody else's button. One
+  // write at a time still, because each one replaces the pools. See lib/use-row-writes.ts.
+  const { isSaving, write } = useRowWrites();
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -88,21 +91,20 @@ export default function WalletPage() {
    * is paid, held by the page that draws the total.
    */
   async function settle(person: Counterparty) {
-    setBusy(true);
     setError(null);
     try {
-      const body: SettleBody = { payouts: settlementFor(person) };
-      const fresh = await apiFetch<PartyLootPool[]>(
-        SETTLE_KEY,
-        { method: "POST", body: JSON.stringify(body) },
-        getToken,
-      );
-      setPools(fresh);
-      setConfirming(null);
+      await write(person.key, async () => {
+        const body: SettleBody = { payouts: settlementFor(person) };
+        const fresh = await apiFetch<PartyLootPool[]>(
+          SETTLE_KEY,
+          { method: "POST", body: JSON.stringify(body) },
+          getToken,
+        );
+        setPools(fresh);
+        setConfirming(null);
+      });
     } catch (e) {
       setError(e instanceof ApiError ? e.body : "That didn't save.");
-    } finally {
-      setBusy(false);
     }
   }
 
@@ -159,7 +161,7 @@ export default function WalletPage() {
               onSettle={() => setConfirming(person.key)}
               onConfirm={() => settle(person)}
               onCancel={() => setConfirming(null)}
-              busy={busy}
+              busy={isSaving(person.key)}
             />
           ))}
 
@@ -216,6 +218,7 @@ function WalletRow({
   onSettle: () => void;
   onConfirm: () => void;
   onCancel: () => void;
+  /** THIS person's settlement. Fed the page's, it dimmed every row's button at once. */
   busy: boolean;
 }) {
   const both = person.owe > 0 && person.owed > 0;

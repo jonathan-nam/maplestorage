@@ -15,7 +15,8 @@ export function LootPool({
   loot,
   dropTables,
   bossByKey,
-  busy,
+  adding,
+  isSaving,
   onAdd,
   onSell,
   onUnsell,
@@ -26,7 +27,10 @@ export function LootPool({
   loot: Loot[];
   dropTables: DropTables;
   bossByKey: Map<string, Boss>;
-  busy: boolean;
+  /** The picker's own add. Not the rows': one drop being logged does not lock the pool. */
+  adding: boolean;
+  /** Whether THIS drop's write is in flight, by its id. */
+  isSaving: (lootId: string) => boolean;
   onAdd: (body: AddLootBody) => void;
   onSell: (lootId: string, body: SellLootBody) => void;
   onUnsell: (lootId: string) => void;
@@ -43,7 +47,7 @@ export function LootPool({
         table={dropTables[party.bossKey]}
         difficulty={party.difficulty}
         boss={bossByKey.get(party.bossKey) ?? null}
-        busy={busy}
+        busy={adding}
         onAdd={onAdd}
       />
 
@@ -57,7 +61,7 @@ export function LootPool({
               loot={item}
               party={party}
               boss={item.bossKey ? (bossByKey.get(item.bossKey) ?? null) : null}
-              busy={busy}
+              busy={isSaving(item.id)}
               onSell={(body) => onSell(item.id, body)}
               onUnsell={() => onUnsell(item.id)}
               onSetPaid={(memberId, paid) => onSetPaid(item.id, memberId, paid)}

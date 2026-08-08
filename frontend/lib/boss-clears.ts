@@ -246,3 +246,24 @@ export function weekEndExclusive(weekStart: string): string {
 export function weekLabel(view: Pick<BossClearsView, "weekStart" | "currentWeekStart">): string {
   return `Week of ${formatWeekStart(view.weekStart ?? view.currentWeekStart)}`;
 }
+
+/**
+ * The skip set one tick should send, given what has already been asked for.
+ *
+ * The routine PUT carries the WHOLE set, so a tick has to be built on top of any tick still in
+ * flight rather than on the set the page was rendered with: two quick ticks derived from the same
+ * render would have the second silently undo the first. `asked` is null when nothing is outstanding,
+ * when a save was refused, and when the character changed, which are the three times the server's
+ * set is the one to build on.
+ */
+export function nextSkips(
+  asked: Set<string> | null,
+  onScreen: Set<string>,
+  bossKey: string,
+  runs: boolean,
+): Set<string> {
+  const next = new Set(asked ?? onScreen);
+  if (runs) next.delete(bossKey);
+  else next.add(bossKey);
+  return next;
+}

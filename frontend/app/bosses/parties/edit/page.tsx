@@ -8,6 +8,7 @@ import { PartyConfigEditor } from "@/components/party-config-editor";
 import { ApiError, apiFetch } from "@/lib/api";
 import { peek, put } from "@/lib/cache";
 import { preloadBossArt } from "@/lib/preload-boss-art";
+import { useRowWrites } from "@/lib/use-row-writes";
 import type { Boss } from "@/types/boss";
 import type { Character } from "@/types/character";
 import type { Party, Person, SavePartyBody, SetPartySkipBody } from "@/types/party";
@@ -18,6 +19,9 @@ const PARTIES_KEY = "/api/parties";
 const BOSSES_KEY = "/api/bosses";
 const CHARACTERS_KEY = "/api/characters";
 const PEOPLE_KEY = "/api/people";
+// Rows are keyed by their config's id while they save. Adding one is not a row yet, so it takes a
+// name of its own. See lib/use-row-writes.ts.
+const ADD_PARTY = "add-party";
 
 // Editing, one character at a time. The Parties page answers "what are my parties"; this answers
 // "change them", and it does it the way the question is asked: pick a character, then say who they
@@ -36,7 +40,9 @@ export default function EditPartiesPage() {
   const [people, setPeople] = useState<Person[]>(peek<Person[]>(PEOPLE_KEY) ?? []);
   const [state, setState] = useState<LoadState>("loading");
   const [selected, setSelected] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
+  // Per config, so saving one row does not grey out every other row's buttons. One write at a time
+  // still, because each one refetches the list. See lib/use-row-writes.ts.
+  const { isSaving, write } = useRowWrites();
   const [error, setError] = useState<string | null>(null);
 
   async function loadParties(token?: string | null) {
@@ -76,22 +82,21 @@ export default function EditPartiesPage() {
   }, []);
 
   async function save(body: SavePartyBody, partyId?: string) {
-    setBusy(true);
     setError(null);
     try {
-      await apiFetch<Party>(
-        partyId ? `${PARTIES_KEY}/${partyId}` : PARTIES_KEY,
-        { method: partyId ? "PUT" : "POST", body: JSON.stringify(body) },
-        getToken,
-      );
-      // Refetched rather than spliced in: the server decides seat ids and which seat is yours.
-      await loadParties();
+      await write(partyId ?? ADD_PARTY, async () => {
+        await apiFetch<Party>(
+          partyId ? `${PARTIES_KEY}/${partyId}` : PARTIES_KEY,
+          { method: partyId ? "PUT" : "POST", body: JSON.stringify(body) },
+          getToken,
+        );
+        // Refetched rather than spliced in: the server decides seat ids and which seat is yours.
+        await loadParties();
+      });
     } catch (e) {
       // The backend refuses with the reason in the body (see validateNewParty). Showing it beats
       // "something went wrong" for the one thing the user can actually fix.
       setError(e instanceof ApiError ? e.body : "Couldn't save that party.");
-    } finally {
-      setBusy(false);
     }
   }
 
@@ -103,32 +108,30 @@ export default function EditPartiesPage() {
    * the row still is.
    */
   async function putBack(party: Party) {
-    setBusy(true);
     setError(null);
     try {
-      await apiFetch<Party>(
-        `${PARTIES_KEY}/${party.id}/skip`,
-        { method: "PUT", body: JSON.stringify({ skipped: false } satisfies SetPartySkipBody) },
-        getToken,
-      );
-      await loadParties();
+      await write(party.id, async () => {
+        await apiFetch<Party>(
+          `${PARTIES_KEY}/${party.id}/skip`,
+          { method: "PUT", body: JSON.stringify({ skipped: false } satisfies SetPartySkipBody) },
+          getToken,
+        );
+        await loadParties();
+      });
     } catch (e) {
       setError(e instanceof ApiError ? e.body : "Couldn't put that boss back.");
-    } finally {
-      setBusy(false);
     }
   }
 
   async function remove(party: Party) {
-    setBusy(true);
     setError(null);
     try {
-      await apiFetch<void>(`${PARTIES_KEY}/${party.id}`, { method: "DELETE" }, getToken);
-      await loadParties();
+      await write(party.id, async () => {
+        await apiFetch<void>(`${PARTIES_KEY}/${party.id}`, { method: "DELETE" }, getToken);
+        await loadParties();
+      });
     } catch (e) {
       setError(e instanceof ApiError ? e.body : "Couldn't remove that party.");
-    } finally {
-      setBusy(false);
     }
   }
 
@@ -184,7 +187,8 @@ export default function EditPartiesPage() {
                 parties={parties.filter((p) => p.characterId === character.id)}
                 bosses={bosses}
                 knownCharacters={knownCharacters}
-                busy={busy}
+                isSaving={isSaving}
+                adding={isSaving(ADD_PARTY)}
                 error={error}
                 onSave={save}
                 onDelete={remove}

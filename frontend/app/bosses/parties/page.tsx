@@ -28,6 +28,7 @@ import {
 import { preloadBossArt } from "@/lib/preload-boss-art";
 import { type CrossedReset, WEEKLY_CADENCE } from "@/lib/reset-countdown";
 import { useAccountSettings } from "@/lib/use-account-settings";
+import { useRowWrites } from "@/lib/use-row-writes";
 import { offersWallet } from "@/lib/world";
 import type { Boss, BossClearsView } from "@/types/boss";
 import type { Character } from "@/types/character";
@@ -72,6 +73,10 @@ const DROPS_KEY = "/api/bosses/drops";
 const clearsUrl = (week: string | null) => (week ? `${CLEARS_KEY}?week=${week}` : CLEARS_KEY);
 const partiesUrl = (week: string | null) => (week ? `${PARTIES_KEY}?week=${week}` : PARTIES_KEY);
 
+// Rows are keyed by their config's id while they save. The one-off form is not a row, so it takes a
+// name of its own: it is one more thing that can be mid-save. See lib/use-row-writes.ts.
+const ADD_FOR_WEEK = "add-for-week";
+
 export default function PartiesPage() {
   // Before anything is fetched: see lib/preload-boss-art.ts.
   preloadBossArt();
@@ -93,7 +98,9 @@ export default function PartiesPage() {
   );
   const [grouping, setGrouping] = useState<Grouping>("character");
   const [clearFilter, setClearFilter] = useState<ClearFilter>("all");
-  const [busy, setBusy] = useState(false);
+  // Per row, so a tick on one boss does not grey out every other row's controls. One write at a
+  // time still, because each one refetches the list. See lib/use-row-writes.ts.
+  const { isSaving, write } = useRowWrites();
   const [view, setView] = useState<BossClearsView | null>(peek<BossClearsView>(CLEARS_KEY) ?? null);
   // When the view was received, so the countdown can correct for a browser clock that disagrees
   // with the server's. See lib/reset-countdown.ts.
@@ -245,20 +252,19 @@ export default function PartiesPage() {
    * decides which period the tick landed in.
    */
   async function toggleClear(party: Party, cleared: boolean) {
-    setBusy(true);
     try {
-      await apiFetch<Party>(
-        `${PARTIES_KEY}/${party.id}/clear`,
-        { method: "PUT", body: JSON.stringify({ cleared }) },
-        getToken,
-      );
-      const refreshed = await apiFetch<Party[]>(PARTIES_KEY, { method: "GET" }, getToken);
-      setParties(refreshed);
-      put(PARTIES_KEY, refreshed);
+      await write(party.id, async () => {
+        await apiFetch<Party>(
+          `${PARTIES_KEY}/${party.id}/clear`,
+          { method: "PUT", body: JSON.stringify({ cleared }) },
+          getToken,
+        );
+        const refreshed = await apiFetch<Party[]>(PARTIES_KEY, { method: "GET" }, getToken);
+        setParties(refreshed);
+        put(PARTIES_KEY, refreshed);
+      });
     } catch {
       // Leaving the old state up beats showing a tick that did not save.
-    } finally {
-      setBusy(false);
     }
   }
 
@@ -273,8 +279,7 @@ export default function PartiesPage() {
    * lets the row show the server's reason.
    */
   async function saveRoster(party: Party, members: string[] | null) {
-    setBusy(true);
-    try {
+    await write(party.id, async () => {
       await apiFetch<Party>(
         `${PARTIES_KEY}/${party.id}/roster`,
         { method: "PUT", body: JSON.stringify({ members } satisfies SaveWeekRosterBody) },
@@ -283,9 +288,7 @@ export default function PartiesPage() {
       const refreshed = await apiFetch<Party[]>(PARTIES_KEY, { method: "GET" }, getToken);
       setParties(refreshed);
       put(PARTIES_KEY, refreshed);
-    } finally {
-      setBusy(false);
-    }
+    });
   }
 
   /**
@@ -299,8 +302,7 @@ export default function PartiesPage() {
    * lets the row show it did not save.
    */
   async function setSkipped(party: Party, skipped: boolean) {
-    setBusy(true);
-    try {
+    await write(party.id, async () => {
       await apiFetch<Party>(
         `${PARTIES_KEY}/${party.id}/skip`,
         { method: "PUT", body: JSON.stringify({ skipped } satisfies SetPartySkipBody) },
@@ -309,9 +311,7 @@ export default function PartiesPage() {
       const refreshed = await apiFetch<Party[]>(PARTIES_KEY, { method: "GET" }, getToken);
       setParties(refreshed);
       put(PARTIES_KEY, refreshed);
-    } finally {
-      setBusy(false);
-    }
+    });
   }
 
   /**
@@ -323,18 +323,21 @@ export default function PartiesPage() {
    * same pool.
    */
   async function addOneOff(body: SavePartyBody) {
-    setBusy(true);
     setAddError(null);
     try {
-      await apiFetch<Party>(PARTIES_KEY, { method: "POST", body: JSON.stringify(body) }, getToken);
-      const refreshed = await apiFetch<Party[]>(PARTIES_KEY, { method: "GET" }, getToken);
-      setParties(refreshed);
-      put(PARTIES_KEY, refreshed);
+      await write(ADD_FOR_WEEK, async () => {
+        await apiFetch<Party>(
+          PARTIES_KEY,
+          { method: "POST", body: JSON.stringify(body) },
+          getToken,
+        );
+        const refreshed = await apiFetch<Party[]>(PARTIES_KEY, { method: "GET" }, getToken);
+        setParties(refreshed);
+        put(PARTIES_KEY, refreshed);
+      });
     } catch (e) {
       // The server's own reason. It is the only part of a refusal you can act on.
       setAddError(e instanceof ApiError ? e.body : "Couldn't add that boss.");
-    } finally {
-      setBusy(false);
     }
   }
 
@@ -349,8 +352,7 @@ export default function PartiesPage() {
    * Throws on failure, which is what makes the row say so.
    */
   async function addDrop(party: Party, body: AddLootBody) {
-    setBusy(true);
-    try {
+    await write(party.id, async () => {
       await apiFetch<unknown>(
         `${PARTIES_KEY}/${party.id}/loot`,
         { method: "POST", body: JSON.stringify(body) },
@@ -359,9 +361,7 @@ export default function PartiesPage() {
       const refreshed = await apiFetch<Party[]>(PARTIES_KEY, { method: "GET" }, getToken);
       setParties(refreshed);
       put(PARTIES_KEY, refreshed);
-    } finally {
-      setBusy(false);
-    }
+    });
   }
 
   const characterById = new Map(characters.map((c) => [c.id, c]));
@@ -577,7 +577,7 @@ export default function PartiesPage() {
               characters={characters}
               bosses={bosses}
               parties={parties}
-              busy={busy}
+              busy={isSaving(ADD_FOR_WEEK)}
               error={addError}
               onAdd={addOneOff}
             />
@@ -635,7 +635,7 @@ export default function PartiesPage() {
                       <PartyCard
                         key={party.id}
                         party={party}
-                        busy={busy}
+                        busy={isSaving(party.id)}
                         clear={clearOf(party)}
                         onToggleClear={
                           history ? undefined : (cleared) => toggleClear(party, cleared)
@@ -750,7 +750,7 @@ export default function PartiesPage() {
                     <PartyCard
                       key={party.id}
                       party={party}
-                      busy={busy}
+                      busy={isSaving(party.id)}
                       clear={clearOf(party)}
                       onToggleClear={history ? undefined : (cleared) => toggleClear(party, cleared)}
                       dropTable={dropTables[party.bossKey]}
