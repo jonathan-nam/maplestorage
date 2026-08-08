@@ -4502,12 +4502,13 @@ button.link:disabled {
   cursor: pointer;
 }
 
-/* Copy button first, plan tabs after it. Both act on the plan below, and the button starts the
-   line so it sits in the same place whether or not there are tabs to choose between. */
+/* Copy button on its own line, plan tabs under it. Both act on the plan below, and a row let one
+   or two tabs sit up beside the button while three pushed them down, so the button moved with the
+   count. A column holds it in one place. */
 .night-plan-copy {
   display: flex;
-  align-items: center;
-  flex-wrap: wrap;
+  flex-direction: column;
+  align-items: flex-start;
   gap: 8px;
 }
 

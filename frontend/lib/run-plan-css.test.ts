@@ -66,4 +66,10 @@ describe("the plan tabs", () => {
   it("leaves the copy button where the markup puts it, at the start of the line", () => {
     expect(css).not.toMatch(/\.night-plan-copy \.copy-amount\s*\{[^}]*margin-left:\s*auto/);
   });
+
+  // A row put the tabs beside the button while there was space for them and under it once there
+  // was not, so the button moved with the tab count. It sits above them either way now.
+  it("keeps the copy button on a line of its own above them", () => {
+    expect(rule(".night-plan-copy")).toMatch(/flex-direction:\s*column/);
+  });
 });
