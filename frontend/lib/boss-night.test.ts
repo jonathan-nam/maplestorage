@@ -7,6 +7,7 @@ import {
   type DraftRun,
   formatDuration,
   formatOffset,
+  formatOffsetShort,
   nextHalfHour,
   offsetNow,
   ownerOf,
@@ -18,6 +19,8 @@ import {
   planAsText,
   planGrid,
   runsFromParties,
+  type RunTime,
+  runTicks,
   runTimes,
   spanBetween,
   YOU,
@@ -668,6 +671,68 @@ describe("formatOffset", () => {
     for (let minutes = -720; minutes < 720; minutes += 5) {
       expect(parseOffset(formatOffset(minutes))).toBe(minutes);
     }
+  });
+});
+
+// The spelling a party actually uses. It may only ever SHORTEN a time, never round one, which is
+// the whole reason both spellings exist.
+describe("formatOffsetShort", () => {
+  it("says the half hours the way they get said out loud", () => {
+    expect(formatOffsetShort(240)).toBe("+4");
+    expect(formatOffsetShort(270)).toBe("+4.5");
+    expect(formatOffsetShort(0)).toBe("+0");
+    expect(formatOffsetShort(-90)).toBe("-1.5");
+    expect(formatOffsetShort(-720)).toBe("-12");
+  });
+
+  it("falls back to the clock rather than rounding a time that is not on the half hour", () => {
+    // The failure this exists to prevent: a run stack landing on +4:55 drawn as "+5", which is a
+    // five minute lie on the one number somebody turns up for.
+    expect(formatOffsetShort(295)).toBe("+4:55");
+    expect(formatOffsetShort(247)).toBe("+4:07");
+    expect(formatOffsetShort(-125)).toBe("-2:05");
+  });
+
+  it("never says a time it was not given", () => {
+    for (let minutes = -720; minutes < 720; minutes += 1) {
+      expect(parseOffset(formatOffsetShort(minutes))).toBe(minutes);
+    }
+  });
+
+  it("gives noon UTC the same one spelling the long form does", () => {
+    expect(formatOffsetShort(720)).toBe("-12");
+    expect(formatOffsetShort(-720)).toBe("-12");
+  });
+});
+
+describe("runTicks", () => {
+  const at = (startsAt: number, approx = false): RunTime => ({
+    at: "",
+    startsAt,
+    approx,
+    waitingFor: [],
+  });
+
+  it("opens a rule on the first run of each half hour and not again inside it", () => {
+    expect(runTicks([at(240), at(255), at(270), at(300)])).toEqual(["+4", null, "+4.5", "+5"]);
+  });
+
+  it("files a run under the half hour it starts in, never the nearest one", () => {
+    // +4:55 is four minutes short of +5 and belongs under +4.5 regardless.
+    expect(runTicks([at(295)])).toEqual(["+4.5"]);
+  });
+
+  it("skips a half hour nobody starts in rather than drawing an empty rule", () => {
+    // A 90 minute run swallows two blocks whole. The row's own length is what says so.
+    expect(runTicks([at(240), at(330)])).toEqual(["+4", "+5.5"]);
+  });
+
+  it("marks a rule reached by adding up guesses, the same as the time was", () => {
+    expect(runTicks([at(240), at(270, true)])).toEqual(["+4", "~+4.5"]);
+  });
+
+  it("draws nothing for a night that is not on the clock", () => {
+    expect(runTicks([])).toEqual([]);
   });
 });
 

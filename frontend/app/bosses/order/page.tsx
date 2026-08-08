@@ -11,7 +11,7 @@ import { DEFAULT_MINUTES } from "@/lib/boss-minutes";
 import {
   type DraftRun,
   formatDuration,
-  formatOffset,
+  formatOffsetShort,
   type NightPerson,
   offsetNow,
   parseOffset,
@@ -68,7 +68,7 @@ function noClock(): null {
 }
 
 /**
- * What a chip says about somebody without being opened: "· +2:00 to +4:00", "· to +3:00".
+ * What a chip says about somebody without being opened: "· +2 to +4", "· to +3.5".
  *
  * Null when there is nothing to say, which is the usual case and the reason the chip row still
  * reads as a row of names.
@@ -78,9 +78,10 @@ function pinOf(window: WindowText | undefined): string | null {
   const until = window ? parseOffset(window.until) : null;
 
   const said: string[] = [];
-  if (from !== null && until !== null) said.push(`${formatOffset(from)} to ${formatOffset(until)}`);
-  else if (from !== null) said.push(`from ${formatOffset(from)}`);
-  else if (until !== null) said.push(`to ${formatOffset(until)}`);
+  if (from !== null && until !== null)
+    said.push(`${formatOffsetShort(from)} to ${formatOffsetShort(until)}`);
+  else if (from !== null) said.push(`from ${formatOffsetShort(from)}`);
+  else if (until !== null) said.push(`to ${formatOffsetShort(until)}`);
 
   return said.length === 0 ? null : `· ${said.join(" · ")}`;
 }
@@ -163,7 +164,7 @@ export default function RunOrderPage() {
   // the one that moves. Typing an end wins while it parses; a preset hands it back to the duration.
   const endAt = endText === null ? null : parseOffset(endText);
   const budget = endAt === null ? duration : spanBetween(startAt, endAt);
-  const endShown = endText ?? formatOffset(startAt + budget);
+  const endShown = endText ?? formatOffsetShort(startAt + budget);
 
   const storedRaw = useSyncExternalStore(subscribeToDrafts, readStoredDrafts, noStoredDrafts);
   const stored = useMemo(() => parseDrafts(storedRaw), [storedRaw]);
@@ -457,7 +458,7 @@ export default function RunOrderPage() {
                   type="text"
                   inputMode="decimal"
                   value={(windows[openedPerson.id] ?? NO_WINDOW).from}
-                  placeholder={formatOffset(startAt)}
+                  placeholder={formatOffsetShort(startAt)}
                   onChange={(e) => {
                     const from = e.target.value;
                     setWindows((current) => ({
@@ -475,7 +476,7 @@ export default function RunOrderPage() {
                   type="text"
                   inputMode="decimal"
                   value={(windows[openedPerson.id] ?? NO_WINDOW).until}
-                  placeholder={formatOffset(startAt + budget)}
+                  placeholder={formatOffsetShort(startAt + budget)}
                   onChange={(e) => {
                     const until = e.target.value;
                     setWindows((current) => ({
@@ -519,7 +520,7 @@ export default function RunOrderPage() {
                 type="text"
                 inputMode="decimal"
                 value={startText}
-                placeholder={now === null ? "" : formatOffset(nextHalfHour(now))}
+                placeholder={now === null ? "" : formatOffsetShort(nextHalfHour(now))}
                 onChange={(e) => {
                   setStartText(e.target.value);
                   setChosen(null);
@@ -560,7 +561,7 @@ export default function RunOrderPage() {
             </label>
             {now !== null && (
               <span className="night-now">
-                now <b>{formatOffset(now)}</b>
+                now <b>{formatOffsetShort(now)}</b>
               </span>
             )}
           </div>

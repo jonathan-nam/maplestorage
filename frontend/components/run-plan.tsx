@@ -11,6 +11,7 @@ import {
   planAsText,
   planGrid,
   type RunTime,
+  runTicks,
   runTimes,
 } from "@/lib/boss-night";
 import type { Plan } from "@/lib/boss-run-plan";
@@ -43,6 +44,12 @@ function waitLine(time: RunTime): string {
  *
  * A switch is the one coloured thing here, because it is the one thing the ordering exists to
  * minimise, and it is marked on the cell that moved rather than counted at the end of the row.
+ *
+ * The clock is a RULE ACROSS THE TABLE every half hour, not a time on every row. A party arranges
+ * itself in half hours, so a column of +4:55s was a precision nobody was speaking in, and the row
+ * only ever needed to say which half hour it fell in. What the row still carries is its own length,
+ * which is the part a reader is actually adding up. The exact start is on the row's tooltip, and
+ * the paste keeps its time column: see planAsText.
  */
 export function RunPlan({
   plan,
@@ -58,6 +65,7 @@ export function RunPlan({
 }) {
   const { people, rows } = planGrid(plan, roster);
   const times = timed ? runTimes(plan, roster, startAt) : [];
+  const ticks = runTicks(times);
 
   // A row band alone answers "which boss", not "which person": the header sits rows away, so
   // reading a cell still means tracing a column by eye. CSS can do a row on its own and cannot do
@@ -92,28 +100,36 @@ export function RunPlan({
         <tbody>
           {rows.map(({ planned, cells }, row) => {
             const time = times[row];
+            const tick = ticks[row];
             return (
               <Fragment key={planned.run.id}>
+                {/* Above the wait, because the wait is what carried the night into this half hour
+                    and reads as the reason the rule is where it is. */}
+                {tick != null && (
+                  <tr className="run-tick">
+                    <td colSpan={people.length + 1}>
+                      <span className="run-tick-at">{tick}</span>
+                    </td>
+                  </tr>
+                )}
                 {time !== undefined && time.waitingFor.length > 0 && (
                   <tr className="run-wait">
                     <td colSpan={people.length + 1}>{waitLine(time)}</td>
                   </tr>
                 )}
                 {/* Striped from the row's own index rather than :nth-child, which counts the wait
-                    rows above and flips the banding under every gap. */}
+                    and rule rows above and flips the banding under every gap. */}
                 <tr className={row % 2 === 1 ? "is-banded" : undefined}>
-                  <th className="run-boss" scope="row">
+                  <th
+                    className="run-boss"
+                    scope="row"
+                    title={
+                      time === undefined ? undefined : `Starts ${time.approx ? "~" : ""}${time.at}`
+                    }
+                  >
                     {/* Flexed on an inner span: display:flex on a table cell takes it out of the
                     table layout and the columns stop aligning. */}
                     <span className="run-boss-inner">
-                      {/* #188 took a running clock off this row for being arithmetic on a flat
-                      half-hour placeholder. It is back because the night now has a start on the
-                      reset clock, so this is a time the party can turn up for rather than a
-                      distance from a button press. The tilde is the same objection, answered:
-                      a time reached by adding up guesses is marked as one. */}
-                      {time !== undefined && (
-                        <span className="run-time">{time.approx ? `~${time.at}` : time.at}</span>
-                      )}
                       {BOSS_ART_2X[planned.run.bossKey] ? (
                         <img
                           className="run-art"

@@ -175,10 +175,15 @@ export function formatDuration(minutes: number): string {
 // A night crossing reset therefore reads -1:00, -0:30, +0:00, +0:30 and needs no special case,
 // where counting up it either wrapped to zero halfway down the table or ran off to +25:30.
 //
-// Written back as +H:MM rather than the decimal it was typed as. Runs are 15, 20 and 45 minutes
-// long, so a decimal clock has to round, and a rounded time drawn beside an exact one is the
-// confidently-wrong number this whole app is trying not to produce. Decimals still parse, because
-// that is what gets typed.
+// TWO spellings, because there are two kinds of time here and only one of them can be a decimal.
+//
+// A time a person TYPED is exact by construction: "+4.5" is 270 minutes and nothing rounds. A time
+// the plan DERIVED is 15, 20 and 45 minute runs stacked, so it lands on +4:55, and a decimal there
+// would have to round. formatOffsetShort draws the decimal only where the time is already on the
+// half hour and falls back to +H:MM where it is not, so the short spelling is never a rounded one.
+// formatOffset is the long one, kept for the paste, which is read cold hours later.
+//
+// Decimals have always parsed, because that is what gets typed.
 
 const HALF_DAY = 12 * 60;
 const DAY = 24 * 60;
@@ -200,6 +205,22 @@ export function formatOffset(minutes: number): string {
   const wrapped = wrapToReset(Math.round(minutes));
   const size = Math.abs(wrapped);
   return `${wrapped < 0 ? "-" : "+"}${Math.floor(size / 60)}:${String(size % 60).padStart(2, "0")}`;
+}
+
+/** How long a block of the timeline is. The unit a party actually arranges itself in. */
+export const HALF_HOUR = 30;
+
+/**
+ * A time against reset as a player says it: "+4", "+4.5", "-1.5".
+ *
+ * Only where the time IS the half hour. A derived time that landed on +4:55 is drawn "+4:55" and
+ * not rounded to "+5", so a short time on screen is always exact and never a tidied-up one.
+ */
+export function formatOffsetShort(minutes: number): string {
+  const wrapped = wrapToReset(Math.round(minutes));
+  if (wrapped % HALF_HOUR !== 0) return formatOffset(wrapped);
+  const size = Math.abs(wrapped);
+  return `${wrapped < 0 ? "-" : "+"}${Math.floor(size / 60)}${size % 60 === 30 ? ".5" : ""}`;
 }
 
 /**
@@ -265,6 +286,8 @@ export function spanBetween(from: number, to: number): number {
 export type RunTime = {
   /** "+2:30". */
   at: string;
+  /** The same time in minutes against reset, for the half-hour rules the page draws it against. */
+  startsAt: number;
   /**
    * The clock reached this by adding up a duration nobody timed, so the time is not one either.
    * Drawn with the same tilde the run's own length carries, for the same reason.
@@ -291,6 +314,7 @@ export function runTimes(plan: Plan, roster: NightPerson[], startAt: number): Ru
     if (planned.waitingFor.length > 0) guessed = false;
     const time: RunTime = {
       at: formatOffset(startAt + planned.startsAt),
+      startsAt: startAt + planned.startsAt,
       approx: guessed,
       waitingFor: planned.waitingFor
         .map((id) => personAt.get(id))
@@ -298,6 +322,29 @@ export function runTimes(plan: Plan, roster: NightPerson[], startAt: number): Ru
     };
     if (planned.run.assumed) guessed = true;
     return time;
+  });
+}
+
+/**
+ * The half-hour rule that opens above each run, or null where the run sits under the one above.
+ *
+ * The label is the FLOOR of the half hour the run starts in, so a run at +4:55 is drawn under +4.5
+ * rather than beside a rounded "+5". A rule is a gridline, not a claim about the run: what the run
+ * costs is its own length, which the row carries.
+ *
+ * A block nobody starts in gets no rule, which is why the labels skip. A long run or a wait ate it,
+ * and both of those already say so on the row and in the wait line. Drawing an empty rule for it
+ * would be a line with nothing under it.
+ *
+ * The tilde carries over from the time: a rule reached by adding up guessed lengths is a guess.
+ */
+export function runTicks(times: RunTime[]): (string | null)[] {
+  let open: number | null = null;
+  return times.map((time) => {
+    const block = Math.floor(time.startsAt / HALF_HOUR) * HALF_HOUR;
+    if (block === open) return null;
+    open = block;
+    return `${time.approx ? "~" : ""}${formatOffsetShort(block)}`;
   });
 }
 
