@@ -5,6 +5,7 @@ import com.maplestorage.backend.bosses.periodStartFor
 import com.maplestorage.backend.db.BossClear
 import com.maplestorage.backend.db.CharacterBossSkip
 import com.maplestorage.backend.db.Party
+import com.maplestorage.backend.db.PartyLoot
 import com.maplestorage.backend.db.PartyMember
 import com.maplestorage.backend.db.Person
 import com.maplestorage.backend.db.PersonCharacter
@@ -163,10 +164,40 @@ internal fun clearFromDrop(
     }
 }
 
-internal fun deleteParty(
+/** What taking a config off Party View did to it. */
+internal enum class Removal {
+    DELETED,
+    RETIRED,
+    NOT_FOUND,
+}
+
+/**
+ * Takes this config off the lists, keeping its pool if it has one.
+ *
+ * A config that has ever held a drop is RETIRED rather than deleted. party_loot cascades off it and
+ * party_loot_payout off that, so deleting it would erase a settled split, and un-owe an outstanding
+ * one, in the same breath as tidying up a boss nobody runs any more.
+ *
+ * This is retireOrDelete's rule one level up, and the reasoning there applies unchanged: a row
+ * nothing points at is deleted, so a config made by mistake does not sit retired forever.
+ *
+ * All time, not the shown week. A settled drop from months ago is exactly the record this keeps.
+ */
+internal fun retireOrDeleteParty(
     partyId: Uuid,
     userId: String,
-): Boolean = Party.deleteWhere { (Party.id eq partyId) and (Party.userId eq userId) } > 0
+): Removal =
+    when {
+        !ownsParty(partyId, userId) -> Removal.NOT_FOUND
+        PartyLoot.selectAll().where { PartyLoot.partyId eq partyId }.empty() -> {
+            Party.deleteWhere { (Party.id eq partyId) and (Party.userId eq userId) }
+            Removal.DELETED
+        }
+        else -> {
+            Party.update({ (Party.id eq partyId) and (Party.userId eq userId) }) { it[standing] = false }
+            Removal.RETIRED
+        }
+    }
 
 /**
  * Writes the USUAL seats, YOUR character first.

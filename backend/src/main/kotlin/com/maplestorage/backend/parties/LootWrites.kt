@@ -45,6 +45,10 @@ internal fun addLoot(
         it[createdAt] = now
         it[updatedAt] = now
     }
+    // Something fell here, so this config is one you run after all. Same reading as the clear
+    // below: a drop is evidence of a night, and a retired config would hold it off Party View
+    // while the wallet asked you to settle it.
+    Party.update({ (Party.id eq partyId) and (Party.standing eq false) }) { it[standing] = true }
     // A drop with no boss names nothing to clear. The pickers always send one, so this is the
     // API-only case rather than an ordinary one.
     if (bossCatalogId != null) {

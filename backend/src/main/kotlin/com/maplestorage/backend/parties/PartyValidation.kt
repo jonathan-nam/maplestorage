@@ -39,8 +39,11 @@ internal fun validateNewParty(
             bossCatalogId != null &&
             Party
                 .selectAll()
-                .where { (Party.characterId eq characterId) and (Party.bossCatalogId eq bossCatalogId) }
-                .empty()
+                .where {
+                    (Party.characterId eq characterId) and
+                        (Party.bossCatalogId eq bossCatalogId) and
+                        (Party.standing eq true)
+                }.empty()
                 .not()
 
     return when {
@@ -107,8 +110,9 @@ internal fun validateWeekRoster(
         } else {
             Party
                 .selectAll()
-                .where { (Party.userId eq userId) and (Party.bossCatalogId eq bossCatalogId) }
-                .filter { it[Party.id] != exclude }
+                .where {
+                    (Party.userId eq userId) and (Party.bossCatalogId eq bossCatalogId) and (Party.standing eq true)
+                }.filter { it[Party.id] != exclude }
                 .associate { it[Party.id] to it[Party.characterId] }
         }
 
@@ -218,8 +222,9 @@ internal fun validateBossRoster(
             PartyMember
                 .innerJoin(Party)
                 .selectAll()
-                .where { (Party.userId eq userId) and (Party.bossCatalogId eq bossCatalogId) }
-                .filter { exclude == null || it[Party.id] != exclude }
+                .where {
+                    (Party.userId eq userId) and (Party.bossCatalogId eq bossCatalogId) and (Party.standing eq true)
+                }.filter { exclude == null || it[Party.id] != exclude }
                 .firstOrNull { it[PartyMember.name].trim().lowercase() in wanted }
         }
 

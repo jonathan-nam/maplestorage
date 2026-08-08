@@ -207,6 +207,11 @@ object Party : Table("party") {
     // being told to. It inverts which of the two exception tables applies. See V32__party_one_off.sql.
     val oneOff = bool("one_off")
 
+    // Still run, so still listed. False is a config taken off the lists whose pool is kept, which
+    // is what deleting one that has ever held a drop does instead. Same word as PartyMember's, for
+    // the same reason. See V33__party_standing.sql.
+    val standing = bool("standing")
+
     val createdAt = timestamp("created_at")
     val updatedAt = timestamp("updated_at")
 

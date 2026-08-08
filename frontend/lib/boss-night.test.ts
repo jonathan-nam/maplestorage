@@ -49,6 +49,7 @@ function party(
     id,
     characterId: members[0]?.characterId ?? "c1",
     solo: false,
+    retired: false,
     worldType: "INTERACTIVE",
     bossKey,
     difficulty: null,

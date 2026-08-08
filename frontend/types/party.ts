@@ -30,6 +30,10 @@ export type Party = {
   // On for one period rather than every one. A boss run once, gone next period without being told
   // to, as against a standing arrangement that is on until somebody says otherwise.
   oneOff: boolean;
+  // Taken off the lists, pool kept, because deleting it would have taken a settled split with it.
+  // Only /api/parties?retired=include returns these, which the wallet and the Drop Log ask for so
+  // the drops stay readable. Not a boss this character runs.
+  retired: boolean;
   // The character's world. Heroic worlds do not trade, so this decides whether this pool's drops
   // can be sold at all: see lib/world.ts.
   worldType: WorldType;

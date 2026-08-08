@@ -45,13 +45,22 @@ internal const val MAX_RUN_MINUTES = 600
  * Solo configs are left out unless [includeSolo]. They are pools, not parties, and every caller
  * that draws a roster, plans a night around one or attributes a seat to a person would be showing
  * a party of one. The Drop Log asks for them, because a drop is exactly what they hold.
+ *
+ * Retired configs are left out unless [includeRetired]. They are bosses this character no longer
+ * runs, so no list that answers "what is on this week" should carry them. The two callers that
+ * read POOLS rather than lists ask for them, and must: the wallet and the Drop Log both key their
+ * loot rows off the configs they are handed, so leaving one out turns an outstanding split into a
+ * debt nobody owes. See V33__party_standing.sql.
  */
 internal fun partiesFor(
     userId: String,
     week: LocalDate? = null,
     includeSolo: Boolean = false,
+    includeRetired: Boolean = false,
 ): List<PartyResponse> {
-    val wanted = if (includeSolo) Op.TRUE else (Party.solo eq false)
+    val wanted =
+        (if (includeSolo) Op.TRUE else (Party.solo eq false)) and
+            (if (includeRetired) Op.TRUE else (Party.standing eq true))
     val rows =
         Party
             .innerJoin(BossCatalog)
@@ -324,6 +333,7 @@ private fun ResultRow.toPartyResponse(
     minutes = this[Party.minutes],
     solo = this[Party.solo],
     oneOff = this[Party.oneOff],
+    retired = !this[Party.standing],
     members = members,
     seats = seats,
     usualRoster = usualRoster,

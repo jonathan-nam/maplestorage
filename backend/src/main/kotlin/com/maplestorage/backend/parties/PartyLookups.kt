@@ -70,6 +70,14 @@ internal fun ownsCharacter(
         .empty()
         .not()
 
+/** True when this config was taken off the lists and kept for its pool. See V33__party_standing.sql. */
+internal fun isRetiredParty(partyId: Uuid): Boolean =
+    Party
+        .selectAll()
+        .where { Party.id eq partyId }
+        .firstOrNull()
+        ?.get(Party.standing) == false
+
 /** The character a config belongs to, or null when there is no such config. */
 internal fun characterIdOfParty(partyId: Uuid): Uuid? =
     Party

@@ -38,6 +38,7 @@ const config = (id: string, characterId: string, bossKey: string, others: string
   id,
   characterId,
   solo: false,
+  retired: false,
   worldType: "INTERACTIVE",
   bossKey,
   difficulty: null,
@@ -283,6 +284,17 @@ describe("bossesWithoutParty", () => {
     const alone = { ...config("p1", "char-1", "limbo", []), solo: true };
 
     expect(bossesWithoutParty([alone], catalog, "char-1").map((b) => b.bossKey)).toEqual([
+      "limbo",
+      "baldrix",
+    ]);
+  });
+
+  it("keeps a boss whose only party is retired", () => {
+    // The Drop Log holds retired configs so its entries stay readable, which would otherwise make a
+    // boss you used to run in a party unloggable. Logging one revives the config it lands in.
+    const gone = { ...config("p1", "char-1", "limbo", ["CreedBratton"]), retired: true };
+
+    expect(bossesWithoutParty([gone], catalog, "char-1").map((b) => b.bossKey)).toEqual([
       "limbo",
       "baldrix",
     ]);
