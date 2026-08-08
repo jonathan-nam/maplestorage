@@ -11,6 +11,9 @@ export type BossDrop = {
   // INTERACTIVE for the coupons that do not drop in Reboot. Null means everywhere.
   worlds: string | null;
   quantity: number;
+  // How many pieces this boss drops of it, by difficulty, for the count to be filled in with. Only
+  // the difficulties that drop any are here: absent means nothing to fill, not none.
+  pieces: Record<string, number>;
 };
 
 // Keyed by boss key, as /api/bosses/drops returns it.

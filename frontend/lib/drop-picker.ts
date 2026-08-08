@@ -17,6 +17,23 @@ export function pickableDrops(table: BossDrop[] | undefined, world: WorldType): 
   return (table ?? []).filter((drop) => dropExistsIn(drop.worlds, world));
 }
 
+/**
+ * What the count box opens with, as text, or empty when nothing is known.
+ *
+ * Empty rather than a guess in three cases: a drop the tables carry no amount for, a difficulty that
+ * drops none of it, and a caller with no difficulty to read (the Drop Log never asks for one). A
+ * filled-in number is one people accept without looking, so it comes only from the catalog's own
+ * figure for that exact pair.
+ */
+export function defaultQuantity(
+  drop: BossDrop | undefined,
+  difficulty: string | null | undefined,
+): string {
+  if (!drop || !difficulty) return "";
+  const pieces = drop.pieces?.[difficulty];
+  return pieces === undefined ? "" : String(pieces);
+}
+
 /** The name, and whether everyone walks away with one. */
 export function dropOptionLabel(drop: BossDrop, world: WorldType): string {
   return isPerMember(drop.perMember, world) ? `${drop.name} (one each)` : drop.name;

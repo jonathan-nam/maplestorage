@@ -289,16 +289,39 @@ def load_drops(bosses: list[dict]) -> tuple[list[dict], dict[str, list[str]]]:
     # A table keyed on a boss that is not tracked would seed a row against no boss_catalog id, so
     # it is refused here rather than dropped silently at insert time.
     tracked = {b["key"] for b in bosses if b.get("tracked", True)}
-    for boss_key, keys in tables.items():
+    modes_of = {b["key"]: b.get("difficulties") or [] for b in bosses}
+    normalised: dict[str, list[dict]] = {}
+    for boss_key, entries in tables.items():
         if boss_key not in tracked:
             sys.exit(f"drop table for {boss_key!r}: not a tracked boss in catalog/bosses.yaml")
+        # A bare key is the ordinary entry. A mapping carries what varies per (boss, difficulty),
+        # which so far is only how many pieces drop.
+        rows = [{"key": e} if isinstance(e, str) else dict(e) for e in entries]
+        keys = [r.get("key") for r in rows]
         for key in keys:
             if key not in seen:
                 sys.exit(f"drop table for {boss_key!r}: no drop named {key!r}")
         if len(set(keys)) != len(keys):
             sys.exit(f"drop table for {boss_key!r}: lists the same drop twice")
+        for row in rows:
+            pieces = row.get("pieces") or {}
+            if not isinstance(pieces, dict):
+                sys.exit(f"drop table for {boss_key!r}: pieces must map a difficulty to a count")
+            for difficulty, count in pieces.items():
+                # Against the BOSS'S own modes, not the whole list: a count under a difficulty it
+                # does not have could never be read, and would sit here looking authoritative.
+                if difficulty not in modes_of.get(boss_key, []):
+                    sys.exit(
+                        f"drop table for {boss_key!r}: {difficulty!r} is not one of its difficulties"
+                    )
+                if not isinstance(count, int) or count < 1:
+                    sys.exit(
+                        f"drop table for {boss_key!r} {difficulty}: pieces must be a positive "
+                        f"integer, got {count!r}"
+                    )
+        normalised[boss_key] = rows
 
-    return drops, tables
+    return drops, normalised
 
 
 def drop_sql(drops: list[dict], tables: dict[str, list[str]]) -> str:
@@ -322,9 +345,28 @@ def drop_sql(drops: list[dict], tables: dict[str, list[str]]) -> str:
         for i, d in enumerate(drops)
     )
     pairs = ",\n".join(
-        f"    ({q(boss_key)}, {q(drop_key)}, {i})"
-        for boss_key, keys in tables.items()
-        for i, drop_key in enumerate(keys)
+        f"    ({q(boss_key)}, {q(row['key'])}, {i})"
+        for boss_key, rows in tables.items()
+        for i, row in enumerate(rows)
+    )
+    amounts = ",\n".join(
+        f"    ({q(boss_key)}, {q(row['key'])}, {q(difficulty)}, {count})"
+        for boss_key, rows in tables.items()
+        for row in rows
+        for difficulty, count in (row.get("pieces") or {}).items()
+    )
+    amount_sql = (
+        f"""
+INSERT INTO boss_drop_amount (boss_catalog_id, drop_catalog_id, difficulty, pieces)
+SELECT b.id, d.id, v.difficulty, v.pieces
+FROM (VALUES
+{amounts}
+) AS v (boss_key, drop_key, difficulty, pieces)
+JOIN boss_catalog b ON b.boss_key = v.boss_key
+JOIN drop_catalog d ON d.drop_key = v.drop_key;
+"""
+        if amounts
+        else ""
     )
     return f"""-- GENERATED FROM catalog/drops.yaml. DO NOT EDIT BY HAND.
 -- Regenerate with:  python catalog/build.py
@@ -349,6 +391,7 @@ ON CONFLICT (drop_key) DO UPDATE SET
     sort_order = EXCLUDED.sort_order;
 
 DELETE FROM boss_drop;
+DELETE FROM boss_drop_amount;
 
 INSERT INTO boss_drop (boss_catalog_id, drop_catalog_id, sort_order)
 SELECT b.id, d.id, v.sort_order
@@ -357,7 +400,7 @@ FROM (VALUES
 ) AS v (boss_key, drop_key, sort_order)
 JOIN boss_catalog b ON b.boss_key = v.boss_key
 JOIN drop_catalog d ON d.drop_key = v.drop_key;
-"""
+{amount_sql}"""
 
 
 def check_art(items: list[dict]) -> list[str]:

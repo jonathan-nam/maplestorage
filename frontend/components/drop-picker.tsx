@@ -2,7 +2,13 @@
 
 import { useState, type ReactNode } from "react";
 import { apiAssetUrl } from "@/lib/api";
-import { OTHER, addDropBody, dropOptionLabel, pickableDrops } from "@/lib/drop-picker";
+import {
+  OTHER,
+  addDropBody,
+  defaultQuantity,
+  dropOptionLabel,
+  pickableDrops,
+} from "@/lib/drop-picker";
 import type { WorldType } from "@/lib/world";
 import type { Boss } from "@/types/boss";
 import type { BossDrop } from "@/types/drop";
@@ -26,10 +32,16 @@ export function DropPicker({
   boss,
   busy,
   lead,
+  difficulty,
   onAdd,
 }: {
   /** Which boss this drop is for. Empty until a caller that asks has an answer. */
   bossKey: string;
+  /**
+   * The mode this party runs, which decides how many pieces a stacking drop arrives in. Absent, or
+   * null where nobody has said, fills nothing: see defaultQuantity.
+   */
+  difficulty?: string | null;
   /** Whose world the drop fell in. Narrowing the table to it is pickableDrops' job, not a caller's. */
   worldType: WorldType;
   /** This boss's whole table. */
@@ -78,7 +90,19 @@ export function DropPicker({
         <select
           className="split-input loot-drop-select"
           value={dropKey}
-          onChange={(e) => setDropKey(e.target.value)}
+          onChange={(e) => {
+            const picked = e.target.value;
+            setDropKey(picked);
+            // Filled from the catalog on every change of drop, including back to nothing, so the
+            // count belongs to what is currently picked. Typing over it stands: nothing refills a
+            // box after this, which is what makes it a default rather than a value.
+            setQuantity(
+              defaultQuantity(
+                drops.find((d) => d.dropKey === picked),
+                difficulty,
+              ),
+            );
+          }}
           aria-label="Which drop"
         >
           <option value="">pick a drop</option>

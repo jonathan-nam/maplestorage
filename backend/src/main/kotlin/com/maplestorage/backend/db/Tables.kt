@@ -329,6 +329,17 @@ object BossDrop : Table("boss_drop") {
     override val primaryKey = PrimaryKey(bossCatalogId, dropCatalogId)
 }
 
+// How many pieces one boss drops at one difficulty. Only the combinations that drop any have a row,
+// so an absent one means nothing to fill rather than none. See V35__boss_drop_amount.sql.
+object BossDropAmount : Table("boss_drop_amount") {
+    val bossCatalogId = reference("boss_catalog_id", BossCatalog.id)
+    val dropCatalogId = reference("drop_catalog_id", DropCatalog.id)
+    val difficulty = text("difficulty")
+    val pieces = integer("pieces")
+
+    override val primaryKey = PrimaryKey(bossCatalogId, dropCatalogId, difficulty)
+}
+
 // A party's loot pool. Stores what was entered, never what was computed: the split arithmetic
 // lives in frontend/lib/drop-split.ts and a second copy here would be a second answer.
 object PartyLoot : Table("party_loot") {
