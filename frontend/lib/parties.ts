@@ -72,17 +72,6 @@ export function runningThisPeriod(parties: Party[]): Party[] {
   return parties.filter((party) => !party.skippedThisPeriod);
 }
 
-/**
- * The standing parties somebody took off the period on screen.
- *
- * What the count above the list is of. Deliberately not every config that is off: a one-off whose
- * week has passed is not something anybody took off, it is a night that happened, and counting
- * those would grow that line for ever until it described nothing you could act on.
- */
-export function takenOffThisPeriod(parties: Party[]): Party[] {
-  return parties.filter((party) => party.skippedThisPeriod && !party.oneOff);
-}
-
 /** What the party list is narrowed to. "not-cleared" is everything `isCleared` rejects. */
 export type ClearFilter = "all" | "not-cleared" | "cleared";
 

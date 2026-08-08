@@ -12,7 +12,6 @@ import {
   otherMembers,
   partySizeLabel,
   runningThisPeriod,
-  takenOffThisPeriod,
 } from "./parties";
 import type { Boss } from "@/types/boss";
 import type { Party, PartyMember } from "@/types/party";
@@ -258,26 +257,6 @@ describe("bossesWithoutConfig", () => {
     expect(bossesWithoutConfig([live], catalog, "char-1").map((b) => b.bossKey)).toEqual([
       "baldrix",
     ]);
-  });
-});
-
-describe("takenOffThisPeriod", () => {
-  const standing = { ...config("p1", "char-1", "limbo", ["X"]), skippedThisPeriod: true };
-  const spent = {
-    ...config("p2", "char-1", "kalos", ["X"]),
-    oneOff: true,
-    skippedThisPeriod: true,
-  };
-  const on = config("p3", "char-1", "baldrix", ["X"]);
-
-  it("counts the standing parties somebody took off, and not the nights that are simply over", () => {
-    // The failure this guards: the line above the list says "9 off this week" because every one-off
-    // ever run is still off, which describes nothing you can act on and buries the one you can.
-    expect(takenOffThisPeriod([standing, spent, on]).map((p) => p.id)).toEqual(["p1"]);
-  });
-
-  it("agrees with runningThisPeriod about what is on", () => {
-    expect(runningThisPeriod([standing, spent, on]).map((p) => p.id)).toEqual(["p3"]);
   });
 });
 

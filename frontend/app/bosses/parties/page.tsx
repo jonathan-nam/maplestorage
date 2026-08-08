@@ -24,7 +24,6 @@ import {
   knownCharacterNames,
   otherMembers,
   runningThisPeriod,
-  takenOffThisPeriod,
 } from "@/lib/parties";
 import { preloadBossArt } from "@/lib/preload-boss-art";
 import { type CrossedReset, WEEKLY_CADENCE } from "@/lib/reset-countdown";
@@ -397,9 +396,6 @@ export default function PartiesPage() {
   // being run in it. Everything below counts `running`, so a boss taken off is out of the tabs and
   // out of the group headings as well as out of the list.
   const running = runningThisPeriod(shown);
-  // Standing parties only. A one-off whose week has passed is also off, but nobody took it off:
-  // counting those would grow this line for ever with nights that are simply over.
-  const takenOff = takenOffThisPeriod(shown).length;
 
   // Either rule can empty a week, and naming the wrong one explains a correct screen wrongly. Only
   // for a week with nothing left in it: a week that still has a list says nothing about what it
@@ -433,13 +429,6 @@ export default function PartiesPage() {
   // The clear the page is DRAWING, not the config's own, so the filter and the counts agree with
   // the ticks on a past week instead of narrowing by this week's state.
   const showsCleared = (party: Party) => clearOf(party).cleared === true;
-
-  // A boss taken off is off its OWN period, which for the Black Mage is a month. The button names
-  // which, because one reading "not this week" that takes off a month is a control that lies.
-  const periodWord = (party: Party) =>
-    ({ WEEKLY: "week", MONTHLY: "month", DAILY: "day" })[
-      bossByKey.get(party.bossKey)?.reset ?? ""
-    ] ?? "period";
 
   // Filtered by week first, then by clear state, then grouped, so all three groupings answer the
   // same question and a group with nothing left in it drops out rather than sitting there empty.
@@ -580,20 +569,6 @@ export default function PartiesPage() {
             <p className="finder-empty">No parties in this week. {emptyWeekReason}</p>
           )}
 
-          {/* The rows are gone from the list on purpose, so the count is what keeps them from being
-              gone silently, and on the live view it doubles as the way back. One line for the page,
-              not a note per row: the rows it is about are not on screen to be noted beside. A past
-              week says the same number without the link, since only this week can be put back. */}
-          {takenOff > 0 && (
-            <p className="party-hint">
-              {history ? (
-                `${takenOff} off that week`
-              ) : (
-                <Link href="/bosses/parties/edit">{takenOff} off this week</Link>
-              )}
-            </p>
-          )}
-
           {/* Live view only. The server writes a one-off into the period its own clock is in, so
               offering this under a past week's label would file the night in a week the screen is
               not showing. Same rule as the drop picker. */}
@@ -669,7 +644,6 @@ export default function PartiesPage() {
                         onAddDrop={canAddDrops ? (body) => addDrop(party, body) : undefined}
                         onSaveRoster={history ? undefined : (members) => saveRoster(party, members)}
                         onTakeOff={history ? undefined : () => setSkipped(party, true)}
-                        periodWord={periodWord(party)}
                         heading={
                           <>
                             {bossByKey.get(party.bossKey)?.iconUrl && (
@@ -783,7 +757,6 @@ export default function PartiesPage() {
                       onAddDrop={canAddDrops ? (body) => addDrop(party, body) : undefined}
                       onSaveRoster={history ? undefined : (members) => saveRoster(party, members)}
                       onTakeOff={history ? undefined : () => setSkipped(party, true)}
-                      periodWord={periodWord(party)}
                       heading={
                         <>
                           {characterById.get(party.characterId)?.spriteImgUrl && (
