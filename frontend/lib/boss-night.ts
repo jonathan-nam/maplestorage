@@ -434,14 +434,11 @@ function tabTable(rows: string[][]): string[] {
  * dropping the key rather than an oversight: it is a bare X in a table, and the party reading it
  * ran the night. Put the key back if that stops being true.
  *
- * It leads with the time on the reset clock, which is the one thing here that is worth anything to
- * somebody reading it hours later in a chat window. A boss list says what the night is; "+2:30"
- * says when to be there. A tilde marks a time the runs above it only guessed at, the same mark the
- * page puts on the run's length.
- *
- * Unless the night is not being run to the clock, and then there is no time column at all: the
- * order is the whole answer, and a column of times nobody is holding to would be read as one they
- * are. See the times toggle on the page.
+ * NO TIME COLUMN. It carried one for as long as the page did, on the argument that "+2:30" is what
+ * tells a reader when to be there. The page now says the clock in half-hour rules and this says the
+ * order, which is what a party pastes it for: the exact minute a run starts is a consequence of the
+ * one above it running to length, and a column of them in a chat window is read as a commitment
+ * nobody made. Put it back only with the page, or the two drift and the paste is the one believed.
  *
  * Every corner cell is empty, so the header's first characters are the tabs that push the names
  * over their columns. Every field is otherwise flush left, which is what a tab stop gives for free
@@ -450,29 +447,18 @@ function tabTable(rows: string[][]): string[] {
  * Built from the Plan it is given, never restated by hand, so it cannot drift from what the page
  * is showing. The same rule explainSplit() follows.
  */
-export function planAsText(
-  plan: Plan,
-  roster: NightPerson[],
-  startAt: number,
-  timed = true,
-): string {
+export function planAsText(plan: Plan, roster: NightPerson[]): string {
   if (plan.runs.length === 0) return "No bosses fit in the time.";
 
   const { people, rows } = planGrid(plan, roster);
-  const times = timed ? runTimes(plan, roster, startAt) : [];
 
-  const corners = timed ? ["", ""] : [""];
-  const header = [...corners, ...people.map((person) => cell(person.name))];
-  const body = rows.map(({ planned, cells }, i) => {
-    const time = times[i];
-    return [
-      ...(time === undefined ? [] : [`${time.approx ? "~" : ""}${time.at}`]),
-      cell(bossHeading(planned)),
-      ...cells.map((c) =>
-        c.character === null ? SITTING_OUT : cell(c.character + (c.switched ? SWITCH_MARK : "")),
-      ),
-    ];
-  });
+  const header = ["", ...people.map((person) => cell(person.name))];
+  const body = rows.map(({ planned, cells }) => [
+    cell(bossHeading(planned)),
+    ...cells.map((c) =>
+      c.character === null ? SITTING_OUT : cell(c.character + (c.switched ? SWITCH_MARK : "")),
+    ),
+  ]);
 
   return ["```", ...tabTable([header, ...body]), "```"].join("\n");
 }

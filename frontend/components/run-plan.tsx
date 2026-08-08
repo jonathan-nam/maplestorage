@@ -49,7 +49,7 @@ function waitLine(time: RunTime): string {
  * itself in half hours, so a column of +4:55s was a precision nobody was speaking in, and the row
  * only ever needed to say which half hour it fell in. What the row still carries is its own length,
  * which is the part a reader is actually adding up. The exact start is on the row's tooltip, and
- * the paste keeps its time column: see planAsText.
+ * nowhere else: the paste is the order alone. See planAsText.
  */
 export function RunPlan({
   plan,
@@ -200,17 +200,7 @@ export function RunPlan({
 }
 
 /** The plan as text on the clipboard, which is where a party actually reads it. */
-export function CopyPlan({
-  plan,
-  roster,
-  startAt,
-  timed = true,
-}: {
-  plan: Plan;
-  roster: NightPerson[];
-  startAt: number;
-  timed?: boolean;
-}) {
+export function CopyPlan({ plan, roster }: { plan: Plan; roster: NightPerson[] }) {
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
@@ -225,7 +215,7 @@ export function CopyPlan({
       className={copied ? "copy-amount copied" : "copy-amount"}
       onClick={() => {
         navigator.clipboard
-          ?.writeText(planAsText(plan, roster, startAt, timed))
+          ?.writeText(planAsText(plan, roster))
           .then(() => setCopied(true))
           .catch(() => setCopied(false));
       }}

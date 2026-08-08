@@ -591,7 +591,7 @@ export default function RunOrderPage() {
                 ))}
               </div>
             )}
-            <CopyPlan plan={plan} roster={onTonight} startAt={shown.startAt} timed={shown.timed} />
+            <CopyPlan plan={plan} roster={onTonight} />
           </div>
 
           <RunPlan plan={plan} roster={onTonight} startAt={shown.startAt} timed={shown.timed} />

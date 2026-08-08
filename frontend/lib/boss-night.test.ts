@@ -294,9 +294,6 @@ describe("formatDuration", () => {
 });
 
 describe("planAsText", () => {
-  /** A night starting at +2:00, so the times in here read like ones a party would be given. */
-  const AT = 120;
-
   // Built through the real planner rather than a hand-made Plan, so the text is pinned against
   // what the tool actually produces.
   const textFor = (drafts: DraftRun[], minutes: number) => {
@@ -305,7 +302,7 @@ describe("planAsText", () => {
       runsFromDrafts(drafts),
       roster.map((p) => p.id),
     );
-    return planAsText(planNight(eligible, { minutes }).best, roster, AT);
+    return planAsText(planNight(eligible, { minutes }).best, roster);
   };
 
   const R = (id: string, bossName: string, seats: [string, string][]): DraftRun => ({
@@ -327,7 +324,7 @@ describe("planAsText", () => {
       runs,
       roster.map((p) => p.id),
     );
-    const text = planAsText(planNight(eligible, { minutes: 60 }).best, roster, AT);
+    const text = planAsText(planNight(eligible, { minutes: 60 }).best, roster);
     expect(text).toContain("Hard Lotus\t");
   });
 
@@ -385,8 +382,8 @@ describe("planAsText", () => {
     // Empty and not absent: the header keeps one field per column, so the names land over the
     // characters below them.
     const table = fenced(textFor(SPLIT_NIGHT, 180));
-    expect(table[0]).toBe("\t\tDave\tErin\tYou");
-    expect(table[1]).toBe("+2:00\tLotus\tNightlord\tShadower\tBishop");
+    expect(table[0]).toBe("\tDave\tErin\tYou");
+    expect(table[1]).toBe("Lotus\tNightlord\tShadower\tBishop");
   });
 
   it("marks somebody sitting a run out with an X", () => {
@@ -394,8 +391,8 @@ describe("planAsText", () => {
     // 3-person, 2-person, 1-person for size, which outranks keeping his two runs together, so
     // this is the gap the planner cannot close and the one the X has to show.
     const table = fenced(textFor(SPLIT_NIGHT, 180));
-    expect(table[2]).toBe("+2:30\tDamien\tX\tShadower\tBishop");
-    expect(table[3]).toBe("+3:00\tLucid\tNightlord\tX\tX");
+    expect(table[2]).toBe("Damien\tX\tShadower\tBishop");
+    expect(table[3]).toBe("Lucid\tNightlord\tX\tX");
   });
 
   it("gives every row the same columns, so the grid survives being pasted", () => {
@@ -404,7 +401,7 @@ describe("planAsText", () => {
     const table = fenced(textFor(SPLIT_NIGHT, 180));
     const widths = table.map((line) => line.split("\t").length);
     expect(new Set(widths).size).toBe(1);
-    expect(widths[0]).toBe(5);
+    expect(widths[0]).toBe(4);
   });
 
   it("still uses the marks, it just no longer explains them", () => {
@@ -438,8 +435,8 @@ describe("planAsText", () => {
     const table = fenced(
       textFor([R("1", "Lotus", [["Bishop", "You"]]), R("2", "Damien", [["Bishop", "You"]])], 120),
     );
-    expect(table[1]).toMatch(/^\+2:00\tLotus\t/);
-    expect(table[2]).toMatch(/^\+2:30\tDamien\t/);
+    expect(table[1]).toMatch(/^Lotus\t/);
+    expect(table[2]).toMatch(/^Damien\t/);
   });
 
   it("calls a boss what the party calls it", () => {
@@ -458,57 +455,24 @@ describe("planAsText", () => {
 
   it("keeps the full name for a boss with no shorthand", () => {
     const table = fenced(textFor([R("lotus", "Lotus", [["Bishop", "You"]])], 60));
-    expect(table[1]).toBe("+2:00\tLotus\tBishop");
+    expect(table[1]).toBe("Lotus\tBishop");
   });
 
   it("leaves a name holding a comma alone, since a tab is what splits a row", () => {
     const table = fenced(textFor([R("1", "Lotus", [["Bishop", "Dave, Jr"]])], 60));
-    expect(table[0]).toBe("\t\tDave, Jr");
+    expect(table[0]).toBe("\tDave, Jr");
   });
 
-  // A night that is not being run to the clock pastes as the ORDER: the rows are still in the order
-  // they run, and nothing in the table claims a time somebody might turn up for.
-  describe("with the times off", () => {
-    const untimed = (drafts: DraftRun[], minutes: number) => {
-      const roster = rosterFromDrafts(drafts);
-      const { eligible } = screenRuns(
-        runsFromDrafts(drafts),
-        roster.map((p) => p.id),
-      );
-      return planAsText(planNight(eligible, { minutes }).best, roster, AT, false);
-    };
-
-    it("drops the time column, corner cell and all", () => {
-      const table = fenced(untimed(SPLIT_NIGHT, 180));
-      expect(table[0]).toBe("\tDave\tErin\tYou");
-      expect(table[1]).toBe("Lotus\tNightlord\tShadower\tBishop");
-      expect(table[2]).toBe("Damien\tX\tShadower\tBishop");
-      expect(table[3]).toBe("Lucid\tNightlord\tX\tX");
-    });
-
-    it("says no time anywhere, not even a tilde on a guessed one", () => {
-      const text = untimed(SPLIT_NIGHT, 180);
-      expect(text).not.toMatch(/[+-]\d+:\d\d/);
-      expect(text).not.toContain("~");
-    });
-
-    it("still gives every row the same columns", () => {
-      const widths = fenced(untimed(SPLIT_NIGHT, 180)).map((line) => line.split("\t").length);
-      expect(new Set(widths).size).toBe(1);
-      expect(widths[0]).toBe(4);
-    });
-
-    it("keeps the marks, which are what the table is made of", () => {
-      const table = fenced(
-        untimed([R("1", "Lotus", [["Bishop", "You"]]), R("2", "Damien", [["Kanna", "You"]])], 120),
-      );
-      expect(table[2]).toContain("Kanna*");
-      expect(fenced(untimed(SPLIT_NIGHT, 180)).join("\n")).toContain("X");
-    });
+  // The failure that would matter: a time in the paste that the page no longer shows, read as a
+  // commitment the party never made.
+  it("says no time anywhere, not even a tilde on a guessed one", () => {
+    const text = textFor(SPLIT_NIGHT, 180);
+    expect(text).not.toMatch(/[+-]\d+[:.]\d+/);
+    expect(text).not.toContain("~");
   });
 
   it("says so plainly when there is nothing to paste", () => {
-    expect(planAsText({ runs: [], switches: 0, minutes: 0 }, [], 0)).toBe(
+    expect(planAsText({ runs: [], switches: 0, minutes: 0 }, [])).toBe(
       "No bosses fit in the time.",
     );
   });
@@ -525,9 +489,9 @@ describe("planAsText", () => {
         60,
       ),
     );
-    // The empty corners are the leading tabs. Nothing else is indented, and no field is padded
+    // The empty corner is the leading tab. Nothing else is indented, and no field is padded
     // out to the width of a longer one in its column.
-    expect(table[0]).toBe("\t\tChristopher\tYou");
+    expect(table[0]).toBe("\tChristopher\tYou");
     expect(table.every((line) => !line.startsWith(" "))).toBe(true);
     expect(table.every((line) => line.split("\t").every((field) => field === field.trim()))).toBe(
       true,
@@ -536,7 +500,7 @@ describe("planAsText", () => {
 
   it("keeps a name with a tab in it from splitting a row", () => {
     const table = fenced(textFor([R("1", "Lotus", [["Bishop", "Dave\tJr"]])], 60));
-    expect(table[0]).toBe("\t\tDave Jr");
+    expect(table[0]).toBe("\tDave Jr");
   });
 });
 
