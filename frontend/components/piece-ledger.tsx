@@ -7,15 +7,18 @@ import { formatWeekStart } from "@/lib/boss-clears";
 import { bossLabel } from "@/lib/boss-difficulty";
 import { formatMesos, parseMesos, shortMesos } from "@/lib/drop-split";
 import { transferKey } from "@/lib/piece-ledger";
-import { type LooterLedger, looterKey, unsold } from "@/lib/vestige-ledger";
+import { type Holder, type HolderLedger, holderKey, unsold } from "@/lib/vestige-ledger";
 import type { Boss } from "@/types/boss";
 import type { Party } from "@/types/party";
 import type { VestigeTranche } from "@/types/vestige";
 
-// One card per looter: the pile they are holding, the one box that prices it, and what each boss
+// One card per HOLDER: the pile a person is holding, the one box that prices it, and what each boss
 // they looted for owes once its own pieces are covered.
 //
-// Nothing here computes a meso. Every figure comes off the LooterLedger, which is
+// A person, not a character. One human running three characters has one pile and one box, and each
+// boss row names which of their characters looted it, so the fold hides nothing.
+//
+// Nothing here computes a meso. Every figure comes off the HolderLedger, which is
 // lib/vestige-ledger.ts's, which is lib/piece-ledger.ts's. The one thing this file decides is what
 // to draw when a figure is not yet knowable, and the answer is the pieces and no money: a boss
 // whose pieces are still unsold has no price, and an average of the tranches so far would be a
@@ -34,25 +37,25 @@ export function PieceLedger({
   onAddSale,
   onRemoveSale,
 }: {
-  ledgers: LooterLedger[];
-  /** This looter's tranches, oldest first, as the server returns them. */
+  ledgers: HolderLedger[];
+  /** Every holder's tranches, keyed by holderKey(), oldest first as the server returns them. */
   tranches: Map<string, VestigeTranche[]>;
   bossByKey: Map<string, Boss>;
   partyById: Map<string, Party>;
   /** The coupon's own sprite, backend-relative. Null when the catalog has no art for it. */
   iconUrl: string | null;
   busy: boolean;
-  onAddSale: (looterName: string, pieces: number, amount: number) => Promise<void>;
+  onAddSale: (holder: Holder, pieces: number, amount: number) => Promise<void>;
   onRemoveSale: (trancheId: string) => Promise<void>;
 }) {
   if (ledgers.length === 0) return null;
   return (
     <>
       {ledgers.map((ledger) => (
-        <LooterCard
-          key={ledger.looterName}
+        <HolderCard
+          key={holderKey(ledger.holder)}
           ledger={ledger}
-          tranches={tranches.get(looterKey(ledger.looterName)) ?? []}
+          tranches={tranches.get(holderKey(ledger.holder)) ?? []}
           bossByKey={bossByKey}
           partyById={partyById}
           iconUrl={iconUrl}
@@ -65,7 +68,7 @@ export function PieceLedger({
   );
 }
 
-function LooterCard({
+function HolderCard({
   ledger,
   tranches,
   bossByKey,
@@ -75,13 +78,13 @@ function LooterCard({
   onAddSale,
   onRemoveSale,
 }: {
-  ledger: LooterLedger;
+  ledger: HolderLedger;
   tranches: VestigeTranche[];
   bossByKey: Map<string, Boss>;
   partyById: Map<string, Party>;
   iconUrl: string | null;
   busy: boolean;
-  onAddSale: (looterName: string, pieces: number, amount: number) => Promise<void>;
+  onAddSale: (holder: Holder, pieces: number, amount: number) => Promise<void>;
   onRemoveSale: (trancheId: string) => Promise<void>;
 }) {
   const [pieces, setPieces] = useState("");
@@ -123,7 +126,8 @@ function LooterCard({
         <span className="loot-title">
           <span className="loot-name">Vestige of Erion</span>
           <span className="loot-meta">
-            {ledger.looterName} holds {ledger.pieces}
+            {/* "you hold", everybody else "holds". */}
+            {ledger.holderName} {ledger.holder.kind === "SELF" ? "hold" : "holds"} {ledger.pieces}
           </span>
         </span>
         <span className="ledger-tally">
@@ -135,7 +139,7 @@ function LooterCard({
         className="ledger-sale"
         onSubmit={(e) => {
           e.preventDefault();
-          if (sale) void write(onAddSale(ledger.looterName, sale.pieces, sale.amount), true);
+          if (sale) void write(onAddSale(ledger.holder, sale.pieces, sale.amount), true);
         }}
       >
         <label className="loot-share-input">
@@ -146,7 +150,7 @@ function LooterCard({
             onChange={(e) => setPieces(e.target.value)}
             placeholder="pieces"
             inputMode="numeric"
-            aria-label={`Pieces ${ledger.looterName} sold`}
+            aria-label={`Pieces ${ledger.holderName} sold`}
           />
         </label>
         <label className="loot-share-input">
@@ -157,7 +161,7 @@ function LooterCard({
             onChange={(e) => setAmount(e.target.value)}
             placeholder="total"
             inputMode="decimal"
-            aria-label={`What ${ledger.looterName} got for them`}
+            aria-label={`What ${ledger.holderName} got for them`}
           />
         </label>
         <button type="submit" className="party-save" disabled={busy || sale === null}>
@@ -198,7 +202,11 @@ function LooterCard({
                 <Link href={`/bosses/parties/${drop.partyId}`} className="loot-name">
                   {boss ? bossLabel(boss.name, party?.difficulty ?? null) : "Unknown boss"}
                 </Link>
-                <span className="loot-meta">week of {formatWeekStart(drop.weekStart)}</span>
+                <span className="loot-meta">
+                  {/* Which inventory the pieces are in. The pile is the person's, and this is the
+                      one fact that fold would otherwise lose. */}
+                  {drop.looterName} · week of {formatWeekStart(drop.weekStart)}
+                </span>
                 <span className="ledger-bar" aria-hidden="true">
                   <span
                     className="ledger-bar-fill"
