@@ -44,3 +44,26 @@ describe("the plan's banding", () => {
     expect(css).not.toMatch(/\.run-table tbody tr:nth-child/);
   });
 });
+
+// A plan tab carries two numbers, so a row of them that cannot wrap breaks the labels instead and
+// each chip grows a second line. Measured at 420px with four tabs: 38px tall chips on one row
+// before, 23px tall chips over two rows after.
+describe("the plan tabs", () => {
+  const rule = (selector: string) => {
+    const at = css.indexOf(`${selector} {`);
+    expect(at, `${selector} is missing`).toBeGreaterThan(-1);
+    return css.slice(at, css.indexOf("}", at));
+  };
+
+  it("wraps between tabs", () => {
+    expect(rule(".basis-row")).toMatch(/flex-wrap:\s*wrap/);
+  });
+
+  it("never wraps inside one", () => {
+    expect(rule(".basis-tab")).toMatch(/white-space:\s*nowrap/);
+  });
+
+  it("leaves the copy button where the markup puts it, at the start of the line", () => {
+    expect(css).not.toMatch(/\.night-plan-copy \.copy-amount\s*\{[^}]*margin-left:\s*auto/);
+  });
+});

@@ -2631,8 +2631,11 @@ button.link:disabled {
   color: var(--muted-2);
 }
 
+/* Wraps between tabs, never inside one. A squeezed row used to break each tab's own label instead,
+   which turned a one-line chip into a two-line one and read as two separate numbers. */
 .basis-row {
   display: inline-flex;
+  flex-wrap: wrap;
   gap: 4px;
   margin-bottom: 2px;
 }
@@ -2641,6 +2644,7 @@ button.link:disabled {
   display: inline-flex;
   align-items: center;
   gap: 5px;
+  white-space: nowrap;
   padding: 3px 9px;
   border: 1px solid var(--line);
   border-radius: 6px;
@@ -4498,8 +4502,8 @@ button.link:disabled {
   cursor: pointer;
 }
 
-/* Plan tabs at the left, copy button at the right. The button is pushed rather than the row
-   spaced, so it stays at the right end on a plan with no tabs. */
+/* Copy button first, plan tabs after it. Both act on the plan below, and the button starts the
+   line so it sits in the same place whether or not there are tabs to choose between. */
 .night-plan-copy {
   display: flex;
   align-items: center;
@@ -4509,10 +4513,6 @@ button.link:disabled {
 
 .night-plan-copy .basis-row {
   margin-bottom: 0;
-}
-
-.night-plan-copy .copy-amount {
-  margin-left: auto;
 }
 
 /* The order itself: bosses down the rows, people across the columns, the same way round as the
