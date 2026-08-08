@@ -7,6 +7,7 @@
 
 import { weekEndExclusive } from "@/lib/boss-clears";
 import type { Boss } from "@/types/boss";
+import type { BossDrop } from "@/types/drop";
 import type { Party } from "@/types/party";
 
 /** Six seats, the game's own party limit. Mirrors MAX_PARTY_SIZE in PartyQueries.kt. */
@@ -224,4 +225,19 @@ export function bossesWithoutParty(parties: Party[], bosses: Boss[], characterId
       .map((p) => p.bossKey),
   );
   return bosses.filter((boss) => !partied.has(boss.bossKey));
+}
+
+/**
+ * The drop this boss gives for certain at the mode a party runs, or null.
+ *
+ * Read off the boss's own table, so it is a fact about the boss rather than about anything that has
+ * happened: vestige coupons drop on every clear, and the amount is per (boss, difficulty). Null when
+ * nobody has said which difficulty, since a boss that drops them at Extreme drops none at Chaos.
+ */
+export function guaranteedDrop(
+  table: BossDrop[] | undefined,
+  difficulty: string | null,
+): BossDrop | null {
+  if (!table || difficulty === null) return null;
+  return table.find((drop) => (drop.pieces?.[difficulty] ?? 0) > 0) ?? null;
 }

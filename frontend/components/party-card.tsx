@@ -5,10 +5,10 @@ import { type ReactNode, useState } from "react";
 import { DropPicker } from "@/components/drop-picker";
 import { RosterInputs } from "@/components/roster-inputs";
 import { RosterStrip } from "@/components/roster-strip";
-import { ApiError } from "@/lib/api";
+import { ApiError, apiAssetUrl } from "@/lib/api";
 import { clearStateLabel, nextClear } from "@/lib/boss-clears";
 import { poolLabel } from "@/lib/loot";
-import { otherMembers, partySizeLabel } from "@/lib/parties";
+import { guaranteedDrop, otherMembers, partySizeLabel } from "@/lib/parties";
 import type { BossDrop } from "@/types/drop";
 import type { AddLootBody } from "@/types/loot";
 import type { Party } from "@/types/party";
@@ -96,6 +96,8 @@ export function PartyCard({
   const [saveError, setSaveError] = useState<string | null>(null);
   const [offError, setOffError] = useState<string | null>(null);
   const pool = poolLabel(party);
+  // The coupon this boss drops for certain at the mode this party runs, or null.
+  const guaranteed = guaranteedDrop(dropTable, party.difficulty);
   const panelId = `party-panel-${party.id}`;
   const others = otherMembers(party);
   // A solo party has no roster, but it does have a pool, so it opens too now.
@@ -167,6 +169,18 @@ export function PartyCard({
           {heading}
         </Link>
         <span className="party-row-label">{partySizeLabel(party.members.length)}</span>
+
+        {/* A boss that drops vestige coupons, said with the coupon itself. A fact about the boss and
+            its difficulty rather than about anything that has happened, so it does not come and go
+            with what is in the pool: the pieces always drop. */}
+        {guaranteed && (
+          <img
+            className="party-row-guaranteed"
+            src={apiAssetUrl(guaranteed.iconUrl ?? "")}
+            alt=""
+            title={`Drops ${guaranteed.name}`}
+          />
+        )}
 
         {/* Work to do gets the line; a settled pool gets it quietly when there is none. It used
             to say nothing at all once everything was paid, which erased the pool from the row and

@@ -146,10 +146,17 @@ drops:
   # item could only be wrong for six of the seven. What a party actually looted is typed on the
   # pool row.
   #
-  # No icon_id: GMS v268 is the pinned dataset and this is a v270 item. Drawn without art rather
-  # than with somebody else's, as eternal-armor-of-radiance-box is.
+  # `art: cut` rather than an icon_id: this is a v270 item and the pinned dataset is GMS v268. The
+  # mirror has no v269 or v270 at all, so there is no version to point at, and the picture is cut
+  # from the game instead: test-fixtures/inventory/vestige coupon slot.png, the same way the boss
+  # portraits are cut rather than downloaded.
+  #
+  # That capture is not native scale, so the art is a little soft. It is a DISPLAY icon and nothing
+  # matches against it, which is the only reason that is acceptable. Replace it with a native cut,
+  # or with the mirror's own sprite once a dataset carries it.
   - key: vestige-of-erion
     name: Vestige of Erion Coupon
+    art: cut
 
   # --- Eternal pieces ----------------------------------------------------------------
   # Also in items.yaml, which counts them in the inventory. Here for a different reason: it is
