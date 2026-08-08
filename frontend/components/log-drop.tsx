@@ -59,7 +59,6 @@ export function LogDrop({
         bossKey={chosen}
         worldType={character.worldType}
         table={dropTables[chosen]}
-        boss={offered.find((b) => b.bossKey === chosen) ?? null}
         busy={busy}
         lead={
           <>

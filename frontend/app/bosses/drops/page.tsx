@@ -16,7 +16,6 @@ import {
 } from "@/lib/drop-log";
 import { formatMesos } from "@/lib/drop-split";
 import { formatDropped, statusLabel } from "@/lib/loot";
-import { preloadBossArt } from "@/lib/preload-boss-art";
 import { useAccountSettings } from "@/lib/use-account-settings";
 import { showsMoney } from "@/lib/world";
 import type { Boss } from "@/types/boss";
@@ -40,9 +39,6 @@ const DROPS_KEY = "/api/bosses/drops";
 const CHARACTERS_KEY = "/api/characters";
 
 export default function DropLogPage() {
-  // Before anything is fetched: see lib/preload-boss-art.ts.
-  preloadBossArt();
-
   const { getToken } = useAuth();
   // Read off "does any character trade", not off one world: this page sums across every party, so
   // one Interactive character means there is real money here to show. Only an account with none at
@@ -327,12 +323,7 @@ function DropRow({
         <Link href={`/bosses/parties/${entry.partyId}`} className="loot-name">
           {entry.name}
         </Link>
-        <span className="loot-meta">
-          {boss?.iconUrl && (
-            <img className="boss-portrait is-small" src={apiAssetUrl(boss.iconUrl)} alt="" />
-          )}
-          {meta.join(" · ")}
-        </span>
+        <span className="loot-meta">{meta.join(" · ")}</span>
       </span>
 
       {entry.unreadable ? (
