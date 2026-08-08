@@ -7,6 +7,7 @@ import com.maplestorage.backend.parties.peopleRoutes
 import com.maplestorage.backend.screenshots.screenshotRoutes
 import com.maplestorage.backend.services.NexonLookupService
 import com.maplestorage.backend.services.ScreenshotParser
+import com.maplestorage.backend.share.configShareRoutes
 import com.maplestorage.backend.tokens.tokenRoutes
 import com.maplestorage.backend.users.settingsRoutes
 import io.ktor.http.CacheControl
@@ -118,6 +119,10 @@ fun Application.configureRouting(
 
             route("/api/settings") {
                 settingsRoutes()
+            }
+
+            route("/api/config") {
+                configShareRoutes()
             }
         }
     }
