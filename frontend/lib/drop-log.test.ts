@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { buildDropLog, forCharacter, groupDrops, monthLabel, weekLabel } from "./drop-log";
+import {
+  buildDropLog,
+  consolidate,
+  forCharacter,
+  groupDrops,
+  monthLabel,
+  weekLabel,
+} from "./drop-log";
 import { splitOf } from "./loot";
 import type { Loot, PartyLootPool } from "@/types/loot";
 import type { Party, PartyMember } from "@/types/party";
@@ -366,5 +373,88 @@ describe("weekLabel", () => {
 
   it("reads the day as written, not as a timezone reads it", () => {
     expect(weekLabel("2026-01-01")).toBe("Week of January 1, 2026");
+  });
+});
+
+describe("consolidate", () => {
+  const coupon = (id: string, bossKey: string, quantity: number, over: Partial<Loot> = {}) =>
+    pending({
+      id,
+      dropKey: "vestige-of-erion",
+      name: "Vestige of Erion Coupon",
+      bossKey,
+      quantity,
+      ...over,
+    });
+
+  it("folds one drop's rows into a line, and says the total pieces", () => {
+    // A week of bossing files a coupon row per boss, which is the same drop listed three times when
+    // the only number anybody wants is what they add up to.
+    const log = buildDropLog(
+      [duo()],
+      [
+        pool("pa", [
+          coupon("l1", "kalos-the-guardian", 90),
+          coupon("l2", "limbo", 30),
+          coupon("l3", "baldrix", 60),
+        ]),
+      ],
+    );
+    const lines = consolidate(log.entries);
+    expect(lines).toHaveLength(1);
+    expect(lines[0]!.quantity).toBe(180);
+    expect(lines[0]!.folded).toBe(true);
+    expect(lines[0]!.entries).toHaveLength(3);
+  });
+
+  it("leaves a drop that appears once exactly as it was", () => {
+    const lines = consolidate(buildDropLog([duo()], [pool("pa", [drop()])]).entries);
+    expect(lines).toHaveLength(1);
+    expect(lines[0]!.folded).toBe(false);
+    expect(lines[0]!.key).toBe("l1");
+    expect(lines[0]!.quantity).toBe(1);
+  });
+
+  it("never folds free text, which is only ever what somebody typed", () => {
+    // Two rows reading "some cape" are not evidence of one drop.
+    const log = buildDropLog(
+      [duo()],
+      [
+        pool("pa", [
+          pending({ id: "l1", dropKey: null, customName: "Some Cape", name: "Some Cape" }),
+          pending({ id: "l2", dropKey: null, customName: "Some Cape", name: "Some Cape" }),
+        ]),
+      ],
+    );
+    expect(consolidate(log.entries)).toHaveLength(2);
+  });
+
+  it("sums the money over the rows that sold, and says nothing when none did", () => {
+    const log = buildDropLog(
+      [duo()],
+      [
+        pool("pa", [
+          coupon("l1", "limbo", 30),
+          coupon("l2", "baldrix", 60, {
+            status: "SOLD",
+            soldAt: "2026-07-21T10:00:00Z",
+            saleAmount: 1_000_000_000,
+            amountBasis: "RECEIVED",
+            splitMethod: "FAIR",
+            sellerMemberId: "m1",
+            payouts: [{ memberId: "m2", paid: false, paidAt: null, shares: 1 }],
+          }),
+        ]),
+      ],
+    );
+    const line = consolidate(log.entries)[0]!;
+    expect(line.quantity).toBe(90);
+    expect(line.pooled).toBe(1_000_000_000);
+
+    const unsold = consolidate(
+      buildDropLog([duo()], [pool("pa", [coupon("l1", "limbo", 30), coupon("l2", "baldrix", 60)])])
+        .entries,
+    )[0]!;
+    expect(unsold.pooled).toBeNull();
   });
 });

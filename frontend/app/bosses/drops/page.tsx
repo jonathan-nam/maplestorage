@@ -10,7 +10,8 @@ import {
   buildDropLog,
   forCharacter,
   groupDrops,
-  type DropEntry,
+  type DropLine,
+  consolidate,
   type DropGroup,
   type Grouping,
 } from "@/lib/drop-log";
@@ -275,12 +276,12 @@ function GroupSection({
         )}
       </header>
       <ul className="droplog-list">
-        {group.entries.map((entry) => (
+        {consolidate(group.entries).map((line) => (
           <DropRow
-            key={entry.lootId}
-            entry={entry}
-            boss={bossByKey.get(entry.bossKey ?? "") ?? null}
-            characterName={characterById.get(entry.characterId)?.name ?? null}
+            key={line.key}
+            line={line}
+            bossByKey={bossByKey}
+            characterById={characterById}
             showCharacter={showCharacter}
           />
         ))}
@@ -290,29 +291,46 @@ function GroupSection({
 }
 
 function DropRow({
-  entry,
-  boss,
-  characterName,
+  line,
+  bossByKey,
+  characterById,
   showCharacter,
 }: {
-  entry: DropEntry;
-  boss: Boss | null;
-  characterName: string | null;
+  line: DropLine;
+  bossByKey: Map<string, Boss>;
+  characterById: Map<string, Character>;
   showCharacter: boolean;
 }) {
-  const meta = [
-    boss?.name,
-    showCharacter ? characterName : null,
-    formatDropped(entry.droppedOn),
-    entry.sellerName
-      ? `${entry.amountBasis === "BOUGHT" ? "bought by" : "sold by"} ${entry.sellerName}`
-      : null,
-  ].filter(Boolean);
+  const entry = line.entries[0]!;
+  const boss = bossByKey.get(entry.bossKey ?? "") ?? null;
+  const characterName = characterById.get(entry.characterId)?.name ?? null;
+
+  // A fold stands for several bosses, so it names them instead of one boss and one date: which
+  // bosses the pieces came off is the only thing the rows behind it still say.
+  const bosses = line.folded
+    ? [...new Set(line.entries.map((e) => bossByKey.get(e.bossKey ?? "")?.name).filter(Boolean))]
+    : [];
+  const meta = line.folded
+    ? [bosses.join(", "), showCharacter ? characterName : null].filter(Boolean)
+    : [
+        boss?.name,
+        showCharacter ? characterName : null,
+        formatDropped(entry.droppedOn),
+        entry.sellerName
+          ? `${entry.amountBasis === "BOUGHT" ? "bought by" : "sold by"} ${entry.sellerName}`
+          : null,
+      ].filter(Boolean);
+
+  // One status for a fold only when every row agrees. Mixed is said as a count, because "in the
+  // pool" over a line that is half sold would be the wrong half.
+  const statuses = [...new Set(line.entries.map((e) => e.status))];
+  const status = statuses.length === 1 ? statusLabel(statuses[0]!) : `${line.entries.length} rows`;
+  const unreadable = line.entries.some((e) => e.unreadable);
 
   return (
     <li className={`droplog-row status-${entry.status.toLowerCase()}`}>
-      {entry.iconUrl ? (
-        <img className="loot-icon" src={apiAssetUrl(entry.iconUrl)} alt="" />
+      {line.iconUrl ? (
+        <img className="loot-icon" src={apiAssetUrl(line.iconUrl)} alt="" />
       ) : (
         // No official art for this drop. An empty frame keeps the row aligned with the ones that
         // have it, as the loot pool does.
@@ -321,25 +339,24 @@ function DropRow({
 
       <span className="droplog-title">
         <Link href={`/bosses/parties/${entry.partyId}`} className="loot-name">
-          {entry.name}
+          {line.name}
+          {line.quantity > 1 && <span className="loot-count"> x{line.quantity}</span>}
         </Link>
         <span className="loot-meta">{meta.join(" · ")}</span>
       </span>
 
-      {entry.unreadable ? (
+      {unreadable ? (
         <span className="droplog-amounts">
           <span className="loot-share-nets">split unreadable</span>
         </span>
-      ) : entry.pooled === null ? (
+      ) : line.pooled === null ? (
         <span className="droplog-amounts">
-          <span className={`loot-status is-${entry.status.toLowerCase()}`}>
-            {statusLabel(entry.status)}
-          </span>
+          <span className={`loot-status is-${entry.status.toLowerCase()}`}>{status}</span>
         </span>
       ) : (
         <span className="droplog-amounts">
-          <span className="droplog-take">{formatMesos(entry.yourTake ?? 0, true)}</span>
-          <span className="loot-share-nets">of {formatMesos(entry.pooled, true)}</span>
+          <span className="droplog-take">{formatMesos(line.yourTake ?? 0, true)}</span>
+          <span className="loot-share-nets">of {formatMesos(line.pooled, true)}</span>
         </span>
       )}
     </li>

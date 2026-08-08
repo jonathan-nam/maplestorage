@@ -32,7 +32,11 @@ export type DropEntry = {
   /** Whose config it dropped on, so the log can be read one character at a time. */
   characterId: string;
   name: string;
+  /** The catalog drop, when it is one. What consolidate() groups on. Null for free text. */
+  dropKey: string | null;
   iconUrl: string | null;
+  /** How many pieces the row holds. 1 for a drop that is one item. */
+  quantity: number;
   bossKey: string | null;
   droppedOn: string;
   /** The reset week it fell in, as that week's Thursday. The server's reckoning, never redone here. */
@@ -162,7 +166,9 @@ export function buildDropLog(parties: Party[], pools: PartyLootPool[]): DropLog 
         partyId: pool.partyId,
         characterId: party.characterId,
         name: loot.name,
+        dropKey: loot.dropKey,
         iconUrl: loot.iconUrl,
+        quantity: loot.quantity,
         bossKey: loot.bossKey,
         droppedOn: loot.droppedOn,
         weekStart: loot.weekStart,
@@ -233,4 +239,76 @@ export function groupDrops(entries: DropEntry[], grouping: Grouping): DropGroup[
   // Insertion order: the entries are newest first, and a group's dates are contiguous, so the
   // sections come out newest first without a second sort.
   return [...groups.values()];
+}
+
+/**
+ * One line of the log: an ordinary drop, or every row of one stacking drop folded together.
+ *
+ * A boss that guarantees coupons files a row per boss, so a week of bossing is the same drop listed
+ * five times and the only number anybody wants is the total. Folded here rather than in the page,
+ * because the count is the point and a component adding it up would be a second answer to it.
+ */
+export type DropLine = {
+  /** The drop key when this is a fold, the loot id when it stands for one row. */
+  key: string;
+  name: string;
+  iconUrl: string | null;
+  /** Pieces across every row behind this line. */
+  quantity: number;
+  /** The rows themselves, newest first. Exactly one unless this is a fold. */
+  entries: DropEntry[];
+  /** True when it stands for more than one row, so the line says how many bosses. */
+  folded: boolean;
+  /** Summed the way the group subtotals are, and null when there is nothing sold to sum. */
+  pooled: number | null;
+  yourTake: number | null;
+};
+
+/**
+ * The log's rows as lines, folding a catalog drop that appears more than once.
+ *
+ * Only a CATALOG drop folds: free text is whatever somebody typed, and two rows reading "some cape"
+ * are not evidence of one drop. Order is kept from the entries, so the fold sits where its newest
+ * row was and the log stays newest-first.
+ *
+ * The money is summed exactly as a group subtotal is, over `sellerReceives`, which is the one figure
+ * that means the same thing on all three bases. See the note at the top of this file.
+ */
+export function consolidate(entries: DropEntry[]): DropLine[] {
+  const byDrop = new Map<string, DropEntry[]>();
+  for (const entry of entries) {
+    if (entry.dropKey === null) continue;
+    const seen = byDrop.get(entry.dropKey);
+    if (seen) seen.push(entry);
+    else byDrop.set(entry.dropKey, [entry]);
+  }
+
+  const lines: DropLine[] = [];
+  const done = new Set<string>();
+  for (const entry of entries) {
+    const rows = entry.dropKey === null ? null : byDrop.get(entry.dropKey);
+    if (rows === null || rows === undefined || rows.length === 1) {
+      lines.push(lineOf(entry.lootId, [entry], false));
+      continue;
+    }
+    if (done.has(entry.dropKey!)) continue;
+    done.add(entry.dropKey!);
+    lines.push(lineOf(entry.dropKey!, rows, true));
+  }
+  return lines;
+}
+
+function lineOf(key: string, entries: DropEntry[], folded: boolean): DropLine {
+  const sold = entries.filter((e) => e.pooled !== null);
+  const first = entries[0]!;
+  return {
+    key,
+    name: first.name,
+    iconUrl: first.iconUrl,
+    quantity: entries.reduce((sum, e) => sum + e.quantity, 0),
+    entries,
+    folded,
+    pooled: sold.length === 0 ? null : sold.reduce((sum, e) => sum + (e.pooled ?? 0), 0),
+    yourTake: sold.length === 0 ? null : sold.reduce((sum, e) => sum + (e.yourTake ?? 0), 0),
+  };
 }
