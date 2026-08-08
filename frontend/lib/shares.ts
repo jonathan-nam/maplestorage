@@ -1,9 +1,9 @@
 // How much of a pot one seat takes.
 //
 // A share count is not money and nothing here divides anything: the split is splitDrop's, and these
-// counts are only the weights it is given. They exist because a party that carries somebody
-// sometimes agrees that whoever carried takes more, and because a drop that can only be traded once
-// leaves one member holding the whole sale to hand out.
+// counts are only the weights it is given. They exist for the nights that do not divide: a party
+// normally loots an equal number of bundles each and records nothing, so what reaches a pool is the
+// remainder one member took, or a carry the party agreed takes more than a share.
 
 /** The most one seat may take, matching the column's own CHECK and the backend's refusal. */
 export const MAX_SHARES = 99;

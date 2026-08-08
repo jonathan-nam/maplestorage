@@ -1,8 +1,10 @@
 -- Two things a drop that stacks needs: how many of it fell, and who takes what fraction of the pot.
 --
--- Vestige of Erion Coupons are the case. A boss drops them in bundles (Extreme Kalos gives 180 in
--- six of 30), they are tradeable exactly once, so one member loots the lot and sells it, and what
--- comes back is one sale to divide. Six rows of "Vestige of Erion" is the same drop typed six times.
+-- Vestige of Erion Coupons are the case, and the UNEVEN night is the case within it. A boss drops
+-- them in bundles (Extreme Kalos gives 180 in six of 30) and a party normally loots an equal number
+-- each, which is a night with nothing to record at all. What needs a row is the remainder: bundles
+-- that will not divide by the party, so one member takes them and sells them, or a carry the party
+-- agreed takes more than a share. They are tradeable once, so whoever loots is who sells.
 --
 -- Shares are still not computed money: a share COUNT is what a party agreed, entered by hand like
 -- the price and the method beside it. The arithmetic stays in frontend/lib/drop-split.ts and stays

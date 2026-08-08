@@ -20,7 +20,7 @@ export type Loot = {
   perMember: string | null;
   bossKey: string | null;
   // How many of it fell. 1 for a drop that is one item; a stack of coupons is one row with its
-  // count, since the boss drops them in bundles and the party sells the lot as one sale.
+  // count, which is what a night that will not divide evenly leaves one member holding.
   quantity: number;
   droppedOn: string;
   // The reset week droppedOn falls in, as that week's Thursday. The server's, so the Drop Log's

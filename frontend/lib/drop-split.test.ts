@@ -94,8 +94,8 @@ describe("a lazy split quietly favours the seller", () => {
 });
 
 describe("a seat can take more than one share", () => {
-  // 180 vestige coupons off Extreme Kalos, sold by one member because they can only be traded
-  // once, and the strongest member is taking double.
+  // 180 vestige coupons off Extreme Kalos that would not divide by the party, so one member took
+  // them all and sold them, and the carry was agreed a double share.
   const uneven = (method: SplitMethod, memberShares: number[], sellerShares = 1) =>
     splitDrop({
       amount: 9_500_000_000,

@@ -26,11 +26,12 @@ import kotlin.uuid.Uuid
 /**
  * How much of a pot each seat takes, and how many of a drop fell, against a real Postgres.
  *
- * Both exist for one drop: Vestige of Erion Coupons come in bundles, are tradeable once, so one
- * member loots the lot and sells it, and the party sometimes agrees that whoever carried takes more
- * than an even share. What is worth a database to check is that a share count is PINNED to the sale
- * like the payout roster beside it: a weight edited next month must not rewrite a night already
- * settled, and correcting a price must not lose who has been paid.
+ * Both exist for the nights that do not divide. Vestige of Erion Coupons come in bundles and a party
+ * normally loots an equal number each, recording nothing at all; a pool row is the remainder one
+ * member took because it would not divide, or a carry the party agreed takes more than a share.
+ * What is worth a database to check is that a share count is PINNED to the sale like the payout
+ * roster beside it: a weight edited next month must not rewrite a night already settled, and
+ * correcting a price must not lose who has been paid.
  *
  * Split from PartyLootTest, which was already at the size detekt allows a class.
  */
@@ -103,8 +104,8 @@ class PartyLootSharesTest {
         transaction {
             val party = trio()
             val partyId = Uuid.parse(party.id)
-            // Extreme Kalos drops 180 coupons in six bundles of 30. One member loots the lot,
-            // because each bundle can only be traded once.
+            // Six bundles of 30 off Extreme Kalos, which will not divide by a party of four, so
+            // one member took all 180 to sell.
             addLoot(
                 partyId,
                 LootedDrop(dropIdForKey("vestige-of-erion")!!, quantity = 180),

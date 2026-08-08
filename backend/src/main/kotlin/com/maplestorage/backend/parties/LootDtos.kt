@@ -31,7 +31,7 @@ data class LootResponse(
     val perMember: String?,
     val bossKey: String?,
     // How many of it fell. 1 for a drop that is one item; a stack of coupons is one row with its
-    // count, because the boss drops them in bundles and the party sells the lot as one sale.
+    // count, which is what a night that will not divide evenly leaves one member holding.
     val quantity: Int = 1,
     val droppedOn: String,
     // The reset week droppedOn falls in, as that week's Thursday. Sent rather than derived on the
