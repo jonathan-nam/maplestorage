@@ -4,6 +4,7 @@ import com.maplestorage.backend.bosses.periodOf
 import com.maplestorage.backend.bosses.periodStartFor
 import com.maplestorage.backend.db.BossCatalog
 import com.maplestorage.backend.db.Party
+import com.maplestorage.backend.db.PartyPeriodRun
 import com.maplestorage.backend.db.PartyPeriodSkip
 import kotlinx.datetime.LocalDate
 import org.jetbrains.exposed.v1.core.ResultRow
@@ -13,13 +14,20 @@ import org.jetbrains.exposed.v1.core.inList
 import org.jetbrains.exposed.v1.jdbc.deleteWhere
 import org.jetbrains.exposed.v1.jdbc.insertIgnore
 import org.jetbrains.exposed.v1.jdbc.selectAll
+import org.jetbrains.exposed.v1.jdbc.update
 import kotlin.time.Instant
 import kotlin.uuid.Uuid
 
-// A period the party is not running, the config left standing. Held apart from PartyRoster.kt
-// because the two answer different questions and are kept by different clocks: a roster is who ran
-// in a Thursday week, this is whether the boss was run at all in the period the boss is answered
-// for. See V31__party_period_skip.sql.
+// Whether a config runs in one period. Held apart from PartyRoster.kt because the two answer
+// different questions and are kept by different clocks: a roster is who ran in a Thursday week,
+// this is whether the boss was run at all in the period the boss is answered for.
+//
+// A config has a default and a set of exceptions to it, and which table holds the exceptions
+// depends on which default it has:
+//   standing (one_off = false)   on, except the periods party_period_skip names
+//   one-off  (one_off = true)    off, except the periods party_period_run names
+// Either way the absence of a row is the answer, so undoing is a deletion and the next period
+// reverts to the default without being told to. See V31 and V32.
 //
 // Inside a transaction, like the rest.
 
@@ -40,65 +48,164 @@ internal fun periodShown(
     now: Instant,
 ): LocalDate = if (week == null) periodStartFor(reset, now) else periodOf(reset, week)
 
+private fun skipMarks(partyIds: List<Uuid>): Set<Pair<Uuid, LocalDate>> {
+    if (partyIds.isEmpty()) return emptySet()
+    return PartyPeriodSkip
+        .selectAll()
+        .where { PartyPeriodSkip.partyId inList partyIds }
+        .map { it[PartyPeriodSkip.partyId] to it[PartyPeriodSkip.periodStart] }
+        .toSet()
+}
+
+private fun runMarks(partyIds: List<Uuid>): Set<Pair<Uuid, LocalDate>> {
+    if (partyIds.isEmpty()) return emptySet()
+    return PartyPeriodRun
+        .selectAll()
+        .where { PartyPeriodRun.partyId inList partyIds }
+        .map { it[PartyPeriodRun.partyId] to it[PartyPeriodRun.periodStart] }
+        .toSet()
+}
+
 /**
- * Which of these configs are marked not-running in the period [week] is asking about.
+ * Which of these configs are NOT running in the period [week] is asking about.
+ *
+ * One question with one answer, whichever default the config has: a standing party somebody took
+ * off this week and a one-off whose week has passed are both "not on this period", and everything
+ * downstream (the list, the counts, Run Order) wants exactly that one fact.
  *
  * Per boss, because cadences differ, the same reason clearStateFor keys by period rather than
  * filtering on one date: a weekly and a monthly boss are in different periods at the same instant.
  *
  * [rows] are joined Party ⨝ BossCatalog rows, as partiesFor already has them.
  */
-internal fun periodSkipsFor(
+internal fun notRunningIn(
     rows: List<ResultRow>,
     week: LocalDate?,
     now: Instant,
 ): Set<Uuid> {
     if (rows.isEmpty()) return emptySet()
-    val wanted = rows.associate { it[Party.id] to periodShown(it[BossCatalog.reset], week, now) }
+    val skipped = skipMarks(rows.filterNot { it[Party.oneOff] }.map { it[Party.id] })
+    val ran = runMarks(rows.filter { it[Party.oneOff] }.map { it[Party.id] })
 
-    return PartyPeriodSkip
-        .selectAll()
-        .where { PartyPeriodSkip.partyId inList wanted.keys.toList() }
-        .filter { it[PartyPeriodSkip.periodStart] == wanted[it[PartyPeriodSkip.partyId]] }
-        .map { it[PartyPeriodSkip.partyId] }
+    return rows
+        .filter { row ->
+            val key = row[Party.id] to periodShown(row[BossCatalog.reset], week, now)
+            if (row[Party.oneOff]) key !in ran else key in skipped
+        }.map { it[Party.id] }
         .toSet()
 }
 
-/** Whether this one config is marked not-running in [period]. */
-internal fun isPeriodSkipped(
+/** Whether this one config runs in [period]. [oneOff] decides which table is the exception list. */
+internal fun runsInPeriod(
     partyId: Uuid,
+    oneOff: Boolean,
     period: LocalDate,
-): Boolean =
-    PartyPeriodSkip
+): Boolean {
+    val key = partyId to period
+    return if (oneOff) key in runMarks(listOf(partyId)) else key !in skipMarks(listOf(partyId))
+}
+
+/** True when this config is on for one period at a time rather than standing. */
+internal fun isOneOff(partyId: Uuid): Boolean =
+    Party
         .selectAll()
-        .where { (PartyPeriodSkip.partyId eq partyId) and (PartyPeriodSkip.periodStart eq period) }
-        .empty()
-        .not()
+        .where { Party.id eq partyId }
+        .firstOrNull()
+        ?.get(Party.oneOff) == true
+
+/** True when this config is a one-off that is not on the period the app is in now. */
+internal fun isSpentOneOff(
+    partyId: Uuid,
+    now: Instant,
+): Boolean {
+    val row =
+        Party
+            .innerJoin(BossCatalog)
+            .selectAll()
+            .where { Party.id eq partyId }
+            .firstOrNull()
+    if (row == null || !row[Party.oneOff]) return false
+    return !runsInPeriod(partyId, oneOff = true, periodShown(row[BossCatalog.reset], week = null, now = now))
+}
 
 /**
- * Marks this period not-running, or puts it back.
+ * Fills in the config already holding this pair's slot, whichever kind it is.
  *
- * Putting it back is a deletion rather than a row saying false, which is what makes the next period
- * run as usual without being told to. Same shape as saveWeekRoster.
+ * A solo pool becomes a party, and adoptSoloParty pins the weeks its drops already fell in. A
+ * one-off whose period has passed is saved over and armed for the period the app is in now, which
+ * is what running the same boss again a month later means: the same config, on again.
+ *
+ * A solo pool asked for as a one-off becomes one, so a drop logged before the party was named does
+ * not quietly turn a single night into a standing arrangement.
+ */
+internal fun takeOverParty(
+    userId: String,
+    partyId: Uuid,
+    request: SavePartyRequest,
+    now: Instant,
+    sprites: Map<String, String?> = emptyMap(),
+) {
+    val period = periodShown(bossResetOf(bossIdOfParty(partyId)!!)!!, week = null, now = now)
+    val solo = isSoloParty(partyId)
+    if (solo) {
+        adoptSoloParty(userId, partyId, request, now, sprites)
+    } else {
+        saveParty(userId, partyId, request, now, sprites)
+    }
+
+    if (request.oneOff) {
+        Party.update({ Party.id eq partyId }) { it[oneOff] = true }
+        setRunsInPeriod(partyId, oneOff = true, period, runs = true, now = now)
+    } else if (!solo) {
+        // A spent one-off asked for as a standing party, which is what "we are doing this every
+        // week now" looks like. Its armed periods are left alone: they are what a past week is
+        // drawn from, and a standing config does not read them.
+        Party.update({ Party.id eq partyId }) { it[oneOff] = false }
+    }
+}
+
+/**
+ * Says whether this config runs in [period].
+ *
+ * Writes to whichever table holds this config's exceptions, and going back to the default is always
+ * the deletion of a row: that is what makes the next period revert with nobody saying so.
  *
  * insertIgnore because saying it twice is saying it once: the PK already holds the invariant, and a
  * second click should not be an error the user has to read.
  */
-internal fun setPeriodSkip(
+internal fun setRunsInPeriod(
     partyId: Uuid,
+    oneOff: Boolean,
     period: LocalDate,
-    skipped: Boolean,
+    runs: Boolean,
     now: Instant,
 ) {
-    if (!skipped) {
-        PartyPeriodSkip.deleteWhere {
-            (PartyPeriodSkip.partyId eq partyId) and (PartyPeriodSkip.periodStart eq period)
+    // The exception applies when a one-off runs, or when a standing party does not. Anything else
+    // is the config back at its default, and a default is the absence of a row.
+    val exceptional = oneOff == runs
+    if (oneOff) {
+        if (exceptional) {
+            PartyPeriodRun.insertIgnore {
+                it[PartyPeriodRun.partyId] = partyId
+                it[periodStart] = period
+                it[createdAt] = now
+            }
+        } else {
+            PartyPeriodRun.deleteWhere {
+                (PartyPeriodRun.partyId eq partyId) and (PartyPeriodRun.periodStart eq period)
+            }
         }
         return
     }
-    PartyPeriodSkip.insertIgnore {
-        it[PartyPeriodSkip.partyId] = partyId
-        it[periodStart] = period
-        it[createdAt] = now
+    if (exceptional) {
+        PartyPeriodSkip.insertIgnore {
+            it[PartyPeriodSkip.partyId] = partyId
+            it[periodStart] = period
+            it[createdAt] = now
+        }
+    } else {
+        PartyPeriodSkip.deleteWhere {
+            (PartyPeriodSkip.partyId eq partyId) and (PartyPeriodSkip.periodStart eq period)
+        }
     }
 }

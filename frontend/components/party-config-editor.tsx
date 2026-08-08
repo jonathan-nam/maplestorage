@@ -283,12 +283,20 @@ function ConfigRow({
           disabled={busy}
           onChange={setMinutes}
         />
-        {/* Where a boss taken off on Party View is found again. The row is off that page entirely,
-            so this is the only place it can be said, and it belongs beside Remove: one is the week,
-            the other is for good. */}
+        {/* Named so the row is not read as a standing party that happens to be off. The two look
+            identical on this page otherwise, and they revert opposite ways. */}
+        {party.oneOff && <span className="party-difficulty">one-off</span>}
+
+        {/* Where a boss that is off Party View is found again. The row is off that page entirely, so
+            this is the only place it can be said, and it belongs beside Remove: one is the week, the
+            other is for good.
+
+            The wording differs because the act does. Putting a standing party back is undoing
+            something you did; a one-off's week simply ended, and choosing it again is running it
+            again. */}
         {party.skippedThisPeriod && (
           <button type="button" className="party-save" onClick={onPutBack} disabled={busy}>
-            Put back this week
+            {party.oneOff ? "Run it again this week" : "Put back this week"}
           </button>
         )}
         <button type="button" className="party-delete" onClick={onDelete} disabled={busy}>

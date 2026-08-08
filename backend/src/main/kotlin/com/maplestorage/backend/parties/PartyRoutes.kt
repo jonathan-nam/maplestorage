@@ -98,12 +98,16 @@ private suspend fun RoutingContext.getParty() {
 }
 
 /**
- * Makes the config, or fills in the one a solo pool already opened for this pair.
+ * Makes the config, or takes over the one already holding this pair's slot.
  *
- * Logging a drop on a boss nobody else was there for opens a solo config (see createSoloParty),
- * and it holds the same unique slot a party would. Saying who you run it with is not a second
- * config for the pair, it is that one becoming a party, so it is adopted rather than refused. The
- * drops already in the pool stay where they are, and adoptSoloParty pins the weeks they fell in.
+ * Two configs can be sitting in that slot without being a party you can see. Logging a drop on a
+ * boss nobody else was there for opens a solo config (see createSoloParty), and a one-off whose
+ * period has passed is still a row, because the pool it holds and the week it ran are both records.
+ * Neither is a second config for the pair, so both are taken over rather than refused: the drops
+ * already pooled stay where they are.
+ *
+ * A one-off run again in a later period is armed for that period rather than duplicated, which is
+ * what keeps idx_party_character_boss and partyIdFor answering with one config.
  */
 private suspend fun RoutingContext.createPartyRoute(nexonLookupService: NexonLookupService) {
     val (userId, email) = call.principalIdAndEmail()
@@ -112,30 +116,32 @@ private suspend fun RoutingContext.createPartyRoute(nexonLookupService: NexonLoo
 
     val outcome =
         transaction {
+            val now = Clock.System.now()
             val characterId = Uuid.parseOrNull(request.characterId)
             val bossId = bossIdForKey(request.bossKey)
             // Ownership first, so a characterId that is not this user's cannot reach a config
             // through the pair lookup, which does not filter by user.
-            val solo =
+            val held =
                 if (characterId == null || bossId == null || !ownsCharacter(characterId, userId)) {
                     null
                 } else {
-                    partyIdFor(characterId, bossId)?.takeIf { isSoloParty(it) }
+                    partyIdFor(characterId, bossId)
                 }
-            if (solo != null) {
-                val problem = validateSavedParty(userId, solo, request)
+            val takeOver = held?.takeIf { isSoloParty(it) || isSpentOneOff(it, now) }
+            if (takeOver != null) {
+                val problem = validateSavedParty(userId, takeOver, request)
                 if (problem != null) {
                     problem
                 } else {
-                    adoptSoloParty(userId, solo, request, Clock.System.now(), sprites)
-                    findParty(solo, userId)!!
+                    takeOverParty(userId, takeOver, request, now, sprites)
+                    findParty(takeOver, userId)!!
                 }
             } else {
                 val problem = validateNewParty(request, userId, characterId, bossId)
                 if (problem != null) {
                     problem
                 } else {
-                    val id = createParty(userId, characterId!!, bossId!!, request, Clock.System.now(), sprites)
+                    val id = createParty(userId, characterId!!, bossId!!, request, now, sprites)
                     findParty(id, userId)!!
                 }
             }

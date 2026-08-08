@@ -96,9 +96,11 @@ class PartyPeriodSkipTest {
     private fun partyOn(
         characterId: Uuid,
         bossKey: String,
+        oneOff: Boolean = false,
+        members: List<String> = listOf("Steve", "Bob"),
     ): PartyResponse {
         val now = Clock.System.now()
-        val request = SavePartyRequest(characterId.toString(), bossKey, listOf("Steve", "Bob"))
+        val request = SavePartyRequest(characterId.toString(), bossKey, members, oneOff = oneOff)
         val id = createParty(userId, characterId, bossIdForKey(bossKey)!!, request, now)
         return findParty(id, userId)!!
     }
@@ -116,11 +118,12 @@ class PartyPeriodSkipTest {
     private fun takeOff(
         party: PartyResponse,
         skipped: Boolean = true,
-    ) = setPeriodSkip(
+    ) = setRunsInPeriod(
         Uuid.parse(party.id),
+        oneOff = party.oneOff,
         periodOfBoss(party.bossKey),
-        skipped,
-        Clock.System.now(),
+        runs = !skipped,
+        now = Clock.System.now(),
     )
 
     @Test
@@ -176,7 +179,7 @@ class PartyPeriodSkipTest {
             assertFalse(findParty(Uuid.parse(party.id), userId)!!.skippedThisPeriod)
             // Not a row saying false: a stored false would have to be cleared every period, and the
             // period that forgot to would read as taken off.
-            assertFalse(isPeriodSkipped(Uuid.parse(party.id), periodOfBoss("limbo")))
+            assertTrue(runsInPeriod(Uuid.parse(party.id), oneOff = false, periodOfBoss("limbo")))
         }
     }
 
@@ -216,7 +219,7 @@ class PartyPeriodSkipTest {
             assertEquals(periodStartFor("MONTHLY", Clock.System.now()), periodOfBoss("black-mage"))
 
             takeOff(monthly)
-            assertTrue(isPeriodSkipped(Uuid.parse(monthly.id), periodOfBoss("black-mage")))
+            assertFalse(runsInPeriod(Uuid.parse(monthly.id), oneOff = false, periodOfBoss("black-mage")))
             assertTrue(findParty(Uuid.parse(monthly.id), userId)!!.skippedThisPeriod)
             assertFalse(findParty(Uuid.parse(weekly.id), userId)!!.skippedThisPeriod)
         }
@@ -233,6 +236,84 @@ class PartyPeriodSkipTest {
             val list = partiesFor(userId).associateBy { it.id }
             assertTrue(list[off.id]!!.skippedThisPeriod)
             assertFalse(list[on.id]!!.skippedThisPeriod)
+        }
+    }
+
+    @Test
+    fun `a one-off is on the period it was made in`() {
+        transaction {
+            val party = partyOn(mine(), "limbo", oneOff = true)
+            assertTrue(party.oneOff)
+            // The failure this guards: a config whose default is off, created without arming the
+            // period it was made for, so adding it does nothing you can see.
+            assertFalse(party.skippedThisPeriod)
+            assertFalse(partiesFor(userId).first { it.id == party.id }.skippedThisPeriod)
+        }
+    }
+
+    @Test
+    fun `a one-off is gone next period with nobody saying so`() {
+        transaction {
+            val party = partyOn(mine(), "limbo", oneOff = true)
+
+            val next = partiesFor(userId, thisWeek().plus(DAYS_IN_WEEK, DateTimeUnit.DAY))
+            assertTrue(next.first { it.id == party.id }.skippedThisPeriod)
+        }
+    }
+
+    @Test
+    fun `a standing party is NOT gone next period, which is the difference between the two`() {
+        transaction {
+            val party = partyOn(mine(), "limbo")
+
+            val next = partiesFor(userId, thisWeek().plus(DAYS_IN_WEEK, DateTimeUnit.DAY))
+            assertFalse(next.first { it.id == party.id }.skippedThisPeriod)
+        }
+    }
+
+    @Test
+    fun `running the same boss again arms the config it already has, rather than a second one`() {
+        transaction {
+            val character = mine()
+            val first = partyOn(character, "limbo", oneOff = true)
+            // Its period passes, which is a config that exists and is off.
+            takeOff(first)
+            assertTrue(findParty(Uuid.parse(first.id), userId)!!.skippedThisPeriod)
+
+            // The failure this guards: a second config for the pair, which idx_party_character_boss
+            // refuses outright, and which would give partyIdFor two pools to put a drop in.
+            val again =
+                SavePartyRequest(character.toString(), "limbo", listOf("Steve", "Cara"), oneOff = true)
+            takeOverParty(userId, Uuid.parse(first.id), again, Clock.System.now())
+
+            val back = findParty(Uuid.parse(first.id), userId)!!
+            assertFalse(back.skippedThisPeriod)
+            assertEquals(1, partiesFor(userId).count { it.bossKey == "limbo" })
+            assertTrue(back.members.any { it.name == "Cara" })
+        }
+    }
+
+    @Test
+    fun `a one-off keeps its pool after its period passes`() {
+        transaction {
+            val party = partyOn(mine(), "limbo", oneOff = true)
+            addLoot(
+                Uuid.parse(party.id),
+                dropIdForKey("grindstone-of-faith")!!,
+                null,
+                bossIdForKey("limbo"),
+                todayUtc(),
+                Clock.System.now(),
+            )
+            takeOff(party)
+
+            // A drop somebody is still owed a share of does not evaporate because the night is over.
+            // The config stays listed and off, rather than being dropped from the list, which is
+            // what keeps the wallet able to name the party the share is owed by.
+            val after = partiesFor(userId).first { it.id == party.id }
+            assertTrue(after.skippedThisPeriod)
+            assertEquals(1, after.pendingLoot)
+            assertEquals(3, after.seats.size)
         }
     }
 

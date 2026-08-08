@@ -47,8 +47,15 @@ internal fun createParty(
         it[Party.bossCatalogId] = bossCatalogId
         it[difficulty] = request.difficulty
         it[minutes] = request.minutes
+        it[oneOff] = request.oneOff
         it[createdAt] = now
         it[updatedAt] = now
+    }
+    // A one-off is off in every period but the ones it is armed for, so the period it was made in
+    // has to be one of them. Without this it would be created already gone.
+    if (request.oneOff) {
+        val period = periodShown(bossResetOf(bossCatalogId)!!, week = null, now = now)
+        setRunsInPeriod(partyId, oneOff = true, period, runs = true, now = now)
     }
     writeMembers(partyId, characterId, request.members, SeatContext(userId, sprites, now))
     return partyId

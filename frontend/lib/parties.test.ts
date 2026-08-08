@@ -12,6 +12,7 @@ import {
   otherMembers,
   partySizeLabel,
   runningThisPeriod,
+  takenOffThisPeriod,
 } from "./parties";
 import type { Boss } from "@/types/boss";
 import type { Party, PartyMember } from "@/types/party";
@@ -46,6 +47,7 @@ const config = (id: string, characterId: string, bossKey: string, others: string
   seats: [seat("mine", characterId), ...others.map((o) => seat(o))],
   usualRoster: true,
   skippedThisPeriod: false,
+  oneOff: false,
   pendingLoot: 0,
   awaitingPayout: 0,
   settledLoot: 0,
@@ -220,6 +222,62 @@ describe("bossesWithoutConfig", () => {
       "limbo",
       "baldrix",
     ]);
+  });
+
+  it("offers a boss again once its one-off period has passed", () => {
+    // The config is still there, holding the pair's slot for its pool and the week it ran. Leaving
+    // the boss off the dropdown would make a boss you ran once unrunnable ever again.
+    const catalog = [boss("limbo", "Limbo"), boss("baldrix", "Baldrix")];
+    const spent = {
+      ...config("p1", "char-1", "limbo", ["X"]),
+      oneOff: true,
+      skippedThisPeriod: true,
+    };
+
+    expect(bossesWithoutConfig([spent], catalog, "char-1").map((b) => b.bossKey)).toEqual([
+      "limbo",
+      "baldrix",
+    ]);
+  });
+
+  it("does NOT offer a standing party that is merely off this week", () => {
+    // It has a roster and a difficulty and is on again next period. Adding over it would overwrite
+    // both, so the way back to it is the put-back button rather than the dropdown.
+    const catalog = [boss("limbo", "Limbo"), boss("baldrix", "Baldrix")];
+    const off = { ...config("p1", "char-1", "limbo", ["X"]), skippedThisPeriod: true };
+
+    expect(bossesWithoutConfig([off], catalog, "char-1").map((b) => b.bossKey)).toEqual([
+      "baldrix",
+    ]);
+  });
+
+  it("still hides a one-off that is on this period", () => {
+    const catalog = [boss("limbo", "Limbo"), boss("baldrix", "Baldrix")];
+    const live = { ...config("p1", "char-1", "limbo", ["X"]), oneOff: true };
+
+    expect(bossesWithoutConfig([live], catalog, "char-1").map((b) => b.bossKey)).toEqual([
+      "baldrix",
+    ]);
+  });
+});
+
+describe("takenOffThisPeriod", () => {
+  const standing = { ...config("p1", "char-1", "limbo", ["X"]), skippedThisPeriod: true };
+  const spent = {
+    ...config("p2", "char-1", "kalos", ["X"]),
+    oneOff: true,
+    skippedThisPeriod: true,
+  };
+  const on = config("p3", "char-1", "baldrix", ["X"]);
+
+  it("counts the standing parties somebody took off, and not the nights that are simply over", () => {
+    // The failure this guards: the line above the list says "9 off this week" because every one-off
+    // ever run is still off, which describes nothing you can act on and buries the one you can.
+    expect(takenOffThisPeriod([standing, spent, on]).map((p) => p.id)).toEqual(["p1"]);
+  });
+
+  it("agrees with runningThisPeriod about what is on", () => {
+    expect(runningThisPeriod([standing, spent, on]).map((p) => p.id)).toEqual(["p3"]);
   });
 });
 
