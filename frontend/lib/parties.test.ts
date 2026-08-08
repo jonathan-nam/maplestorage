@@ -7,6 +7,7 @@ import {
   consolidate,
   existedInWeek,
   filterByClear,
+  guaranteedDrop,
   isCleared,
   knownCharacterNames,
   otherMembers,
@@ -324,5 +325,33 @@ describe("knownCharacterNames", () => {
     ];
 
     expect(knownCharacterNames([], [], twice).filter((n) => n === "Bob")).toHaveLength(1);
+  });
+});
+
+describe("guaranteedDrop", () => {
+  const coupon = {
+    dropKey: "vestige-of-erion",
+    name: "Vestige of Erion Coupon",
+    iconUrl: "/drop-icons/vestige-of-erion.png",
+    perMember: null,
+    worlds: null,
+    quantity: 1,
+    pieces: { EXTREME: 180 },
+  };
+  const grindstone = { ...coupon, dropKey: "grindstone-of-faith", name: "Grindstone", pieces: {} };
+
+  it("names the drop this boss gives for certain at the mode being run", () => {
+    expect(guaranteedDrop([grindstone, coupon], "EXTREME")?.dropKey).toBe("vestige-of-erion");
+  });
+
+  it("says nothing at a difficulty that drops none of it", () => {
+    // Extreme Kalos gives 180 and Chaos Kalos none, so the marker is not a property of the boss
+    // alone.
+    expect(guaranteedDrop([grindstone, coupon], "CHAOS")).toBeNull();
+  });
+
+  it("says nothing when nobody has recorded a difficulty, or there is no table", () => {
+    expect(guaranteedDrop([grindstone, coupon], null)).toBeNull();
+    expect(guaranteedDrop(undefined, "EXTREME")).toBeNull();
   });
 });

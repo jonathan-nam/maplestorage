@@ -31,7 +31,7 @@ FROM (VALUES
     ('mitras-rage-selection-box', 'Mitra''s Rage Selection Box', 'mitras-rage-selection-box.png', NULL, NULL, 1, 19),
     ('ring-of-restraint-4', 'Ring of Restraint Lv. 4', 'ring-of-restraint-4.png', 'HEROIC', NULL, 1, 20),
     ('continuous-ring-4', 'Continuous Ring Lv. 4', 'continuous-ring-4.png', 'HEROIC', NULL, 1, 21),
-    ('vestige-of-erion', 'Vestige of Erion Coupon', NULL, NULL, NULL, 1, 22),
+    ('vestige-of-erion', 'Vestige of Erion Coupon', 'vestige-of-erion.png', NULL, NULL, 1, 22),
     ('distorted-ambition', 'Distorted Ambition', 'distorted-ambition.png', 'ALWAYS', NULL, 2, 23)
 ) AS v (drop_key, name, icon_ref_key, per_member, worlds, quantity, sort_order)
 LEFT JOIN drop_catalog existing ON existing.drop_key = v.drop_key

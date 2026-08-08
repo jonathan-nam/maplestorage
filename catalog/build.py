@@ -285,6 +285,11 @@ def load_drops(bosses: list[dict]) -> tuple[list[dict], dict[str, list[str]]]:
         quantity = d.get("quantity", 1)
         if not isinstance(quantity, int) or quantity < 1:
             sys.exit(f"{key}: quantity must be a positive integer, got {quantity!r}")
+        art = d.get("art")
+        if art is not None and art != "cut":
+            sys.exit(f"{key}: art may only be 'cut', for a picture the mirror does not carry, got {art!r}")
+        if art == "cut" and icon_id is not None:
+            sys.exit(f"{key}: art 'cut' and an icon_id are two sources for one picture, pick one")
 
     # A table keyed on a boss that is not tracked would seed a row against no boss_catalog id, so
     # it is refused here rather than dropped silently at insert time.
@@ -340,7 +345,7 @@ def drop_sql(drops: list[dict], tables: dict[str, list[str]]) -> str:
 
     rows = ",\n".join(
         f"    ({q(d['key'])}, {q(d['name'])}, "
-        f"{q(d['key'] + '.png') if d.get('icon_id') is not None else 'NULL'}, "
+        f"{q(d['key'] + '.png') if has_art(d) else 'NULL'}, "
         f"{opt(d.get('per_member'))}, {opt(d.get('worlds'))}, {d.get('quantity', 1)}, {i})"
         for i, d in enumerate(drops)
     )
@@ -626,15 +631,26 @@ def check_boss_art(bosses: list[dict]) -> list[str]:
     return problems
 
 
+def has_art(drop: dict) -> bool:
+    """Whether this drop has a picture at all: downloaded from the mirror, or cut by hand.
+
+    A hand cut (`art: cut`) is for an item the pinned dataset does not carry. The mirror is the
+    default and stays it; this is the escape hatch for a drop the game has and it does not, and it
+    names the same seed-assets file an icon_id would have.
+    """
+    return drop.get("icon_id") is not None or drop.get("art") == "cut"
+
+
 def check_drop_art(drops: list[dict]) -> list[str]:
-    """A drop with an icon_id must have the icon it names. One without is drawn blank, on purpose."""
+    """A drop that claims a picture must have it. One with none is drawn blank, on purpose."""
     problems = []
     for d in drops:
-        if d.get("icon_id") is None:
+        if not has_art(d):
             continue
         icon = DROP_ICONS / f"{d['key']}.png"
         if not icon.exists():
-            problems.append(f"{d['key']}: missing {icon.relative_to(ROOT)} (run --fetch-icons)")
+            hint = "cut by hand, see catalog/drops.yaml" if d.get("art") == "cut" else "run --fetch-icons"
+            problems.append(f"{d['key']}: missing {icon.relative_to(ROOT)} ({hint})")
     return problems
 
 
