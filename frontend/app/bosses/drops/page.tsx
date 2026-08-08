@@ -21,7 +21,13 @@ import {
 import { formatMesos } from "@/lib/drop-split";
 import { formatDropped, statusLabel } from "@/lib/loot";
 import { useAccountSettings } from "@/lib/use-account-settings";
-import { looterKey, looterLedgers, outstanding, salesByLooter } from "@/lib/vestige-ledger";
+import {
+  type Holder,
+  holderKey,
+  holderLedgers,
+  outstanding,
+  salesByHolder,
+} from "@/lib/vestige-ledger";
 import { showsMoney } from "@/lib/world";
 import type { Boss } from "@/types/boss";
 import type { Character } from "@/types/character";
@@ -170,21 +176,21 @@ export default function DropLogPage() {
     parties.some((p) => p.characterId === c.id && pools.some((pool) => pool.partyId === p.id)),
   );
 
-  // The ledger reads the WHOLE account, not the filtered log. A pile is one character's inventory
-  // spanning every boss they loot for, so showing the part of it that falls in the chosen month
-  // would price those bosses off a fraction of the sales that paid for them.
+  // The ledger reads the WHOLE account, not the filtered log. A pile is one person's, spanning
+  // every boss any of their characters loots for, so showing the part of it that falls in the
+  // chosen month would price those bosses off a fraction of the sales that paid for them.
   const partyById = new Map(parties.map((p) => [p.id, p]));
   // The catalog's own order, which is what /api/bosses returns, so two bosses cleared in one week
   // never swap places in the queue and re-price each other.
   const bossOrder = new Map(bosses.map((b, i) => [b.bossKey, i]));
-  const ledgers = looterLedgers(
+  const ledgers = holderLedgers(
     outstanding(parties, pools, VESTIGE, bossOrder),
-    salesByLooter(tranches),
+    salesByHolder(tranches),
   );
-  const tranchesByLooter = new Map<string, VestigeTranche[]>();
+  const tranchesByHolder = new Map<string, VestigeTranche[]>();
   for (const tranche of tranches) {
-    const key = looterKey(tranche.looterName);
-    tranchesByLooter.set(key, [...(tranchesByLooter.get(key) ?? []), tranche]);
+    const key = holderKey(tranche.holder);
+    tranchesByHolder.set(key, [...(tranchesByHolder.get(key) ?? []), tranche]);
   }
   // The coupon's sprite, off whichever boss table carries it. Every table names the same drop.
   const vestigeIcon =
@@ -244,15 +250,15 @@ export default function DropLogPage() {
 
           <PieceLedger
             ledgers={ledgers}
-            tranches={tranchesByLooter}
+            tranches={tranchesByHolder}
             bossByKey={bossByKey}
             partyById={partyById}
             iconUrl={vestigeIcon}
             busy={busy}
-            onAddSale={(looterName, pieces, amount) =>
+            onAddSale={(holder: Holder, pieces, amount) =>
               saleWrite(TRANCHES_KEY, {
                 method: "POST",
-                body: JSON.stringify({ looterName, pieces, amount }),
+                body: JSON.stringify({ holder, pieces, amount }),
               })
             }
             onRemoveSale={(trancheId) =>

@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
+  type Holder,
+  holderKey,
+  holderLedgers,
+  holderOf,
   ledgerForLoot,
-  looterKey,
-  looterLedgers,
   outstanding,
-  salesByLooter,
+  salesByHolder,
   unsold,
 } from "./vestige-ledger";
 import type { Loot, PartyLootPool } from "@/types/loot";
@@ -18,11 +20,21 @@ const ORDER = new Map([
   ["kalos-the-guardian", 2],
 ]);
 
-const seat = (id: string, name: string, mine = false): PartyMember => ({
+/**
+ * A seat. `mine` makes it one of YOUR characters, `person` somebody on the people list.
+ *
+ * The three kinds of seat are the whole point of this file: your own fold into one holder, one
+ * person's characters fold into one holder, and a character nobody has claimed stands alone.
+ */
+const seat = (
+  id: string,
+  name: string,
+  { mine = false, person = null as [string, string] | null } = {},
+): PartyMember => ({
   id,
   name,
-  personId: null,
-  personName: null,
+  personId: person?.[0] ?? null,
+  personName: person?.[1] ?? null,
   characterId: mine ? `char-${id}` : null,
   spriteImgUrl: null,
   guest: false,
@@ -82,8 +94,34 @@ const coupon = (id: string, bossKey: string, quantity: number, weekStart: string
 
 const pool = (partyId: string, loot: Loot[]): PartyLootPool => ({ partyId, loot });
 
-/** Husky's trio, where the partner loots everything. */
-const trio = () => [seat("m1", "Husky", true), seat("m2", "Rune"), seat("m3", "Bob")];
+const SELF: Holder = { kind: "SELF", personId: null, characterName: null };
+const BRO: Holder = { kind: "PERSON", personId: "p-bro", characterName: null };
+
+/** Your character loots for a trio with two strangers. */
+const trio = () => [seat("m1", "Husky", { mine: true }), seat("m2", "Rune"), seat("m3", "Bob")];
+
+describe("who a seat belongs to", () => {
+  it("is the person when somebody plays them, you when they are yours, the name otherwise", () => {
+    expect(holderOf(seat("m1", "CreedBratton", { person: ["p-bro", "Bro"] }))).toEqual(BRO);
+    expect(holderOf(seat("m2", "Husky", { mine: true }))).toEqual(SELF);
+    expect(holderOf(seat("m3", "Stranger"))).toEqual({
+      kind: "CHARACTER",
+      personId: null,
+      characterName: "stranger",
+    });
+  });
+
+  it("folds one key per holder, so a name spelled two ways is one pile", () => {
+    expect(holderKey(holderOf(seat("m1", "Rune")))).toBe(holderKey(holderOf(seat("m2", "rune"))));
+    // Two of one person's characters, and two of yours, are each one key.
+    expect(holderKey(holderOf(seat("m1", "CreedBratton", { person: ["p-bro", "Bro"] })))).toBe(
+      holderKey(holderOf(seat("m2", "Freeballynn", { person: ["p-bro", "Bro"] }))),
+    );
+    expect(holderKey(holderOf(seat("m3", "Husky", { mine: true })))).toBe(
+      holderKey(holderOf(seat("m4", "morebuff12", { mine: true }))),
+    );
+  });
+});
 
 describe("which drops are outstanding", () => {
   it("takes a drop whose party names a looter", () => {
@@ -95,6 +133,7 @@ describe("which drops are outstanding", () => {
       ORDER,
     );
     expect(drops).toHaveLength(1);
+    expect(drops[0]!.holder).toEqual(SELF);
     expect(drops[0]!.looterName).toBe("Husky");
     // The looter holds the lot; the others hold none and are owed their share.
     expect(drops[0]!.drop.seats.map((s) => s.looted)).toEqual([60, 0, 0]);
@@ -108,6 +147,39 @@ describe("which drops are outstanding", () => {
     ).toEqual([]);
   });
 
+  it("leaves out a night that is all one person, however many characters they brought", () => {
+    // Two of your own characters. Somebody looted the lot, and it is already where it belongs:
+    // you cannot owe yourself, and a debt on this row would be a figure nobody should act on.
+    const mine = party(
+      "pa",
+      "limbo",
+      [seat("m1", "Husky", { mine: true }), seat("m2", "morebuff12", { mine: true })],
+      "m1",
+    );
+    expect(
+      outstanding([mine], [pool("pa", [coupon("l1", "limbo", 60, "2026-07-30")])], VESTIGE, ORDER),
+    ).toEqual([]);
+
+    // Same for a duo that is one other person's two characters.
+    const theirs = party(
+      "pb",
+      "limbo",
+      [
+        seat("m3", "CreedBratton", { person: ["p-bro", "Bro"] }),
+        seat("m4", "Freeballynn", { person: ["p-bro", "Bro"] }),
+      ],
+      "m3",
+    );
+    expect(
+      outstanding(
+        [theirs],
+        [pool("pb", [coupon("l2", "limbo", 60, "2026-07-30")])],
+        VESTIGE,
+        ORDER,
+      ),
+    ).toEqual([]);
+  });
+
   it("leaves out other drops, and a party of one", () => {
     const p = party("pa", "limbo", trio(), "m1");
     const other: Loot = {
@@ -116,14 +188,58 @@ describe("which drops are outstanding", () => {
     };
     expect(outstanding([p], [pool("pa", [other])], VESTIGE, ORDER)).toEqual([]);
 
-    const alone = party("pb", "limbo", [seat("m9", "Husky", true)], "m9");
+    const alone = party("pb", "limbo", [seat("m9", "Husky", { mine: true })], "m9");
     expect(
       outstanding([alone], [pool("pb", [coupon("l3", "limbo", 60, "2026-07-30")])], VESTIGE, ORDER),
     ).toEqual([]);
   });
 });
 
-describe("one card per looter, distributing one input", () => {
+describe("a debt is between people, not between characters", () => {
+  it("nets two of your characters into one seat, so you are owed once", () => {
+    // Husky loots 60 for a trio of you, your alt, and Jared. Two thirds of it is already yours.
+    const p = party(
+      "pa",
+      "limbo",
+      [
+        seat("m1", "Husky", { mine: true }),
+        seat("m2", "morebuff12", { mine: true }),
+        seat("m3", "CourseLair", { person: ["p-jared", "Jared"] }),
+      ],
+      "m1",
+    );
+    const ledgers = holderLedgers(
+      outstanding([p], [pool("pa", [coupon("l1", "limbo", 60, "2026-07-30")])], VESTIGE, ORDER),
+      salesByHolder([{ holder: SELF, pieces: 60, amount: 600 * M }]),
+    );
+
+    const limbo = ledgers[0]!.drops[0]!;
+    // One debt, to Jared, for a third. Keyed by character this said "owes morebuff12 20" as well,
+    // which is you paying yourself.
+    expect(limbo.transfers.map((t) => [t.to, t.pieces])).toEqual([["Jared", 20]]);
+  });
+
+  it("counts one person's two seats as two shares, and pays them once", () => {
+    // Bro brought two characters, so he is entitled to two thirds of the drop, in one transfer.
+    const p = party(
+      "pa",
+      "limbo",
+      [
+        seat("m1", "Husky", { mine: true }),
+        seat("m2", "CreedBratton", { person: ["p-bro", "Bro"] }),
+        seat("m3", "Freeballynn", { person: ["p-bro", "Bro"] }),
+      ],
+      "m1",
+    );
+    const ledgers = holderLedgers(
+      outstanding([p], [pool("pa", [coupon("l1", "limbo", 60, "2026-07-30")])], VESTIGE, ORDER),
+      new Map(),
+    );
+    expect(ledgers[0]!.drops[0]!.transfers.map((t) => [t.to, t.pieces])).toEqual([["Bro", 40]]);
+  });
+});
+
+describe("one card per holder, distributing one input", () => {
   const setup = () => {
     const limbo = party("pa", "limbo", trio(), "m1");
     const baldrix = party("pb", "baldrix", trio(), "m1");
@@ -139,9 +255,9 @@ describe("one card per looter, distributing one input", () => {
   it("spends one sale on the oldest boss first, naming no boss at all", () => {
     const { parties, pools } = setup();
     const drops = outstanding(parties, pools, VESTIGE, ORDER);
-    const ledgers = looterLedgers(
+    const ledgers = holderLedgers(
       drops,
-      salesByLooter([{ looterName: "Husky", pieces: 60, amount: 1_450 * M }]),
+      salesByHolder([{ holder: SELF, pieces: 60, amount: 1_450 * M }]),
     );
 
     expect(ledgers).toHaveLength(1);
@@ -155,11 +271,11 @@ describe("one card per looter, distributing one input", () => {
 
   it("prices each boss from the sales that covered it, and owes both others", () => {
     const { parties, pools } = setup();
-    const ledgers = looterLedgers(
+    const ledgers = holderLedgers(
       outstanding(parties, pools, VESTIGE, ORDER),
-      salesByLooter([
-        { looterName: "Husky", pieces: 50, amount: 1_200 * M },
-        { looterName: "Husky", pieces: 10, amount: 250 * M },
+      salesByHolder([
+        { holder: SELF, pieces: 50, amount: 1_200 * M },
+        { holder: SELF, pieces: 10, amount: 250 * M },
       ]),
     );
     const limbo = ledgers[0]!.drops[0]!;
@@ -171,29 +287,56 @@ describe("one card per looter, distributing one input", () => {
     ]);
   });
 
-  it("matches a tranche to the seat that looted it whatever the case", () => {
-    // The one that would fail silently: /api/vestige-tranches folds the name, the seat carries it
-    // as typed in game, and a raw match leaves every boss at "0 of 60" with nothing to say so.
-    const { parties, pools } = setup();
-    const ledgers = looterLedgers(
-      outstanding(parties, pools, VESTIGE, ORDER),
-      salesByLooter([{ looterName: "husky", pieces: 60, amount: 1_450 * M }]),
+  it("pools one person's characters into one pile and one queue", () => {
+    // Bro loots Limbo on one character and Baldrix on another. One human, one box, one queue: the
+    // sale he reports is not per inventory, and asking him which character it came from is the
+    // bookkeeping this removes.
+    const creed = seat("m1", "CreedBratton", { person: ["p-bro", "Bro"] });
+    const free = seat("m4", "Freeballynn", { person: ["p-bro", "Bro"] });
+    const you = seat("m2", "Husky", { mine: true });
+    const drops = outstanding(
+      [party("pa", "limbo", [creed, you], "m1"), party("pb", "baldrix", [free, you], "m4")],
+      [
+        pool("pa", [coupon("l1", "limbo", 60, "2026-07-30")]),
+        pool("pb", [coupon("l2", "baldrix", 120, "2026-08-06")]),
+      ],
+      VESTIGE,
+      ORDER,
     );
-    expect(ledgers[0]!.looterName).toBe("Husky");
+    const ledgers = holderLedgers(
+      drops,
+      salesByHolder([{ holder: BRO, pieces: 60, amount: 1_450 * M }]),
+    );
+
+    expect(ledgers).toHaveLength(1);
+    expect(ledgers[0]!.holderName).toBe("Bro");
+    expect(ledgers[0]!.pieces).toBe(180);
+    // The row still says which of his characters looted it, which the fold would otherwise lose.
+    expect(ledgers[0]!.drops.map((d) => d.looterName)).toEqual(["CreedBratton", "Freeballynn"]);
+    // His one sale covered the oldest boss, whichever character it was looted on.
     expect(ledgers[0]!.drops[0]!.complete).toBe(true);
+    expect(ledgers[0]!.drops[1]!.covered).toBe(0);
   });
 
   it("shows the pieces owed but no money until that boss is covered", () => {
     const { parties, pools } = setup();
-    const ledgers = looterLedgers(outstanding(parties, pools, VESTIGE, ORDER), new Map());
+    const ledgers = holderLedgers(outstanding(parties, pools, VESTIGE, ORDER), new Map());
     const limbo = ledgers[0]!.drops[0]!;
     expect(limbo.transfers[0]!.pieces).toBe(20);
     expect(limbo.transfers[0]!.send).toBeNull();
   });
 
-  it("keeps two looters' piles apart, because pieces cannot leave an inventory", () => {
+  it("keeps two holders' piles apart, because one cannot spend the other's", () => {
     const mine = party("pa", "limbo", trio(), "m1");
-    const theirs = party("pb", "baldrix", [seat("m4", "Rune", true), seat("m5", "Ana")], "m4");
+    const theirs = party(
+      "pb",
+      "baldrix",
+      [
+        seat("m4", "CreedBratton", { person: ["p-bro", "Bro"] }),
+        seat("m5", "Husky", { mine: true }),
+      ],
+      "m4",
+    );
     const drops = outstanding(
       [mine, theirs],
       [
@@ -203,25 +346,25 @@ describe("one card per looter, distributing one input", () => {
       VESTIGE,
       ORDER,
     );
-    const ledgers = looterLedgers(
+    const ledgers = holderLedgers(
       drops,
-      salesByLooter([{ looterName: "Husky", pieces: 60, amount: 600 * M }]),
+      salesByHolder([{ holder: SELF, pieces: 60, amount: 600 * M }]),
     );
 
-    expect(ledgers.map((l) => l.looterName)).toEqual(["Husky", "Rune"]);
-    // Husky's sale covered Husky's boss and did not touch Rune's pile.
-    expect(ledgers[0]!.drops[0]!.complete).toBe(true);
-    expect(ledgers[1]!.drops[0]!.covered).toBe(0);
+    expect(ledgers.map((l) => l.holderName)).toEqual(["Bro", "you"]);
+    // Your sale covered your boss and did not touch Bro's pile.
+    expect(ledgers[0]!.drops[0]!.covered).toBe(0);
+    expect(ledgers[1]!.drops[0]!.complete).toBe(true);
   });
 
   it("finds one loot row's line, for the row's own read-only display", () => {
     const { parties, pools } = setup();
-    const ledgers = looterLedgers(
+    const ledgers = holderLedgers(
       outstanding(parties, pools, VESTIGE, ORDER),
-      salesByLooter([{ looterName: "Husky", pieces: 60, amount: 1_450 * M }]),
+      salesByHolder([{ holder: SELF, pieces: 60, amount: 1_450 * M }]),
     );
     const found = ledgerForLoot(ledgers, "l1")!;
-    expect(found.looterName).toBe("Husky");
+    expect(found.holderName).toBe("you");
     expect(found.drop.complete).toBe(true);
     expect(ledgerForLoot(ledgers, "nope")).toBeNull();
   });
@@ -230,8 +373,8 @@ describe("one card per looter, distributing one input", () => {
 describe("a sale is entered as a total, never a price each", () => {
   it("derives the per-piece figure so nobody divides by hand", () => {
     // What a partner reports is "1.2b for the 50", which is what the box takes.
-    const [sale] = salesByLooter([{ looterName: "Husky", pieces: 50, amount: 1_200 * M }]).get(
-      looterKey("Husky"),
+    const [sale] = salesByHolder([{ holder: SELF, pieces: 50, amount: 1_200 * M }]).get(
+      holderKey(SELF),
     )!;
     expect(sale!.priceEach).toBe(24 * M);
   });

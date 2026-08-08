@@ -399,7 +399,12 @@ object PartyLoot : Table("party_loot") {
 object VestigeTranche : Table("vestige_tranche") {
     val id = uuid("id")
     val userId = reference("user_id", Users.id)
-    val looterName = text("looter_name")
+
+    // Whose pile this is: PERSON, SELF or CHARACTER, with exactly the reference that kind needs.
+    // A character is not the unit here, a human is. See V39.
+    val holderKind = text("holder_kind")
+    val personId = optReference("person_id", Person.id)
+    val characterName = text("character_name").nullable()
     val pieces = integer("pieces")
 
     // The whole tranche's mesos, as reported. The per-piece figure is derived, never stored.
