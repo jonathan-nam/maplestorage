@@ -298,6 +298,23 @@ export function consolidate(entries: DropEntry[]): DropLine[] {
   return lines;
 }
 
+/**
+ * The distinct names behind a fold, or how many there are once there are too many to read.
+ *
+ * Names it does not have are left out rather than counted, so the count is only ever of things the
+ * line could have named. Eleven coupon rows headed themselves with the first row's character, which
+ * is one name standing for six characters' drops.
+ */
+export function foldNames(
+  names: (string | null | undefined)[],
+  plural: string,
+  max = 3,
+): string | null {
+  const distinct = [...new Set(names.filter((n): n is string => Boolean(n)))];
+  if (distinct.length === 0) return null;
+  return distinct.length <= max ? distinct.join(", ") : `${distinct.length} ${plural}`;
+}
+
 function lineOf(key: string, entries: DropEntry[], folded: boolean): DropLine {
   const sold = entries.filter((e) => e.pooled !== null);
   const first = entries[0]!;

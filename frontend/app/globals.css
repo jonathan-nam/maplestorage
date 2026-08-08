@@ -4314,14 +4314,51 @@ button.link:disabled {
   gap: 6px;
 }
 
+/* A column, so a folded line can open its runs inside its own card. */
 .droplog-row {
   display: flex;
-  align-items: center;
-  gap: 10px;
+  flex-direction: column;
+  gap: 8px;
   padding: 8px 10px;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--surface);
+}
+
+.droplog-row-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* The runs behind a fold, newest first, indented to start where the drop's name does: the chevron,
+   the icon and both their gaps (18 + 10 + 46 + 10). Left at the chevron's width alone, each run
+   began to the LEFT of the line it belongs to. */
+.droplog-runs {
+  list-style: none;
+  margin: 0;
+  padding: 8px 0 0 84px;
+  border-top: 1px solid var(--line-soft);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.droplog-run {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.droplog-run .loot-name {
+  color: var(--ink-strong);
+  text-decoration: none;
+  font-size: 13px;
+}
+
+.droplog-run .loot-name:hover {
+  color: var(--accent);
 }
 
 /* Still in the pool: nothing has been made yet, so the row sits back from the sold ones. */
@@ -4406,10 +4443,12 @@ button.link:disabled {
   transition: transform 120ms ease;
 }
 
-/* Both rows that fold: a config in the by-character and by-boss lists, an arrangement in the
-   by-party one. A chevron that does not turn reads as a button that did nothing. */
+/* Every row that folds: a config in the by-character and by-boss lists, an arrangement in the
+   by-party one, a stacking drop in the Drop Log. A chevron that does not turn reads as a button
+   that did nothing. */
 .party-row.is-open .party-row-chevron,
-.boss-run.is-open .party-row-chevron {
+.boss-run.is-open .party-row-chevron,
+.droplog-row.is-open .party-row-chevron {
   transform: rotate(90deg);
 }
 

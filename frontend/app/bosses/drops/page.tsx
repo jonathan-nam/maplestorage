@@ -12,6 +12,8 @@ import {
   groupDrops,
   type DropLine,
   consolidate,
+  foldNames,
+  type DropEntry,
   type DropGroup,
   type Grouping,
 } from "@/lib/drop-log";
@@ -301,17 +303,28 @@ function DropRow({
   characterById: Map<string, Character>;
   showCharacter: boolean;
 }) {
+  const [open, setOpen] = useState(false);
   const entry = line.entries[0]!;
   const boss = bossByKey.get(entry.bossKey ?? "") ?? null;
   const characterName = characterById.get(entry.characterId)?.name ?? null;
+  const panelId = `droplog-runs-${line.key}`;
 
-  // A fold stands for several bosses, so it names them instead of one boss and one date: which
-  // bosses the pieces came off is the only thing the rows behind it still say.
-  const bosses = line.folded
-    ? [...new Set(line.entries.map((e) => bossByKey.get(e.bossKey ?? "")?.name).filter(Boolean))]
-    : [];
+  // A fold stands for several runs, so it names what they have in common instead of one boss and
+  // one date. Both sides are counted rather than listed past a few: the runs themselves are under
+  // the chevron, and eight boss names ran wider than the row.
   const meta = line.folded
-    ? [bosses.join(", "), showCharacter ? characterName : null].filter(Boolean)
+    ? [
+        foldNames(
+          line.entries.map((e) => bossByKey.get(e.bossKey ?? "")?.name),
+          "bosses",
+        ),
+        showCharacter
+          ? foldNames(
+              line.entries.map((e) => characterById.get(e.characterId)?.name),
+              "characters",
+            )
+          : null,
+      ].filter(Boolean)
     : [
         boss?.name,
         showCharacter ? characterName : null,
@@ -326,39 +339,156 @@ function DropRow({
   const statuses = [...new Set(line.entries.map((e) => e.status))];
   const status = statuses.length === 1 ? statusLabel(statuses[0]!) : `${line.entries.length} rows`;
   const unreadable = line.entries.some((e) => e.unreadable);
+  const runs = `${line.entries.length} runs`;
 
   return (
-    <li className={`droplog-row status-${entry.status.toLowerCase()}`}>
-      {line.iconUrl ? (
-        <img className="loot-icon" src={apiAssetUrl(line.iconUrl)} alt="" />
-      ) : (
-        // No official art for this drop. An empty frame keeps the row aligned with the ones that
-        // have it, as the loot pool does.
-        <span className="loot-icon" aria-hidden="true" />
-      )}
+    <li className={`droplog-row status-${entry.status.toLowerCase()}${open ? " is-open" : ""}`}>
+      <div className="droplog-row-head">
+        {line.folded ? (
+          <button
+            type="button"
+            className="party-row-toggle"
+            aria-expanded={open}
+            aria-controls={panelId}
+            onClick={() => setOpen((o) => !o)}
+          >
+            <span className="party-row-chevron" aria-hidden="true" />
+            <span className="visually-hidden">{open ? `Hide ${runs}` : `Show ${runs}`}</span>
+          </button>
+        ) : (
+          // The frame is kept so one drop's row lines up with a folded one's.
+          <span className="party-row-toggle is-empty" aria-hidden="true" />
+        )}
 
-      <span className="droplog-title">
-        <Link href={`/bosses/parties/${entry.partyId}`} className="loot-name">
-          {line.name}
-          {line.quantity > 1 && <span className="loot-count"> x{line.quantity}</span>}
-        </Link>
-        <span className="loot-meta">{meta.join(" · ")}</span>
-      </span>
+        {line.iconUrl ? (
+          <img className="loot-icon" src={apiAssetUrl(line.iconUrl)} alt="" />
+        ) : (
+          // No official art for this drop. An empty frame keeps the row aligned with the ones that
+          // have it, as the loot pool does.
+          <span className="loot-icon" aria-hidden="true" />
+        )}
 
-      {unreadable ? (
-        <span className="droplog-amounts">
-          <span className="loot-share-nets">split unreadable</span>
+        <span className="droplog-title">
+          {/* A fold's pieces came off several runs, so its name links to none of them: it opened
+              whichever party happened to be first, which is one run out of eleven. The runs below
+              carry the links. */}
+          {line.folded ? (
+            <span className="loot-name">
+              {line.name}
+              <span className="loot-count"> x{line.quantity}</span>
+            </span>
+          ) : (
+            <Link href={`/bosses/parties/${entry.partyId}`} className="loot-name">
+              {line.name}
+              {line.quantity > 1 && <span className="loot-count"> x{line.quantity}</span>}
+            </Link>
+          )}
+          <span className="loot-meta">{meta.join(" · ")}</span>
         </span>
-      ) : line.pooled === null ? (
-        <span className="droplog-amounts">
-          <span className={`loot-status is-${entry.status.toLowerCase()}`}>{status}</span>
-        </span>
-      ) : (
-        <span className="droplog-amounts">
-          <span className="droplog-take">{formatMesos(line.yourTake ?? 0, true)}</span>
-          <span className="loot-share-nets">of {formatMesos(line.pooled, true)}</span>
-        </span>
+
+        <Amounts
+          label={status}
+          statusClass={entry.status.toLowerCase()}
+          unreadable={unreadable}
+          pooled={line.pooled}
+          yourTake={line.yourTake}
+        />
+      </div>
+
+      {line.folded && open && (
+        <ul className="droplog-runs" id={panelId}>
+          {line.entries.map((e) => (
+            <RunRow
+              key={e.lootId}
+              entry={e}
+              boss={bossByKey.get(e.bossKey ?? "") ?? null}
+              characterName={characterById.get(e.characterId)?.name ?? null}
+              showCharacter={showCharacter}
+            />
+          ))}
+        </ul>
       )}
     </li>
+  );
+}
+
+/** One row behind a fold: the run it came off, and the way into that party. */
+function RunRow({
+  entry,
+  boss,
+  characterName,
+  showCharacter,
+}: {
+  entry: DropEntry;
+  boss: Boss | null;
+  characterName: string | null;
+  showCharacter: boolean;
+}) {
+  const meta = [
+    formatDropped(entry.droppedOn),
+    showCharacter ? characterName : null,
+    entry.sellerName
+      ? `${entry.amountBasis === "BOUGHT" ? "bought by" : "sold by"} ${entry.sellerName}`
+      : null,
+  ].filter(Boolean);
+
+  return (
+    <li className="droplog-run">
+      {boss?.iconUrl ? (
+        <img className="boss-portrait is-small" src={apiAssetUrl(boss.iconUrl)} alt="" />
+      ) : (
+        <span className="boss-portrait is-small is-empty" aria-hidden="true" />
+      )}
+      <Link href={`/bosses/parties/${entry.partyId}`} className="loot-name">
+        {/* The drop is named by the line above, so the run is named by its boss. Free text can be
+            filed with no boss at all, and then the date is all there is to click. */}
+        {boss?.name ?? formatDropped(entry.droppedOn)}
+        {entry.quantity > 1 && <span className="loot-count"> x{entry.quantity}</span>}
+      </Link>
+      <span className="loot-meta">{meta.join(" · ")}</span>
+      <Amounts
+        label={statusLabel(entry.status)}
+        statusClass={entry.status.toLowerCase()}
+        unreadable={entry.unreadable}
+        pooled={entry.pooled}
+        yourTake={entry.yourTake}
+      />
+    </li>
+  );
+}
+
+/** The right of a line or a run: what it made, or where it is instead. */
+function Amounts({
+  label,
+  statusClass,
+  unreadable,
+  pooled,
+  yourTake,
+}: {
+  label: string;
+  statusClass: string;
+  unreadable: boolean;
+  pooled: number | null;
+  yourTake: number | null;
+}) {
+  if (unreadable) {
+    return (
+      <span className="droplog-amounts">
+        <span className="loot-share-nets">split unreadable</span>
+      </span>
+    );
+  }
+  if (pooled === null) {
+    return (
+      <span className="droplog-amounts">
+        <span className={`loot-status is-${statusClass}`}>{label}</span>
+      </span>
+    );
+  }
+  return (
+    <span className="droplog-amounts">
+      <span className="droplog-take">{formatMesos(yourTake ?? 0, true)}</span>
+      <span className="loot-share-nets">of {formatMesos(pooled, true)}</span>
+    </span>
   );
 }

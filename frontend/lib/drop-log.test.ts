@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildDropLog,
   consolidate,
+  foldNames,
   forCharacter,
   groupDrops,
   monthLabel,
@@ -456,5 +457,45 @@ describe("consolidate", () => {
         .entries,
     )[0]!;
     expect(unsold.pooled).toBeNull();
+  });
+
+  it("keeps every row behind the fold, so each run can still be reached", () => {
+    // The line is the total; the rows under it are the runs it came off. Dropping any of them would
+    // leave a count of pieces with no way to see where they came from.
+    const log = buildDropLog(
+      [duo()],
+      [
+        pool("pa", [
+          coupon("l1", "kalos-the-guardian", 90, { droppedOn: "2026-08-03" }),
+          coupon("l2", "limbo", 30, { droppedOn: "2026-08-05" }),
+        ]),
+      ],
+    );
+    const line = consolidate(log.entries)[0]!;
+
+    expect(line.entries.map((e) => e.lootId)).toEqual(["l2", "l1"]);
+    expect(line.entries.map((e) => e.quantity)).toEqual([30, 90]);
+    expect(line.quantity).toBe(line.entries.reduce((sum, e) => sum + e.quantity, 0));
+  });
+});
+
+describe("foldNames", () => {
+  it("names what a fold spans while the list is short enough to read", () => {
+    expect(foldNames(["Limbo", "Baldrix"], "bosses")).toBe("Limbo, Baldrix");
+    // One boss run twice is one name, not two.
+    expect(foldNames(["Limbo", "Limbo"], "bosses")).toBe("Limbo");
+  });
+
+  it("counts them instead once there are too many", () => {
+    const eight = ["a", "b", "c", "d", "e", "f", "g", "h"];
+    expect(foldNames(eight, "bosses")).toBe("8 bosses");
+    expect(foldNames(["a", "b", "c", "d"], "characters")).toBe("4 characters");
+  });
+
+  it("counts only what it can name", () => {
+    // A count of five over a list of two names is a number nobody can check.
+    expect(foldNames(["Limbo", null, undefined, "Baldrix", ""], "bosses")).toBe("Limbo, Baldrix");
+    expect(foldNames([null, undefined], "bosses")).toBeNull();
+    expect(foldNames([], "bosses")).toBeNull();
   });
 });
