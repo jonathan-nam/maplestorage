@@ -216,6 +216,21 @@ export type MathStep = {
 export function formatMesos(value: number, grouped = false): string {
   return grouped ? value.toLocaleString("en-US") : String(value);
 }
+
+/**
+ * Mesos the way they are said out loud: `1.45b`, `970m`, `25m`.
+ *
+ * The inverse of what parseMesos reads, and for the one job that figure cannot do: recapping what
+ * was already entered. Never use it for a figure somebody is meant to send. It rounds, and a
+ * rounded payout is the wrong payout.
+ */
+export function shortMesos(value: number): string {
+  const abs = Math.abs(value);
+  const [unit, suffix] = abs >= 1e9 ? [1e9, "b"] : abs >= 1e6 ? [1e6, "m"] : [1e3, "k"];
+  if (abs < 1e3) return String(Math.round(value));
+  // Two decimals at most, and no trailing zeroes: 1.45b, 1.4b, 1b.
+  return `${Number((value / unit).toFixed(2))}${suffix}`;
+}
 const keptOf = (fee: number) => (1 - fee).toFixed(2);
 
 /**

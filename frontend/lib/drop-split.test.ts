@@ -5,6 +5,7 @@ import {
   FEE_MVP,
   FEE_STANDARD,
   parseMesos,
+  shortMesos,
   type SplitInput,
   type SplitMethod,
   splitDrop,
@@ -502,6 +503,16 @@ describe("numbers are raw digits, because they get pasted into the game", () => 
 
   it("groups only when asked", () => {
     expect(formatMesos(3_284_739_285, true)).toBe("3,284,739,285");
+  });
+
+  it("says a figure the way a player would, and reads back as itself", () => {
+    expect(shortMesos(25_000_000)).toBe("25m");
+    expect(shortMesos(1_450_000_000)).toBe("1.45b");
+    expect(shortMesos(1_000_000_000)).toBe("1b");
+    expect(shortMesos(970_000_000)).toBe("970m");
+    expect(shortMesos(0)).toBe("0");
+    // Round trip through the box that reads it: what it prints is what parseMesos takes.
+    expect(parseMesos(shortMesos(1_450_000_000))).toBe(1_450_000_000);
   });
 
   it("keeps commas out of the working unless asked", () => {

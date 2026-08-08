@@ -4847,3 +4847,129 @@ button.link:disabled {
   grid-template-columns: 1fr 1fr auto;
   gap: 6px;
 }
+
+/* The piece ledger on the Drop Log: one card per looter, and the one box that prices their pile. */
+.ledger-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.ledger-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.ledger-tally {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.ledger-sale {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+/* The sale box takes a price, so it is wider than the count beside it. */
+.ledger-sale .split-input:not(.loot-count-input) {
+  width: 120px;
+}
+
+.ledger-tranches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.ledger-tranche {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px;
+  border: 1px solid var(--line-soft);
+  border-radius: 999px;
+}
+
+/* Element-qualified to beat button.link's own colour, which is an underlined accent: this one is
+   a discard beside a figure, not somewhere to go. */
+button.ledger-drop-sale {
+  padding: 0 0 0 2px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1;
+  text-decoration: none;
+}
+
+button.ledger-drop-sale:hover:not(:disabled) {
+  color: var(--warn);
+}
+
+.ledger-queue {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ledger-drop {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  /* The debts hang off the boss they are for, the way the runs hang off a folded drop. */
+  border-left: 2px solid var(--line-soft);
+  padding-left: 10px;
+}
+
+.ledger-drop-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+/* The debts sit under the boss they are for, not beside it. */
+.ledger-drop .loot-shares {
+  padding-left: 14px;
+}
+
+.ledger-drop-head .loot-name {
+  text-decoration: none;
+}
+
+.ledger-drop-head .loot-name:hover {
+  color: var(--accent);
+}
+
+/* How much of this boss's pieces the sales have covered. The figure beside it is the fact; this
+   is only its shape, so it carries no label of its own. */
+.ledger-bar {
+  flex: 1;
+  min-width: 90px;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  overflow: hidden;
+}
+
+.ledger-bar-fill {
+  display: block;
+  height: 100%;
+  background: var(--good);
+}

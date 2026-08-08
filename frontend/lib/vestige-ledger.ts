@@ -15,7 +15,7 @@
 
 import { type LedgerDrop, type PieceSale, allocate, transfersOf } from "./piece-ledger";
 import type { PieceTransfer } from "./piece-ledger";
-import type { Loot, PartyLootPool } from "@/types/loot";
+import type { PartyLootPool } from "@/types/loot";
 import type { Party } from "@/types/party";
 
 /** One boss's outstanding pieces, ready for the queue, with who is holding them. */
@@ -118,16 +118,19 @@ export function looterLedgers(
 ): LooterLedger[] {
   const byLooter = new Map<string, OutstandingDrop[]>();
   for (const d of drops) {
-    const seen = byLooter.get(d.looterName);
+    const seen = byLooter.get(looterKey(d.looterName));
     if (seen) seen.push(d);
-    else byLooter.set(d.looterName, [d]);
+    else byLooter.set(looterKey(d.looterName), [d]);
   }
 
   const ledgers: LooterLedger[] = [];
-  for (const [looterName, mine] of byLooter) {
+  for (const [key, mine] of byLooter) {
+    // Named off the seat, keyed off the lowercase: a tranche stores the name folded, a seat stores
+    // it as it is typed in game, and matching them raw priced every boss at nothing in silence.
+    const looterName = mine[0]!.looterName;
     const coverage = allocate(
       mine.map((d) => d.drop),
-      salesByLooter.get(looterName) ?? [],
+      salesByLooter.get(key) ?? [],
     );
     // The queue's own order, so the card reads the way the pieces are being spent.
     const ordered = [...mine].sort(
@@ -160,6 +163,11 @@ export function looterLedgers(
   return ledgers.sort((a, b) => a.looterName.localeCompare(b.looterName));
 }
 
+/** How a looter is matched: folded case, so a seat and a tranche find each other. */
+export function looterKey(looterName: string): string {
+  return looterName.trim().toLowerCase();
+}
+
 /** The sales one looter has entered, keyed the way looterLedgers wants them. */
 export function salesByLooter(
   rows: { looterName: string; pieces: number; amount: number }[],
@@ -169,9 +177,10 @@ export function salesByLooter(
     // The tally stores a TOTAL, because that is what a partner reports ("1.2b for the 60"). The
     // per-piece figure the split needs is derived, never typed.
     const sale: PieceSale = { pieces: row.pieces, priceEach: row.amount / row.pieces };
-    const seen = out.get(row.looterName);
+    const key = looterKey(row.looterName);
+    const seen = out.get(key);
     if (seen) seen.push(sale);
-    else out.set(row.looterName, [sale]);
+    else out.set(key, [sale]);
   }
   return out;
 }

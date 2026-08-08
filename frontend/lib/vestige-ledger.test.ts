@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { ledgerForLoot, looterLedgers, outstanding, salesByLooter, unsold } from "./vestige-ledger";
+import {
+  ledgerForLoot,
+  looterKey,
+  looterLedgers,
+  outstanding,
+  salesByLooter,
+  unsold,
+} from "./vestige-ledger";
 import type { Loot, PartyLootPool } from "@/types/loot";
 import type { Party, PartyMember } from "@/types/party";
 
@@ -164,6 +171,18 @@ describe("one card per looter, distributing one input", () => {
     ]);
   });
 
+  it("matches a tranche to the seat that looted it whatever the case", () => {
+    // The one that would fail silently: /api/vestige-tranches folds the name, the seat carries it
+    // as typed in game, and a raw match leaves every boss at "0 of 60" with nothing to say so.
+    const { parties, pools } = setup();
+    const ledgers = looterLedgers(
+      outstanding(parties, pools, VESTIGE, ORDER),
+      salesByLooter([{ looterName: "husky", pieces: 60, amount: 1_450 * M }]),
+    );
+    expect(ledgers[0]!.looterName).toBe("Husky");
+    expect(ledgers[0]!.drops[0]!.complete).toBe(true);
+  });
+
   it("shows the pieces owed but no money until that boss is covered", () => {
     const { parties, pools } = setup();
     const ledgers = looterLedgers(outstanding(parties, pools, VESTIGE, ORDER), new Map());
@@ -212,7 +231,7 @@ describe("a sale is entered as a total, never a price each", () => {
   it("derives the per-piece figure so nobody divides by hand", () => {
     // What a partner reports is "1.2b for the 50", which is what the box takes.
     const [sale] = salesByLooter([{ looterName: "Husky", pieces: 50, amount: 1_200 * M }]).get(
-      "Husky",
+      looterKey("Husky"),
     )!;
     expect(sale!.priceEach).toBe(24 * M);
   });
