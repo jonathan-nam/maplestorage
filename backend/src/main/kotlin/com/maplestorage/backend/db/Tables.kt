@@ -393,6 +393,23 @@ object PartyLoot : Table("party_loot") {
 
 // Who is owed for a sale, pinned at the moment it sold rather than re-derived from the party.
 // See V18__party_loot.sql.
+// One tranche of a looter's sales: pieces, and what they fetched. Keyed by the looter's character
+// NAME, because pieces cannot leave an inventory, so one character's pile is one tally across every
+// boss they loot for. See V38__vestige_tranche.sql.
+object VestigeTranche : Table("vestige_tranche") {
+    val id = uuid("id")
+    val userId = reference("user_id", Users.id)
+    val looterName = text("looter_name")
+    val pieces = integer("pieces")
+
+    // The whole tranche's mesos, as reported. The per-piece figure is derived, never stored.
+    val amount = long("amount")
+    val soldAt = timestamp("sold_at")
+    val createdAt = timestamp("created_at")
+
+    override val primaryKey = PrimaryKey(id)
+}
+
 object PartyLootPayout : Table("party_loot_payout") {
     val lootId = reference("loot_id", PartyLoot.id)
     val memberId = reference("member_id", PartyMember.id)
