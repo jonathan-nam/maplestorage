@@ -22,6 +22,23 @@ export function dropOptionLabel(drop: BossDrop, world: WorldType): string {
   return isPerMember(drop.perMember, world) ? `${drop.name} (one each)` : drop.name;
 }
 
+/** The most of one drop a row may hold, matching the column's own CHECK. */
+export const MAX_QUANTITY = 1_000_000;
+
+/**
+ * How many fell, as typed: blank is one, and anything unreadable is null.
+ *
+ * Null rather than a fallback of 1, because "18O" quietly logged as a single coupon is the wrong
+ * count wearing the right drop's name. A count of 180 off one Extreme Kalos is the case this is for.
+ */
+export function parseQuantity(input: string): number | null {
+  const cleaned = input.trim().replace(/[,_\s]/g, "");
+  if (cleaned === "") return 1;
+  if (!/^\d+$/.test(cleaned)) return null;
+  const value = Number(cleaned);
+  return value >= 1 && value <= MAX_QUANTITY ? value : null;
+}
+
 /**
  * What the picker would post, or null while it is not a complete answer.
  *
@@ -40,11 +57,14 @@ export function addDropBody(
   bossKey: string,
   dropKey: string,
   customName: string,
+  quantity = "",
 ): AddLootBody | null {
   if (bossKey === "") return null;
+  const count = parseQuantity(quantity);
+  if (count === null) return null;
   if (dropKey === OTHER) {
     const typed = customName.trim();
-    return typed === "" ? null : { bossKey, dropKey: null, customName: typed };
+    return typed === "" ? null : { bossKey, dropKey: null, customName: typed, quantity: count };
   }
-  return dropKey === "" ? null : { bossKey, dropKey, customName: null };
+  return dropKey === "" ? null : { bossKey, dropKey, customName: null, quantity: count };
 }

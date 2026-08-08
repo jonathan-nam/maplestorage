@@ -24,6 +24,7 @@ const seat = (name: string, characterId: string | null = null): PartyMember => (
   characterId,
   spriteImgUrl: null,
   guest: false,
+  shares: 1,
 });
 
 const boss = (bossKey: string, name: string): Boss => ({

@@ -48,10 +48,11 @@ export function DropPicker({
 }) {
   const [dropKey, setDropKey] = useState("");
   const [customName, setCustomName] = useState("");
+  const [quantity, setQuantity] = useState("");
 
   const drops = pickableDrops(table, worldType);
   const chosen = drops.find((d) => d.dropKey === dropKey);
-  const body = addDropBody(bossKey, dropKey, customName);
+  const body = addDropBody(bossKey, dropKey, customName, quantity);
 
   return (
     <>
@@ -67,6 +68,7 @@ export function DropPicker({
           }
           setDropKey("");
           setCustomName("");
+          setQuantity("");
         }}
       >
         {lead}
@@ -96,6 +98,18 @@ export function DropPicker({
             placeholder="what dropped"
             aria-label="Item name"
             maxLength={80}
+          />
+        )}
+
+        {dropKey !== "" && (
+          <input
+            className="split-input loot-count-input"
+            value={quantity}
+            onChange={(e) => setQuantity(e.target.value)}
+            placeholder="1"
+            aria-label="How many"
+            inputMode="numeric"
+            maxLength={7}
           />
         )}
 

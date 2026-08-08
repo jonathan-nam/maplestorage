@@ -17,6 +17,11 @@ export function otherMembers(party: Party) {
   return party.members.filter((m) => m.characterId !== party.characterId);
 }
 
+/** The seat that IS the config: your own character. Absent only if the week dropped them. */
+export function ownSeat(party: Party) {
+  return party.members.find((m) => m.characterId === party.characterId);
+}
+
 /**
  * Every character name the app already knows: your roster, the people list, and whoever is already
  * sitting in a party.

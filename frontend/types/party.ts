@@ -17,6 +17,9 @@ export type PartyMember = {
   // Not in the party's usual roster: here for this week only, or gone from it since. Said out loud
   // because "who is in this party" and "who ran it that week" now have different answers.
   guest: boolean;
+  // What this seat usually takes of a split, 1 unless somebody carries. A sale starts from it and
+  // pins its own counts, so changing it cannot rewrite a night already settled.
+  shares: number;
 };
 
 // One config: your character, one boss, and who they run it with. A boss your character solos has
@@ -91,6 +94,9 @@ export type SavePartyBody = {
   difficulty?: string | null;
   // Minutes door to door, or null for "not timed". Zero is a real answer and is kept as one.
   minutes?: number | null;
+  // What each seat usually takes, by character name, your own included. The body is the whole
+  // roster, so a name left out takes one share.
+  shares?: Record<string, number>;
   // Make this a one-off, on for this period alone. Read at create only: which kind of config it is
   // decides how every later period reads, so flipping it afterwards would rewrite weeks it has
   // already answered for.

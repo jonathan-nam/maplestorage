@@ -4,6 +4,8 @@ export type LootPayout = {
   memberId: string;
   paid: boolean;
   paidAt: string | null;
+  // Shares of the pot this member takes, pinned when the drop sold. 1 in an even split.
+  shares: number;
 };
 
 export type Loot = {
@@ -17,6 +19,9 @@ export type Loot = {
   // ALWAYS or HEROIC when each member gets their own copy, so pooling it is not what it needs.
   perMember: string | null;
   bossKey: string | null;
+  // How many of it fell. 1 for a drop that is one item; a stack of coupons is one row with its
+  // count, since the boss drops them in bundles and the party sells the lot as one sale.
+  quantity: number;
   droppedOn: string;
   // The reset week droppedOn falls in, as that week's Thursday. The server's, so the Drop Log's
   // weeks are the same ones the clears matrix steps through. See BossPeriod.kt.
@@ -29,6 +34,8 @@ export type Loot = {
   amountBasis: string | null;
   // LAZY or FAIR.
   splitMethod: string | null;
+  // The seller's own share count, pinned with the sale. Null until it sells.
+  sellerShares: number | null;
   // Who holds the value and owes the rest: the seller, or the buyer on a BOUGHT basis.
   sellerMemberId: string | null;
   soldAt: string | null;
@@ -50,6 +57,8 @@ export type AddLootBody = {
   dropKey?: string | null;
   customName?: string | null;
   bossKey?: string | null;
+  // How many fell. Omitted is 1, which is every drop that is one item.
+  quantity?: number;
   droppedOn?: string | null;
 };
 
@@ -60,6 +69,7 @@ export type LogDropBody = {
   bossKey: string;
   dropKey?: string | null;
   customName?: string | null;
+  quantity?: number;
 };
 
 export type SellLootBody = {
@@ -67,6 +77,9 @@ export type SellLootBody = {
   amountBasis: string;
   splitMethod: string;
   sellerMemberId: string;
+  // How many shares each seat takes, keyed by seat id, the seller's own included. A seat left out
+  // takes one, so an even split sends nothing at all. Only seats that RAN that week may be named.
+  shares?: Record<string, number>;
 };
 
 // POST /api/parties/loot/settle. Every payout row one net transfer covers, marked paid together or

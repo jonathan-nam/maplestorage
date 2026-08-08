@@ -12,6 +12,7 @@ const mine = (id: string, name: string, characterId = `char-${id}`): PartyMember
   characterId,
   spriteImgUrl: null,
   guest: false,
+  shares: 1,
 });
 
 const theirs = (id: string, name: string): PartyMember => ({
@@ -22,6 +23,7 @@ const theirs = (id: string, name: string): PartyMember => ({
   characterId: null,
   spriteImgUrl: null,
   guest: false,
+  shares: 1,
 });
 
 const party = (id: string, members: PartyMember[], over: Partial<Party> = {}): Party => ({
@@ -70,15 +72,17 @@ const drop = (over: Partial<Loot> = {}): Loot => {
     iconUrl: null,
     perMember: null,
     bossKey: "limbo",
+    quantity: 1,
     droppedOn,
     weekStart: weekStartOf(droppedOn),
     status: "SOLD",
     saleAmount: 10_000_000_000,
     amountBasis: "LISTED",
     splitMethod: "FAIR",
+    sellerShares: 1,
     sellerMemberId: "m1",
     soldAt: "2026-07-21T10:00:00Z",
-    payouts: [{ memberId: "m2", paid: false, paidAt: null }],
+    payouts: [{ memberId: "m2", paid: false, paidAt: null, shares: 1 }],
     ranThatWeek: [],
     ...over,
   };
@@ -162,7 +166,7 @@ describe("buildDropLog", () => {
     const p = duo();
     const loot = drop({
       sellerMemberId: "m2",
-      payouts: [{ memberId: "m1", paid: false, paidAt: null }],
+      payouts: [{ memberId: "m1", paid: false, paidAt: null, shares: 1 }],
     });
     const expected = splitOf(loot, p.members)!;
 
@@ -314,7 +318,7 @@ describe("forCharacter", () => {
           drop({
             id: "l2",
             sellerMemberId: "m3",
-            payouts: [{ memberId: "m4", paid: false, paidAt: null }],
+            payouts: [{ memberId: "m4", paid: false, paidAt: null, shares: 1 }],
           }),
         ]),
       ],

@@ -35,6 +35,7 @@ function member(over: Partial<PartyMember> & { name: string }): PartyMember {
     characterId: null,
     spriteImgUrl: null,
     guest: false,
+    shares: 1,
     ...over,
   };
 }

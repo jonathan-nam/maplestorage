@@ -4,6 +4,7 @@ import { useState } from "react";
 import { CopyAmount } from "@/components/copy-amount";
 import { apiAssetUrl } from "@/lib/api";
 import { formatMesos, parseMesos } from "@/lib/drop-split";
+import { parseShares, sharesLabel } from "@/lib/shares";
 import { formatDropped, splitOf, statusLabel } from "@/lib/loot";
 import { canTrade, isPerMember } from "@/lib/world";
 import type { Boss } from "@/types/boss";
@@ -42,6 +43,14 @@ export function LootRow({
   const ran = party.seats.filter((m) => loot.ranThatWeek.includes(m.id));
   const [sellerMemberId, setSellerMemberId] = useState(ran[0]?.id ?? "");
   const [selling, setSelling] = useState(false);
+  // Seeded from each seat's standing weight, so a party where somebody always carries needs no
+  // typing, and a one-off arrangement is one box away. What is saved is this, not the standing
+  // value, so a sale keeps the shares it was actually split on.
+  const [shares, setShares] = useState<Record<string, string>>({});
+  const shareOf = (memberId: string) =>
+    shares[memberId] ?? String(ran.find((m) => m.id === memberId)?.shares ?? 1);
+  const entered = ran.map((m) => parseShares(shareOf(m.id)));
+  const sharesReadable = entered.every((count) => count !== null);
   // A member buying it off the party is the same shape as a sale: they hold the value and owe
   // everyone else. So it is a third basis rather than a second form, and the only thing it changes
   // on screen is who the last select names.
@@ -67,7 +76,10 @@ export function LootRow({
           <span className="loot-icon" aria-hidden="true" />
         )}
         <div className="loot-title">
-          <span className="loot-name">{loot.name}</span>
+          <span className="loot-name">
+            {loot.name}
+            {loot.quantity > 1 && <span className="loot-count"> x{loot.quantity}</span>}
+          </span>
           <span className="loot-meta">
             {boss?.iconUrl && (
               <img className="boss-portrait is-small" src={apiAssetUrl(boss.iconUrl)} alt="" />
@@ -103,8 +115,14 @@ export function LootRow({
             className="loot-sale-form"
             onSubmit={(e) => {
               e.preventDefault();
-              if (amount === null || !sellerMemberId) return;
-              onSell({ amount, amountBasis, splitMethod, sellerMemberId });
+              if (amount === null || !sellerMemberId || !sharesReadable) return;
+              onSell({
+                amount,
+                amountBasis,
+                splitMethod,
+                sellerMemberId,
+                shares: Object.fromEntries(ran.map((m, i) => [m.id, entered[i] ?? 1])),
+              });
               setSelling(false);
             }}
           >
@@ -162,13 +180,34 @@ export function LootRow({
                 </select>
               )}
             </div>
+
+            {/* One box per seat that ran, so an uneven split is typed where the sale is. Not on a
+                solo pool, which has nobody to divide with. */}
+            {!party.solo && (
+              <div className="loot-share-inputs">
+                {ran.map((m) => (
+                  <span key={m.id} className="loot-share-input">
+                    <span className="loot-share-name">{m.name}</span>
+                    <input
+                      className="split-input loot-count-input"
+                      value={shareOf(m.id)}
+                      onChange={(e) => setShares({ ...shares, [m.id]: e.target.value })}
+                      aria-label={`Shares for ${m.name}`}
+                      inputMode="numeric"
+                      maxLength={2}
+                    />
+                  </span>
+                ))}
+              </div>
+            )}
+
             <div className="loot-actions">
               {/* Without a seller there is nobody to measure the shares against, and the submit
                   would return without saying so. */}
               <button
                 type="submit"
                 className="party-save"
-                disabled={busy || amount === null || !sellerMemberId}
+                disabled={busy || amount === null || !sellerMemberId || !sharesReadable}
               >
                 Save sale
               </button>
@@ -225,7 +264,8 @@ export function LootRow({
                 <p className="loot-sold-line">
                   Bought by {result.seller.name} for{" "}
                   <strong>{formatMesos(loot.saleAmount ?? 0, true)}</strong>,{" "}
-                  {loot.splitMethod === "FAIR" ? "fair" : "lazy"} split. Their share is{" "}
+                  {loot.splitMethod === "FAIR" ? "fair" : "lazy"} split. Their share
+                  {result.seller.shares === 1 ? " is" : ` (${result.seller.shares} shares) is`}{" "}
                   <strong>{formatMesos(result.seller.keeps, true)}</strong>, and they hand over{" "}
                   <strong>{formatMesos(result.seller.paysOut, true)}</strong>.
                 </p>
@@ -234,7 +274,8 @@ export function LootRow({
                   {loot.amountBasis === "LISTED" ? "Listed at" : "Received"}{" "}
                   <strong>{formatMesos(loot.saleAmount ?? 0, true)}</strong> by {result.seller.name}
                   , {loot.splitMethod === "FAIR" ? "fair" : "lazy"} split. They keep{" "}
-                  <strong>{formatMesos(result.seller.keeps, true)}</strong>.
+                  <strong>{formatMesos(result.seller.keeps, true)}</strong>
+                  {result.seller.shares === 1 ? "" : ` on ${result.seller.shares} shares`}.
                 </p>
               )}
 
@@ -246,6 +287,7 @@ export function LootRow({
                     <CopyAmount value={share.pay} display={formatMesos(share.pay, true)} />
                     <span className="loot-share-nets">
                       nets {formatMesos(share.nets, true)} at {(share.fee * 100).toFixed(0)}%
+                      {sharesLabel(share.shares) && ` \u00b7 ${sharesLabel(share.shares)}`}
                     </span>
                     <button
                       type="button"
