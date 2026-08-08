@@ -408,14 +408,25 @@ function bossHeading(planned: PlannedRun): string {
   );
 }
 
-/** A field with nothing in it that can break a row: a tab separates the columns now. */
+/** A field with nothing in it that can break a row: its own width is what places the next column. */
 function cell(value: string): string {
   return value.replace(/[\t\n\r]+/g, " ").trim();
 }
 
-/** Rows of fields, one tab between columns, so each column starts at a tab stop. */
-function tabTable(rows: string[][]): string[] {
-  return rows.map((row) => row.join("\t").trimEnd());
+/** The gap between two columns, the same everywhere, so the eye reads one gutter down the table. */
+const COLUMN_GAP = "  ";
+
+/** Rows of fields, each column padded to its own widest cell and flush left within it. */
+function paddedTable(rows: string[][]): string[] {
+  const widths = (rows[0] ?? []).map((_, i) =>
+    Math.max(...rows.map((row) => (row[i] ?? "").length)),
+  );
+  return rows.map((row) =>
+    row
+      .map((field, i) => field.padEnd(widths[i] ?? 0))
+      .join(COLUMN_GAP)
+      .trimEnd(),
+  );
 }
 
 /**
@@ -440,9 +451,10 @@ function tabTable(rows: string[][]): string[] {
  * one above it running to length, and a column of them in a chat window is read as a commitment
  * nobody made. Put it back only with the page, or the two drift and the paste is the one believed.
  *
- * Every corner cell is empty, so the header's first characters are the tabs that push the names
- * over their columns. Every field is otherwise flush left, which is what a tab stop gives for free
- * and what padding to the widest name did not.
+ * The corner is empty and every field is flush left, padded out to the widest cell in its column.
+ * One tab per column was tried instead (#212), on the theory that a tab stop aligns for free. It
+ * does not: a single boss name crossing a stop moves every column below it, which is how a table
+ * that lined up in the widest-name case arrived crooked in every other.
  *
  * Built from the Plan it is given, never restated by hand, so it cannot drift from what the page
  * is showing. The same rule explainSplit() follows.
@@ -460,5 +472,5 @@ export function planAsText(plan: Plan, roster: NightPerson[]): string {
     ),
   ]);
 
-  return ["```", ...tabTable([header, ...body]), "```"].join("\n");
+  return ["```", ...paddedTable([header, ...body]), "```"].join("\n");
 }

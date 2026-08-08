@@ -328,7 +328,7 @@ describe("planAsText", () => {
       roster.map((p) => p.id),
     );
     const text = planAsText(planNight(eligible, { minutes: 60 }).best, roster);
-    expect(text).toContain("Hard Lotus\t");
+    expect(text).toMatch(/^Hard Lotus {2,}/m);
   });
 
   it("is the fenced table and nothing else", () => {
@@ -383,10 +383,10 @@ describe("planAsText", () => {
 
   it("heads the columns with people, and leaves the corner empty", () => {
     // Empty and not absent: the header keeps one field per column, so the names land over the
-    // characters below them.
+    // characters below them. The corner's width is what indents the first name into place.
     const table = fenced(textFor(SPLIT_NIGHT, 180));
-    expect(table[0]).toBe("\tDave\tErin\tYou");
-    expect(table[1]).toBe("Lotus\tNightlord\tShadower\tBishop");
+    expect(table[0]).toBe("        Dave       Erin      You");
+    expect(table[1]).toBe("Lotus   Nightlord  Shadower  Bishop");
   });
 
   it("marks somebody sitting a run out with an X", () => {
@@ -394,17 +394,32 @@ describe("planAsText", () => {
     // 3-person, 2-person, 1-person for size, which outranks keeping his two runs together, so
     // this is the gap the planner cannot close and the one the X has to show.
     const table = fenced(textFor(SPLIT_NIGHT, 180));
-    expect(table[2]).toBe("Damien\tX\tShadower\tBishop");
-    expect(table[3]).toBe("Lucid\tNightlord\tX\tX");
+    expect(table[2]).toBe("Damien  X          Shadower  Bishop");
+    expect(table[3]).toBe("Lucid   Nightlord  X         X");
   });
 
   it("gives every row the same columns, so the grid survives being pasted", () => {
-    // A tab stop is what lines the columns up, so what this can check is that no row is short a
-    // field: a missing cell would slide everything after it one column left.
+    // A missing cell would slide everything after it one column left, and padding makes that
+    // silent rather than obvious: the row would still line up, under the wrong names.
     const table = fenced(textFor(SPLIT_NIGHT, 180));
-    const widths = table.map((line) => line.split("\t").length);
+    const widths = table.map((line) => line.split(/ {2,}/).length);
     expect(new Set(widths).size).toBe(1);
     expect(widths[0]).toBe(4);
+  });
+
+  it("starts every column at the same character on every row", () => {
+    // The whole point of padding over tabs, and the thing a per-row assertion cannot see: a
+    // column that begins at character 8 on one row and 12 on the next is the crooked paste.
+    const table = fenced(textFor(SPLIT_NIGHT, 180));
+    const startsOf = (line: string) =>
+      [...line.matchAll(/(?:^| {2,})\S/g)].map((m) => (m.index as number) + m[0].length - 1);
+
+    const body = table.slice(1).map(startsOf);
+    expect(new Set(body.map(String)).size).toBe(1);
+    expect(body[0]).toEqual([0, 8, 19, 29]);
+    // The empty corner means the header has no field of its own. The names still begin exactly
+    // where the characters under them do.
+    expect(startsOf(table[0] as string)).toEqual([8, 19, 29]);
   });
 
   it("still uses the marks, it just no longer explains them", () => {
@@ -438,8 +453,8 @@ describe("planAsText", () => {
     const table = fenced(
       textFor([R("1", "Lotus", [["Bishop", "You"]]), R("2", "Damien", [["Bishop", "You"]])], 120),
     );
-    expect(table[1]).toMatch(/^Lotus\t/);
-    expect(table[2]).toMatch(/^Damien\t/);
+    expect(table[1]).toMatch(/^Lotus {2,}/);
+    expect(table[2]).toMatch(/^Damien {2,}/);
   });
 
   it("calls a boss what the party calls it", () => {
@@ -450,20 +465,20 @@ describe("planAsText", () => {
       ],
       120,
     );
-    expect(text).toContain("Star\t");
-    expect(text).toContain("Kalos\t");
+    expect(text).toMatch(/^Star {2,}/m);
+    expect(text).toMatch(/^Kalos {2,}/m);
     expect(text).not.toContain("Malefic");
     expect(text).not.toContain("Guardian");
   });
 
   it("keeps the full name for a boss with no shorthand", () => {
     const table = fenced(textFor([R("lotus", "Lotus", [["Bishop", "You"]])], 60));
-    expect(table[1]).toBe("Lotus\tBishop");
+    expect(table[1]).toBe("Lotus  Bishop");
   });
 
-  it("leaves a name holding a comma alone, since a tab is what splits a row", () => {
+  it("leaves a name holding a comma alone, since a gutter is what splits a row", () => {
     const table = fenced(textFor([R("1", "Lotus", [["Bishop", "Dave, Jr"]])], 60));
-    expect(table[0]).toBe("\tDave, Jr");
+    expect(table[0]).toBe("       Dave, Jr");
   });
 
   // The failure that would matter: a time in the paste that the page no longer shows, read as a
@@ -480,7 +495,7 @@ describe("planAsText", () => {
     );
   });
 
-  it("pads nothing, so every name starts flush at its column", () => {
+  it("pads each column to its own widest cell, and the person's name with it", () => {
     const table = fenced(
       textFor(
         [
@@ -492,18 +507,24 @@ describe("planAsText", () => {
         60,
       ),
     );
-    // The empty corner is the leading tab. Nothing else is indented, and no field is padded
-    // out to the width of a longer one in its column.
-    expect(table[0]).toBe("\tChristopher\tYou");
-    expect(table.every((line) => !line.startsWith(" "))).toBe(true);
-    expect(table.every((line) => line.split("\t").every((field) => field === field.trim()))).toBe(
-      true,
-    );
+    // "Christopher" is wider than the "Hero" beneath it, so the column is the name's width and
+    // the character sits flush left in it. The gap after is the same two spaces as every other.
+    expect(table[0]).toBe("       Christopher  You");
+    expect(table[1]).toBe("Lotus  Hero         Bishop");
   });
 
-  it("keeps a name with a tab in it from splitting a row", () => {
+  it("never pads a row out past its last cell", () => {
+    // Trailing spaces are invisible in a chat window and not in a diff or a text field, so a
+    // paste that ends in eleven of them looks like a bug in the tool that made it.
+    const table = fenced(textFor(SPLIT_NIGHT, 180));
+    expect(table.every((line) => line === line.trimEnd())).toBe(true);
+  });
+
+  it("keeps a name with a tab in it from knocking the columns crooked", () => {
+    // A tab is one character wide to padEnd and eight on screen, so leaving it in would space the
+    // column correctly and draw it wrong.
     const table = fenced(textFor([R("1", "Lotus", [["Bishop", "Dave\tJr"]])], 60));
-    expect(table[0]).toBe("\tDave Jr");
+    expect(table[0]).toBe("       Dave Jr");
   });
 });
 
