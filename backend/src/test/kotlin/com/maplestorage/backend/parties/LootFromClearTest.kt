@@ -62,7 +62,12 @@ class LootFromClearTest {
     }
 
     /** A party on Extreme Kalos, which drops 180 coupons, unless [difficulty] says otherwise. */
-    private fun party(difficulty: String? = "EXTREME"): Pair<Uuid, Uuid> {
+    private fun party(
+        difficulty: String? = "EXTREME",
+        boss: String = "kalos-the-guardian",
+        others: List<String> = listOf("Steve"),
+        looterName: String? = null,
+    ): Pair<Uuid, Uuid> {
         ensureUser(userId, "$userId@example.com")
         val mine = Uuid.random()
         val now = Clock.System.now()
@@ -76,16 +81,22 @@ class LootFromClearTest {
             it[updatedAt] = now
             it[position] = 0
         }
-        val bossId = bossIdForKey("kalos-the-guardian")!!
+        val bossId = bossIdForKey(boss)!!
         val request =
-            SavePartyRequest(mine.toString(), "kalos-the-guardian", listOf("Steve"), difficulty = difficulty)
+            SavePartyRequest(
+                mine.toString(),
+                boss,
+                others,
+                difficulty = difficulty,
+                looterName = looterName,
+            )
         return mine to createParty(userId, mine, bossId, request, now)
     }
 
     private fun pool(partyId: Uuid) = lootFor(partyId)
 
     @Test
-    fun `clearing a boss files what it guarantees, with the catalog's own count`() {
+    fun `clearing a boss files what it guarantees, off the catalog's own count`() {
         transaction {
             val (characterId, partyId) = party()
             val bossId = bossIdForKey("kalos-the-guardian")!!
@@ -94,8 +105,48 @@ class LootFromClearTest {
 
             val row = pool(partyId).single()
             assertEquals("Vestige of Erion Coupon", row.name)
-            assertEquals(180, row.quantity)
+            // Extreme Kalos gives 180 and this is a duo who each loot their own, so half of it is
+            // this character's. The whole drop is what a designated looter's row holds, below.
+            assertEquals(90, row.quantity)
             assertEquals("kalos-the-guardian", row.bossKey)
+        }
+    }
+
+    @Test
+    fun `everybody looting their own records this character's share, not the whole drop`() {
+        transaction {
+            // Hard Limbo drops 60, in three bundles because Limbo caps at three. Run as a trio with
+            // nobody designated, each of them loots 20, so 60 in the pool would be this character
+            // holding twice what they actually have.
+            val (characterId, partyId) = party(difficulty = "HARD", boss = "limbo", others = listOf("Steve", "Bob"))
+            lootFromClear(characterId, bossIdForKey("limbo")!!, "WEEKLY", today, Clock.System.now())
+            assertEquals(20, pool(partyId).single().quantity)
+        }
+    }
+
+    @Test
+    fun `a duo splits it in two, which is the same rule and not a special case`() {
+        transaction {
+            val (characterId, partyId) = party(difficulty = "HARD", boss = "limbo", others = listOf("Steve"))
+            lootFromClear(characterId, bossIdForKey("limbo")!!, "WEEKLY", today, Clock.System.now())
+            assertEquals(30, pool(partyId).single().quantity)
+        }
+    }
+
+    @Test
+    fun `one member looting the lot records the whole drop, because they hold it`() {
+        transaction {
+            // The Husky arrangement: the partner loots and sells everything, so all 60 are in one
+            // inventory and they owe the other two their share.
+            val (characterId, partyId) =
+                party(
+                    difficulty = "HARD",
+                    boss = "limbo",
+                    others = listOf("Steve", "Bob"),
+                    looterName = "Steve",
+                )
+            lootFromClear(characterId, bossIdForKey("limbo")!!, "WEEKLY", today, Clock.System.now())
+            assertEquals(60, pool(partyId).single().quantity)
         }
     }
 

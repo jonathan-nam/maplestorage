@@ -2,6 +2,7 @@ package com.maplestorage.backend.parties
 
 import com.maplestorage.backend.bosses.periodAfter
 import com.maplestorage.backend.bosses.periodOf
+import com.maplestorage.backend.bosses.weekOf
 import com.maplestorage.backend.db.BossDropAmount
 import com.maplestorage.backend.db.DropCatalog
 import com.maplestorage.backend.db.Party
@@ -63,25 +64,63 @@ internal fun lootFromClear(
 
     val period = periodOf(reset, on)
     val nextPeriod = periodAfter(reset, period)
-    for ((dropId, pieces) in guaranteedDrops(bossCatalogId, difficulty)) {
-        val already =
-            PartyLoot
-                .selectAll()
-                .where {
-                    (PartyLoot.partyId eq partyId) and
-                        (PartyLoot.dropCatalogId eq dropId) and
-                        (PartyLoot.droppedOn greaterEq period) and
-                        (PartyLoot.droppedOn less nextPeriod)
-                }.empty()
-                .not()
-        if (already) continue
-        // Dated inside the period the CLEAR is for, so a clear ticked for a past week files in that
-        // week rather than this one. Today when the period is the one today falls in, which is the
-        // ordinary case and the date a human would have typed.
-        val droppedOn = if (on >= period && on < nextPeriod) on else period
-        addLoot(partyId, LootedDrop(dropId, quantity = pieces), bossCatalogId, droppedOn, now, fromClear = true)
-    }
+    // How much of the drop this row is FOR. A party where one member loots the lot holds the whole
+    // thing in one inventory and owes the others their share, so the row is the whole thing. A party
+    // where everybody loots their own never pooled it: there is nothing to divide and nothing owed,
+    // and the only pieces this character has are their own share.
+    val looted = looterOf(partyId)
+    val ran = rosterFor(partyId, weekOf(period)).size
+    // Dated inside the period the CLEAR is for, so a clear ticked for a past week files in that week
+    // rather than this one. Today when the period is the one today falls in, which is the ordinary
+    // case and the date a human would have typed.
+    val droppedOn = if (on >= period && on < nextPeriod) on else period
+    guaranteedDrops(bossCatalogId, difficulty)
+        .map { (dropId, wholeDrop) -> dropId to shareOf(wholeDrop, looted != null, ran) }
+        .filter { (dropId, pieces) -> pieces >= 1 && !alreadyFiled(partyId, dropId, period, nextPeriod) }
+        .forEach { (dropId, pieces) ->
+            addLoot(
+                partyId,
+                LootedDrop(dropId, quantity = pieces),
+                bossCatalogId,
+                droppedOn,
+                now,
+                fromClear = true,
+            )
+        }
 }
+
+/**
+ * How many of a drop this row is for.
+ *
+ * The whole thing where one member loots the lot: it is all in one inventory and they owe the others
+ * their share. A share of it where everybody loots their own, because it was never pooled and the
+ * only pieces this character has are their own.
+ *
+ * Rounded down. An amount that will not divide means somebody took the odd pieces by agreement,
+ * which is the uneven night the ledger is for rather than something a clear can state on its own.
+ */
+private fun shareOf(
+    wholeDrop: Int,
+    oneMemberLoots: Boolean,
+    ran: Int,
+): Int = if (oneMemberLoots || ran < 1) wholeDrop else wholeDrop / ran
+
+/** True when this period already has a row for this drop, so re-ticking cannot stack up a second. */
+private fun alreadyFiled(
+    partyId: Uuid,
+    dropId: Uuid,
+    period: LocalDate,
+    nextPeriod: LocalDate,
+): Boolean =
+    PartyLoot
+        .selectAll()
+        .where {
+            (PartyLoot.partyId eq partyId) and
+                (PartyLoot.dropCatalogId eq dropId) and
+                (PartyLoot.droppedOn greaterEq period) and
+                (PartyLoot.droppedOn less nextPeriod)
+        }.empty()
+        .not()
 
 /**
  * Takes back what a clear put there, and nothing else.
@@ -107,6 +146,14 @@ internal fun unlootFromClear(
             (PartyLoot.droppedOn less nextPeriod)
     }
 }
+
+/** The seat that loots for this party, or null when everybody loots their own. */
+private fun looterOf(partyId: Uuid): Uuid? =
+    Party
+        .selectAll()
+        .where { Party.id eq partyId }
+        .firstOrNull()
+        ?.get(Party.looterMemberId)
 
 /** What this boss drops for certain at this difficulty, as (drop id -> pieces). */
 private fun guaranteedDrops(
