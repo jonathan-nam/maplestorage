@@ -13,6 +13,7 @@ import { ApiError, apiAssetUrl, apiFetch } from "@/lib/api";
 import { cellState, clearOfCell, clearStateLabel, indexClears } from "@/lib/boss-clears";
 import { bossLabel, difficultyLabel } from "@/lib/boss-difficulty";
 import { peek, put } from "@/lib/cache";
+import { buildDropLog, couponsOwedByParty } from "@/lib/drop-log";
 import { poolSize } from "@/lib/loot";
 import {
   byBoss,
@@ -33,7 +34,7 @@ import { offersWallet } from "@/lib/world";
 import type { Boss, BossClearsView } from "@/types/boss";
 import type { Character } from "@/types/character";
 import type { DropTables } from "@/types/drop";
-import type { AddLootBody } from "@/types/loot";
+import type { AddLootBody, PartyLootPool } from "@/types/loot";
 import type {
   Party,
   Person,
@@ -64,6 +65,9 @@ const CLEARS_KEY = "/api/bosses/clears";
 // The whole catalog's drop tables, so a row can open its picker without a round-trip. Same key as
 // the party page, so the two share one cached copy.
 const DROPS_KEY = "/api/bosses/drops";
+// Every pool, for the coupons-owed figure on a row. Same key as the Drop Log, so the two share one
+// cached copy and cannot disagree about what is owed.
+const POOLS_KEY = "/api/parties/loot";
 
 // Both lists take the week. The clears draw a past week's ticks, and the party list carries that
 // week's drop counts, so the badge beside a tick answers for the same week the tick does.
@@ -93,6 +97,7 @@ export default function PartiesPage() {
   const [characters, setCharacters] = useState<Character[]>(seededCharacters ?? []);
   const [dropTables, setDropTables] = useState<DropTables>(peek<DropTables>(DROPS_KEY) ?? {});
   const [people, setPeople] = useState<Person[]>(peek<Person[]>(PEOPLE_KEY) ?? []);
+  const [pools, setPools] = useState<PartyLootPool[]>(peek<PartyLootPool[]>(POOLS_KEY) ?? []);
   const [state, setState] = useState<LoadState>(
     seededParties && seededBosses && seededCharacters ? "loaded" : "loading",
   );
@@ -221,9 +226,12 @@ export default function PartiesPage() {
           // Optional too. Losing it costs the roster editor's suggestions, and a name can still
           // be typed out.
           apiFetch<Person[]>(PEOPLE_KEY, { method: "GET" }, withToken).catch(() => null),
+          // Optional, for the coupons-owed figure on a row. Losing it costs that one number, and
+          // a row that says nothing about coupons beats a page that says nothing at all.
+          apiFetch<PartyLootPool[]>(POOLS_KEY, { method: "GET" }, withToken).catch(() => null),
         ]);
       })
-      .then(([, bossResult, characterResult, dropResult, peopleResult]) => {
+      .then(([, bossResult, characterResult, dropResult, peopleResult, poolResult]) => {
         setBosses(bossResult);
         setCharacters(characterResult);
         put(BOSSES_KEY, bossResult);
@@ -235,6 +243,10 @@ export default function PartiesPage() {
         if (peopleResult) {
           setPeople(peopleResult);
           put(PEOPLE_KEY, peopleResult);
+        }
+        if (poolResult) {
+          setPools(poolResult);
+          put(POOLS_KEY, poolResult);
         }
         setState("loaded");
       })
@@ -366,6 +378,9 @@ export default function PartiesPage() {
 
   const characterById = new Map(characters.map((c) => [c.id, c]));
   const bossByKey = new Map(bosses.map((b) => [b.bossKey, b]));
+  // Coupons somebody else is holding for you, per party. Through the Drop Log's own entries so the
+  // badge and the log cannot disagree about what you are owed, rather than counted again here.
+  const couponsOwed = couponsOwedByParty(buildDropLog(parties, pools, dropTables).entries);
   const history = week !== null;
 
   // No tables, no picker. Offering one without them would list nothing and then explain the empty
@@ -637,6 +652,7 @@ export default function PartiesPage() {
                         party={party}
                         busy={isSaving(party.id)}
                         clear={clearOf(party)}
+                        couponsOwed={couponsOwed.get(party.id) ?? 0}
                         onToggleClear={
                           history ? undefined : (cleared) => toggleClear(party, cleared)
                         }
@@ -752,6 +768,7 @@ export default function PartiesPage() {
                       party={party}
                       busy={isSaving(party.id)}
                       clear={clearOf(party)}
+                      couponsOwed={couponsOwed.get(party.id) ?? 0}
                       onToggleClear={history ? undefined : (cleared) => toggleClear(party, cleared)}
                       dropTable={dropTables[party.bossKey]}
                       onAddDrop={canAddDrops ? (body) => addDrop(party, body) : undefined}

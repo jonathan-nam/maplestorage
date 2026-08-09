@@ -293,6 +293,22 @@ function totalsOf(entries: DropEntry[]): DropLogTotals {
   };
 }
 
+/**
+ * Coupons somebody else is holding for you, per party.
+ *
+ * The party rows' own figure, off the same entries the Drop Log counts, so the badge and the log
+ * cannot disagree about what you are owed. A party absent from the map is owed nothing, which is
+ * every party whose coupons went where they belong on the night.
+ */
+export function couponsOwedByParty(entries: DropEntry[]): Map<string, number> {
+  const out = new Map<string, number>();
+  for (const entry of entries) {
+    if (!entry.pieces || entry.owedBy === null) continue;
+    out.set(entry.partyId, (out.get(entry.partyId) ?? 0) + entry.yours);
+  }
+  return out;
+}
+
 /** The log narrowed to one character, or all of it. Totals are recomputed, never scaled. */
 export function forCharacter(log: DropLog, characterId: string | null): DropLog {
   if (characterId === null) return log;

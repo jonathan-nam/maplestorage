@@ -218,6 +218,20 @@ describe("poolLabel", () => {
     expect(poolLabel(counts(0, 0, 1))?.done).toBe(true);
     expect(poolLabel(counts(1, 0, 1))?.done).toBe(false);
   });
+
+  it("says the coupons in coupons, because a count of rows cannot", () => {
+    // One row is one hammer or 180 coupons, and the row count leaves out the coupon drops that
+    // came out even, so the two numbers are answering different questions.
+    expect(poolLabel(counts(0, 0, 0), 90)).toEqual({ text: "90 coupons owed", done: false });
+    expect(poolLabel(counts(1, 0, 0), 90)).toEqual({
+      text: "1 in the pool · 90 coupons owed",
+      done: false,
+    });
+    // None owed is silent, which is every party whose coupons went where they belong.
+    expect(poolLabel(counts(0, 0, 3), 0)).toEqual({ text: "3 settled", done: true });
+    // And being owed some is work, so a settled pool does not get the quiet line.
+    expect(poolLabel(counts(0, 0, 3), 20)?.done).toBe(false);
+  });
 });
 
 describe("poolSize", () => {
