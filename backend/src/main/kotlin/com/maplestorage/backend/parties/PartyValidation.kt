@@ -206,6 +206,11 @@ internal fun validateDifficulty(
  * sits at, and letting it own one config and sit in another for the same boss is the same clash
  * through a different door.
  *
+ * Only seats that are still IN a roster compete. A seat somebody left is retired rather than
+ * deleted, because a payout or a past week points at it (see retireOrDelete), and a retired seat is
+ * not running the boss with anybody. Counting one refused a roster over somebody the party no
+ * longer has, naming a config the user could look straight at and not find them in.
+ *
  * Must run inside a transaction.
  */
 internal fun validateBossRoster(
@@ -227,7 +232,12 @@ internal fun validateBossRoster(
                 .innerJoin(Party)
                 .selectAll()
                 .where {
-                    (Party.userId eq userId) and (Party.bossCatalogId eq bossCatalogId) and (Party.standing eq true)
+                    (Party.userId eq userId) and
+                        (Party.bossCatalogId eq bossCatalogId) and
+                        // The config is live, AND the seat is still in its roster. Two different
+                        // `standing` columns, and reading only the first was the bug.
+                        (Party.standing eq true) and
+                        (PartyMember.standing eq true)
                 }.filter { exclude == null || it[Party.id] != exclude }
                 .firstOrNull { it[PartyMember.name].trim().lowercase() in wanted }
         }
