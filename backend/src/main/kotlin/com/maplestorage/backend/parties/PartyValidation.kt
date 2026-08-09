@@ -263,9 +263,17 @@ internal fun validateShares(
         (listOfNotNull(ownCharacterId?.let(::ownSeatName)) + members)
             .map { it.trim().lowercase() }
             .toSet()
+    // Matched the way writeMembers matches them, or a name that differs only in case would be
+    // counted as the one share it defaults to rather than the zero that was sent.
+    val byName = shares.mapKeys { (name, _) -> name.trim().lowercase() }
     return when {
-        shares.keys.any { it.trim().lowercase() !in named } -> "shares may only name somebody in this party"
-        shares.values.any { it < 1 || it > MAX_SHARES } -> "a share count must be between 1 and $MAX_SHARES"
+        byName.keys.any { it !in named } -> "shares may only name somebody in this party"
+        // Zero is a seat that takes nothing, which some parties agree: one member keeps the drop
+        // and owes the others nothing, because they are there for something else. See V44.
+        byName.values.any { it < 0 || it > MAX_SHARES } -> "a share count must be between 0 and $MAX_SHARES"
+        // Everybody on zero is not an arrangement. It divides the pot by nothing, and the roster
+        // sent is the whole party, so no absent name is going to make up the difference.
+        named.sumOf { byName[it] ?: 1 } < 1 -> "somebody in the party has to take a share"
         else -> null
     }
 }

@@ -13,13 +13,16 @@ export const MAX_SHARES = 99;
  *
  * Null rather than a fallback, for the reason parseQuantity gives. A "2" that fails to read and
  * quietly becomes 1 pays somebody half of what the party agreed.
+ *
+ * Zero is a real answer: a seat that takes nothing, because the party agreed one member keeps the
+ * drops. Blank is still ONE, so the box being empty never means somebody has been cut out. See V44.
  */
 export function parseShares(input: string): number | null {
   const cleaned = input.trim();
   if (cleaned === "") return 1;
   if (!/^\d+$/.test(cleaned)) return null;
   const value = Number(cleaned);
-  return value >= 1 && value <= MAX_SHARES ? value : null;
+  return value >= 0 && value <= MAX_SHARES ? value : null;
 }
 
 /**
