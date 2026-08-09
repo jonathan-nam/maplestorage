@@ -210,6 +210,10 @@ object Party : Table("party") {
     // matching. The foreign key is real, declared in the migration; only this mirror leaves it out.
     val looterMemberId = uuid("looter_member_id").nullable()
 
+    // Who takes the odd stack when a drop will not divide. A plain column for the same reason as
+    // looterMemberId above. See V42__party_surplus.sql.
+    val surplusMemberId = uuid("surplus_member_id").nullable()
+
     // One seat, because nobody else was there. It owns a pool like any other config and is listed
     // as a party nowhere. See V30__party_solo.sql.
     val solo = bool("solo")

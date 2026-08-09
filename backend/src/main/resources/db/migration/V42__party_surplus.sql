@@ -1,0 +1,21 @@
+-- Who takes the odd stack, when a party has settled on somebody.
+--
+-- A drop that will not divide leaves one stack over: Hard Malefic Star is 3 of 30 between two
+-- people, so one of them walks off with an extra 15 pieces. Some parties just agree who that is.
+--
+-- A DEFAULT and nothing more. It seeds the chips on the Drop Log; what counts is still the
+-- arrangement recorded against the night in party_loot_bundle, because a standing setting cannot
+-- know about the week somebody swapped. The difference matters: storing this AS the arrangement
+-- would answer for nights nobody looked at, which is the class of wrong number V40 was written for.
+--
+-- Distinct from looter_member_id, which is a party where one seat picks up EVERYTHING. This is a
+-- party where everybody picks up their own and one of them takes the remainder. A party may set
+-- both, and the looter wins, because it already says who holds every stack.
+--
+-- NULL is nobody having said, which is not the same as nobody taking it. With none set the odd
+-- stack is suggested for whoever is furthest behind, so it rotates and the debts alternate instead
+-- of running one way. Setting this turns that off, which is the point of setting it.
+--
+-- SET NULL rather than CASCADE, for the reason V36 gives: a seat leaving lapses the designation,
+-- and taking the party with it would not be true.
+ALTER TABLE party ADD COLUMN surplus_member_id UUID REFERENCES party_member(id) ON DELETE SET NULL;
