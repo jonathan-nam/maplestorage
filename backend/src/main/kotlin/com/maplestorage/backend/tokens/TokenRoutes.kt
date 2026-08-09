@@ -5,6 +5,7 @@ import com.maplestorage.backend.db.Characters
 import com.maplestorage.backend.db.RedemptionRule
 import com.maplestorage.backend.db.TokenCatalog
 import com.maplestorage.backend.plugins.principalIdAndEmail
+import com.maplestorage.backend.users.activeWorldFor
 import com.maplestorage.backend.users.ensureUser
 import io.ktor.server.application.call
 import io.ktor.server.response.respond
@@ -12,6 +13,7 @@ import io.ktor.server.routing.Route
 import io.ktor.server.routing.RoutingContext
 import io.ktor.server.routing.get
 import org.jetbrains.exposed.v1.core.JoinType
+import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.countDistinct
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.sum
@@ -60,10 +62,11 @@ internal fun tokenTotalsFor(userId: String): List<TokenTotalResponse> {
             totalQuantity,
             contributors,
         )
-        // Scope to this user's characters. The join reaches every user's character
-        // rows otherwise, so dropping this leaks other people's counts into the
-        // totals. Silently, and as a plausible-looking larger number.
-        .where { Characters.userId eq userId }
+        // Scope to this user's characters, in the world being shown. The join reaches every user's
+        // character rows otherwise, so dropping the first leaks other people's counts into the
+        // totals; dropping the second pools two worlds' inventories, which cannot be redeemed
+        // against each other. Both silently, and both as a plausible-looking larger number.
+        .where { (Characters.userId eq userId) and (Characters.worldType eq activeWorldFor(userId)) }
         .groupBy(
             TokenCatalog.id,
             TokenCatalog.name,

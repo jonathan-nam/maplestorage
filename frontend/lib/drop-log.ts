@@ -109,6 +109,14 @@ export type DropLogTotals = {
   drops: number;
   sold: number;
   /**
+   * Drops somebody took, in a world that cannot sell them.
+   *
+   * Its own figure rather than part of `sold`, which counted every status that was not PENDING and
+   * so would have reported a Heroic account's claimed drops as sales. Nothing sold: there is no
+   * buyer, no pot and no meso figure anywhere behind the number.
+   */
+  taken: number;
+  /**
    * Drops with something still to do, which is NOT the same as drops not yet sold.
    *
    * A piece drop you already hold your share of is a record, not work: the coupons are in your
@@ -284,7 +292,10 @@ export function dropStatusLabel(entry: DropEntry): string {
 function totalsOf(entries: DropEntry[]): DropLogTotals {
   return {
     drops: entries.length,
-    sold: entries.filter((e) => e.status !== "PENDING").length,
+    // Named states rather than "not PENDING". The catch-all counted TAKEN as a sale the moment
+    // that status existed, which is a meso word for a drop no money ever changed hands over.
+    sold: entries.filter((e) => e.status === "SOLD" || e.status === "PAID_OUT").length,
+    taken: entries.filter((e) => e.status === "TAKEN").length,
     pending: entries.filter(isOutstanding).length,
     piecesOwed: entries
       .filter((e) => e.pieces && e.owedBy !== null)

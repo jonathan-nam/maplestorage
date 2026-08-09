@@ -66,9 +66,8 @@ const VESTIGE = "vestige-of-erion";
 
 export default function DropLogPage() {
   const { getToken } = useAuth();
-  // Read off "does any character trade", not off one world: this page sums across every party, so
-  // one Interactive character means there is real money here to show. Only an account with none at
-  // all gets the tiles dropped, and there its totals were three true zeroes.
+  // This page sums across every party the server hands back, which is one world's. In a Heroic
+  // world the money tiles would be three true zeroes, so they go.
   const money = showsMoney(useAccountSettings()?.trades);
 
   const [parties, setParties] = useState<Party[]>(peek<Party[]>(PARTIES_KEY) ?? []);
@@ -321,7 +320,14 @@ export default function DropLogPage() {
                   <span className="stat-label">Drops</span>
                   <span className="stat-value">{totals.drops}</span>
                   <span className="stat-note">
-                    {totals.sold} sold
+                    {/* Whichever happened. A Heroic account never sells one and an Interactive
+                        one never takes one, so in practice this is a single figure either way. */}
+                    {[
+                      totals.sold > 0 || totals.taken === 0 ? `${totals.sold} sold` : null,
+                      totals.taken > 0 ? `${totals.taken} taken` : null,
+                    ]
+                      .filter(Boolean)
+                      .join(", ")}
                     {totals.pending > 0 && `, ${totals.pending} in the pool`}
                     {/* The pieces behind the count, because one row is one hammer or 180
                         coupons and a number of rows does not say which. Only when somebody is

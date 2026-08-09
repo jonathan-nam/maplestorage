@@ -148,8 +148,54 @@ export function summarize(loot: Loot[]): LootSummary {
   return {
     pending: loot.filter((l) => l.status === "PENDING").length,
     awaitingPayout: loot.filter((l) => l.status === "SOLD").length,
-    settled: loot.filter((l) => l.status === "PAID_OUT").length,
+    // TAKEN is terminal in a Heroic pool the way PAID_OUT is in an Interactive one: somebody has
+    // the item and nothing further is owed. Counting only PAID_OUT would report a Heroic party
+    // that had settled a season of drops as having done nothing at all.
+    settled: loot.filter((l) => l.status === "PAID_OUT" || l.status === "TAKEN").length,
   };
+}
+
+export type TakenCount = {
+  memberId: string;
+  name: string;
+  /** Items taken, not rows. A stack of six is six. */
+  taken: number;
+  /** Nobody has taken fewer. Ties are real, so this can be true of several seats. */
+  up: boolean;
+};
+
+/**
+ * How many items each seat has taken out of this pool.
+ *
+ * The whole product of a Heroic pool. Nothing there can be sold, so the only lever a party has is
+ * who picks what up, and the only thing that makes that fair is a count somebody can point at.
+ *
+ * Items rather than rows, because a row is not a unit: one row is one hammer or a stack of thirty
+ * coupons, and counting rows would call those the same turn. `up` is off the minimum rather than a
+ * sorted order, so the seats stay in roster order and a tie stays a tie instead of being broken by
+ * whoever happens to sort first.
+ *
+ * Every seat is listed, zero included. A seat that has taken nothing is exactly the seat this is
+ * for, and leaving it out until it has something is the one omission that would make the tally
+ * useless.
+ */
+export function takenTally(loot: Loot[], members: PartyMember[]): TakenCount[] {
+  const counts = new Map(members.map((m) => [m.id, 0]));
+  for (const drop of loot) {
+    if (drop.takenByMemberId === null) continue;
+    const held = counts.get(drop.takenByMemberId);
+    // A seat that has left the party. Its drops are not added to anybody else's count: attributing
+    // them would inflate a seat that never took them, which is the wrong number in miniature.
+    if (held === undefined) continue;
+    counts.set(drop.takenByMemberId, held + drop.quantity);
+  }
+  const fewest = Math.min(...counts.values());
+  return members.map((m) => ({
+    memberId: m.id,
+    name: m.name,
+    taken: counts.get(m.id) ?? 0,
+    up: (counts.get(m.id) ?? 0) === fewest,
+  }));
 }
 
 /** The three counts a party row reads its badge off. Mirrors PartyResponse's own fields. */
@@ -200,6 +246,8 @@ export function statusLabel(status: string): string {
   if (status === "PENDING") return "In the pool";
   if (status === "SOLD") return "Awaiting payout";
   if (status === "PAID_OUT") return "Settled";
+  // Not "Settled": nothing was paid, and a Heroic pool has no payment to have settled.
+  if (status === "TAKEN") return "Taken";
   return status;
 }
 

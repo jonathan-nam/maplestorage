@@ -5,6 +5,7 @@ import Link from "next/link";
 import { SectionMenu } from "@/components/section-menu";
 import { SharpEyesMark } from "./sharp-eyes-mark";
 import { UserAvatar } from "@/components/user-avatar";
+import { WorldToggle } from "@/components/world-toggle";
 
 // Every page used to restate the app's name in its own <h1> and link to the others
 // by hand. One header instead, with the Sharp Eyes mark.
@@ -39,6 +40,12 @@ export function SiteHeader() {
         </ClerkLoading>
         <SignedIn>
           <SectionMenu />
+        </SignedIn>
+
+        {/* Which world everything below is answering for. Beside the sections rather than by the
+            avatar: it scopes what the menu leads to, not who you are signed in as. */}
+        <SignedIn>
+          <WorldToggle />
         </SignedIn>
 
         <ClerkLoading>

@@ -9,6 +9,7 @@ import com.maplestorage.backend.db.PartyMember
 import com.maplestorage.backend.db.Person
 import com.maplestorage.backend.db.PersonCharacter
 import com.maplestorage.backend.users.WORLD_INTERACTIVE
+import com.maplestorage.backend.users.activeWorldFor
 import kotlinx.datetime.LocalDate
 import org.jetbrains.exposed.v1.core.JoinType
 import org.jetbrains.exposed.v1.core.Op
@@ -74,8 +75,11 @@ internal fun partiesFor(
             // overload: party_member also references characters, so "which link" is worth stating.
             .join(Characters, JoinType.INNER, Party.characterId, Characters.id)
             .selectAll()
-            .where { (Party.userId eq userId) and wanted }
-            .orderBy(BossCatalog.sortOrder)
+            .where {
+                // Narrowed to the world being shown. A party belongs to the world its character is
+                // in, so this is the same lens the character list is under, applied one join along.
+                (Party.userId eq userId) and (Characters.worldType eq activeWorldFor(userId)) and wanted
+            }.orderBy(BossCatalog.sortOrder)
             .toList()
     if (rows.isEmpty()) return emptyList()
 

@@ -22,6 +22,7 @@ export function LootRow({
   busy,
   onSell,
   onUnsell,
+  onSetTaken,
   onSetPaid,
   onDelete,
 }: {
@@ -31,6 +32,7 @@ export function LootRow({
   busy: boolean;
   onSell: (body: SellLootBody) => void;
   onUnsell: () => void;
+  onSetTaken: (memberId: string | null) => void;
   onSetPaid: (memberId: string, paid: boolean) => void;
   onDelete: () => void;
 }) {
@@ -100,8 +102,46 @@ export function LootRow({
         <p className="loot-warn">Everyone gets their own. Nothing to split.</p>
       )}
 
+      {/* Where nothing sells, the question is who takes it. That is the whole of a Heroic pool's
+          product: the item cannot move again, so which seat ends up with it is the only lever the
+          party has, and one button per seat is the shortest way to pull it. Not offered on a solo
+          pool, which has nobody to take turns with. */}
       {loot.status === "PENDING" && !canSell && (
         <div className="loot-actions">
+          {!party.solo &&
+            ran.map((m) => (
+              <button
+                key={m.id}
+                type="button"
+                className="party-cancel"
+                onClick={() => onSetTaken(m.id)}
+                disabled={busy}
+              >
+                {m.name} took it
+              </button>
+            ))}
+          <button type="button" className="party-delete" onClick={onDelete} disabled={busy}>
+            Remove
+          </button>
+        </div>
+      )}
+
+      {loot.status === "TAKEN" && (
+        <div className="loot-actions">
+          <span className="loot-taken-by">
+            {party.seats.find((m) => m.id === loot.takenByMemberId)?.name ??
+              // The seat has left. Naming nobody beats naming the wrong person, and the row still
+              // says the drop is spoken for.
+              "Somebody no longer in the party"}
+          </span>
+          <button
+            type="button"
+            className="party-cancel"
+            onClick={() => onSetTaken(null)}
+            disabled={busy}
+          >
+            Put back
+          </button>
           <button type="button" className="party-delete" onClick={onDelete} disabled={busy}>
             Remove
           </button>
@@ -244,7 +284,10 @@ export function LootRow({
           </div>
         ))}
 
-      {loot.status !== "PENDING" && (
+      {/* Sold, which TAKEN is not: it has no pot, no seller and no payout roster, so splitOf would
+          refuse it and the row would read "this sale names somebody who is no longer in the party"
+          about a drop that was never sold. */}
+      {loot.status !== "PENDING" && loot.status !== "TAKEN" && (
         <>
           {result === null ? (
             // splitOf refuses when a seat it needs is missing. Saying so beats drawing a payout

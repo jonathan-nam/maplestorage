@@ -97,6 +97,7 @@ const coupon = (
   splitMethod: null,
   sellerShares: null,
   sellerMemberId: null,
+  takenByMemberId: null,
   soldAt: null,
   payouts: [],
   ranThatWeek: [],

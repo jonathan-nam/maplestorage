@@ -3,15 +3,18 @@
 import type { WorldType } from "@/lib/world";
 
 export type Settings = {
-  // What a newly added character starts in, and what "all characters" last said. Not an assertion
-  // about the account: a character's own world is the truth, and one account can hold both.
+  // Which world the site is answering for. Every account-wide list is narrowed to it server-side,
+  // so it is not a preference, it is what the numbers on screen are numbers OF.
   worldType: WorldType;
-  // Whether any character is somewhere that trades. Derived by the server from the characters, and
-  // the only one of the two an account-wide screen may read.
+  // Whether anything in that world can change hands. Follows from worldType, and the server sends
+  // it rather than the client deriving it so the rule lives in one place.
   trades: boolean;
+  // How many characters the other world holds. What lets a screen say it is narrow rather than
+  // empty. See the toggle.
+  otherWorldCharacters: number;
 };
 
-// PUT /api/settings. Sets every character, and the default a new one starts in.
+// PUT /api/settings. Changes which world the site shows. Moves no character: see saveSettings.
 export type SaveSettingsBody = {
   worldType: WorldType;
 };

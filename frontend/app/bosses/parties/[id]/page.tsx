@@ -104,6 +104,11 @@ export default function PartyPage() {
     mutate(lootId, `${lootUrl}/${lootId}/sale`, { method: "PUT", body: JSON.stringify(body) });
   const unsell = (lootId: string) =>
     mutate(lootId, `${lootUrl}/${lootId}/sale`, { method: "DELETE" });
+  const setTaken = (lootId: string, memberId: string | null) =>
+    mutate(lootId, `${lootUrl}/${lootId}/taken`, {
+      method: "PUT",
+      body: JSON.stringify({ memberId }),
+    });
   const setPaid = (lootId: string, memberId: string, paid: boolean) =>
     mutate(lootId, `${lootUrl}/${lootId}/payouts/${memberId}`, {
       method: "PUT",
@@ -199,6 +204,7 @@ export default function PartyPage() {
             onAdd={add}
             onSell={sell}
             onUnsell={unsell}
+            onSetTaken={setTaken}
             onSetPaid={setPaid}
             onDelete={remove}
           />

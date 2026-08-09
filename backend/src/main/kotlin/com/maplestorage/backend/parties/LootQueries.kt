@@ -1,15 +1,14 @@
 package com.maplestorage.backend.parties
 
-import com.maplestorage.backend.bosses.WEEKLY_CADENCE
-import com.maplestorage.backend.bosses.periodAfter
 import com.maplestorage.backend.bosses.weekOf
 import com.maplestorage.backend.db.BossCatalog
 import com.maplestorage.backend.db.BossDropAmount
+import com.maplestorage.backend.db.Characters
 import com.maplestorage.backend.db.DropCatalog
 import com.maplestorage.backend.db.Party
 import com.maplestorage.backend.db.PartyLoot
 import com.maplestorage.backend.db.PartyLootPayout
-import kotlinx.datetime.LocalDate
+import com.maplestorage.backend.users.activeWorldFor
 import org.jetbrains.exposed.v1.core.JoinType
 import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.SortOrder
@@ -30,6 +29,14 @@ internal const val STATUS_SOLD = "SOLD"
 
 /** Sold and everyone has been paid. */
 internal const val STATUS_PAID_OUT = "PAID_OUT"
+
+/**
+ * Somebody took the item, in a world where it cannot be sold.
+ *
+ * Terminal, like PAID_OUT, and for the same reason: there is nothing left to do with it. Not called
+ * PAID_OUT anyway, because nobody paid anybody. See V49.
+ */
+internal const val STATUS_TAKEN = "TAKEN"
 
 // BOUGHT is a party member buying the drop off the party: no Auction House cut came off the top,
 // and sellerMemberId is the buyer. See V29__loot_bought_by_member.sql.
@@ -120,8 +127,12 @@ internal fun lootFor(partyId: Uuid): List<LootResponse> {
 internal fun allLootFor(userId: String): List<PartyLootPoolResponse> {
     val rows =
         lootWithCatalog()
+            // For the world lens only. The pool itself needs nothing from the character, but the
+            // Drop Log and the Wallet both sum across every party, and summing across two worlds
+            // would add mesos that cannot be earned to mesos that can.
+            .join(Characters, JoinType.INNER, Party.characterId, Characters.id)
             .selectAll()
-            .where { Party.userId eq userId }
+            .where { (Party.userId eq userId) and (Characters.worldType eq activeWorldFor(userId)) }
             .orderBy(PartyLoot.droppedOn to SortOrder.DESC, PartyLoot.createdAt to SortOrder.DESC)
             .toList()
     if (rows.isEmpty()) return emptyList()
@@ -173,9 +184,14 @@ internal fun seatsWithLootHistory(partyId: Uuid): Set<Uuid> {
 /** Derived, never stored, so it cannot drift from the sale and the payout rows it reads. */
 private fun statusOf(
     sold: Boolean,
+    taken: Boolean,
     payouts: List<LootPayoutResponse>,
 ): String =
     when {
+        // Before sold, though the two cannot both be true (party_loot_sold_or_taken). Checking the
+        // exclusive pair in a fixed order means a constraint that ever lapses shows up as one
+        // status rather than as two readings of the same row in different callers.
+        taken -> STATUS_TAKEN
         !sold -> STATUS_PENDING
         payouts.all { it.paid } -> STATUS_PAID_OUT
         else -> STATUS_SOLD
@@ -187,6 +203,7 @@ private fun ResultRow.toLootResponse(
     bundlesBy: List<LootBundleResponse>,
 ): LootResponse {
     val sold = this[PartyLoot.soldAt] != null
+    val takenBy = this[PartyLoot.takenByMemberId]?.toString()
     return LootResponse(
         id = this[PartyLoot.id].toString(),
         dropKey = this.getOrNull(DropCatalog.dropKey),
@@ -200,109 +217,17 @@ private fun ResultRow.toLootResponse(
         quantity = this[PartyLoot.quantity],
         droppedOn = this[PartyLoot.droppedOn].toString(),
         weekStart = weekOf(this[PartyLoot.droppedOn]).toString(),
-        status = statusOf(sold, payouts),
+        status = statusOf(sold, takenBy != null, payouts),
         saleAmount = this[PartyLoot.saleAmount],
         amountBasis = this[PartyLoot.amountBasis],
         splitMethod = this[PartyLoot.splitMethod],
         sellerShares = this[PartyLoot.sellerShares],
         sellerMemberId = this[PartyLoot.sellerMemberId]?.toString(),
+        takenByMemberId = takenBy,
         soldAt = this[PartyLoot.soldAt]?.toString(),
         payouts = payouts,
         ranThatWeek = ranThatWeek,
         bundles = this.getOrNull(BossDropAmount.bundles),
         bundlesBy = bundlesBy,
     )
-}
-
-/** Unsold drops, sold ones with somebody still unpaid, and ones with nothing left to do. */
-internal data class LootCounts(
-    val pending: Int,
-    val awaitingPayout: Int,
-    // Sold and everybody paid. Carried so a pool that is fully settled is still VISIBLE from the
-    // list: with only the two counters above, marking the last share paid made a party's whole
-    // drop history vanish from its row, and there was nothing to say the pool was not empty.
-    val settled: Int,
-)
-
-private data class LootRow(
-    val id: Uuid,
-    val partyId: Uuid,
-    val droppedOn: LocalDate,
-    val sold: Boolean,
-)
-
-/**
- * The pool counts per config, for one week or for all time.
- *
- * A null [week] counts every drop the pool has ever held, which is what the party's own page and
- * the delete guard want. Otherwise a drop belongs to the week it fell in, so a week that has passed
- * shows the pool it had rather than today's.
- *
- * Outstanding drops are the one exception to that, and they carry FORWARD: something unsold, or
- * sold with somebody still unpaid, is work left to do rather than history, so it keeps counting in
- * every later week until it settles. Otherwise a drop from last week that still owes somebody money
- * would disappear from Party View entirely, which is the silent-omission failure this repo exists
- * to prevent.
- *
- * Nothing carries backwards. A drop that fell after the week being shown is not in that week, so a
- * settled pool stays settled when you step back to it.
- *
- * "Awaiting payout" is derived the same way the loot rows derive their status: sold, and at least
- * one payout row unpaid. Deriving it in one place and storing it in none is what keeps the card's
- * badge and the drop's own status from disagreeing.
- */
-internal fun lootCountsFor(
-    partyIds: List<Uuid>,
-    week: LocalDate?,
-): Map<Uuid, LootCounts> {
-    val loot =
-        if (partyIds.isEmpty()) {
-            emptyList()
-        } else {
-            PartyLoot
-                .selectAll()
-                .where { PartyLoot.partyId inList partyIds }
-                .map {
-                    LootRow(
-                        it[PartyLoot.id],
-                        it[PartyLoot.partyId],
-                        it[PartyLoot.droppedOn],
-                        it[PartyLoot.soldAt] != null,
-                    )
-                }
-        }
-    if (loot.isEmpty()) return emptyMap()
-
-    // Drops still waiting to be SOLD. A drop that comes in pieces is never one of them, whoever is
-    // holding it: it settles through the tranche ledger, and the party row says what it is owed in
-    // COUPONS. Counting it here as well read as two things to do, one coupon drop showing as
-    // "1 in the pool · 30 coupons owed". See LootPoolWork.kt.
-    val inPieces = pieceLootIds(partyIds)
-    val outstanding = { row: LootRow -> !row.sold && row.id !in inPieces }
-
-    val unpaidLootIds =
-        PartyLootPayout
-            .selectAll()
-            .where { (PartyLootPayout.lootId inList loot.map { it.id }) and (PartyLootPayout.paid eq false) }
-            .map { it[PartyLootPayout.lootId] }
-            .toSet()
-
-    // Through periodAfter rather than a +7, so the week a drop is filed under and the week the
-    // stepper walks cannot drift apart.
-    val weekEnd = week?.let { periodAfter(WEEKLY_CADENCE, it) }
-
-    // Two windows, and the difference between them is the carry-forward. Outstanding drops count
-    // from the week they fell in onwards; settled ones count in that week alone.
-    val byThen = { row: LootRow -> weekEnd == null || row.droppedOn < weekEnd }
-    val inWeek = { row: LootRow -> week == null || (row.droppedOn >= week && byThen(row)) }
-
-    return loot
-        .groupBy { it.partyId }
-        .mapValues { (_, rows) ->
-            LootCounts(
-                pending = rows.count { outstanding(it) && byThen(it) },
-                awaitingPayout = rows.count { it.sold && it.id in unpaidLootIds && byThen(it) },
-                settled = rows.count { it.sold && it.id !in unpaidLootIds && inWeek(it) },
-            )
-        }
 }

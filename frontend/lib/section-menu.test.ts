@@ -92,10 +92,10 @@ describe("what an account with nothing to trade is offered", () => {
     expect(activeHref("/bosses/split")).toBe("/bosses/split");
   });
 
-  it("lists everything while any character trades, and while the answer is unknown", () => {
-    // One Interactive character is enough. The trap this replaced read a single account-wide
-    // world, which took the Split Utility away from an account that still had a character
-    // needing it.
+  it("lists everything in a trading world, and while the answer is unknown", () => {
+    // Unknown draws the full menu on purpose. The panel does not mount until the hamburger is
+    // clicked, which is almost always after /api/settings has answered, and an entry that appears
+    // a moment later is better than one that flickers away.
     expect(listedFor(true)).toEqual(MENU_HREFS);
     expect(listedFor(undefined)).toEqual(MENU_HREFS);
   });

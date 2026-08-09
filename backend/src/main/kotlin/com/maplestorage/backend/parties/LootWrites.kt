@@ -174,6 +174,24 @@ internal fun unsellLoot(
 }
 
 /**
+ * Records who took the item, or clears it when [memberId] is null.
+ *
+ * The Heroic counterpart of sellLoot, and much smaller than it because nothing follows: no pot to
+ * divide, no payout rows to pin, nobody owed. The item cannot move again, so the only fact worth
+ * keeping is which seat has it.
+ */
+internal fun setLootTakenBy(
+    lootId: Uuid,
+    memberId: Uuid?,
+    now: Instant,
+) {
+    PartyLoot.update({ PartyLoot.id eq lootId }) {
+        it[takenByMemberId] = memberId
+        it[updatedAt] = now
+    }
+}
+
+/**
  * Records which seat picked up how many of a drop's stacks, replacing whatever was there.
  *
  * Delete then insert, rather than an upsert per seat: the arrangement is one fact about one night
