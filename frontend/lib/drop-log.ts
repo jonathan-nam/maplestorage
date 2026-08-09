@@ -319,10 +319,15 @@ export type DropLine = {
  * are not evidence of one drop. Order is kept from the entries, so the fold sits where its newest
  * row was and the log stays newest-first.
  *
+ * Inside a fold the runs go by CHARACTER, in `characterOrder`, which is the order the roster is
+ * arranged in. Eleven runs newest-first interleaved six characters, so reading one character's
+ * night meant picking their rows out of the list. Same argument the party arrangements make, and
+ * the same parameter: see consolidate() in lib/parties.ts.
+ *
  * The money is summed exactly as a group subtotal is, over `sellerReceives`, which is the one figure
  * that means the same thing on all three bases. See the note at the top of this file.
  */
-export function consolidate(entries: DropEntry[]): DropLine[] {
+export function consolidate(entries: DropEntry[], characterOrder: string[]): DropLine[] {
   const byDrop = new Map<string, DropEntry[]>();
   for (const entry of entries) {
     if (entry.dropKey === null) continue;
@@ -330,6 +335,13 @@ export function consolidate(entries: DropEntry[]): DropLine[] {
     if (seen) seen.push(entry);
     else byDrop.set(entry.dropKey, [entry]);
   }
+
+  // A character off the end of the roster sorts last rather than first, which is where a missing
+  // index would otherwise put every one of them.
+  const rank = new Map(characterOrder.map((id, i) => [id, i]));
+  const byCharacter = (a: DropEntry, b: DropEntry) =>
+    (rank.get(a.characterId) ?? Number.MAX_SAFE_INTEGER) -
+    (rank.get(b.characterId) ?? Number.MAX_SAFE_INTEGER);
 
   const lines: DropLine[] = [];
   const done = new Set<string>();
@@ -341,7 +353,10 @@ export function consolidate(entries: DropEntry[]): DropLine[] {
     }
     if (done.has(entry.dropKey!)) continue;
     done.add(entry.dropKey!);
-    lines.push(lineOf(entry.dropKey!, rows, true));
+    // Sorted on a copy: `entries` is the log's own newest-first order and the LINE's place in the
+    // list is read off it, so sorting in place would move the fold as well as its runs. A stable
+    // sort, so one character's own runs stay newest first inside their group.
+    lines.push(lineOf(entry.dropKey!, [...rows].sort(byCharacter), true));
   }
   return lines;
 }
