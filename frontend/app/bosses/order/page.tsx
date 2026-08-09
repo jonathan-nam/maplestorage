@@ -413,7 +413,7 @@ export default function RunOrderPage() {
           <ul className="night-roster">
             {roster.map((person) => {
               const on = !away.includes(person.id);
-              const pin = timed ? pinOf(windows[person.id]) : null;
+              const pin = pinOf(windows[person.id]);
               return (
                 <li className="night-chip" key={person.id}>
                   <button
@@ -428,21 +428,20 @@ export default function RunOrderPage() {
                     }}
                   >
                     {person.name}
-                    {pin && <span className="night-pin">{pin}</span>}
+                    {pin && <span className={timed ? "night-pin" : "night-pin is-off"}>{pin}</span>}
                   </button>
-                  {timed && (
-                    <button
-                      type="button"
-                      className={opened === person.id ? "night-chip-set is-open" : "night-chip-set"}
-                      aria-expanded={opened === person.id}
-                      aria-label={`When ${person.name} is free`}
-                      onClick={() =>
-                        setOpened((current) => (current === person.id ? null : person.id))
-                      }
-                    >
-                      <span aria-hidden="true">&#9662;</span>
-                    </button>
-                  )}
+                  <button
+                    type="button"
+                    className={opened === person.id ? "night-chip-set is-open" : "night-chip-set"}
+                    aria-expanded={opened === person.id}
+                    aria-label={`When ${person.name} is free`}
+                    disabled={!timed}
+                    onClick={() =>
+                      setOpened((current) => (current === person.id ? null : person.id))
+                    }
+                  >
+                    <span aria-hidden="true">&#9662;</span>
+                  </button>
                 </li>
               );
             })}
@@ -450,8 +449,8 @@ export default function RunOrderPage() {
 
           {/* Named off the roster rather than off `opened` alone: switching source swaps everybody
               out, and a row headed by nothing is worse than no row. */}
-          {timed && openedPerson !== null && (
-            <div className="night-detail">
+          {openedPerson !== null && (
+            <div className={timed ? "night-detail" : "night-detail night-off"}>
               <span className="night-detail-who">{openedPerson.name}</span>
               <label className="night-custom">
                 <span>Free from</span>
@@ -459,6 +458,7 @@ export default function RunOrderPage() {
                   className="split-input"
                   type="text"
                   inputMode="decimal"
+                  disabled={!timed}
                   value={(windows[openedPerson.id] ?? NO_WINDOW).from}
                   placeholder={formatOffsetShort(startAt)}
                   onChange={(e) => {
@@ -477,6 +477,7 @@ export default function RunOrderPage() {
                   className="split-input"
                   type="text"
                   inputMode="decimal"
+                  disabled={!timed}
                   value={(windows[openedPerson.id] ?? NO_WINDOW).until}
                   placeholder={formatOffsetShort(startAt + budget)}
                   onChange={(e) => {
@@ -494,9 +495,10 @@ export default function RunOrderPage() {
         </section>
       )}
 
-      {/* Sat where the times are, so the way back to them is where they went. Everything the clock
-          drives hangs off this one box: the window below, the windows people gave, and every time
-          in the plan and in what gets pasted. */}
+      {/* Everything the clock drives hangs off this one box: the window below, the windows people
+          gave, and every time in the plan and in what gets pasted. Unticked it disables them rather
+          than removing them, so the only thing that changes size is the plan. Two sections and a
+          chevron per chip vanishing moved the whole page under the cursor that ticked it. */}
       {runs.length > 0 && (
         <label className="night-toggle">
           <input
@@ -511,8 +513,8 @@ export default function RunOrderPage() {
         </label>
       )}
 
-      {runs.length > 0 && timed && (
-        <section className="night-section">
+      {runs.length > 0 && (
+        <section className={timed ? "night-section" : "night-section night-off"}>
           <h2 className="night-heading">When you&apos;re running</h2>
           <div className="night-budget">
             <label className="night-custom">
@@ -521,6 +523,7 @@ export default function RunOrderPage() {
                 className="split-input"
                 type="text"
                 inputMode="decimal"
+                disabled={!timed}
                 value={startText}
                 placeholder={now === null ? "" : formatOffsetShort(nextHalfHour(now))}
                 onChange={(e) => {
@@ -536,6 +539,7 @@ export default function RunOrderPage() {
                   type="button"
                   className={budget === preset ? "basis-tab active" : "basis-tab"}
                   aria-pressed={budget === preset}
+                  disabled={!timed}
                   onClick={() => {
                     setDuration(preset);
                     setEndText(null);
@@ -554,6 +558,7 @@ export default function RunOrderPage() {
                 className="split-input"
                 type="text"
                 inputMode="decimal"
+                disabled={!timed}
                 value={endShown}
                 onChange={(e) => {
                   setEndText(e.target.value);

@@ -4528,8 +4528,7 @@ button.link:disabled {
   display: inline-flex;
 }
 
-/* Only where the chevron is there to close the pill. An untimed night has no windows to set, so
-   the name is the whole chip and keeps both its ends. */
+/* The chevron closes the pill, so the name gives up that end. */
 .night-chip .night-person:not(:last-child) {
   border-top-right-radius: 0;
   border-bottom-right-radius: 0;
@@ -4547,11 +4546,16 @@ button.link:disabled {
   cursor: pointer;
 }
 
-.night-chip-set:hover,
+.night-chip-set:hover:not(:disabled),
 .night-chip-set.is-open {
   border-color: var(--accent);
   background: color-mix(in srgb, var(--accent) 26%, var(--surface));
   color: var(--ink-strong);
+}
+
+.night-chip-set:disabled {
+  opacity: 0.45;
+  cursor: default;
 }
 
 /* A window the chip is carrying. Coloured, because the difference between a person who is on and a
@@ -4560,6 +4564,11 @@ button.link:disabled {
   margin-left: 4px;
   color: var(--accent);
   font-variant-numeric: tabular-nums;
+}
+
+/* Still there, still the same width, but not what the plan was built from. */
+.night-pin.is-off {
+  color: var(--muted-2);
 }
 
 /* One row, reused by whichever chip is open, so four people are not four sets of controls. */
@@ -4629,6 +4638,18 @@ button.link:disabled {
   color: var(--muted);
   font-size: 12px;
   cursor: pointer;
+}
+
+/* Off, not gone. Show times unticked leaves every time control at exactly the size it had, so
+   ticking the box only resizes the plan. Opacity rather than colours: it dims a heading, a label,
+   an input and a row of tabs in one rule, and none of them can drift out of step with it. */
+.night-off {
+  opacity: 0.45;
+}
+
+.night-off .split-input,
+.night-off .basis-tab {
+  cursor: default;
 }
 
 /* Copy button on its own line, plan tabs under it. Both act on the plan below, and a row let one
