@@ -5,7 +5,7 @@ import { Fragment, useEffect, useState } from "react";
 import { DropPicker } from "@/components/drop-picker";
 import { apiAssetUrl } from "@/lib/api";
 import { BOSS_ART_2X } from "@/lib/boss-art";
-import { clearClass, clearStateLabel, nextClear } from "@/lib/boss-clears";
+import { clearStateLabel, nextClear } from "@/lib/boss-clears";
 import { bossLabel } from "@/lib/boss-difficulty";
 import {
   formatDuration,
@@ -132,8 +132,8 @@ export function RunPlan({
               </th>
             ))}
             {log && (
-              <th className="run-col-head run-clear-head" scope="col">
-                <span className="visually-hidden">Cleared</span>
+              <th className="run-clear-head" scope="col">
+                Cleared
               </th>
             )}
           </tr>
@@ -281,25 +281,27 @@ export function RunPlan({
                     );
                   })}
 
-                  {/* Last on the line, as it is on a party row, so the eye runs down one column of
-                      states rather than hunting for them under each boss. A run with no config
-                      behind it keeps the cell empty rather than losing it, or the grid goes
-                      ragged. */}
+                  {/* A tick or nothing, not the word. Party View's three-state pill says which of
+                      "not cleared" and "not reported" a row is; here the filter above means every
+                      row is one of the two, so a column of them was the same word three times.
+                      Done is the mark and still-to-do is the gap, which is the reading the boss
+                      matrix's cells already use.
+
+                      The distinction is not lost, it is just not drawn: the label under the mark
+                      still names the state a screen reader is given. A run with no config behind
+                      it keeps an empty cell rather than losing it, or the grid goes ragged. */}
                   {log && (
                     <td className="run-clear-cell">
                       {party && (
                         <button
                           type="button"
-                          className={`party-clear is-${clearClass(party.cleared)}`}
+                          className={party.cleared === true ? "run-mark is-cleared" : "run-mark"}
                           disabled={log.busy(party.id)}
                           onClick={() => log.onToggleClear(party, nextClear(party.cleared))}
-                          title={
-                            party.cleared === null
-                              ? "No planner capture has mentioned this boss this period"
-                              : undefined
-                          }
+                          title={party.cleared === true ? "Mark not cleared" : "Mark cleared"}
                         >
-                          {clearStateLabel(party.cleared)}
+                          <span aria-hidden="true">&#10003;</span>
+                          <span className="visually-hidden">{clearStateLabel(party.cleared)}</span>
                         </button>
                       )}
                     </td>

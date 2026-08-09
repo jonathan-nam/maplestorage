@@ -147,9 +147,18 @@ export default function RunOrderPage() {
 
   // Per row, so ticking one boss does not dim every other row's controls. See lib/use-row-writes.ts.
   const { isSaving, write } = useRowWrites();
-  // The configs answered for from this page, whichever way they were answered. They stay in the
-  // night rather than dropping out of the filter under the plan somebody is reading. See stillToRun.
-  const [ticked, setTicked] = useState<ReadonlySet<string>>(() => new Set());
+  // Every config this page has written to this sitting. They stay in the night rather than dropping
+  // out of the filter under the plan somebody is reading. See stillToRun.
+  //
+  // ANY write, not just the tick. Logging a drop clears the boss too (a drop is evidence of a
+  // night, see addLoot), so pinning on the tick alone took the run off the plan the moment the
+  // first drop landed, closing the picker on a boss that had three more things to log.
+  const [answered, setAnswered] = useState<ReadonlySet<string>>(() => new Set());
+
+  /** Pins a config for the sitting. Called BEFORE the write: see toggleClear. */
+  function keepInNight(partyId: string) {
+    setAnswered((current) => (current.has(partyId) ? current : new Set(current).add(partyId)));
+  }
 
   const [source, setSource] = useState<Source>("parties");
   const [duration, setDuration] = useState(120);
@@ -255,7 +264,7 @@ export default function RunOrderPage() {
   async function toggleClear(party: Party, cleared: boolean) {
     // Marked before the write, not after: the row has to stay in the night whether the tick lands
     // or not, or a failed save would take the run off the plan on its way to saying it failed.
-    setTicked((current) => new Set(current).add(party.id));
+    keepInNight(party.id);
     try {
       await write(party.id, async () => {
         await apiFetch<Party>(
@@ -270,8 +279,14 @@ export default function RunOrderPage() {
     }
   }
 
-  /** Logs a drop into the party's own pool, the same POST the party page and Party View make. */
+  /**
+   * Logs a drop into the party's own pool, the same POST the party page and Party View make.
+   *
+   * Pinned like a tick, because the server treats it as one: addLoot clears the boss, and a boss
+   * that dropped four things has three more to log after the first.
+   */
   async function addDrop(party: Party, body: AddLootBody) {
+    keepInNight(party.id);
     await write(party.id, async () => {
       await apiFetch<unknown>(
         `${PARTIES_KEY}/${party.id}/loot`,
@@ -315,11 +330,11 @@ export default function RunOrderPage() {
   // already dropped.
   const running = useMemo(() => runningThisPeriod(parties), [parties]);
 
-  // `ticked` is what keeps a run you just marked done on screen instead of dropping it out from
-  // under the plan. See stillToRun.
+  // `answered` is what keeps a run you have just written to on screen instead of dropping it out
+  // from under the plan. See stillToRun.
   const usable = useMemo(
-    () => (shown.openOnly ? stillToRun(running, ticked) : running),
-    [running, shown.openOnly, ticked],
+    () => (shown.openOnly ? stillToRun(running, answered) : running),
+    [running, shown.openOnly, answered],
   );
 
   const roster: NightPerson[] = useMemo(

@@ -4994,16 +4994,50 @@ button.link:disabled {
 /* The clear, at the end of the line, the same pill Party View's boss row carries and writing the
    same boss_clear row. Its own column rather than a chip in the boss cell: the states are read
    down a column, and beside a boss name of any length there is no column to read down. */
+/* The column head is what says the marks under it are clears, which is why it is drawn rather than
+   read out to a screen reader alone. It is a label, like "Boss", not an explanation of a control. */
 .run-clear-head,
 .run-clear-cell {
   width: 1%;
   padding: 5px 8px;
-  text-align: right;
+  text-align: center;
   white-space: nowrap;
+}
+
+.run-clear-head {
+  border-bottom: 1px solid var(--line);
+  color: var(--muted);
+  font-weight: 500;
 }
 
 .run-clear-cell {
   border-top: 1px solid var(--line-soft);
+}
+
+/* Done is the mark, still to do is the gap. `color: transparent` rather than a hidden glyph so the
+   button keeps the tick's size either way and the column does not change width as runs are ticked
+   off. The hover is what makes an empty cell findable as a control. */
+.run-mark {
+  padding: 2px 10px;
+  border: 0;
+  background: none;
+  color: transparent;
+  font: inherit;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.run-mark.is-cleared {
+  color: var(--ink-strong);
+}
+
+.run-mark:not(.is-cleared):hover {
+  color: var(--muted-2);
+}
+
+.run-mark:disabled {
+  cursor: default;
 }
 
 /* Done, so the run recedes and the order becomes what is left, the way a cleared party row does.
