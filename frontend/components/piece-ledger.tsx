@@ -91,8 +91,7 @@ function HolderCard({
   const [amount, setAmount] = useState("");
   const [refusal, setRefusal] = useState<string | null>(null);
 
-  const left = unsold(ledger);
-  const sold = ledger.pieces - left;
+  const sold = ledger.pieces - unsold(ledger);
 
   const count = Number(pieces.trim());
   const total = parseMesos(amount);
@@ -139,7 +138,10 @@ function HolderCard({
           {ledger.dueNow > 0 && (
             <span className="droplog-take">{formatMesos(ledger.dueNow, true)} due · </span>
           )}
-          {sold} sold · {left} unsold
+          {/* Against the whole PILE, which is what the sale box below takes. The line beside it
+              counts your share instead, so a tally with no denominator gets read as progress
+              towards that: 195 of 390 sold, next to owes you 195 of 390. */}
+          {sold} of {ledger.pieces} sold
         </span>
       </header>
 
