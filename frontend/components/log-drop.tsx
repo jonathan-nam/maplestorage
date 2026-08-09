@@ -45,7 +45,7 @@ export function LogDrop({
   const chosen = bosses.some((b) => b.bossKey === bossKey) ? bossKey : "";
 
   return (
-    <section className="loot-pool">
+    <section className="loot-pool droplog-action">
       <h2 className="loot-pool-title">Add Drop</h2>
 
       <DropPicker
