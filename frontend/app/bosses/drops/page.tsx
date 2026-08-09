@@ -14,13 +14,14 @@ import {
   groupDrops,
   type DropLine,
   consolidate,
+  dropStatusLabel,
   foldNames,
   type DropEntry,
   type DropGroup,
   type Grouping,
 } from "@/lib/drop-log";
 import { formatMesos } from "@/lib/drop-split";
-import { formatDropped, statusLabel } from "@/lib/loot";
+import { formatDropped } from "@/lib/loot";
 import { useAccountSettings } from "@/lib/use-account-settings";
 import {
   type Holder,
@@ -259,6 +260,9 @@ export default function DropLogPage() {
               <span className="stat-note">
                 {totals.sold} sold
                 {totals.pending > 0 && `, ${totals.pending} in the pool`}
+                {/* The pieces behind the count, because one row is one hammer or 180 coupons and a
+                    number of rows does not say which. Only when somebody is holding some. */}
+                {totals.piecesOwed > 0 && `, ${totals.piecesOwed} coupons owed you`}
               </span>
             </div>
             {money && (
@@ -461,8 +465,10 @@ function DropRow({
 
   // One status for a fold only when every row agrees. Mixed is said as a count, because "in the
   // pool" over a line that is half sold would be the wrong half.
-  const statuses = [...new Set(line.entries.map((e) => e.status))];
-  const status = statuses.length === 1 ? statusLabel(statuses[0]!) : `${line.entries.length} rows`;
+  // Off the row's own reading, not its raw status: a fold of coupon drops that are all already
+  // yours agrees, and saying "in the pool" over it would be the same wrong word one level up.
+  const statuses = [...new Set(line.entries.map(dropStatusLabel))];
+  const status = statuses.length === 1 ? statuses[0]! : `${line.entries.length} rows`;
   const unreadable = line.entries.some((e) => e.unreadable);
   const runs = `${line.entries.length} runs`;
   // A heading per character is only worth the row when there is more than one to tell apart.
@@ -584,7 +590,7 @@ function RunRow({
       </Link>
       <span className="loot-meta">{meta.join(" · ")}</span>
       <Amounts
-        label={statusLabel(entry.status)}
+        label={dropStatusLabel(entry)}
         statusClass={entry.status.toLowerCase()}
         unreadable={entry.unreadable}
         pooled={entry.pooled}

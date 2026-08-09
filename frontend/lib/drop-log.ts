@@ -17,7 +17,7 @@
 // thing.
 
 import { formatWeekStart } from "./boss-clears";
-import { splitOf } from "./loot";
+import { splitOf, statusLabel } from "./loot";
 import { holderKey, holderOf, yourShare } from "./vestige-ledger";
 import type { DropTables } from "@/types/drop";
 import type { Loot, PartyLootPool } from "@/types/loot";
@@ -53,6 +53,14 @@ export type DropEntry = {
   iconUrl: string | null;
   /** What FELL, as V40 files it. Not your share of it, which is `yours`. */
   quantity: number;
+  /**
+   * This row is a stack of pieces the party divides by COUNT, not a thing that sells as money.
+   *
+   * It changes what "in the pool" means. A piece drop is settled through the tranche ledger and
+   * never through a sale on this row, so its `sold_at` stays null for ever: counting it as pending
+   * put every coupon drop the account has ever had into the pool, permanently.
+   */
+  pieces: boolean;
   /**
    * How many of it are YOURS: your share of a piece drop, or the whole count of anything else.
    *
@@ -100,7 +108,17 @@ export type DropGroup = {
 export type DropLogTotals = {
   drops: number;
   sold: number;
+  /**
+   * Drops with something still to do, which is NOT the same as drops not yet sold.
+   *
+   * A piece drop you already hold your share of is a record, not work: the coupons are in your
+   * inventory, you sell them yourself, and the row will never be marked sold because that is not
+   * how pieces settle. Counting those put every coupon drop the account has ever had in the pool,
+   * for ever, on parties where the split came out exactly even.
+   */
   pending: number;
+  /** Coupons somebody ELSE is holding for you. The pieces behind the count above. */
+  piecesOwed: number;
   /** Across sold drops: what landed in inventories, party-wide. See the header note. */
   pooled: number;
   /** Across sold drops: your side of them. */
@@ -204,6 +222,7 @@ export function buildDropLog(
         dropKey: loot.dropKey,
         iconUrl: loot.iconUrl,
         quantity: loot.quantity,
+        pieces,
         yours: pieces ? yourShare(loot.quantity, party.members) : loot.quantity,
         // Named only when somebody ELSE is holding it. Your own seat looting the lot is not a debt
         // to you, it is you having it already.
@@ -233,12 +252,39 @@ export function buildDropLog(
   return { entries, totals: totalsOf(entries) };
 }
 
+/**
+ * Work still to do on a drop.
+ *
+ * A piece drop is settled through the tranche ledger, never through a sale on its own row, so
+ * "not sold" says nothing about it. What is left to do is whether somebody else is holding your
+ * share: `owedBy` is set only then, and a party that divided evenly leaves it null.
+ */
+export function isOutstanding(entry: DropEntry): boolean {
+  if (entry.pieces) return entry.owedBy !== null;
+  return entry.status === "PENDING";
+}
+
+/**
+ * What a row says its state is.
+ *
+ * "In the pool" off the raw status was wrong for most coupon drops: the row never sells, so it
+ * said that for ever on a night where the coupons went straight into the right inventories. Those
+ * are yours already, and the row is a record of getting them.
+ */
+export function dropStatusLabel(entry: DropEntry): string {
+  if (entry.pieces && entry.owedBy === null) return "Yours";
+  return statusLabel(entry.status);
+}
+
 /** The counts and the money, read off the entries in hand. Never scaled from a wider set. */
 function totalsOf(entries: DropEntry[]): DropLogTotals {
   return {
     drops: entries.length,
     sold: entries.filter((e) => e.status !== "PENDING").length,
-    pending: entries.filter((e) => e.status === "PENDING").length,
+    pending: entries.filter(isOutstanding).length,
+    piecesOwed: entries
+      .filter((e) => e.pieces && e.owedBy !== null)
+      .reduce((sum, e) => sum + e.yours, 0),
     pooled: entries.reduce((sum, e) => sum + (e.pooled ?? 0), 0),
     yourTake: entries.reduce((sum, e) => sum + (e.yourTake ?? 0), 0),
     unreadable: entries.filter((e) => e.unreadable).length,
