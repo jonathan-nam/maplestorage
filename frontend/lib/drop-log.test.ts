@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildDropLog,
   consolidate,
+  dropStatusLabel,
   foldNames,
   forCharacter,
   groupDrops,
@@ -596,6 +597,38 @@ describe("a piece drop counts YOUR share, not what fell", () => {
     expect(line.yours).toBe(40);
     // And what fell is still there, unmixed with it.
     expect(line.fell).toBe(120);
+  });
+
+  it("does not call a share you are already holding work still to do", () => {
+    // A piece drop settles through the tranche ledger, never through a sale on its own row, so it
+    // is PENDING for ever. Counting that put every coupon drop the account has had in the pool,
+    // permanently, on parties whose split came out exactly even.
+    const log = buildDropLog([trio()], [pool("pa", [coupons()])], tables);
+
+    expect(log.entries[0]!.status).toBe("PENDING");
+    expect(log.totals.pending).toBe(0);
+    expect(log.totals.piecesOwed).toBe(0);
+    // And the row says so. "In the pool" off the raw status was the message on every coupon drop
+    // the account has ever had, for ever, because a piece row never sells.
+    expect(dropStatusLabel(log.entries[0]!)).toBe("Yours");
+  });
+
+  it("counts it when somebody else is holding your share, in coupons as well as rows", () => {
+    const log = buildDropLog([trio({ looterMemberId: "m2" })], [pool("pa", [coupons()])], tables);
+
+    expect(log.totals.pending).toBe(1);
+    // The pieces behind the count: one row is one hammer or 180 coupons, and a number of rows
+    // does not say which.
+    expect(log.totals.piecesOwed).toBe(20);
+  });
+
+  it("still counts an ordinary drop that has not sold", () => {
+    // Nothing here is about pieces: a hammer nobody has sold is work whoever is holding it.
+    const hammer = pending({ dropKey: "exceptional-hammer-face", name: "Hammer", quantity: 1 });
+    const log = buildDropLog([trio()], [pool("pa", [hammer])], tables);
+
+    expect(log.totals.pending).toBe(1);
+    expect(log.totals.piecesOwed).toBe(0);
   });
 
   it("names who is holding your share when one seat looted the lot", () => {
