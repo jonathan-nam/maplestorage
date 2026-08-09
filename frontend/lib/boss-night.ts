@@ -13,6 +13,7 @@ import type { Party, PartyMember } from "@/types/party";
 import { BOSS_SHORT_NAMES } from "./boss-art";
 import { bossLabel } from "./boss-difficulty";
 import { runMinutes } from "./boss-minutes";
+import { isCleared } from "./parties";
 
 import type { CandidateRun, Plan, PlannedRun } from "./boss-run-plan";
 
@@ -93,6 +94,18 @@ export function runsFromParties(parties: Party[], bosses: Boss[]): CandidateRun[
       personId: ownerOf(member),
     })),
   }));
+}
+
+/**
+ * The configs still to run, keeping the ones ticked off from this page.
+ *
+ * A boss already cleared when the page opened is not part of tonight. One ticked WHILE the plan is
+ * on screen has to stay in the candidate set: planNight is a beam search, so dropping a run
+ * re-orders everything after it, and the party is following the order that was pasted to them.
+ * It stays where it was, drawn as done.
+ */
+export function stillToRun(parties: Party[], tickedHere: ReadonlySet<string>): Party[] {
+  return parties.filter((party) => !isCleared(party) || tickedHere.has(party.id));
 }
 
 // --- The standalone side -------------------------------------------------------------------

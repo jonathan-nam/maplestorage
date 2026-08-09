@@ -26,6 +26,17 @@ export function clearStateLabel(cleared: boolean | null): string {
 }
 
 /**
+ * Which of the three the `.party-clear` pill is drawn in, wherever one is drawn.
+ *
+ * Beside the label for the same reason it is: a screen that worded the states apart from another
+ * screen was the thing that already happened, and a screen that COLOURS them apart would be the
+ * same drift one step quieter.
+ */
+export function clearClass(cleared: boolean | null): string {
+  return cleared === null ? "unseen" : cleared ? "cleared" : "pending";
+}
+
+/**
  * A cell state as the boolean-or-null the rest of the app keeps a clear in.
  *
  * `skipped` is null, the same as never reported: it is not an answer about whether the boss died,

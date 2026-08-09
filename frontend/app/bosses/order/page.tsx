@@ -4,8 +4,9 @@ import { useAuth } from "@clerk/nextjs";
 import { useDeferredValue, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 
 import { RunDraftEditor } from "@/components/run-draft-editor";
-import { CopyPlan, RunPlan } from "@/components/run-plan";
+import { CopyPlan, type RunLog, RunPlan } from "@/components/run-plan";
 import { apiFetch } from "@/lib/api";
+import { progressLabel } from "@/lib/boss-clears";
 import { bossLabel } from "@/lib/boss-difficulty";
 import { DEFAULT_MINUTES } from "@/lib/boss-minutes";
 import {
@@ -21,17 +22,24 @@ import {
   nextHalfHour,
   runsFromParties,
   spanBetween,
+  stillToRun,
 } from "@/lib/boss-night";
 import { type Availability, planNight, screenRuns, tradeOffs } from "@/lib/boss-run-plan";
 import { peek, put } from "@/lib/cache";
-import { isCleared, runningThisPeriod } from "@/lib/parties";
+import { runningThisPeriod } from "@/lib/parties";
 import { preloadRunArt } from "@/lib/preload-boss-art";
+import { useRowWrites } from "@/lib/use-row-writes";
 import { useShowTimes } from "@/lib/show-times";
 import type { Boss } from "@/types/boss";
+import type { DropTables } from "@/types/drop";
+import type { AddLootBody } from "@/types/loot";
 import type { Party } from "@/types/party";
 
 const BOSSES_KEY = "/api/bosses";
 const PARTIES_KEY = "/api/parties";
+// The whole catalog's drop tables, so a row can open its picker without a round-trip. Same key as
+// Party View and the party page, so all three share one cached copy.
+const DROPS_KEY = "/api/bosses/drops";
 const DRAFT_KEY = "sharpeyes.run-order.drafts";
 
 /** The windows people actually block out. Anything else goes in the box beside them. */
@@ -134,7 +142,14 @@ export default function RunOrderPage() {
 
   const [parties, setParties] = useState<Party[]>(seededParties ?? []);
   const [bosses, setBosses] = useState<Boss[]>(seededBosses ?? []);
+  const [dropTables, setDropTables] = useState<DropTables>(peek<DropTables>(DROPS_KEY) ?? {});
   const [state, setState] = useState<LoadState>(seededParties ? "loaded" : "loading");
+
+  // Per row, so ticking one boss does not dim every other row's controls. See lib/use-row-writes.ts.
+  const { isSaving, write } = useRowWrites();
+  // The configs answered for from this page, whichever way they were answered. They stay in the
+  // night rather than dropping out of the filter under the plan somebody is reading. See stillToRun.
+  const [ticked, setTicked] = useState<ReadonlySet<string>>(() => new Set());
 
   const [source, setSource] = useState<Source>("parties");
   const [duration, setDuration] = useState(120);
@@ -192,14 +207,21 @@ export default function RunOrderPage() {
         return Promise.all([
           apiFetch<Party[]>(PARTIES_KEY, { method: "GET" }, withToken),
           apiFetch<Boss[]>(BOSSES_KEY, { method: "GET" }, withToken),
+          // Optional, as it is on Party View: losing it costs a row's drop picker, and a night you
+          // cannot log a drop from still tells you what to run and in what order.
+          apiFetch<DropTables>(DROPS_KEY, { method: "GET" }, withToken).catch(() => null),
         ]);
       })
-      .then(([nextParties, nextBosses]) => {
+      .then(([nextParties, nextBosses, nextDrops]) => {
         if (!live) return;
         setParties(nextParties);
         setBosses(nextBosses);
         put(PARTIES_KEY, nextParties);
         put(BOSSES_KEY, nextBosses);
+        if (nextDrops) {
+          setDropTables(nextDrops);
+          put(DROPS_KEY, nextDrops);
+        }
         setState("loaded");
       })
       .catch(() => {
@@ -211,6 +233,54 @@ export default function RunOrderPage() {
       live = false;
     };
   }, [getToken]);
+
+  /**
+   * The list again, after a write, so what is on screen is the server's answer and not ours.
+   *
+   * Which period a tick landed in and which of the three counts a drop went to are both the
+   * server's to derive, exactly as they are on Party View.
+   */
+  async function refetchParties() {
+    const refreshed = await apiFetch<Party[]>(PARTIES_KEY, { method: "GET" }, getToken);
+    setParties(refreshed);
+    put(PARTIES_KEY, refreshed);
+  }
+
+  /**
+   * Ticks a run off, or un-ticks it.
+   *
+   * The same boss_clear row Party View's boss row writes and a planner capture overwrites, so
+   * ticking a boss here and ticking it there are one answer rather than two.
+   */
+  async function toggleClear(party: Party, cleared: boolean) {
+    // Marked before the write, not after: the row has to stay in the night whether the tick lands
+    // or not, or a failed save would take the run off the plan on its way to saying it failed.
+    setTicked((current) => new Set(current).add(party.id));
+    try {
+      await write(party.id, async () => {
+        await apiFetch<Party>(
+          `${PARTIES_KEY}/${party.id}/clear`,
+          { method: "PUT", body: JSON.stringify({ cleared }) },
+          getToken,
+        );
+        await refetchParties();
+      });
+    } catch {
+      // Leaving the old state up beats showing a tick that did not save.
+    }
+  }
+
+  /** Logs a drop into the party's own pool, the same POST the party page and Party View make. */
+  async function addDrop(party: Party, body: AddLootBody) {
+    await write(party.id, async () => {
+      await apiFetch<unknown>(
+        `${PARTIES_KEY}/${party.id}/loot`,
+        { method: "POST", body: JSON.stringify(body) },
+        getToken,
+      );
+      await refetchParties();
+    });
+  }
 
   const fromAccount = source === "parties";
 
@@ -245,9 +315,11 @@ export default function RunOrderPage() {
   // already dropped.
   const running = useMemo(() => runningThisPeriod(parties), [parties]);
 
+  // `ticked` is what keeps a run you just marked done on screen instead of dropping it out from
+  // under the plan. See stillToRun.
   const usable = useMemo(
-    () => (shown.openOnly ? running.filter((party) => !isCleared(party)) : running),
-    [running, shown.openOnly],
+    () => (shown.openOnly ? stillToRun(running, ticked) : running),
+    [running, shown.openOnly, ticked],
   );
 
   const roster: NightPerson[] = useMemo(
@@ -318,6 +390,30 @@ export default function RunOrderPage() {
   const scheduled = new Set(plan.runs.map((planned) => planned.run.id));
   const unscheduled = eligible.filter((run) => !scheduled.has(run.id));
   const assumed = plan.runs.filter((planned) => planned.run.assumed).length;
+
+  // A run's id IS its config's id, which is what lets the plan be answered for at all. See
+  // runsFromParties.
+  const partyById = useMemo(() => new Map(usable.map((party) => [party.id, party])), [usable]);
+  // A picker with no tables behind it lists nothing, and then explains the empty list as "no drop
+  // table recorded for this boss", which is a claim about the catalog we are not in a position to
+  // make from here. Same rule as Party View's.
+  const haveDropTables = Object.keys(dropTables).length > 0;
+
+  // Only a night built from your parties can be answered for: a hand-typed run has no config
+  // behind it, so there is nothing to tick and no pool to log a drop into.
+  const log: RunLog | undefined = showingAccount
+    ? {
+        partyOf: (runId) => partyById.get(runId),
+        dropTable: (bossKey) => dropTables[bossKey],
+        busy: isSaving,
+        onToggleClear: toggleClear,
+        onAddDrop: haveDropTables ? addDrop : undefined,
+      }
+    : undefined;
+
+  const cleared = plan.runs.filter(
+    (planned) => partyById.get(planned.run.id)?.cleared === true,
+  ).length;
 
   return (
     <main className="page">
@@ -580,7 +676,16 @@ export default function RunOrderPage() {
           {/* The copy button sits a line above the plan tabs: both act on the plan below them, and
               the button keeps its place however many tabs there are. */}
           <div className="night-plan-copy">
-            <CopyPlan plan={plan} roster={onTonight} />
+            <div className="night-plan-line">
+              <CopyPlan plan={plan} roster={onTonight} />
+              {/* How far through the night is, in the words Party View already counts clears in.
+                  The rows say which ones; this says how many are left without counting them. */}
+              {log && (
+                <span className="night-progress">
+                  {progressLabel({ cleared, total: plan.runs.length })}
+                </span>
+              )}
+            </div>
             {options.length > 1 && (
               <div className="basis-row" role="group" aria-label="Plans to choose between">
                 {options.map((option, i) => (
@@ -601,7 +706,13 @@ export default function RunOrderPage() {
             )}
           </div>
 
-          <RunPlan plan={plan} roster={onTonight} startAt={shown.startAt} timed={shown.timed} />
+          <RunPlan
+            plan={plan}
+            roster={onTonight}
+            startAt={shown.startAt}
+            timed={shown.timed}
+            log={log}
+          />
 
           {/* What was guessed stays on screen. It is what the finishing time is built from, and a
               time presented without it reads as a measurement of your parties. */}
