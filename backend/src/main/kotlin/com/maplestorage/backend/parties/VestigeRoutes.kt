@@ -203,11 +203,13 @@ internal fun trancheRefusal(
         holder.personId != null && runCatching { Uuid.parse(holder.personId) }.isFailure ->
             "personId is not an id"
         pieces < 1 || pieces > MAX_PIECES -> "pieces must be between 1 and $MAX_PIECES"
-        // Zero is still allowed, and still means a stack that realized nothing: given away rather
-        // than sold, with the loss shared as any other price is. It is NOT how a redemption is
-        // recorded, which was the trap before V46: zero prices the pieces at nothing and makes the
-        // creditor absorb half of that, where $KEPT takes them out of the pricing entirely.
-        amount != null && amount < 0 -> "amount cannot be negative"
+        // Zero is refused, where V38 documented it as how a stack handed over rather than sold was
+        // recorded. It prices those pieces at nothing and folds that into the pro rata average, so
+        // the creditor absorbs their share of a loss the holder chose. $KEPT is the same event with
+        // the incidence right: the pieces leave the sellable pile and come off the holder's own
+        // entitlement first. See #290.
+        amount != null && amount < 1 ->
+            "a sale needs an amount above zero. A stack that fetched nothing is $KEPT"
         else -> null
     }
 

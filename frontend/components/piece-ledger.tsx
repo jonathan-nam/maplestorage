@@ -109,8 +109,10 @@ function HolderCard({
 
   const count = Number(pieces.trim());
   const total = parseMesos(amount);
+  // A total above zero, matching V47: a stack that fetched nothing is the kept box beside this one,
+  // not a sale for nought. Refused here as well so the button greys out rather than round-tripping.
   const sale =
-    Number.isInteger(count) && count >= 1 && count <= MAX_PIECES && total !== null && total >= 0
+    Number.isInteger(count) && count >= 1 && count <= MAX_PIECES && total !== null && total >= 1
       ? { pieces: count, amount: total }
       : null;
 

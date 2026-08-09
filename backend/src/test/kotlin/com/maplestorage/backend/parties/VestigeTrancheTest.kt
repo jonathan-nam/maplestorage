@@ -170,9 +170,10 @@ class VestigeTrancheTest {
         assertNull(trancheRefusal(self, 50, 1_200_000_000))
         assertNull(trancheRefusal(bro, 50, 1_200_000_000))
         assertNull(trancheRefusal(stranger, 50, 1_200_000_000))
-        // A stack handed over rather than sold is a real thing to record, and it prices that boss at
-        // nothing rather than refusing to price it at all.
-        assertNull(trancheRefusal(self, 30, 0))
+        // A sale for nothing is refused, and the refusal says where that stack belongs. Allowing it
+        // made the creditor absorb their share of a loss the holder chose; KEPT charges the holder.
+        assertTrue(trancheRefusal(self, 30, 0)!!.contains("KEPT"))
+        assertNull(trancheRefusal(self, 30, 1))
 
         // The kind and the reference cannot disagree, which is what keeps a pile from belonging to
         // nobody and pricing every boss it covers at zero.
@@ -187,7 +188,8 @@ class VestigeTrancheTest {
 
         assertTrue(trancheRefusal(self, 0, 1)!!.contains("between 1"))
         assertTrue(trancheRefusal(self, 1_000_001, 1)!!.contains("1000000"))
-        assertTrue(trancheRefusal(self, 50, -1)!!.contains("negative"))
+        // Negative lands in the same refusal as zero: both are a sale with no money in it.
+        assertTrue(trancheRefusal(self, 50, -1)!!.contains("above zero"))
     }
 
     @Test
