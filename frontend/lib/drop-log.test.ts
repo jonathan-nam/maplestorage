@@ -122,7 +122,7 @@ describe("buildDropLog", () => {
     // 10b listed, less the seller's 5%, is 9.5b received.
     const received = drop({ id: "l2", saleAmount: 9_500_000_000, amountBasis: "RECEIVED" });
 
-    const log = buildDropLog([p], [pool("pa", [listed, received])]);
+    const log = buildDropLog([p], [pool("pa", [listed, received])], {});
 
     expect(log.totals.pooled).toBe(9_500_000_000 * 2);
     // And the raw sum, which is what must NOT be reported, differs from it.
@@ -134,7 +134,7 @@ describe("buildDropLog", () => {
     const loot = drop();
     const expected = splitOf(loot, p.members)!;
 
-    const log = buildDropLog([p], [pool("pa", [loot])]);
+    const log = buildDropLog([p], [pool("pa", [loot])], {});
     const entry = log.entries[0]!;
 
     expect(entry.pooled).toBe(expected.split.sellerReceives);
@@ -149,7 +149,7 @@ describe("buildDropLog", () => {
     const alone = party("pa", [mine("m1", "mechyfechy")], { solo: true });
     const loot = drop({ payouts: [] });
 
-    const log = buildDropLog([alone], [pool("pa", [loot])]);
+    const log = buildDropLog([alone], [pool("pa", [loot])], {});
     const entry = log.entries[0]!;
 
     expect(entry.yourTake).toBe(entry.pooled);
@@ -164,7 +164,7 @@ describe("buildDropLog", () => {
     const gone = { ...duo(), retired: true };
     const loot = drop();
 
-    const log = buildDropLog([gone], [pool("pa", [loot])]);
+    const log = buildDropLog([gone], [pool("pa", [loot])], {});
 
     expect(log.entries.map((e) => e.lootId)).toEqual([loot.id]);
     expect(log.totals.drops).toBe(1);
@@ -179,7 +179,7 @@ describe("buildDropLog", () => {
     });
     const expected = splitOf(loot, p.members)!;
 
-    const log = buildDropLog([p], [pool("pa", [loot])]);
+    const log = buildDropLog([p], [pool("pa", [loot])], {});
 
     expect(log.totals.yourTake).toBe(expected.shares[0]!.nets);
     // The pool total is the whole sale either way: it is not your share of it.
@@ -192,14 +192,14 @@ describe("buildDropLog", () => {
     const loot = drop();
     const expected = splitOf(loot, p.members)!;
 
-    const log = buildDropLog([p], [pool("pa", [loot])]);
+    const log = buildDropLog([p], [pool("pa", [loot])], {});
 
     expect(log.totals.yourTake).toBe(expected.seller.keeps + expected.shares[0]!.nets);
   });
 
   it("keeps unsold drops in the history with no money on them", () => {
     const p = duo();
-    const log = buildDropLog([p], [pool("pa", [pending({ id: "l9" })])]);
+    const log = buildDropLog([p], [pool("pa", [pending({ id: "l9" })])], {});
     const entry = log.entries[0]!;
 
     expect(log.totals.drops).toBe(1);
@@ -212,7 +212,7 @@ describe("buildDropLog", () => {
 
   it("counts a split it cannot read, and leaves its money out of both totals", () => {
     const p = duo();
-    const log = buildDropLog([p], [pool("pa", [drop({ sellerMemberId: "gone" })])]);
+    const log = buildDropLog([p], [pool("pa", [drop({ sellerMemberId: "gone" })])], {});
 
     expect(log.totals.unreadable).toBe(1);
     expect(log.totals.sold).toBe(1);
@@ -232,13 +232,14 @@ describe("buildDropLog", () => {
           drop({ id: "l3", droppedOn: "2026-07-04" }),
         ]),
       ],
+      {},
     );
 
     expect(log.entries.map((e) => e.droppedOn)).toEqual(["2026-07-20", "2026-07-04", "2026-06-02"]);
   });
 
   it("skips a pool whose party it cannot see", () => {
-    const log = buildDropLog([], [pool("ghost", [drop()])]);
+    const log = buildDropLog([], [pool("ghost", [drop()])], {});
     expect(log.totals.drops).toBe(0);
     expect(log.entries).toHaveLength(0);
   });
@@ -256,6 +257,7 @@ describe("groupDrops", () => {
           drop({ id: "l3", droppedOn: "2026-07-04" }),
         ]),
       ],
+      {},
     );
 
   it("groups by month, newest first, and subtotals each", () => {
@@ -281,6 +283,7 @@ describe("groupDrops", () => {
           drop({ id: "l3", droppedOn: "2026-07-20" }),
         ]),
       ],
+      {},
     );
     const groups = groupDrops(log.entries, "week");
 
@@ -306,7 +309,7 @@ describe("groupDrops", () => {
   });
 
   it("has no section for a stretch with nothing in it", () => {
-    const log = buildDropLog([p], [pool("pa", [drop({ id: "l1", droppedOn: "2026-07-20" })])]);
+    const log = buildDropLog([p], [pool("pa", [drop({ id: "l1", droppedOn: "2026-07-20" })])], {});
     expect(groupDrops(log.entries, "week")).toHaveLength(1);
     expect(groupDrops([], "week")).toHaveLength(0);
   });
@@ -331,6 +334,7 @@ describe("forCharacter", () => {
           }),
         ]),
       ],
+      {},
     );
 
     const only = forCharacter(log, one.characterId);
@@ -349,6 +353,7 @@ describe("forCharacter", () => {
     const log = buildDropLog(
       [one, two],
       [pool("pa", [drop({ id: "l1", droppedOn: "2026-06-01" })]), pool("pb", [drop({ id: "l2" })])],
+      {},
     );
 
     expect(groupDrops(log.entries, "month")).toHaveLength(2);
@@ -400,6 +405,7 @@ describe("consolidate", () => {
           coupon("l3", "baldrix", 60),
         ]),
       ],
+      {},
     );
     const lines = consolidate(log.entries);
     expect(lines).toHaveLength(1);
@@ -409,7 +415,7 @@ describe("consolidate", () => {
   });
 
   it("leaves a drop that appears once exactly as it was", () => {
-    const lines = consolidate(buildDropLog([duo()], [pool("pa", [drop()])]).entries);
+    const lines = consolidate(buildDropLog([duo()], [pool("pa", [drop()])], {}).entries);
     expect(lines).toHaveLength(1);
     expect(lines[0]!.folded).toBe(false);
     expect(lines[0]!.key).toBe("l1");
@@ -426,6 +432,7 @@ describe("consolidate", () => {
           pending({ id: "l2", dropKey: null, customName: "Some Cape", name: "Some Cape" }),
         ]),
       ],
+      {},
     );
     expect(consolidate(log.entries)).toHaveLength(2);
   });
@@ -447,14 +454,18 @@ describe("consolidate", () => {
           }),
         ]),
       ],
+      {},
     );
     const line = consolidate(log.entries)[0]!;
     expect(line.quantity).toBe(90);
     expect(line.pooled).toBe(1_000_000_000);
 
     const unsold = consolidate(
-      buildDropLog([duo()], [pool("pa", [coupon("l1", "limbo", 30), coupon("l2", "baldrix", 60)])])
-        .entries,
+      buildDropLog(
+        [duo()],
+        [pool("pa", [coupon("l1", "limbo", 30), coupon("l2", "baldrix", 60)])],
+        {},
+      ).entries,
     )[0]!;
     expect(unsold.pooled).toBeNull();
   });
@@ -470,12 +481,85 @@ describe("consolidate", () => {
           coupon("l2", "limbo", 30, { droppedOn: "2026-08-05" }),
         ]),
       ],
+      {},
     );
     const line = consolidate(log.entries)[0]!;
 
     expect(line.entries.map((e) => e.lootId)).toEqual(["l2", "l1"]);
     expect(line.entries.map((e) => e.quantity)).toEqual([30, 90]);
     expect(line.quantity).toBe(line.entries.reduce((sum, e) => sum + e.quantity, 0));
+  });
+});
+
+describe("a piece drop counts YOUR share, not what fell", () => {
+  const VESTIGE = "vestige-of-erion";
+
+  /** The catalog's own table: 60 coupons off Hard Limbo, which is what makes it divide by count. */
+  const tables = {
+    limbo: [
+      {
+        dropKey: VESTIGE,
+        name: "Vestige of Erion Coupon",
+        iconUrl: null,
+        perMember: null,
+        worlds: "INTERACTIVE",
+        quantity: 1,
+        pieces: { HARD: 60 },
+      },
+    ],
+  };
+
+  const coupons = (over: Partial<Loot> = {}): Loot =>
+    pending({ dropKey: VESTIGE, name: "Vestige of Erion Coupon", quantity: 60, ...over });
+
+  const trio = (over: Partial<Party> = {}) =>
+    party("pa", [mine("m1", "Huskyxkenshi"), theirs("m2", "CreedBratton"), theirs("m3", "Free")], {
+      difficulty: "HARD",
+      ...over,
+    });
+
+  it("divides what fell by the people who ran, and keeps what fell beside it", () => {
+    // 60 off Limbo, three people, so 20 are yours. The log counted 60 before this, which is three
+    // times what that character got.
+    const log = buildDropLog([trio()], [pool("pa", [coupons()])], tables);
+    const entry = log.entries[0]!;
+
+    expect(entry.quantity).toBe(60);
+    expect(entry.yours).toBe(20);
+    // Nobody looted the lot, so they are already yours and nobody is named.
+    expect(entry.owedBy).toBeNull();
+    expect(consolidate(log.entries)[0]!.quantity).toBe(20);
+    expect(consolidate(log.entries)[0]!.fell).toBe(60);
+  });
+
+  it("names who is holding your share when one seat looted the lot", () => {
+    const log = buildDropLog([trio({ looterMemberId: "m2" })], [pool("pa", [coupons()])], tables);
+    expect(log.entries[0]!.yours).toBe(20);
+    expect(log.entries[0]!.owedBy).toBe("CreedBratton");
+  });
+
+  it("does not name your own character, because that is you having it already", () => {
+    const log = buildDropLog([trio({ looterMemberId: "m1" })], [pool("pa", [coupons()])], tables);
+    expect(log.entries[0]!.owedBy).toBeNull();
+  });
+
+  it("folds one person's two characters into one share", () => {
+    // Both of theirs are Chris, so he takes two thirds and you take one third, not a half each.
+    const log = buildDropLog([trio()], [pool("pa", [coupons()])], tables);
+    expect(log.entries[0]!.yours).toBe(20);
+  });
+
+  it("leaves an ordinary drop's count alone, since it divides as money", () => {
+    // A third of a Grindstone is not a number to put on a row.
+    const log = buildDropLog([trio()], [pool("pa", [pending({ quantity: 1 })])], tables);
+    expect(log.entries[0]!.yours).toBe(1);
+    expect(log.entries[0]!.owedBy).toBeNull();
+  });
+
+  it("leaves it alone when nobody has said which mode the party runs", () => {
+    // Which amount applies is unknown, so the count stands rather than becoming a guess at a share.
+    const log = buildDropLog([trio({ difficulty: null })], [pool("pa", [coupons()])], tables);
+    expect(log.entries[0]!.yours).toBe(60);
   });
 });
 

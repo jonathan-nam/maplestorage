@@ -186,6 +186,38 @@ describe("the queue: first cleared, first paid", () => {
     expect(transfersOf(even, covered.get("even"))).toEqual([]);
   });
 
+  it("pays pro rata as the stack goes, rather than nothing until the last piece", () => {
+    // Half of Kalos has sold, so half of each debt is due. The rule this replaced said null here
+    // and left three people waiting on a stack that may sit for weeks.
+    const covered = allocate(queue, [{ pieces: 90, priceEach: 25 * M }]);
+    const out = transfersOf(queue[0]!, covered.get("kalos"));
+    // 45 pieces of 180 is a quarter of the drop, so a quarter of the 2.25b it has made.
+    expect(out.map((t) => [t.pieces, t.settled, t.send])).toEqual([
+      [45, 22, 562_500_000],
+      [45, 22, 562_500_000],
+      [45, 22, 562_500_000],
+    ]);
+  });
+
+  it("comes to the same money as waiting would have, and never revises an instalment", () => {
+    const half = allocate(queue, [{ pieces: 90, priceEach: 25 * M }]);
+    const all = allocate(queue, [
+      { pieces: 90, priceEach: 25 * M },
+      // The price fell between the two lots, which is the case that would move a running average.
+      { pieces: 90, priceEach: 20 * M },
+    ]);
+
+    const first = transfersOf(queue[0]!, half.get("kalos"))[0]!;
+    const final = transfersOf(queue[0]!, all.get("kalos"))[0]!;
+
+    // Cumulative, so the first instalment is a prefix of the total and is never taken back.
+    expect(final.send! - first.send!).toBe(450_000_000);
+    // And the total is exactly what one payment at the end would have been: 45 at the 22.5m average.
+    expect(all.get("kalos")!.averagePrice).toBe(22.5 * M);
+    expect(final.send).toBe(45 * 22.5 * M);
+    expect(final.settled).toBe(45);
+  });
+
   it("keys a transfer by the pair, so paid survives a redraw", () => {
     const covered = allocate(queue, [{ pieces: 180, priceEach: 25 * M }]);
     const out = transfersOf(queue[0]!, covered.get("kalos"));

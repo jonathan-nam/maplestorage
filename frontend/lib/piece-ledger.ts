@@ -67,8 +67,16 @@ export type PieceTransfer = {
   from: string;
   to: string;
   pieces: number;
+  /** How many of those pieces have sold, so this much of the debt is settled and cannot move. */
+  settled: number;
   /**
-   * Mesos to send, or null while pieces are still unsold.
+   * Mesos to send NOW, for the pieces that have sold. Null while none of them have.
+   *
+   * Pro rata: every piece that sells pays out in the split's own proportion, so a debt is cleared in
+   * instalments as the stack goes rather than in one payment at the end. It comes to exactly the
+   * same money either way. What it avoids is the receiver waiting on the last piece of a stack that
+   * may sit for weeks, and no instalment is ever revised, because each one is settled against the
+   * price its own tranches really got.
    *
    * Sending exactly this leaves the receiver holding what they would have held had they looted those
    * pieces and sold them themselves: they pay the Auction House once on the way in, which is the one
@@ -156,7 +164,9 @@ export type LedgerDrop = {
 /** How much of one drop the sales so far have covered, and what those pieces fetched. */
 export type DropCoverage = {
   covered: number;
-  /** Its pieces are all sold, so its debts can be settled. */
+  /** Listed value of the covered pieces, at the prices they actually went for. */
+  cost: number;
+  /** Every piece of it has sold, so nothing about it can move again. */
   complete: boolean;
   /** Weighted average listed price of the pieces that covered it. Null until it is covered. */
   averagePrice: number | null;
@@ -199,6 +209,7 @@ export function allocate(drops: LedgerDrop[], sales: PieceSale[]): Map<string, D
     const complete = covered === drop.total && drop.total > 0;
     out.set(drop.id, {
       covered,
+      cost,
       complete,
       averagePrice: complete ? cost / drop.total : null,
     });
@@ -207,7 +218,7 @@ export function allocate(drops: LedgerDrop[], sales: PieceSale[]): Map<string, D
 }
 
 /**
- * The transfers that clear one drop, and what each is worth once its pieces are covered.
+ * The transfers that clear one drop, and what each is worth so far.
  *
  * Deterministic on purpose: seats over their share pay seats under it, both in seat order. A stable
  * list is what lets "paid" be remembered against a pair, and it means two people reading the same
@@ -224,9 +235,10 @@ export function transfersOf(drop: LedgerDrop, coverage: DropCoverage | undefined
   const owing = position.filter((p) => p.balance < 0).map((p) => ({ ...p, left: -p.balance }));
   const owed = position.filter((p) => p.balance > 0).map((p) => ({ ...p, left: p.balance }));
 
-  // Priced only once this drop's own pieces are covered. Before that the tranches that will pay for
-  // it have not happened, and a figure would be a guess at what they will fetch.
-  const priced = coverage?.complete ? coverage.averagePrice : null;
+  // What this drop's sold pieces actually fetched. Never a forecast of the unsold ones: a figure
+  // over pieces that have not gone yet is a guess at a price nobody has been offered.
+  const covered = coverage?.covered ?? 0;
+  const sold = coverage?.cost ?? 0;
 
   const out: PieceTransfer[] = [];
   let next = 0;
@@ -234,13 +246,18 @@ export function transfersOf(drop: LedgerDrop, coverage: DropCoverage | undefined
     while (debtor.left > 0 && next < owed.length) {
       const creditor = owed[next]!;
       const pieces = Math.min(debtor.left, creditor.left);
-      const send = priced === null || priced === undefined ? null : Math.ceil(pieces * priced);
+      // This pair's proportion of the drop, applied to what has sold so far. Cumulative, so a
+      // payment already made is a prefix of it and never has to be taken back.
+      const send = covered === 0 ? null : Math.ceil((sold * pieces) / drop.total);
       out.push({
         fromId: debtor.memberId,
         toId: creditor.memberId,
         from: debtor.name,
         to: creditor.name,
         pieces,
+        // How many of this pair's pieces the sales so far have reached. Rounded DOWN, so an
+        // instalment never claims to have settled a piece that has not sold.
+        settled: Math.min(pieces, Math.floor((covered * pieces) / drop.total)),
         send,
         nets: send === null ? null : Math.floor(send * (1 - FEE_STANDARD)),
       });
