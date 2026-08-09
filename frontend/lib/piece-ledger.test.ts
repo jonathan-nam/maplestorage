@@ -245,3 +245,82 @@ describe("the queue: first cleared, first paid", () => {
     ]);
   });
 });
+
+describe("a holder who redeems part of their pile", () => {
+  // 390 in one drop, a duo, Bro looted the lot. 195 of it is the other seat's.
+  const drop = (kept?: number) => ({
+    id: "limbo",
+    weekStart: "2026-08-03",
+    order: 1,
+    total: 390,
+    held: 390,
+    kept,
+    seats: [seat("Bro", 390), seat("Mine", 0)],
+  });
+
+  const sold = (pieces: number) => [{ pieces, priceEach: 25 * M }];
+
+  it("pays the whole claim from the sellable pile, not the fraction of the pile that sold", () => {
+    // #281: over the whole 390 this said 2.44b, half of a claim that was fully realized. Bro kept
+    // his own 195 and sold the other seat's 195, so all of those proceeds are theirs.
+    const covered = allocate([drop(195)], sold(195));
+    const out = transfersOf(drop(195), covered.get("limbo"))[0]!;
+    expect(out.pieces).toBe(195);
+    expect(out.send).toBe(195 * 25 * M);
+    expect(out.settled).toBe(195);
+    expect(covered.get("limbo")!.complete).toBe(true);
+  });
+
+  it("is unchanged for a pile with nothing kept, which is every drop before this existed", () => {
+    const covered = allocate([drop()], sold(390));
+    const out = transfersOf(drop(), covered.get("limbo"))[0]!;
+    expect(out.send).toBe(195 * 25 * M);
+    expect(covered.get("limbo")!.sellable).toBe(390);
+  });
+
+  it("still pays in instalments while the sellable part is going", () => {
+    // Bro keeps his 195 and has shifted 100 of the other seat's. Every one of those is theirs.
+    const covered = allocate([drop(195)], sold(100));
+    const out = transfersOf(drop(195), covered.get("limbo"))[0]!;
+    expect(out.send).toBe(100 * 25 * M);
+    expect(out.settled).toBe(100);
+    expect(covered.get("limbo")!.complete).toBe(false);
+  });
+
+  it("charges a holder who keeps more than their share, at the price their own sales got", () => {
+    // Keeping 250 of 390 eats 55 pieces that are not his. Only 140 are left to sell, so the 4.88b
+    // owed is more than the 3.5b he took in: the difference is what eating them costs.
+    const covered = allocate([drop(250)], sold(140));
+    const out = transfersOf(drop(250), covered.get("limbo"))[0]!;
+    expect(covered.get("limbo")!.cost).toBe(140 * 25 * M);
+    expect(out.send).toBe(195 * 25 * M);
+    expect(out.settled).toBe(195);
+  });
+
+  it("refuses to price a wholly kept pile rather than inventing a figure for it", () => {
+    const covered = allocate([drop(390)], []);
+    const out = transfersOf(drop(390), covered.get("limbo"))[0]!;
+    expect(covered.get("limbo")!.sellable).toBe(0);
+    // Not complete, because there is no realized price and so no debt that can be stated.
+    expect(covered.get("limbo")!.complete).toBe(false);
+    expect(out.pieces).toBe(195);
+    expect(out.send).toBeNull();
+    expect(out.settled).toBe(0);
+  });
+
+  it("lets the queue flow past a wholly kept boss to the next one", () => {
+    const first = { ...drop(390), id: "first", order: 1 };
+    const second = { ...drop(), id: "second", order: 2 };
+    const covered = allocate([first, second], sold(390));
+    // The kept boss took none of the tranche, so all of it reached the boss behind it.
+    expect(covered.get("first")!.covered).toBe(0);
+    expect(covered.get("second")!.covered).toBe(390);
+    expect(covered.get("second")!.complete).toBe(true);
+  });
+
+  it("treats keeping more than the pile as keeping the pile, not as a negative one", () => {
+    const covered = allocate([drop(999)], sold(10));
+    expect(covered.get("limbo")!.sellable).toBe(0);
+    expect(transfersOf(drop(999), covered.get("limbo"))[0]!.send).toBeNull();
+  });
+});
