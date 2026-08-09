@@ -1,3 +1,5 @@
+import { existsSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { activeHref, HREFS, MENU_HREFS, SECTIONS, sectionsFor } from "./section-menu";
 
@@ -104,5 +106,17 @@ describe("what an account with nothing to trade is offered", () => {
     // The empty-group filter exists for the day a whole section is Interactive-only. It must not
     // fire while something is left, or the remaining links lose their heading.
     expect(sectionsFor(false).some((s) => s.group === "Bossing")).toBe(true);
+  });
+});
+
+describe("every destination can be shown before it has loaded", () => {
+  // A route with no loading.tsx holds the PREVIOUS page on screen until its own JS has mounted,
+  // however early it was prefetched. /characters shipped that way and was the one menu entry that
+  // could not answer a click. Checked here rather than by eye: adding a section is adding a link,
+  // and nothing about writing that link suggests a second file is owed.
+  it.each(HREFS)("has a loading boundary: %s", (href) => {
+    const dir = join(__dirname, "..", "app", ...href.split("/").filter(Boolean));
+    expect(existsSync(join(dir, "page.tsx"))).toBe(true);
+    expect(existsSync(join(dir, "loading.tsx"))).toBe(true);
   });
 });
