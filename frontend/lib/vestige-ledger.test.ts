@@ -450,6 +450,21 @@ describe("uneven self-looting", () => {
     expect(yours.drops[0]!.transfers[0]!.send).toBe(400 * M);
   });
 
+  it("reads a row cached before the fields existed as one that says nothing", () => {
+    // lib/cache.ts holds whatever shape the API had when the page last fetched, typed as whatever
+    // it is read back as, so a tab open across a deploy gets rows without the new fields. This
+    // threw on `bundlesBy.length`, and `undefined !== null` would have let the arithmetic run on
+    // nothing and put a NaN on screen.
+    const stale = coupon("l9", "baldrix", 120, "2026-08-06");
+    delete (stale as Partial<Loot>).bundles;
+    delete (stale as Partial<Loot>).bundlesBy;
+    const pools = [pool("pt", [stale])];
+
+    expect(() => unanswered(duo, pools, VESTIGE)).not.toThrow();
+    expect(unanswered(duo, pools, VESTIGE)).toEqual([]);
+    expect(outstanding(duo, pools, VESTIGE, ORDER)).toEqual([]);
+  });
+
   it("leaves an even night alone, and folds one person's characters before deciding", () => {
     // 6 stacks between 2 holders is 3 each, so nothing is out of place and nothing is asked.
     const six = [pool("pt", [coupon("l2", "baldrix", 120, "2026-08-06", { bundles: 6 })])];
