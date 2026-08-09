@@ -99,7 +99,7 @@ function DropArrangement({
   // One entry per stack, holding the seat that picked it up. Built from the suggestion, so the
   // ordinary case is already right and the chips only have to be touched when it was not.
   const [owners, setOwners] = useState<string[]>(() => {
-    const suggested = suggestArrangement(drop.bundles, seats, behind);
+    const suggested = suggestArrangement(drop.bundles, seats, behind, party.surplusMemberId);
     return seats.flatMap((s) => Array<string>(suggested.get(s.id) ?? 0).fill(s.id));
   });
   const [refusal, setRefusal] = useState<string | null>(null);

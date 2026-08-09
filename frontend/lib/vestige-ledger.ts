@@ -4,14 +4,15 @@
 // drops are outstanding, whose pile they are in, and what each HOLDER was entitled to, so the one
 // input ("sold N pieces for X") can be distributed without anybody naming a boss.
 //
-// What makes that possible without recording who looted what: the party already says. A row's
-// quantity is WHAT FELL (see V40), and the config says whether one seat picked it all up. So a row
-// on a party that names a looter is a debt waiting to be priced, and a row on one where everybody
-// loots their own is a record and nothing else.
+// A row's quantity is WHAT FELL (see V40). Who ended up holding it comes from three places, and
+// this file's job is knowing which one applies: a named looter holds the lot, a recorded
+// arrangement splits it stack by stack (V41), or the stacks divide and everybody took their share.
 //
-// The exception it cannot express is two members each looting some of one drop. That is rare, and
-// the alternative was a per-seat table and a box per seat on every row, which is the cumbersome
-// thing this replaces.
+// A fourth case exists and is deliberately NOT answered: the drop did not divide and nobody has
+// said who took the odd stack. It used to be called rare and skipped, which was wrong twice over.
+// Seven of the eleven vestige rows fall in 3 stacks, so no duo can divide them and it is the
+// ordinary night; and skipping it recorded no debt at all rather than an unknown one. It is
+// `unanswered()` now, and it names the size of the hole without guessing its direction.
 //
 // A HOLDER is a person, not a character. Seats are folded to their holder before anything is
 // counted, which is what makes a party of your own two characters owe nothing at all: you cannot
@@ -335,14 +336,18 @@ export function runningBalance(drops: OutstandingDrop[]): Map<string, number> {
  * more concentrated arrangement crosses more value, and every piece that crosses pays the fee
  * twice.
  *
- * The odd stack goes to whoever is furthest BEHIND, so it rotates on its own and the debts
- * alternate direction instead of piling up one way. A suggestion only: nothing is written until
- * somebody says this is what happened.
+ * The odd stack goes to the seat the party settled on, when it named one. Otherwise to whoever is
+ * furthest BEHIND, so it rotates on its own and the debts alternate direction instead of piling up
+ * one way. Naming somebody turns that rotation off, which is the point of naming them.
+ *
+ * A suggestion either way: nothing is written until somebody says this is what happened.
  */
 export function suggestArrangement(
   bundles: number,
   seats: PartyMember[],
   behind: Map<string, number>,
+  /** The seat the party takes the odd stack with, or null to let it rotate. */
+  surplusSeatId: string | null = null,
 ): Map<string, number> {
   const weight = seats.reduce((sum, s) => sum + s.shares, 0);
   if (seats.length === 0 || weight <= 0 || bundles <= 0) return new Map();
@@ -355,11 +360,15 @@ export function suggestArrangement(
     .map((s, i) => ({
       i,
       fraction: (exact[i] ?? 0) - (share[i] ?? 0),
+      // After the fraction, never before it: a seat carrying two shares has earned a bigger floor
+      // than the named one, and jumping the queue here would take a stack off somebody's share to
+      // honour a preference.
+      named: s.id === surplusSeatId ? 1 : 0,
       // Their HOLDER's position, not the seat's: two characters of one person are one pile, and
       // giving the odd stack to their second character would not move the debt at all.
       owed: behind.get(holderKey(holderOf(s))) ?? 0,
     }))
-    .sort((a, b) => b.fraction - a.fraction || b.owed - a.owed || a.i - b.i);
+    .sort((a, b) => b.fraction - a.fraction || b.named - a.named || b.owed - a.owed || a.i - b.i);
 
   for (const { i } of order) {
     if (left <= 0) break;

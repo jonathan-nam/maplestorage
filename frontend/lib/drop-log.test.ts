@@ -46,6 +46,7 @@ const party = (id: string, members: PartyMember[], over: Partial<Party> = {}): P
   members,
   seats: members,
   looterMemberId: null,
+  surplusMemberId: null,
   usualRoster: true,
   skippedThisPeriod: false,
   oneOff: false,

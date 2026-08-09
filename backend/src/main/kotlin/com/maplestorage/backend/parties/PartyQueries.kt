@@ -342,6 +342,7 @@ private fun ResultRow.toPartyResponse(
     oneOff = this[Party.oneOff],
     retired = !this[Party.standing],
     looterMemberId = this[Party.looterMemberId]?.toString(),
+    surplusMemberId = this[Party.surplusMemberId]?.toString(),
     members = members,
     seats = seats,
     usualRoster = usualRoster,

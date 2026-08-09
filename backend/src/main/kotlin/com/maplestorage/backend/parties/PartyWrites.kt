@@ -62,6 +62,7 @@ internal fun createParty(
     }
     writeMembers(partyId, characterId, request.members, SeatContext(userId, sprites, now), request.shares)
     setLooter(partyId, request.looterName)
+    setSurplus(partyId, request.surplusName)
     return partyId
 }
 
@@ -79,6 +80,15 @@ private fun setLooter(
 ) {
     val seatId = looterName?.trim()?.lowercase()?.let { seatIdsByName(partyId)[it] }
     Party.update({ Party.id eq partyId }) { it[looterMemberId] = seatId }
+}
+
+/** The same, for the seat that takes the odd stack. Written after the seats, for the same reason. */
+private fun setSurplus(
+    partyId: Uuid,
+    surplusName: String?,
+) {
+    val seatId = surplusName?.trim()?.lowercase()?.let { seatIdsByName(partyId)[it] }
+    Party.update({ Party.id eq partyId }) { it[surplusMemberId] = seatId }
 }
 
 /**
@@ -111,6 +121,7 @@ internal fun saveParty(
     }
     writeMembers(partyId, characterId, request.members, SeatContext(userId, sprites, now), request.shares)
     setLooter(partyId, request.looterName)
+    setSurplus(partyId, request.surplusName)
 }
 
 /**

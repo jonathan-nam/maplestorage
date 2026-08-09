@@ -56,6 +56,7 @@ internal fun validateNewParty(
                 ?: validateMembers(request.members)
                 ?: validateShares(request.shares, characterId, request.members)
                 ?: validateLooter(request.looterName, characterId, request.members)
+                ?: validateSurplus(request.surplusName, characterId, request.members)
                 ?: validateBossRoster(userId, bossCatalogId, exclude = null, rosterOf(characterId, request.members))
     }
 }
@@ -80,6 +81,7 @@ internal fun validateSavedParty(
         ?: validateMembers(request.members)
         ?: validateShares(request.shares, characterIdOfParty(partyId), request.members)
         ?: validateLooter(request.looterName, characterIdOfParty(partyId), request.members)
+        ?: validateSurplus(request.surplusName, characterIdOfParty(partyId), request.members)
         ?: bossCatalogId?.let {
             validateBossRoster(
                 userId,

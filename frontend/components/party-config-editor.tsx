@@ -67,9 +67,17 @@ export function PartyConfigEditor({
           party={party}
           boss={bossByKey.get(party.bossKey) ?? null}
           busy={isSaving(party.id)}
-          onSave={(members, difficulty, minutes, looterName) =>
+          onSave={(members, difficulty, minutes, looterName, surplusName) =>
             onSave(
-              { characterId, bossKey: party.bossKey, members, difficulty, minutes, looterName },
+              {
+                characterId,
+                bossKey: party.bossKey,
+                members,
+                difficulty,
+                minutes,
+                looterName,
+                surplusName,
+              },
               party.id,
             )
           }
@@ -263,6 +271,7 @@ function ConfigRow({
     difficulty: string | null,
     minutes: number | null,
     looterName: string | null,
+    surplusName: string | null,
   ) => void;
   onDelete: () => void;
   onPutBack: () => void;
@@ -275,16 +284,22 @@ function ConfigRow({
   // The seat that loots, held as a NAME: it is what the save sends, and it survives the seat being
   // renamed in the same edit.
   const savedLooter = party.seats.find((s) => s.id === party.looterMemberId)?.name ?? "";
+  const savedSurplus = party.seats.find((s) => s.id === party.surplusMemberId)?.name ?? "";
   const [members, setMembers] = useState<string[]>(saved.length > 0 ? saved : [""]);
   const [difficulty, setDifficulty] = useState(savedDifficulty);
   const [minutes, setMinutes] = useState(savedMinutes);
   const [looter, setLooter] = useState(savedLooter);
+  const [surplus, setSurplus] = useState(savedSurplus);
   const parsed = parseMinutes(minutes);
   const dirty =
     members.join(" ") !== saved.join(" ") ||
     difficulty !== savedDifficulty ||
     minutes !== savedMinutes ||
-    looter !== savedLooter;
+    looter !== savedLooter ||
+    surplus !== savedSurplus;
+  // The roster as it is being edited, not as it was saved, so somebody added in this same edit can
+  // be picked and a renamed seat keeps whatever it was designated for.
+  const rosterNames = [ownName, ...members.map((m) => m.trim())].filter((name) => name !== "");
   const attributed = otherMembers(party).filter((m) => m.personName);
 
   return (
@@ -347,14 +362,31 @@ function ConfigRow({
           disabled={busy}
         >
           <option value="">split, everyone loots their own</option>
-          {[ownName, ...members.map((m) => m.trim())]
-            .filter((name) => name !== "")
-            .map((name) => (
+          {rosterNames.map((name) => (
+            <option key={name} value={name}>
+              {name} loots the pieces
+            </option>
+          ))}
+        </select>
+
+        {/* Only where there IS an odd stack to take. A looter holds every stack, so a second
+            select beside one would be a control that does nothing. */}
+        {looter === "" && (
+          <select
+            className="split-input"
+            value={surplus}
+            onChange={(e) => setSurplus(e.target.value)}
+            aria-label="Who takes the odd stack when a drop will not divide"
+            disabled={busy}
+          >
+            <option value="">odd stack takes turns</option>
+            {rosterNames.map((name) => (
               <option key={name} value={name}>
-                {name} loots the pieces
+                {name} takes the odd stack
               </option>
             ))}
-        </select>
+          </select>
+        )}
       </div>
 
       {/* Whose character each one is, when the people list says so. Read-only here: it is an
@@ -378,6 +410,9 @@ function ConfigRow({
                 difficulty === "" ? null : difficulty,
                 parsed.minutes,
                 looter === "" ? null : looter,
+                // A looter holds every stack, so there is no odd one and any saved answer here
+                // would be a setting nothing reads.
+                looter !== "" || surplus === "" ? null : surplus,
               )
             }
           >
@@ -390,6 +425,7 @@ function ConfigRow({
             onClick={() => {
               setMembers(saved.length > 0 ? saved : [""]);
               setLooter(savedLooter);
+              setSurplus(savedSurplus);
               setDifficulty(savedDifficulty);
               setMinutes(savedMinutes);
             }}
