@@ -336,18 +336,17 @@ export function runningBalance(drops: OutstandingDrop[]): Map<string, number> {
  * more concentrated arrangement crosses more value, and every piece that crosses pays the fee
  * twice.
  *
- * The odd stack goes to the seat the party settled on, when it named one. Otherwise to whoever is
- * furthest BEHIND, so it rotates on its own and the debts alternate direction instead of piling up
- * one way. Naming somebody turns that rotation off, which is the point of naming them.
+ * The odd stack goes to whoever is furthest BEHIND, so it rotates on its own and the debts
+ * alternate direction instead of piling up one way. A party that does not want it to rotate says so
+ * with its SHARES: taking four of six stacks permanently is being entitled to four of six, and said
+ * that way it divides exactly and there is no odd stack to hand anybody.
  *
- * A suggestion either way: nothing is written until somebody says this is what happened.
+ * A suggestion: nothing is written until somebody says this is what happened.
  */
 export function suggestArrangement(
   bundles: number,
   seats: PartyMember[],
   behind: Map<string, number>,
-  /** The seat the party takes the odd stack with, or null to let it rotate. */
-  surplusSeatId: string | null = null,
 ): Map<string, number> {
   const weight = seats.reduce((sum, s) => sum + s.shares, 0);
   if (seats.length === 0 || weight <= 0 || bundles <= 0) return new Map();
@@ -360,15 +359,11 @@ export function suggestArrangement(
     .map((s, i) => ({
       i,
       fraction: (exact[i] ?? 0) - (share[i] ?? 0),
-      // After the fraction, never before it: a seat carrying two shares has earned a bigger floor
-      // than the named one, and jumping the queue here would take a stack off somebody's share to
-      // honour a preference.
-      named: s.id === surplusSeatId ? 1 : 0,
       // Their HOLDER's position, not the seat's: two characters of one person are one pile, and
       // giving the odd stack to their second character would not move the debt at all.
       owed: behind.get(holderKey(holderOf(s))) ?? 0,
     }))
-    .sort((a, b) => b.fraction - a.fraction || b.named - a.named || b.owed - a.owed || a.i - b.i);
+    .sort((a, b) => b.fraction - a.fraction || b.owed - a.owed || a.i - b.i);
 
   for (const { i } of order) {
     if (left <= 0) break;

@@ -62,10 +62,6 @@ data class PartyResponse(
     // The seat that picks up the pieces, when the party agreed one member loots the lot. Null is
     // everybody looting their own, which is most parties. Not always one of yours.
     val looterMemberId: String? = null,
-    // The seat this party has settled on for the odd stack, when a drop will not divide. A default
-    // for the Drop Log's chips and nothing more: what counts is the arrangement recorded against
-    // the night. Null leaves the odd stack to whoever is furthest behind, so it rotates.
-    val surplusMemberId: String? = null,
     // Who ran in the week being shown, which is not always who usually does. See rostersFor.
     val members: List<PartyMemberResponse>,
     // EVERY seat this party has ever had, guests and departed members included. What a payout is
@@ -139,13 +135,6 @@ data class SavePartyRequest(
      * going back to everybody looting their own.
      */
     val looterName: String? = null,
-    /**
-     * Who takes the odd stack when a drop will not divide, by character NAME, same as looterName.
-     *
-     * Null clears it, which puts the odd stack back to rotating to whoever is furthest behind. It
-     * only ever seeds the control; the night's own arrangement is what the ledger reads.
-     */
-    val surplusName: String? = null,
 )
 
 /**

@@ -108,48 +108,24 @@ internal fun retireOrDelete(
 }
 
 /**
- * Why a seat named on a config is not one of its seats, or null.
+ * Why this looter cannot be written, or null.
  *
- * Refused rather than dropped: a party believing one member loots everything, with nothing
- * recorded, is a pool that will quietly attribute the pieces to nobody. The caller supplies the
- * refusal, because what a name that does not resolve means depends on what it was naming.
+ * Refused rather than dropped when the name is not in the party: a party believing one member loots
+ * everything, with nothing recorded, is a pool that will quietly attribute the pieces to nobody.
  */
-private fun validateSeatName(
-    name: String?,
-    ownCharacterId: Uuid?,
-    members: List<String>,
-    refusal: String,
-): String? {
-    if (name == null) return null
-    val named =
-        (listOfNotNull(ownCharacterId?.let(::ownSeatName)) + members)
-            .map { it.trim().lowercase() }
-            .toSet()
-    return if (name.trim().lowercase() in named) null else refusal
-}
-
-/** Why this looter cannot be written, or null. */
 internal fun validateLooter(
     looterName: String?,
     ownCharacterId: Uuid?,
     members: List<String>,
-): String? =
-    validateSeatName(
-        looterName,
-        ownCharacterId,
-        members,
-        "whoever loots the pieces has to be somebody in this party",
-    )
-
-/** Why the seat that takes the odd stack cannot be written, or null. */
-internal fun validateSurplus(
-    surplusName: String?,
-    ownCharacterId: Uuid?,
-    members: List<String>,
-): String? =
-    validateSeatName(
-        surplusName,
-        ownCharacterId,
-        members,
-        "whoever takes the odd stack has to be somebody in this party",
-    )
+): String? {
+    if (looterName == null) return null
+    val named =
+        (listOfNotNull(ownCharacterId?.let(::ownSeatName)) + members)
+            .map { it.trim().lowercase() }
+            .toSet()
+    return if (looterName.trim().lowercase() in named) {
+        null
+    } else {
+        "whoever loots the pieces has to be somebody in this party"
+    }
+}
