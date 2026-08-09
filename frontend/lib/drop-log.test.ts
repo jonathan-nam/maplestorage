@@ -409,7 +409,7 @@ describe("consolidate", () => {
     );
     const lines = consolidate(log.entries);
     expect(lines).toHaveLength(1);
-    expect(lines[0]!.quantity).toBe(180);
+    expect(lines[0]!.yours).toBe(180);
     expect(lines[0]!.folded).toBe(true);
     expect(lines[0]!.entries).toHaveLength(3);
   });
@@ -419,7 +419,7 @@ describe("consolidate", () => {
     expect(lines).toHaveLength(1);
     expect(lines[0]!.folded).toBe(false);
     expect(lines[0]!.key).toBe("l1");
-    expect(lines[0]!.quantity).toBe(1);
+    expect(lines[0]!.yours).toBe(1);
   });
 
   it("never folds free text, which is only ever what somebody typed", () => {
@@ -457,7 +457,7 @@ describe("consolidate", () => {
       {},
     );
     const line = consolidate(log.entries)[0]!;
-    expect(line.quantity).toBe(90);
+    expect(line.yours).toBe(90);
     expect(line.pooled).toBe(1_000_000_000);
 
     const unsold = consolidate(
@@ -487,7 +487,7 @@ describe("consolidate", () => {
 
     expect(line.entries.map((e) => e.lootId)).toEqual(["l2", "l1"]);
     expect(line.entries.map((e) => e.quantity)).toEqual([30, 90]);
-    expect(line.quantity).toBe(line.entries.reduce((sum, e) => sum + e.quantity, 0));
+    expect(line.yours).toBe(line.entries.reduce((sum, e) => sum + e.quantity, 0));
   });
 });
 
@@ -528,8 +528,25 @@ describe("a piece drop counts YOUR share, not what fell", () => {
     expect(entry.yours).toBe(20);
     // Nobody looted the lot, so they are already yours and nobody is named.
     expect(entry.owedBy).toBeNull();
-    expect(consolidate(log.entries)[0]!.quantity).toBe(20);
+    expect(consolidate(log.entries)[0]!.yours).toBe(20);
     expect(consolidate(log.entries)[0]!.fell).toBe(60);
+  });
+
+  it("adds up to the runs it folds, which is what a fold means", () => {
+    // The one that got past the first cut: the line summed your share while the runs behind the
+    // chevron were drawn from what fell, so opening a fold of 40 showed two runs of 60.
+    const log = buildDropLog(
+      [trio()],
+      [pool("pa", [coupons({ id: "l1" }), coupons({ id: "l2", droppedOn: "2026-07-27" })])],
+      tables,
+    );
+    const line = consolidate(log.entries)[0]!;
+
+    expect(line.folded).toBe(true);
+    expect(line.yours).toBe(line.entries.reduce((sum, e) => sum + e.yours, 0));
+    expect(line.yours).toBe(40);
+    // And what fell is still there, unmixed with it.
+    expect(line.fell).toBe(120);
   });
 
   it("names who is holding your share when one seat looted the lot", () => {

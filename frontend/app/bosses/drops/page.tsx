@@ -455,12 +455,12 @@ function DropRow({
           {line.folded ? (
             <span className="loot-name">
               {line.name}
-              <span className="loot-count"> x{line.quantity}</span>
+              <span className="loot-count"> x{line.yours}</span>
             </span>
           ) : (
             <Link href={`/bosses/parties/${entry.partyId}`} className="loot-name">
               {line.name}
-              {line.quantity > 1 && <span className="loot-count"> x{line.quantity}</span>}
+              {line.yours > 1 && <span className="loot-count"> x{line.yours}</span>}
             </Link>
           )}
           <span className="loot-meta">{meta.join(" · ")}</span>
@@ -507,6 +507,7 @@ function RunRow({
   const meta = [
     formatDropped(entry.droppedOn),
     showCharacter ? characterName : null,
+    entry.owedBy ? `${entry.owedBy} looted` : null,
     entry.sellerName
       ? `${entry.amountBasis === "BOUGHT" ? "bought by" : "sold by"} ${entry.sellerName}`
       : null,
@@ -520,7 +521,9 @@ function RunRow({
         {/* The drop is named by the line above, so the run is named by its boss. Free text can be
             filed with no boss at all, and then the date is all there is to click. */}
         {boss?.name ?? formatDropped(entry.droppedOn)}
-        {entry.quantity > 1 && <span className="loot-count"> x{entry.quantity}</span>}
+        {/* Yours, the same as the line above sums. Counting what fell here made a fold of 440
+            open onto runs adding up to 900. */}
+        {entry.yours > 1 && <span className="loot-count"> x{entry.yours}</span>}
       </Link>
       <span className="loot-meta">{meta.join(" · ")}</span>
       <Amounts
