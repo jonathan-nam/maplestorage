@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { LogDrop } from "@/components/log-drop";
 import { PieceLedger } from "@/components/piece-ledger";
+import { StackArrangement } from "@/components/stack-arrangement";
 import { ApiError, apiAssetUrl, apiFetch } from "@/lib/api";
 import { peek, put } from "@/lib/cache";
 import {
@@ -26,13 +27,15 @@ import {
   holderKey,
   holderLedgers,
   outstanding,
+  runningBalance,
   salesByHolder,
+  unanswered,
 } from "@/lib/vestige-ledger";
 import { showsMoney } from "@/lib/world";
 import type { Boss } from "@/types/boss";
 import type { Character } from "@/types/character";
 import type { DropTables } from "@/types/drop";
-import type { LogDropBody, PartyLootPool } from "@/types/loot";
+import type { Loot, LogDropBody, PartyLootPool } from "@/types/loot";
 import type { Party } from "@/types/party";
 import type { VestigeTranche } from "@/types/vestige";
 
@@ -161,6 +164,29 @@ export default function DropLogPage() {
     }
   }
 
+  /**
+   * Records who picked up which stacks of one drop.
+   *
+   * Answers with the pools rather than the row, for the same reason a tranche does: naming the
+   * arrangement turns a drop nobody could be paid for into one that owes somebody, and every other
+   * boss in that holder's queue is re-priced behind it.
+   */
+  async function bundlesWrite(partyId: string, lootId: string, bundles: Record<string, number>) {
+    setBusy(true);
+    try {
+      await apiFetch<Loot>(
+        `/api/parties/${partyId}/loot/${lootId}/bundles`,
+        { method: "PUT", body: JSON.stringify({ bundles }) },
+        getToken,
+      );
+      setPools(await apiFetch<PartyLootPool[]>(POOLS_KEY, {}, getToken));
+    } catch (e) {
+      throw new Error(e instanceof ApiError ? e.body : "That didn't save.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   const bossByKey = new Map(bosses.map((b) => [b.bossKey, b]));
   const characterById = new Map(characters.map((c) => [c.id, c]));
   // Roster order, as /api/characters returns it (Characters.position). The same list the party
@@ -186,10 +212,12 @@ export default function DropLogPage() {
   // The catalog's own order, which is what /api/bosses returns, so two bosses cleared in one week
   // never swap places in the queue and re-price each other.
   const bossOrder = new Map(bosses.map((b, i) => [b.bossKey, i]));
-  const ledgers = holderLedgers(
-    outstanding(parties, pools, VESTIGE, bossOrder),
-    salesByHolder(tranches),
-  );
+  const settled = outstanding(parties, pools, VESTIGE, bossOrder);
+  const ledgers = holderLedgers(settled, salesByHolder(tranches));
+  // Nights that did not divide and that nobody has said the arrangement for. Above the ledger,
+  // because until one is answered its pieces are missing from every figure below it.
+  const open = unanswered(parties, pools, VESTIGE);
+  const behind = runningBalance(settled);
   const tranchesByHolder = new Map<string, VestigeTranche[]>();
   for (const tranche of tranches) {
     const key = holderKey(tranche.holder);
@@ -250,6 +278,16 @@ export default function DropLogPage() {
               </>
             )}
           </div>
+
+          <StackArrangement
+            drops={open}
+            partyById={partyById}
+            bossByKey={bossByKey}
+            behind={behind}
+            iconUrl={vestigeIcon}
+            busy={busy}
+            onSave={bundlesWrite}
+          />
 
           <PieceLedger
             ledgers={ledgers}

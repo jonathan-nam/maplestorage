@@ -306,6 +306,76 @@ export function unanswered(
 }
 
 /**
+ * How far ahead or behind each holder is across every drop already answered for.
+ *
+ * Positive is owed pieces, negative is holding somebody else's. Only what has been recorded, so it
+ * moves when an earlier week is edited. That is why it may only ever SUGGEST an arrangement and
+ * never be stored as one: a stored figure derived from this would be rewritten by the next edit.
+ */
+export function runningBalance(drops: OutstandingDrop[]): Map<string, number> {
+  const out = new Map<string, number>();
+  // One drop has a row per pile, and every row carries the same whole-drop seat list, so counting
+  // each row's balances would count the drop once per pile it sits in.
+  const seen = new Set<string>();
+  for (const d of drops) {
+    if (seen.has(d.lootId)) continue;
+    seen.add(d.lootId);
+    for (const b of balances(d.drop.total, d.drop.seats)) {
+      out.set(b.memberId, (out.get(b.memberId) ?? 0) + b.balance);
+    }
+  }
+  return out;
+}
+
+/**
+ * The arrangement to put in front of somebody, before they say what actually happened.
+ *
+ * Balanced, because that is the one that moves the least: entitlement is `bundles * shares /
+ * weight` stacks, everyone takes the floor, and the odd stacks go to the biggest fractions. Any
+ * more concentrated arrangement crosses more value, and every piece that crosses pays the fee
+ * twice.
+ *
+ * The odd stack goes to whoever is furthest BEHIND, so it rotates on its own and the debts
+ * alternate direction instead of piling up one way. A suggestion only: nothing is written until
+ * somebody says this is what happened.
+ */
+export function suggestArrangement(
+  bundles: number,
+  seats: PartyMember[],
+  behind: Map<string, number>,
+): Map<string, number> {
+  const weight = seats.reduce((sum, s) => sum + s.shares, 0);
+  if (seats.length === 0 || weight <= 0 || bundles <= 0) return new Map();
+
+  const exact = seats.map((s) => (bundles * s.shares) / weight);
+  const share = exact.map(Math.floor);
+  let left = bundles - share.reduce((sum, n) => sum + n, 0);
+
+  const order = seats
+    .map((s, i) => ({
+      i,
+      fraction: (exact[i] ?? 0) - (share[i] ?? 0),
+      // Their HOLDER's position, not the seat's: two characters of one person are one pile, and
+      // giving the odd stack to their second character would not move the debt at all.
+      owed: behind.get(holderKey(holderOf(s))) ?? 0,
+    }))
+    .sort((a, b) => b.fraction - a.fraction || b.owed - a.owed || a.i - b.i);
+
+  for (const { i } of order) {
+    if (left <= 0) break;
+    share[i] = (share[i] ?? 0) + 1;
+    left -= 1;
+  }
+  // A seat with no stacks is left out rather than given a zero: the server refuses a zero, because
+  // somebody who did not bend down is absent from the arrangement, not present with none.
+  const out = new Map<string, number>();
+  seats.forEach((s, i) => {
+    if ((share[i] ?? 0) > 0) out.set(s.id, share[i]!);
+  });
+  return out;
+}
+
+/**
  * Every drop that still owes somebody, oldest first.
  *
  * One row per HOLDER holding pieces of a drop, not one per drop. A drop looted stack by stack sits

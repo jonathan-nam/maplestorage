@@ -6,7 +6,9 @@ import {
   holderOf,
   ledgerForLoot,
   outstanding,
+  runningBalance,
   salesByHolder,
+  suggestArrangement,
   unanswered,
   unsold,
 } from "./vestige-ledger";
@@ -461,6 +463,55 @@ describe("uneven self-looting", () => {
     const drop = [pool("pt", [coupon("l3", "baldrix", 120, "2026-08-06", { bundles: 3 })])];
     expect(unanswered(trio, drop, VESTIGE)).toEqual([]);
     expect(outstanding(trio, drop, VESTIGE, ORDER)).toEqual([]);
+  });
+});
+
+describe("the arrangement put in front of somebody", () => {
+  const me = seat("m1", "Husky", { mine: true });
+  const them = seat("m2", "Nova", { person: ["p-nova", "Nova"] });
+  const NOVA_KEY = holderKey({ kind: "PERSON", personId: "p-nova", characterName: null });
+
+  it("balances rather than concentrates, because every crossing piece pays the fee twice", () => {
+    // Four seats, six stacks. 2,2,1,1 moves one stack of value; 3,1,1,1 moves one and a half.
+    const four = [me, them, seat("m3", "Cid"), seat("m4", "Dot")];
+    const suggested = suggestArrangement(6, four, new Map());
+    expect([...suggested.values()].sort()).toEqual([1, 1, 2, 2]);
+  });
+
+  it("gives the odd stack to whoever is furthest behind, so it rotates on its own", () => {
+    // Nobody behind: the tie falls to seat order, so the first seat takes the extra.
+    expect(suggestArrangement(3, [me, them], new Map()).get("m1")).toBe(2);
+    // Nova is owed 20 from an earlier night, so this week's odd stack is hers.
+    const rotated = suggestArrangement(3, [me, them], new Map([[NOVA_KEY, 20]]));
+    expect(rotated.get("m2")).toBe(2);
+    expect(rotated.get("m1")).toBe(1);
+  });
+
+  it("leaves a seat out rather than handing them zero stacks", () => {
+    // The server refuses a zero: somebody who did not bend down is absent, not present with none.
+    const suggested = suggestArrangement(1, [me, them], new Map());
+    expect(suggested.has("m2")).toBe(false);
+    expect([...suggested.values()].reduce((a, b) => a + b, 0)).toBe(1);
+  });
+
+  it("counts a drop once when working out who is behind, not once per pile", () => {
+    const duo = [party("pt", "baldrix", [me, them], null)];
+    const said = [
+      pool("pt", [
+        coupon("l1", "baldrix", 120, "2026-08-06", {
+          bundles: 3,
+          bundlesBy: [
+            { memberId: "m1", bundles: 2 },
+            { memberId: "m2", bundles: 1 },
+          ],
+        }),
+      ]),
+    ];
+    const drops = outstanding(duo, said, VESTIGE, ORDER);
+    expect(drops).toHaveLength(2);
+    // Two rows, one drop. Nova is owed 20, not 40.
+    expect(runningBalance(drops).get(NOVA_KEY)).toBe(20);
+    expect(runningBalance(drops).get(holderKey(SELF))).toBe(-20);
   });
 });
 
