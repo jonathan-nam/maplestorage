@@ -18,12 +18,28 @@
 
 import { formatWeekStart } from "./boss-clears";
 import { splitOf } from "./loot";
+import { holderKey, holderOf, yourShare } from "./vestige-ledger";
+import type { DropTables } from "@/types/drop";
 import type { Loot, PartyLootPool } from "@/types/loot";
 import type { Party, PartyMember } from "@/types/party";
 
 /** A seat is yours when it links to your roster. Same test the wallet uses. */
 function isMine(member: PartyMember): boolean {
   return member.characterId !== null;
+}
+
+/**
+ * True when this row is a stack of pieces the party divides by COUNT.
+ *
+ * Read off the catalog's own table for the boss and the mode the party runs, which is the one place
+ * that knows: vestige coupons divide, a ring does not, and the row itself cannot tell you which it
+ * is holding. A boss with no amount for its difficulty is not a piece drop, so its count is left
+ * exactly as it was entered.
+ */
+function isPieceDrop(loot: Loot, party: Party, dropTables: DropTables): boolean {
+  if (loot.dropKey === null || party.difficulty === null) return false;
+  const table = dropTables[loot.bossKey ?? ""] ?? [];
+  return (table.find((d) => d.dropKey === loot.dropKey)?.pieces?.[party.difficulty] ?? 0) > 0;
 }
 
 export type DropEntry = {
@@ -35,8 +51,17 @@ export type DropEntry = {
   /** The catalog drop, when it is one. What consolidate() groups on. Null for free text. */
   dropKey: string | null;
   iconUrl: string | null;
-  /** How many pieces the row holds. 1 for a drop that is one item. */
+  /** What FELL, as V40 files it. Not your share of it, which is `yours`. */
   quantity: number;
+  /**
+   * How many of it are YOURS: your share of a piece drop, or the whole count of anything else.
+   *
+   * Worked out from the party as it stands, never stored. What the log counts and what a row
+   * shows, because "how many did I get" is the question a log of your own drops answers.
+   */
+  yours: number;
+  /** The character holding your share until they hand it over, when one seat looted the lot. */
+  owedBy: string | null;
   bossKey: string | null;
   droppedOn: string;
   /** The reset week it fell in, as that week's Thursday. The server's reckoning, never redone here. */
@@ -148,7 +173,12 @@ function takeFor(loot: Loot, members: PartyMember[]): number | null {
  * Every logged drop is here, sold or not: "what have we got off Limbo this year" is as much the
  * question as "what did it make".
  */
-export function buildDropLog(parties: Party[], pools: PartyLootPool[]): DropLog {
+export function buildDropLog(
+  parties: Party[],
+  pools: PartyLootPool[],
+  /** The catalog's drop tables. What says a row is a stack of pieces rather than one item. */
+  dropTables: DropTables,
+): DropLog {
   const partyById = new Map(parties.map((p) => [p.id, p]));
   const entries: DropEntry[] = [];
 
@@ -161,6 +191,11 @@ export function buildDropLog(parties: Party[], pools: PartyLootPool[]): DropLog 
       const split = sold ? splitOf(loot, party.seats) : null;
       const unreadable = sold && split === null;
 
+      // Only a PIECE drop divides by count. Everything else is one thing that sells for one price
+      // and divides as money, and a third of an item is not a number to put on a row.
+      const pieces = isPieceDrop(loot, party, dropTables);
+      const looter = party.seats.find((s) => s.id === party.looterMemberId) ?? null;
+
       entries.push({
         lootId: loot.id,
         partyId: pool.partyId,
@@ -169,6 +204,11 @@ export function buildDropLog(parties: Party[], pools: PartyLootPool[]): DropLog 
         dropKey: loot.dropKey,
         iconUrl: loot.iconUrl,
         quantity: loot.quantity,
+        yours: pieces ? yourShare(loot.quantity, party.members) : loot.quantity,
+        // Named only when somebody ELSE is holding it. Your own seat looting the lot is not a debt
+        // to you, it is you having it already.
+        owedBy:
+          pieces && looter !== null && holderKey(holderOf(looter)) !== "self" ? looter.name : null,
         bossKey: loot.bossKey,
         droppedOn: loot.droppedOn,
         weekStart: loot.weekStart,
@@ -253,8 +293,10 @@ export type DropLine = {
   key: string;
   name: string;
   iconUrl: string | null;
-  /** Pieces across every row behind this line. */
+  /** How many of it are YOURS, across every row behind this line. What the line shows. */
   quantity: number;
+  /** How many FELL across those rows. Only differs where somebody else took a share. */
+  fell: number;
   /** The rows themselves, newest first. Exactly one unless this is a fold. */
   entries: DropEntry[];
   /** True when it stands for more than one row, so the line says how many bosses. */
@@ -322,7 +364,10 @@ function lineOf(key: string, entries: DropEntry[], folded: boolean): DropLine {
     key,
     name: first.name,
     iconUrl: first.iconUrl,
-    quantity: entries.reduce((sum, e) => sum + e.quantity, 0),
+    // Yours, not what fell: a log of your drops that counts somebody else's share is the
+    // overcount this replaced. What fell is kept beside it rather than lost.
+    quantity: entries.reduce((sum, e) => sum + e.yours, 0),
+    fell: entries.reduce((sum, e) => sum + e.quantity, 0),
     entries,
     folded,
     pooled: sold.length === 0 ? null : sold.reduce((sum, e) => sum + (e.pooled ?? 0), 0),

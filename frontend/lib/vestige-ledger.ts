@@ -4,10 +4,10 @@
 // drops are outstanding, whose pile they are in, and what each HOLDER was entitled to, so the one
 // input ("sold N pieces for X") can be distributed without anybody naming a boss.
 //
-// What makes that possible without recording who looted what: the count on the row already says.
-// A clear files the WHOLE drop when the party names a looter, because it is all in one inventory,
-// and this character's SHARE when everybody loots their own (see LootFromClear.kt). So a row with a
-// looter is a debt waiting to be priced, and a row without one is a record and nothing else.
+// What makes that possible without recording who looted what: the party already says. A row's
+// quantity is WHAT FELL (see V40), and the config says whether one seat picked it all up. So a row
+// on a party that names a looter is a debt waiting to be priced, and a row on one where everybody
+// loots their own is a record and nothing else.
 //
 // The exception it cannot express is two members each looting some of one drop. That is rare, and
 // the alternative was a per-seat table and a box per seat on every row, which is the cumbersome
@@ -18,7 +18,13 @@
 // owe yourself. It is also why one person running three characters has one pile and one box, rather
 // than three of each saying the same human owes you three times.
 
-import { type LedgerDrop, type PieceSale, allocate, transfersOf } from "./piece-ledger";
+import {
+  type LedgerDrop,
+  type PieceSale,
+  allocate,
+  entitlements,
+  transfersOf,
+} from "./piece-ledger";
 import type { PieceTransfer } from "./piece-ledger";
 import type { PartyLootPool } from "@/types/loot";
 import type { Party, PartyMember } from "@/types/party";
@@ -51,6 +57,16 @@ export type HolderLedger = {
   holderName: string;
   /** Pieces they are holding across every outstanding boss. */
   pieces: number;
+  /**
+   * Of those, how many are YOURS, and what the sold ones have made you.
+   *
+   * The figure to lead with on somebody else's card: what they are holding is their business, and
+   * what you are owed out of it is the reason the card exists. Zero on your own card, where the
+   * debts run the other way.
+   */
+  owedToYou: number;
+  /** Mesos they owe you NOW, for the pieces of yours that have already sold. Pro rata. */
+  dueNow: number;
   drops: {
     lootId: string;
     partyId: string;
@@ -82,10 +98,13 @@ export function holderOf(seat: PartyMember): Holder {
   return { kind: "CHARACTER", personId: null, characterName: seat.name.trim().toLowerCase() };
 }
 
+/** You, as a holder key. The one seat on any drop whose side of a debt is your own. */
+export const SELF_KEY = "self";
+
 /** How a holder is matched, on either side of the wire. One pile, one key, however it is spelled. */
 export function holderKey(holder: Holder): string {
   if (holder.kind === "PERSON") return `person:${holder.personId}`;
-  if (holder.kind === "SELF") return "self";
+  if (holder.kind === "SELF") return SELF_KEY;
   return `character:${holder.characterName}`;
 }
 
@@ -94,6 +113,46 @@ export function holderName(seat: PartyMember): string {
   if (seat.personId !== null) return seat.personName ?? seat.name;
   if (seat.characterId !== null) return "you";
   return seat.name;
+}
+
+/** One holder in a party: who they are, and how many shares their seats add up to. */
+export type FoldedSeat = { key: string; holder: Holder; name: string; shares: number };
+
+/**
+ * A party's seats folded to the people behind them.
+ *
+ * The one place seats become people, so a debt, a share and a count are all measured against the
+ * same list. Two characters of one person are one holder with two shares: they are owed twice as
+ * much as somebody who brought one, and they are owed it once.
+ */
+export function foldSeats(seats: PartyMember[]): FoldedSeat[] {
+  const folded = new Map<string, FoldedSeat>();
+  for (const seat of seats) {
+    const holder = holderOf(seat);
+    const key = holderKey(holder);
+    const seen = folded.get(key);
+    if (seen) seen.shares += seat.shares;
+    else folded.set(key, { key, holder, name: holderName(seat), shares: seat.shares });
+  }
+  return [...folded.values()];
+}
+
+/**
+ * How many of a piece drop are YOURS, out of what fell.
+ *
+ * Derived on every read and stored nowhere. The inputs (who ran, how the shares fall) are edited
+ * long after a drop is filed, and a stored share does not follow them: that is what had one Limbo
+ * row reading 60 for a character who got 20. See V40.
+ *
+ * Zero when none of the seats are yours, which is a party you keep the books for but did not run.
+ */
+export function yourShare(whole: number, seats: PartyMember[]): number {
+  const folded = foldSeats(seats);
+  const entitled = entitlements(
+    whole,
+    folded.map((f) => ({ memberId: f.key, name: f.name, looted: 0, shares: f.shares })),
+  );
+  return entitled.get(SELF_KEY) ?? 0;
 }
 
 /**
@@ -130,15 +189,8 @@ export function outstanding(
 
     // Seats folded to holders: two characters of one person are one share of the drop and one
     // party to the debt. A night that folds to a single holder is nobody owing anybody.
-    const holders = new Map<string, { holder: Holder; name: string; shares: number }>();
-    for (const seat of ran) {
-      const key = holderKey(holderOf(seat));
-      const seen = holders.get(key);
-      if (seen) seen.shares += seat.shares;
-      else
-        holders.set(key, { holder: holderOf(seat), name: holderName(seat), shares: seat.shares });
-    }
-    if (holders.size < 2) continue;
+    const holders = foldSeats(ran);
+    if (holders.length < 2) continue;
 
     const looterHolder = holderKey(holderOf(looter));
 
@@ -157,10 +209,10 @@ export function outstanding(
           order: bossOrder.get(loot.bossKey ?? "") ?? Number.MAX_SAFE_INTEGER,
           total: loot.quantity,
           // The looter's holder has all of it; every other holder has none and is owed their share.
-          seats: [...holders].map(([key, h]) => ({
-            memberId: key,
+          seats: holders.map((h) => ({
+            memberId: h.key,
             name: h.name,
-            looted: key === looterHolder ? loot.quantity : 0,
+            looted: h.key === looterHolder ? loot.quantity : 0,
             shares: h.shares,
           })),
         },
@@ -201,28 +253,35 @@ export function holderLedgers(
         a.drop.order - b.drop.order ||
         a.drop.id.localeCompare(b.drop.id),
     );
+    // Every outstanding drop, including any that owes nothing, because its pieces are in this pile
+    // and the tranches are spent across all of it. Listing only some would leave the header
+    // counting pieces the rows below it do not account for.
+    const drops = ordered.map((d) => {
+      const cover = coverage.get(d.drop.id);
+      return {
+        lootId: d.lootId,
+        partyId: d.partyId,
+        bossKey: d.bossKey,
+        weekStart: d.drop.weekStart,
+        looterName: d.looterName,
+        pieces: d.drop.total,
+        covered: cover?.covered ?? 0,
+        complete: cover?.complete ?? false,
+        averagePrice: cover?.averagePrice ?? null,
+        transfers: transfersOf(d.drop, cover),
+      };
+    });
+    // Your side of this pile, read off the transfers rather than recomputed: whatever they are
+    // told to send you is what you are owed, and two sums of that would be two answers.
+    const yours = drops.flatMap((d) => d.transfers).filter((t) => t.toId === SELF_KEY);
+
     ledgers.push({
       holder: mine[0]!.holder,
       holderName: mine[0]!.holderName,
       pieces: mine.reduce((sum, d) => sum + d.drop.total, 0),
-      // Every outstanding drop, including any that owes nothing, because its pieces are in this
-      // pile and the tranches are spent across all of it. Listing only some would leave the header
-      // counting pieces the rows below it do not account for.
-      drops: ordered.map((d) => {
-        const cover = coverage.get(d.drop.id);
-        return {
-          lootId: d.lootId,
-          partyId: d.partyId,
-          bossKey: d.bossKey,
-          weekStart: d.drop.weekStart,
-          looterName: d.looterName,
-          pieces: d.drop.total,
-          covered: cover?.covered ?? 0,
-          complete: cover?.complete ?? false,
-          averagePrice: cover?.averagePrice ?? null,
-          transfers: transfersOf(d.drop, cover),
-        };
-      }),
+      owedToYou: yours.reduce((sum, t) => sum + t.pieces, 0),
+      dueNow: yours.reduce((sum, t) => sum + (t.send ?? 0), 0),
+      drops,
     });
   }
   return ledgers.sort((a, b) => a.holderName.localeCompare(b.holderName));

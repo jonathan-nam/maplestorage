@@ -105,39 +105,39 @@ class LootFromClearTest {
 
             val row = pool(partyId).single()
             assertEquals("Vestige of Erion Coupon", row.name)
-            // Extreme Kalos gives 180 and this is a duo who each loot their own, so half of it is
-            // this character's. The whole drop is what a designated looter's row holds, below.
-            assertEquals(90, row.quantity)
+            // What FELL, which is what Extreme Kalos gives. Who gets how much of it is worked out
+            // on every read, from the party as it stands. See V40.
+            assertEquals(180, row.quantity)
             assertEquals("kalos-the-guardian", row.bossKey)
         }
     }
 
     @Test
-    fun `everybody looting their own records this character's share, not the whole drop`() {
+    fun `the row is what fell, whoever ran and however many of them there were`() {
         transaction {
-            // Hard Limbo drops 60, in three bundles because Limbo caps at three. Run as a trio with
-            // nobody designated, each of them loots 20, so 60 in the pool would be this character
-            // holding twice what they actually have.
+            // Hard Limbo drops 60. The row said 20 here once, this character's share of a trio,
+            // and it kept saying 20 after the trio became a duo. A stored share does not follow the
+            // party it was worked out from, so nothing stores one now: 60 fell, and 60 is the row.
             val (characterId, partyId) = party(difficulty = "HARD", boss = "limbo", others = listOf("Steve", "Bob"))
             lootFromClear(characterId, bossIdForKey("limbo")!!, "WEEKLY", today, Clock.System.now())
-            assertEquals(20, pool(partyId).single().quantity)
+            assertEquals(60, pool(partyId).single().quantity)
         }
     }
 
     @Test
-    fun `a duo splits it in two, which is the same rule and not a special case`() {
+    fun `a duo files the same row as a trio, because the drop is the same drop`() {
         transaction {
             val (characterId, partyId) = party(difficulty = "HARD", boss = "limbo", others = listOf("Steve"))
             lootFromClear(characterId, bossIdForKey("limbo")!!, "WEEKLY", today, Clock.System.now())
-            assertEquals(30, pool(partyId).single().quantity)
+            assertEquals(60, pool(partyId).single().quantity)
         }
     }
 
     @Test
-    fun `one member looting the lot records the whole drop, because they hold it`() {
+    fun `a designated looter changes nothing about the row either`() {
         transaction {
-            // The Husky arrangement: the partner loots and sells everything, so all 60 are in one
-            // inventory and they owe the other two their share.
+            // The Husky arrangement: the partner loots and sells everything. That decides who OWES
+            // whom, which the ledger reads off the config, and not what the boss dropped.
             val (characterId, partyId) =
                 party(
                     difficulty = "HARD",

@@ -165,7 +165,7 @@ export default function DropLogPage() {
   const characterById = new Map(characters.map((c) => [c.id, c]));
   // The whole log is kept alongside the filtered one so the toolbar does not come and go: which
   // controls exist is a property of the account, not of what the filter currently leaves.
-  const whole = buildDropLog(parties, pools);
+  const whole = buildDropLog(parties, pools, dropTables);
   const log = forCharacter(whole, character);
   const { totals } = log;
   const groups = groupDrops(log.entries, grouping);
@@ -406,6 +406,9 @@ function DropRow({
         boss?.name,
         showCharacter ? characterName : null,
         formatDropped(entry.droppedOn),
+        // The count on this row is your share, and this is who is holding it until they hand it
+        // over. Without it the row reads as pieces you already have.
+        entry.owedBy ? `${entry.owedBy} looted` : null,
         entry.sellerName
           ? `${entry.amountBasis === "BOUGHT" ? "bought by" : "sold by"} ${entry.sellerName}`
           : null,

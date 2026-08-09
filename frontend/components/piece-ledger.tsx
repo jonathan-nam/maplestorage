@@ -126,11 +126,19 @@ function HolderCard({
         <span className="loot-title">
           <span className="loot-name">Vestige of Erion</span>
           <span className="loot-meta">
-            {/* "you hold", everybody else "holds". */}
-            {ledger.holderName} {ledger.holder.kind === "SELF" ? "hold" : "holds"} {ledger.pieces}
+            {/* Somebody else's card leads with your side of it. Your own leads with the pile,
+                because there is no debt to you on it. */}
+            {ledger.holder.kind === "SELF"
+              ? `you hold ${ledger.pieces}`
+              : `${ledger.holderName} owes you ${ledger.owedToYou} of ${ledger.pieces}`}
           </span>
         </span>
         <span className="ledger-tally">
+          {/* Due NOW, for the pieces of yours that have already sold. The rest follows as the
+              stack goes; see the pro rata note in piece-ledger.ts. */}
+          {ledger.dueNow > 0 && (
+            <span className="droplog-take">{formatMesos(ledger.dueNow, true)} due · </span>
+          )}
           {sold} sold · {left} unsold
         </span>
       </header>
@@ -223,15 +231,19 @@ function HolderCard({
                   <li key={transferKey(transfer)}>
                     <span className="loot-share-name">owes {transfer.to}</span>
                     {transfer.send === null ? (
-                      // Its pieces have not all sold, so what they will fetch is not known. The
-                      // count is the fact; the money would be a guess at the next tranche.
+                      // None of its pieces have sold, so there is no price to pay them at. The
+                      // count is the fact; money would be a guess at the next tranche.
                       <span className="loot-share-nets">
                         {transfer.pieces} pieces, priced when they sell
                       </span>
                     ) : (
                       <>
                         <span className="droplog-take">{formatMesos(transfer.send, true)}</span>
-                        <span className="loot-share-nets">{transfer.pieces} pieces</span>
+                        <span className="loot-share-nets">
+                          {transfer.settled < transfer.pieces
+                            ? `${transfer.settled} of ${transfer.pieces} pieces sold`
+                            : `${transfer.pieces} pieces`}
+                        </span>
                       </>
                     )}
                   </li>
