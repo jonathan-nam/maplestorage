@@ -26,11 +26,12 @@ import kotlin.uuid.Uuid
 /**
  * A holder's sale tally, against a real Postgres.
  *
- * Three claims are worth a database. That the tally comes back OLDEST FIRST, because that is the
+ * Four claims are worth a database. That the tally comes back OLDEST FIRST, because that is the
  * order the queue spends it in and reversing it would re-price every boss. That it is scoped to the
  * account, since it is read without naming a party and an account-wide read is where a missing
- * `where` shows up as somebody else's sales. And that the holder columns cannot disagree with the
- * kind, which is the constraint standing between a pile and belonging to nobody.
+ * `where` shows up as somebody else's sales. That the holder columns cannot disagree with the kind,
+ * which is the constraint standing between a pile and belonging to nobody. And that a redemption
+ * carries no price, where a zero would have been a price and the wrong one.
  */
 class VestigeTrancheTest {
     private val userId = "user_test_tranche_1"
@@ -83,8 +84,9 @@ class VestigeTrancheTest {
         owner: String,
         holder: Uuid?,
         pieces: Int,
-        amount: Long,
+        amount: Long?,
         hoursAgo: Long,
+        disposition: String = "SOLD",
     ) {
         val now = Clock.System.now()
         VestigeTranche.insert {
@@ -94,6 +96,7 @@ class VestigeTrancheTest {
             it[personId] = holder
             it[VestigeTranche.pieces] = pieces
             it[VestigeTranche.amount] = amount
+            it[VestigeTranche.disposition] = disposition
             it[soldAt] = now - hoursAgo.hours
             it[createdAt] = now
         }
@@ -167,9 +170,10 @@ class VestigeTrancheTest {
         assertNull(trancheRefusal(self, 50, 1_200_000_000))
         assertNull(trancheRefusal(bro, 50, 1_200_000_000))
         assertNull(trancheRefusal(stranger, 50, 1_200_000_000))
-        // A stack handed over rather than sold is a real thing to record, and it prices that boss at
-        // nothing rather than refusing to price it at all.
-        assertNull(trancheRefusal(self, 30, 0))
+        // A sale for nothing is refused, and the refusal says where that stack belongs. Allowing it
+        // made the creditor absorb their share of a loss the holder chose; KEPT charges the holder.
+        assertTrue(trancheRefusal(self, 30, 0)!!.contains("KEPT"))
+        assertNull(trancheRefusal(self, 30, 1))
 
         // The kind and the reference cannot disagree, which is what keeps a pile from belonging to
         // nobody and pricing every boss it covers at zero.
@@ -184,7 +188,38 @@ class VestigeTrancheTest {
 
         assertTrue(trancheRefusal(self, 0, 1)!!.contains("between 1"))
         assertTrue(trancheRefusal(self, 1_000_001, 1)!!.contains("1000000"))
-        assertTrue(trancheRefusal(self, 50, -1)!!.contains("negative"))
+        // Negative lands in the same refusal as zero: both are a sale with no money in it.
+        assertTrue(trancheRefusal(self, 50, -1)!!.contains("above zero"))
+    }
+
+    @Test
+    fun `a redemption carries no money, and a sale cannot be missing it`() {
+        val self = VestigeHolder(kind = "SELF")
+
+        assertNull(trancheRefusal(self, 195, null, "KEPT"))
+        assertNull(trancheRefusal(self, 195, 4_875_000_000, "SOLD"))
+
+        // The two cannot disagree, matching the check in V46. A KEPT row carrying an amount would
+        // price the very pieces it exists to say were never priced, which is #281 by another route.
+        assertTrue(trancheRefusal(self, 195, 4_875_000_000, "KEPT")!!.contains("amount"))
+        assertTrue(trancheRefusal(self, 195, null, "SOLD")!!.contains("amount"))
+        assertTrue(trancheRefusal(self, 195, null, "REDEEMED")!!.contains("disposition"))
+    }
+
+    @Test
+    fun `a redemption round-trips with no price, beside the sales it is not one of`() {
+        transaction {
+            ensureUser(userId, "$userId@example.com")
+            tranche(userId, null, 195, 4_875_000_000, hoursAgo = 5)
+            tranche(userId, null, 195, null, hoursAgo = 1, disposition = "KEPT")
+
+            val rows = tranchesFor(userId)
+            assertEquals(listOf("SOLD", "KEPT"), rows.map { it.disposition })
+            // Null, not zero. Zero is a price, and it is the wrong one: it would make the creditor
+            // absorb half of a loss nobody took. See V46.
+            assertEquals(listOf(4_875_000_000L, null), rows.map { it.amount })
+            assertEquals(listOf(195, 195), rows.map { it.pieces })
+        }
     }
 
     @Test

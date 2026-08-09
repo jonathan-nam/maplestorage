@@ -57,7 +57,7 @@ data class LootResponse(
     // Who holds the value and owes the rest: the seller, or the buyer when a member bought it.
     val sellerMemberId: String?,
     // Who took the item, where it cannot be sold. Null until somebody does, and never set at the
-    // same time as a sale. Nothing is owed off it: the item cannot move again. See V47.
+    // same time as a sale. Nothing is owed off it: the item cannot move again. See V49.
     val takenByMemberId: String? = null,
     val soldAt: String?,
     // Who is owed, as pinned when the drop sold. Empty until then.
@@ -200,7 +200,7 @@ data class PayoutRequest(
  * Who took the item, where it cannot be sold. Null puts the drop back in the pool.
  *
  * One seat, not a set of shares: this is an item somebody now holds, not a pot being divided. See
- * V47.
+ * V49.
  */
 @Serializable
 data class TakenRequest(

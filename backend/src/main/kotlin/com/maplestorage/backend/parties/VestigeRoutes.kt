@@ -43,6 +43,12 @@ private const val PERSON = "PERSON"
 private const val SELF = "SELF"
 private const val CHARACTER = "CHARACTER"
 
+/** A sale, with money in it. */
+private const val SOLD = "SOLD"
+
+/** Pieces redeemed rather than sold, so out of the pile every price is derived from. See V46. */
+private const val KEPT = "KEPT"
+
 /**
  * Whose pile a tranche is, as the three kinds V39 stores.
  *
@@ -63,8 +69,15 @@ data class VestigeTrancheResponse(
     val id: String,
     val holder: VestigeHolder,
     val pieces: Int,
-    /** Mesos for the whole tranche. The per-piece figure is derived by the client, never stored. */
-    val amount: Long,
+    /**
+     * Mesos for the whole tranche. The per-piece figure is derived by the client, never stored.
+     *
+     * Null on a KEPT row. A redemption has no price, which is the point of recording it: those
+     * pieces come out of the pile the prices are derived from instead of being priced at nothing.
+     */
+    val amount: Long? = null,
+    /** SOLD or KEPT. Carried out, so a client never infers a redemption from a missing amount. */
+    val disposition: String,
     val soldAt: String,
 )
 
@@ -72,7 +85,9 @@ data class VestigeTrancheResponse(
 data class AddVestigeTrancheRequest(
     val holder: VestigeHolder,
     val pieces: Int,
-    val amount: Long,
+    val amount: Long? = null,
+    /** Defaults to a sale, which is what every tranche was before V46. */
+    val disposition: String = SOLD,
 )
 
 fun Route.vestigeRoutes() {
@@ -96,7 +111,8 @@ private suspend fun RoutingContext.addTrancheRoute() {
     val request = call.receive<AddVestigeTrancheRequest>()
     val holder = request.holder.normalised()
 
-    val refusal = trancheRefusal(holder, request.pieces, request.amount)
+    val disposition = request.disposition.trim().uppercase()
+    val refusal = trancheRefusal(holder, request.pieces, request.amount, disposition)
     if (refusal != null) return call.respond(HttpStatusCode.BadRequest, refusal)
 
     val result =
@@ -125,6 +141,7 @@ private suspend fun RoutingContext.addTrancheRoute() {
                 it[characterName] = holder.characterName
                 it[pieces] = request.pieces
                 it[amount] = request.amount
+                it[VestigeTranche.disposition] = disposition
                 it[soldAt] = now
                 it[createdAt] = now
             }
@@ -166,11 +183,17 @@ internal fun VestigeHolder.normalised(): VestigeHolder =
 internal fun trancheRefusal(
     holder: VestigeHolder,
     pieces: Int,
-    amount: Long,
+    amount: Long?,
+    disposition: String = SOLD,
 ): String? =
     when {
         holder.kind !in setOf(PERSON, SELF, CHARACTER) ->
             "holder.kind must be one of $PERSON, $SELF, $CHARACTER"
+        disposition !in setOf(SOLD, KEPT) -> "disposition must be one of $SOLD, $KEPT"
+        // Matching the constraint in V46. A KEPT row carrying money would price the very pieces it
+        // exists to say were never priced, and a SOLD row without it prices them at nothing.
+        (disposition == SOLD) != (amount != null) ->
+            "a $SOLD tranche needs an amount, and a $KEPT one has none"
         // The kind and the reference cannot disagree, matching the constraints in V39: a PERSON pile
         // with no person is a pile belonging to nobody.
         (holder.kind == PERSON) != (holder.personId != null) ->
@@ -180,9 +203,13 @@ internal fun trancheRefusal(
         holder.personId != null && runCatching { Uuid.parse(holder.personId) }.isFailure ->
             "personId is not an id"
         pieces < 1 || pieces > MAX_PIECES -> "pieces must be between 1 and $MAX_PIECES"
-        // Zero is allowed: a stack handed over rather than sold is a real thing to record, and it
-        // prices that boss at nothing rather than refusing to price it at all.
-        amount < 0 -> "amount cannot be negative"
+        // Zero is refused, where V38 documented it as how a stack handed over rather than sold was
+        // recorded. It prices those pieces at nothing and folds that into the pro rata average, so
+        // the creditor absorbs their share of a loss the holder chose. $KEPT is the same event with
+        // the incidence right: the pieces leave the sellable pile and come off the holder's own
+        // entitlement first. See #290.
+        amount != null && amount < 1 ->
+            "a sale needs an amount above zero. A stack that fetched nothing is $KEPT"
         else -> null
     }
 
@@ -211,6 +238,7 @@ internal fun tranchesFor(userId: String): List<VestigeTrancheResponse> =
                 holder = holder,
                 pieces = it[VestigeTranche.pieces],
                 amount = it[VestigeTranche.amount],
+                disposition = it[VestigeTranche.disposition],
                 soldAt = it[VestigeTranche.soldAt].toString(),
             )
         }

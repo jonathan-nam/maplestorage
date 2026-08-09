@@ -5,8 +5,9 @@
 // input ("sold N pieces for X") can be distributed without anybody naming a boss.
 //
 // A row's quantity is WHAT FELL (see V40). Who ended up holding it comes from three places, and
-// this file's job is knowing which one applies: a named looter holds the lot, a recorded
-// arrangement splits it stack by stack (V41), or the stacks divide and everybody took their share.
+// this file's job is knowing which one applies, in this order: a recorded arrangement splits it
+// stack by stack (V41), a named looter holds the lot, or the stacks divide and everybody took their
+// share. The arrangement first because it is what happened, where the looter is only what was agreed.
 //
 // A fourth case exists and is deliberately NOT answered: the drop did not divide and nobody has
 // said who took the odd stack. It used to be called rare and skipped, which was wrong twice over.
@@ -26,6 +27,8 @@ import {
   balances,
   entitlements,
   heldOf,
+  sellableOf,
+  spreadKept,
   transfersOf,
 } from "./piece-ledger";
 import type { PieceTransfer } from "./piece-ledger";
@@ -68,8 +71,23 @@ export type HolderLedger = {
    * debts run the other way.
    */
   owedToYou: number;
+  /**
+   * Of those, how many their sales have already reached, so that much of the debt cannot move.
+   *
+   * The figure the card leads with, because it is the one that answers "how far through is this" in
+   * the units you are owed. Read off the transfers, like `owedToYou` and `dueNow`, so all three are
+   * the same answer counted once.
+   */
+  settledToYou: number;
   /** Mesos they owe you NOW, for the pieces of yours that have already sold. Pro rata. */
   dueNow: number;
+  /**
+   * Pieces of the pile they are redeeming rather than selling, as entered.
+   *
+   * More than `pieces` is a miscount, and the two are carried side by side so it can be said out loud
+   * rather than clamped away: every drop reads as fully kept and the surplus is nowhere.
+   */
+  kept: number;
   drops: {
     lootId: string;
     partyId: string;
@@ -78,8 +96,12 @@ export type HolderLedger = {
     /** Which of this holder's characters looted it. */
     looterName: string;
     pieces: number;
+    /** Of those, how many are being redeemed. Taken off the newest end of the queue. */
+    kept: number;
+    /** Pieces of it actually for sale, which is what `covered` counts towards. */
+    sellable: number;
     covered: number;
-    /** Its pieces have all sold, so its debts are final. */
+    /** Every sellable piece has sold, so its debts are final. */
     complete: boolean;
     /** What one piece of THIS boss fetched, or null until it is covered. */
     averagePrice: number | null;
@@ -185,24 +207,22 @@ function holdersOf(party: Party): FoldedSeat[] {
 /**
  * What each holder walked away with, or null when nobody has said and it matters.
  *
- * Three ways a night can be known, and one way it cannot:
+ * Three ways a night can be known, and one way it cannot, in this order:
  *
- *  - a named looter, who holds the lot. What a party running one seller means.
  *  - a recorded arrangement, stack by stack, folded to holders.
+ *  - a named looter, who holds the lot. What a party running one seller means.
  *  - neither, but the stacks divide, so everybody took exactly their share.
  *
  * Otherwise null. The drop did not divide, nobody has said who took the odd stack, and there is no
  * honest default: a guess is right half the time and names the wrong person the rest.
+ *
+ * The ARRANGEMENT comes first, and it used to come second. `looterMemberId` is a standing agreement
+ * about the party ("one of us loots the lot"); `bundlesBy` is what happened on one night. A specific
+ * observation has to beat a general default, and losing to it meant a mis-looted night could not be
+ * corrected at all while the party had a looter: you entered the stacks, the card did not move, and
+ * nothing said why. See #289.
  */
 function heldByHolder(loot: Loot, party: Party, holders: FoldedSeat[]): Map<string, Pile> | null {
-  if (party.looterMemberId !== null) {
-    const looter = party.seats.find((s) => s.id === party.looterMemberId);
-    if (looter) {
-      const key = holderKey(holderOf(looter));
-      return new Map([[key, { pieces: loot.quantity, by: looter.name }]]);
-    }
-  }
-
   const bundles = bundlesOf(loot);
   const bundlesBy = loot.bundlesBy ?? [];
 
@@ -227,6 +247,14 @@ function heldByHolder(loot: Loot, party: Party, holders: FoldedSeat[]): Map<stri
       }
     }
     return held;
+  }
+
+  if (party.looterMemberId !== null) {
+    const looter = party.seats.find((s) => s.id === party.looterMemberId);
+    if (looter) {
+      const key = holderKey(holderOf(looter));
+      return new Map([[key, { pieces: loot.quantity, by: looter.name }]]);
+    }
   }
 
   if (bundles !== null && dividesEvenly(bundles, holders)) {
@@ -481,6 +509,11 @@ export function outstanding(
 export function holderLedgers(
   drops: OutstandingDrop[],
   salesByHolder: Map<string, PieceSale[]>,
+  /**
+   * Pieces each holder is redeeming rather than selling. Absent is none, which is every pile before
+   * V46 and still most of them.
+   */
+  keptByHolder: Map<string, number> = new Map(),
 ): HolderLedger[] {
   const byHolder = new Map<string, OutstandingDrop[]>();
   for (const d of drops) {
@@ -491,10 +524,21 @@ export function holderLedgers(
 
   const ledgers: HolderLedger[] = [];
   for (const [key, mine] of byHolder) {
-    const coverage = allocate(
-      mine.map((d) => d.drop),
-      salesByHolder.get(key) ?? [],
+    const kept = keptByHolder.get(key) ?? 0;
+    // Which bosses the redeemed pieces came off, before anything is priced: coverage and every
+    // transfer are measured against the sellable pile, so this has to be decided first.
+    //
+    // One lootId appears at most once per holder, so keying by it inside this pile is safe. Across
+    // piles it does not hold, which is why this runs per holder rather than over the whole list.
+    const spread = new Map(
+      spreadKept(
+        mine.map((d) => d.drop),
+        kept,
+      ).map((d) => [d.id, d]),
     );
+    const pileOf = (d: OutstandingDrop) => spread.get(d.drop.id) ?? d.drop;
+
+    const coverage = allocate(mine.map(pileOf), salesByHolder.get(key) ?? []);
     // The queue's own order, so the card reads the way the pieces are being spent.
     const ordered = [...mine].sort(
       (a, b) =>
@@ -506,7 +550,8 @@ export function holderLedgers(
     // and the tranches are spent across all of it. Listing only some would leave the header
     // counting pieces the rows below it do not account for.
     const drops = ordered.map((d) => {
-      const cover = coverage.get(d.drop.id);
+      const pile = pileOf(d);
+      const cover = coverage.get(pile.id);
       return {
         lootId: d.lootId,
         partyId: d.partyId,
@@ -515,14 +560,16 @@ export function holderLedgers(
         looterName: d.looterName,
         // What is in THIS pile, which is what their own sales can cover. The whole drop would
         // count somebody else's stacks as unsold pieces of theirs.
-        pieces: heldOf(d.drop),
+        pieces: heldOf(pile),
+        kept: pile.kept ?? 0,
+        sellable: cover?.sellable ?? sellableOf(pile),
         covered: cover?.covered ?? 0,
         complete: cover?.complete ?? false,
         averagePrice: cover?.averagePrice ?? null,
         // Only what THIS holder owes. A split drop has a row in each pile it sits in, and every one
         // of them would otherwise repeat the whole drop's debts, counting each of them once per
         // pile.
-        transfers: transfersOf(d.drop, cover, key),
+        transfers: transfersOf(pile, cover, key),
       };
     });
     // Your side of this pile, read off the transfers rather than recomputed: whatever they are
@@ -534,19 +581,34 @@ export function holderLedgers(
       holderName: mine[0]!.holderName,
       pieces: mine.reduce((sum, d) => sum + heldOf(d.drop), 0),
       owedToYou: yours.reduce((sum, t) => sum + t.pieces, 0),
+      settledToYou: yours.reduce((sum, t) => sum + t.settled, 0),
       dueNow: yours.reduce((sum, t) => sum + (t.send ?? 0), 0),
+      kept,
       drops,
     });
   }
   return ledgers.sort((a, b) => a.holderName.localeCompare(b.holderName));
 }
 
-/** The sales one holder has entered, keyed the way holderLedgers wants them. */
+/**
+ * The sales one holder has entered, keyed the way holderLedgers wants them.
+ *
+ * Rows with money in them. A KEPT row is pieces redeemed rather than sold, so it has no price to
+ * spend on the queue; what those pieces do instead is come out of the sellable pile, which is
+ * `keptByHolder` below.
+ *
+ * Filtered on the AMOUNT rather than on `disposition`, which V46 makes equivalent: the check
+ * constraint is `(disposition = 'SOLD') = (amount IS NOT NULL)`, so neither can drift from the other.
+ * Reading `disposition` here would be the cache trap in `bundlesOf` below, and worse: a tab open
+ * across the deploy hands this code rows from before the field existed, and `undefined !== "SOLD"`
+ * is TRUE, so every sale already entered would be silently dropped as a redemption.
+ */
 export function salesByHolder(
-  rows: { holder: Holder; pieces: number; amount: number }[],
+  rows: { holder: Holder; pieces: number; amount: number | null }[],
 ): Map<string, PieceSale[]> {
   const out = new Map<string, PieceSale[]>();
   for (const row of rows) {
+    if (row.amount === null) continue;
     // The tally stores a TOTAL, because that is what a partner reports ("1.2b for the 60"). The
     // per-piece figure the split needs is derived, never typed.
     const sale: PieceSale = { pieces: row.pieces, priceEach: row.amount / row.pieces };
@@ -558,9 +620,37 @@ export function salesByHolder(
   return out;
 }
 
-/** Pieces still to sell across a holder's whole pile. What the card's header counts down. */
+/**
+ * How many pieces each holder is redeeming rather than selling.
+ *
+ * A total, because only the total matters: which bosses the pieces come off is decided on read by
+ * `spreadKept`, and the rows exist separately so a redemption entered by mistake can be removed.
+ *
+ * Rows with no money, the same test `salesByHolder` uses and for the same reason: V46 makes the
+ * amount and the disposition equivalent by check constraint, and reading `disposition` would read
+ * `undefined` on a response cached from before the field existed.
+ */
+export function keptByHolder(
+  rows: { holder: Holder; pieces: number; amount: number | null }[],
+): Map<string, number> {
+  const out = new Map<string, number>();
+  for (const row of rows) {
+    if (row.amount !== null) continue;
+    const key = holderKey(row.holder);
+    out.set(key, (out.get(key) ?? 0) + row.pieces);
+  }
+  return out;
+}
+
+/**
+ * Pieces still to sell across a holder's whole pile. What the card's header counts down.
+ *
+ * Against the SELLABLE part of each pile, so a redeemed piece is not something still to be entered.
+ * Counted against the whole pile it never reached zero for a holder redeeming any of theirs, and the
+ * card could not tell a pile that had stalled for good from one still waiting on a sale.
+ */
 export function unsold(ledger: HolderLedger): number {
-  return ledger.drops.reduce((sum, d) => sum + (d.pieces - d.covered), 0);
+  return ledger.drops.reduce((sum, d) => sum + (d.sellable - d.covered), 0);
 }
 
 /**

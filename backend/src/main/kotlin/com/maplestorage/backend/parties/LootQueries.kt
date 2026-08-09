@@ -34,7 +34,7 @@ internal const val STATUS_PAID_OUT = "PAID_OUT"
  * Somebody took the item, in a world where it cannot be sold.
  *
  * Terminal, like PAID_OUT, and for the same reason: there is nothing left to do with it. Not called
- * PAID_OUT anyway, because nobody paid anybody. See V47.
+ * PAID_OUT anyway, because nobody paid anybody. See V49.
  */
 internal const val STATUS_TAKEN = "TAKEN"
 

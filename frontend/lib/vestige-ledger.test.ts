@@ -4,6 +4,7 @@ import {
   holderKey,
   holderLedgers,
   holderOf,
+  keptByHolder,
   ledgerForLoot,
   outstanding,
   runningBalance,
@@ -137,6 +138,33 @@ describe("who a seat belongs to", () => {
 });
 
 describe("which drops are outstanding", () => {
+  it("lets a recorded arrangement correct a party that names a looter", () => {
+    // #289. The looter is a standing agreement, the arrangement is what happened, and the
+    // arrangement used to lose silently: you entered the stacks and the card did not move.
+    const p = party("pa", "limbo", trio(), "m1");
+    const split = coupon("l1", "limbo", 60, "2026-07-30", {
+      bundles: 3,
+      bundlesBy: [
+        { memberId: "m1", bundles: 1 },
+        { memberId: "m2", bundles: 1 },
+        { memberId: "m3", bundles: 1 },
+      ],
+    });
+
+    // A stack each is exactly everybody's share, so nothing is owed and it leaves the queue. Read
+    // through the looter instead, this was one seat holding all 60 and owing the other two 20 each.
+    expect(outstanding([p], [pool("pa", [split])], VESTIGE, ORDER)).toEqual([]);
+  });
+
+  it("still falls back to the looter when no arrangement was recorded", () => {
+    const p = party("pa", "limbo", trio(), "m1");
+    const uncounted = coupon("l1", "limbo", 60, "2026-07-30", { bundles: 3, bundlesBy: [] });
+    const drops = outstanding([p], [pool("pa", [uncounted])], VESTIGE, ORDER);
+    expect(drops).toHaveLength(1);
+    expect(drops[0]!.looterName).toBe("Husky");
+    expect(drops[0]!.drop.seats.map((s) => s.looted)).toEqual([60, 0, 0]);
+  });
+
   it("takes a drop whose party names a looter", () => {
     const p = party("pa", "limbo", trio(), "m1");
     const drops = outstanding(
@@ -636,5 +664,116 @@ describe("a sale is entered as a total, never a price each", () => {
       holderKey(SELF),
     )!;
     expect(sale!.priceEach).toBe(24 * M);
+  });
+});
+
+describe("a holder redeeming their share rather than selling it", () => {
+  // The night #281 was written about. A duo, Bro looted all 390, half of it is mine, and he can
+  // only ever settle in mesos: a single-trade coupon handed back is one I cannot list.
+  const duo = () => [
+    seat("m1", "Husky", { mine: true }),
+    seat("m2", "BroChar", { person: ["p-bro", "Bro"] }),
+  ];
+
+  const night = () => ({
+    parties: [party("pa", "limbo", duo(), "m2")],
+    pools: [pool("pa", [coupon("l1", "limbo", 390, "2026-08-03")])],
+  });
+
+  const ledgerFor = (tranches: { holder: Holder; pieces: number; amount: number | null }[]) => {
+    const { parties, pools } = night();
+    return holderLedgers(
+      outstanding(parties, pools, VESTIGE, ORDER),
+      salesByHolder(tranches),
+      keptByHolder(tranches),
+    )[0]!;
+  };
+
+  it("sums the redemptions per holder, and leaves the sales out of it", () => {
+    const rows = [
+      { holder: BRO, pieces: 100, amount: 2_500 * M },
+      { holder: BRO, pieces: 95, amount: null },
+      { holder: BRO, pieces: 100, amount: null },
+      { holder: SELF, pieces: 10, amount: null },
+    ];
+    expect(keptByHolder(rows).get(holderKey(BRO))).toBe(195);
+    expect(keptByHolder(rows).get(holderKey(SELF))).toBe(10);
+    expect(salesByHolder(rows).get(holderKey(BRO))).toHaveLength(1);
+  });
+
+  it("pays the whole claim once the sellable half has gone", () => {
+    // #281 end to end: over the whole 390 this owed 2.44b for a claim that was fully realized.
+    const ledger = ledgerFor([
+      { holder: BRO, pieces: 195, amount: 4_875 * M },
+      { holder: BRO, pieces: 195, amount: null },
+    ]);
+    const limbo = ledger.drops[0]!;
+
+    expect(ledger.kept).toBe(195);
+    expect(limbo.pieces).toBe(390);
+    expect(limbo.sellable).toBe(195);
+    expect(limbo.complete).toBe(true);
+    expect(ledger.dueNow).toBe(4_875 * M);
+    expect(limbo.transfers.map((t) => [t.to, t.pieces, t.send])).toEqual([["you", 195, 4_875 * M]]);
+  });
+
+  it("counts down to nothing left, so a settled pile stops asking for sales", () => {
+    const ledger = ledgerFor([
+      { holder: BRO, pieces: 195, amount: 4_875 * M },
+      { holder: BRO, pieces: 195, amount: null },
+    ]);
+    // Against the whole pile this was 195 forever, and the card could not tell a pile that had
+    // finished from one still waiting.
+    expect(unsold(ledger)).toBe(0);
+  });
+
+  it("says the pieces and no price when the whole pile is redeemed", () => {
+    const ledger = ledgerFor([{ holder: BRO, pieces: 390, amount: null }]);
+    const limbo = ledger.drops[0]!;
+
+    expect(limbo.sellable).toBe(0);
+    expect(limbo.complete).toBe(false);
+    expect(limbo.averagePrice).toBeNull();
+    expect(ledger.dueNow).toBe(0);
+    // The debt is real and still owed, it just has no realized price to be stated in.
+    expect(limbo.transfers.map((t) => [t.pieces, t.send])).toEqual([[195, null]]);
+    // Nothing left to enter, which is what makes this distinguishable from waiting on a sale.
+    expect(unsold(ledger)).toBe(0);
+  });
+
+  it("carries the count beside the pile, so keeping more than you hold can be said", () => {
+    const ledger = ledgerFor([{ holder: BRO, pieces: 500, amount: null }]);
+    expect(ledger.kept).toBe(500);
+    expect(ledger.pieces).toBe(390);
+    expect(ledger.drops[0]!.sellable).toBe(0);
+  });
+
+  it("counts your claim in your own units, and keeping changes how fast it moves", () => {
+    // The three figures the card leads with. 100 pieces sold out of a pile that is half yours
+    // settles 50 of your 195; out of a pile whose sellable half is ALL yours it settles 100.
+    const shared = ledgerFor([{ holder: BRO, pieces: 100, amount: 2_500 * M }]);
+    expect([shared.owedToYou, shared.settledToYou]).toEqual([195, 50]);
+
+    const keeping = ledgerFor([
+      { holder: BRO, pieces: 100, amount: 2_500 * M },
+      { holder: BRO, pieces: 195, amount: null },
+    ]);
+    expect([keeping.owedToYou, keeping.settledToYou]).toEqual([195, 100]);
+
+    // Never more than the claim, so "to go" cannot read negative.
+    const done = ledgerFor([
+      { holder: BRO, pieces: 195, amount: 4_875 * M },
+      { holder: BRO, pieces: 195, amount: null },
+    ]);
+    expect([done.owedToYou, done.settledToYou]).toEqual([195, 195]);
+  });
+
+  it("is unchanged when nobody has redeemed anything", () => {
+    const ledger = ledgerFor([{ holder: BRO, pieces: 390, amount: 9_750 * M }]);
+    const limbo = ledger.drops[0]!;
+    expect(ledger.kept).toBe(0);
+    expect(limbo.sellable).toBe(390);
+    expect(ledger.dueNow).toBe(4_875 * M);
+    expect(unsold(ledger)).toBe(0);
   });
 });
