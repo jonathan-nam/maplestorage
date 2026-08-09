@@ -32,6 +32,9 @@
 # difficulty badge and the reader ignores it on purpose: a player sets that badge independent of
 # what they actually clear, so a clear stays (boss, cleared) and nothing here changes that.
 #
+# `max_party` is how many players the boss admits, off its own entry window. Optional: absent is
+# nobody having counted it, not a boss that takes any number.
+#
 # `tracked` (default true) says whether the tracker keeps clears for this boss. An untracked boss
 # stays listed here on purpose: its row is still ON the planner, so the reader must still be able
 # to name it. Drop the entry outright and that row matches nothing, which counts as an UNREADABLE
@@ -77,33 +80,40 @@ bosses:
     short: Seren
     reset: WEEKLY
     difficulties: [NORMAL, HARD, EXTREME]
+    max_party: 6
   - key: kalos-the-guardian
     name: Kalos the Guardian
     short: Kalos
     reset: WEEKLY
     difficulties: [EASY, NORMAL, CHAOS, EXTREME]
+    max_party: 6
   - key: first-adversary
     name: First Adversary
     short: Adversary
     reset: WEEKLY
     difficulties: [EASY, NORMAL, HARD, EXTREME]
+    max_party: 3
   - key: kaling
     name: Kaling
     reset: WEEKLY
     difficulties: [EASY, NORMAL, HARD, EXTREME]
+    max_party: 6
   - key: malefic-star
     name: Malefic Star
     short: Star
     reset: WEEKLY
     difficulties: [NORMAL, HARD]
+    max_party: 3
   - key: limbo
     name: Limbo
     reset: WEEKLY
     difficulties: [NORMAL, HARD]
+    max_party: 3
   - key: baldrix
     name: Baldrix
     reset: WEEKLY
     difficulties: [NORMAL, HARD]
+    max_party: 3
   # After Baldrix, which is where the planner puts it (test-fixtures/planner/boss portraits
   # sample.png). Until now it was missing here entirely, so its planner row matched no name and
   # counted as UNREADABLE, which is what makes a parse warn that it may have missed a boss.
@@ -111,6 +121,7 @@ bosses:
     name: Jupiter
     reset: WEEKLY
     difficulties: [NORMAL, HARD]
+    max_party: 3
   # Untracked by request: still on the planner, so the reader must keep its name. See `tracked`.
   - key: akechi-mitsuhide
     name: Akechi Mitsuhide
