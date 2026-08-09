@@ -4,6 +4,11 @@
 style:
   MaxLineLength:
     maxLineLength: 120
+  MagicNumber:
+    # An enum entry already names its number: KRONOS(45) is the constant this rule asks for, and
+    # extracting it to `private const val KRONOS_WORLD_ID = 45` beside it would say the name twice.
+    # See GmsWorld.
+    ignoreEnums: true
 
 complexity:
   LongMethod:

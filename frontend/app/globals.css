@@ -374,7 +374,8 @@ a:hover {
 
 /* Styled on its own rather than via .tile-meta: a tile can carry a job with no level beside it. */
 .tile-level,
-.tile-job {
+.tile-job,
+.tile-world {
   color: var(--muted-2);
   font-size: 12px;
 }

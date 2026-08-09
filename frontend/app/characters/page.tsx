@@ -29,6 +29,9 @@ export default function CharactersPage() {
   const [loaded, setLoaded] = useState(Boolean(seeded));
   const [failed, setFailed] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // A character that was added into the other world. Not an error, and not permanent state: it is
+  // the one thing that would otherwise happen with nothing on screen to show for it.
+  const [elsewhere, setElsewhere] = useState<string | null>(null);
 
   useEffect(() => {
     apiFetch<Character[]>(CHARACTERS_KEY, { method: "GET" }, getToken)
@@ -115,8 +118,18 @@ export default function CharactersPage() {
 
   // Written straight to state rather than through write(): these two already hold the new roster,
   // and re-deriving it from a list this component is about to replace would fight itself.
+  //
+  // A new character lands in the world the LOOKUP found, which need not be the one on screen. Kept
+  // off the list when it is not, because a row that disappears on the next load is worse than a
+  // line saying where it went.
   const added = (character: Character) => {
-    setCharacters((prev) => [...prev, character]);
+    if (character.worldType === settings?.worldType) {
+      setCharacters((prev) => [...prev, character]);
+    } else {
+      setElsewhere(
+        `${character.name} is in ${character.worldName ?? worldLabel(character.worldType)}.`,
+      );
+    }
     invalidate("/api/");
   };
   const updated = (character: Character) =>
@@ -155,6 +168,8 @@ export default function CharactersPage() {
           <AddCharacter onAdded={added} />
 
           {error && <p className="routine-error">{error}</p>}
+
+          {elsewhere && <p className="party-hint">{elsewhere}</p>}
 
           {/* The list is one world's. This is the rest of the account, and it is said because an
               empty page in the wrong world looks exactly like an account with no characters. */}

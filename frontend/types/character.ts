@@ -7,8 +7,11 @@ export type Character = {
   name: string;
   level: number | null;
   jobName: string | null;
+  // The world the Nexon lookup found them in ("Scania"), or null when it found nothing and for
+  // every character added before detection existed. Evidence, not a setting.
   worldName: string | null;
-  // INTERACTIVE or HEROIC. Inherited from the account when the character is added.
+  // INTERACTIVE or HEROIC. Detected from the world on the way in, falling back to the world being
+  // shown when the lookup found nothing.
   worldType: WorldType;
   spriteImgUrl: string | null;
   spriteRefreshedAt: string | null;

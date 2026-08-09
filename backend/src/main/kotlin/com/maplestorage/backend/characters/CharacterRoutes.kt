@@ -65,16 +65,25 @@ private suspend fun RoutingContext.createCharacter(nexonLookupService: NexonLook
                     .where { Characters.userId eq userId }
                     .count()
                     .toInt()
-            // The world being shown, not the column default: you add a character into the world
-            // you are looking at, which is the only place it could go and still be visible.
-            val accountWorld = activeWorldFor(userId)
+            // What the lookup FOUND, falling back to the world being shown when it found nothing.
+            //
+            // The lookup is evidence and the fallback is an assumption, so the evidence wins. It is
+            // the difference between a character that is in the right world and one that is in the
+            // world you happened to be looking at, and nothing downstream can tell those apart:
+            // a wrong tick looks exactly like a right one, which is how six characters ended up
+            // recorded in the wrong world with every screen agreeing.
+            //
+            // Nothing found is not nothing known: an unranked or misspelled name falls through to
+            // manual entry, and the world you are in is the best answer available for it.
+            val detected = lookup?.world
             Characters.insert {
                 it[id] = newId
                 it[Characters.userId] = userId
                 it[name] = request.name
                 it[level] = lookup?.level
                 it[jobName] = lookup?.jobName
-                it[worldType] = accountWorld
+                it[worldName] = detected?.displayName
+                it[worldType] = detected?.worldType ?: activeWorldFor(userId)
                 it[spriteImgUrl] = lookup?.spriteImgUrl
                 it[spriteRefreshedAt] = if (lookup != null) now else null
                 it[createdAt] = now
@@ -216,6 +225,12 @@ private suspend fun RoutingContext.refreshCharacter(nexonLookupService: NexonLoo
                 Characters.update({ (Characters.id eq characterId) and (Characters.userId eq userId) }) { row ->
                     row[level] = lookup.level
                     row[jobName] = lookup.jobName
+                    // Recorded, but worldType is deliberately NOT moved to match it. Moving a
+                    // character between worlds takes its parties and its loot history into a view
+                    // you are not looking at, so it needs a screen that says what moved, and that
+                    // screen is the world picker. Until then this is the evidence, sitting next to
+                    // the tick, where a disagreement can be seen rather than acted on silently.
+                    lookup.world?.let { row[worldName] = it.displayName }
                     row[spriteImgUrl] = lookup.spriteImgUrl
                     row[spriteRefreshedAt] = Clock.System.now()
                     row[updatedAt] = Clock.System.now()
