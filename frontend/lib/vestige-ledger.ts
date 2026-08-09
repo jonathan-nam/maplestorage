@@ -203,13 +203,16 @@ function heldByHolder(loot: Loot, party: Party, holders: FoldedSeat[]): Map<stri
     }
   }
 
-  if (loot.bundlesBy.length > 0 && loot.bundles !== null && loot.bundles > 0) {
+  const bundles = bundlesOf(loot);
+  const bundlesBy = loot.bundlesBy ?? [];
+
+  if (bundlesBy.length > 0 && bundles !== null && bundles > 0) {
     // Stacks are equal, so a seat's pieces are its stacks times the stack size. Whole by
     // construction: the seed refuses a total that does not divide by its bundle count.
-    const size = loot.quantity / loot.bundles;
+    const size = loot.quantity / bundles;
     const seat = new Map(party.seats.map((s) => [s.id, s]));
     const held = new Map<string, Pile>();
-    for (const row of loot.bundlesBy) {
+    for (const row of bundlesBy) {
       const picked = seat.get(row.memberId);
       if (!picked) return null;
       const key = holderKey(holderOf(picked));
@@ -226,7 +229,7 @@ function heldByHolder(loot: Loot, party: Party, holders: FoldedSeat[]): Map<stri
     return held;
   }
 
-  if (loot.bundles !== null && dividesEvenly(loot.bundles, holders)) {
+  if (bundles !== null && dividesEvenly(bundles, holders)) {
     const weight = holders.reduce((sum, h) => sum + h.shares, 0);
     return new Map(
       holders.map((h) => [h.key, { pieces: (loot.quantity * h.shares) / weight, by: h.name }]),
@@ -237,6 +240,20 @@ function heldByHolder(loot: Loot, party: Party, holders: FoldedSeat[]): Map<stri
 
 /** One holder's pieces from one drop, and which of their characters bent down for them. */
 type Pile = { pieces: number; by: string };
+
+/**
+ * How many stacks a drop fell in, with a row that predates the field reading as uncounted.
+ *
+ * The cache in lib/cache.ts holds whatever shape the API had when the page last fetched, typed as
+ * whatever it is read back as. So a tab open across a deploy that adds a field hands this code a
+ * row without it, and `undefined !== null` is TRUE: the checks would pass and the arithmetic would
+ * run on nothing, which is a NaN on screen rather than an error anybody sees.
+ *
+ * Absent and null are the same answer here, so say so once rather than at four call sites.
+ */
+function bundlesOf(loot: Loot): number | null {
+  return loot.bundles ?? null;
+}
 
 /** A drop nobody can be paid for yet, because who took the odd stack has not been said. */
 export type UnansweredDrop = {
@@ -281,12 +298,13 @@ export function unanswered(
     const weight = holders.reduce((sum, h) => sum + h.shares, 0);
 
     for (const loot of pool.loot) {
-      if (loot.dropKey !== dropKey || loot.quantity < 1 || loot.bundles === null) continue;
+      const bundles = bundlesOf(loot);
+      if (loot.dropKey !== dropKey || loot.quantity < 1 || bundles === null) continue;
       if (heldByHolder(loot, party, holders) !== null) continue;
 
       // What the closest-to-even arrangement still leaves misplaced. Halved because every piece
       // over somebody's share is the same piece under somebody else's, counted once from each end.
-      const size = loot.quantity / loot.bundles;
+      const size = loot.quantity / bundles;
       const drift = holders.reduce((sum, h) => {
         const entitled = (loot.quantity * h.shares) / weight;
         return sum + Math.abs(Math.round(entitled / size) * size - entitled);
@@ -298,7 +316,7 @@ export function unanswered(
         bossKey: loot.bossKey,
         weekStart: loot.weekStart,
         quantity: loot.quantity,
-        bundles: loot.bundles,
+        bundles,
         imbalance: Math.round(drift / 2),
       });
     }

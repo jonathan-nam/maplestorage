@@ -356,8 +356,11 @@ function ConfigRow({
    * promises and what that offers cannot drift apart.
    */
   const vestige = drops.find((d) => d.dropKey === VESTIGE);
-  const bundles = difficulty === "" ? undefined : vestige?.bundles[difficulty];
-  const total = difficulty === "" ? undefined : vestige?.pieces[difficulty];
+  // Optional all the way down, not just on `vestige`. lib/cache.ts hands back whatever shape the
+  // API had when this page last fetched, so a tab open across a deploy that adds a field gets a
+  // drop with no `bundles` at all, and `vestige?.bundles[difficulty]` throws on the read.
+  const bundles = difficulty === "" ? undefined : vestige?.bundles?.[difficulty];
+  const total = difficulty === "" ? undefined : vestige?.pieces?.[difficulty];
   /**
    * Whether there are any coupons here to argue over.
    *
@@ -369,7 +372,7 @@ function ConfigRow({
    * would put the setting out of reach of a party that has never written a difficulty down.
    */
   const dropsVestige =
-    vestige !== undefined && (difficulty === "" || vestige.pieces[difficulty] !== undefined);
+    vestige !== undefined && (difficulty === "" || vestige.pieces?.[difficulty] !== undefined);
   const stacks =
     bundles && total && !badShares
       ? suggestArrangement(
