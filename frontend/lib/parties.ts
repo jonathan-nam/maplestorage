@@ -206,28 +206,6 @@ export function bossesWithoutConfig(parties: Party[], bosses: Boss[], characterI
 }
 
 /**
- * The bosses this character runs alone: everything it has no PARTY for.
- *
- * What the Drop Log offers. Deliberately not bossesWithoutConfig: a boss that already holds a solo
- * pool HAS a config, and narrowing on that would make the second drop on it unloggable.
- *
- * Read against a list that includes solo configs, which only the Drop Log asks for. Given the
- * ordinary list it still answers correctly, since a config that is not there cannot be a party.
- *
- * A RETIRED config is not a party either. The Drop Log now holds these so its entries stay
- * readable, and counting one here would make a boss you used to run in a party unloggable: the
- * only pool it could go in is the retired one, which addLoot revives.
- */
-export function bossesWithoutParty(parties: Party[], bosses: Boss[], characterId: string): Boss[] {
-  const partied = new Set(
-    parties
-      .filter((p) => p.characterId === characterId && !p.solo && !p.retired)
-      .map((p) => p.bossKey),
-  );
-  return bosses.filter((boss) => !partied.has(boss.bossKey));
-}
-
-/**
  * The drop this boss gives for certain at the mode a party runs, or null.
  *
  * Read off the boss's own table, so it is a fact about the boss rather than about anything that has
