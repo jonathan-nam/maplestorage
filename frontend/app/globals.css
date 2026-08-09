@@ -485,7 +485,9 @@ a:hover {
      A browser will always antialias it, so this buys the letterforms and the 18/12 rhythm, not
      the crispness. A pixel webfont would buy the crispness and cost integer-only sizing and
      working browser zoom, which is a bad trade in an app built on not misreading a number. */
-  font: 12px/18px Arial, Helvetica, sans-serif;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 12px;
+  line-height: 18px;
   outline: none;
 }
 
