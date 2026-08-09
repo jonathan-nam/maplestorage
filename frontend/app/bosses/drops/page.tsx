@@ -2,7 +2,7 @@
 
 import { useAuth } from "@clerk/nextjs";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { LogDrop } from "@/components/log-drop";
 import { PieceLedger } from "@/components/piece-ledger";
 import { ApiError, apiAssetUrl, apiFetch } from "@/lib/api";
@@ -427,6 +427,8 @@ function DropRow({
   const status = statuses.length === 1 ? statusLabel(statuses[0]!) : `${line.entries.length} rows`;
   const unreadable = line.entries.some((e) => e.unreadable);
   const runs = `${line.entries.length} runs`;
+  // A heading per character is only worth the row when there is more than one to tell apart.
+  const heads = showCharacter && new Set(line.entries.map((e) => e.characterId)).size > 1;
 
   return (
     <li className={`droplog-row status-${entry.status.toLowerCase()}${open ? " is-open" : ""}`}>
@@ -484,14 +486,24 @@ function DropRow({
 
       {line.folded && open && (
         <ul className="droplog-runs" id={panelId}>
-          {line.entries.map((e) => (
-            <RunRow
-              key={e.lootId}
-              entry={e}
-              boss={bossByKey.get(e.bossKey ?? "") ?? null}
-              characterName={characterById.get(e.characterId)?.name ?? null}
-              showCharacter={showCharacter}
-            />
+          {line.entries.map((e, i) => (
+            <Fragment key={e.lootId}>
+              {/* The runs arrive grouped by character, so the name is a heading over each group
+                  rather than a word repeated down the list. Only where it says something: under
+                  the character filter, or a fold that is all one character, the line above has
+                  already named them. */}
+              {heads && e.characterId !== line.entries[i - 1]?.characterId && (
+                <li className="droplog-run-head">
+                  {characterById.get(e.characterId)?.name ?? "Unknown character"}
+                </li>
+              )}
+              <RunRow
+                entry={e}
+                boss={bossByKey.get(e.bossKey ?? "") ?? null}
+                characterName={characterById.get(e.characterId)?.name ?? null}
+                showCharacter={showCharacter && !heads}
+              />
+            </Fragment>
           ))}
         </ul>
       )}
