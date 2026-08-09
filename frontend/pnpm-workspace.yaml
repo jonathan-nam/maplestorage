@@ -3,3 +3,15 @@ allowBuilds:
   esbuild: true
   sharp: true
   unrs-resolver: true
+
+# Turns prefetching back on under `next dev`. Next disables it in three places, all hard-coded on
+# NODE_ENV with no flag to flip, because prefetching a route means compiling it. On this app that
+# costs about seven background compiles per page load (25-130ms each, after the load event) and
+# takes a menu navigation from ~800ms to ~30ms, which is what production already does.
+#
+# Pinned to a version. A Next upgrade will fail the install until the patch is regenerated:
+#   pnpm patch next   # edit the three guards, see patches/next.patch
+#   pnpm patch-commit <dir>
+# Failing loudly is the point. Dev-only code, so a production build is byte-for-byte unaffected.
+patchedDependencies:
+  next@16.2.12: patches/next.patch
