@@ -78,7 +78,10 @@ private suspend fun RoutingContext.createCharacter(nexonLookupService: NexonLook
             Characters.insert {
                 it[id] = newId
                 it[Characters.userId] = userId
-                it[name] = request.name
+                // Nexon's spelling, for the same reason as `detected`: the lookup matches
+                // case-insensitively, so the typed name is a guess at the capitalisation and the
+                // answer is not.
+                it[name] = lookup?.name ?: request.name
                 it[level] = lookup?.level
                 it[jobName] = lookup?.jobName
                 it[worldName] = detected?.displayName

@@ -43,6 +43,10 @@ internal fun applyLookup(
     now: Instant,
 ) {
     Characters.update({ (Characters.id eq characterId) and (Characters.userId eq userId) }) { row ->
+        // How a row typed before the name was authoritative picks up its real capitalisation. Safe
+        // for everything pointing at it: a seat carries the character's id, and every join that
+        // goes by name folds case first (see PartySeats.ownCharacterIds).
+        row[Characters.name] = lookup.name
         row[Characters.level] = lookup.level
         row[Characters.jobName] = lookup.jobName
         lookup.world?.let {
