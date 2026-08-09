@@ -8,8 +8,37 @@ import { difficultyLabel } from "@/lib/boss-difficulty";
 import { MAX_MINUTES, parseMinutes } from "@/lib/boss-minutes";
 import { bossesWithoutConfig, otherMembers } from "@/lib/parties";
 import { parseShares, sharesKey } from "@/lib/shares";
+import { suggestArrangement } from "@/lib/vestige-ledger";
 import type { Boss } from "@/types/boss";
-import type { Party, SavePartyBody } from "@/types/party";
+import type { BossDrop, DropTables } from "@/types/drop";
+import type { Party, PartyMember, SavePartyBody } from "@/types/party";
+
+/** The one drop a party has to decide how to divide. See catalog/drops.yaml. */
+const VESTIGE = "vestige-of-erion";
+
+/** What one seat's share comes to in stacks. A seat left out of the deal takes none, not one. */
+function stackLabel(stacks: Map<string, number>, name: string): string {
+  const count = stacks.get(name) ?? 0;
+  return `${count} ${count === 1 ? "stack" : "stacks"}`;
+}
+
+/**
+ * A seat that exists only to be weighed, for a roster still being typed.
+ *
+ * suggestArrangement reads a seat's id, shares and holder. Names being edited have no seat rows
+ * yet, so these stand in with the name as the id. Never persisted, and never a holder that folds:
+ * the preview is per NAME, which is what the boxes are keyed by.
+ */
+const EMPTY_SEAT: PartyMember = {
+  id: "",
+  name: "",
+  personId: null,
+  personName: null,
+  characterId: null,
+  spriteImgUrl: null,
+  guest: false,
+  shares: 1,
+};
 
 // One character's parties: a row per boss they do not solo, and who they run it with.
 //
@@ -22,6 +51,7 @@ export function PartyConfigEditor({
   characterName,
   parties,
   bosses,
+  dropTables,
   knownCharacters,
   isSaving,
   adding,
@@ -34,6 +64,8 @@ export function PartyConfigEditor({
   characterName: string;
   parties: Party[];
   bosses: Boss[];
+  /** Each boss's drop table, for the piece and stack counts an uneven split is measured in. */
+  dropTables: DropTables;
   /** Characters named anywhere already, for the datalist. Picking beats remembering a spelling. */
   knownCharacters: string[];
   /**
@@ -67,6 +99,7 @@ export function PartyConfigEditor({
           key={party.id}
           party={party}
           boss={bossByKey.get(party.bossKey) ?? null}
+          drops={dropTables[party.bossKey] ?? []}
           busy={isSaving(party.id)}
           onSave={(members, difficulty, minutes, looterName, shares) =>
             onSave(
@@ -259,6 +292,7 @@ function RunMinutes({
 function ConfigRow({
   party,
   boss,
+  drops,
   busy,
   onSave,
   onDelete,
@@ -266,6 +300,8 @@ function ConfigRow({
 }: {
   party: Party;
   boss: Boss | null;
+  /** This boss's drop table, for the counts an uneven split is measured in. */
+  drops: BossDrop[];
   busy: boolean;
   onSave: (
     members: string[],
@@ -308,6 +344,45 @@ function ConfigRow({
   const rosterNames = [ownName, ...members.map((m) => m.trim())].filter((name) => name !== "");
   const attributed = otherMembers(party).filter((m) => m.personName);
   const badShares = rosterNames.some((name) => parseShares(shares[name] ?? "") === null);
+
+  /**
+   * What this party's shares come to in the coupons the boss actually drops.
+   *
+   * Null until there is something exact to say. The stacks are per (boss, difficulty), so a config
+   * with no difficulty chosen, a boss that drops no coupons, or a difficulty nobody has counted the
+   * stacks for all get nothing rather than a number standing in for one.
+   *
+   * Through suggestArrangement, the same function the Drop Log fills its chips with, so what this
+   * promises and what that offers cannot drift apart.
+   */
+  const vestige = drops.find((d) => d.dropKey === VESTIGE);
+  const bundles = difficulty === "" ? undefined : vestige?.bundles[difficulty];
+  const total = difficulty === "" ? undefined : vestige?.pieces[difficulty];
+  /**
+   * Whether there are any coupons here to argue over.
+   *
+   * Black Mage drops none at any difficulty and Chaos Kalos none at that one, so both were being
+   * asked who loots the pieces and how to split them. `pieces` carries only the difficulties that
+   * drop some, which is what makes the second case answerable at all.
+   *
+   * A config with no difficulty recorded still shows it: the boss CAN drop them, and hiding it
+   * would put the setting out of reach of a party that has never written a difficulty down.
+   */
+  const dropsVestige =
+    vestige !== undefined && (difficulty === "" || vestige.pieces[difficulty] !== undefined);
+  const stacks =
+    bundles && total && !badShares
+      ? suggestArrangement(
+          bundles,
+          rosterNames.map((name) => ({
+            ...EMPTY_SEAT,
+            id: name,
+            name,
+            shares: parseShares(shares[name] ?? "") ?? 1,
+          })),
+          new Map(),
+        )
+      : null;
 
   return (
     <article className="config-row">
@@ -359,54 +434,76 @@ function ConfigRow({
           count rather than asked for here.
 
           Named from the roster being edited, not the saved seats, so choosing somebody added in
-          this same edit works and a renamed seat keeps the designation. */}
-      <div className="config-looter">
-        {/* Named, because "the pieces" alone does not say which. The one drop this is for is
+          this same edit works and a renamed seat keeps the designation.
+
+          Absent entirely on a boss that drops no coupons, which is most of them. */}
+      {dropsVestige && (
+        <div className="config-looter">
+          {/* Named, because "the pieces" alone does not say which. The one drop this is for is
             vestige-of-erion in catalog/drops.yaml: it is the only one that arrives in a stack big
             enough that a party has to decide who picks it up. */}
-        <span className="config-looter-label">Vestige of Erion</span>
-        <select
-          className="split-input"
-          value={looter !== "" ? `loots:${looter}` : uneven ? "uneven" : "own"}
-          onChange={(e) => {
-            const picked = e.target.value;
-            setUneven(picked === "uneven");
-            setLooter(picked.startsWith("loots:") ? picked.slice("loots:".length) : "");
-            // Anything but the uneven split is one apiece, so the boxes do not sit there holding
-            // numbers that no longer apply.
-            if (picked !== "uneven") setShares({});
-          }}
-          aria-label="How this party handles the Vestige of Erion pieces"
-          disabled={busy}
-        >
-          <option value="own">everyone loots their own, even split</option>
-          {rosterNames.map((name) => (
-            <option key={name} value={`loots:${name}`}>
-              {name} loots everything and pays out
-            </option>
-          ))}
-          <option value="uneven">one member always takes more</option>
-        </select>
+          <span className="config-looter-label">Vestige of Erion</span>
+          <select
+            className="split-input"
+            value={looter !== "" ? `loots:${looter}` : uneven ? "uneven" : "own"}
+            onChange={(e) => {
+              const picked = e.target.value;
+              setUneven(picked === "uneven");
+              setLooter(picked.startsWith("loots:") ? picked.slice("loots:".length) : "");
+              // Anything but the uneven split is one apiece, so the boxes do not sit there holding
+              // numbers that no longer apply.
+              if (picked !== "uneven") setShares({});
+            }}
+            aria-label="How this party handles the Vestige of Erion pieces"
+            disabled={busy}
+          >
+            <option value="own">everyone loots their own, even split</option>
+            {rosterNames.map((name) => (
+              <option key={name} value={`loots:${name}`}>
+                {name} loots everything and pays out
+              </option>
+            ))}
+            <option value="uneven">one member always takes more</option>
+          </select>
 
-        {/* Type the stacks you agreed. Four and two on Extreme Kalos is 6 x 4/6 and 6 x 2/6, which
+          {/* Type the stacks you agreed. Four and two on Extreme Kalos is 6 x 4/6 and 6 x 2/6, which
             is four stacks and two, so the numbers people say to each other go straight in. Two and
             one is the same split said shorter. */}
-        {uneven &&
-          rosterNames.map((name) => (
-            <label className="config-share" key={name}>
-              {name}
-              <input
-                className="split-input"
-                value={shares[name] ?? ""}
-                onChange={(e) => setShares({ ...shares, [name]: e.target.value })}
-                placeholder="1"
-                inputMode="numeric"
-                aria-label={`What ${name} takes of a split`}
-                disabled={busy}
-              />
-            </label>
-          ))}
-      </div>
+          {/* What there is to divide, ahead of the boxes rather than after them. Trailing the row it
+            read as the last seat's figure. */}
+          {uneven && bundles && total && (
+            <span className="config-share-drop">
+              {total} in {bundles} stacks of {total / bundles}
+            </span>
+          )}
+
+          {/* Their own line, so a party of four does not break across the select above them. */}
+          {uneven && (
+            <div className="config-shares">
+              {rosterNames.map((name) => (
+                <label className="config-share" key={name}>
+                  {name}
+                  <input
+                    className="split-input"
+                    value={shares[name] ?? ""}
+                    onChange={(e) => setShares({ ...shares, [name]: e.target.value })}
+                    placeholder="1"
+                    inputMode="numeric"
+                    aria-label={`What ${name} takes of a split`}
+                    disabled={busy}
+                  />
+                  {/* Stacks, not coupons: the stack size is on the row already, and this is the
+                    number a ratio hides. Two against one on a six-stack boss is four stacks, which
+                    nobody should have to work out from the box. */}
+                  {stacks && (
+                    <span className="config-share-stacks">{stackLabel(stacks, name)}</span>
+                  )}
+                </label>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Whose character each one is, when the people list says so. Read-only here: it is an
           account-wide fact, kept on the People page rather than per config. */}

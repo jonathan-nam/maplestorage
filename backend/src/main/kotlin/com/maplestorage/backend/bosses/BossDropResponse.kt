@@ -31,6 +31,14 @@ data class BossDropResponse(
      * not the same as none: a pre-filled zero would be a claim the drop table does not make.
      */
     val pieces: Map<String, Int> = emptyMap(),
+    /**
+     * How many equal stacks those pieces fall in, by difficulty.
+     *
+     * What a party actually picks up, so it is what makes a share ratio mean anything on screen:
+     * two against one on Extreme Kalos is four stacks of thirty against two. Absent for a
+     * difficulty nobody has counted the stacks for, which is not a claim that it falls in one.
+     */
+    val bundles: Map<String, Int> = emptyMap(),
 )
 
 /**
@@ -42,14 +50,25 @@ data class BossDropResponse(
 internal fun dropTables(): Map<String, List<BossDropResponse>> {
     // One query for every amount, keyed the way the rows below need it. A join would multiply each
     // drop by its difficulties and the group-by would count one drop several times.
-    val piecesFor =
+    val amounts =
         BossDropAmount
             .innerJoin(BossCatalog)
             .innerJoin(DropCatalog)
             .selectAll()
-            .groupBy({ it[BossCatalog.bossKey] to it[DropCatalog.dropKey] }) {
-                it[BossDropAmount.difficulty] to it[BossDropAmount.pieces]
-            }.mapValues { (_, pairs) -> pairs.toMap() }
+            .groupBy({ it[BossCatalog.bossKey] to it[DropCatalog.dropKey] }) { it }
+    val piecesFor =
+        amounts.mapValues { (_, rows) ->
+            rows.associate { it[BossDropAmount.difficulty] to it[BossDropAmount.pieces] }
+        }
+    // Only the difficulties whose stacks have been counted, so an uncounted one is absent rather
+    // than present as one stack.
+    val bundlesFor =
+        amounts.mapValues { (_, rows) ->
+            rows
+                .mapNotNull { row ->
+                    row[BossDropAmount.bundles]?.let { row[BossDropAmount.difficulty] to it }
+                }.toMap()
+        }
 
     return BossDrop
         .innerJoin(BossCatalog)
@@ -66,6 +85,7 @@ internal fun dropTables(): Map<String, List<BossDropResponse>> {
                 worlds = row[DropCatalog.worlds],
                 quantity = row[DropCatalog.quantity],
                 pieces = piecesFor[row[BossCatalog.bossKey] to row[DropCatalog.dropKey]].orEmpty(),
+                bundles = bundlesFor[row[BossCatalog.bossKey] to row[DropCatalog.dropKey]].orEmpty(),
             )
         }
 }

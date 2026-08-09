@@ -11,6 +11,7 @@ import { preloadBossArt } from "@/lib/preload-boss-art";
 import { useRowWrites } from "@/lib/use-row-writes";
 import type { Boss } from "@/types/boss";
 import type { Character } from "@/types/character";
+import type { DropTables } from "@/types/drop";
 import type { Party, Person, SavePartyBody, SetPartySkipBody } from "@/types/party";
 
 type LoadState = "loading" | "loaded" | "error";
@@ -19,6 +20,8 @@ const PARTIES_KEY = "/api/parties";
 const BOSSES_KEY = "/api/bosses";
 const CHARACTERS_KEY = "/api/characters";
 const PEOPLE_KEY = "/api/people";
+// For the stack counts beside an uneven split, so "4 and 2" can say what it is four and two OF.
+const DROPS_KEY = "/api/bosses/drops";
 // Rows are keyed by their config's id while they save. Adding one is not a row yet, so it takes a
 // name of its own. See lib/use-row-writes.ts.
 const ADD_PARTY = "add-party";
@@ -38,6 +41,7 @@ export default function EditPartiesPage() {
     peek<Character[]>(CHARACTERS_KEY) ?? [],
   );
   const [people, setPeople] = useState<Person[]>(peek<Person[]>(PEOPLE_KEY) ?? []);
+  const [dropTables, setDropTables] = useState<DropTables>(peek<DropTables>(DROPS_KEY) ?? {});
   const [state, setState] = useState<LoadState>("loading");
   const [selected, setSelected] = useState<string | null>(null);
   // Per config, so saving one row does not grey out every other row's buttons. One write at a time
@@ -64,15 +68,18 @@ export default function EditPartiesPage() {
           apiFetch<Boss[]>(BOSSES_KEY, { method: "GET" }, withToken),
           apiFetch<Character[]>(CHARACTERS_KEY, { method: "GET" }, withToken),
           apiFetch<Person[]>(PEOPLE_KEY, { method: "GET" }, withToken),
+          apiFetch<DropTables>(DROPS_KEY, { method: "GET" }, withToken),
         ]);
       })
-      .then(([, bossResult, characterResult, peopleResult]) => {
+      .then(([, bossResult, characterResult, peopleResult, dropResult]) => {
         setBosses(bossResult);
         setCharacters(characterResult);
         setPeople(peopleResult);
+        setDropTables(dropResult);
         put(BOSSES_KEY, bossResult);
         put(CHARACTERS_KEY, characterResult);
         put(PEOPLE_KEY, peopleResult);
+        put(DROPS_KEY, dropResult);
         // Open on the first character rather than on a prompt to choose one.
         setSelected((current) => current ?? characterResult[0]?.id ?? null);
         setState("loaded");
@@ -186,6 +193,7 @@ export default function EditPartiesPage() {
                 characterName={character.name}
                 parties={parties.filter((p) => p.characterId === character.id)}
                 bosses={bosses}
+                dropTables={dropTables}
                 knownCharacters={knownCharacters}
                 isSaving={isSaving}
                 adding={isSaving(ADD_PARTY)}

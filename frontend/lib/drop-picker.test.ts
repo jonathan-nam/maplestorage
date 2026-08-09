@@ -19,6 +19,7 @@ function drop(overrides: Partial<BossDrop> = {}): BossDrop {
     worlds: null,
     quantity: 1,
     pieces: {},
+    bundles: {},
     ...overrides,
   };
 }

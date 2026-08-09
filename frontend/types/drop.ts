@@ -14,6 +14,10 @@ export type BossDrop = {
   // How many pieces this boss drops of it, by difficulty, for the count to be filled in with. Only
   // the difficulties that drop any are here: absent means nothing to fill, not none.
   pieces: Record<string, number>;
+  // How many equal stacks those pieces fall in, by difficulty. What a party actually picks up, so
+  // it is what makes a share ratio mean anything on screen. Absent for a difficulty nobody has
+  // counted the stacks for, which is not a claim that it falls in one.
+  bundles: Record<string, number>;
 };
 
 // Keyed by boss key, as /api/bosses/drops returns it.

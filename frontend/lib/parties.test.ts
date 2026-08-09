@@ -337,8 +337,15 @@ describe("guaranteedDrop", () => {
     worlds: null,
     quantity: 1,
     pieces: { EXTREME: 180 },
+    bundles: { EXTREME: 6 },
   };
-  const grindstone = { ...coupon, dropKey: "grindstone-of-faith", name: "Grindstone", pieces: {} };
+  const grindstone = {
+    ...coupon,
+    dropKey: "grindstone-of-faith",
+    name: "Grindstone",
+    pieces: {},
+    bundles: {},
+  };
 
   it("names the drop this boss gives for certain at the mode being run", () => {
     expect(guaranteedDrop([grindstone, coupon], "EXTREME")?.dropKey).toBe("vestige-of-erion");

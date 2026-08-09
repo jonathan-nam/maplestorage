@@ -3765,7 +3765,18 @@ button.link:disabled {
 }
 
 /* A box per seat, and only once the party has said it is not an even split. See #241 for why they
-   are not here by default. */
+   are not here by default.
+
+   Their own full-width line inside the row, so four seats wrap among themselves instead of the
+   first one trailing off the end of the select above them. */
+.config-shares {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  flex-basis: 100%;
+}
+
 .config-share {
   display: inline-flex;
   align-items: center;
@@ -3777,6 +3788,18 @@ button.link:disabled {
 /* Wide enough for two digits, which is the whole range a share can be worth typing. */
 .config-share .split-input {
   width: 52px;
+}
+
+/* What a share comes to in stacks and coupons, and what the boss drops in the first place. Dimmer
+   than the boxes: both are derived from what was typed, not more things to type. */
+.config-share-stacks,
+.config-share-drop {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.config-share-drop {
+  margin-left: 2px;
 }
 
 .config-looter-label {

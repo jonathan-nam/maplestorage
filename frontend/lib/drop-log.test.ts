@@ -553,6 +553,7 @@ describe("a piece drop counts YOUR share, not what fell", () => {
         worlds: "INTERACTIVE",
         quantity: 1,
         pieces: { HARD: 60 },
+        bundles: { HARD: 3 },
       },
     ],
   };
