@@ -6,6 +6,7 @@ import {
   balances,
   entitlements,
   saleProgress,
+  spreadKept,
   transferKey,
   transfersOf,
 } from "./piece-ledger";
@@ -322,5 +323,56 @@ describe("a holder who redeems part of their pile", () => {
     const covered = allocate([drop(999)], sold(10));
     expect(covered.get("limbo")!.sellable).toBe(0);
     expect(transfersOf(drop(999), covered.get("limbo"))[0]!.send).toBeNull();
+  });
+});
+
+describe("which bosses the redeemed pieces come off", () => {
+  // Three weeks in the queue, 100 pieces each, oldest first.
+  const pile = [
+    { id: "old", weekStart: "2026-07-16", order: 1, total: 100, seats: [seat("A", 100)] },
+    { id: "mid", weekStart: "2026-07-23", order: 1, total: 100, seats: [seat("A", 100)] },
+    { id: "new", weekStart: "2026-07-30", order: 1, total: 100, seats: [seat("A", 100)] },
+  ];
+
+  const keptOn = (kept: number) =>
+    Object.fromEntries(spreadKept(pile, kept).map((d) => [d.id, d.kept ?? 0]));
+
+  it("takes them off the newest end, so the oldest boss keeps its price", () => {
+    expect(keptOn(100)).toEqual({ old: 0, mid: 0, new: 100 });
+  });
+
+  it("works backwards through the queue once the newest is used up", () => {
+    expect(keptOn(150)).toEqual({ old: 0, mid: 50, new: 100 });
+  });
+
+  it("never takes more off one boss than that boss holds", () => {
+    expect(keptOn(250)).toEqual({ old: 50, mid: 100, new: 100 });
+  });
+
+  it("keeps the whole pile rather than overflowing when the count is too big", () => {
+    expect(keptOn(9_999)).toEqual({ old: 100, mid: 100, new: 100 });
+  });
+
+  it("leaves the drops alone when nothing is kept", () => {
+    expect(spreadKept(pile, 0)).toBe(pile);
+  });
+
+  it("does not un-price a boss that has already been paid for", () => {
+    // The invariant the direction exists for. The oldest boss sold out at 25m and its debt is
+    // final; recording a redemption afterwards must not reach back and take its pieces away.
+    const sales = [{ pieces: 100, priceEach: 25 * M }];
+    const before = allocate(pile, sales).get("old")!;
+    const after = allocate(spreadKept(pile, 150), sales).get("old")!;
+
+    expect(before.complete).toBe(true);
+    expect(after.complete).toBe(true);
+    expect(after.averagePrice).toBe(before.averagePrice);
+    expect(after.sellable).toBe(100);
+
+    // Taken off the oldest end instead, that same boss would have had nothing left to sell and its
+    // settled price would have vanished. Pinned so the direction cannot be flipped by accident.
+    const backwards = allocate([{ ...pile[0]!, kept: 100 }], sales).get("old")!;
+    expect(backwards.complete).toBe(false);
+    expect(backwards.averagePrice).toBeNull();
   });
 });

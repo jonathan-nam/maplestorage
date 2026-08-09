@@ -244,6 +244,44 @@ export type DropCoverage = {
   averagePrice: number | null;
 };
 
+/** The queue's order: first cleared, first paid, with the boss's own order breaking a week. */
+function inQueueOrder(drops: LedgerDrop[]): LedgerDrop[] {
+  return [...drops].sort(
+    (a, b) =>
+      a.weekStart.localeCompare(b.weekStart) || a.order - b.order || a.id.localeCompare(b.id),
+  );
+}
+
+/**
+ * Which drops a holder's redeemed pieces came off, NEWEST first.
+ *
+ * A redemption is a count and nothing more: a coupon in an inventory has no boss written on it, so
+ * which clear it came from is not a fact anybody has. It has to be decided somewhere, and the queue
+ * is where the same question about a sale is already answered.
+ *
+ * Newest first, which is the opposite end from a sale, and the reason is the invariant the whole file
+ * turns on. Oldest first would take pieces out of the boss at the front of the queue, the one whose
+ * debts have already been priced and quite possibly already paid, and un-price them. Coming off the
+ * back, a redemption only ever touches bosses nothing has been paid for yet.
+ *
+ * More kept than the pile holds is a miscount rather than a negative pile: every drop ends fully
+ * kept and the surplus goes nowhere, which the caller can see by comparing the count to the pile.
+ */
+export function spreadKept(drops: LedgerDrop[], kept: number): LedgerDrop[] {
+  if (kept <= 0) return drops;
+  const newestFirst = inQueueOrder(drops).reverse();
+
+  let left = kept;
+  const byId = new Map<string, number>();
+  for (const drop of newestFirst) {
+    if (left <= 0) break;
+    const take = Math.min(left, heldOf(drop));
+    byId.set(drop.id, take);
+    left -= take;
+  }
+  return drops.map((d) => (byId.has(d.id) ? { ...d, kept: byId.get(d.id) } : d));
+}
+
 /**
  * Which sales paid for which drop, oldest boss first.
  *
@@ -259,10 +297,7 @@ export type DropCoverage = {
  * been paid stays the figure they were paid, with nothing stored to keep it that way.
  */
 export function allocate(drops: LedgerDrop[], sales: PieceSale[]): Map<string, DropCoverage> {
-  const queue = [...drops].sort(
-    (a, b) =>
-      a.weekStart.localeCompare(b.weekStart) || a.order - b.order || a.id.localeCompare(b.id),
-  );
+  const queue = inQueueOrder(drops);
   const tranches = sales.map((s) => ({ left: s.pieces, priceEach: s.priceEach }));
 
   let next = 0;

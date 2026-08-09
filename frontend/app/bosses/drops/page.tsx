@@ -30,6 +30,7 @@ import {
   SELF_KEY,
   holderKey,
   holderLedgers,
+  keptByHolder,
   outstanding,
   runningBalance,
   salesByHolder,
@@ -242,7 +243,7 @@ export default function DropLogPage() {
   // never swap places in the queue and re-price each other.
   const bossOrder = new Map(bosses.map((b, i) => [b.bossKey, i]));
   const settled = outstanding(parties, pools, VESTIGE, bossOrder);
-  const ledgers = holderLedgers(settled, salesByHolder(tranches));
+  const ledgers = holderLedgers(settled, salesByHolder(tranches), keptByHolder(tranches));
   // Nights that did not divide and that nobody has said the arrangement for. Above the ledger,
   // because until one is answered its pieces are missing from every figure below it.
   const open = unanswered(parties, pools, VESTIGE);
