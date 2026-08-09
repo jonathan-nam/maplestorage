@@ -185,13 +185,21 @@ function HolderCard({
           <span className="ledger-tranches">
             {tranches.map((tranche) => (
               <span key={tranche.id} className="ledger-tranche">
-                {tranche.pieces} @ {shortMesos(tranche.amount / tranche.pieces)}
+                {/* A redemption has no price, so it says what it is rather than dividing by a
+                    missing amount. See V46. */}
+                {tranche.amount === null
+                  ? `${tranche.pieces} kept`
+                  : `${tranche.pieces} @ ${shortMesos(tranche.amount / tranche.pieces)}`}
                 <button
                   type="button"
                   className="link ledger-drop-sale"
                   disabled={busy}
                   onClick={() => void write(onRemoveSale(tranche.id), false)}
-                  aria-label={`Remove ${tranche.pieces} pieces for ${formatMesos(tranche.amount, true)}`}
+                  aria-label={
+                    tranche.amount === null
+                      ? `Remove ${tranche.pieces} kept pieces`
+                      : `Remove ${tranche.pieces} pieces for ${formatMesos(tranche.amount, true)}`
+                  }
                 >
                   ×
                 </button>
