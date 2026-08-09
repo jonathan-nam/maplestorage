@@ -91,7 +91,8 @@ function HolderCard({
   const [amount, setAmount] = useState("");
   const [refusal, setRefusal] = useState<string | null>(null);
 
-  const sold = ledger.pieces - unsold(ledger);
+  const left = unsold(ledger);
+  const sold = ledger.pieces - left;
 
   const count = Number(pieces.trim());
   const total = parseMesos(amount);
@@ -125,11 +126,12 @@ function HolderCard({
         <span className="loot-title">
           <span className="loot-name">Vestige of Erion</span>
           <span className="loot-meta">
-            {/* Somebody else's card leads with your side of it. Your own leads with the pile,
-                because there is no debt to you on it. */}
+            {/* Leads with the PILE, because that is what the tally counts and the sale box takes.
+                Leading with "owes you 195 of 390" set the frame to your 195, and then every number
+                beside it measured his 390. */}
             {ledger.holder.kind === "SELF"
               ? `you hold ${ledger.pieces}`
-              : `${ledger.holderName} owes you ${ledger.owedToYou} of ${ledger.pieces}`}
+              : `${ledger.holderName} holds ${ledger.pieces} · ${ledger.owedToYou} yours`}
           </span>
         </span>
         <span className="ledger-tally">
@@ -138,10 +140,9 @@ function HolderCard({
           {ledger.dueNow > 0 && (
             <span className="droplog-take">{formatMesos(ledger.dueNow, true)} due · </span>
           )}
-          {/* Against the whole PILE, which is what the sale box below takes. The line beside it
-              counts your share instead, so a tally with no denominator gets read as progress
-              towards that: 195 of 390 sold, next to owes you 195 of 390. */}
-          {sold} of {ledger.pieces} sold
+          {/* Unsold is the actionable half: it is how many pieces still have to be entered before
+              nothing on this card can move again. */}
+          {sold} sold · {left} unsold
         </span>
       </header>
 
