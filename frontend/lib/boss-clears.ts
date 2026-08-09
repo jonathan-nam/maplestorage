@@ -26,11 +26,11 @@ export function clearStateLabel(cleared: boolean | null): string {
 }
 
 /**
- * Which of the three the `.party-clear` pill is drawn in, wherever one is drawn.
+ * Which of the three the `.party-clear` pill is drawn in.
  *
- * Beside the label for the same reason it is: a screen that worded the states apart from another
- * screen was the thing that already happened, and a screen that COLOURS them apart would be the
- * same drift one step quieter.
+ * Named once so the party row's button and its read-only span cannot colour the states apart, the
+ * same reason clearStateLabel above exists for the wording. Run Order draws a tick and a gap
+ * instead of the pill, so it has no use for this.
  */
 export function clearClass(cleared: boolean | null): string {
   return cleared === null ? "unseen" : cleared ? "cleared" : "pending";

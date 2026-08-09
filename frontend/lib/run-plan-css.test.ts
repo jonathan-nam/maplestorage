@@ -55,12 +55,27 @@ describe("answering for a run", () => {
     return css.slice(at, css.indexOf("}", at));
   };
 
-  it("gives the clear a column that takes only the width of its pill", () => {
+  it("gives the clear a column no wider than its head", () => {
     expect(rule(".run-clear-head,\n.run-clear-cell")).toMatch(/width:\s*1%/);
+    expect(rule(".run-clear-head,\n.run-clear-cell")).toMatch(/white-space:\s*nowrap/);
   });
 
-  it("keeps the pill on one line, being three words at their widest", () => {
-    expect(rule(".run-clear-head,\n.run-clear-cell")).toMatch(/white-space:\s*nowrap/);
+  // The whole point of the mark: done is the tick, still-to-do is the gap. Hiding the glyph with
+  // `display: none` or a conditional render instead would shrink the button to nothing, so the
+  // column would change width as runs are ticked off and the click target would move.
+  it("holds the tick's width when a run is not cleared", () => {
+    expect(rule(".run-mark")).toMatch(/color:\s*transparent/);
+    expect(rule(".run-mark.is-cleared")).toMatch(/color:\s*var\(--ink-strong\)/);
+  });
+
+  it("shows the empty cell is a control when it is pointed at", () => {
+    expect(rule(".run-mark:not(.is-cleared):hover")).toMatch(/color:/);
+  });
+
+  // Party View's three-word pill is what this column replaced. It must not come back here: with
+  // the not-cleared filter on, every row would carry the same word.
+  it("does not put the worded pill back in the run table", () => {
+    expect(css).not.toMatch(/\.run-clear-cell \.party-clear/);
   });
 
   // The rotation is what says the chevron did something. Its selector list is per-row-type, so a
