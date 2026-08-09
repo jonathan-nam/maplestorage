@@ -25,19 +25,29 @@
      overflowed the column by 2px; any more and the search bar overhung the window. */
   --measure: 794px;
 
-  --bg: #111;
-  --surface: #1a1a1a;
-  --surface-2: #202020;
-  --line: #3a3a3a;
-  --line-soft: #262626;
-  --ink: #ddd;
+  /* Slate, not grey. The hue is the client's own UI panel, measured off an item tooltip: the
+     panel is #40474E and its divider highlight is #4B595F, which --line takes exactly. Borrowing
+     the hue is what makes the shell read as MapleStory without borrowing the game's type, which
+     is Arial 12px drawn unsmoothed by GDI and does not survive a browser.
+
+     Every surface here is lighter than the near-black it replaced, so --muted, --muted-2 and
+     --bad fell under 4.5:1 on --surface-2 and were lifted until they cleared it; --accent,
+     --good and --warn cleared unchanged. --surface-2 is itself a step darker than the tooltip
+     panel for the same reason: at the panel's own lightness those three could not be fixed
+     without going pale. The 4.5:1 floor is pinned by lib/palette-css.test.ts. */
+  --bg: #23282e;
+  --surface: #2f353e;
+  --surface-2: #363d45;
+  --line: #4b555f;
+  --line-soft: #343b43;
+  --ink: #dfe3e6;
   --ink-strong: #fff;
-  --muted: #999;
-  --muted-2: #8a8a8a;
+  --muted: #a3acb5;
+  --muted-2: #9fa8b0;
   --accent: #36b8d0;
   --good: #5cbf87;
   --warn: #e0a24e;
-  --bad: #e0706a;
+  --bad: #ee8c86;
 }
 
 /* Every page's root. Nothing inside it sets its own max-width or centres itself. */
@@ -657,26 +667,26 @@ button.ms-slot {
 .carousel-arrow {
   flex: 0 0 auto;
   width: 28px;
-  border: 1px solid #3a3a3a;
+  border: 1px solid var(--line);
   background: transparent;
-  color: #ddd;
+  color: var(--ink);
   font-size: 20px;
   line-height: 1;
   cursor: pointer;
 }
 
 .carousel-arrow:hover:not(:disabled) {
-  border-color: #666;
-  color: #fff;
+  border-color: var(--muted-2);
+  color: var(--ink-strong);
 }
 
 .carousel-arrow:disabled {
-  color: #444;
+  color: var(--line);
   cursor: default;
 }
 
 .char-tile.selected .all-sprite {
-  color: #999;
+  color: var(--muted);
 }
 
 .carousel-arrow {
@@ -717,7 +727,7 @@ button.ms-slot {
 }
 
 /* Text takes an INK token, never a surface one. A blanket rename once set this to --surface-2,
-   which is #202020 in dark and #f7f9fa in light: invisible against the page in both. */
+   which is a card colour a step off the page: invisible against it. */
 .brand-name {
   color: var(--ink);
   font-weight: 700;
@@ -968,7 +978,7 @@ img.user-avatar-img {
 }
 
 .hero p {
-  color: #999;
+  color: var(--muted);
   margin: 0 0 12px;
 }
 
@@ -1830,10 +1840,11 @@ button.link:disabled {
   --boss-row-bg: var(--surface);
 }
 
-/* The bands are a TINT, not a lighter grey. Grey cannot work: the stripe is --surface #1a1a1a and
-   the lightest surface token is --surface-2 #202020, so a grey band differs by 6/255 on striped
-   rows and 15/255 on the rest. It was reported invisible on the striped half. Hue carries the
-   signal instead, so the band reads the same at either stripe parity.
+/* The bands are a TINT, not a lighter surface. A lighter surface cannot work: the stripe is
+   --surface and the lightest surface token is --surface-2, one step above it, so a band built
+   from them differs by 7/255 on striped rows and 19/255 on the rest. It was reported invisible
+   on the striped half back when those steps were 6 and 15, and the slate palette did not widen
+   them. Hue carries the signal instead, so the band reads the same at either stripe parity.
    Both bands are semi-transparent and the cell one paints over the row one, so where they cross
    (the cell under the cursor) composites to ~28% on its own. That is deliberate: no third rule to
    keep in step with these two. */
