@@ -3764,20 +3764,8 @@ button.link:disabled {
   flex-wrap: wrap;
 }
 
-/* The split, and a box per seat only once it is not an even one. See #241 for why the boxes are
-   not here by default. */
-.config-split {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.config-split .split-input {
-  font-size: 13px;
-  padding: 6px 8px;
-}
-
+/* A box per seat, and only once the party has said it is not an even split. See #241 for why they
+   are not here by default. */
 .config-share {
   display: inline-flex;
   align-items: center;
