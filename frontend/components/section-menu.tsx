@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import Link, { useLinkStatus } from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { activeHref, MENU_HREFS, sectionsFor } from "@/lib/section-menu";
@@ -10,8 +10,33 @@ import { useAccountSettings } from "@/lib/use-account-settings";
 // belongs to, are in lib/section-menu.ts, where they can be tested: the highlight rule fails
 // silently, by lighting the wrong word rather than by erroring.
 
+/**
+ * Reports whether the <Link> above it is mid-navigation.
+ *
+ * useLinkStatus only reads the link it is rendered inside, so this exists to be that child. It
+ * draws nothing: the mark goes on the link, through the class the menu puts there.
+ */
+function LinkPending({
+  href,
+  onPending,
+}: {
+  href: string;
+  onPending: (href: string | null) => void;
+}) {
+  const { pending } = useLinkStatus();
+  useEffect(() => {
+    if (!pending) return;
+    onPending(href);
+    return () => onPending(null);
+  }, [pending, href, onPending]);
+  return null;
+}
+
 export function SectionMenu() {
   const [open, setOpen] = useState(false);
+  // The entry that has been clicked and not yet arrived. Only one can be in flight: the panel is
+  // held open until the route commits, but a second click replaces the first navigation anyway.
+  const [pending, setPending] = useState<string | null>(null);
   const pathname = usePathname();
 
   const active = activeHref(pathname);
@@ -31,6 +56,22 @@ export function SectionMenu() {
   useEffect(() => {
     for (const href of MENU_HREFS) router.prefetch(href);
   }, [router]);
+
+  // Closed by the route arriving, not by the click. Closing on the click dismissed the panel into
+  // a page that then sat unchanged (measured: 711ms on a cold route), so the only feedback a click
+  // had was that something had gone away. Held open, the clicked entry can say it is coming.
+  //
+  // It has to stay mounted for that: an unmounted <Link> has no pending state for useLinkStatus to
+  // read. `pending` needs no reset here, because unmounting the panel runs LinkPending's cleanup.
+  //
+  // During render, not in an effect: an effect closes it a paint later, and the linter refuses it.
+  // Not `open && openedAtPath === pathname` either, which reopens the menu on a Back to the page
+  // it was opened from.
+  const [pathShown, setPathShown] = useState(pathname);
+  if (pathShown !== pathname) {
+    setPathShown(pathname);
+    setOpen(false);
+  }
 
   // Close on an outside click or Escape, the two ways a menu should always be dismissable.
   useEffect(() => {
@@ -79,10 +120,18 @@ export function SectionMenu() {
                     key={item.href}
                     href={item.href}
                     role="menuitem"
-                    className={active === item.href ? "active" : ""}
-                    onClick={() => setOpen(false)}
+                    className={[
+                      active === item.href ? "active" : "",
+                      pending === item.href ? "is-pending" : "",
+                    ]
+                      .filter(Boolean)
+                      .join(" ")}
+                    // The page you are already on. The pathname never changes, so the reset above
+                    // never runs and nothing else would close the panel.
+                    onClick={() => pathname === item.href && setOpen(false)}
                   >
                     {item.label}
+                    <LinkPending href={item.href} onPending={setPending} />
                   </Link>
                 ))}
             </div>

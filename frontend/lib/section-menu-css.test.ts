@@ -23,3 +23,25 @@ describe("section menu indentation survives the cascade", () => {
     expect(Number(indented?.[1])).toBeGreaterThan(Number(flushPadding?.[1]));
   });
 });
+
+describe("the pending mark on a clicked entry", () => {
+  it("comes after .active, which it usually has to beat", () => {
+    // Same specificity, and the entry being navigated TO is the one about to become active. An
+    // earlier rule loses to it on exactly the click the mark exists for.
+    const activeRule = css.indexOf(".section-menu-panel a.active {");
+    const pendingRule = css.indexOf(".section-menu-panel a.is-pending {");
+    expect(activeRule).toBeGreaterThan(-1);
+    expect(pendingRule).toBeGreaterThan(activeRule);
+  });
+
+  it("waits before drawing anything, in both motion settings", () => {
+    // The delay is the design, not a tuning knob: a prefetched route commits in about 10ms, so
+    // without it every navigation would flash the mark for a frame. Dropping it silently turns
+    // the feedback into a flicker, which is why it is pinned here rather than left to a comment.
+    const delays = [
+      ...css.matchAll(/\.section-menu-panel a\.is-pending \{[^}]*animation:[^;]*?(\d+)ms/g),
+    ].map((m) => Number(m[1]));
+    expect(delays).toHaveLength(2); // the pulse, and the reduced-motion still
+    for (const delay of delays) expect(delay).toBeGreaterThanOrEqual(100);
+  });
+});
