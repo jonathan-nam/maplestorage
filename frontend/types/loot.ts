@@ -26,7 +26,8 @@ export type Loot = {
   // The reset week droppedOn falls in, as that week's Thursday. The server's, so the Drop Log's
   // weeks are the same ones the clears matrix steps through. See BossPeriod.kt.
   weekStart: string;
-  // PENDING, SOLD or PAID_OUT. Derived by the server from the sale and the payout rows.
+  // PENDING, SOLD, PAID_OUT, or TAKEN where a world cannot sell. Derived by the server from the
+  // sale, the payout rows and takenByMemberId.
   status: string;
   saleAmount: number | null;
   // LISTED, RECEIVED, or BOUGHT when a party member bought it off the party. BOUGHT is what the
@@ -40,6 +41,9 @@ export type Loot = {
   sellerShares: number | null;
   // Who holds the value and owes the rest: the seller, or the buyer on a BOUGHT basis.
   sellerMemberId: string | null;
+  // Who took the item, where it cannot be sold. Nothing is owed off it: the item cannot move
+  // again, so a seat's tally is how many they have taken and never a share of anything.
+  takenByMemberId: string | null;
   soldAt: string | null;
   // Who is owed, pinned when the drop sold. Empty before that.
   payouts: LootPayout[];
@@ -94,6 +98,12 @@ export type SellLootBody = {
   // How many shares each seat takes, keyed by seat id, the seller's own included. A seat left out
   // takes one, so an even split sends nothing at all. Only seats that RAN that week may be named.
   shares?: Record<string, number>;
+};
+
+// PUT /api/parties/{id}/loot/{lootId}/taken. Who took the item, in a world that cannot sell it.
+// Null puts the drop back in the pool. Only a seat that RAN that week may be named.
+export type SetLootTakenBody = {
+  memberId: string | null;
 };
 
 // PUT /api/parties/{id}/loot/{lootId}/bundles. The WHOLE arrangement, keyed by seat id: the counts

@@ -393,6 +393,10 @@ object PartyLoot : Table("party_loot") {
     // member who bought it.
     val sellerMemberId = optReference("seller_member_id", PartyMember.id)
 
+    // Who took the item, in a world where it cannot be sold. The Heroic axis of soldAt above, and
+    // exclusive with it (party_loot_sold_or_taken). Nothing is owed: see V47.
+    val takenByMemberId = optReference("taken_by_member_id", PartyMember.id)
+
     val createdAt = timestamp("created_at")
     val updatedAt = timestamp("updated_at")
 

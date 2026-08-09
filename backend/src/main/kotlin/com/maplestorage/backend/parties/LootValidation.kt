@@ -38,6 +38,31 @@ internal fun sharesRefusal(
     }
 
 /**
+ * Why this seat cannot be recorded as having taken the drop, or null.
+ *
+ * [canSell] is the important one, and it is not a technicality. In a trading world a drop that
+ * changes hands is a SALE, with a pot and a roster owed a share of it. Recording it as taken
+ * instead would move the drop off the pending list with nobody owed anything, so a party would
+ * quietly stop being paid and the pool would look tidier for it.
+ *
+ * Null [memberId] is how "put it back in the pool" is expressed, so it is only checked against the
+ * week's roster when it names somebody.
+ */
+internal fun takenRefusal(
+    memberId: String?,
+    ranThatWeek: List<String>,
+    canSell: Boolean,
+    sold: Boolean,
+): String? =
+    when {
+        canSell -> "This world trades, so a drop that changes hands is a sale."
+        sold -> "This drop is already sold."
+        memberId != null && memberId !in ranThatWeek ->
+            "memberId must be somebody who ran this boss that week"
+        else -> null
+    }
+
+/**
  * Why a pile of this drop cannot be priced as one lot, or null.
  *
  * The gate on the lot sale. Without it, that route prices any drop off a queue, including the ones

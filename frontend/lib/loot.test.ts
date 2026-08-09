@@ -8,6 +8,7 @@ import {
   splitOf,
   statusLabel,
   summarize,
+  takenTally,
 } from "./loot";
 import type { Loot } from "@/types/loot";
 import type { PartyMember } from "@/types/party";
@@ -42,6 +43,7 @@ const sold = (over: Partial<Loot> = {}): Loot => ({
   splitMethod: "FAIR",
   sellerShares: 1,
   sellerMemberId: "m1",
+  takenByMemberId: null,
   soldAt: "2026-07-21T10:00:00Z",
   payouts: [
     { memberId: "m2", paid: false, paidAt: null, shares: 1 },
@@ -169,6 +171,13 @@ describe("summarize", () => {
     // drops in it, and reporting nothing made it look empty.
     expect(summarize(loot)).toEqual({ pending: 1, awaitingPayout: 2, settled: 1 });
   });
+
+  it("counts a taken drop as done, the way a paid-out one is", () => {
+    // A Heroic pool never sells, so nothing in it ever reaches PAID_OUT. Counting only that state
+    // would report a party that had claimed a season of drops as having done nothing.
+    const loot = [sold({ id: "a", status: "PENDING" }), sold({ id: "b", status: "TAKEN" })];
+    expect(summarize(loot)).toEqual({ pending: 1, awaitingPayout: 0, settled: 1 });
+  });
 });
 
 describe("statusLabel", () => {
@@ -176,6 +185,54 @@ describe("statusLabel", () => {
     expect(statusLabel("PENDING")).toBe("In the pool");
     expect(statusLabel("SOLD")).toBe("Awaiting payout");
     expect(statusLabel("PAID_OUT")).toBe("Settled");
+    // Not "Settled". Nothing was paid, so there is no settlement to have happened.
+    expect(statusLabel("TAKEN")).toBe("Taken");
+  });
+});
+
+describe("takenTally", () => {
+  const taken = (id: string, memberId: string | null, quantity = 1) =>
+    sold({ id, status: memberId ? "TAKEN" : "PENDING", takenByMemberId: memberId, quantity });
+
+  it("counts items per seat and lists every seat, zero included", () => {
+    // The seat on zero is the seat this whole tally is for. Leaving it out until it has taken
+    // something would hide the one person who is owed a turn.
+    const tally = takenTally([taken("a", "m1"), taken("b", "m1"), taken("c", "m2")], party);
+    expect(tally.map((t) => [t.name, t.taken])).toEqual([
+      ["Rune", 2],
+      ["Steve", 1],
+      ["Bob", 0],
+    ]);
+  });
+
+  it("counts items rather than rows", () => {
+    // One row is one hammer or a stack of thirty coupons. Calling those the same turn is the
+    // pooling-what-cannot-be-pooled mistake in a new place.
+    const tally = takenTally([taken("a", "m1", 6), taken("b", "m2", 1)], party);
+    expect(tally.find((t) => t.name === "Rune")?.taken).toBe(6);
+    expect(tally.find((t) => t.name === "Steve")?.taken).toBe(1);
+  });
+
+  it("marks everybody on the fewest, so a tie stays a tie", () => {
+    const tally = takenTally([taken("a", "m1")], party);
+    expect(tally.filter((t) => t.up).map((t) => t.name)).toEqual(["Steve", "Bob"]);
+  });
+
+  it("leaves an unclaimed drop out of every count", () => {
+    const tally = takenTally([taken("a", null), taken("b", "m1")], party);
+    expect(tally.reduce((sum, t) => sum + t.taken, 0)).toBe(1);
+  });
+
+  it("does not credit a drop taken by somebody who has left", () => {
+    // Attributing it to whoever is left would inflate a seat that never took it, which is a
+    // confident wrong number about the one thing this tally exists to answer.
+    const tally = takenTally([taken("a", "gone"), taken("b", "m1")], party);
+    expect(tally.reduce((sum, t) => sum + t.taken, 0)).toBe(1);
+    expect(tally.find((t) => t.name === "Rune")?.taken).toBe(1);
+  });
+
+  it("has everyone up in a pool nobody has claimed from", () => {
+    expect(takenTally([], party).every((t) => t.up && t.taken === 0)).toBe(true);
   });
 });
 

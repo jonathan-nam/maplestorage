@@ -289,7 +289,14 @@ export default function DropLogPage() {
               <span className="stat-label">Drops</span>
               <span className="stat-value">{totals.drops}</span>
               <span className="stat-note">
-                {totals.sold} sold
+                {/* Whichever happened. A Heroic account never sells one and an Interactive one
+                    never takes one, so in practice this is a single figure either way. */}
+                {[
+                  totals.sold > 0 || totals.taken === 0 ? `${totals.sold} sold` : null,
+                  totals.taken > 0 ? `${totals.taken} taken` : null,
+                ]
+                  .filter(Boolean)
+                  .join(", ")}
                 {totals.pending > 0 && `, ${totals.pending} in the pool`}
                 {/* The pieces behind the count, because one row is one hammer or 180 coupons and a
                     number of rows does not say which. Only when somebody is holding some. */}

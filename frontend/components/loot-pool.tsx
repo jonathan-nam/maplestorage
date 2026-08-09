@@ -3,6 +3,8 @@
 import { DropPicker } from "@/components/drop-picker";
 import { LootRow } from "@/components/loot-row";
 import { isPieceDrop } from "@/lib/drop-log";
+import { takenTally } from "@/lib/loot";
+import { canTrade } from "@/lib/world";
 import type { AddLootBody, Loot, SellLootBody } from "@/types/loot";
 import type { Boss } from "@/types/boss";
 import type { DropTables } from "@/types/drop";
@@ -21,6 +23,7 @@ export function LootPool({
   onAdd,
   onSell,
   onUnsell,
+  onSetTaken,
   onSetPaid,
   onDelete,
 }: {
@@ -35,6 +38,7 @@ export function LootPool({
   onAdd: (body: AddLootBody) => void;
   onSell: (lootId: string, body: SellLootBody) => void;
   onUnsell: (lootId: string) => void;
+  onSetTaken: (lootId: string, memberId: string | null) => void;
   onSetPaid: (lootId: string, memberId: string, paid: boolean) => void;
   onDelete: (lootId: string) => void;
 }) {
@@ -58,6 +62,20 @@ export function LootPool({
 
       {loot.length === 0 && <p className="finder-empty">Nothing in the pool yet.</p>}
 
+      {/* The running count, in a world where nothing sells. Not shown where drops become mesos:
+          there the pot divides and who physically held the item is not what makes it fair.
+          A solo pool has one seat, so there is nobody to be even with. */}
+      {!canTrade(party.worldType) && !party.solo && loot.length > 0 && (
+        <ul className="loot-tally">
+          {takenTally(loot, party.seats).map((seat) => (
+            <li key={seat.memberId} className={seat.up ? "is-up" : undefined}>
+              <span className="loot-tally-name">{seat.name}</span>
+              <span className="loot-tally-count">{seat.taken}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+
       {/* Sellable drops first, then the coupons, because they are settled in different places and
           a hammer was easy to lose among them. One sells here for a pot that divides as money; a
           stack of coupons divides by COUNT and is priced on the Drop Log, in tranches.
@@ -71,6 +89,7 @@ export function LootPool({
         isSaving={isSaving}
         onSell={onSell}
         onUnsell={onUnsell}
+        onSetTaken={onSetTaken}
         onSetPaid={onSetPaid}
         onDelete={onDelete}
       />
@@ -82,6 +101,7 @@ export function LootPool({
         isSaving={isSaving}
         onSell={onSell}
         onUnsell={onUnsell}
+        onSetTaken={onSetTaken}
         onSetPaid={onSetPaid}
         onDelete={onDelete}
       />
@@ -103,6 +123,7 @@ function LootGroup({
   isSaving,
   onSell,
   onUnsell,
+  onSetTaken,
   onSetPaid,
   onDelete,
 }: {
@@ -114,6 +135,7 @@ function LootGroup({
   isSaving: (lootId: string) => boolean;
   onSell: (lootId: string, body: SellLootBody) => void;
   onUnsell: (lootId: string) => void;
+  onSetTaken: (lootId: string, memberId: string | null) => void;
   onSetPaid: (lootId: string, memberId: string, paid: boolean) => void;
   onDelete: (lootId: string) => void;
 }) {
@@ -131,6 +153,7 @@ function LootGroup({
             busy={isSaving(item.id)}
             onSell={(body) => onSell(item.id, body)}
             onUnsell={() => onUnsell(item.id)}
+            onSetTaken={(memberId) => onSetTaken(item.id, memberId)}
             onSetPaid={(memberId, paid) => onSetPaid(item.id, memberId, paid)}
             onDelete={() => onDelete(item.id)}
           />

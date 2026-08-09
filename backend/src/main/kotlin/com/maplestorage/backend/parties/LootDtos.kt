@@ -45,8 +45,9 @@ data class LootResponse(
     // client so the week a drop is filed under is the same one ranThatWeek was read against, and
     // so the reset boundary keeps its single implementation in BossPeriod.kt.
     val weekStart: String,
-    // PENDING (not sold), SOLD (sold, someone still unpaid), PAID_OUT (everyone paid). Derived
-    // from the sale and the payout rows rather than stored, so it cannot drift from them.
+    // PENDING (not sold), SOLD (sold, someone still unpaid), PAID_OUT (everyone paid), TAKEN
+    // (somebody has the item, in a world that cannot sell it). Derived from the sale, the payout
+    // rows and taken_by rather than stored, so it cannot drift from them.
     val status: String,
     val saleAmount: Long?,
     val amountBasis: String?,
@@ -55,6 +56,9 @@ data class LootResponse(
     val sellerShares: Int? = null,
     // Who holds the value and owes the rest: the seller, or the buyer when a member bought it.
     val sellerMemberId: String?,
+    // Who took the item, where it cannot be sold. Null until somebody does, and never set at the
+    // same time as a sale. Nothing is owed off it: the item cannot move again. See V47.
+    val takenByMemberId: String? = null,
     val soldAt: String?,
     // Who is owed, as pinned when the drop sold. Empty until then.
     val payouts: List<LootPayoutResponse>,
@@ -190,6 +194,17 @@ data class LotSaleRequest(
 @Serializable
 data class PayoutRequest(
     val paid: Boolean,
+)
+
+/**
+ * Who took the item, where it cannot be sold. Null puts the drop back in the pool.
+ *
+ * One seat, not a set of shares: this is an item somebody now holds, not a pot being divided. See
+ * V47.
+ */
+@Serializable
+data class TakenRequest(
+    val memberId: String? = null,
 )
 
 /**

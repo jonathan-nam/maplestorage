@@ -92,6 +92,7 @@ const drop = (over: Partial<Loot> = {}): Loot => {
     splitMethod: "FAIR",
     sellerShares: 1,
     sellerMemberId: "m1",
+    takenByMemberId: null,
     soldAt: "2026-07-21T10:00:00Z",
     payouts: [{ memberId: "m2", paid: false, paidAt: null, shares: 1 }],
     ranThatWeek: [],
@@ -215,6 +216,25 @@ describe("buildDropLog", () => {
     expect(entry.pooled).toBeNull();
     expect(entry.yourTake).toBeNull();
     expect(log.totals.pooled).toBe(0);
+  });
+
+  it("counts a taken drop as taken, never as sold", () => {
+    // "Sold" used to be everything that was not PENDING, so the moment TAKEN existed a Heroic
+    // account's claimed drops were reported as sales: a meso word over a drop no money ever
+    // changed hands for, on a tile that is drawn in every world.
+    const p = duo();
+    const log = buildDropLog(
+      [p],
+      [pool("pa", [pending({ id: "l9", status: "TAKEN", takenByMemberId: "m1" })])],
+      {},
+    );
+
+    expect(log.totals.taken).toBe(1);
+    expect(log.totals.sold).toBe(0);
+    // Nor is it work still to do: somebody has it.
+    expect(log.totals.pending).toBe(0);
+    expect(log.totals.pooled).toBe(0);
+    expect(log.totals.yourTake).toBe(0);
   });
 
   it("counts a split it cannot read, and leaves its money out of both totals", () => {
