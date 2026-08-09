@@ -10,13 +10,8 @@ import { useAccountSettings } from "@/lib/use-account-settings";
 // belongs to, are in lib/section-menu.ts, where they can be tested: the highlight rule fails
 // silently, by lighting the wrong word rather than by erroring.
 
-/** Longest a navigation is allowed to hold the page dimmed. See `navigating` below. */
-const PENDING_BACKSTOP_MS = 8000;
-
 export function SectionMenu() {
   const [open, setOpen] = useState(false);
-  // A click that has not landed yet. It dims the page and runs the bar; see .nav-pending.
-  const [navigating, setNavigating] = useState(false);
   const pathname = usePathname();
 
   const active = activeHref(pathname);
@@ -37,30 +32,19 @@ export function SectionMenu() {
     for (const href of MENU_HREFS) router.prefetch(href);
   }, [router]);
 
-  // The route arriving ends the wait. Held here rather than read from useLinkStatus, because that
-  // hook only reports from inside a mounted <Link> and the panel closes on the click.
+  // Closed by the route arriving. The wait itself is NOT drawn here: it is NavPending, in the
+  // layout, so every link in the app gets it and not just these seven. Holding the panel open to
+  // mark the clicked entry was tried and reverted, because a menu that does not close is read as a
+  // click that did not register.
   //
-  // Holding the panel open instead was tried and reverted: it put the only feedback on the control
-  // rather than on the page, and a menu that does not close is read as a click that did not
-  // register. Closing is what says the click landed; the page says what is coming.
-  //
-  // During render, not in an effect: an effect clears it a paint later, and the linter refuses it.
+  // During render, not in an effect: an effect closes it a paint later, and the linter refuses it.
   // Not `openedAtPath === pathname` either, which reopens the menu on a Back to the page it was
   // opened from.
   const [pathShown, setPathShown] = useState(pathname);
   if (pathShown !== pathname) {
     setPathShown(pathname);
     setOpen(false);
-    setNavigating(false);
   }
-
-  // A navigation that never lands must not leave the page dimmed for good. Same backstop the world
-  // veil keeps, and for the same reason: the failure mode of a cover is that it never lifts.
-  useEffect(() => {
-    if (!navigating) return;
-    const timer = setTimeout(() => setNavigating(false), PENDING_BACKSTOP_MS);
-    return () => clearTimeout(timer);
-  }, [navigating]);
 
   // Close on an outside click or Escape, the two ways a menu should always be dismissable.
   useEffect(() => {
@@ -81,10 +65,6 @@ export function SectionMenu() {
 
   return (
     <div className="section-menu" ref={ref}>
-      {/* The page is going. Rendered from here because the menu outlives the navigation it starts,
-          while the page under it does not. CSS does the waiting and the dimming: see .nav-pending. */}
-      {navigating ? <span className="nav-pending" role="status" aria-label="Loading" /> : null}
-
       <button
         type="button"
         className="section-menu-btn"
@@ -114,12 +94,7 @@ export function SectionMenu() {
                     href={item.href}
                     role="menuitem"
                     className={active === item.href ? "active" : ""}
-                    onClick={() => {
-                      setOpen(false);
-                      // Not for the page you are already on: nothing navigates, so nothing would
-                      // ever clear it.
-                      setNavigating(pathname !== item.href);
-                    }}
+                    onClick={() => setOpen(false)}
                   >
                     {item.label}
                   </Link>
