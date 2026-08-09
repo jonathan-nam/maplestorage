@@ -5,8 +5,9 @@
 // input ("sold N pieces for X") can be distributed without anybody naming a boss.
 //
 // A row's quantity is WHAT FELL (see V40). Who ended up holding it comes from three places, and
-// this file's job is knowing which one applies: a named looter holds the lot, a recorded
-// arrangement splits it stack by stack (V41), or the stacks divide and everybody took their share.
+// this file's job is knowing which one applies, in this order: a recorded arrangement splits it
+// stack by stack (V41), a named looter holds the lot, or the stacks divide and everybody took their
+// share. The arrangement first because it is what happened, where the looter is only what was agreed.
 //
 // A fourth case exists and is deliberately NOT answered: the drop did not divide and nobody has
 // said who took the odd stack. It used to be called rare and skipped, which was wrong twice over.
@@ -206,24 +207,22 @@ function holdersOf(party: Party): FoldedSeat[] {
 /**
  * What each holder walked away with, or null when nobody has said and it matters.
  *
- * Three ways a night can be known, and one way it cannot:
+ * Three ways a night can be known, and one way it cannot, in this order:
  *
- *  - a named looter, who holds the lot. What a party running one seller means.
  *  - a recorded arrangement, stack by stack, folded to holders.
+ *  - a named looter, who holds the lot. What a party running one seller means.
  *  - neither, but the stacks divide, so everybody took exactly their share.
  *
  * Otherwise null. The drop did not divide, nobody has said who took the odd stack, and there is no
  * honest default: a guess is right half the time and names the wrong person the rest.
+ *
+ * The ARRANGEMENT comes first, and it used to come second. `looterMemberId` is a standing agreement
+ * about the party ("one of us loots the lot"); `bundlesBy` is what happened on one night. A specific
+ * observation has to beat a general default, and losing to it meant a mis-looted night could not be
+ * corrected at all while the party had a looter: you entered the stacks, the card did not move, and
+ * nothing said why. See #289.
  */
 function heldByHolder(loot: Loot, party: Party, holders: FoldedSeat[]): Map<string, Pile> | null {
-  if (party.looterMemberId !== null) {
-    const looter = party.seats.find((s) => s.id === party.looterMemberId);
-    if (looter) {
-      const key = holderKey(holderOf(looter));
-      return new Map([[key, { pieces: loot.quantity, by: looter.name }]]);
-    }
-  }
-
   const bundles = bundlesOf(loot);
   const bundlesBy = loot.bundlesBy ?? [];
 
@@ -248,6 +247,14 @@ function heldByHolder(loot: Loot, party: Party, holders: FoldedSeat[]): Map<stri
       }
     }
     return held;
+  }
+
+  if (party.looterMemberId !== null) {
+    const looter = party.seats.find((s) => s.id === party.looterMemberId);
+    if (looter) {
+      const key = holderKey(holderOf(looter));
+      return new Map([[key, { pieces: loot.quantity, by: looter.name }]]);
+    }
   }
 
   if (bundles !== null && dividesEvenly(bundles, holders)) {

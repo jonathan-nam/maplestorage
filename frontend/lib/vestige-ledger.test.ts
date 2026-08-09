@@ -137,6 +137,33 @@ describe("who a seat belongs to", () => {
 });
 
 describe("which drops are outstanding", () => {
+  it("lets a recorded arrangement correct a party that names a looter", () => {
+    // #289. The looter is a standing agreement, the arrangement is what happened, and the
+    // arrangement used to lose silently: you entered the stacks and the card did not move.
+    const p = party("pa", "limbo", trio(), "m1");
+    const split = coupon("l1", "limbo", 60, "2026-07-30", {
+      bundles: 3,
+      bundlesBy: [
+        { memberId: "m1", bundles: 1 },
+        { memberId: "m2", bundles: 1 },
+        { memberId: "m3", bundles: 1 },
+      ],
+    });
+
+    // A stack each is exactly everybody's share, so nothing is owed and it leaves the queue. Read
+    // through the looter instead, this was one seat holding all 60 and owing the other two 20 each.
+    expect(outstanding([p], [pool("pa", [split])], VESTIGE, ORDER)).toEqual([]);
+  });
+
+  it("still falls back to the looter when no arrangement was recorded", () => {
+    const p = party("pa", "limbo", trio(), "m1");
+    const uncounted = coupon("l1", "limbo", 60, "2026-07-30", { bundles: 3, bundlesBy: [] });
+    const drops = outstanding([p], [pool("pa", [uncounted])], VESTIGE, ORDER);
+    expect(drops).toHaveLength(1);
+    expect(drops[0]!.looterName).toBe("Husky");
+    expect(drops[0]!.drop.seats.map((s) => s.looted)).toEqual([60, 0, 0]);
+  });
+
   it("takes a drop whose party names a looter", () => {
     const p = party("pa", "limbo", trio(), "m1");
     const drops = outstanding(
