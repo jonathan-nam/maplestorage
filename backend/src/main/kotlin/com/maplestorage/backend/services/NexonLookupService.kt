@@ -1,5 +1,7 @@
 package com.maplestorage.backend.services
 
+import com.maplestorage.backend.users.GmsWorld
+import com.maplestorage.backend.users.KNOWN_WORLD_IDS
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.engine.cio.CIO
@@ -32,23 +34,21 @@ fun createNexonHttpClient(): HttpClient =
 // single-call "search by name across all worlds." Probing ids 0-120 found
 // only these 4 currently non-empty (modern GMS has consolidated into very
 // few merged worlds). No human-readable world name is ever returned by
-// this endpoint (only numeric worldID), so Characters.worldName is left
-// null by this service. See CharacterRoutes.kt.
-// Names are deliberately just ordinal placeholders, not real GMS world
-// names. Nexon's own name for each of these 4 IDs was never confirmed
-// (see the class doc above), so naming these after guessed real worlds
-// would misrepresent this as a verified mapping to a future reader.
-private const val KNOWN_WORLD_ID_A = 1
-private const val KNOWN_WORLD_ID_B = 19
-private const val KNOWN_WORLD_ID_C = 45
-private const val KNOWN_WORLD_ID_D = 70
-private val KNOWN_WORLD_IDS = listOf(KNOWN_WORLD_ID_A, KNOWN_WORLD_ID_B, KNOWN_WORLD_ID_C, KNOWN_WORLD_ID_D)
+// this endpoint, only the numeric worldID.
+//
+// Which id is which world is therefore not something this service can read; it is knowledge, and
+// it lives in GmsWorld with the record of how it was verified. That is also what makes the id
+// worth returning: the world a character was FOUND in is the one they are in, which beats asking.
 private const val LOOKUP_TIMEOUT_MS = 5_000L
 
 data class NexonLookupResult(
     val level: Int,
     val jobName: String,
     val spriteImgUrl: String,
+    // Which world answered. Null for an id this build does not know, which cannot happen while the
+    // fan-out reads its ids from the same enum, but says so rather than inventing a world if it
+    // ever stops doing that.
+    val world: GmsWorld?,
 )
 
 // First outbound HTTP call in this codebase. Preserves the "add character
@@ -93,7 +93,10 @@ class NexonLookupService(
                 ?.body<NexonRankingResponse>()
                 ?.ranks
                 ?.firstOrNull()
-        return rank?.let { NexonLookupResult(it.level, it.jobName, it.characterImgURL) }
+        // The world is the one that ANSWERED, not one read off the row: the response's own worldID
+        // is a field this app has never parsed, and taking it would make the fan-out and the answer
+        // two things that can disagree.
+        return rank?.let { NexonLookupResult(it.level, it.jobName, it.characterImgURL, GmsWorld.byId(worldId)) }
     }
 }
 

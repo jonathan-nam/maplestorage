@@ -108,6 +108,10 @@ export function CharacterRow({
         <span className="tile-meta">
           <span className="tile-level">Lv.{character.level ?? "?"}</span>
           <span className="tile-job">{character.jobName ?? "—"}</span>
+          {/* Where the lookup found them. Only when it did: null is every character added before
+              detection existed, and a dash there would read as a world nobody could name rather
+              than a question nobody has asked yet. Refreshing the row fills it. */}
+          {character.worldName && <span className="tile-world">{character.worldName}</span>}
         </span>
       </span>
 

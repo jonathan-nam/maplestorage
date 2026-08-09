@@ -1,5 +1,7 @@
 package com.maplestorage.backend.services
 
+import com.maplestorage.backend.users.GmsWorld
+import com.maplestorage.backend.users.WORLD_INTERACTIVE
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
@@ -60,6 +62,30 @@ class NexonLookupServiceTest {
             assertEquals(300, result?.level)
             assertEquals("Shadower", result?.jobName)
             assertEquals("https://msavatar1.nexon.net/x.png", result?.spriteImgUrl)
+            // Which world answered is the answer to "where is this character", and it is the only
+            // one there is: nobody types their world, and a tick nobody checks is how six
+            // characters ended up recorded in a world they were not in. Id 45 is Kronos.
+            assertEquals(GmsWorld.KRONOS, result?.world)
+        }
+
+    @Test
+    fun `the world reported is the one that answered, not the one probed first`() =
+        runBlocking {
+            // Id 19 is Scania, and it is neither the first id probed nor the last. A fan-out that
+            // reported its own iteration order rather than the responding world would pass the
+            // test above and be wrong for every character outside Kronos.
+            val engine =
+                jsonEngine { worldId ->
+                    if (worldId == "19") {
+                        matchBody(296, "Night Lord", "https://msavatar1.nexon.net/z.png")
+                    } else {
+                        EMPTY_RANKS_BODY
+                    }
+                }
+            val result = NexonLookupService(clientFor(engine)).lookup("mechyfechy")
+
+            assertEquals(GmsWorld.SCANIA, result?.world)
+            assertEquals(WORLD_INTERACTIVE, result?.world?.worldType)
         }
 
     @Test
