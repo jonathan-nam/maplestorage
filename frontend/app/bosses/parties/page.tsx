@@ -28,6 +28,7 @@ import {
 } from "@/lib/parties";
 import { preloadBossArt } from "@/lib/preload-boss-art";
 import { type CrossedReset, WEEKLY_CADENCE } from "@/lib/reset-countdown";
+import { useSeatSprites } from "@/lib/seat-sprites";
 import { useAccountSettings } from "@/lib/use-account-settings";
 import { useRowWrites } from "@/lib/use-row-writes";
 import { offersWallet } from "@/lib/world";
@@ -121,6 +122,9 @@ export default function PartiesPage() {
   const [owedAnywhere, setOwedAnywhere] = useState(() =>
     (seededParties ?? []).some((p) => p.awaitingPayout > 0),
   );
+
+  // The seats are drawn on the party page, which is a click from here. See lib/seat-sprites.ts.
+  useSeatSprites(parties);
 
   // Stepping twice quickly fires two requests that can land in either order. Only the newest may
   // write state, or the list ends up showing a week the label disagrees with. Same guard as the
