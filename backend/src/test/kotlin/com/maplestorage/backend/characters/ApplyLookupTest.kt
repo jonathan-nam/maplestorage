@@ -61,15 +61,18 @@ class ApplyLookupTest {
         transaction { Characters.deleteWhere { Characters.userId eq owner } }
     }
 
-    /** A character recorded in [world], which is where the wrong answers start. */
-    private fun character(world: String) {
+    /** A character recorded in [world] under [name], which is where the wrong answers start. */
+    private fun character(
+        world: String,
+        name: String = "mechyfechy",
+    ) {
         val owner = userId
         val now = Clock.System.now()
         ensureUser(owner, "$owner@example.com")
         Characters.insert {
             it[Characters.id] = characterId
             it[Characters.userId] = owner
-            it[name] = "mechyfechy"
+            it[Characters.name] = name
             it[worldType] = world
             it[createdAt] = now
             it[updatedAt] = now
@@ -77,13 +80,16 @@ class ApplyLookupTest {
         }
     }
 
-    private fun found(world: GmsWorld?) =
-        NexonLookupResult(
-            level = 296,
-            jobName = "Night Lord",
-            spriteImgUrl = "https://msavatar1.nexon.net/x.png",
-            world = world,
-        )
+    private fun found(
+        world: GmsWorld?,
+        name: String = "mechyfechy",
+    ) = NexonLookupResult(
+        name = name,
+        level = 296,
+        jobName = "Night Lord",
+        spriteImgUrl = "https://msavatar1.nexon.net/x.png",
+        world = world,
+    )
 
     private fun stored() =
         Characters
@@ -136,6 +142,19 @@ class ApplyLookupTest {
             assertEquals(296, row[Characters.level])
             assertEquals("Night Lord", row[Characters.jobName])
             assertEquals("https://msavatar1.nexon.net/x.png", row[Characters.spriteImgUrl])
+        }
+    }
+
+    @Test
+    fun `a refresh corrects the capitalisation of a name`() {
+        transaction {
+            // The lookup matches case-insensitively, so this is a name that was typed rather than
+            // read, and a refresh is the only thing that can tell the two apart.
+            character(WORLD_INTERACTIVE, name = "Huskyxkenshi")
+
+            applyLookup(characterId, userId, found(GmsWorld.SCANIA, name = "HuskyxKenshi"), Clock.System.now())
+
+            assertEquals("HuskyxKenshi", stored()[Characters.name])
         }
     }
 

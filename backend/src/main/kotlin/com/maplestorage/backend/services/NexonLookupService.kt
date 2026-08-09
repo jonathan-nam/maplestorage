@@ -42,6 +42,9 @@ fun createNexonHttpClient(): HttpClient =
 private const val LOOKUP_TIMEOUT_MS = 5_000L
 
 data class NexonLookupResult(
+    // Nexon's spelling. The endpoint matches case-insensitively, so what the caller typed is a
+    // guess at the capitalisation and this is the only place the real one can be read.
+    val name: String,
     val level: Int,
     val jobName: String,
     val spriteImgUrl: String,
@@ -93,10 +96,17 @@ class NexonLookupService(
                 ?.body<NexonRankingResponse>()
                 ?.ranks
                 ?.firstOrNull()
+                // The endpoint truncates character_name to 12 characters (the in-game limit) before
+                // matching, so a longer typo answers with whoever owns its first 12: verified
+                // 2026-08-09, "huskyxkenshiyz" returns HuskyxKenshi's level, job and sprite. Only a
+                // row spelling the name we asked for is that character. See the test.
+                ?.takeIf { it.characterName.equals(name, ignoreCase = true) }
         // The world is the one that ANSWERED, not one read off the row: the response's own worldID
         // is a field this app has never parsed, and taking it would make the fan-out and the answer
         // two things that can disagree.
-        return rank?.let { NexonLookupResult(it.level, it.jobName, it.characterImgURL, GmsWorld.byId(worldId)) }
+        return rank?.let {
+            NexonLookupResult(it.characterName, it.level, it.jobName, it.characterImgURL, GmsWorld.byId(worldId))
+        }
     }
 }
 
@@ -108,6 +118,7 @@ private data class NexonRankingResponse(
 
 @Serializable
 private data class NexonRankEntry(
+    val characterName: String,
     val level: Int,
     val jobName: String,
     val characterImgURL: String,

@@ -22,7 +22,9 @@ private fun matchBody(
     level: Int,
     jobName: String,
     spriteUrl: String,
-) = """{"totalCount":1,"ranks":[{"level":$level,"jobName":"$jobName","characterImgURL":"$spriteUrl"}]}"""
+    characterName: String = "Whoever",
+) = """{"totalCount":1,"ranks":[{"characterName":"$characterName","level":$level,""" +
+    """"jobName":"$jobName","characterImgURL":"$spriteUrl"}]}"""
 
 private fun jsonEngine(handler: (worldId: String?) -> String) =
     MockEngine { request ->
@@ -52,7 +54,7 @@ class NexonLookupServiceTest {
             val engine =
                 jsonEngine { worldId ->
                     if (worldId == "45") {
-                        matchBody(300, "Shadower", "https://msavatar1.nexon.net/x.png")
+                        matchBody(300, "Shadower", "https://msavatar1.nexon.net/x.png", "MisaoMaki")
                     } else {
                         EMPTY_RANKS_BODY
                     }
@@ -77,7 +79,7 @@ class NexonLookupServiceTest {
             val engine =
                 jsonEngine { worldId ->
                     if (worldId == "19") {
-                        matchBody(296, "Night Lord", "https://msavatar1.nexon.net/z.png")
+                        matchBody(296, "Night Lord", "https://msavatar1.nexon.net/z.png", "mechyfechy")
                     } else {
                         EMPTY_RANKS_BODY
                     }
@@ -112,6 +114,33 @@ class NexonLookupServiceTest {
             val result = NexonLookupService(clientFor(engine)).lookup("Whoever")
 
             assertEquals(120, result?.level)
+        }
+
+    @Test
+    fun `the name returned is Nexon's spelling, not the one asked for`() =
+        runBlocking {
+            val engine =
+                jsonEngine { worldId ->
+                    if (worldId == "19") {
+                        matchBody(296, "Adele", "https://msavatar1.nexon.net/h.png", "HuskyxKenshi")
+                    } else {
+                        EMPTY_RANKS_BODY
+                    }
+                }
+
+            assertEquals("HuskyxKenshi", NexonLookupService(clientFor(engine)).lookup("huskyxkenshi")?.name)
+        }
+
+    @Test
+    fun `a row for a different character than the one asked for is not a match`() =
+        runBlocking {
+            // Nexon truncates character_name to 12 characters (the in-game limit) before matching,
+            // so a 14-character typo comes back holding HuskyxKenshi's level, job and sprite.
+            // Taking it would put another player's numbers under the name that was typed.
+            val engine =
+                jsonEngine { matchBody(296, "Adele", "https://msavatar1.nexon.net/h.png", "HuskyxKenshi") }
+
+            assertNull(NexonLookupService(clientFor(engine)).lookup("huskyxkenshiyz"))
         }
 
     @Test
