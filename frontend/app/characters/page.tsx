@@ -6,6 +6,7 @@ import { AddCharacter } from "@/components/add-character";
 import { CharacterRow } from "@/components/character-row";
 import { ApiError, apiFetch } from "@/lib/api";
 import { invalidate, peek, put } from "@/lib/cache";
+import { groupByWorld } from "@/lib/character-groups";
 import { SETTINGS_KEY, setAccountSettings, useAccountSettings } from "@/lib/use-account-settings";
 import { otherWorld, worldLabel } from "@/lib/world";
 import type { Character } from "@/types/character";
@@ -33,6 +34,7 @@ export default function CharactersPage() {
   // is the app learning where a character actually is, and the one thing that would otherwise
   // happen with nothing on screen to show for it.
   const [elsewhere, setElsewhere] = useState<string | null>(null);
+  const [finding, setFinding] = useState(false);
 
   useEffect(() => {
     apiFetch<Character[]>(CHARACTERS_KEY, { method: "GET" }, getToken)
@@ -76,8 +78,10 @@ export default function CharactersPage() {
     }
   }
 
-  const move = (index: number, direction: -1 | 1) => {
-    const target = index + direction;
+  // Swaps two characters in the flat list, which is what the carousel reads. The caller decides
+  // WHICH two: within a world, so an arrow at the edge of a group cannot walk a character into a
+  // world it does not play in.
+  const move = (index: number, target: number) => {
     if (target < 0 || target >= characters.length) return;
     const next = characters.slice();
     const moved = next[index];
@@ -129,10 +133,56 @@ export default function CharactersPage() {
     invalidate("/api/");
   };
 
+  const groups = groupByWorld(characters);
+  // Characters added before the world was looked up, or whose lookup found nothing. There is no
+  // way to type a world in, so this is the only thing standing between them and a group.
+  const unplaced = characters.filter((c) => c.worldName === null);
+  const plural = unplaced.length === 1 ? "" : "s";
+
+  /**
+   * Asks the game where each unplaced character is, one at a time.
+   *
+   * The same refresh the row's own button does, so there is one path that can set a world rather
+   * than a bulk one that could drift from it. Sequential rather than at once: each lookup already
+   * fans out across every world, and the rows filling in one by one is the progress report.
+   *
+   * A character that turns out to be in the other world leaves the list as it lands, which
+   * `updated` already says out loud.
+   */
+  async function findWorlds() {
+    if (finding) return;
+    setFinding(true);
+    setError(null);
+    try {
+      for (const character of unplaced) {
+        updated(
+          await apiFetch<Character>(
+            `${CHARACTERS_KEY}/${character.id}/refresh`,
+            { method: "POST" },
+            getToken,
+          ),
+        );
+      }
+      invalidate("/api/");
+    } catch (e) {
+      // Whatever was found before the failure is kept: those characters really are placed now.
+      setError(e instanceof ApiError ? e.body : "Couldn't look those up.");
+    } finally {
+      setFinding(false);
+    }
+  }
+
   return (
     <main className="page">
       <div className="settings-section-head">
         <h1 className="page-title">Characters</h1>
+        {/* Only while there is something to look up, so it takes itself off the page. Every
+            character added from here on arrives with a world already. */}
+        {unplaced.length > 0 && (
+          <button type="button" className="party-cancel" onClick={findWorlds} disabled={finding}>
+            {finding ? "Looking up..." : `Look up ${unplaced.length} world${plural}`}
+          </button>
+        )}
       </div>
 
       {failed && !loaded && <p>Couldn&apos;t load your characters.</p>}
@@ -140,19 +190,32 @@ export default function CharactersPage() {
 
       {loaded && (
         <>
-          <ul className="character-list">
-            {characters.map((character, index) => (
-              <CharacterRow
-                key={character.id}
-                character={character}
-                onUpdated={updated}
-                onDeleted={deleted}
-                onMove={(direction) => move(index, direction)}
-                canMoveUp={index > 0}
-                canMoveDown={index < characters.length - 1}
-              />
-            ))}
-          </ul>
+          {groups.map((group) => (
+            <section className="character-group" key={group.world ?? "unplaced"}>
+              <h2 className="character-world">{group.world ?? "World not looked up"}</h2>
+              <ul className="character-list">
+                {group.characters.map((character) => {
+                  // Against the group, not the page: an arrow at a group's edge has nowhere to go,
+                  // because the character on the other side of it plays somewhere else.
+                  const within = group.characters.indexOf(character);
+                  const index = characters.indexOf(character);
+                  const neighbour = (step: -1 | 1) =>
+                    characters.indexOf(group.characters[within + step]!);
+                  return (
+                    <CharacterRow
+                      key={character.id}
+                      character={character}
+                      onUpdated={updated}
+                      onDeleted={deleted}
+                      onMove={(direction) => move(index, neighbour(direction))}
+                      canMoveUp={within > 0}
+                      canMoveDown={within < group.characters.length - 1}
+                    />
+                  );
+                })}
+              </ul>
+            </section>
+          ))}
 
           <AddCharacter onAdded={added} />
 

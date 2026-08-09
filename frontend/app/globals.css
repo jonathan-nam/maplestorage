@@ -405,8 +405,7 @@ a:hover {
 
 /* Styled on its own rather than via .tile-meta: a tile can carry a job with no level beside it. */
 .tile-level,
-.tile-job,
-.tile-world {
+.tile-job {
   color: var(--muted-2);
   font-size: 12px;
 }
@@ -993,8 +992,25 @@ img.user-avatar-img {
   margin: 24px 0 10px;
 }
 
-/* One character per row, read down the page. Wraps rather than squeezes on a narrow viewport:
-   the world toggle carries two full world names and is the thing being compared row to row. */
+/* The world a group of characters plays in. Drawn only where there is more than one group, since a
+   single heading over the whole page says what every row already carries. */
+.character-world {
+  margin: 22px 0 6px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/* The first group sits under the page title, which already has the space. Scoped to the group
+   class rather than `section:first-of-type`, which is a shared stylesheet matching any page's
+   first <section>. */
+.character-group:first-of-type > .character-world {
+  margin-top: 8px;
+}
+
+/* One character per row, read down the page. */
 .character-list {
   list-style: none;
   margin: 0;
