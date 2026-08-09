@@ -36,7 +36,7 @@ function isMine(member: PartyMember): boolean {
  * is holding. A boss with no amount for its difficulty is not a piece drop, so its count is left
  * exactly as it was entered.
  */
-function isPieceDrop(loot: Loot, party: Party, dropTables: DropTables): boolean {
+export function isPieceDrop(loot: Loot, party: Party, dropTables: DropTables): boolean {
   if (loot.dropKey === null || party.difficulty === null) return false;
   const table = dropTables[loot.bossKey ?? ""] ?? [];
   return (table.find((d) => d.dropKey === loot.dropKey)?.pieces?.[party.difficulty] ?? 0) > 0;
