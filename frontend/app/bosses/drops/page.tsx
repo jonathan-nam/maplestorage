@@ -258,6 +258,9 @@ export default function DropLogPage() {
   // that sold it, and only your own seats are ones you can name as seller. A partner's pile stays on
   // its rows, where each names its own seller.
   const lots = lotDrops(parties, pools, fungibleDropKeys(dropTables), SELF_KEY);
+  // Whether the lot boxes will draw anything, which decides with the coupon piles whether there is a
+  // Record Sale section at all. A heading over no cards is a heading over nothing.
+  const sellableLots = money && lots.length > 0;
   // The coupon's sprite, off whichever boss table carries it. Every table names the same drop.
   const vestigeIcon =
     Object.values(dropTables)
@@ -417,48 +420,59 @@ export default function DropLogPage() {
 
           {shown === "sales" && (
             <>
-              {/* Only where there is money to talk about. A Heroic-only account trades nothing, and
-                  lotDrops leaves those pools out anyway, so this is the same rule said once more. */}
-              {money && (
-                <LotSale
-                  drops={lots}
-                  bossByKey={bossByKey}
-                  partyById={partyById}
-                  busy={busy}
-                  onSell={lotSale}
-                />
+              {/* One heading over every card that takes a sale, which is the lot boxes AND the coupon
+                  piles: both are "sold N for X". Titling only one of them said the other was a
+                  statement rather than an entry. No rule under it either, because what follows is
+                  more of the same thing and there is nothing there to divide. */}
+              {(sellableLots || ledgers.length > 0) && (
+                <section className="loot-pool">
+                  <h2 className="loot-pool-title">Record Sale</h2>
+
+                  {/* Only where there is money to talk about. A Heroic-only account trades nothing,
+                      and lotDrops leaves those pools out anyway. */}
+                  {money && (
+                    <LotSale
+                      drops={lots}
+                      bossByKey={bossByKey}
+                      partyById={partyById}
+                      busy={busy}
+                      onSell={lotSale}
+                    />
+                  )}
+
+                  <PieceLedger
+                    ledgers={ledgers}
+                    tranches={tranchesByHolder}
+                    bossByKey={bossByKey}
+                    partyById={partyById}
+                    iconUrl={vestigeIcon}
+                    busy={busy}
+                    onAddSale={(holder: Holder, pieces, amount) =>
+                      saleWrite(TRANCHES_KEY, {
+                        method: "POST",
+                        body: JSON.stringify({ holder, pieces, amount, disposition: "SOLD" }),
+                      })
+                    }
+                    // No amount: a redemption realized nothing, where a sale for zero would price those
+                    // pieces at nothing. The server refuses the two disagreeing. See V46.
+                    onAddKept={(holder: Holder, pieces) =>
+                      saleWrite(TRANCHES_KEY, {
+                        method: "POST",
+                        body: JSON.stringify({ holder, pieces, disposition: "KEPT" }),
+                      })
+                    }
+                    onRemoveSale={(trancheId) =>
+                      saleWrite(`${TRANCHES_KEY}/${trancheId}`, { method: "DELETE" })
+                    }
+                  />
+                </section>
               )}
 
-              <PieceLedger
-                ledgers={ledgers}
-                tranches={tranchesByHolder}
-                bossByKey={bossByKey}
-                partyById={partyById}
-                iconUrl={vestigeIcon}
-                busy={busy}
-                onAddSale={(holder: Holder, pieces, amount) =>
-                  saleWrite(TRANCHES_KEY, {
-                    method: "POST",
-                    body: JSON.stringify({ holder, pieces, amount, disposition: "SOLD" }),
-                  })
-                }
-                // No amount: a redemption realized nothing, where a sale for zero would price those
-                // pieces at nothing. The server refuses the two disagreeing. See V46.
-                onAddKept={(holder: Holder, pieces) =>
-                  saleWrite(TRANCHES_KEY, {
-                    method: "POST",
-                    body: JSON.stringify({ holder, pieces, disposition: "KEPT" }),
-                  })
-                }
-                onRemoveSale={(trancheId) =>
-                  saleWrite(`${TRANCHES_KEY}/${trancheId}`, { method: "DELETE" })
-                }
-              />
-
-              {/* Last, because it is the one card here that cannot be acted on for money: it names
-                  the nights whose arrangement nobody has said, and nothing about them can be priced
-                  until it is. Still on screen, because a drop that owes somebody and cannot say who
-                  is exactly what must not be quietly dropped. */}
+              {/* Last, and the one real boundary on this tab: every card above takes a sale, and this
+                  one cannot be acted on for money at all. It names the nights whose arrangement
+                  nobody has said, and nothing about them can be priced until somebody does. Still on
+                  screen, because a drop that owes somebody and cannot say who is exactly what must
+                  not be quietly dropped. */}
               <StackArrangement
                 drops={open}
                 partyById={partyById}
