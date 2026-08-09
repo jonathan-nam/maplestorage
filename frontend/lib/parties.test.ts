@@ -336,6 +336,7 @@ describe("guaranteedDrop", () => {
     perMember: null,
     worlds: null,
     quantity: 1,
+    fungible: false,
     pieces: { EXTREME: 180 },
     bundles: { EXTREME: 6 },
   };
@@ -343,6 +344,7 @@ describe("guaranteedDrop", () => {
     ...coupon,
     dropKey: "grindstone-of-faith",
     name: "Grindstone",
+    fungible: true,
     pieces: {},
     bundles: {},
   };

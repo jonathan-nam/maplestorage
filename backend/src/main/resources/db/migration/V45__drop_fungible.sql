@@ -1,0 +1,13 @@
+-- Which drops are sold as a lot rather than one at a time.
+--
+-- A fungible drop's copies are interchangeable, so a pile of them goes at one rate and which of
+-- them went is not a fact anybody has. That is what lets a sale be entered once against a queue of
+-- rows: the oldest unsold rows are proposed and confirmed, rather than each being priced where it
+-- sits. See catalog/drops.yaml for the flag and who carries it.
+--
+-- FALSE is the honest default for everything else. A drop with its own potential lines and its own
+-- price cannot be assigned by a queue, and offering it there would file a sale against a party that
+-- did not make it.
+--
+-- Seeded by R__drop_catalog.sql, which reseeds on the next boot, so this only has to exist.
+ALTER TABLE drop_catalog ADD COLUMN fungible boolean NOT NULL DEFAULT FALSE;

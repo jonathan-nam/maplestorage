@@ -11,6 +11,10 @@ export type BossDrop = {
   // INTERACTIVE for the coupons that do not drop in Reboot. Null means everywhere.
   worlds: string | null;
   quantity: number;
+  // Copies are interchangeable, so a pile of these sells as one lot at a going rate and the Drop
+  // Log can price a queue of rows from one box. False for anything with its own potential lines and
+  // its own price, where a queue could only guess which copy went. See lib/lot-sale.ts.
+  fungible: boolean;
   // How many pieces this boss drops of it, by difficulty, for the count to be filled in with. Only
   // the difficulties that drop any are here: absent means nothing to fill, not none.
   pieces: Record<string, number>;

@@ -4,6 +4,7 @@ import { useAuth } from "@clerk/nextjs";
 import Link from "next/link";
 import { Fragment, useEffect, useState } from "react";
 import { LogDrop } from "@/components/log-drop";
+import { LotSale } from "@/components/lot-sale";
 import { PieceLedger } from "@/components/piece-ledger";
 import { StackArrangement } from "@/components/stack-arrangement";
 import { ApiError, apiAssetUrl, apiFetch } from "@/lib/api";
@@ -22,9 +23,11 @@ import {
 } from "@/lib/drop-log";
 import { formatMesos } from "@/lib/drop-split";
 import { formatDropped } from "@/lib/loot";
+import { type LotSaleBody, fungibleDropKeys, lotDrops } from "@/lib/lot-sale";
 import { useAccountSettings } from "@/lib/use-account-settings";
 import {
   type Holder,
+  SELF_KEY,
   holderKey,
   holderLedgers,
   outstanding,
@@ -166,6 +169,31 @@ export default function DropLogPage() {
   }
 
   /**
+   * Prices a pile of one interchangeable drop across every pool it sits in.
+   *
+   * Answers with the pools, so the rows redraw from what the server actually wrote rather than from
+   * the proposal that was confirmed. All of them or none: see lotSaleRoute.
+   */
+  async function lotSale(body: LotSaleBody) {
+    setBusy(true);
+    try {
+      setPools(
+        await apiFetch<PartyLootPool[]>(
+          "/api/parties/loot/lot",
+          { method: "POST", body: JSON.stringify(body) },
+          getToken,
+        ),
+      );
+    } catch (e) {
+      // Thrown on rather than shown here, as a tranche is: the card that asked is what the reader
+      // is looking at, and this page's error line is a screen away from it.
+      throw new Error(e instanceof ApiError ? e.body : "That didn't save.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  /**
    * Records who picked up which stacks of one drop.
    *
    * Answers with the pools rather than the row, for the same reason a tranche does: naming the
@@ -224,6 +252,10 @@ export default function DropLogPage() {
     const key = holderKey(tranche.holder);
     tranchesByHolder.set(key, [...(tranchesByHolder.get(key) ?? []), tranche]);
   }
+  // The piles of interchangeable drops waiting to be priced. Yours: a lot is filed against the seat
+  // that sold it, and only your own seats are ones you can name as seller. A partner's pile stays on
+  // its rows, where each names its own seller.
+  const lots = lotDrops(parties, pools, fungibleDropKeys(dropTables), SELF_KEY);
   // The coupon's sprite, off whichever boss table carries it. Every table names the same drop.
   const vestigeIcon =
     Object.values(dropTables)
@@ -310,6 +342,18 @@ export default function DropLogPage() {
               saleWrite(`${TRANCHES_KEY}/${trancheId}`, { method: "DELETE" })
             }
           />
+
+          {/* Only where there is money to talk about. A Heroic-only account trades nothing, and
+              lotDrops leaves those pools out anyway, so this is the same rule said once more. */}
+          {money && (
+            <LotSale
+              drops={lots}
+              bossByKey={bossByKey}
+              partyById={partyById}
+              busy={busy}
+              onSell={lotSale}
+            />
+          )}
 
           {whole.totals.drops > 0 && (
             <div className="party-toolbar">

@@ -25,6 +25,16 @@
 # `worlds` narrows a drop to where it exists at all: INTERACTIVE, for the coupons that do not drop
 # in Reboot. Absent means everywhere.
 #
+# `fungible` marks a drop whose copies are interchangeable, so a pile of them is sold as one lot at
+# a going rate and WHICH of them went is not a fact anybody has. It is what lets a sale be entered
+# once against a queue of rows instead of row by row: the oldest unsold rows are proposed, and you
+# confirm them. Absent means the drop is sold one at a time, which is the only honest input for a
+# thing with its own potential lines and its own price.
+#
+# Not every interchangeable drop wants it. The scroll coupons are interchangeable and are absent on
+# purpose: they are cheap enough that parties do not split them at all, so whoever picks one up
+# keeps it and there is no sale to file.
+#
 # Flags sit on the item rather than on the (boss, item) pair because nothing in these tables
 # behaves differently per boss. Move one down to `tables` the day that stops being true.
 #
@@ -85,9 +95,11 @@ drops:
   - key: grindstone-of-faith
     name: Grindstone of Faith
     icon_id: 2539003
+    fungible: true
   - key: grindstone-of-life
     name: Grindstone of Life
     icon_id: 2539001
+    fungible: true
 
   # --- Scroll coupons, Interactive worlds only ---------------------------------------
   - key: premium-scroll-accessory-coupon
@@ -104,25 +116,33 @@ drops:
     worlds: INTERACTIVE
 
   # --- Eternal armour boxes ----------------------------------------------------------
+  # Unopened, so one is any other: what it turns into is decided when somebody opens it, and until
+  # then the boxes sell at one rate. Hence `fungible`, even though each drops from a single boss.
   - key: eternal-armor-of-desire-box
     name: Eternal Armor of Desire Box
     icon_id: 2638066
+    fungible: true
   - key: divine-eternal-armor-box
     name: Divine Eternal Armor Box
     icon_id: 2638064
+    fungible: true
   - key: ferocious-beast-eternal-armor-box
     name: Ferocious Beast Eternal Armor Box
     icon_id: 2638065
+    fungible: true
   - key: ancient-eternal-armor-box
     name: Ancient Eternal Armor Box
     icon_id: 2830306
+    fungible: true
   - key: eternal-armor-of-oaths-box
     name: Eternal Armor of Oaths Box
     icon_id: 2639253
+    fungible: true
   # No icon_id: GMS v268 is the newest complete dataset the mirror has and it does not carry this
   # item. Drawn without art until the version is bumped and this is re-validated.
   - key: eternal-armor-of-radiance-box
     name: Eternal Armor of Radiance Box
+    fungible: true
 
   # --- Selection and ring boxes ------------------------------------------------------
   - key: mitras-rage-selection-box

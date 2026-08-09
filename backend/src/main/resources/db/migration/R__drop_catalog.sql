@@ -5,35 +5,35 @@
 -- upserts by drop_key and keeps an existing row's id, which party_loot references. boss_drop is
 -- rebuilt outright, so a drop removed from a boss's table really leaves it.
 
-INSERT INTO drop_catalog (id, drop_key, name, icon_ref_key, per_member, worlds, quantity, sort_order)
+INSERT INTO drop_catalog (id, drop_key, name, icon_ref_key, per_member, worlds, quantity, fungible, sort_order)
 SELECT COALESCE(existing.id, gen_random_uuid()), v.drop_key, v.name, v.icon_ref_key, v.per_member,
-       v.worlds, v.quantity, v.sort_order
+       v.worlds, v.quantity, v.fungible, v.sort_order
 FROM (VALUES
-    ('whisper-of-the-source', 'Whisper of the Source', 'whisper-of-the-source.png', NULL, NULL, 1, 0),
-    ('oath-of-death', 'Oath of Death', 'oath-of-death.png', NULL, NULL, 1, 1),
-    ('immortal-legacy', 'Immortal Legacy', 'immortal-legacy.png', NULL, NULL, 1, 2),
-    ('blissful-nightmare', 'Blissful Nightmare', NULL, NULL, NULL, 1, 3),
-    ('exceptional-hammer-face', 'Exceptional Hammer (Face Acc)', 'exceptional-hammer-face.png', NULL, NULL, 1, 4),
-    ('exceptional-hammer-eye', 'Exceptional Hammer (Eye Acc)', 'exceptional-hammer-eye.png', NULL, NULL, 1, 5),
-    ('exceptional-hammer-earrings', 'Exceptional Hammer (Earrings)', 'exceptional-hammer-earrings.png', NULL, NULL, 1, 6),
-    ('exceptional-hammer-medal', 'Exceptional Hammer (Medal)', 'exceptional-hammer-medal.png', NULL, NULL, 1, 7),
-    ('grindstone-of-faith', 'Grindstone of Faith', 'grindstone-of-faith.png', NULL, NULL, 1, 8),
-    ('grindstone-of-life', 'Grindstone of Life', 'grindstone-of-life.png', NULL, NULL, 1, 9),
-    ('premium-scroll-accessory-coupon', 'Premium Scroll - Accessory Coupon', 'premium-scroll-accessory-coupon.png', NULL, 'INTERACTIVE', 1, 10),
-    ('premium-scroll-pet-equipment-coupon', 'Premium Scroll - Pet Equipment Coupon', 'premium-scroll-pet-equipment-coupon.png', NULL, 'INTERACTIVE', 1, 11),
-    ('magical-scroll-weapon-coupon', 'Magical Scroll - Weapon Coupon', 'magical-scroll-weapon-coupon.png', NULL, 'INTERACTIVE', 1, 12),
-    ('eternal-armor-of-desire-box', 'Eternal Armor of Desire Box', 'eternal-armor-of-desire-box.png', NULL, NULL, 1, 13),
-    ('divine-eternal-armor-box', 'Divine Eternal Armor Box', 'divine-eternal-armor-box.png', NULL, NULL, 1, 14),
-    ('ferocious-beast-eternal-armor-box', 'Ferocious Beast Eternal Armor Box', 'ferocious-beast-eternal-armor-box.png', NULL, NULL, 1, 15),
-    ('ancient-eternal-armor-box', 'Ancient Eternal Armor Box', 'ancient-eternal-armor-box.png', NULL, NULL, 1, 16),
-    ('eternal-armor-of-oaths-box', 'Eternal Armor of Oaths Box', 'eternal-armor-of-oaths-box.png', NULL, NULL, 1, 17),
-    ('eternal-armor-of-radiance-box', 'Eternal Armor of Radiance Box', NULL, NULL, NULL, 1, 18),
-    ('mitras-rage-selection-box', 'Mitra''s Rage Selection Box', 'mitras-rage-selection-box.png', NULL, NULL, 1, 19),
-    ('ring-of-restraint-4', 'Ring of Restraint Lv. 4', 'ring-of-restraint-4.png', 'HEROIC', NULL, 1, 20),
-    ('continuous-ring-4', 'Continuous Ring Lv. 4', 'continuous-ring-4.png', 'HEROIC', NULL, 1, 21),
-    ('vestige-of-erion', 'Vestige of Erion Coupon', 'vestige-of-erion.png', NULL, NULL, 1, 22),
-    ('distorted-ambition', 'Distorted Ambition', 'distorted-ambition.png', 'ALWAYS', NULL, 2, 23)
-) AS v (drop_key, name, icon_ref_key, per_member, worlds, quantity, sort_order)
+    ('whisper-of-the-source', 'Whisper of the Source', 'whisper-of-the-source.png', NULL, NULL, 1, FALSE, 0),
+    ('oath-of-death', 'Oath of Death', 'oath-of-death.png', NULL, NULL, 1, FALSE, 1),
+    ('immortal-legacy', 'Immortal Legacy', 'immortal-legacy.png', NULL, NULL, 1, FALSE, 2),
+    ('blissful-nightmare', 'Blissful Nightmare', NULL, NULL, NULL, 1, FALSE, 3),
+    ('exceptional-hammer-face', 'Exceptional Hammer (Face Acc)', 'exceptional-hammer-face.png', NULL, NULL, 1, FALSE, 4),
+    ('exceptional-hammer-eye', 'Exceptional Hammer (Eye Acc)', 'exceptional-hammer-eye.png', NULL, NULL, 1, FALSE, 5),
+    ('exceptional-hammer-earrings', 'Exceptional Hammer (Earrings)', 'exceptional-hammer-earrings.png', NULL, NULL, 1, FALSE, 6),
+    ('exceptional-hammer-medal', 'Exceptional Hammer (Medal)', 'exceptional-hammer-medal.png', NULL, NULL, 1, FALSE, 7),
+    ('grindstone-of-faith', 'Grindstone of Faith', 'grindstone-of-faith.png', NULL, NULL, 1, TRUE, 8),
+    ('grindstone-of-life', 'Grindstone of Life', 'grindstone-of-life.png', NULL, NULL, 1, TRUE, 9),
+    ('premium-scroll-accessory-coupon', 'Premium Scroll - Accessory Coupon', 'premium-scroll-accessory-coupon.png', NULL, 'INTERACTIVE', 1, FALSE, 10),
+    ('premium-scroll-pet-equipment-coupon', 'Premium Scroll - Pet Equipment Coupon', 'premium-scroll-pet-equipment-coupon.png', NULL, 'INTERACTIVE', 1, FALSE, 11),
+    ('magical-scroll-weapon-coupon', 'Magical Scroll - Weapon Coupon', 'magical-scroll-weapon-coupon.png', NULL, 'INTERACTIVE', 1, FALSE, 12),
+    ('eternal-armor-of-desire-box', 'Eternal Armor of Desire Box', 'eternal-armor-of-desire-box.png', NULL, NULL, 1, TRUE, 13),
+    ('divine-eternal-armor-box', 'Divine Eternal Armor Box', 'divine-eternal-armor-box.png', NULL, NULL, 1, TRUE, 14),
+    ('ferocious-beast-eternal-armor-box', 'Ferocious Beast Eternal Armor Box', 'ferocious-beast-eternal-armor-box.png', NULL, NULL, 1, TRUE, 15),
+    ('ancient-eternal-armor-box', 'Ancient Eternal Armor Box', 'ancient-eternal-armor-box.png', NULL, NULL, 1, TRUE, 16),
+    ('eternal-armor-of-oaths-box', 'Eternal Armor of Oaths Box', 'eternal-armor-of-oaths-box.png', NULL, NULL, 1, TRUE, 17),
+    ('eternal-armor-of-radiance-box', 'Eternal Armor of Radiance Box', NULL, NULL, NULL, 1, TRUE, 18),
+    ('mitras-rage-selection-box', 'Mitra''s Rage Selection Box', 'mitras-rage-selection-box.png', NULL, NULL, 1, FALSE, 19),
+    ('ring-of-restraint-4', 'Ring of Restraint Lv. 4', 'ring-of-restraint-4.png', 'HEROIC', NULL, 1, FALSE, 20),
+    ('continuous-ring-4', 'Continuous Ring Lv. 4', 'continuous-ring-4.png', 'HEROIC', NULL, 1, FALSE, 21),
+    ('vestige-of-erion', 'Vestige of Erion Coupon', 'vestige-of-erion.png', NULL, NULL, 1, FALSE, 22),
+    ('distorted-ambition', 'Distorted Ambition', 'distorted-ambition.png', 'ALWAYS', NULL, 2, FALSE, 23)
+) AS v (drop_key, name, icon_ref_key, per_member, worlds, quantity, fungible, sort_order)
 LEFT JOIN drop_catalog existing ON existing.drop_key = v.drop_key
 ON CONFLICT (drop_key) DO UPDATE SET
     name         = EXCLUDED.name,
@@ -41,6 +41,7 @@ ON CONFLICT (drop_key) DO UPDATE SET
     per_member = EXCLUDED.per_member,
     worlds     = EXCLUDED.worlds,
     quantity   = EXCLUDED.quantity,
+    fungible   = EXCLUDED.fungible,
     sort_order = EXCLUDED.sort_order;
 
 DELETE FROM boss_drop;

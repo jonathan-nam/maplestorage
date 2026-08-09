@@ -327,6 +327,10 @@ object DropCatalog : Table("drop_catalog") {
     val perMember = text("per_member").nullable()
     val worlds = text("worlds").nullable()
     val quantity = integer("quantity")
+
+    // Copies are interchangeable, so these sell as a lot and a sale is filed against a queue of
+    // rows rather than on the row where it sits. See V45__drop_fungible.sql.
+    val fungible = bool("fungible")
     val sortOrder = integer("sort_order")
 
     override val primaryKey = PrimaryKey(id)

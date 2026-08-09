@@ -103,35 +103,47 @@ export function saleProgress(total: number, sales: PieceSale[]): SaleProgress {
 }
 
 /**
- * What each seat was entitled to, by the largest remainder.
+ * A whole divided by weights, in whole units that add up to exactly the whole.
  *
- * Pieces are whole, so a share of them usually is not: 181 across four is 45.25 each. Everyone gets
- * the floor, then the odd pieces go to the biggest fractions, ties in seat order. The point is that
- * the entitlements add up to exactly what dropped, which is what makes the balances below sum to
- * zero and the transfers clear the ledger completely rather than nearly.
+ * Everyone gets the floor of their exact share, then the odd units go to the biggest fractions, ties
+ * by position. Deterministic, so the same input always divides the same way and a figure somebody
+ * has already been paid does not move to a different row on the next read.
+ *
+ * Zeroes when there is nothing to divide, or no weight to divide it by.
  */
-export function entitlements(total: number, seats: LedgerSeat[]): Map<string, number> {
-  const weight = seats.reduce((sum, s) => sum + s.shares, 0);
-  if (seats.length === 0 || weight <= 0 || total <= 0) {
-    return new Map(seats.map((s) => [s.memberId, 0]));
-  }
+export function largestRemainder(total: number, weights: number[]): number[] {
+  const weight = weights.reduce((sum, w) => sum + w, 0);
+  if (weights.length === 0 || weight <= 0 || total <= 0) return weights.map(() => 0);
 
-  const exact = seats.map((s) => (total * s.shares) / weight);
-  const floors = exact.map(Math.floor);
-  let left = total - floors.reduce((sum, n) => sum + n, 0);
+  const exact = weights.map((w) => (total * w) / weight);
+  const share = exact.map(Math.floor);
+  let left = total - share.reduce((sum, n) => sum + n, 0);
 
-  // Biggest fraction first, seat order breaking ties, so the same ledger always produces the same
-  // entitlements and a transfer already paid does not move to a different pair on the next read.
-  const order = seats
-    .map((_, i) => ({ i, fraction: (exact[i] ?? 0) - (floors[i] ?? 0) }))
+  const order = exact
+    .map((value, i) => ({ i, fraction: value - (share[i] ?? 0) }))
     .sort((a, b) => b.fraction - a.fraction || a.i - b.i);
 
-  const share = [...floors];
   for (const { i } of order) {
     if (left <= 0) break;
     share[i] = (share[i] ?? 0) + 1;
     left -= 1;
   }
+  return share;
+}
+
+/**
+ * What each seat was entitled to.
+ *
+ * Pieces are whole, so a share of them usually is not: 181 across four is 45.25 each. The point of
+ * dividing it by the largest remainder is that the entitlements add up to exactly what dropped,
+ * which is what makes the balances below sum to zero and the transfers clear the ledger completely
+ * rather than nearly.
+ */
+export function entitlements(total: number, seats: LedgerSeat[]): Map<string, number> {
+  const share = largestRemainder(
+    total,
+    seats.map((s) => s.shares),
+  );
   return new Map(seats.map((s, i) => [s.memberId, share[i] ?? 0]));
 }
 
