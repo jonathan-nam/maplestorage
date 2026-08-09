@@ -12,6 +12,7 @@ import { preloadBossArt } from "@/lib/preload-boss-art";
 import { useRowWrites } from "@/lib/use-row-writes";
 import { ApiError, apiFetch } from "@/lib/api";
 import { peek, put } from "@/lib/cache";
+import { buildDropLog, couponsOwedByParty } from "@/lib/drop-log";
 import { poolLabel, summarize } from "@/lib/loot";
 import { otherMembers, partySizeLabel } from "@/lib/parties";
 import type { Boss } from "@/types/boss";
@@ -113,12 +114,23 @@ export default function PartyPage() {
   const bossByKey = new Map(bosses.map((b) => [b.bossKey, b]));
   // Counted from the rows on screen rather than from the party's stored counters, which were read
   // one request earlier and go stale the moment something here is marked paid.
+  //
+  // Through the Drop Log's own reading of them, the same as the card that links here. Counting
+  // every PENDING row instead made this page disagree with that card about the same party: a
+  // coupon row never sells, so it was pending for ever here while the card left it out.
+  const log = party ? buildDropLog([party], [{ partyId: party.id, loot }], dropTables) : null;
   const summary = summarize(loot);
-  const poolLine = poolLabel({
-    pendingLoot: summary.pending,
-    awaitingPayout: summary.awaitingPayout,
-    settledLoot: summary.settled,
-  });
+  const poolLine = poolLabel(
+    {
+      // The log's own reading, which leaves out a coupon drop already in the right inventories.
+      // summarize still answers for the other two: it splits sold from paid out, which the log's
+      // totals do not.
+      pendingLoot: log?.totals.pending ?? summary.pending,
+      awaitingPayout: summary.awaitingPayout,
+      settledLoot: summary.settled,
+    },
+    party ? (couponsOwedByParty(log?.entries ?? []).get(party.id) ?? 0) : 0,
+  );
 
   return (
     <main className="page">
