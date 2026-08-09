@@ -7,11 +7,13 @@ import com.maplestorage.backend.db.BossCatalog
 import com.maplestorage.backend.db.BossClear
 import com.maplestorage.backend.db.Characters
 import com.maplestorage.backend.db.Party
+import com.maplestorage.backend.db.PartyMember
 import com.maplestorage.backend.db.Person
 import com.maplestorage.backend.db.Screenshots
 import com.maplestorage.backend.services.DetectedBossClear
 import com.maplestorage.backend.users.ensureUser
 import org.flywaydb.core.Flyway
+import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.or
 import org.jetbrains.exposed.v1.jdbc.Database
@@ -19,6 +21,7 @@ import org.jetbrains.exposed.v1.jdbc.deleteWhere
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
+import org.jetbrains.exposed.v1.jdbc.update
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
@@ -408,6 +411,32 @@ class PartyConfigTest {
             assertNull(validateBossRoster(userOneId, lotus, null, rosterOf(warrior, listOf("iPhone69C"))))
             // And another account's configs are not competition.
             assertNull(validateBossRoster(userTwoId, limbo, null, listOf("iPhone69C")))
+        }
+    }
+
+    @Test
+    fun `a seat somebody has left does not hold their slot on that boss`() {
+        transaction {
+            val warrior = addCharacter(userOneId, "warrior2020")
+            val mech = addCharacter(userOneId, "mechyfechy")
+            val kalos = bossIdForKey("kalos-the-guardian")!!
+            val party = config(userOneId, warrior, "kalos-the-guardian", listOf("Freeballynn", "iPhone69C"))
+
+            // Freeballynn leaves that party. The seat is RETIRED rather than deleted, because a
+            // payout or a past week can point at it, and it drops out of the roster the page draws.
+            PartyMember.update({
+                (PartyMember.partyId eq Uuid.parse(party.id)) and (PartyMember.name eq "Freeballynn")
+            }) { it[standing] = false }
+
+            // So she is free to run the boss with somebody else. Counting the retired seat refused
+            // this, naming a config the user could look straight at and not find her in.
+            assertNull(validateBossRoster(userOneId, kalos, null, rosterOf(mech, listOf("Freeballynn"))))
+
+            // Somebody still in that roster is still competition, which is the rule's whole point.
+            assertEquals(
+                "iPhone69C is already in your warrior2020 party for this boss",
+                validateBossRoster(userOneId, kalos, null, rosterOf(mech, listOf("iPhone69C"))),
+            )
         }
     }
 
