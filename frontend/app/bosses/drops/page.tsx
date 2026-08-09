@@ -9,6 +9,7 @@ import { PieceLedger } from "@/components/piece-ledger";
 import { StackArrangement } from "@/components/stack-arrangement";
 import { ApiError, apiAssetUrl, apiFetch } from "@/lib/api";
 import { peek, put } from "@/lib/cache";
+import { type DropSectionKey, dropSections, shownSection } from "@/lib/drop-sections";
 import {
   buildDropLog,
   forCharacter,
@@ -81,6 +82,7 @@ export default function DropLogPage() {
   const [state, setState] = useState<LoadState>("loading");
   const [character, setCharacter] = useState<string | null>(null);
   const [grouping, setGrouping] = useState<Grouping>("month");
+  const [section, setSection] = useState<DropSectionKey>("drops");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -263,6 +265,16 @@ export default function DropLogPage() {
       .flat()
       .find((drop) => drop.dropKey === VESTIGE)?.iconUrl ?? null;
 
+  // What fell, and what it was sold for, one at a time. Both halves are entered into rather than
+  // read, so they stay on one page: a drop and the sale that prices it are the same evening's work.
+  // See lib/drop-sections.ts for why the chosen tab is not drawn straight from state.
+  const sections = dropSections({
+    unanswered: open.length,
+    holders: ledgers.length,
+    lots: money ? lots.length : 0,
+  });
+  const shown = shownSection(section, sections);
+
   return (
     <main className="page">
       <h1 className="page-title">Drop Log</h1>
@@ -272,155 +284,182 @@ export default function DropLogPage() {
 
       {state === "loaded" && (
         <>
-          {/* Above the totals it changes. Nothing to log against with no roster, and a picker of
-              nobody is not worth holding the space for. */}
-          {characters.length > 0 && (
-            <LogDrop
-              characters={characters}
-              parties={parties}
-              bosses={bosses}
-              dropTables={dropTables}
-              busy={busy}
-              onLog={logDrop}
-            />
-          )}
-          {error && <p className="split-error">{error}</p>}
-
-          <div className="stat-row">
-            <div className="stat-tile">
-              <span className="stat-label">Drops</span>
-              <span className="stat-value">{totals.drops}</span>
-              <span className="stat-note">
-                {totals.sold} sold
-                {totals.pending > 0 && `, ${totals.pending} in the pool`}
-                {/* The pieces behind the count, because one row is one hammer or 180 coupons and a
-                    number of rows does not say which. Only when somebody is holding some. */}
-                {totals.piecesOwed > 0 && `, ${totals.piecesOwed} coupons owed you`}
-              </span>
+          {sections.length > 1 && (
+            <div className="basis-row droplog-sections" role="group" aria-label="Section">
+              {sections.map((s) => (
+                <button
+                  key={s.key}
+                  type="button"
+                  className={shown === s.key ? "basis-tab active" : "basis-tab"}
+                  aria-pressed={shown === s.key}
+                  onClick={() => setSection(s.key)}
+                >
+                  {s.label}
+                </button>
+              ))}
             </div>
-            {money && (
-              <>
-                <div className="stat-tile">
-                  <span className="stat-label">Sold for</span>
-                  <span className="stat-value is-good">{formatMesos(totals.pooled, true)}</span>
-                  {/* Labelled precisely, because the obvious reading of "total sales" is a number
-                      that cannot be computed. See the header of lib/drop-log.ts. */}
-                  <span className="stat-note">what there was to split</span>
-                </div>
-                <div className="stat-tile">
-                  <span className="stat-label">Your take</span>
-                  <span className="stat-value is-good">{formatMesos(totals.yourTake, true)}</span>
-                  <span className="stat-note">your share of the above</span>
-                </div>
-              </>
-            )}
-          </div>
-
-          <StackArrangement
-            drops={open}
-            partyById={partyById}
-            bossByKey={bossByKey}
-            behind={behind}
-            iconUrl={vestigeIcon}
-            busy={busy}
-            onSave={bundlesWrite}
-          />
-
-          <PieceLedger
-            ledgers={ledgers}
-            tranches={tranchesByHolder}
-            bossByKey={bossByKey}
-            partyById={partyById}
-            iconUrl={vestigeIcon}
-            busy={busy}
-            onAddSale={(holder: Holder, pieces, amount) =>
-              saleWrite(TRANCHES_KEY, {
-                method: "POST",
-                body: JSON.stringify({ holder, pieces, amount, disposition: "SOLD" }),
-              })
-            }
-            // No amount: a redemption realized nothing, where a sale for zero would price those
-            // pieces at nothing. The server refuses the two disagreeing. See V46.
-            onAddKept={(holder: Holder, pieces) =>
-              saleWrite(TRANCHES_KEY, {
-                method: "POST",
-                body: JSON.stringify({ holder, pieces, disposition: "KEPT" }),
-              })
-            }
-            onRemoveSale={(trancheId) =>
-              saleWrite(`${TRANCHES_KEY}/${trancheId}`, { method: "DELETE" })
-            }
-          />
-
-          {/* Only where there is money to talk about. A Heroic-only account trades nothing, and
-              lotDrops leaves those pools out anyway, so this is the same rule said once more. */}
-          {money && (
-            <LotSale
-              drops={lots}
-              bossByKey={bossByKey}
-              partyById={partyById}
-              busy={busy}
-              onSell={lotSale}
-            />
           )}
 
-          {whole.totals.drops > 0 && (
-            <div className="party-toolbar">
-              {withDrops.length > 1 && (
-                <label className="droplog-filter">
-                  <span className="stat-label">Character</span>
-                  <select
-                    className="split-input"
-                    value={character ?? ""}
-                    onChange={(e) => setCharacter(e.target.value || null)}
-                  >
-                    <option value="">All characters</option>
-                    {withDrops.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+          {shown === "drops" && (
+            <>
+              {/* Above the totals it changes. Nothing to log against with no roster, and a picker of
+                  nobody is not worth holding the space for. */}
+              {characters.length > 0 && (
+                <LogDrop
+                  characters={characters}
+                  parties={parties}
+                  bosses={bosses}
+                  dropTables={dropTables}
+                  busy={busy}
+                  onLog={logDrop}
+                />
+              )}
+              {error && <p className="split-error">{error}</p>}
+
+              <div className="stat-row">
+                <div className="stat-tile">
+                  <span className="stat-label">Drops</span>
+                  <span className="stat-value">{totals.drops}</span>
+                  <span className="stat-note">
+                    {totals.sold} sold
+                    {totals.pending > 0 && `, ${totals.pending} in the pool`}
+                    {/* The pieces behind the count, because one row is one hammer or 180
+                        coupons and a number of rows does not say which. Only when somebody is
+                        holding some. */}
+                    {totals.piecesOwed > 0 && `, ${totals.piecesOwed} coupons owed you`}
+                  </span>
+                </div>
+                {money && (
+                  <>
+                    <div className="stat-tile">
+                      <span className="stat-label">Sold for</span>
+                      <span className="stat-value is-good">{formatMesos(totals.pooled, true)}</span>
+                      {/* Labelled precisely, because the obvious reading of "total sales" is a
+                          number that cannot be computed. See the header of lib/drop-log.ts. */}
+                      <span className="stat-note">what there was to split</span>
+                    </div>
+                    <div className="stat-tile">
+                      <span className="stat-label">Your take</span>
+                      <span className="stat-value is-good">
+                        {formatMesos(totals.yourTake, true)}
+                      </span>
+                      <span className="stat-note">your share of the above</span>
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {whole.totals.drops > 0 && (
+                <div className="party-toolbar">
+                  {withDrops.length > 1 && (
+                    <label className="droplog-filter">
+                      <span className="stat-label">Character</span>
+                      <select
+                        className="split-input"
+                        value={character ?? ""}
+                        onChange={(e) => setCharacter(e.target.value || null)}
+                      >
+                        <option value="">All characters</option>
+                        {withDrops.map((c) => (
+                          <option key={c.id} value={c.id}>
+                            {c.name}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  )}
+
+                  <label className="droplog-filter">
+                    <span className="stat-label">Group</span>
+                    <select
+                      className="split-input"
+                      value={grouping}
+                      onChange={(e) => setGrouping(e.target.value as Grouping)}
+                    >
+                      <option value="month">Month</option>
+                      <option value="week">Week</option>
+                    </select>
+                  </label>
+                </div>
               )}
 
-              <label className="droplog-filter">
-                <span className="stat-label">Group</span>
-                <select
-                  className="split-input"
-                  value={grouping}
-                  onChange={(e) => setGrouping(e.target.value as Grouping)}
-                >
-                  <option value="month">Month</option>
-                  <option value="week">Week</option>
-                </select>
-              </label>
-            </div>
+              {/* The form to fix it is directly above, so this says what is here and nothing else. */}
+              {totals.drops === 0 && <p className="finder-empty">No drops logged yet.</p>}
+
+              {groups.map((group) => (
+                <GroupSection
+                  key={group.key}
+                  group={group}
+                  bossByKey={bossByKey}
+                  characterById={characterById}
+                  characterOrder={characterOrder}
+                  showCharacter={character === null}
+                  money={money}
+                />
+              ))}
+
+              {totals.unreadable > 0 && (
+                <p className="loot-warn droplog-note">
+                  {totals.unreadable} sold {totals.unreadable === 1 ? "drop names" : "drops name"} a
+                  seat that has left its party, so {totals.unreadable === 1 ? "its" : "their"} split
+                  cannot be read. {totals.unreadable === 1 ? "It is" : "They are"} listed below with
+                  no figures, and {totals.unreadable === 1 ? "its" : "their"} money is in neither
+                  total above.
+                </p>
+              )}
+            </>
           )}
 
-          {/* The form to fix it is directly above, so this says what is here and nothing else. */}
-          {totals.drops === 0 && <p className="finder-empty">No drops logged yet.</p>}
+          {shown === "sales" && (
+            <>
+              <StackArrangement
+                drops={open}
+                partyById={partyById}
+                bossByKey={bossByKey}
+                behind={behind}
+                iconUrl={vestigeIcon}
+                busy={busy}
+                onSave={bundlesWrite}
+              />
 
-          {groups.map((group) => (
-            <GroupSection
-              key={group.key}
-              group={group}
-              bossByKey={bossByKey}
-              characterById={characterById}
-              characterOrder={characterOrder}
-              showCharacter={character === null}
-              money={money}
-            />
-          ))}
+              <PieceLedger
+                ledgers={ledgers}
+                tranches={tranchesByHolder}
+                bossByKey={bossByKey}
+                partyById={partyById}
+                iconUrl={vestigeIcon}
+                busy={busy}
+                onAddSale={(holder: Holder, pieces, amount) =>
+                  saleWrite(TRANCHES_KEY, {
+                    method: "POST",
+                    body: JSON.stringify({ holder, pieces, amount, disposition: "SOLD" }),
+                  })
+                }
+                // No amount: a redemption realized nothing, where a sale for zero would price those
+                // pieces at nothing. The server refuses the two disagreeing. See V46.
+                onAddKept={(holder: Holder, pieces) =>
+                  saleWrite(TRANCHES_KEY, {
+                    method: "POST",
+                    body: JSON.stringify({ holder, pieces, disposition: "KEPT" }),
+                  })
+                }
+                onRemoveSale={(trancheId) =>
+                  saleWrite(`${TRANCHES_KEY}/${trancheId}`, { method: "DELETE" })
+                }
+              />
 
-          {totals.unreadable > 0 && (
-            <p className="loot-warn droplog-note">
-              {totals.unreadable} sold {totals.unreadable === 1 ? "drop names" : "drops name"} a
-              seat that has left its party, so {totals.unreadable === 1 ? "its" : "their"} split
-              cannot be read. {totals.unreadable === 1 ? "It is" : "They are"} listed below with no
-              figures, and {totals.unreadable === 1 ? "its" : "their"} money is in neither total
-              above.
-            </p>
+              {/* Only where there is money to talk about. A Heroic-only account trades nothing, and
+                  lotDrops leaves those pools out anyway, so this is the same rule said once more. */}
+              {money && (
+                <LotSale
+                  drops={lots}
+                  bossByKey={bossByKey}
+                  partyById={partyById}
+                  busy={busy}
+                  onSell={lotSale}
+                />
+              )}
+            </>
           )}
         </>
       )}
