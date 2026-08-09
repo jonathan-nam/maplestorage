@@ -7,6 +7,7 @@ import { apiAssetUrl } from "@/lib/api";
 import { difficultyLabel } from "@/lib/boss-difficulty";
 import { MAX_MINUTES, parseMinutes } from "@/lib/boss-minutes";
 import { bossesWithoutConfig, otherMembers } from "@/lib/parties";
+import { parseShares, sharesKey } from "@/lib/shares";
 import type { Boss } from "@/types/boss";
 import type { Party, SavePartyBody } from "@/types/party";
 
@@ -67,7 +68,7 @@ export function PartyConfigEditor({
           party={party}
           boss={bossByKey.get(party.bossKey) ?? null}
           busy={isSaving(party.id)}
-          onSave={(members, difficulty, minutes, looterName, surplusName) =>
+          onSave={(members, difficulty, minutes, looterName, surplusName, shares) =>
             onSave(
               {
                 characterId,
@@ -77,6 +78,7 @@ export function PartyConfigEditor({
                 minutes,
                 looterName,
                 surplusName,
+                shares,
               },
               party.id,
             )
@@ -272,6 +274,7 @@ function ConfigRow({
     minutes: number | null,
     looterName: string | null,
     surplusName: string | null,
+    shares: Record<string, number>,
   ) => void;
   onDelete: () => void;
   onPutBack: () => void;
@@ -290,17 +293,29 @@ function ConfigRow({
   const [minutes, setMinutes] = useState(savedMinutes);
   const [looter, setLooter] = useState(savedLooter);
   const [surplus, setSurplus] = useState(savedSurplus);
+  // What each seat takes, by name, as typed. Keyed by name for the same reason the looter is: it
+  // is what the save sends, and it survives a seat being renamed in this same edit.
+  const savedShares = Object.fromEntries(
+    party.seats.filter((s) => s.shares !== 1).map((s) => [s.name, String(s.shares)]),
+  );
+  const [shares, setShares] = useState<Record<string, string>>(savedShares);
+  // Shown only when the party is not an even split. A box per seat on every config, when nearly
+  // every one is 1, is the wall of inputs #241 took off this page; a party that IS uneven has to
+  // show it, because it is a number that moves money.
+  const [splitting, setSplitting] = useState(Object.keys(savedShares).length > 0);
   const parsed = parseMinutes(minutes);
   const dirty =
     members.join(" ") !== saved.join(" ") ||
     difficulty !== savedDifficulty ||
     minutes !== savedMinutes ||
     looter !== savedLooter ||
-    surplus !== savedSurplus;
+    surplus !== savedSurplus ||
+    sharesKey(shares) !== sharesKey(savedShares);
   // The roster as it is being edited, not as it was saved, so somebody added in this same edit can
   // be picked and a renamed seat keeps whatever it was designated for.
   const rosterNames = [ownName, ...members.map((m) => m.trim())].filter((name) => name !== "");
   const attributed = otherMembers(party).filter((m) => m.personName);
+  const badShares = rosterNames.some((name) => parseShares(shares[name] ?? "") === null);
 
   return (
     <article className="config-row">
@@ -389,6 +404,45 @@ function ConfigRow({
         )}
       </div>
 
+      {/* What each seat takes of a split, when it is not an even one.
+
+          Type the stacks you agreed. Four and two on Extreme Kalos is 6 x 4/6 and 6 x 2/6, which is
+          four stacks and two, so the numbers people say to each other go straight in. Two and one
+          is the same split said shorter. */}
+      <div className="config-split">
+        <select
+          className="split-input"
+          value={splitting ? "uneven" : "even"}
+          onChange={(e) => {
+            const uneven = e.target.value === "uneven";
+            setSplitting(uneven);
+            // Back to even means back to one apiece, not a set of boxes left holding old numbers.
+            if (!uneven) setShares({});
+          }}
+          aria-label="How this party splits a drop"
+          disabled={busy}
+        >
+          <option value="even">even split</option>
+          <option value="uneven">uneven split</option>
+        </select>
+
+        {splitting &&
+          rosterNames.map((name) => (
+            <label className="config-share" key={name}>
+              {name}
+              <input
+                className="split-input"
+                value={shares[name] ?? ""}
+                onChange={(e) => setShares({ ...shares, [name]: e.target.value })}
+                placeholder="1"
+                inputMode="numeric"
+                aria-label={`What ${name} takes of a split`}
+                disabled={busy}
+              />
+            </label>
+          ))}
+      </div>
+
       {/* Whose character each one is, when the people list says so. Read-only here: it is an
           account-wide fact, kept on the People page rather than per config. */}
       {attributed.length > 0 && (
@@ -402,9 +456,10 @@ function ConfigRow({
           <button
             type="button"
             className="party-save"
-            disabled={busy || !parsed.ok}
+            disabled={busy || !parsed.ok || badShares}
             onClick={() =>
               parsed.ok &&
+              !badShares &&
               onSave(
                 members.map((m) => m.trim()).filter((m) => m !== ""),
                 difficulty === "" ? null : difficulty,
@@ -413,6 +468,12 @@ function ConfigRow({
                 // A looter holds every stack, so there is no odd one and any saved answer here
                 // would be a setting nothing reads.
                 looter !== "" || surplus === "" ? null : surplus,
+                // ALWAYS sent, never omitted. writeMembers reads a missing name as one share, so a
+                // save that left this out would quietly reset every seat the party had agreed
+                // otherwise for. Whole roster every time, the way the members list is.
+                Object.fromEntries(
+                  rosterNames.map((name) => [name, parseShares(shares[name] ?? "") ?? 1]),
+                ),
               )
             }
           >
@@ -426,6 +487,8 @@ function ConfigRow({
               setMembers(saved.length > 0 ? saved : [""]);
               setLooter(savedLooter);
               setSurplus(savedSurplus);
+              setShares(savedShares);
+              setSplitting(Object.keys(savedShares).length > 0);
               setDifficulty(savedDifficulty);
               setMinutes(savedMinutes);
             }}

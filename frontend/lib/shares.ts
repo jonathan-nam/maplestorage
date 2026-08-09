@@ -22,6 +22,20 @@ export function parseShares(input: string): number | null {
   return value >= 1 && value <= MAX_SHARES ? value : null;
 }
 
+/**
+ * A set of typed share counts as one comparable string, for telling edited from saved.
+ *
+ * Blank and "1" are the same answer, so both drop out: typing 1 into a box that was empty has not
+ * changed the split, and a Save button lighting up for it would be offering to write nothing.
+ */
+export function sharesKey(shares: Record<string, string>): string {
+  return Object.entries(shares)
+    .filter(([, value]) => value.trim() !== "" && value.trim() !== "1")
+    .map(([name, value]) => `${name}=${value.trim()}`)
+    .sort()
+    .join(",");
+}
+
 /** What to say beside a payout that is not a single share, or empty when it is. */
 export function sharesLabel(shares: number): string {
   return shares === 1 ? "" : `${shares} shares`;

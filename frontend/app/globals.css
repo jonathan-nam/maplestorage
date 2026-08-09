@@ -3764,6 +3764,33 @@ button.link:disabled {
   flex-wrap: wrap;
 }
 
+/* The split, and a box per seat only once it is not an even one. See #241 for why the boxes are
+   not here by default. */
+.config-split {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.config-split .split-input {
+  font-size: 13px;
+  padding: 6px 8px;
+}
+
+.config-share {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+/* Wide enough for two digits, which is the whole range a share can be worth typing. */
+.config-share .split-input {
+  width: 52px;
+}
+
 .config-looter-label {
   font-size: 12px;
   color: var(--muted);

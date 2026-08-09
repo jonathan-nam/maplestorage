@@ -534,6 +534,71 @@ describe("the arrangement put in front of somebody", () => {
   });
 });
 
+/**
+ * A firm agreement, as against the odd stack taking turns.
+ *
+ * "mechyfechy takes 4 stacks, Freeballynn takes 2" is a SPLIT, not a night that failed to divide.
+ * Said as shares it divides exactly, so nothing is outstanding and nobody is asked anything, which
+ * is the whole difference between an agreement and a remainder.
+ */
+describe("a party that has agreed an uneven split", () => {
+  const mine = (name: string, shares: number) => ({ ...seat("m1", name, { mine: true }), shares });
+  const theirs = (name: string, shares: number) => ({
+    ...seat("m2", name, { person: ["p-bro", "Bro"] }),
+    shares,
+  });
+
+  it("takes the stacks in the ratio it agreed, and leaves nobody owing", () => {
+    // Extreme Kalos, 180 in 6 stacks of 30. 6 x 4/6 and 6 x 2/6 is four stacks and two.
+    const seats = [mine("mechyfechy", 4), theirs("Freeballynn", 2)];
+    const kalos = [party("pk", "kalos-the-guardian", seats, null)];
+    const drop = [
+      pool("pk", [coupon("l1", "kalos-the-guardian", 180, "2026-08-06", { bundles: 6 })]),
+    ];
+
+    expect(suggestArrangement(6, seats, new Map())).toEqual(
+      new Map([
+        ["m1", 4],
+        ["m2", 2],
+      ]),
+    );
+    expect(unanswered(kalos, drop, VESTIGE)).toEqual([]);
+    expect(outstanding(kalos, drop, VESTIGE, ORDER)).toEqual([]);
+  });
+
+  it("reads 4 and 2 as the same agreement as 2 and 1", () => {
+    // The numbers people say to each other go straight in, whichever way they say them.
+    const long = suggestArrangement(
+      6,
+      [mine("mechyfechy", 4), theirs("Freeballynn", 2)],
+      new Map(),
+    );
+    const short = suggestArrangement(
+      6,
+      [mine("mechyfechy", 2), theirs("Freeballynn", 1)],
+      new Map(),
+    );
+    expect(long).toEqual(short);
+  });
+
+  it("settles Malefic Star the same way, where an even split could not", () => {
+    // 3 stacks between two. Even, it will not divide and somebody holds 15 that are not theirs.
+    // Agreed 2 to 1, it divides exactly and there is nothing to answer.
+    const seats = [mine("acornacorn", 1), theirs("CreedBratton", 2)];
+    const star = [party("ps", "malefic-star", seats, null)];
+    const drop = [pool("ps", [coupon("l2", "malefic-star", 90, "2026-08-06", { bundles: 3 })])];
+
+    expect(suggestArrangement(3, seats, new Map())).toEqual(
+      new Map([
+        ["m1", 1],
+        ["m2", 2],
+      ]),
+    );
+    expect(unanswered(star, drop, VESTIGE)).toEqual([]);
+    expect(outstanding(star, drop, VESTIGE, ORDER)).toEqual([]);
+  });
+});
+
 describe("a sale is entered as a total, never a price each", () => {
   it("derives the per-piece figure so nobody divides by hand", () => {
     // What a partner reports is "1.2b for the 50", which is what the box takes.

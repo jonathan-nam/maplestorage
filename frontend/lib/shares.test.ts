@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { MAX_SHARES, parseShares, sharesLabel } from "./shares";
+import { MAX_SHARES, parseShares, sharesKey, sharesLabel } from "./shares";
 
 describe("a share count as typed", () => {
   it("reads a blank as one, so an even party is a row of empty boxes", () => {
@@ -23,5 +23,24 @@ describe("a share count as typed", () => {
   it("says nothing beside a single share, and says the count beside any other", () => {
     expect(sharesLabel(1)).toBe("");
     expect(sharesLabel(3)).toBe("3 shares");
+  });
+});
+
+describe("telling an edited split from a saved one", () => {
+  it("reads a blank and a one as the same answer", () => {
+    // Typing 1 into an empty box has not changed the split, and a Save lighting up for it would be
+    // offering to write nothing.
+    expect(sharesKey({ a: "", b: "1" })).toBe(sharesKey({}));
+    expect(sharesKey({ a: " 1 " })).toBe("");
+  });
+
+  it("does not depend on which order the boxes were filled in", () => {
+    expect(sharesKey({ mechyfechy: "4", Freeballynn: "2" })).toBe(
+      sharesKey({ Freeballynn: "2", mechyfechy: "4" }),
+    );
+  });
+
+  it("tells a real change apart", () => {
+    expect(sharesKey({ a: "4", b: "2" })).not.toBe(sharesKey({ a: "2", b: "1" }));
   });
 });
