@@ -38,6 +38,37 @@
   --good: #5cbf87;
   --warn: #e0a24e;
   --bad: #e0706a;
+
+  /* The client's own panel chrome, measured off an item tooltip capture. The shell palette above
+     stays neutral on purpose (a slate shell was tried and reverted); these are borrowed for EDGES
+     and TITLE BARS only, where the game's look is the point and the colour is a thin rule rather
+     than a field. */
+  --chrome-edge-light: #556168;
+  --chrome-edge-dark: #2c333b;
+  --chrome-head-top: #4d5a64;
+  --chrome-head-bottom: #40474e;
+  --chrome-rule: #1d232a;
+  --chrome-rule-light: #4b595f;
+}
+
+/* The client's panel edge on the app's own cards: a light rule immediately inside a dark one.
+   Painted as an inset ring rather than a second element, so it follows each card's own radius,
+   which is 6, 8 or 10px depending on the card. Listed explicitly rather than applied to a shared
+   class because these eleven are the bordered CARDS; the other ~30 --surface users are rows,
+   chips, inputs and tiles, and a raised edge on a table row reads as a mistake. */
+.capture,
+.week-step,
+.split-result,
+.party-banner,
+.party-card,
+.party-editor,
+.boss-run,
+.config-row,
+.stat-tile,
+.run-draft,
+.ledger-card {
+  border-color: var(--chrome-edge-dark);
+  box-shadow: inset 0 0 0 1px var(--chrome-edge-light);
 }
 
 /* Every page's root. Nothing inside it sets its own max-width or centres itself. */
@@ -443,28 +474,43 @@ a:hover {
   /* top 8 pairs with .carousel's 8px bottom (the two collapse); bottom 16 keeps the dock spaced. */
   margin: 8px 0 16px;
   padding-bottom: 6px;
-  border: 1px solid var(--ms-edge);
+  border: 1px solid var(--chrome-edge-dark);
   border-radius: 8px;
   background: var(--ms-chrome);
-  box-shadow: 0 4px 14px rgb(0 0 0 / 45%);
+  box-shadow:
+    inset 0 0 0 1px var(--chrome-edge-light),
+    0 4px 14px rgb(0 0 0 / 45%);
   color: #2f353e;
-  font-family: "Segoe UI", Tahoma, sans-serif;
+  /* The client draws this window's text in Arial, which Windows renders unsmoothed at this size.
+     A browser will always antialias it, so this buys the letterforms and the 18/12 rhythm, not
+     the crispness. A pixel webfont would buy the crispness and cost integer-only sizing and
+     working browser zoom, which is a bad trade in an app built on not misreading a number. */
+  font: 12px/18px Arial, Helvetica, sans-serif;
   outline: none;
 }
 
 .ms-window.focused {
   box-shadow:
+    inset 0 0 0 1px var(--chrome-edge-light),
     0 4px 14px rgb(0 0 0 / 45%),
     0 0 0 2px var(--ms-accent);
 }
 
+/* The client's title bar is not flat: it fades over its top 8px and sits on a dark rule with a
+   lighter one directly under it. Both are 1px, so they are painted as gradient stops rather than
+   borders, which keeps the bar one element. */
 .ms-titlebar {
   display: flex;
   align-items: center;
   gap: 10px;
   padding: 6px 10px;
   border-radius: 7px 7px 0 0;
-  background: var(--ms-titlebar);
+  background:
+    linear-gradient(var(--chrome-head-top), var(--chrome-head-bottom) 8px),
+    var(--chrome-head-bottom);
+  box-shadow:
+    inset 0 -2px 0 -1px var(--chrome-rule-light),
+    inset 0 -1px 0 0 var(--chrome-rule);
 }
 
 /* The client's window titles are a yellow-green, not white. */
@@ -1450,11 +1496,22 @@ img.user-avatar-img {
   pointer-events: none;
 }
 
+/* The only app card whose header is a real title BAR: it carries its own padding and the card
+   clips it, so it spans edge to edge. The others (.party-card-head, .boss-run-head and friends)
+   are inline rows sitting inside their card's padding, and a gradient on those paints a floating
+   strip rather than a bar. Giving them one means moving the padding off the card and onto its
+   body, per component, which is a bigger change than this. */
 .capture-head {
   display: flex;
   align-items: center;
   gap: 10px;
   padding: 10px 12px;
+  background:
+    linear-gradient(var(--chrome-head-top), var(--chrome-head-bottom) 8px),
+    var(--chrome-head-bottom);
+  box-shadow:
+    inset 0 -2px 0 -1px var(--chrome-rule-light),
+    inset 0 -1px 0 0 var(--chrome-rule);
 }
 
 .capture-thumb {
@@ -3756,6 +3813,8 @@ button.link:disabled {
   padding: 0;
   border: 0;
   background: transparent;
+  /* The edge is an inset ring, so dropping the border alone still leaves it drawn. */
+  box-shadow: none;
 }
 
 /* The two splits, as chips that can both be on. Not tabs: they are independent, and tabs would say
