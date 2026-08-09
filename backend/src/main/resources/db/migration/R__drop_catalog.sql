@@ -118,20 +118,20 @@ FROM (VALUES
 JOIN boss_catalog b ON b.boss_key = v.boss_key
 JOIN drop_catalog d ON d.drop_key = v.drop_key;
 
-INSERT INTO boss_drop_amount (boss_catalog_id, drop_catalog_id, difficulty, pieces)
-SELECT b.id, d.id, v.difficulty, v.pieces
+INSERT INTO boss_drop_amount (boss_catalog_id, drop_catalog_id, difficulty, pieces, bundles)
+SELECT b.id, d.id, v.difficulty, v.pieces, v.bundles
 FROM (VALUES
-    ('limbo', 'vestige-of-erion', 'HARD', 60),
-    ('chosen-seren', 'vestige-of-erion', 'EXTREME', 30),
-    ('kalos-the-guardian', 'vestige-of-erion', 'EXTREME', 180),
-    ('kaling', 'vestige-of-erion', 'HARD', 60),
-    ('kaling', 'vestige-of-erion', 'EXTREME', 480),
-    ('first-adversary', 'vestige-of-erion', 'HARD', 30),
-    ('first-adversary', 'vestige-of-erion', 'EXTREME', 240),
-    ('malefic-star', 'vestige-of-erion', 'HARD', 90),
-    ('jupiter', 'vestige-of-erion', 'NORMAL', 45),
-    ('jupiter', 'vestige-of-erion', 'HARD', 360),
-    ('baldrix', 'vestige-of-erion', 'HARD', 120)
-) AS v (boss_key, drop_key, difficulty, pieces)
+    ('limbo', 'vestige-of-erion', 'HARD', 60, 3),
+    ('chosen-seren', 'vestige-of-erion', 'EXTREME', 30, 6),
+    ('kalos-the-guardian', 'vestige-of-erion', 'EXTREME', 180, 6),
+    ('kaling', 'vestige-of-erion', 'HARD', 60, 6),
+    ('kaling', 'vestige-of-erion', 'EXTREME', 480, 6),
+    ('first-adversary', 'vestige-of-erion', 'HARD', 30, 3),
+    ('first-adversary', 'vestige-of-erion', 'EXTREME', 240, 3),
+    ('malefic-star', 'vestige-of-erion', 'HARD', 90, 3),
+    ('jupiter', 'vestige-of-erion', 'NORMAL', 45, 3),
+    ('jupiter', 'vestige-of-erion', 'HARD', 360, 3),
+    ('baldrix', 'vestige-of-erion', 'HARD', 120, 3)
+) AS v (boss_key, drop_key, difficulty, pieces, bundles)
 JOIN boss_catalog b ON b.boss_key = v.boss_key
 JOIN drop_catalog d ON d.drop_key = v.drop_key;

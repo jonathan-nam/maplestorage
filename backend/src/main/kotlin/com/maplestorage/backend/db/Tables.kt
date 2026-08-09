@@ -348,6 +348,10 @@ object BossDropAmount : Table("boss_drop_amount") {
     val difficulty = text("difficulty")
     val pieces = integer("pieces")
 
+    // How many equal whole stacks those pieces fall in, which is what a party actually picks up.
+    // Null is uncounted, NOT one stack. See V41__loot_bundles.sql.
+    val bundles = integer("bundles").nullable()
+
     override val primaryKey = PrimaryKey(bossCatalogId, dropCatalogId, difficulty)
 }
 
@@ -423,6 +427,16 @@ object PartyLootPayout : Table("party_loot_payout") {
 
     // How many shares of this sale they take, pinned with it. 1 in an even split.
     val shares = integer("shares")
+
+    override val primaryKey = PrimaryKey(lootId, memberId)
+}
+
+// Which seat picked up how many of a drop's stacks. No rows means nobody has said, which is NOT
+// the same as the drop having divided evenly. See V41__loot_bundles.sql.
+object PartyLootBundle : Table("party_loot_bundle") {
+    val lootId = reference("loot_id", PartyLoot.id)
+    val memberId = reference("member_id", PartyMember.id)
+    val bundles = integer("bundles")
 
     override val primaryKey = PrimaryKey(lootId, memberId)
 }

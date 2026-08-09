@@ -5016,3 +5016,36 @@ button.ledger-drop-sale:hover:not(:disabled) {
   height: 100%;
   background: var(--good);
 }
+
+/* One chip per STACK a drop fell in. They are the physical thing somebody bent down for, so they
+   are the same size whatever the seat is called, and clicking one hands it to the next seat. */
+.stack-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  padding-left: 14px;
+  list-style: none;
+}
+
+.stack-chip {
+  min-width: 72px;
+  padding: 3px 10px;
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  background: var(--surface-2);
+  font: inherit;
+  font-size: 12px;
+  color: var(--ink-strong);
+  cursor: pointer;
+}
+
+.stack-chip:hover:not(:disabled) {
+  border-color: var(--ink-strong);
+}
+
+.stack-chip:disabled {
+  cursor: default;
+  opacity: 0.6;
+}

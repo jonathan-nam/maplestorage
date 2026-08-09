@@ -37,6 +37,35 @@ import sys
 
 import yaml
 
+
+class _StrictLoader(yaml.SafeLoader):
+    """SafeLoader that refuses a duplicate mapping key instead of letting the later one win.
+
+    PyYAML's default is to keep the last silently, which is how a second whole `drops:` block sat
+    in drops.yaml for a day: the build read one of them, and every edit to the other was a no-op
+    that still reviewed fine.
+    """
+
+
+def _no_duplicates(loader, node, deep=False):
+    seen = set()
+    for key_node, _ in node.value:
+        key = loader.construct_object(key_node, deep=deep)
+        if key in seen:
+            sys.exit(f"{loader.name}: duplicate key {key!r}, which would silently override the first")
+        seen.add(key)
+    return yaml.SafeLoader.construct_mapping(loader, node, deep=deep)
+
+
+_StrictLoader.add_constructor(yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, _no_duplicates)
+
+
+def load_yaml(path: pathlib.Path):
+    """Every manifest goes through here, so none of them can define a key twice."""
+    with path.open() as f:
+        return yaml.load(f, _StrictLoader)
+
+
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 MANIFEST = ROOT / "catalog" / "items.yaml"
 TEMPLATES = ROOT / "vision" / "app" / "cv" / "templates"
@@ -101,7 +130,7 @@ CATEGORIES = {"REDEMPTION_TOKEN", "CONSUMABLE"}
 
 
 def load() -> list[dict]:
-    items = yaml.safe_load(MANIFEST.read_text())["items"]
+    items = load_yaml(MANIFEST)["items"]
 
     seen: set[str] = set()
     for it in items:
@@ -149,7 +178,7 @@ def load() -> list[dict]:
 
 
 def load_bosses() -> list[dict]:
-    bosses = yaml.safe_load(BOSS_MANIFEST.read_text())["bosses"]
+    bosses = load_yaml(BOSS_MANIFEST)["bosses"]
     seen: set[str] = set()
     for b in bosses:
         key = b["key"]
@@ -166,6 +195,12 @@ def load_bosses() -> list[dict]:
             sys.exit(f"{key}: tracked must be true or false, got {b.get('tracked')!r}")
         if "short" in b and not str(b["short"]).strip():
             sys.exit(f"{key}: short must be a name or absent, not empty")
+        # Absent is nobody having counted it. A zero or a null would be a boss admitting nobody,
+        # which is not a thing, so neither is accepted as a way of saying "unknown".
+        if "max_party" in b and (not isinstance(b["max_party"], int) or b["max_party"] < 1):
+            sys.exit(
+                f"{key}: max_party must be a positive integer or absent, got {b['max_party']!r}"
+            )
         check_difficulties(b)
     return bosses
 
@@ -259,7 +294,7 @@ ON CONFLICT (boss_key) DO UPDATE SET
 
 def load_drops(bosses: list[dict]) -> tuple[list[dict], dict[str, list[str]]]:
     """The drop manifest, validated against the boss catalog it keys on."""
-    data = yaml.safe_load(DROP_MANIFEST.read_text())
+    data = load_yaml(DROP_MANIFEST)
     drops = data["drops"]
     tables = data["tables"]
 
@@ -312,18 +347,50 @@ def load_drops(bosses: list[dict]) -> tuple[list[dict], dict[str, list[str]]]:
             pieces = row.get("pieces") or {}
             if not isinstance(pieces, dict):
                 sys.exit(f"drop table for {boss_key!r}: pieces must map a difficulty to a count")
-            for difficulty, count in pieces.items():
+            counts = {}
+            for difficulty, amount in pieces.items():
                 # Against the BOSS'S own modes, not the whole list: a count under a difficulty it
                 # does not have could never be read, and would sit here looking authoritative.
                 if difficulty not in modes_of.get(boss_key, []):
                     sys.exit(
                         f"drop table for {boss_key!r}: {difficulty!r} is not one of its difficulties"
                     )
-                if not isinstance(count, int) or count < 1:
+                # A bare count says only how many fell. The mapping also says how many STACKS they
+                # fell in, which is what decides whether a party can divide them by looting alone.
+                # Both spellings stay: a drop whose bundling nobody has counted says nothing rather
+                # than guessing a number that would then be checked against the total below.
+                if isinstance(amount, dict):
+                    unknown = sorted(set(amount) - {"total", "bundles"})
+                    if unknown:
+                        sys.exit(
+                            f"drop table for {boss_key!r} {difficulty}: pieces takes total and "
+                            f"bundles, got {unknown}"
+                        )
+                    total, bundles = amount.get("total"), amount.get("bundles")
+                else:
+                    total, bundles = amount, None
+                if not isinstance(total, int) or total < 1:
                     sys.exit(
                         f"drop table for {boss_key!r} {difficulty}: pieces must be a positive "
-                        f"integer, got {count!r}"
+                        f"integer, got {total!r}"
                     )
+                if bundles is not None:
+                    if not isinstance(bundles, int) or bundles < 1:
+                        sys.exit(
+                            f"drop table for {boss_key!r} {difficulty}: bundles must be a positive "
+                            f"integer, got {bundles!r}"
+                        )
+                    # Stacks are equal and whole, so a total that does not divide by them means one
+                    # of the two numbers is wrong. Cheap, and it pins every count in the file
+                    # against a second fact rather than against nothing.
+                    if total % bundles:
+                        sys.exit(
+                            f"drop table for {boss_key!r} {difficulty}: {total} pieces do not "
+                            f"divide into {bundles} bundles"
+                        )
+                counts[difficulty] = {"total": total, "bundles": bundles}
+            if counts:
+                row["pieces"] = counts
         normalised[boss_key] = rows
 
     return drops, normalised
@@ -354,19 +421,22 @@ def drop_sql(drops: list[dict], tables: dict[str, list[str]]) -> str:
         for boss_key, rows in tables.items()
         for i, row in enumerate(rows)
     )
+    # NULL bundles is a drop nobody has counted the stacks for. Not one stack: the column is read to
+    # decide whether a party could divide the drop at all, and a wrong one there invents a debt.
     amounts = ",\n".join(
-        f"    ({q(boss_key)}, {q(row['key'])}, {q(difficulty)}, {count})"
+        f"    ({q(boss_key)}, {q(row['key'])}, {q(difficulty)}, {amount['total']}, "
+        f"{amount['bundles'] if amount['bundles'] is not None else 'NULL'})"
         for boss_key, rows in tables.items()
         for row in rows
-        for difficulty, count in (row.get("pieces") or {}).items()
+        for difficulty, amount in (row.get("pieces") or {}).items()
     )
     amount_sql = (
         f"""
-INSERT INTO boss_drop_amount (boss_catalog_id, drop_catalog_id, difficulty, pieces)
-SELECT b.id, d.id, v.difficulty, v.pieces
+INSERT INTO boss_drop_amount (boss_catalog_id, drop_catalog_id, difficulty, pieces, bundles)
+SELECT b.id, d.id, v.difficulty, v.pieces, v.bundles
 FROM (VALUES
 {amounts}
-) AS v (boss_key, drop_key, difficulty, pieces)
+) AS v (boss_key, drop_key, difficulty, pieces, bundles)
 JOIN boss_catalog b ON b.boss_key = v.boss_key
 JOIN drop_catalog d ON d.drop_key = v.drop_key;
 """

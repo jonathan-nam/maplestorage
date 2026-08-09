@@ -157,9 +157,26 @@ export type LedgerDrop = {
   weekStart: string;
   /** Tie-break inside a week: the boss's own progression order, so the queue never shuffles. */
   order: number;
+  /** What fell. Entitlements are measured against this, so it is the whole drop, not a slice. */
   total: number;
   seats: LedgerSeat[];
+  /**
+   * Pieces of it in the pile this row is about. Defaults to `total`, which is one seat having
+   * looted the lot.
+   *
+   * Separate from `total` because a drop looted stack by stack sits in SEVERAL piles at once, and
+   * the two numbers answer different questions. Who owes whom is measured against the whole drop.
+   * What a holder's own sales can cover, and how much of their proceeds are somebody else's, is
+   * measured against their pile: they can only ever sell what they picked up, and charging their
+   * tranches against the whole drop would report a debt settled that their sales never touched.
+   */
+  held?: number;
 };
+
+/** Pieces in the pile a row is about. The looter's whole drop unless it was split at the stack. */
+export function heldOf(drop: LedgerDrop): number {
+  return drop.held ?? drop.total;
+}
 
 /** How much of one drop the sales so far have covered, and what those pieces fetched. */
 export type DropCoverage = {
@@ -196,22 +213,25 @@ export function allocate(drops: LedgerDrop[], sales: PieceSale[]): Map<string, D
   let next = 0;
   const out = new Map<string, DropCoverage>();
   for (const drop of queue) {
+    // Against the PILE, not the whole drop: these tranches are one holder's, and they can only
+    // ever sell the stacks they picked up.
+    const held = heldOf(drop);
     let covered = 0;
     let cost = 0;
-    while (covered < drop.total && next < tranches.length) {
+    while (covered < held && next < tranches.length) {
       const tranche = tranches[next]!;
-      const take = Math.min(drop.total - covered, tranche.left);
+      const take = Math.min(held - covered, tranche.left);
       covered += take;
       cost += take * tranche.priceEach;
       tranche.left -= take;
       if (tranche.left === 0) next += 1;
     }
-    const complete = covered === drop.total && drop.total > 0;
+    const complete = covered === held && held > 0;
     out.set(drop.id, {
       covered,
       cost,
       complete,
-      averagePrice: complete ? cost / drop.total : null,
+      averagePrice: complete ? cost / held : null,
     });
   }
   return out;
@@ -230,15 +250,26 @@ export function allocate(drops: LedgerDrop[], sales: PieceSale[]): Map<string, D
  * Every figure is rounded UP, so the person who took somebody else's pieces absorbs the dust rather
  * than the person waiting to be paid. Same rule as the money split, for the same reason.
  */
-export function transfersOf(drop: LedgerDrop, coverage: DropCoverage | undefined): PieceTransfer[] {
+export function transfersOf(
+  drop: LedgerDrop,
+  coverage: DropCoverage | undefined,
+  /**
+   * Only the debts owed BY this seat, for a drop split across several piles.
+   *
+   * The pairing still runs over every debtor, so who pays whom does not change with which pile is
+   * being drawn. Undefined is the whole ledger, which is what one looter holding everything means.
+   */
+  from?: string,
+): PieceTransfer[] {
   const position = balances(drop.total, drop.seats);
   const owing = position.filter((p) => p.balance < 0).map((p) => ({ ...p, left: -p.balance }));
   const owed = position.filter((p) => p.balance > 0).map((p) => ({ ...p, left: p.balance }));
 
-  // What this drop's sold pieces actually fetched. Never a forecast of the unsold ones: a figure
+  // What this pile's sold pieces actually fetched. Never a forecast of the unsold ones: a figure
   // over pieces that have not gone yet is a guess at a price nobody has been offered.
   const covered = coverage?.covered ?? 0;
   const sold = coverage?.cost ?? 0;
+  const held = heldOf(drop);
 
   const out: PieceTransfer[] = [];
   let next = 0;
@@ -246,9 +277,11 @@ export function transfersOf(drop: LedgerDrop, coverage: DropCoverage | undefined
     while (debtor.left > 0 && next < owed.length) {
       const creditor = owed[next]!;
       const pieces = Math.min(debtor.left, creditor.left);
-      // This pair's proportion of the drop, applied to what has sold so far. Cumulative, so a
-      // payment already made is a prefix of it and never has to be taken back.
-      const send = covered === 0 ? null : Math.ceil((sold * pieces) / drop.total);
+      // This pair's proportion of the DEBTOR'S PILE, applied to what has sold so far. Their pile,
+      // because that is what their tranches drain, and their own share of it is what is left after
+      // this comes out. Cumulative, so a payment already made is a prefix of it and never has to be
+      // taken back.
+      const send = covered === 0 || held === 0 ? null : Math.ceil((sold * pieces) / held);
       out.push({
         fromId: debtor.memberId,
         toId: creditor.memberId,
@@ -257,7 +290,7 @@ export function transfersOf(drop: LedgerDrop, coverage: DropCoverage | undefined
         pieces,
         // How many of this pair's pieces the sales so far have reached. Rounded DOWN, so an
         // instalment never claims to have settled a piece that has not sold.
-        settled: Math.min(pieces, Math.floor((covered * pieces) / drop.total)),
+        settled: held === 0 ? 0 : Math.min(pieces, Math.floor((covered * pieces) / held)),
         send,
         nets: send === null ? null : Math.floor(send * (1 - FEE_STANDARD)),
       });
@@ -266,7 +299,7 @@ export function transfersOf(drop: LedgerDrop, coverage: DropCoverage | undefined
       if (creditor.left === 0) next += 1;
     }
   }
-  return out;
+  return from === undefined ? out : out.filter((t) => t.fromId === from);
 }
 
 /** The key a transfer is remembered by. One pair, one debt, however the row is redrawn. */

@@ -6,7 +6,10 @@ import {
   holderOf,
   ledgerForLoot,
   outstanding,
+  runningBalance,
   salesByHolder,
+  suggestArrangement,
+  unanswered,
   unsold,
 } from "./vestige-ledger";
 import type { Loot, PartyLootPool } from "@/types/loot";
@@ -70,7 +73,13 @@ const party = (
   updatedAt: "2026-07-01T00:00:00Z",
 });
 
-const coupon = (id: string, bossKey: string, quantity: number, weekStart: string): Loot => ({
+const coupon = (
+  id: string,
+  bossKey: string,
+  quantity: number,
+  weekStart: string,
+  over: Partial<Loot> = {},
+): Loot => ({
   id,
   dropKey: VESTIGE,
   customName: null,
@@ -90,6 +99,9 @@ const coupon = (id: string, bossKey: string, quantity: number, weekStart: string
   soldAt: null,
   payouts: [],
   ranThatWeek: [],
+  bundles: null,
+  bundlesBy: [],
+  ...over,
 });
 
 const pool = (partyId: string, loot: Loot[]): PartyLootPool => ({ partyId, loot });
@@ -363,10 +375,143 @@ describe("one card per holder, distributing one input", () => {
       outstanding(parties, pools, VESTIGE, ORDER),
       salesByHolder([{ holder: SELF, pieces: 60, amount: 1_450 * M }]),
     );
-    const found = ledgerForLoot(ledgers, "l1")!;
-    expect(found.holderName).toBe("you");
-    expect(found.drop.complete).toBe(true);
-    expect(ledgerForLoot(ledgers, "nope")).toBeNull();
+    const found = ledgerForLoot(ledgers, "l1");
+    expect(found).toHaveLength(1);
+    expect(found[0]!.holderName).toBe("you");
+    expect(found[0]!.drop.complete).toBe(true);
+    expect(ledgerForLoot(ledgers, "nope")).toEqual([]);
+  });
+});
+
+/**
+ * The night that used to vanish.
+ *
+ * Hard Baldrix is 120 coupons in 3 stacks of 40, and a duo cannot split 3 stacks. outstanding()
+ * skipped every party with no looter named, so this filed a row and recorded no debt at all,
+ * silently, which is the failure this repo exists to prevent.
+ */
+describe("uneven self-looting", () => {
+  const me = seat("m1", "Husky", { mine: true });
+  const them = seat("m2", "Nova", { person: ["p-nova", "Nova"] });
+  const NOVA: Holder = { kind: "PERSON", personId: "p-nova", characterName: null };
+  const duo = [party("pt", "baldrix", [me, them], null)];
+  const split = [
+    { memberId: "m1", bundles: 2 },
+    { memberId: "m2", bundles: 1 },
+  ];
+
+  const baldrix = (over: Partial<Loot> = {}) => [
+    pool("pt", [coupon("l1", "baldrix", 120, "2026-08-06", { bundles: 3, ...over })]),
+  ];
+
+  it("says a drop that cannot divide is unanswered, and how big the hole is", () => {
+    const open = unanswered(duo, baldrix(), VESTIGE);
+    expect(open).toHaveLength(1);
+    // 3 stacks between 2 people is 2 and 1, so somebody holds half a stack that is not theirs.
+    expect(open[0]!.imbalance).toBe(20);
+    expect(open[0]!.bundles).toBe(3);
+    // No direction is invented, so nothing is outstanding until somebody says who bent down.
+    expect(outstanding(duo, baldrix(), VESTIGE, ORDER)).toEqual([]);
+  });
+
+  it("builds both piles once the stacks are named, and only the debtor owes", () => {
+    const said = baldrix({ bundlesBy: split });
+    expect(unanswered(duo, said, VESTIGE)).toEqual([]);
+
+    const drops = outstanding(duo, said, VESTIGE, ORDER);
+    // One row per PILE: the drop sits in two inventories, each draining its own owner's sales.
+    expect(drops).toHaveLength(2);
+    const mine = drops.find((d) => holderKey(d.holder) === holderKey(SELF))!;
+    expect(mine.drop.held).toBe(80);
+    // Entitlements are still measured against the whole 120, never against one pile.
+    expect(mine.drop.total).toBe(120);
+
+    // Both piles are named for the row's display, not just whichever sorted first.
+    expect(ledgerForLoot(holderLedgers(drops, new Map()), "l1")).toHaveLength(2);
+
+    const ledgers = holderLedgers(drops, new Map());
+    const yours = ledgers.find((l) => holderKey(l.holder) === holderKey(SELF))!;
+    expect(yours.pieces).toBe(80);
+    expect(yours.drops[0]!.transfers).toHaveLength(1);
+    expect(yours.drops[0]!.transfers[0]!.pieces).toBe(20);
+    // The other pile owes nothing, so its row carries no transfer rather than repeating this one.
+    const theirs = ledgers.find((l) => holderKey(l.holder) === holderKey(NOVA))!;
+    expect(theirs.drops[0]!.transfers).toEqual([]);
+  });
+
+  it("prices the debt against the debtor's own pile, not the whole drop", () => {
+    // I sell my 80 at 20m each. 20 of them were never mine, so a quarter of that goes across.
+    const ledgers = holderLedgers(
+      outstanding(duo, baldrix({ bundlesBy: split }), VESTIGE, ORDER),
+      salesByHolder([{ holder: SELF, pieces: 80, amount: 1_600 * M }]),
+    );
+    const yours = ledgers.find((l) => holderKey(l.holder) === holderKey(SELF))!;
+    expect(yours.drops[0]!.complete).toBe(true);
+    expect(yours.drops[0]!.transfers[0]!.send).toBe(400 * M);
+  });
+
+  it("leaves an even night alone, and folds one person's characters before deciding", () => {
+    // 6 stacks between 2 holders is 3 each, so nothing is out of place and nothing is asked.
+    const six = [pool("pt", [coupon("l2", "baldrix", 120, "2026-08-06", { bundles: 6 })])];
+    expect(unanswered(duo, six, VESTIGE)).toEqual([]);
+    expect(outstanding(duo, six, VESTIGE, ORDER)).toEqual([]);
+
+    // 3 stacks, 3 characters, but two of them are one person: 2 shares against 1, so 2 stacks
+    // against 1, and it divides. Reading this per SEAT would invent a debt that does not exist.
+    const pair = seat("m3", "Nova2", { person: ["p-nova", "Nova"] });
+    const trio = [party("pt", "baldrix", [me, them, pair], null)];
+    const drop = [pool("pt", [coupon("l3", "baldrix", 120, "2026-08-06", { bundles: 3 })])];
+    expect(unanswered(trio, drop, VESTIGE)).toEqual([]);
+    expect(outstanding(trio, drop, VESTIGE, ORDER)).toEqual([]);
+  });
+});
+
+describe("the arrangement put in front of somebody", () => {
+  const me = seat("m1", "Husky", { mine: true });
+  const them = seat("m2", "Nova", { person: ["p-nova", "Nova"] });
+  const NOVA_KEY = holderKey({ kind: "PERSON", personId: "p-nova", characterName: null });
+
+  it("balances rather than concentrates, because every crossing piece pays the fee twice", () => {
+    // Four seats, six stacks. 2,2,1,1 moves one stack of value; 3,1,1,1 moves one and a half.
+    const four = [me, them, seat("m3", "Cid"), seat("m4", "Dot")];
+    const suggested = suggestArrangement(6, four, new Map());
+    expect([...suggested.values()].sort()).toEqual([1, 1, 2, 2]);
+  });
+
+  it("gives the odd stack to whoever is furthest behind, so it rotates on its own", () => {
+    // Nobody behind: the tie falls to seat order, so the first seat takes the extra.
+    expect(suggestArrangement(3, [me, them], new Map()).get("m1")).toBe(2);
+    // Nova is owed 20 from an earlier night, so this week's odd stack is hers.
+    const rotated = suggestArrangement(3, [me, them], new Map([[NOVA_KEY, 20]]));
+    expect(rotated.get("m2")).toBe(2);
+    expect(rotated.get("m1")).toBe(1);
+  });
+
+  it("leaves a seat out rather than handing them zero stacks", () => {
+    // The server refuses a zero: somebody who did not bend down is absent, not present with none.
+    const suggested = suggestArrangement(1, [me, them], new Map());
+    expect(suggested.has("m2")).toBe(false);
+    expect([...suggested.values()].reduce((a, b) => a + b, 0)).toBe(1);
+  });
+
+  it("counts a drop once when working out who is behind, not once per pile", () => {
+    const duo = [party("pt", "baldrix", [me, them], null)];
+    const said = [
+      pool("pt", [
+        coupon("l1", "baldrix", 120, "2026-08-06", {
+          bundles: 3,
+          bundlesBy: [
+            { memberId: "m1", bundles: 2 },
+            { memberId: "m2", bundles: 1 },
+          ],
+        }),
+      ]),
+    ];
+    const drops = outstanding(duo, said, VESTIGE, ORDER);
+    expect(drops).toHaveLength(2);
+    // Two rows, one drop. Nova is owed 20, not 40.
+    expect(runningBalance(drops).get(NOVA_KEY)).toBe(20);
+    expect(runningBalance(drops).get(holderKey(SELF))).toBe(-20);
   });
 });
 

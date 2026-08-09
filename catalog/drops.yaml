@@ -33,11 +33,19 @@
 #
 #     - key: vestige-of-erion
 #       pieces:
-#         EXTREME: 180
+#         EXTREME: { total: 180, bundles: 6 }
 #
 # It fills the count when a drop is logged, so the number is one somebody can correct rather than
 # one they have to remember. Only the difficulties listed drop any; a difficulty left out fills
 # nothing, which is not the same as filling zero.
+#
+# `bundles` is how many separate stacks that total falls in. Stacks are indivisible, so it is what
+# decides whether a party can split a drop by looting alone: three of them between two people
+# leaves one holding half a stack that is not theirs. Static per (boss, difficulty), not a function
+# of how many turned up. build.py refuses a total that does not divide by it.
+#
+# A bare count is still accepted, for a drop whose bundling nobody has counted. That is not the
+# same as saying it falls in one stack.
 
 drops:
   # --- Brilliant Boss Set, one accessory per boss -------------------------------------
@@ -141,10 +149,9 @@ drops:
   # The boss drop is the COUPON, which is the tradeable one. The vestige it redeems for is not, so
   # the coupon is the thing a party sells and splits, the same reasoning as the boss rings above.
   #
-  # No `quantity`: how many drop is per (boss, difficulty), not per item. Extreme Kalos gives 180
-  # and Extreme Seren 30, both in as many bundles as the boss's party cap, and one number on the
-  # item could only be wrong for six of the seven. What a party actually looted is typed on the
-  # pool row.
+  # No `quantity`: how many drop is per (boss, difficulty), not per item, so one number on the item
+  # could only ever be right for one boss. The counts and their bundling are in `tables` below.
+  # What a party actually looted is typed on the pool row.
   #
   # `art: cut` rather than an icon_id: this is a v270 item and the pinned dataset is GMS v268. The
   # mirror has no v269 or v270 at all, so there is no version to point at and the sprite is supplied
@@ -155,135 +162,6 @@ drops:
   # flattened over a light grey slot. Those pixels are part grey by construction, so no key or
   # un-multiply recovers them, and every version was either boxed in grey or wrong in colour. If this
   # ever needs replacing, replace it with a sprite and not a capture.
-  - key: vestige-of-erion
-#       pieces:
-#         EXTREME: 180
-#
-# It fills the count when a drop is logged, so the number is one somebody can correct rather than
-# one they have to remember. Only the difficulties listed drop any; a difficulty left out fills
-# nothing, which is not the same as filling zero.
-
-drops:
-  # --- Brilliant Boss Set, one accessory per boss -------------------------------------
-  # Four pieces, in release order. Each drops from one boss and nowhere else, so a boss has at
-  # most one of them.
-  - key: whisper-of-the-source
-    name: Whisper of the Source
-    icon_id: 1113341
-  - key: oath-of-death
-    name: Oath of Death
-    icon_id: 1122447
-  - key: immortal-legacy
-    name: Immortal Legacy
-    icon_id: 1143471
-  # No icon_id, for the reason given on eternal-armor-of-radiance-box: GMS v268 predates
-  # Malefic Star.
-  - key: blissful-nightmare
-    name: Blissful Nightmare
-
-  # --- Exceptional Hammers, one slot per boss ----------------------------------------
-  - key: exceptional-hammer-face
-    name: Exceptional Hammer (Face Acc)
-    icon_id: 2644205
-  - key: exceptional-hammer-eye
-    name: Exceptional Hammer (Eye Acc)
-    icon_id: 2644206
-  - key: exceptional-hammer-earrings
-    name: Exceptional Hammer (Earrings)
-    icon_id: 2644207
-  - key: exceptional-hammer-medal
-    name: Exceptional Hammer (Medal)
-    icon_id: 2644208
-
-  # --- Grindstones -------------------------------------------------------------------
-  # Two item ids carry each grindstone name (2539003/2539004 and 2539001/2539002), the tradeable
-  # and untradeable versions. The lower one is pinned; the art is the same either way.
-  - key: grindstone-of-faith
-    name: Grindstone of Faith
-    icon_id: 2539003
-  - key: grindstone-of-life
-    name: Grindstone of Life
-    icon_id: 2539001
-
-  # --- Scroll coupons, Interactive worlds only ---------------------------------------
-  - key: premium-scroll-accessory-coupon
-    name: Premium Scroll - Accessory Coupon
-    icon_id: 2633916
-    worlds: INTERACTIVE
-  - key: premium-scroll-pet-equipment-coupon
-    name: Premium Scroll - Pet Equipment Coupon
-    icon_id: 2633917
-    worlds: INTERACTIVE
-  - key: magical-scroll-weapon-coupon
-    name: Magical Scroll - Weapon Coupon
-    icon_id: 2633918
-    worlds: INTERACTIVE
-
-  # --- Eternal armour boxes ----------------------------------------------------------
-  - key: eternal-armor-of-desire-box
-    name: Eternal Armor of Desire Box
-    icon_id: 2638066
-  - key: divine-eternal-armor-box
-    name: Divine Eternal Armor Box
-    icon_id: 2638064
-  - key: ferocious-beast-eternal-armor-box
-    name: Ferocious Beast Eternal Armor Box
-    icon_id: 2638065
-  - key: ancient-eternal-armor-box
-    name: Ancient Eternal Armor Box
-    icon_id: 2830306
-  - key: eternal-armor-of-oaths-box
-    name: Eternal Armor of Oaths Box
-    icon_id: 2639253
-  # No icon_id: GMS v268 is the newest complete dataset the mirror has and it does not carry this
-  # item. Drawn without art until the version is bumped and this is re-validated.
-  - key: eternal-armor-of-radiance-box
-    name: Eternal Armor of Radiance Box
-
-  # --- Selection and ring boxes ------------------------------------------------------
-  - key: mitras-rage-selection-box
-    name: Mitra's Rage Selection Box
-    icon_id: 2633927
-
-  # --- The rings the boss ring boxes are opened for ----------------------------------
-  # The tables list these rather than the Life / White Jade Boss Ring Box they come out of: the
-  # box is a wrapper, and only these two levels of ring are worth anything, so a pool row saying
-  # "ring box" would not say what was actually worth splitting.
-  #
-  # The ids are the base rings. A ring's LEVEL is not part of its item id, so the art is the
-  # ring's, and the level lives in the name.
-  - key: ring-of-restraint-4
-    name: Ring of Restraint Lv. 4
-    icon_id: 1113098
-    per_member: HEROIC
-  - key: continuous-ring-4
-    name: Continuous Ring Lv. 4
-    icon_id: 1113329
-    per_member: HEROIC
-
-  # --- Astra secondary material ------------------------------------------------------
-  # The boss drop is the COUPON, which is the tradeable one. The vestige it redeems for is not, so
-  # the coupon is the thing a party sells and splits, the same reasoning as the boss rings above.
-  #
-  # No `quantity`: how many drop is per (boss, difficulty), not per item. Extreme Kalos gives 180
-  # and Extreme Seren 30, both in as many bundles as the boss's party cap, and one number on the
-  # item could only be wrong for six of the seven. What a party actually looted is typed on the
-  # pool row.
-  #
-  # `art: cut` rather than an icon_id: this is a v270 item and the pinned dataset is GMS v268. The
-  # mirror has no v269 or v270 at all, so there is no version to point at, and the picture is cut
-  # from the game instead: test-fixtures/inventory/vestige coupon slot.png, the same way the boss
-  # portraits are cut rather than downloaded.
-  #
-  # That capture is not native scale, so the art is a little soft. It is a DISPLAY icon and nothing
-  # matches against it, which is the only reason that is acceptable. Replace it with a native cut,
-  # or with the mirror's own sprite once a dataset carries it.
-  #
-  # The cut keeps the star's BODY and drops its glow, which is the only version with no grey in it.
-  # The glow is semi-transparent and the capture flattened it over the grey slot, so those pixels are
-  # part grey and no threshold takes that back: keying by brightness left the slot's light top half
-  # behind, and keying harder ate the star. Warm gold, the dark outline and the white core, largest
-  # connected run, trimmed to the bbox. At the size this is drawn the glow was never visible.
   - key: vestige-of-erion
     name: Vestige of Erion Coupon
     art: cut
@@ -312,7 +190,7 @@ tables:
     - continuous-ring-4
     - key: vestige-of-erion
       pieces:
-        HARD: 60
+        HARD: { total: 60, bundles: 3 }
 
   chosen-seren:
     - exceptional-hammer-face
@@ -324,7 +202,7 @@ tables:
     - continuous-ring-4
     - key: vestige-of-erion
       pieces:
-        EXTREME: 30
+        EXTREME: { total: 30, bundles: 6 }
 
   kalos-the-guardian:
     - exceptional-hammer-eye
@@ -337,7 +215,7 @@ tables:
     - continuous-ring-4
     - key: vestige-of-erion
       pieces:
-        EXTREME: 180
+        EXTREME: { total: 180, bundles: 6 }
 
   kaling:
     - exceptional-hammer-earrings
@@ -350,8 +228,8 @@ tables:
     - continuous-ring-4
     - key: vestige-of-erion
       pieces:
-        HARD: 60
-        EXTREME: 480
+        HARD: { total: 60, bundles: 6 }
+        EXTREME: { total: 480, bundles: 6 }
 
   first-adversary:
     - immortal-legacy
@@ -365,8 +243,8 @@ tables:
     - continuous-ring-4
     - key: vestige-of-erion
       pieces:
-        HARD: 30
-        EXTREME: 240
+        HARD: { total: 30, bundles: 3 }
+        EXTREME: { total: 240, bundles: 3 }
 
   malefic-star:
     - blissful-nightmare
@@ -379,15 +257,15 @@ tables:
     - continuous-ring-4
     - key: vestige-of-erion
       pieces:
-        HARD: 90
+        HARD: { total: 90, bundles: 3 }
 
   # Jupiter's table starts here and holds only this. The rest of what it drops is not recorded
   # yet, which the drop table page says rather than showing an empty one.
   jupiter:
     - key: vestige-of-erion
       pieces:
-        NORMAL: 45
-        HARD: 360
+        NORMAL: { total: 45, bundles: 3 }
+        HARD: { total: 360, bundles: 3 }
 
   baldrix:
     - oath-of-death
@@ -400,4 +278,4 @@ tables:
     - continuous-ring-4
     - key: vestige-of-erion
       pieces:
-        HARD: 120
+        HARD: { total: 120, bundles: 3 }
