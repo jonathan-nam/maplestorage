@@ -147,6 +147,46 @@ data class SellLootRequest(
     val shares: Map<String, Int> = emptyMap(),
 )
 
+/**
+ * One row of a lot, priced: which drop in which pool, and the sale to file against it.
+ *
+ * The amount is this row's slice of what the lot fetched, worked out by the client so the split's
+ * arithmetic keeps its one implementation (frontend/lib/lot-sale.ts, over piece-ledger's largest
+ * remainder). The route checks the slices add up to the lot rather than dividing anything itself.
+ */
+@Serializable
+data class LotSaleRow(
+    val partyId: String,
+    val lootId: String,
+    val amount: Long,
+    // The seller's seat IN THIS PARTY. One person selling a lot holds a different seat in each pool
+    // it spans, so this cannot be one id for the request.
+    val sellerMemberId: String,
+    val shares: Map<String, Int> = emptyMap(),
+)
+
+/**
+ * Selling a pile of one interchangeable drop in a single go.
+ *
+ * The rows are named rather than worked out here, because the queue that proposed them is what the
+ * user confirmed on screen. A server that re-derived "the oldest unsold rows" could sell different
+ * ones than the preview showed, the moment a tab is stale or two are open, and the sale would land
+ * on a party that never made it.
+ *
+ * All of them or none, for the reason SettleRequest gives: a lot that half-lands leaves some rows
+ * priced and some not, with nothing on screen saying which half happened.
+ */
+@Serializable
+data class LotSaleRequest(
+    // Every row has to be this drop, and it has to be one the catalog marks fungible.
+    val dropKey: String,
+    // What the whole lot fetched. Checked against the rows, never divided here.
+    val total: Long,
+    val amountBasis: String,
+    val splitMethod: String,
+    val rows: List<LotSaleRow>,
+)
+
 @Serializable
 data class PayoutRequest(
     val paid: Boolean,

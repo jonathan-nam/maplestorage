@@ -252,6 +252,78 @@ internal fun settlePayouts(
     return true
 }
 
+/** One row of a lot with its ids parsed, so the checks and the writes read the same values. */
+internal data class LotRow(
+    val partyId: Uuid,
+    val lootId: Uuid,
+    val amount: Long,
+    val sellerMemberId: Uuid,
+    val shares: Map<String, Int>,
+)
+
+/**
+ * Prices every row of a lot, or none of them, and answers with why not.
+ *
+ * The rules are sellLoot's, checked here rather than by the route because they are per row and the
+ * route has one answer to give. Three are this shape's own: the drop has to be one the catalog marks
+ * fungible, no row may already be sold, and every row has to be the same drop.
+ *
+ * Already sold is a refusal rather than an update, unlike the single-row sale, which is deliberately
+ * re-sendable so a mistyped price can be fixed. A lot names rows a queue proposed, and a row that
+ * sold since the queue was drawn is evidence the queue is stale: re-pricing it would silently
+ * overwrite a sale somebody entered by hand.
+ */
+internal fun sellLot(
+    userId: String,
+    dropKey: String,
+    amountBasis: String,
+    splitMethod: String,
+    rows: List<LotRow>,
+    now: Instant,
+): String? {
+    // Every row read and checked before any is written. Exposed would roll back a throw, but a
+    // refusal is not a throw, and returning early from a half-written loop would commit the prefix.
+    val refusal = lotDropRefusal(dropKey) ?: rows.firstNotNullOfOrNull { lotRowRefusal(userId, dropKey, it) }
+    if (refusal != null) return refusal
+
+    rows.forEach { row ->
+        sellLoot(
+            row.lootId,
+            SellLootRequest(row.amount, amountBasis, splitMethod, row.sellerMemberId.toString(), row.shares),
+            row.sellerMemberId,
+            row.partyId,
+            now,
+        )
+    }
+    return null
+}
+
+/**
+ * Why this one row cannot take its slice of a lot, or null.
+ *
+ * sellLoot's own rules, plus two the shape needs. Every row has to be the drop the lot is of, and
+ * none may already be sold: a lot names rows a queue proposed, so a row that sold since the queue was
+ * drawn is evidence the queue is stale, and re-pricing it would overwrite a sale entered by hand.
+ * The single-row sale is deliberately re-sendable, which is the opposite rule for the opposite reason.
+ */
+private fun lotRowRefusal(
+    userId: String,
+    dropKey: String,
+    row: LotRow,
+): String? {
+    val loot = if (ownsParty(row.partyId, userId)) findLoot(row.lootId, row.partyId) else null
+    return when {
+        loot == null -> "a drop named here is not in your parties any more"
+        !partyCanSell(row.partyId) -> "Heroic worlds do not trade, so this cannot be sold."
+        loot.dropKey != dropKey -> "every row of a lot has to be the same drop"
+        loot.soldAt != null -> "a drop named here has sold since this list was drawn, so reload it"
+        row.amount < 0 -> "amount must be zero or more"
+        row.sellerMemberId.toString() !in loot.ranThatWeek ->
+            "sellerMemberId must be somebody who ran this boss that week"
+        else -> sharesRefusal(row.shares, loot.ranThatWeek)
+    }
+}
+
 internal fun deleteLoot(
     lootId: Uuid,
     partyId: Uuid,

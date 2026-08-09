@@ -25,6 +25,14 @@ data class BossDropResponse(
     val worlds: String?,
     val quantity: Int,
     /**
+     * Copies are interchangeable, so a pile of these is sold as one lot at a going rate.
+     *
+     * What lets the Drop Log file a sale against a queue of rows instead of on each row where it
+     * sits. False for a drop with its own potential lines and its own price, where a queue could
+     * only ever guess which copy went.
+     */
+    val fungible: Boolean = false,
+    /**
      * How many pieces this boss drops of it, by difficulty, for the count to be filled in with.
      *
      * Only the difficulties that drop any are in here. An absent one means nothing to fill, which is
@@ -84,6 +92,7 @@ internal fun dropTables(): Map<String, List<BossDropResponse>> {
                 perMember = row[DropCatalog.perMember],
                 worlds = row[DropCatalog.worlds],
                 quantity = row[DropCatalog.quantity],
+                fungible = row[DropCatalog.fungible],
                 pieces = piecesFor[row[BossCatalog.bossKey] to row[DropCatalog.dropKey]].orEmpty(),
                 bundles = bundlesFor[row[BossCatalog.bossKey] to row[DropCatalog.dropKey]].orEmpty(),
             )

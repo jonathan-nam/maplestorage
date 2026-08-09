@@ -35,6 +35,9 @@ fun Route.partyRoutes(nexonLookupService: NexonLookupService) {
     // A drop logged by character and boss rather than by pool, for the Drop Log. See logDropRoute.
     post("/loot") { logDropRoute() }
     post("/loot/settle") { settleRoute() }
+    // A pile of one interchangeable drop, priced in one go across every pool it sits in. See
+    // lotSaleRoute.
+    post("/loot/lot") { lotSaleRoute() }
     get("/{id}") { getParty() }
     put("/{id}") { savePartyRoute(nexonLookupService) }
     put("/{id}/roster") { saveWeekRosterRoute(nexonLookupService) }

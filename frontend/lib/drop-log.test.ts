@@ -554,6 +554,8 @@ describe("a piece drop counts YOUR share, not what fell", () => {
         perMember: null,
         worlds: "INTERACTIVE",
         quantity: 1,
+        // A piece drop settles through the tranche ledger, not by being sold as a lot.
+        fungible: false,
         pieces: { HARD: 60 },
         bundles: { HARD: 3 },
       },
