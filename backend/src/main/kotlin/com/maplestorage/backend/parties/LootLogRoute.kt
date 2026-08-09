@@ -28,9 +28,9 @@ import kotlin.uuid.Uuid
  * not. Registered under /api/parties rather than /api/parties/{id}/loot because the pool is what it
  * resolves, so there is no id to be under.
  *
- * The form offers only bosses that character has no party for, so the config this finds is normally
- * that boss's own solo pool, on its second drop and after. A caller naming a partied boss anyway
- * lands in the party's pool: one config per character per boss, so there is no second pool to open.
+ * The form offers EVERY boss, so a partied one arrives here routinely rather than exceptionally. It
+ * lands in that party's pool, because there is one config per character per boss and no second pool
+ * to open. Which is what made the form's old filter safe to drop: the resolution was always here.
  */
 internal suspend fun RoutingContext.logDropRoute() {
     val (userId, email) = call.principalIdAndEmail()

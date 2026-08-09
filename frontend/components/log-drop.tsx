@@ -2,34 +2,31 @@
 
 import { useState } from "react";
 import { DropPicker } from "@/components/drop-picker";
-import { bossesWithoutParty } from "@/lib/parties";
 import type { Boss } from "@/types/boss";
 import type { Character } from "@/types/character";
 import type { DropTables } from "@/types/drop";
 import type { LogDropBody } from "@/types/loot";
-import type { Party } from "@/types/party";
 
-// The Drop Log's own form: whose character, which boss they solo, what fell.
+// The Drop Log's own form: whose character, which boss, what fell.
 //
-// Bosses this character has a party for are not offered. Those drops belong to the party that ran
-// it, and are logged on the party, which is also where they are sold and paid out. The server would
-// file one here in the party's pool rather than a second one (see logDropRoute), so this is about
-// there being one obvious place to log each drop, not about preventing a wrong row.
+// EVERY boss is offered. It used to list only the ones that character had no party for, on the
+// grounds that a partied boss's drops belong on the party. That is where they end up either way,
+// because `poolFor` resolves the character's existing config when there is one and opens a solo
+// config only when there is not (see logDropRoute), so the filter never prevented a wrong row. What
+// it did was hide the obvious place to record a drop behind a rule nobody could see, leaving the
+// bosses you run with somebody looking absent from a list of bosses.
 //
-// The pool is still not asked for or sent. A boss run alone may have no pool at all yet, and which
-// one it is follows from the character and the boss.
+// The pool is still not asked for or sent. A boss may have no pool at all yet, and which one it is
+// follows from the character and the boss.
 
 export function LogDrop({
   characters,
-  parties,
   bosses,
   dropTables,
   busy,
   onLog,
 }: {
   characters: Character[];
-  /** Read with solo configs included, or every boss reads as unpartied. See bossesWithoutParty. */
-  parties: Party[];
   bosses: Boss[];
   dropTables: DropTables;
   busy: boolean;
@@ -45,15 +42,11 @@ export function LogDrop({
   const character = characters.find((c) => c.id === characterId) ?? characters[0];
   if (!character) return null;
 
-  const offered = bossesWithoutParty(parties, bosses, character.id);
-  // Switching character can strip the boss that was picked, if the new one runs it with a party.
-  // Held as unanswered rather than silently carried, which would post a drop against a boss the
-  // list no longer shows.
-  const chosen = offered.some((b) => b.bossKey === bossKey) ? bossKey : "";
+  const chosen = bosses.some((b) => b.bossKey === bossKey) ? bossKey : "";
 
   return (
     <section className="loot-pool">
-      <h2 className="loot-pool-title">Solo drops</h2>
+      <h2 className="loot-pool-title">Add Drop</h2>
 
       <DropPicker
         bossKey={chosen}
@@ -82,10 +75,8 @@ export function LogDrop({
               onChange={(e) => setBossKey(e.target.value)}
               aria-label="Which boss"
             >
-              {/* Says which bosses are on the list, where a bare "pick a boss" would leave the ones
-                  with a party looking missing. */}
-              <option value="">pick a boss you solo</option>
-              {offered.map((boss) => (
+              <option value="">pick a boss</option>
+              {bosses.map((boss) => (
                 <option key={boss.bossKey} value={boss.bossKey}>
                   {boss.name}
                 </option>
