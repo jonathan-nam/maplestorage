@@ -4344,11 +4344,33 @@ button.link:disabled {
   gap: 8px;
 }
 
+/* Whose runs these are. Deliberately not the .party-banner a character gets on Party View: that
+   one carries a 96px sprite, which is taller than the four rows it would be heading here. */
+.droplog-run-head {
+  margin-top: 10px;
+  color: var(--ink-strong);
+  font-size: 12px;
+  /* Weight rather than size: at 13px it was the boss names' own register, and a heading that
+     matches its rows is a row. */
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.droplog-run-head:first-child {
+  margin-top: 0;
+}
+
 .droplog-run {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 8px;
+}
+
+/* Indented under the name above them, so the group reads as one block. */
+.droplog-run-head + .droplog-run,
+.droplog-run-head ~ .droplog-run {
+  padding-left: 12px;
 }
 
 .droplog-run .loot-name {
