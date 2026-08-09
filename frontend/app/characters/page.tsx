@@ -7,18 +7,18 @@ import { CharacterRow } from "@/components/character-row";
 import { ApiError, apiFetch } from "@/lib/api";
 import { invalidate, peek, put } from "@/lib/cache";
 import { SETTINGS_KEY, setAccountSettings, useAccountSettings } from "@/lib/use-account-settings";
-import { otherWorld, worldLabel, type WorldType } from "@/lib/world";
+import { otherWorld, worldLabel } from "@/lib/world";
 import type { Character } from "@/types/character";
 import type { Settings } from "@/types/settings";
 
 const CHARACTERS_KEY = "/api/characters";
 
-// Your characters, and everything that is true of one.
+// Your characters, and everything you can do to one.
 //
-// Adding, ordering, deleting and which world each plays in all live here. The inventory carousel
-// used to carry them, which meant the strip you pick a character from was also the strip you
-// managed them in, and a world control had nowhere to go but a settings page it had nothing to do
-// with. This is that page, and the carousel is now only a picker.
+// Adding, ordering, refreshing and deleting. Which world a character is in is NOT among them: it
+// comes from the ranking lookup, and refreshing is how a wrong one is corrected. The inventory
+// carousel used to carry all this, which meant the strip you pick a character from was also the
+// strip you managed them in. This is that page, and the carousel is now only a picker.
 
 export default function CharactersPage() {
   const { getToken } = useAuth();
@@ -29,8 +29,9 @@ export default function CharactersPage() {
   const [loaded, setLoaded] = useState(Boolean(seeded));
   const [failed, setFailed] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // A character that was added into the other world. Not an error, and not permanent state: it is
-  // the one thing that would otherwise happen with nothing on screen to show for it.
+  // A character the lookup put in the other world, on being added or refreshed. Not an error: it
+  // is the app learning where a character actually is, and the one thing that would otherwise
+  // happen with nothing on screen to show for it.
   const [elsewhere, setElsewhere] = useState<string | null>(null);
 
   useEffect(() => {
@@ -47,16 +48,13 @@ export default function CharactersPage() {
   /**
    * Shows the change, then persists it, and puts it back if the server refuses.
    *
-   * Optimistic because the alternative flickered. This used to set one `busy` flag for the round
-   * trip AND the settings refetch after it, and every control on the page took it: .tile-move and
-   * .party-* all dim when disabled, so clicking one character's world flashed the arrows and
-   * buttons of every other row while the toggle you clicked (.basis-tab, which has no disabled
-   * style) sat still. Nothing is disabled here now.
+   * Optimistic because the alternative flickered, and nothing on the page is disabled while it is
+   * in flight: .tile-move and .party-* both dim when disabled, so a page-wide busy flag made every
+   * other row flash on a click that changed one of them.
    *
-   * A world decides whether a party can sell and a deletion takes party seats with it, so the
-   * cached /api/parties is wrong either way and the next page to read it would draw the old
-   * answer. `trades` is refetched rather than worked out locally: it is what the section menu and
-   * the Drop Log's totals key off, and a second answer computed here is a second answer.
+   * The caches are dropped rather than reasoned about. Only reordering goes through here now, and
+   * that alone would not need it, but the cost is one request against a class of bug that is
+   * silent: a screen drawn from a list this page has already replaced.
    */
   async function persist(apply: (list: Character[]) => Character[], save: () => Promise<unknown>) {
     const before = characters;
@@ -77,23 +75,6 @@ export default function CharactersPage() {
       setError(e instanceof ApiError ? e.body : "Couldn't save that.");
     }
   }
-
-  // Moves the character OUT of the list it is in, which is the point of it: this is how a
-  // character added in the wrong world gets to the right one. It leaves the page rather than
-  // changing colour, so the optimistic step drops it.
-  const setWorld = (id: string, next: WorldType) => {
-    // Clicking the world a character is already in is not a change to save.
-    if (characters.find((c) => c.id === id)?.worldType === next) return;
-    return persist(
-      (list) => list.filter((c) => c.id !== id),
-      () =>
-        apiFetch<Character>(
-          `${CHARACTERS_KEY}/${id}`,
-          { method: "PUT", body: JSON.stringify({ worldType: next }) },
-          getToken,
-        ),
-    );
-  };
 
   const move = (index: number, direction: -1 | 1) => {
     const target = index + direction;
@@ -116,24 +97,33 @@ export default function CharactersPage() {
     );
   };
 
-  // Written straight to state rather than through write(): these two already hold the new roster,
-  // and re-deriving it from a list this component is about to replace would fight itself.
+  // Written straight to state rather than through write(): these already hold the new roster, and
+  // re-deriving it from a list this component is about to replace would fight itself.
   //
-  // A new character lands in the world the LOOKUP found, which need not be the one on screen. Kept
-  // off the list when it is not, because a row that disappears on the next load is worse than a
-  // line saying where it went.
+  // A character's world comes from the LOOKUP, so both adding and refreshing one can put it in a
+  // world this list is not showing. Both take it off the list and say where it went, because a row
+  // that disappears on the next load is worse than a line naming the world it is in.
+  const placed = (character: Character) => {
+    if (character.worldType === settings?.worldType) return true;
+    setElsewhere(
+      `${character.name} is in ${character.worldName ?? worldLabel(character.worldType)}.`,
+    );
+    return false;
+  };
   const added = (character: Character) => {
-    if (character.worldType === settings?.worldType) {
-      setCharacters((prev) => [...prev, character]);
-    } else {
-      setElsewhere(
-        `${character.name} is in ${character.worldName ?? worldLabel(character.worldType)}.`,
-      );
-    }
+    if (placed(character)) setCharacters((prev) => [...prev, character]);
     invalidate("/api/");
   };
-  const updated = (character: Character) =>
-    setCharacters((prev) => prev.map((c) => (c.id === character.id ? character : c)));
+  // A refresh is the only thing that can now move a character between worlds, so it is the only
+  // place a row can leave this list without being deleted.
+  const updated = (character: Character) => {
+    if (placed(character)) {
+      setCharacters((prev) => prev.map((c) => (c.id === character.id ? character : c)));
+      return;
+    }
+    setCharacters((prev) => prev.filter((c) => c.id !== character.id));
+    invalidate("/api/");
+  };
   const deleted = (id: string) => {
     setCharacters((prev) => prev.filter((c) => c.id !== id));
     invalidate("/api/");
@@ -157,7 +147,6 @@ export default function CharactersPage() {
                 character={character}
                 onUpdated={updated}
                 onDeleted={deleted}
-                onSetWorld={(next) => setWorld(character.id, next)}
                 onMove={(direction) => move(index, direction)}
                 canMoveUp={index > 0}
                 canMoveDown={index < characters.length - 1}

@@ -7,7 +7,6 @@ import com.maplestorage.backend.plugins.span
 import com.maplestorage.backend.services.NexonLookupService
 import com.maplestorage.backend.users.activeWorldFor
 import com.maplestorage.backend.users.ensureUser
-import com.maplestorage.backend.users.worldTypeOrNull
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.call
 import io.ktor.server.request.receive
@@ -179,14 +178,6 @@ private suspend fun RoutingContext.updateCharacter() {
     val characterId = call.parseUuidParam("id") ?: return
     val request = call.receive<UpdateCharacterRequest>()
 
-    // Refused rather than ignored. A world silently dropped would leave the character in the other
-    // one, and its parties would go on offering to sell what cannot be sold.
-    val world = request.worldType?.let { worldTypeOrNull(it) }
-    if (request.worldType != null && world == null) {
-        call.respond(HttpStatusCode.BadRequest, "worldType must be INTERACTIVE or HEROIC")
-        return
-    }
-
     val updated =
         transaction {
             ensureUser(userId, email)
@@ -194,7 +185,6 @@ private suspend fun RoutingContext.updateCharacter() {
                 Characters.update({ (Characters.id eq characterId) and (Characters.userId eq userId) }) { row ->
                     request.name?.let { row[Characters.name] = it }
                     request.level?.let { row[Characters.level] = it }
-                    world?.let { row[Characters.worldType] = it }
                     row[Characters.updatedAt] = Clock.System.now()
                 }
             if (rowsChanged == 0) null else findOwnedCharacter(characterId, userId)
@@ -219,23 +209,9 @@ private suspend fun RoutingContext.refreshCharacter(nexonLookupService: NexonLoo
     val lookup = call.span("nexon") { nexonLookupService.lookup(existingName) }
     val refreshed =
         transaction {
-            // A transient lookup failure leaves existing level/job/sprite
-            // untouched rather than nulling out previously-good data.
-            if (lookup != null) {
-                Characters.update({ (Characters.id eq characterId) and (Characters.userId eq userId) }) { row ->
-                    row[level] = lookup.level
-                    row[jobName] = lookup.jobName
-                    // Recorded, but worldType is deliberately NOT moved to match it. Moving a
-                    // character between worlds takes its parties and its loot history into a view
-                    // you are not looking at, so it needs a screen that says what moved, and that
-                    // screen is the world picker. Until then this is the evidence, sitting next to
-                    // the tick, where a disagreement can be seen rather than acted on silently.
-                    lookup.world?.let { row[worldName] = it.displayName }
-                    row[spriteImgUrl] = lookup.spriteImgUrl
-                    row[spriteRefreshedAt] = Clock.System.now()
-                    row[updatedAt] = Clock.System.now()
-                }
-            }
+            // A transient lookup failure leaves existing level/job/sprite untouched rather than
+            // nulling out previously-good data.
+            if (lookup != null) applyLookup(characterId, userId, lookup, Clock.System.now())
             findOwnedCharacter(characterId, userId)
         }
     call.respond(refreshed!!)
