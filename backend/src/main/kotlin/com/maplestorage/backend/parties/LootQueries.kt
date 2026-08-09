@@ -273,6 +273,14 @@ internal fun lootCountsFor(
         }
     if (loot.isEmpty()) return emptyMap()
 
+    // Work still to do. Unsold either way, and for a piece drop also somebody else holding your
+    // share: the coupons from an even night are already in your own inventory. See LootPoolWork.kt.
+    val inPieces = pieceLootIds(partyIds)
+    val heldByOther = partiesHoldingYourShare(partyIds)
+    val outstanding = { row: LootRow ->
+        !row.sold && (row.id !in inPieces || row.partyId in heldByOther)
+    }
+
     val unpaidLootIds =
         PartyLootPayout
             .selectAll()
@@ -293,7 +301,7 @@ internal fun lootCountsFor(
         .groupBy { it.partyId }
         .mapValues { (_, rows) ->
             LootCounts(
-                pending = rows.count { !it.sold && byThen(it) },
+                pending = rows.count { outstanding(it) && byThen(it) },
                 awaitingPayout = rows.count { it.sold && it.id in unpaidLootIds && byThen(it) },
                 settled = rows.count { it.sold && it.id !in unpaidLootIds && inWeek(it) },
             )

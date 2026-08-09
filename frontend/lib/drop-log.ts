@@ -260,8 +260,10 @@ export function buildDropLog(
  * share: `owedBy` is set only then, and a party that divided evenly leaves it null.
  */
 export function isOutstanding(entry: DropEntry): boolean {
-  if (entry.pieces) return entry.owedBy !== null;
-  return entry.status === "PENDING";
+  // Unsold either way. Keying only on `owedBy` counted a piece drop that HAD been sold and paid
+  // out through the money path, which is the one way a coupon row does reach a settled state.
+  if (entry.status !== "PENDING") return false;
+  return !entry.pieces || entry.owedBy !== null;
 }
 
 /**
