@@ -22,11 +22,13 @@ import {
   type LedgerDrop,
   type PieceSale,
   allocate,
+  balances,
   entitlements,
+  heldOf,
   transfersOf,
 } from "./piece-ledger";
 import type { PieceTransfer } from "./piece-ledger";
-import type { PartyLootPool } from "@/types/loot";
+import type { Loot, PartyLootPool } from "@/types/loot";
 import type { Party, PartyMember } from "@/types/party";
 
 /** Whose pile it is. Mirrors the three kinds V39 stores, and is what a tranche is filed under. */
@@ -156,14 +158,164 @@ export function yourShare(whole: number, seats: PartyMember[]): number {
 }
 
 /**
+ * Whether stacks can be shared out so every holder ends on exactly their entitlement.
+ *
+ * A holder is entitled to `bundles * shares / weight` stacks, and a stack is whole, so a drop
+ * divides by looting alone only when that is a whole number for every one of them. A duo on 3
+ * stacks cannot: 1.5 each, and somebody walks off with the odd one.
+ *
+ * Measured on FOLDED holders, never on seats. Three stacks between three characters where one
+ * person brought two of them divides perfectly, and reading it per seat would report a debt that
+ * does not exist.
+ */
+export function dividesEvenly(bundles: number, holders: FoldedSeat[]): boolean {
+  const weight = holders.reduce((sum, h) => sum + h.shares, 0);
+  if (weight <= 0) return false;
+  return holders.every((h) => (bundles * h.shares) % weight === 0);
+}
+
+/** The seats that ran, folded to the people behind them. Empty when there is nothing to divide. */
+function holdersOf(party: Party): FoldedSeat[] {
+  const ran = party.members;
+  if (ran.length < 2) return [];
+  return foldSeats(ran);
+}
+
+/**
+ * What each holder walked away with, or null when nobody has said and it matters.
+ *
+ * Three ways a night can be known, and one way it cannot:
+ *
+ *  - a named looter, who holds the lot. What a party running one seller means.
+ *  - a recorded arrangement, stack by stack, folded to holders.
+ *  - neither, but the stacks divide, so everybody took exactly their share.
+ *
+ * Otherwise null. The drop did not divide, nobody has said who took the odd stack, and there is no
+ * honest default: a guess is right half the time and names the wrong person the rest.
+ */
+function heldByHolder(loot: Loot, party: Party, holders: FoldedSeat[]): Map<string, Pile> | null {
+  if (party.looterMemberId !== null) {
+    const looter = party.seats.find((s) => s.id === party.looterMemberId);
+    if (looter) {
+      const key = holderKey(holderOf(looter));
+      return new Map([[key, { pieces: loot.quantity, by: looter.name }]]);
+    }
+  }
+
+  if (loot.bundlesBy.length > 0 && loot.bundles !== null && loot.bundles > 0) {
+    // Stacks are equal, so a seat's pieces are its stacks times the stack size. Whole by
+    // construction: the seed refuses a total that does not divide by its bundle count.
+    const size = loot.quantity / loot.bundles;
+    const seat = new Map(party.seats.map((s) => [s.id, s]));
+    const held = new Map<string, Pile>();
+    for (const row of loot.bundlesBy) {
+      const picked = seat.get(row.memberId);
+      if (!picked) return null;
+      const key = holderKey(holderOf(picked));
+      const seen = held.get(key);
+      if (seen) {
+        seen.pieces += row.bundles * size;
+        // One person can bend down twice. Both characters are named, because which of them is
+        // holding the coupons is the thing the row exists to tell them.
+        if (!seen.by.includes(picked.name)) seen.by = `${seen.by}, ${picked.name}`;
+      } else {
+        held.set(key, { pieces: row.bundles * size, by: picked.name });
+      }
+    }
+    return held;
+  }
+
+  if (loot.bundles !== null && dividesEvenly(loot.bundles, holders)) {
+    const weight = holders.reduce((sum, h) => sum + h.shares, 0);
+    return new Map(
+      holders.map((h) => [h.key, { pieces: (loot.quantity * h.shares) / weight, by: h.name }]),
+    );
+  }
+  return null;
+}
+
+/** One holder's pieces from one drop, and which of their characters bent down for them. */
+type Pile = { pieces: number; by: string };
+
+/** A drop nobody can be paid for yet, because who took the odd stack has not been said. */
+export type UnansweredDrop = {
+  lootId: string;
+  partyId: string;
+  bossKey: string | null;
+  weekStart: string;
+  quantity: number;
+  /** How many whole stacks it fell in. */
+  bundles: number;
+  /**
+   * Pieces that cannot be where they belong, whoever picked up what.
+   *
+   * Known exactly even though the direction is not: the arrangement closest to even is forced, so
+   * the SIZE of the imbalance follows from the stacks and the shares alone. It is the one useful
+   * thing that can be said about a night nobody has answered for.
+   */
+  imbalance: number;
+};
+
+/**
+ * Drops that did not divide and that nobody has answered for.
+ *
+ * These owe somebody, and until the arrangement is recorded there is no saying who. Listed rather
+ * than dropped: outstanding() used to skip every party with no looter, so an uneven night filed a
+ * row and recorded no debt at all, silently. A missing item beats a wrong count, but a missing item
+ * still has to be visible.
+ */
+export function unanswered(
+  parties: Party[],
+  pools: PartyLootPool[],
+  dropKey: string,
+): UnansweredDrop[] {
+  const partyById = new Map(parties.map((p) => [p.id, p]));
+  const out: UnansweredDrop[] = [];
+
+  for (const pool of pools) {
+    const party = partyById.get(pool.partyId);
+    if (!party) continue;
+    const holders = holdersOf(party);
+    if (holders.length < 2) continue;
+    const weight = holders.reduce((sum, h) => sum + h.shares, 0);
+
+    for (const loot of pool.loot) {
+      if (loot.dropKey !== dropKey || loot.quantity < 1 || loot.bundles === null) continue;
+      if (heldByHolder(loot, party, holders) !== null) continue;
+
+      // What the closest-to-even arrangement still leaves misplaced. Halved because every piece
+      // over somebody's share is the same piece under somebody else's, counted once from each end.
+      const size = loot.quantity / loot.bundles;
+      const drift = holders.reduce((sum, h) => {
+        const entitled = (loot.quantity * h.shares) / weight;
+        return sum + Math.abs(Math.round(entitled / size) * size - entitled);
+      }, 0);
+
+      out.push({
+        lootId: loot.id,
+        partyId: pool.partyId,
+        bossKey: loot.bossKey,
+        weekStart: loot.weekStart,
+        quantity: loot.quantity,
+        bundles: loot.bundles,
+        imbalance: Math.round(drift / 2),
+      });
+    }
+  }
+  return out;
+}
+
+/**
  * Every drop that still owes somebody, oldest first.
  *
- * A drop is outstanding when its party names a looter: that seat holds the lot and owes the others
- * their share. A drop on a party where everybody loots their own owes nothing and is left out
- * entirely, which is why an even night never appears here and asks nothing of anybody.
+ * One row per HOLDER holding pieces of a drop, not one per drop. A drop looted stack by stack sits
+ * in several piles at once, each draining its own owner's tranches, and one row could only ever
+ * describe one of them.
  *
- * Left out for the same reason: a party whose seats are all ONE person, however many characters
- * they brought. Nobody owes anybody, and the pieces are already where they belong.
+ * A drop owes nothing and is left out when every pile matches its owner's share: a party whose
+ * stacks divide, or one whose seats are all ONE person however many characters they brought. What
+ * is NOT left out any more is the night that did not divide with no arrangement recorded. That is
+ * `unanswered()`, and it used to vanish from here without a word.
  *
  * `bossOrder` breaks ties inside a week, and should be the catalog's own order so the queue never
  * depends on which row was read first. A boss missing from it sorts last rather than throwing.
@@ -179,44 +331,49 @@ export function outstanding(
 
   for (const pool of pools) {
     const party = partyById.get(pool.partyId);
-    if (!party || party.looterMemberId === null) continue;
-    const looter = party.seats.find((s) => s.id === party.looterMemberId);
-    if (!looter) continue;
+    if (!party) continue;
 
-    // Who ran that week is who the shares are measured against, the same list a payout uses.
-    const ran = party.members;
-    if (ran.length < 2) continue;
-
-    // Seats folded to holders: two characters of one person are one share of the drop and one
-    // party to the debt. A night that folds to a single holder is nobody owing anybody.
-    const holders = foldSeats(ran);
+    // Who ran that week is who the shares are measured against, the same list a payout uses. Seats
+    // folded to holders: two characters of one person are one share of the drop and one party to
+    // the debt, so a night that folds to a single holder is nobody owing anybody.
+    const holders = holdersOf(party);
     if (holders.length < 2) continue;
-
-    const looterHolder = holderKey(holderOf(looter));
+    const byKey = new Map(holders.map((h) => [h.key, h]));
 
     for (const loot of pool.loot) {
       if (loot.dropKey !== dropKey || loot.quantity < 1) continue;
-      out.push({
-        lootId: loot.id,
-        partyId: pool.partyId,
-        bossKey: loot.bossKey,
-        holder: holderOf(looter),
-        holderName: holderName(looter),
-        looterName: looter.name,
-        drop: {
-          id: loot.id,
-          weekStart: loot.weekStart,
-          order: bossOrder.get(loot.bossKey ?? "") ?? Number.MAX_SAFE_INTEGER,
-          total: loot.quantity,
-          // The looter's holder has all of it; every other holder has none and is owed their share.
-          seats: holders.map((h) => ({
-            memberId: h.key,
-            name: h.name,
-            looted: h.key === looterHolder ? loot.quantity : 0,
-            shares: h.shares,
-          })),
-        },
-      });
+      const held = heldByHolder(loot, party, holders);
+      if (held === null) continue;
+
+      const seats = holders.map((h) => ({
+        memberId: h.key,
+        name: h.name,
+        looted: held.get(h.key)?.pieces ?? 0,
+        shares: h.shares,
+      }));
+      // Everybody is exactly on their share, so there is nothing to settle and no pile to queue.
+      if (balances(loot.quantity, seats).every((b) => b.balance === 0)) continue;
+
+      for (const [key, pile] of held) {
+        const holder = byKey.get(key);
+        if (!holder || pile.pieces < 1) continue;
+        out.push({
+          lootId: loot.id,
+          partyId: pool.partyId,
+          bossKey: loot.bossKey,
+          holder: holder.holder,
+          holderName: holder.name,
+          looterName: pile.by,
+          drop: {
+            id: loot.id,
+            weekStart: loot.weekStart,
+            order: bossOrder.get(loot.bossKey ?? "") ?? Number.MAX_SAFE_INTEGER,
+            total: loot.quantity,
+            held: pile.pieces,
+            seats,
+          },
+        });
+      }
     }
   }
   return out;
@@ -264,11 +421,16 @@ export function holderLedgers(
         bossKey: d.bossKey,
         weekStart: d.drop.weekStart,
         looterName: d.looterName,
-        pieces: d.drop.total,
+        // What is in THIS pile, which is what their own sales can cover. The whole drop would
+        // count somebody else's stacks as unsold pieces of theirs.
+        pieces: heldOf(d.drop),
         covered: cover?.covered ?? 0,
         complete: cover?.complete ?? false,
         averagePrice: cover?.averagePrice ?? null,
-        transfers: transfersOf(d.drop, cover),
+        // Only what THIS holder owes. A split drop has a row in each pile it sits in, and every one
+        // of them would otherwise repeat the whole drop's debts, counting each of them once per
+        // pile.
+        transfers: transfersOf(d.drop, cover, key),
       };
     });
     // Your side of this pile, read off the transfers rather than recomputed: whatever they are
@@ -278,7 +440,7 @@ export function holderLedgers(
     ledgers.push({
       holder: mine[0]!.holder,
       holderName: mine[0]!.holderName,
-      pieces: mine.reduce((sum, d) => sum + d.drop.total, 0),
+      pieces: mine.reduce((sum, d) => sum + heldOf(d.drop), 0),
       owedToYou: yours.reduce((sum, t) => sum + t.pieces, 0),
       dueNow: yours.reduce((sum, t) => sum + (t.send ?? 0), 0),
       drops,
@@ -309,14 +471,20 @@ export function unsold(ledger: HolderLedger): number {
   return ledger.drops.reduce((sum, d) => sum + (d.pieces - d.covered), 0);
 }
 
-/** Every drop that mentions this loot row, for the row's own read-only display. */
+/**
+ * Every pile this loot row sits in, for the row's own read-only display.
+ *
+ * A list, not one entry: a drop looted stack by stack is in as many piles as there were people
+ * bending down, and answering with the first would name one holder and quietly drop the others.
+ * One entry is the ordinary case, where a single looter holds the lot.
+ */
 export function ledgerForLoot(
   ledgers: HolderLedger[],
   lootId: string,
-): { holderName: string; drop: HolderLedger["drops"][number] } | null {
-  for (const ledger of ledgers) {
-    const drop = ledger.drops.find((d) => d.lootId === lootId);
-    if (drop) return { holderName: ledger.holderName, drop };
-  }
-  return null;
+): { holderName: string; drop: HolderLedger["drops"][number] }[] {
+  return ledgers.flatMap((ledger) =>
+    ledger.drops
+      .filter((d) => d.lootId === lootId)
+      .map((drop) => ({ holderName: ledger.holderName, drop })),
+  );
 }
