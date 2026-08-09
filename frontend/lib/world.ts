@@ -31,8 +31,8 @@ export function canTrade(world: WorldType): boolean {
 /**
  * Whether this drop exists in this world.
  *
- * `worlds` is null for the overwhelming majority; only the three scroll coupons narrow to
- * INTERACTIVE. See catalog/drops.yaml.
+ * `worlds` is null for every drop in catalog/drops.yaml today, so nothing is narrowed at the
+ * moment. The filter stays: a drop that does not exist in Reboot is a pool row that cannot happen.
  */
 export function dropExistsIn(worlds: string | null, world: WorldType): boolean {
   return worlds === null || worlds === world;

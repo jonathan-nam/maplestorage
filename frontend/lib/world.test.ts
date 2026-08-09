@@ -15,13 +15,13 @@ describe("what a world can do", () => {
 
 describe("whether a drop exists here", () => {
   it("puts an unnarrowed drop in both worlds", () => {
-    // null is the overwhelming majority of catalog/drops.yaml. Reading it as "nowhere" would empty
-    // every picker in the app.
+    // null is every drop in catalog/drops.yaml today. Reading it as "nowhere" would empty every
+    // picker in the app.
     expect(dropExistsIn(null, "INTERACTIVE")).toBe(true);
     expect(dropExistsIn(null, "HEROIC")).toBe(true);
   });
 
-  it("keeps the scroll coupons out of Heroic worlds", () => {
+  it("keeps an Interactive-only drop out of Heroic worlds", () => {
     expect(dropExistsIn("INTERACTIVE", "INTERACTIVE")).toBe(true);
     expect(dropExistsIn("INTERACTIVE", "HEROIC")).toBe(false);
   });
