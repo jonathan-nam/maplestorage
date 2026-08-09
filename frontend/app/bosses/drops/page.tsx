@@ -163,6 +163,9 @@ export default function DropLogPage() {
 
   const bossByKey = new Map(bosses.map((b) => [b.bossKey, b]));
   const characterById = new Map(characters.map((c) => [c.id, c]));
+  // Roster order, as /api/characters returns it (Characters.position). The same list the party
+  // arrangements are ordered by, so one character sits in the same place on both screens.
+  const characterOrder = characters.map((c) => c.id);
   // The whole log is kept alongside the filtered one so the toolbar does not come and go: which
   // controls exist is a property of the account, not of what the filter currently leaves.
   const whole = buildDropLog(parties, pools, dropTables);
@@ -309,6 +312,7 @@ export default function DropLogPage() {
               group={group}
               bossByKey={bossByKey}
               characterById={characterById}
+              characterOrder={characterOrder}
               showCharacter={character === null}
               money={money}
             />
@@ -334,12 +338,15 @@ function GroupSection({
   group,
   bossByKey,
   characterById,
+  characterOrder,
   showCharacter,
   money,
 }: {
   group: DropGroup;
   bossByKey: Map<string, Boss>;
   characterById: Map<string, Character>;
+  /** Character ids in roster order, which is what the runs behind a fold are sorted by. */
+  characterOrder: string[];
   showCharacter: boolean;
   money: boolean;
 }) {
@@ -355,7 +362,7 @@ function GroupSection({
         )}
       </header>
       <ul className="droplog-list">
-        {consolidate(group.entries).map((line) => (
+        {consolidate(group.entries, characterOrder).map((line) => (
           <DropRow
             key={line.key}
             line={line}

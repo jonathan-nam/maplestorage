@@ -110,6 +110,9 @@ const pending = (over: Partial<Loot> = {}): Loot =>
   });
 
 const pool = (partyId: string, loot: Loot[]): PartyLootPool => ({ partyId, loot });
+
+/** Roster order, as /api/characters returns it. Most fixtures are one character. */
+const ORDER = ["char-m1", "char-m2"];
 const duo = () => party("pa", [mine("m1", "mechyfechy"), theirs("m2", "CreedBratton")]);
 
 describe("buildDropLog", () => {
@@ -407,7 +410,7 @@ describe("consolidate", () => {
       ],
       {},
     );
-    const lines = consolidate(log.entries);
+    const lines = consolidate(log.entries, ORDER);
     expect(lines).toHaveLength(1);
     expect(lines[0]!.yours).toBe(180);
     expect(lines[0]!.folded).toBe(true);
@@ -415,7 +418,7 @@ describe("consolidate", () => {
   });
 
   it("leaves a drop that appears once exactly as it was", () => {
-    const lines = consolidate(buildDropLog([duo()], [pool("pa", [drop()])], {}).entries);
+    const lines = consolidate(buildDropLog([duo()], [pool("pa", [drop()])], {}).entries, ORDER);
     expect(lines).toHaveLength(1);
     expect(lines[0]!.folded).toBe(false);
     expect(lines[0]!.key).toBe("l1");
@@ -434,7 +437,7 @@ describe("consolidate", () => {
       ],
       {},
     );
-    expect(consolidate(log.entries)).toHaveLength(2);
+    expect(consolidate(log.entries, ORDER)).toHaveLength(2);
   });
 
   it("sums the money over the rows that sold, and says nothing when none did", () => {
@@ -456,7 +459,7 @@ describe("consolidate", () => {
       ],
       {},
     );
-    const line = consolidate(log.entries)[0]!;
+    const line = consolidate(log.entries, ORDER)[0]!;
     expect(line.yours).toBe(90);
     expect(line.pooled).toBe(1_000_000_000);
 
@@ -466,8 +469,51 @@ describe("consolidate", () => {
         [pool("pa", [coupon("l1", "limbo", 30), coupon("l2", "baldrix", 60)])],
         {},
       ).entries,
+      ORDER,
     )[0]!;
     expect(unsold.pooled).toBeNull();
+  });
+
+  it("puts a fold's runs in roster order, newest first inside each character", () => {
+    // Three characters, interleaved by date. Newest-first alone made reading one character's
+    // night a matter of picking their rows out of the list.
+    const one = party("pa", [mine("m1", "Huskyxkenshi")]);
+    const two = party("pb", [mine("m2", "acornacorn", "char-m2")]);
+    const three = party("pc", [mine("m3", "warrior2020", "char-m3")]);
+    const log = buildDropLog(
+      [one, two, three],
+      [
+        pool("pa", [drop({ id: "l1", droppedOn: "2026-07-20" })]),
+        pool("pb", [drop({ id: "l2", droppedOn: "2026-07-22" })]),
+        pool("pc", [drop({ id: "l3", droppedOn: "2026-07-21" })]),
+        pool("pa", [drop({ id: "l4", droppedOn: "2026-07-23" })]),
+      ],
+      {},
+    );
+
+    // The roster says warrior2020 first, then Husky, then acornacorn, and that is the order the
+    // runs read in whatever order they fell.
+    const roster = ["char-m3", "char-m1", "char-m2"];
+    const line = consolidate(log.entries, roster)[0]!;
+    expect(line.entries.map((e) => e.lootId)).toEqual(["l3", "l4", "l1", "l2"]);
+
+    // Husky's own two are still newest first within their group.
+    const husky = line.entries.filter((e) => e.characterId === "char-m1");
+    expect(husky.map((e) => e.droppedOn)).toEqual(["2026-07-23", "2026-07-20"]);
+  });
+
+  it("puts a character the roster does not name last, not first", () => {
+    // A missing index reads as 0 if it is not guarded, which would float a departed character to
+    // the top of every fold.
+    const one = party("pa", [mine("m1", "Huskyxkenshi")]);
+    const gone = party("pb", [mine("m2", "Ghost", "char-gone")]);
+    const log = buildDropLog(
+      [one, gone],
+      [pool("pb", [drop({ id: "l1" })]), pool("pa", [drop({ id: "l2" })])],
+      {},
+    );
+    const line = consolidate(log.entries, ["char-m1"])[0]!;
+    expect(line.entries.map((e) => e.lootId)).toEqual(["l2", "l1"]);
   });
 
   it("keeps every row behind the fold, so each run can still be reached", () => {
@@ -483,7 +529,7 @@ describe("consolidate", () => {
       ],
       {},
     );
-    const line = consolidate(log.entries)[0]!;
+    const line = consolidate(log.entries, ORDER)[0]!;
 
     expect(line.entries.map((e) => e.lootId)).toEqual(["l2", "l1"]);
     expect(line.entries.map((e) => e.quantity)).toEqual([30, 90]);
@@ -528,8 +574,8 @@ describe("a piece drop counts YOUR share, not what fell", () => {
     expect(entry.yours).toBe(20);
     // Nobody looted the lot, so they are already yours and nobody is named.
     expect(entry.owedBy).toBeNull();
-    expect(consolidate(log.entries)[0]!.yours).toBe(20);
-    expect(consolidate(log.entries)[0]!.fell).toBe(60);
+    expect(consolidate(log.entries, ORDER)[0]!.yours).toBe(20);
+    expect(consolidate(log.entries, ORDER)[0]!.fell).toBe(60);
   });
 
   it("adds up to the runs it folds, which is what a fold means", () => {
@@ -540,7 +586,7 @@ describe("a piece drop counts YOUR share, not what fell", () => {
       [pool("pa", [coupons({ id: "l1" }), coupons({ id: "l2", droppedOn: "2026-07-27" })])],
       tables,
     );
-    const line = consolidate(log.entries)[0]!;
+    const line = consolidate(log.entries, ORDER)[0]!;
 
     expect(line.folded).toBe(true);
     expect(line.yours).toBe(line.entries.reduce((sum, e) => sum + e.yours, 0));
