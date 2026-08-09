@@ -16,6 +16,7 @@ import {
   type Counterparty,
 } from "@/lib/wallet";
 import { preloadBossArt } from "@/lib/preload-boss-art";
+import { useSeatSprites } from "@/lib/seat-sprites";
 import { useRowWrites } from "@/lib/use-row-writes";
 import type { Boss } from "@/types/boss";
 import type { PartyLootPool, SettleBody } from "@/types/loot";
@@ -53,6 +54,9 @@ export default function WalletPage() {
   const [state, setState] = useState<LoadState>("loading");
   const [open, setOpen] = useState<string | null>(null);
   const [confirming, setConfirming] = useState<string | null>(null);
+
+  // A line here is a link to a party, which draws its seats. See lib/seat-sprites.ts.
+  useSeatSprites(parties);
   // Per counterparty, so settling with one person does not grey out everybody else's button. One
   // write at a time still, because each one replaces the pools. See lib/use-row-writes.ts.
   const { isSaving, write } = useRowWrites();

@@ -28,6 +28,7 @@ import { type Availability, planNight, screenRuns, tradeOffs } from "@/lib/boss-
 import { peek, put } from "@/lib/cache";
 import { runningThisPeriod } from "@/lib/parties";
 import { preloadRunArt } from "@/lib/preload-boss-art";
+import { useSeatSprites } from "@/lib/seat-sprites";
 import { useRowWrites } from "@/lib/use-row-writes";
 import { useShowTimes } from "@/lib/show-times";
 import type { Boss } from "@/types/boss";
@@ -144,6 +145,9 @@ export default function RunOrderPage() {
   const [bosses, setBosses] = useState<Boss[]>(seededBosses ?? []);
   const [dropTables, setDropTables] = useState<DropTables>(peek<DropTables>(DROPS_KEY) ?? {});
   const [state, setState] = useState<LoadState>(seededParties ? "loaded" : "loading");
+
+  // A run in the night links to its party, which draws its seats. See lib/seat-sprites.ts.
+  useSeatSprites(parties);
 
   // Per row, so ticking one boss does not dim every other row's controls. See lib/use-row-writes.ts.
   const { isSaving, write } = useRowWrites();

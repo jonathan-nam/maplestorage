@@ -25,6 +25,7 @@ import {
 import { formatMesos } from "@/lib/drop-split";
 import { formatDropped } from "@/lib/loot";
 import { type LotSaleBody, fungibleDropKeys, lotDrops } from "@/lib/lot-sale";
+import { useSeatSprites } from "@/lib/seat-sprites";
 import { useAccountSettings } from "@/lib/use-account-settings";
 import {
   type Holder,
@@ -78,6 +79,10 @@ export default function DropLogPage() {
     peek<Character[]>(CHARACTERS_KEY) ?? [],
   );
   const [tranches, setTranches] = useState<VestigeTranche[]>([]);
+
+  // A drop names the party it fell in and links to it, which draws its seats. See
+  // lib/seat-sprites.ts.
+  useSeatSprites(parties);
   const [state, setState] = useState<LoadState>("loading");
   const [character, setCharacter] = useState<string | null>(null);
   const [grouping, setGrouping] = useState<Grouping>("month");
