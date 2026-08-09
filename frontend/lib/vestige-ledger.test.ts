@@ -90,6 +90,8 @@ const coupon = (id: string, bossKey: string, quantity: number, weekStart: string
   soldAt: null,
   payouts: [],
   ranThatWeek: [],
+  bundles: null,
+  bundlesBy: [],
 });
 
 const pool = (partyId: string, loot: Loot[]): PartyLootPool => ({ partyId, loot });

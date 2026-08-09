@@ -17,6 +17,13 @@ data class LootPayoutResponse(
 )
 
 @Serializable
+data class LootBundleResponse(
+    val memberId: String,
+    // Whole stacks this seat picked up. Never a share: it is what somebody bent down for.
+    val bundles: Int,
+)
+
+@Serializable
 data class LootResponse(
     val id: String,
     // The catalog drop this is, when it came from a boss table. Null for free text.
@@ -55,6 +62,13 @@ data class LootResponse(
     // will owe, which is neither the party as it stands now nor every seat it has ever had. The
     // seller select reads this, so it offers exactly what the sell route accepts.
     val ranThatWeek: List<String> = emptyList(),
+    // How many equal stacks this drop fell in, for this boss and the party's difficulty. Null is
+    // uncounted, NOT one: the ledger reads it to decide whether the drop could divide by looting at
+    // all, and a wrong one there invents a debt. See V41__loot_bundles.sql.
+    val bundles: Int? = null,
+    // Who picked up how many of those stacks. EMPTY means nobody has said, which is not the same as
+    // it having divided evenly, and is why the ledger can name a debt's size without its direction.
+    val bundlesBy: List<LootBundleResponse> = emptyList(),
 )
 
 /**
@@ -136,6 +150,18 @@ data class SellLootRequest(
 @Serializable
 data class PayoutRequest(
     val paid: Boolean,
+)
+
+/**
+ * Who picked up which stacks of a drop, keyed by seat id.
+ *
+ * The whole arrangement every time, because it is replaced whole: the counts have to add up to the
+ * stacks the drop fell in, and a request that named one seat could only ever leave a sum that does
+ * not. Empty puts it back to nobody having said, which is a different thing from an even split.
+ */
+@Serializable
+data class LootBundlesRequest(
+    val bundles: Map<String, Int> = emptyMap(),
 )
 
 /** One payout row, named the only way it is unique: which drop, and who is owed on it. */

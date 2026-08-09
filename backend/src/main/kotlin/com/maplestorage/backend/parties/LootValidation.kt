@@ -26,3 +26,30 @@ internal fun sharesRefusal(
         shares.values.any { it < 1 || it > MAX_SHARES } -> "a share count must be between 1 and $MAX_SHARES"
         else -> null
     }
+
+/**
+ * Why this arrangement of stacks cannot be recorded against a drop, or null.
+ *
+ * The sum has to be the whole drop. A partial arrangement is the dangerous shape: it looks answered
+ * and produces a debt measured against stacks nobody accounted for, which is a confident wrong
+ * number rather than a missing one. Empty is how "nobody has said" is expressed, and it is written
+ * by deleting the rows rather than by storing a partial one.
+ *
+ * `bundles` null is a drop whose stacks nobody has counted, so there is nothing to check an
+ * arrangement against and it is refused rather than stored unvalidated.
+ */
+internal fun bundlesRefusal(
+    assignment: Map<String, Int>,
+    ranThatWeek: List<String>,
+    bundles: Int?,
+): String? =
+    when {
+        assignment.isEmpty() -> null
+        bundles == null -> "this drop has no stack count, so who picked up which cannot be recorded"
+        assignment.keys.any { it !in ranThatWeek } ->
+            "stacks may only be given to somebody who ran this boss that week"
+        assignment.values.any { it < 1 } -> "a seat that picked up no stacks is left out, not given zero"
+        assignment.values.sum() != bundles ->
+            "the stacks have to add up to the $bundles this drop fell in, got ${assignment.values.sum()}"
+        else -> null
+    }

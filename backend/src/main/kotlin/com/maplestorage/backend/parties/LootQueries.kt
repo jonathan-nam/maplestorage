@@ -4,6 +4,7 @@ import com.maplestorage.backend.bosses.WEEKLY_CADENCE
 import com.maplestorage.backend.bosses.periodAfter
 import com.maplestorage.backend.bosses.weekOf
 import com.maplestorage.backend.db.BossCatalog
+import com.maplestorage.backend.db.BossDropAmount
 import com.maplestorage.backend.db.DropCatalog
 import com.maplestorage.backend.db.Party
 import com.maplestorage.backend.db.PartyLoot
@@ -35,11 +36,23 @@ internal const val STATUS_PAID_OUT = "PAID_OUT"
 internal val AMOUNT_BASES = setOf("LISTED", "RECEIVED", "BOUGHT")
 internal val SPLIT_METHODS = setOf("LAZY", "FAIR")
 
-/** A drop with its catalog name, icon and boss attached, which is every read of the pool. */
+/**
+ * A drop with its catalog name, icon and boss attached, which is every read of the pool.
+ *
+ * Party is joined for its difficulty alone, which is the third key of the amount row: how many
+ * stacks a drop falls in is per (boss, difficulty). A party with no difficulty set joins nothing
+ * and the drop's bundle count comes back null, which is the honest answer.
+ */
 private fun lootWithCatalog() =
     PartyLoot
         .join(DropCatalog, JoinType.LEFT, PartyLoot.dropCatalogId, DropCatalog.id)
         .join(BossCatalog, JoinType.LEFT, PartyLoot.bossCatalogId, BossCatalog.id)
+        .join(Party, JoinType.INNER, PartyLoot.partyId, Party.id)
+        .join(BossDropAmount, JoinType.LEFT) {
+            (BossDropAmount.bossCatalogId eq PartyLoot.bossCatalogId) and
+                (BossDropAmount.dropCatalogId eq PartyLoot.dropCatalogId) and
+                (BossDropAmount.difficulty eq Party.difficulty)
+        }
 
 /** Who is owed on these drops, in one query rather than one per drop. */
 private fun payoutsFor(lootIds: List<Uuid>): Map<Uuid, List<LootPayoutResponse>> =
@@ -87,8 +100,13 @@ internal fun lootFor(partyId: Uuid): List<LootResponse> {
 
     val payoutsByLoot = payoutsFor(rows.map { it[PartyLoot.id] })
     val ranByLoot = ranThatWeekFor(rows)
+    val bundlesByLoot = bundlesFor(rows.map { it[PartyLoot.id] })
     return rows.map {
-        it.toLootResponse(payoutsByLoot[it[PartyLoot.id]].orEmpty(), ranByLoot[it[PartyLoot.id]].orEmpty())
+        it.toLootResponse(
+            payoutsByLoot[it[PartyLoot.id]].orEmpty(),
+            ranByLoot[it[PartyLoot.id]].orEmpty(),
+            bundlesByLoot[it[PartyLoot.id]].orEmpty(),
+        )
     }
 }
 
@@ -102,7 +120,6 @@ internal fun lootFor(partyId: Uuid): List<LootResponse> {
 internal fun allLootFor(userId: String): List<PartyLootPoolResponse> {
     val rows =
         lootWithCatalog()
-            .join(Party, JoinType.INNER, PartyLoot.partyId, Party.id)
             .selectAll()
             .where { Party.userId eq userId }
             .orderBy(PartyLoot.droppedOn to SortOrder.DESC, PartyLoot.createdAt to SortOrder.DESC)
@@ -111,8 +128,13 @@ internal fun allLootFor(userId: String): List<PartyLootPoolResponse> {
 
     val payoutsByLoot = payoutsFor(rows.map { it[PartyLoot.id] })
     val ranByLoot = ranThatWeekFor(rows)
+    val bundlesByLoot = bundlesFor(rows.map { it[PartyLoot.id] })
     val response = { row: ResultRow ->
-        row.toLootResponse(payoutsByLoot[row[PartyLoot.id]].orEmpty(), ranByLoot[row[PartyLoot.id]].orEmpty())
+        row.toLootResponse(
+            payoutsByLoot[row[PartyLoot.id]].orEmpty(),
+            ranByLoot[row[PartyLoot.id]].orEmpty(),
+            bundlesByLoot[row[PartyLoot.id]].orEmpty(),
+        )
     }
     // groupBy keeps the order rows arrived in, so each pool stays newest-first.
     return rows
@@ -162,6 +184,7 @@ private fun statusOf(
 private fun ResultRow.toLootResponse(
     payouts: List<LootPayoutResponse>,
     ranThatWeek: List<String>,
+    bundlesBy: List<LootBundleResponse>,
 ): LootResponse {
     val sold = this[PartyLoot.soldAt] != null
     return LootResponse(
@@ -186,6 +209,8 @@ private fun ResultRow.toLootResponse(
         soldAt = this[PartyLoot.soldAt]?.toString(),
         payouts = payouts,
         ranThatWeek = ranThatWeek,
+        bundles = this.getOrNull(BossDropAmount.bundles),
+        bundlesBy = bundlesBy,
     )
 }
 

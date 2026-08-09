@@ -3,6 +3,7 @@ package com.maplestorage.backend.parties
 import com.maplestorage.backend.bosses.weekOf
 import com.maplestorage.backend.db.Party
 import com.maplestorage.backend.db.PartyLoot
+import com.maplestorage.backend.db.PartyLootBundle
 import com.maplestorage.backend.db.PartyLootPayout
 import kotlinx.datetime.LocalDate
 import org.jetbrains.exposed.v1.core.JoinType
@@ -159,6 +160,28 @@ internal fun unsellLoot(
         it[sellerMemberId] = null
         it[sellerShares] = null
         it[updatedAt] = now
+    }
+}
+
+/**
+ * Records which seat picked up how many of a drop's stacks, replacing whatever was there.
+ *
+ * Delete then insert, rather than an upsert per seat: the arrangement is one fact about one night
+ * and it has to be replaced whole. Upserting seat by seat would leave a stale row for somebody
+ * dropped from the arrangement, and the sum would then be wrong in the one place the ledger trusts
+ * it. An empty map is how "nobody has said" is written back.
+ */
+internal fun setLootBundles(
+    lootId: Uuid,
+    assignment: Map<Uuid, Int>,
+) {
+    PartyLootBundle.deleteWhere { PartyLootBundle.lootId eq lootId }
+    for ((memberId, count) in assignment) {
+        PartyLootBundle.insert {
+            it[PartyLootBundle.lootId] = lootId
+            it[PartyLootBundle.memberId] = memberId
+            it[bundles] = count
+        }
     }
 }
 

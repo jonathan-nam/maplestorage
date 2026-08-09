@@ -421,21 +421,22 @@ def drop_sql(drops: list[dict], tables: dict[str, list[str]]) -> str:
         for boss_key, rows in tables.items()
         for i, row in enumerate(rows)
     )
-    # Only the total is seeded. `bundles` is recorded in the manifest but nothing reads it yet, and
-    # a column nothing selects is one more thing to keep true for no gain.
+    # NULL bundles is a drop nobody has counted the stacks for. Not one stack: the column is read to
+    # decide whether a party could divide the drop at all, and a wrong one there invents a debt.
     amounts = ",\n".join(
-        f"    ({q(boss_key)}, {q(row['key'])}, {q(difficulty)}, {amount['total']})"
+        f"    ({q(boss_key)}, {q(row['key'])}, {q(difficulty)}, {amount['total']}, "
+        f"{amount['bundles'] if amount['bundles'] is not None else 'NULL'})"
         for boss_key, rows in tables.items()
         for row in rows
         for difficulty, amount in (row.get("pieces") or {}).items()
     )
     amount_sql = (
         f"""
-INSERT INTO boss_drop_amount (boss_catalog_id, drop_catalog_id, difficulty, pieces)
-SELECT b.id, d.id, v.difficulty, v.pieces
+INSERT INTO boss_drop_amount (boss_catalog_id, drop_catalog_id, difficulty, pieces, bundles)
+SELECT b.id, d.id, v.difficulty, v.pieces, v.bundles
 FROM (VALUES
 {amounts}
-) AS v (boss_key, drop_key, difficulty, pieces)
+) AS v (boss_key, drop_key, difficulty, pieces, bundles)
 JOIN boss_catalog b ON b.boss_key = v.boss_key
 JOIN drop_catalog d ON d.drop_key = v.drop_key;
 """

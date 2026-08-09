@@ -46,6 +46,18 @@ export type Loot = {
   // Seat ids of who ran the week this drop FELL in. Who may be named as its seller and who a sale
   // will owe, which is neither the party as it stands now nor every seat it has ever had.
   ranThatWeek: string[];
+  // How many equal stacks this drop fell in, for its boss and the party's difficulty. Null is
+  // uncounted, NOT one stack: it is read to decide whether the drop could divide by looting at all.
+  bundles: number | null;
+  // Who picked up how many of those stacks. EMPTY is nobody having said, which is not the same as
+  // an even split, and is why a debt's size can be known while its direction is not.
+  bundlesBy: LootBundle[];
+};
+
+// One seat's share of the physical stacks. What somebody bent down for, never a computed share.
+export type LootBundle = {
+  memberId: string;
+  bundles: number;
 };
 
 // One party's whole pool, from GET /api/parties/loot. Grouped by party because reading a split
@@ -82,6 +94,13 @@ export type SellLootBody = {
   // How many shares each seat takes, keyed by seat id, the seller's own included. A seat left out
   // takes one, so an even split sends nothing at all. Only seats that RAN that week may be named.
   shares?: Record<string, number>;
+};
+
+// PUT /api/parties/{id}/loot/{lootId}/bundles. The WHOLE arrangement, keyed by seat id: the counts
+// have to add up to the stacks the drop fell in, so a request naming one seat could only be wrong.
+// An empty map puts it back to nobody having said.
+export type SetLootBundlesBody = {
+  bundles: Record<string, number>;
 };
 
 // POST /api/parties/loot/settle. Every payout row one net transfer covers, marked paid together or

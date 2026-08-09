@@ -30,6 +30,7 @@ fun Route.lootRoutes() {
     put("/{lootId}/sale") { sellLootRoute() }
     delete("/{lootId}/sale") { unsellLootRoute() }
     put("/{lootId}/payouts/{memberId}") { setPayoutRoute() }
+    put("/{lootId}/bundles") { setBundlesRoute() }
     delete("/{lootId}") { deleteLootRoute() }
 }
 

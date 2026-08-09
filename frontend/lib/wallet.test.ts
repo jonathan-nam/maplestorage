@@ -75,6 +75,8 @@ const sold = (over: Partial<Loot> = {}): Loot => ({
   soldAt: "2026-07-21T10:00:00Z",
   payouts: [{ memberId: "m2", paid: false, paidAt: null, shares: 1 }],
   ranThatWeek: [],
+  bundles: null,
+  bundlesBy: [],
   ...over,
 });
 
