@@ -46,12 +46,14 @@ data class CreateCharacterRequest(
     val name: String,
 )
 
+// No worldType. A character's world is read from the ranking lookup and nowhere else, because a
+// world nobody checked is indistinguishable on screen from one that was: six characters in the dev
+// database sat recorded as Heroic while playing in Scania, and every page agreed with them. The way
+// to fix a wrong world is to ask the game again, which is what refresh does.
 @Serializable
 data class UpdateCharacterRequest(
     val name: String? = null,
     val level: Int? = null,
-    // INTERACTIVE or HEROIC. Per character, because one account can play both.
-    val worldType: String? = null,
 )
 
 // The full set of the caller's character ids in their new order. It must be exactly that set,

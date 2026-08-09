@@ -3,19 +3,17 @@
 import { useAuth, useUser } from "@clerk/nextjs";
 import { useState } from "react";
 import { apiFetch } from "@/lib/api";
-import { worldLabel, WORLD_TYPES, type WorldType } from "@/lib/world";
 import type { Character } from "@/types/character";
 
 // One character, and everything you can do to it.
 //
-// A row rather than the carousel's card: this is a list you read down, comparing one character's
-// world against the next, not a strip you scroll along to pick one.
+// A row rather than the carousel's card: this is a list you read down, not a strip you scroll
+// along to pick one.
 
 export function CharacterRow({
   character,
   onUpdated,
   onDeleted,
-  onSetWorld,
   onMove,
   canMoveUp,
   canMoveDown,
@@ -23,7 +21,6 @@ export function CharacterRow({
   character: Character;
   onUpdated: (character: Character) => void;
   onDeleted: (id: string) => void;
-  onSetWorld: (world: WorldType) => void;
   onMove: (direction: -1 | 1) => void;
   canMoveUp: boolean;
   canMoveDown: boolean;
@@ -113,21 +110,6 @@ export function CharacterRow({
               than a question nobody has asked yet. Refreshing the row fills it. */}
           {character.worldName && <span className="tile-world">{character.worldName}</span>}
         </span>
-      </span>
-
-      <span className="basis-row" role="group" aria-label={`${character.name}'s world`}>
-        {WORLD_TYPES.map((option) => (
-          <button
-            key={option}
-            type="button"
-            className={character.worldType === option ? "basis-tab active" : "basis-tab"}
-            aria-pressed={character.worldType === option}
-            disabled={disabled}
-            onClick={() => onSetWorld(option)}
-          >
-            {worldLabel(option)}
-          </button>
-        ))}
       </span>
 
       <span className="character-row-actions">
