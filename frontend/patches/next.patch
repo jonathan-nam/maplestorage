@@ -1,0 +1,94 @@
+diff --git a/dist/client/app-dir/link.js b/dist/client/app-dir/link.js
+index e5fe74efe3d0df45b638d242cebc5e14618a432c..aab55282e4da6c94b19ebdded1fd5b7231d14ea0 100644
+--- a/dist/client/app-dir/link.js
++++ b/dist/client/app-dir/link.js
+@@ -331,7 +331,7 @@ function LinkComponent(props) {
+             if (!router) {
+                 return;
+             }
+-            if (!prefetchEnabled || process.env.NODE_ENV === 'development') {
++            if (!prefetchEnabled) { /* PATCHED: hover prefetch left on in development */
+                 return;
+             }
+             const upgradeToDynamicPrefetch = unstable_dynamicOnHover === true;
+diff --git a/dist/client/components/app-router-utils.js b/dist/client/components/app-router-utils.js
+index d372d2697b6a29948e52f67abc88c1e694d90b83..b62b1681dbf897154561534ddcc19b955b16deea 100644
+--- a/dist/client/components/app-router-utils.js
++++ b/dist/client/components/app-router-utils.js
+@@ -42,10 +42,7 @@ function createPrefetchURL(href) {
+             configurable: true
+         });
+     }
+-    // Don't prefetch during development (improves compilation performance)
+-    if (process.env.NODE_ENV === 'development') {
+-        return null;
+-    }
++    /* PATCHED: prefetch left on in development */
+     // External urls can't be prefetched in the same way.
+     if (isExternalURL(url)) {
+         return null;
+diff --git a/dist/client/components/links.js b/dist/client/components/links.js
+index 4d908a3866d4649df5b46c12ab962686e288a08b..c11d35be37a68e56a9f25f6448b22f42b425bde0 100644
+--- a/dist/client/components/links.js
++++ b/dist/client/components/links.js
+@@ -202,12 +202,7 @@ function handleIntersect(entries) {
+     }
+ }
+ function onLinkVisibilityChanged(element, isVisible) {
+-    if (process.env.NODE_ENV !== 'production') {
+-        // Prefetching on viewport is disabled in development for performance
+-        // reasons, because it requires compiling the target page.
+-        // TODO: Investigate re-enabling this.
+-        return;
+-    }
++    /* PATCHED: viewport prefetch left on in development */
+     const instance = prefetchable.get(element);
+     if (instance === undefined) {
+         return;
+diff --git a/dist/esm/client/app-dir/link.js b/dist/esm/client/app-dir/link.js
+index 01f89e7ea97bc13e0f680bac5fad33dc0bee4a11..62583935e50bed2eb06d138342b7582cae58d412 100644
+--- a/dist/esm/client/app-dir/link.js
++++ b/dist/esm/client/app-dir/link.js
+@@ -308,7 +308,7 @@ function formatStringOrUrl(urlObjOrString) {
+             if (!router) {
+                 return;
+             }
+-            if (!prefetchEnabled || process.env.NODE_ENV === 'development') {
++            if (!prefetchEnabled) { /* PATCHED: hover prefetch left on in development */
+                 return;
+             }
+             const upgradeToDynamicPrefetch = unstable_dynamicOnHover === true;
+diff --git a/dist/esm/client/components/app-router-utils.js b/dist/esm/client/components/app-router-utils.js
+index 36ec9db709151cb746a6dbeaf336a2bc25a7825d..61a64d7f897ab9b4d805d3c159bdd88308d4114b 100644
+--- a/dist/esm/client/components/app-router-utils.js
++++ b/dist/esm/client/components/app-router-utils.js
+@@ -26,10 +26,7 @@ export function isExternalURL(url) {
+             configurable: true
+         });
+     }
+-    // Don't prefetch during development (improves compilation performance)
+-    if (process.env.NODE_ENV === 'development') {
+-        return null;
+-    }
++    /* PATCHED: prefetch left on in development */
+     // External urls can't be prefetched in the same way.
+     if (isExternalURL(url)) {
+         return null;
+diff --git a/dist/esm/client/components/links.js b/dist/esm/client/components/links.js
+index afad13e238b90ad68aad43b9c0df6002bbe826c7..f76c979cdb0bba2225a20a8b2918b72d5bd77c29 100644
+--- a/dist/esm/client/components/links.js
++++ b/dist/esm/client/components/links.js
+@@ -157,12 +157,7 @@ function handleIntersect(entries) {
+     }
+ }
+ export function onLinkVisibilityChanged(element, isVisible) {
+-    if (process.env.NODE_ENV !== 'production') {
+-        // Prefetching on viewport is disabled in development for performance
+-        // reasons, because it requires compiling the target page.
+-        // TODO: Investigate re-enabling this.
+-        return;
+-    }
++    /* PATCHED: viewport prefetch left on in development */
+     const instance = prefetchable.get(element);
+     if (instance === undefined) {
+         return;
