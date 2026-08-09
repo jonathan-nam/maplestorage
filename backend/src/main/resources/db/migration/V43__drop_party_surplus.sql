@@ -1,0 +1,20 @@
+-- V42's column, removed a few hours later, because the arrangement it described is not one anybody
+-- makes.
+--
+-- It held "this seat permanently takes the odd stack", which only means anything when the split
+-- stays EVEN: the taker holds more than their share and owes the difference back, week after week,
+-- in one direction forever.
+--
+-- The arrangements parties actually make are three, and none of them is that:
+--
+--   everyone loots their own      an even boss needs nothing, an odd one alternates on its own
+--   one member loots everything   party.looter_member_id
+--   one member always takes more  party_member.shares, because taking more IS being owed more
+--
+-- The third is the one V42 was reaching for, and it was the wrong half of it. Somebody who
+-- permanently takes four of six stacks is entitled to four of six, so it is a share, and said as a
+-- share it divides exactly and owes nobody anything.
+--
+-- Dropped rather than left inert. No rows ever set it, nothing reads it, and dead schema is what a
+-- future reader picks up and tries to use.
+ALTER TABLE party DROP COLUMN surplus_member_id;

@@ -52,10 +52,6 @@ export type Party = {
   // partner loots and sells is the easier arrangement on a boss run with a character that is not on
   // your account.
   looterMemberId: string | null;
-  // The seat this party has settled on for the odd stack, when a drop will not divide. A DEFAULT
-  // for the Drop Log's chips and nothing more: what counts is the arrangement recorded against the
-  // night. Null leaves the odd stack to whoever is furthest behind, so it rotates.
-  surplusMemberId: string | null;
   // Who ran in the week being shown, your character first. Not always who usually does.
   members: PartyMember[];
   // Every seat this party has ever had, guests and departed members included. What a payout is
@@ -113,9 +109,6 @@ export type SavePartyBody = {
   // Who picks up the pieces, by character name rather than seat id: seats are matched by name, and a
   // party being created has no seat ids yet. Null clears it.
   looterName?: string | null;
-  // Who takes the odd stack when a drop will not divide, by name for the same reason. Null clears
-  // it, which puts the odd stack back to rotating to whoever is furthest behind.
-  surplusName?: string | null;
 };
 
 /**

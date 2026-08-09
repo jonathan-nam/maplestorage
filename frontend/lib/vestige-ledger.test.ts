@@ -49,7 +49,6 @@ const party = (
   bossKey: string,
   members: PartyMember[],
   looter: string | null,
-  surplus: string | null = null,
 ): Party => ({
   id,
   characterId: members[0]!.characterId ?? `char-${members[0]!.id}`,
@@ -61,7 +60,6 @@ const party = (
   difficulty: "HARD",
   minutes: null,
   looterMemberId: looter,
-  surplusMemberId: surplus,
   members,
   seats: members,
   usualRoster: true,
@@ -489,21 +487,13 @@ describe("the arrangement put in front of somebody", () => {
     expect(rotated.get("m1")).toBe(1);
   });
 
-  it("gives the odd stack to the seat the party settled on, instead of rotating", () => {
-    // Nova is owed 20, so the rotation would hand her this week's odd stack. The party has said
-    // otherwise, and saying so is what turns the rotation off.
-    const named = suggestArrangement(3, [me, them], new Map([[NOVA_KEY, 20]]), "m1");
-    expect(named.get("m1")).toBe(2);
-    expect(named.get("m2")).toBe(1);
-  });
-
-  it("does not let the named seat jump a bigger share", () => {
-    // Two shares against one is 2 stacks against 1 on the floor alone. Honouring a preference here
-    // would take a stack off somebody's entitlement, which is a different thing from the odd one.
+  it("gives a bigger share a bigger floor, before the rotation gets a say", () => {
+    // Two shares against one is 2 stacks against 1 on the floor alone, so there is no odd stack for
+    // the rotation to hand anybody. A party that wants the extra to stop moving says so this way.
     const carried = { ...them, shares: 2 };
-    const named = suggestArrangement(3, [me, carried], new Map(), "m1");
-    expect(named.get("m2")).toBe(2);
-    expect(named.get("m1")).toBe(1);
+    const split = suggestArrangement(3, [me, carried], new Map([[holderKey(SELF), 20]]));
+    expect(split.get("m2")).toBe(2);
+    expect(split.get("m1")).toBe(1);
   });
 
   it("leaves a seat out rather than handing them zero stacks", () => {
