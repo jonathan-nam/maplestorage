@@ -229,39 +229,75 @@ html:not(.has-session) .header-reserved {
   color: var(--ink-strong);
 }
 
-/* Clicked, not arrived yet.
-   MUST stay after `.active`: same specificity, and the entry being navigated to is very often the
-   one about to become active, so an earlier rule would lose on exactly the click it exists for.
-   The delay is the design, not a tuning knob. A prefetched route commits well inside it, and
-   nothing is drawn until it elapses, so a fast navigation is marked not at all and only a slow one
-   shows. Pinned by section-menu-css.test.ts, since dropping it turns feedback into a flicker. */
-.section-menu-panel a.is-pending {
-  animation: section-menu-pending 1.1s ease-in-out 150ms infinite;
+/* A page that has been asked for and not arrived.
+   A bar across the top, and the outgoing page dimmed under it. The mark was on the menu entry
+   once, which meant holding the panel open to show it, and a menu that does not close on a click
+   reads as a click that did not register. The control answers by closing; the page answers by
+   going.
+   Both wait 150ms first. A prefetched route commits well inside that (measured in single-figure
+   ms), so a fast navigation draws nothing at all and only a slow one is ever shown. Pinned by
+   section-menu-css.test.ts, since dropping the delay turns feedback into a flicker. */
+.nav-pending {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  z-index: 60;
+  overflow: hidden;
+  animation: nav-pending-in 0s linear 150ms forwards;
+  opacity: 0;
 }
 
-@keyframes section-menu-pending {
-  0%,
+/* Sized by `width`, not by scaleX. translateX is a percentage of the element's OWN width, so a
+   full-width box scaled to 0.4 still travels in 100%-of-1280px steps and spends most of the cycle
+   off screen: the first build of this was invisible in a screenshot taken while it was "running". */
+.nav-pending::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 40%;
+  background: var(--accent);
+  animation: nav-pending-sweep 1.4s ease-in-out 150ms infinite;
+}
+
+@keyframes nav-pending-in {
+  to {
+    opacity: 1;
+  }
+}
+
+/* Indeterminate on purpose. There is no progress to report: the router does not say how far along
+   a route is, and a bar that invented a number would be the confident-wrong-number failure in the
+   one place it would never be checked. */
+@keyframes nav-pending-sweep {
+  0% {
+    transform: translateX(-100%);
+  }
   100% {
-    background: var(--surface-2);
-    color: var(--ink);
-  }
-  50% {
-    background: transparent;
-    color: var(--muted);
+    transform: translateX(250%);
   }
 }
 
-/* Still marked, it just stops breathing. The delay is kept, so a fast navigation is still silent. */
-@media (prefers-reduced-motion: reduce) {
-  .section-menu-panel a.is-pending {
-    animation: section-menu-pending-still 0s linear 150ms forwards;
-  }
+/* The outgoing page, on its way out. Same delay, so it only ever dims on a wait long enough to
+   need saying. :has because the bar is rendered from the header, which is main's sibling. */
+body:has(.nav-pending) main {
+  animation: nav-pending-dim 0s linear 150ms forwards;
+}
 
-  @keyframes section-menu-pending-still {
-    to {
-      background: var(--surface-2);
-      color: var(--ink);
-    }
+@keyframes nav-pending-dim {
+  to {
+    opacity: 0.45;
+  }
+}
+
+/* The bar stays, it just stops sweeping. Full width, because a stationary 40% stub at the left
+   edge reads as a progress bar stuck at 40% rather than as a page on its way. */
+@media (prefers-reduced-motion: reduce) {
+  .nav-pending::before {
+    animation: none;
+    width: 100%;
   }
 }
 
