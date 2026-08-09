@@ -415,8 +415,13 @@ object VestigeTranche : Table("vestige_tranche") {
     val characterName = text("character_name").nullable()
     val pieces = integer("pieces")
 
-    // The whole tranche's mesos, as reported. The per-piece figure is derived, never stored.
-    val amount = long("amount")
+    // SOLD or KEPT. A redemption is a sale minus the money, and its pieces come out of the pile
+    // every price is derived from rather than being priced at nothing. See V46.
+    val disposition = text("disposition")
+
+    // The whole tranche's mesos, as reported. The per-piece figure is derived, never stored. Null on
+    // a KEPT row, where there is no sale and so no price.
+    val amount = long("amount").nullable()
     val soldAt = timestamp("sold_at")
     val createdAt = timestamp("created_at")
 

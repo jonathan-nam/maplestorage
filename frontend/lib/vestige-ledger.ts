@@ -541,12 +541,25 @@ export function holderLedgers(
   return ledgers.sort((a, b) => a.holderName.localeCompare(b.holderName));
 }
 
-/** The sales one holder has entered, keyed the way holderLedgers wants them. */
+/**
+ * The sales one holder has entered, keyed the way holderLedgers wants them.
+ *
+ * Rows with money in them. A KEPT row is pieces redeemed rather than sold, so it has no price to
+ * spend on the queue. Taking those pieces out of the sellable pile is not wired up yet, so a KEPT
+ * row currently changes nothing; nothing can create one either, the input does not exist.
+ *
+ * Filtered on the AMOUNT rather than on `disposition`, which V46 makes equivalent: the check
+ * constraint is `(disposition = 'SOLD') = (amount IS NOT NULL)`, so neither can drift from the other.
+ * Reading `disposition` here would be the cache trap in `bundlesOf` below, and worse: a tab open
+ * across the deploy hands this code rows from before the field existed, and `undefined !== "SOLD"`
+ * is TRUE, so every sale already entered would be silently dropped as a redemption.
+ */
 export function salesByHolder(
-  rows: { holder: Holder; pieces: number; amount: number }[],
+  rows: { holder: Holder; pieces: number; amount: number | null }[],
 ): Map<string, PieceSale[]> {
   const out = new Map<string, PieceSale[]>();
   for (const row of rows) {
+    if (row.amount === null) continue;
     // The tally stores a TOTAL, because that is what a partner reports ("1.2b for the 60"). The
     // per-piece figure the split needs is derived, never typed.
     const sale: PieceSale = { pieces: row.pieces, priceEach: row.amount / row.pieces };
