@@ -39,9 +39,13 @@ export function LotSale({
   busy: boolean;
   onSell: (body: LotSaleBody) => Promise<void>;
 }) {
+  // Titled and ruled off like Add Drop on the other tab, and first on this one, because the Sale
+  // Ledger opened on cards that read as a statement of what is owed rather than as somewhere to
+  // type. Both tabs now begin with the thing you do.
   if (drops.length === 0) return null;
   return (
-    <>
+    <section className="loot-pool droplog-action">
+      <h2 className="loot-pool-title">Record Sale</h2>
       {drops.map((drop) => (
         <LotCard
           key={drop.dropKey}
@@ -52,7 +56,7 @@ export function LotSale({
           onSell={onSell}
         />
       ))}
-    </>
+    </section>
   );
 }
 

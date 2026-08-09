@@ -417,15 +417,17 @@ export default function DropLogPage() {
 
           {shown === "sales" && (
             <>
-              <StackArrangement
-                drops={open}
-                partyById={partyById}
-                bossByKey={bossByKey}
-                behind={behind}
-                iconUrl={vestigeIcon}
-                busy={busy}
-                onSave={bundlesWrite}
-              />
+              {/* Only where there is money to talk about. A Heroic-only account trades nothing, and
+                  lotDrops leaves those pools out anyway, so this is the same rule said once more. */}
+              {money && (
+                <LotSale
+                  drops={lots}
+                  bossByKey={bossByKey}
+                  partyById={partyById}
+                  busy={busy}
+                  onSell={lotSale}
+                />
+              )}
 
               <PieceLedger
                 ledgers={ledgers}
@@ -453,17 +455,19 @@ export default function DropLogPage() {
                 }
               />
 
-              {/* Only where there is money to talk about. A Heroic-only account trades nothing, and
-                  lotDrops leaves those pools out anyway, so this is the same rule said once more. */}
-              {money && (
-                <LotSale
-                  drops={lots}
-                  bossByKey={bossByKey}
-                  partyById={partyById}
-                  busy={busy}
-                  onSell={lotSale}
-                />
-              )}
+              {/* Last, because it is the one card here that cannot be acted on for money: it names
+                  the nights whose arrangement nobody has said, and nothing about them can be priced
+                  until it is. Still on screen, because a drop that owes somebody and cannot say who
+                  is exactly what must not be quietly dropped. */}
+              <StackArrangement
+                drops={open}
+                partyById={partyById}
+                bossByKey={bossByKey}
+                behind={behind}
+                iconUrl={vestigeIcon}
+                busy={busy}
+                onSave={bundlesWrite}
+              />
             </>
           )}
         </>
