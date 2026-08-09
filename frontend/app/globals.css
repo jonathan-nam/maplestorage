@@ -3163,20 +3163,13 @@ button.link:disabled {
   color: var(--ink-strong);
 }
 
-/* The thing you DO at the top of a Drop Log tab, ruled off from the ledger under it: Add Drop over
-   the drops, Record Sale over the sale cards. Both tabs opened straight onto rows that read as a
-   statement rather than as somewhere to type, and the rule is what says where one ends. */
+/* Add Drop, ruled off from the log under it. A form above and a list of what it has recorded below
+   is a real boundary, which is why this is here and why Record Sale does NOT have one: everything
+   on that tab either side of a rule would be another card taking another sale. */
 .droplog-action {
   padding-bottom: 22px;
   border-bottom: 1px solid var(--line);
   margin-bottom: 26px;
-}
-
-/* Record Sale holds cards, which carry their own bottom margin, so without this the gap above its
-   rule is that margin PLUS the padding and the two tabs stop matching. Add Drop holds a form and
-   has no such margin. */
-.droplog-action > .ledger-card:last-of-type {
-  margin-bottom: 0;
 }
 
 /* Names one half of a pool holding both kinds. Quieter than the pool's own title, which is still
