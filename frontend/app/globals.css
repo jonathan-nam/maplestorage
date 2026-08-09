@@ -3135,6 +3135,17 @@ button.link:disabled {
   color: var(--ink-strong);
 }
 
+/* Names one half of a pool holding both kinds. Quieter than the pool's own title, which is still
+   the heading for the whole thing. */
+.loot-group-title {
+  margin: 16px 0 6px;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
 .loot-add {
   display: flex;
   flex-wrap: wrap;
