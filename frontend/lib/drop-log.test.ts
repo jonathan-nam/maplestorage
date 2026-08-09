@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildDropLog,
   consolidate,
+  couponsOwedByParty,
   dropStatusLabel,
   foldNames,
   forCharacter,
@@ -620,6 +621,16 @@ describe("a piece drop counts YOUR share, not what fell", () => {
     // The pieces behind the count: one row is one hammer or 180 coupons, and a number of rows
     // does not say which.
     expect(log.totals.piecesOwed).toBe(20);
+  });
+
+  it("gives each party its own coupons-owed figure for the row badge", () => {
+    // Off the same entries the Drop Log counts, so a party row and the log cannot disagree about
+    // what is owed. A party holding its own coupons is absent rather than zero.
+    const owed = buildDropLog([trio({ looterMemberId: "m2" })], [pool("pa", [coupons()])], tables);
+    expect(couponsOwedByParty(owed.entries).get("pa")).toBe(20);
+
+    const even = buildDropLog([trio()], [pool("pa", [coupons()])], tables);
+    expect(couponsOwedByParty(even.entries).has("pa")).toBe(false);
   });
 
   it("still counts an ordinary drop that has not sold", () => {

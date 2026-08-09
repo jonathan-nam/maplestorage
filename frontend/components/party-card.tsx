@@ -42,6 +42,7 @@ export function PartyCard({
   heading,
   busy,
   clear,
+  couponsOwed = 0,
   onToggleClear,
   dropTable,
   onAddDrop,
@@ -52,6 +53,13 @@ export function PartyCard({
   heading: ReactNode;
   /** THIS row's write. Fed the page's, it dimmed every row at once: the page appeared to flicker. */
   busy?: boolean;
+  /**
+   * Coupons somebody else is holding for you out of this party's drops.
+   *
+   * Passed in rather than worked out here: it comes off the same entries the Drop Log counts, so
+   * the badge and the log cannot disagree. Zero for a party whose coupons went where they belong.
+   */
+  couponsOwed?: number;
   /**
    * The clear to draw, which is NOT always the config's own.
    *
@@ -95,7 +103,7 @@ export function PartyCard({
   const [draft, setDraft] = useState<string[]>([]);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [offError, setOffError] = useState<string | null>(null);
-  const pool = poolLabel(party);
+  const pool = poolLabel(party, couponsOwed);
   // The coupon this boss drops for certain at the mode this party runs, or null.
   const guaranteed = guaranteedDrop(dropTable, party.difficulty);
   const panelId = `party-panel-${party.id}`;

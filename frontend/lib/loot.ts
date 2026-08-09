@@ -168,10 +168,21 @@ export type PoolCounts = {
  * meant paying the last share erased every trace of the pool from the list, so a party with a
  * season of drops behind it looked identical to one that had never dropped anything.
  */
-export function poolLabel(counts: PoolCounts): { text: string; done: boolean } | null {
+export function poolLabel(
+  counts: PoolCounts,
+  /**
+   * Coupons somebody else is holding for you, out of this party's piece drops.
+   *
+   * Said in COUPONS because a count of rows cannot: one row is one hammer or 180 coupons, and the
+   * row count deliberately leaves out the coupon drops that came out even. Worked out from the
+   * pools by lib/drop-log.ts, never counted a second time here.
+   */
+  couponsOwed = 0,
+): { text: string; done: boolean } | null {
   const outstanding = [
     counts.pendingLoot > 0 ? `${counts.pendingLoot} in the pool` : null,
     counts.awaitingPayout > 0 ? `${counts.awaitingPayout} awaiting payout` : null,
+    couponsOwed > 0 ? `${couponsOwed} coupons owed` : null,
   ].filter(Boolean);
 
   if (outstanding.length > 0) return { text: outstanding.join(" \u00b7 "), done: false };
