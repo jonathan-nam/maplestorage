@@ -118,30 +118,40 @@ internal fun sellLoot(
         it[updatedAt] = now
     }
 
-    val owed =
+    // A seat on no share is owed nothing, so it gets no row rather than a row of zero: a payout of
+    // nothing keeps the drop reading as somebody still unpaid, forever. See V44.
+    val existing =
         PartyLootPayout
             .selectAll()
             .where { PartyLootPayout.lootId eq lootId }
             .map { it[PartyLootPayout.memberId] }
-    if (owed.isNotEmpty()) {
-        owed.forEach { seatId ->
-            PartyLootPayout.update({
-                (PartyLootPayout.lootId eq lootId) and (PartyLootPayout.memberId eq seatId)
-            }) {
-                it[shares] = sharesFor(seatId)
-            }
-        }
-        return
-    }
+            .toSet()
 
+    // Against the roster rather than the rows already there, so re-selling a drop after a seat's
+    // share moved off or onto zero writes the row that share now implies. Rows for somebody no
+    // longer in the roster are left alone, because one may be the record that they were paid.
     rosterFor(partyId, weekOf(droppedOn))
         .filterNot { it == sellerMemberId }
         .forEach { seatId ->
-            PartyLootPayout.insert {
-                it[PartyLootPayout.lootId] = lootId
-                it[memberId] = seatId
-                it[paid] = false
-                it[shares] = sharesFor(seatId)
+            val count = sharesFor(seatId)
+            when {
+                count < 1 ->
+                    PartyLootPayout.deleteWhere {
+                        (PartyLootPayout.lootId eq lootId) and (PartyLootPayout.memberId eq seatId)
+                    }
+                seatId in existing ->
+                    PartyLootPayout.update({
+                        (PartyLootPayout.lootId eq lootId) and (PartyLootPayout.memberId eq seatId)
+                    }) {
+                        it[shares] = count
+                    }
+                else ->
+                    PartyLootPayout.insert {
+                        it[PartyLootPayout.lootId] = lootId
+                        it[memberId] = seatId
+                        it[paid] = false
+                        it[shares] = count
+                    }
             }
         }
 }

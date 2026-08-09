@@ -571,6 +571,30 @@ describe("a party that has agreed an uneven split", () => {
     expect(outstanding(kalos, drop, VESTIGE, ORDER)).toEqual([]);
   });
 
+  it("lets one member keep the lot, owing nobody", () => {
+    // Hard Limbo is 60 in 3 stacks of 20, and a duo cannot divide 3 stacks. On 1 and 0 there is
+    // nothing to divide: Husky is entitled to all three, holds all three, and owes nobody. The
+    // party leaves the Drop Log rather than sitting there as a night that will not come out.
+    const seats = [mine("Huskyxkenshi", 1), theirs("CourseLair", 0)];
+    const limbo = [party("pl", "limbo", seats, null)];
+    const drop = [pool("pl", [coupon("l3", "limbo", 60, "2026-08-06", { bundles: 3 })])];
+
+    expect(suggestArrangement(3, seats, new Map())).toEqual(new Map([["m1", 3]]));
+    expect(unanswered(limbo, drop, VESTIGE)).toEqual([]);
+    expect(outstanding(limbo, drop, VESTIGE, ORDER)).toEqual([]);
+  });
+
+  it("still refuses to divide when the shares cannot come out in whole stacks", () => {
+    // 3 and 1 is a weight of 4, so Husky is entitled to 2.25 stacks. Nobody can pick that up, so
+    // it is a night that does not divide however it is looted. This is what 1 and 0 replaces.
+    const seats = [mine("Huskyxkenshi", 3), theirs("CourseLair", 1)];
+    const limbo = [party("pl", "limbo", seats, null)];
+    const drop = [pool("pl", [coupon("l4", "limbo", 60, "2026-08-06", { bundles: 3 })])];
+
+    expect(unanswered(limbo, drop, VESTIGE)).toHaveLength(1);
+    expect(unanswered(limbo, drop, VESTIGE)[0]!.imbalance).toBe(5);
+  });
+
   it("reads 4 and 2 as the same agreement as 2 and 1", () => {
     // The numbers people say to each other go straight in, whichever way they say them.
     const long = suggestArrangement(

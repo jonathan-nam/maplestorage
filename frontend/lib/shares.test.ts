@@ -15,9 +15,16 @@ describe("a share count as typed", () => {
   it("refuses what it cannot read rather than falling back to one", () => {
     // The failure this guards: a "2" that quietly becomes 1 pays somebody half of what the party
     // agreed, and every figure on the row still looks ordinary.
-    for (const bad of ["0", "-1", "1.5", "two", "1e2", String(MAX_SHARES + 1)]) {
+    for (const bad of ["-1", "1.5", "two", "1e2", String(MAX_SHARES + 1)]) {
       expect(parseShares(bad)).toBeNull();
     }
+  });
+
+  it("reads a zero as a seat that takes nothing, but a blank still as one", () => {
+    // The arrangement V44 exists for. Blank staying at one is what keeps an empty box from ever
+    // meaning somebody has been cut out of the split.
+    expect(parseShares("0")).toBe(0);
+    expect(parseShares("")).toBe(1);
   });
 
   it("says nothing beside a single share, and says the count beside any other", () => {

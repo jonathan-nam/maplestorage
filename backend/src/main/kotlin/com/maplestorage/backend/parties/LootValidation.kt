@@ -23,7 +23,13 @@ internal fun sharesRefusal(
 ): String? =
     when {
         shares.keys.any { it !in ranThatWeek } -> "shares may only name somebody who ran this boss that week"
-        shares.values.any { it < 1 || it > MAX_SHARES } -> "a share count must be between 1 and $MAX_SHARES"
+        // Zero for the same reason a config allows it: a seat that takes nothing from this party.
+        // The sale defaults each box from the seat's standing share, so refusing zero here would
+        // make every drop from such a party unsellable. See V44.
+        shares.values.any { it < 0 || it > MAX_SHARES } -> "a share count must be between 0 and $MAX_SHARES"
+        // Somebody has to be holding the pot. All zeroes divides by nothing. The seller's own count
+        // is in this map too, so summing over who ran is the whole of it.
+        ranThatWeek.sumOf { shares[it] ?: 1 } < 1 -> "somebody has to take a share of this sale"
         else -> null
     }
 

@@ -261,8 +261,14 @@ class PartyLootSharesTest {
             assertTrue(
                 sharesRefusal(mapOf(Uuid.random().toString() to 2), ran)!!.contains("ran this boss"),
             )
-            assertTrue(sharesRefusal(mapOf(ran.first() to 0), ran)!!.contains("between 1"))
+            // Zero is a seat that takes nothing from this party, which V44 exists for.
+            assertNull(sharesRefusal(mapOf(ran.first() to 0), ran))
+            assertTrue(sharesRefusal(mapOf(ran.first() to -1), ran)!!.contains("between 0"))
             assertTrue(sharesRefusal(mapOf(ran.first() to 100), ran)!!.contains("99"))
+            // Everybody on zero is not: it divides the pot by nothing.
+            assertTrue(
+                sharesRefusal(ran.associateWith { 0 }, ran)!!.contains("has to take a share"),
+            )
         }
     }
 

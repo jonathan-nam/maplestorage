@@ -137,9 +137,14 @@ export function splitDrop({
     throw new RangeError(`memberShares must be one per member, got ${shares.length}`);
   }
   for (const count of [sellerShares, ...shares]) {
-    if (!Number.isInteger(count) || count < 1) {
-      throw new RangeError(`a share count must be a whole number of 1 or more, got ${count}`);
+    if (!Number.isInteger(count) || count < 0) {
+      throw new RangeError(`a share count must be a whole number of 0 or more, got ${count}`);
     }
+  }
+  // Zero is a seat that takes nothing, which is a real arrangement. Everybody on zero is not: it
+  // divides the pot by nothing, and a split that pays no one is a question rather than an answer.
+  if (sellerShares + shares.reduce((sum, count) => sum + count, 0) < 1) {
+    throw new RangeError("at least one seat has to take a share");
   }
 
   const entered = Math.floor(amount);

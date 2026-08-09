@@ -157,13 +157,23 @@ describe("a seat can take more than one share", () => {
     expect(s.sellerKeeps).toBeGreaterThanOrEqual(0);
   });
 
-  it.each([0, -1, 1.5, Number.NaN])(
-    "refuses a share count of %s rather than rounding it",
-    (bad) => {
-      expect(() => uneven("fair", [bad, 1])).toThrow(RangeError);
-      expect(() => uneven("fair", [1, 1], bad)).toThrow(RangeError);
-    },
-  );
+  it.each([-1, 1.5, Number.NaN])("refuses a share count of %s rather than rounding it", (bad) => {
+    expect(() => uneven("fair", [bad, 1])).toThrow(RangeError);
+    expect(() => uneven("fair", [1, 1], bad)).toThrow(RangeError);
+  });
+
+  it("pays a seat on no share nothing, and everybody else the whole pot", () => {
+    // The arrangement V44 exists for: one member keeps the drops and owes the others nothing.
+    const s = uneven("fair", [0, 1]);
+    expect(s.members[0]!.pay).toBe(0);
+    // Every meso still lands somewhere, which is the property the whole file is about.
+    expect(s.sellerKeeps + s.members.reduce((sum, m) => sum + m.pay, 0)).toBe(s.sellerReceives);
+  });
+
+  it("refuses a split where nobody takes anything", () => {
+    // Not an arrangement: it divides the pot by nothing, and no answer is better than a zero.
+    expect(() => uneven("fair", [0, 0], 0)).toThrow(RangeError);
+  });
 
   it("refuses a share list that is not one per member", () => {
     expect(() =>
