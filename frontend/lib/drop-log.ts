@@ -293,8 +293,14 @@ export type DropLine = {
   key: string;
   name: string;
   iconUrl: string | null;
-  /** How many of it are YOURS, across every row behind this line. What the line shows. */
-  quantity: number;
+  /**
+   * How many of it are YOURS, across every row behind this line. What the line shows.
+   *
+   * Named the same as DropEntry.yours on purpose. This was `quantity` while the entry's `quantity`
+   * meant what FELL, and the runs behind a fold were rendered off the wrong one: a line reading 440
+   * opened onto runs adding up to 900.
+   */
+  yours: number;
   /** How many FELL across those rows. Only differs where somebody else took a share. */
   fell: number;
   /** The rows themselves, newest first. Exactly one unless this is a fold. */
@@ -366,7 +372,7 @@ function lineOf(key: string, entries: DropEntry[], folded: boolean): DropLine {
     iconUrl: first.iconUrl,
     // Yours, not what fell: a log of your drops that counts somebody else's share is the
     // overcount this replaced. What fell is kept beside it rather than lost.
-    quantity: entries.reduce((sum, e) => sum + e.yours, 0),
+    yours: entries.reduce((sum, e) => sum + e.yours, 0),
     fell: entries.reduce((sum, e) => sum + e.quantity, 0),
     entries,
     folded,
