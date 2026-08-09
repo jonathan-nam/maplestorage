@@ -273,13 +273,12 @@ internal fun lootCountsFor(
         }
     if (loot.isEmpty()) return emptyMap()
 
-    // Work still to do. Unsold either way, and for a piece drop also somebody else holding your
-    // share: the coupons from an even night are already in your own inventory. See LootPoolWork.kt.
+    // Drops still waiting to be SOLD. A drop that comes in pieces is never one of them, whoever is
+    // holding it: it settles through the tranche ledger, and the party row says what it is owed in
+    // COUPONS. Counting it here as well read as two things to do, one coupon drop showing as
+    // "1 in the pool · 30 coupons owed". See LootPoolWork.kt.
     val inPieces = pieceLootIds(partyIds)
-    val heldByOther = partiesHoldingYourShare(partyIds)
-    val outstanding = { row: LootRow ->
-        !row.sold && (row.id !in inPieces || row.partyId in heldByOther)
-    }
+    val outstanding = { row: LootRow -> !row.sold && row.id !in inPieces }
 
     val unpaidLootIds =
         PartyLootPayout

@@ -108,11 +108,12 @@ class PartyPoolWorkTest {
             // This counted for ever before: a piece row never sells, so PENDING never stops.
             assertEquals(0, pending())
 
-            // Somebody else is holding it, which is the one thing left to do.
+            // And it stays out however it was looted. What is left to do about a coupon drop is
+            // said in COUPONS, on the party row, so counting the row as well is one fact twice:
+            // a single drop read as "1 in the pool - 30 coupons owed".
             Party.update({ Party.id eq partyId }) { it[looterMemberId] = seat("Steve") }
-            assertEquals(1, pending())
+            assertEquals(0, pending())
 
-            // Your own character holding it is you having it already.
             Party.update({ Party.id eq partyId }) { it[looterMemberId] = seat("Rune") }
             assertEquals(0, pending())
 

@@ -260,10 +260,10 @@ export function buildDropLog(
  * share: `owedBy` is set only then, and a party that divided evenly leaves it null.
  */
 export function isOutstanding(entry: DropEntry): boolean {
-  // Unsold either way. Keying only on `owedBy` counted a piece drop that HAD been sold and paid
-  // out through the money path, which is the one way a coupon row does reach a settled state.
-  if (entry.status !== "PENDING") return false;
-  return !entry.pieces || entry.owedBy !== null;
+  // A piece drop is never counted here, whoever is holding it. It is said in COUPONS instead, by
+  // piecesOwed and by the party row's own figure, and counting it both ways read as two things to
+  // do: one coupon drop showed as "1 in the pool · 30 coupons owed", which is one fact twice.
+  return entry.status === "PENDING" && !entry.pieces;
 }
 
 /**
@@ -274,7 +274,9 @@ export function isOutstanding(entry: DropEntry): boolean {
  * are yours already, and the row is a record of getting them.
  */
 export function dropStatusLabel(entry: DropEntry): string {
-  if (entry.pieces && entry.owedBy === null) return "Yours";
+  // Neither coupon row belongs in "the pool", which now means drops waiting to be SOLD. One is
+  // already in your inventory; the other is in somebody else's, which the row says beside this.
+  if (entry.pieces) return entry.owedBy === null ? "Yours" : "Owed";
   return statusLabel(entry.status);
 }
 

@@ -614,13 +614,15 @@ describe("a piece drop counts YOUR share, not what fell", () => {
     expect(dropStatusLabel(log.entries[0]!)).toBe("Yours");
   });
 
-  it("counts it when somebody else is holding your share, in coupons as well as rows", () => {
+  it("says a coupon somebody else holds in coupons, and never also as a row", () => {
     const log = buildDropLog([trio({ looterMemberId: "m2" })], [pool("pa", [coupons()])], tables);
 
-    expect(log.totals.pending).toBe(1);
-    // The pieces behind the count: one row is one hammer or 180 coupons, and a number of rows
-    // does not say which.
+    // One drop, one fact. Counting it both ways read as two things to do: a single coupon drop
+    // showed as "1 in the pool · 30 coupons owed" on the party row.
+    expect(log.totals.pending).toBe(0);
     expect(log.totals.piecesOwed).toBe(20);
+    // And "in the pool" is not what it is. It is in somebody else's inventory, which the row says.
+    expect(dropStatusLabel(log.entries[0]!)).toBe("Owed");
   });
 
   it("gives each party its own coupons-owed figure for the row badge", () => {
