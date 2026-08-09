@@ -22,18 +22,14 @@
 # here that changes a NUMBER: a per-member drop is not pooled, so splitting one six ways would pay
 # everybody a sixth of something they each already have. The loot pool says so on the row.
 #
-# `worlds` narrows a drop to where it exists at all: INTERACTIVE, for the coupons that do not drop
-# in Reboot. Absent means everywhere.
+# `worlds` narrows a drop to where it exists at all: INTERACTIVE, for one that does not drop in
+# Reboot. Absent means everywhere, which is every drop in the file today.
 #
 # `fungible` marks a drop whose copies are interchangeable, so a pile of them is sold as one lot at
 # a going rate and WHICH of them went is not a fact anybody has. It is what lets a sale be entered
 # once against a queue of rows instead of row by row: the oldest unsold rows are proposed, and you
 # confirm them. Absent means the drop is sold one at a time, which is the only honest input for a
 # thing with its own potential lines and its own price.
-#
-# Not every interchangeable drop wants it. The scroll coupons are interchangeable and are absent on
-# purpose: they are cheap enough that parties do not split them at all, so whoever picks one up
-# keeps it and there is no sale to file.
 #
 # Flags sit on the item rather than on the (boss, item) pair because nothing in these tables
 # behaves differently per boss. Move one down to `tables` the day that stops being true.
@@ -100,20 +96,6 @@ drops:
     name: Grindstone of Life
     icon_id: 2539001
     fungible: true
-
-  # --- Scroll coupons, Interactive worlds only ---------------------------------------
-  - key: premium-scroll-accessory-coupon
-    name: Premium Scroll - Accessory Coupon
-    icon_id: 2633916
-    worlds: INTERACTIVE
-  - key: premium-scroll-pet-equipment-coupon
-    name: Premium Scroll - Pet Equipment Coupon
-    icon_id: 2633917
-    worlds: INTERACTIVE
-  - key: magical-scroll-weapon-coupon
-    name: Magical Scroll - Weapon Coupon
-    icon_id: 2633918
-    worlds: INTERACTIVE
 
   # --- Eternal armour boxes ----------------------------------------------------------
   # Unopened, so one is any other: what it turns into is decided when somebody opens it, and until
@@ -186,25 +168,12 @@ drops:
     name: Vestige of Erion Coupon
     art: cut
 
-  # --- Eternal pieces ----------------------------------------------------------------
-  # Also in items.yaml, which counts them in the inventory. Here for a different reason: it is
-  # something Limbo drops, and the loot pool lists what a boss can drop.
-  - key: distorted-ambition
-    name: Distorted Ambition
-    icon_id: 2638063
-    per_member: ALWAYS
-    quantity: 2
-
 # What each boss drops. Keys on the left are catalog/bosses.yaml boss keys; a boss with no entry
 # simply has no table recorded yet, which the UI says rather than showing an empty one.
 tables:
   limbo:
     - whisper-of-the-source
     - grindstone-of-faith
-    - premium-scroll-accessory-coupon
-    - premium-scroll-pet-equipment-coupon
-    - magical-scroll-weapon-coupon
-    - distorted-ambition
     - eternal-armor-of-desire-box
     - ring-of-restraint-4
     - continuous-ring-4
@@ -214,9 +183,6 @@ tables:
 
   chosen-seren:
     - exceptional-hammer-face
-    - premium-scroll-accessory-coupon
-    - premium-scroll-pet-equipment-coupon
-    - magical-scroll-weapon-coupon
     - mitras-rage-selection-box
     - ring-of-restraint-4
     - continuous-ring-4
@@ -227,9 +193,6 @@ tables:
   kalos-the-guardian:
     - exceptional-hammer-eye
     - grindstone-of-life
-    - premium-scroll-accessory-coupon
-    - premium-scroll-pet-equipment-coupon
-    - magical-scroll-weapon-coupon
     - divine-eternal-armor-box
     - ring-of-restraint-4
     - continuous-ring-4
@@ -240,9 +203,6 @@ tables:
   kaling:
     - exceptional-hammer-earrings
     - grindstone-of-faith
-    - premium-scroll-accessory-coupon
-    - premium-scroll-pet-equipment-coupon
-    - magical-scroll-weapon-coupon
     - ferocious-beast-eternal-armor-box
     - ring-of-restraint-4
     - continuous-ring-4
@@ -255,9 +215,6 @@ tables:
     - immortal-legacy
     - exceptional-hammer-medal
     - grindstone-of-life
-    - premium-scroll-accessory-coupon
-    - premium-scroll-pet-equipment-coupon
-    - magical-scroll-weapon-coupon
     - ancient-eternal-armor-box
     - ring-of-restraint-4
     - continuous-ring-4
@@ -269,9 +226,6 @@ tables:
   malefic-star:
     - blissful-nightmare
     - grindstone-of-faith
-    - premium-scroll-accessory-coupon
-    - premium-scroll-pet-equipment-coupon
-    - magical-scroll-weapon-coupon
     - eternal-armor-of-radiance-box
     - ring-of-restraint-4
     - continuous-ring-4
@@ -290,9 +244,6 @@ tables:
   baldrix:
     - oath-of-death
     - grindstone-of-faith
-    - premium-scroll-accessory-coupon
-    - premium-scroll-pet-equipment-coupon
-    - magical-scroll-weapon-coupon
     - eternal-armor-of-oaths-box
     - ring-of-restraint-4
     - continuous-ring-4

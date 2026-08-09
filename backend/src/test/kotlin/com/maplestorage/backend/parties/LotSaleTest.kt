@@ -266,22 +266,17 @@ class LotSaleTest {
             asLots.forEach { assertNull(lotDropRefusal(it), "$it should be sold as a lot") }
 
             // Accessories and rings have their own potential lines, so two copies are two prices.
-            // The scroll coupons are interchangeable and still left out: they are cheap enough that
-            // parties do not split them, so there is no sale to file. Vestige coupons settle through
-            // the tranche ledger instead.
+            // Vestige coupons settle through the tranche ledger instead.
             listOf(
                 "whisper-of-the-source",
                 "oath-of-death",
                 "immortal-legacy",
                 "blissful-nightmare",
                 "exceptional-hammer-face",
-                "premium-scroll-accessory-coupon",
-                "magical-scroll-weapon-coupon",
                 "mitras-rage-selection-box",
                 "ring-of-restraint-4",
                 "continuous-ring-4",
                 "vestige-of-erion",
-                "distorted-ambition",
             ).forEach {
                 assertTrue(
                     lotDropRefusal(it)!!.contains("not sold as a lot"),

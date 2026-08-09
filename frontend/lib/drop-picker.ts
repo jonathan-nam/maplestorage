@@ -2,7 +2,8 @@
 //
 // Held apart from the component because two screens carry the picker now (the party's loot pool
 // and a row on Party View), and the world filter is the one rule here that can produce a wrong
-// pool: offering a scroll coupon in a Heroic world is offering to log a drop that cannot happen.
+// pool: offering an Interactive-only drop in a Heroic world is offering to log one that cannot
+// happen.
 
 import { dropExistsIn, isPerMember } from "./world";
 import type { BossDrop } from "@/types/drop";
