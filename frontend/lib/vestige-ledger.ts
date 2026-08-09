@@ -70,6 +70,14 @@ export type HolderLedger = {
    * debts run the other way.
    */
   owedToYou: number;
+  /**
+   * Of those, how many their sales have already reached, so that much of the debt cannot move.
+   *
+   * The figure the card leads with, because it is the one that answers "how far through is this" in
+   * the units you are owed. Read off the transfers, like `owedToYou` and `dueNow`, so all three are
+   * the same answer counted once.
+   */
+  settledToYou: number;
   /** Mesos they owe you NOW, for the pieces of yours that have already sold. Pro rata. */
   dueNow: number;
   /**
@@ -566,6 +574,7 @@ export function holderLedgers(
       holderName: mine[0]!.holderName,
       pieces: mine.reduce((sum, d) => sum + heldOf(d.drop), 0),
       owedToYou: yours.reduce((sum, t) => sum + t.pieces, 0),
+      settledToYou: yours.reduce((sum, t) => sum + t.settled, 0),
       dueNow: yours.reduce((sum, t) => sum + (t.send ?? 0), 0),
       kept,
       drops,

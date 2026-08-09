@@ -4967,13 +4967,21 @@ button.link:disabled {
   font-variant-numeric: tabular-nums;
 }
 
+/* The pile's own frame: the two boxes that take its numbers, and the counts those numbers are
+   measured against. Kept apart from the header, which counts in the reader's units instead. */
+.ledger-entry {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--line);
+}
+
 .ledger-sale {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 10px;
-  padding-bottom: 12px;
-  border-bottom: 1px solid var(--line);
 }
 
 /* The sale box takes a price, so it is wider than the count beside it. */

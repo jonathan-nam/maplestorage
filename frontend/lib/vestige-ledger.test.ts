@@ -720,6 +720,26 @@ describe("a holder redeeming their share rather than selling it", () => {
     expect(ledger.drops[0]!.sellable).toBe(0);
   });
 
+  it("counts your claim in your own units, and keeping changes how fast it moves", () => {
+    // The three figures the card leads with. 100 pieces sold out of a pile that is half yours
+    // settles 50 of your 195; out of a pile whose sellable half is ALL yours it settles 100.
+    const shared = ledgerFor([{ holder: BRO, pieces: 100, amount: 2_500 * M }]);
+    expect([shared.owedToYou, shared.settledToYou]).toEqual([195, 50]);
+
+    const keeping = ledgerFor([
+      { holder: BRO, pieces: 100, amount: 2_500 * M },
+      { holder: BRO, pieces: 195, amount: null },
+    ]);
+    expect([keeping.owedToYou, keeping.settledToYou]).toEqual([195, 100]);
+
+    // Never more than the claim, so "to go" cannot read negative.
+    const done = ledgerFor([
+      { holder: BRO, pieces: 195, amount: 4_875 * M },
+      { holder: BRO, pieces: 195, amount: null },
+    ]);
+    expect([done.owedToYou, done.settledToYou]).toEqual([195, 195]);
+  });
+
   it("is unchanged when nobody has redeemed anything", () => {
     const ledger = ledgerFor([{ holder: BRO, pieces: 390, amount: 9_750 * M }]);
     const limbo = ledger.drops[0]!;
