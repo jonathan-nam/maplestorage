@@ -19,6 +19,7 @@ import {
   planAsText,
   planGrid,
   runsFromParties,
+  stillToRun,
   type RunTime,
   runTicks,
   runTimes,
@@ -119,6 +120,31 @@ describe("rosterFrom", () => {
   it("contributes nobody for a seat nobody has claimed", () => {
     const parties = [party("1", "lotus", [mine, member({ name: "Stranger" })])];
     expect(rosterFrom(parties)).toEqual([{ id: YOU, name: "You" }]);
+  });
+});
+
+describe("stillToRun", () => {
+  const done = (id: string) => ({ ...party(id, "lotus", [mine]), cleared: true });
+  const open = (id: string) => party(id, "lotus", [mine]);
+
+  it("drops a boss that was already cleared when the page opened", () => {
+    expect(stillToRun([done("1"), open("2")], new Set()).map((p) => p.id)).toEqual(["2"]);
+  });
+
+  // The whole reason the set exists. planNight is a beam search, so a run leaving the candidate
+  // set re-orders everything after it, under a party who are reading the order that was pasted.
+  it("keeps a boss ticked off from the page, so the rest of the night stays put", () => {
+    const kept = stillToRun([done("1"), open("2")], new Set(["1"]));
+    expect(kept.map((p) => p.id)).toEqual(["1", "2"]);
+  });
+
+  it("keeps one ticked and then un-ticked, which is still an answer given here", () => {
+    expect(stillToRun([open("1")], new Set(["1"])).map((p) => p.id)).toEqual(["1"]);
+  });
+
+  // Null is "no capture has said anything", which is a boss still to run and not a finished one.
+  it("does not read silence as cleared", () => {
+    expect(stillToRun([open("1")], new Set())).toHaveLength(1);
   });
 });
 

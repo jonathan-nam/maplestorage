@@ -6,7 +6,7 @@ import { DropPicker } from "@/components/drop-picker";
 import { RosterInputs } from "@/components/roster-inputs";
 import { RosterStrip } from "@/components/roster-strip";
 import { ApiError, apiAssetUrl } from "@/lib/api";
-import { clearStateLabel, nextClear } from "@/lib/boss-clears";
+import { clearClass, clearStateLabel, nextClear } from "@/lib/boss-clears";
 import { poolLabel } from "@/lib/loot";
 import { guaranteedDrop, otherMembers, partySizeLabel } from "@/lib/parties";
 import type { BossDrop } from "@/types/drop";
@@ -28,10 +28,6 @@ import type { Party } from "@/types/party";
 //
 // The heading is passed in because it differs per view: the boss when filed by character, the
 // character when filed by boss.
-/** Named once so the button and the read-only span cannot word the three states apart. */
-function clearClass(cleared: boolean | null): string {
-  return cleared === null ? "unseen" : cleared ? "cleared" : "pending";
-}
 
 // Joins the roster to compare it, so a name cannot be mistaken for the join. It was a raw NUL byte
 // in the source, which had git treating this whole file as binary and every diff of it as unreadable.

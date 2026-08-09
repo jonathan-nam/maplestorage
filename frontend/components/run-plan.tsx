@@ -2,8 +2,10 @@
 
 import { Fragment, useEffect, useState } from "react";
 
+import { DropPicker } from "@/components/drop-picker";
 import { apiAssetUrl } from "@/lib/api";
 import { BOSS_ART_2X } from "@/lib/boss-art";
+import { clearClass, clearStateLabel, nextClear } from "@/lib/boss-clears";
 import { bossLabel } from "@/lib/boss-difficulty";
 import {
   formatDuration,
@@ -15,6 +17,10 @@ import {
   runTimes,
 } from "@/lib/boss-night";
 import type { Plan } from "@/lib/boss-run-plan";
+import { poolSize } from "@/lib/loot";
+import type { BossDrop } from "@/types/drop";
+import type { AddLootBody } from "@/types/loot";
+import type { Party } from "@/types/party";
 
 /** Names as a person would say them: "Rinlow", "Rinlow and Kade", "Rinlow, Kade and Bel". */
 function said(names: string[]): string {
@@ -34,6 +40,26 @@ function waitLine(time: RunTime): string {
   if (names.length === 1) return `${names[0]} is free at ${time.at}`;
   return `${said(names)} are free at ${time.at}`;
 }
+
+/**
+ * Answering for a run without leaving the order.
+ *
+ * The row is answered through its CONFIG, the same Party the boss rows on Party View carry, so a
+ * boss ticked here and one ticked there are the same boss_clear row and a drop logged here lands
+ * in the same pool. Absent for a hand-typed night: there is no config behind those rows, so there
+ * is nothing to write to and no controls are drawn.
+ */
+export type RunLog = {
+  /** The config a planned run came from, by run id. */
+  partyOf: (runId: string) => Party | undefined;
+  /** That boss's drop table, for the picker. Undefined leaves it offering "something else". */
+  dropTable: (bossKey: string) => BossDrop[] | undefined;
+  /** THIS config's write, not the page's: one row saving must not dim the rest of the night. */
+  busy: (partyId: string) => boolean;
+  onToggleClear: (party: Party, cleared: boolean) => void;
+  /** Omitted where the catalog's tables never loaded, which a picker cannot do without. */
+  onAddDrop?: (party: Party, body: AddLootBody) => Promise<void>;
+};
 
 /**
  * The night, in order: bosses down the rows, people across the columns.
@@ -56,12 +82,15 @@ export function RunPlan({
   roster,
   startAt,
   timed = true,
+  log,
 }: {
   plan: Plan;
   roster: NightPerson[];
   startAt: number;
   /** Off where the night is an order rather than a schedule: no times, no lengths, no waits. */
   timed?: boolean;
+  /** Absent for a hand-typed night, which has no config to answer for. See RunLog. */
+  log?: RunLog;
 }) {
   const { people, rows } = planGrid(plan, roster);
   const times = timed ? runTimes(plan, roster, startAt) : [];
@@ -71,6 +100,13 @@ export function RunPlan({
   // reading a cell still means tracing a column by eye. CSS can do a row on its own and cannot do
   // a column, hence the state. Same reason the boss matrix carries one.
   const [hovered, setHovered] = useState<string | null>(null);
+  // One at a time. Two open pickers is two forms competing for the same night, and the panel is a
+  // full-width row that pushes the rest of the order down the page.
+  const [opened, setOpened] = useState<string | null>(null);
+  const [addError, setAddError] = useState<string | null>(null);
+
+  // The rule and the wait rows span the table, so they have to count the clear column too.
+  const width = people.length + 1 + (log ? 1 : 0);
 
   return (
     // Cleared here rather than per cell, so leaving one cell for its neighbour does not blank the
@@ -95,31 +131,49 @@ export function RunPlan({
                 {person.name}
               </th>
             ))}
+            {log && (
+              <th className="run-col-head run-clear-head" scope="col">
+                <span className="visually-hidden">Cleared</span>
+              </th>
+            )}
           </tr>
         </thead>
         <tbody>
           {rows.map(({ planned, cells }, row) => {
             const time = times[row];
             const tick = ticks[row];
+            const party = log?.partyOf(planned.run.id);
+            const pool = party ? poolSize(party) : 0;
+            // Every drop, not just the outstanding ones, but quietly once there is nothing left to
+            // do with them. Same two states the party row's summary has.
+            const settled = party !== undefined && party.pendingLoot + party.awaitingPayout === 0;
+            const onAddDrop = log?.onAddDrop;
+            const open = opened === planned.run.id;
+            const rowClasses = [];
+            // Striped from the row's own index rather than :nth-child, which counts the wait and
+            // rule rows above and flips the banding under every gap.
+            if (row % 2 === 1) rowClasses.push("is-banded");
+            // Strictly `=== true`, as the party row is: null is "nothing has said", which is a run
+            // still to do and not a finished one.
+            if (party?.cleared === true) rowClasses.push("is-done");
+            if (open) rowClasses.push("is-open");
             return (
               <Fragment key={planned.run.id}>
                 {/* Above the wait, because the wait is what carried the night into this half hour
                     and reads as the reason the rule is where it is. */}
                 {tick != null && (
                   <tr className="run-tick">
-                    <td colSpan={people.length + 1}>
+                    <td colSpan={width}>
                       <span className="run-tick-at">{tick}</span>
                     </td>
                   </tr>
                 )}
                 {time !== undefined && time.waitingFor.length > 0 && (
                   <tr className="run-wait">
-                    <td colSpan={people.length + 1}>{waitLine(time)}</td>
+                    <td colSpan={width}>{waitLine(time)}</td>
                   </tr>
                 )}
-                {/* Striped from the row's own index rather than :nth-child, which counts the wait
-                    and rule rows above and flips the banding under every gap. */}
-                <tr className={row % 2 === 1 ? "is-banded" : undefined}>
+                <tr className={rowClasses.join(" ") || undefined}>
                   <th
                     className="run-boss"
                     scope="row"
@@ -130,6 +184,26 @@ export function RunPlan({
                     {/* Flexed on an inner span: display:flex on a table cell takes it out of the
                     table layout and the columns stop aligning. */}
                     <span className="run-boss-inner">
+                      {/* Same chevron as a party row, in the same place, because it opens the same
+                          picker onto the same pool. Absent with no config behind the row, and the
+                          width is not held open for it: every row of an account night has one. */}
+                      {party && onAddDrop && (
+                        <button
+                          type="button"
+                          className="party-row-toggle"
+                          aria-expanded={open}
+                          aria-controls={`run-panel-${planned.run.id}`}
+                          onClick={() => {
+                            setOpened(open ? null : planned.run.id);
+                            setAddError(null);
+                          }}
+                        >
+                          <span className="party-row-chevron" aria-hidden="true" />
+                          <span className="visually-hidden">
+                            {open ? "Hide what dropped" : "Add a drop"}
+                          </span>
+                        </button>
+                      )}
                       {BOSS_ART_2X[planned.run.bossKey] ? (
                         <img
                           className="run-art"
@@ -150,6 +224,23 @@ export function RunPlan({
                         {timed && (
                           <span className="run-boss-minutes">
                             {`${planned.run.assumed ? "~" : ""}${formatDuration(planned.run.minutes)}`}
+                          </span>
+                        )}
+                        {/* What the pool holds, as the bare count the arrangement view's boss chips
+                            carry. Party View's wording ("1 in the pool") is a line of its own
+                            there and wrapped the boss name onto a second line here. It counts the
+                            whole pool rather than tonight: a pool is not per night, and a badge
+                            that emptied at reset would be a number about the week dressed as a
+                            number about the run. */}
+                        {pool > 0 && (
+                          <span
+                            className={
+                              settled
+                                ? "run-pool party-loot-summary is-done"
+                                : "run-pool party-loot-summary"
+                            }
+                          >
+                            {pool}
                           </span>
                         )}
                       </span>
@@ -189,7 +280,58 @@ export function RunPlan({
                       </td>
                     );
                   })}
+
+                  {/* Last on the line, as it is on a party row, so the eye runs down one column of
+                      states rather than hunting for them under each boss. A run with no config
+                      behind it keeps the cell empty rather than losing it, or the grid goes
+                      ragged. */}
+                  {log && (
+                    <td className="run-clear-cell">
+                      {party && (
+                        <button
+                          type="button"
+                          className={`party-clear is-${clearClass(party.cleared)}`}
+                          disabled={log.busy(party.id)}
+                          onClick={() => log.onToggleClear(party, nextClear(party.cleared))}
+                          title={
+                            party.cleared === null
+                              ? "No planner capture has mentioned this boss this period"
+                              : undefined
+                          }
+                        >
+                          {clearStateLabel(party.cleared)}
+                        </button>
+                      )}
+                    </td>
+                  )}
                 </tr>
+
+                {/* A row of its own across the table, the way the rule and the wait are: a picker
+                    inside a cell would be laid out by the column it is in. */}
+                {open && party && log && onAddDrop && (
+                  <tr className="run-panel">
+                    <td colSpan={width} id={`run-panel-${planned.run.id}`}>
+                      <DropPicker
+                        bossKey={party.bossKey}
+                        worldType={party.worldType}
+                        table={log.dropTable(party.bossKey)}
+                        difficulty={party.difficulty}
+                        busy={log.busy(party.id)}
+                        onAdd={async (body) => {
+                          setAddError(null);
+                          try {
+                            await onAddDrop(party, body);
+                          } catch (e) {
+                            setAddError("That didn't save.");
+                            // Rethrown so the picker keeps what was chosen, ready to try again.
+                            throw e;
+                          }
+                        }}
+                      />
+                      {addError && <p className="split-error">{addError}</p>}
+                    </td>
+                  </tr>
+                )}
               </Fragment>
             );
           })}

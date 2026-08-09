@@ -45,6 +45,40 @@ describe("the plan's banding", () => {
   });
 });
 
+// Answering for a run from the order: the clear pill in a column of its own, the drop picker on a
+// row across the table. Both borrow Party View's chrome on purpose, so the two screens cannot end
+// up drawing the same three states differently.
+describe("answering for a run", () => {
+  const rule = (selector: string) => {
+    const at = css.indexOf(`${selector} {`);
+    expect(at, `${selector} is missing`).toBeGreaterThan(-1);
+    return css.slice(at, css.indexOf("}", at));
+  };
+
+  it("gives the clear a column that takes only the width of its pill", () => {
+    expect(rule(".run-clear-head,\n.run-clear-cell")).toMatch(/width:\s*1%/);
+  });
+
+  it("keeps the pill on one line, being three words at their widest", () => {
+    expect(rule(".run-clear-head,\n.run-clear-cell")).toMatch(/white-space:\s*nowrap/);
+  });
+
+  // The rotation is what says the chevron did something. Its selector list is per-row-type, so a
+  // new row that reuses the chevron and not the selector gets an arrow that never turns.
+  it("turns the chevron on an open run", () => {
+    expect(css).toMatch(/\.run-table tr\.is-open \.party-row-chevron/);
+  });
+
+  it("recedes a done run without greying who ran it", () => {
+    expect(css).toMatch(/\.run-table tbody tr\.is-done \.run-boss-name/);
+    expect(css).not.toMatch(/\.run-table tbody tr\.is-done \.run-cell/);
+  });
+
+  it("takes no hover on the picker's row, which is not a run", () => {
+    expect(css).toMatch(/\.run-panel:hover\s*\{[^}]*background:\s*none/);
+  });
+});
+
 // A plan tab carries two numbers, so a row of them that cannot wrap breaks the labels instead and
 // each chip grows a second line. Measured at 420px with four tabs: 38px tall chips on one row
 // before, 23px tall chips over two rows after.

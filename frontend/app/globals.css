@@ -4521,7 +4521,8 @@ button.link:disabled {
    that did nothing. */
 .party-row.is-open .party-row-chevron,
 .boss-run.is-open .party-row-chevron,
-.droplog-row.is-open .party-row-chevron {
+.droplog-row.is-open .party-row-chevron,
+.run-table tr.is-open .party-row-chevron {
   transform: rotate(90deg);
 }
 
@@ -4717,11 +4718,23 @@ button.link:disabled {
   margin-bottom: 0;
 }
 
+/* The count sits beside the copy button rather than under it: both are about the plan as a whole,
+   and the column above stacks what is about the plan over what picks between plans. */
+.night-plan-line {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.night-progress {
+  color: var(--muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
 /* The order itself: bosses down the rows, people across the columns, the same way round as the
    boss matrix. A list of each run's seats could only show who is IN a run, and a group is usually
-   bigger than the six seats a party has, so the gaps in a person's column are half of the plan.
-   Runs are numbered by CSS rather than in the markup: the number is the position in the plan, and
-   a table that renumbers itself cannot disagree with the order it is drawn in. */
+   bigger than the six seats a party has, so the gaps in a person's column are half of the plan. */
 .run-grid {
   margin-top: 14px;
   overflow-x: auto;
@@ -4883,6 +4896,64 @@ button.link:disabled {
 
 .run-swap {
   font-size: 11px;
+}
+
+/* The same pill the arrangement view's boss chips carry, and the same reason: beside a boss name
+   there is room for a count and not for a sentence. Party View's wording wrapped "Hard Kalos The
+   Guardian" onto a second line and made a one-line run two lines tall. */
+.run-pool {
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--surface);
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+/* The clear, at the end of the line, the same pill Party View's boss row carries and writing the
+   same boss_clear row. Its own column rather than a chip in the boss cell: the states are read
+   down a column, and beside a boss name of any length there is no column to read down. */
+.run-clear-head,
+.run-clear-cell {
+  width: 1%;
+  padding: 5px 8px;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.run-clear-cell {
+  border-top: 1px solid var(--line-soft);
+}
+
+/* Done, so the run recedes and the order becomes what is left, the way a cleared party row does.
+   Only the boss half: a person's cell still says which character they bring, and greying the whole
+   row would take the record of the night down with the tick. */
+.run-table tbody tr.is-done .run-boss-name {
+  color: var(--muted);
+}
+
+.run-table tbody tr.is-done .run-art {
+  opacity: 0.5;
+  filter: saturate(0.3);
+}
+
+/* What a run opens to: the drop picker, on a row across the table because a form laid out inside
+   one column of a grid is laid out by that column. Indented past the chevron so it hangs under the
+   boss rather than under the arrow that opened it, as the party row's panel is. */
+.run-panel td {
+  padding: 4px 8px 10px 36px;
+}
+
+.run-panel .loot-add {
+  margin-bottom: 0;
+}
+
+.run-panel .split-error {
+  margin: 4px 0 0;
+}
+
+/* Not a row of the plan, so it takes no band and no hover. Same reasoning as the rule and the wait. */
+.run-panel:hover {
+  background: none;
 }
 
 .night-leftovers {
