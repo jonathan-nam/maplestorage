@@ -7,7 +7,7 @@ import { CharacterRow } from "@/components/character-row";
 import { ApiError, apiFetch } from "@/lib/api";
 import { invalidate, peek, put } from "@/lib/cache";
 import { SETTINGS_KEY, setAccountSettings, useAccountSettings } from "@/lib/use-account-settings";
-import { worldLabel, WORLD_TYPES, type WorldType } from "@/lib/world";
+import { otherWorld, worldLabel, type WorldType } from "@/lib/world";
 import type { Character } from "@/types/character";
 import type { Settings } from "@/types/settings";
 
@@ -75,22 +75,14 @@ export default function CharactersPage() {
     }
   }
 
-  const setAll = (next: WorldType) =>
-    persist(
-      (list) => list.map((c) => ({ ...c, worldType: next })),
-      () =>
-        apiFetch<Settings>(
-          SETTINGS_KEY,
-          { method: "PUT", body: JSON.stringify({ worldType: next }) },
-          getToken,
-        ),
-    );
-
+  // Moves the character OUT of the list it is in, which is the point of it: this is how a
+  // character added in the wrong world gets to the right one. It leaves the page rather than
+  // changing colour, so the optimistic step drops it.
   const setWorld = (id: string, next: WorldType) => {
     // Clicking the world a character is already in is not a change to save.
     if (characters.find((c) => c.id === id)?.worldType === next) return;
     return persist(
-      (list) => list.map((c) => (c.id === id ? { ...c, worldType: next } : c)),
+      (list) => list.filter((c) => c.id !== id),
       () =>
         apiFetch<Character>(
           `${CHARACTERS_KEY}/${id}`,
@@ -134,32 +126,10 @@ export default function CharactersPage() {
     invalidate("/api/");
   };
 
-  // Null when they do not agree, which is what stops "Set all X" being offered when they already
-  // all are, and what decides whether the default below is worth saying.
-  const worlds = new Set(characters.map((c) => c.worldType));
-  const common: WorldType | null = worlds.size === 1 ? ([...worlds][0] ?? null) : null;
-
   return (
     <main className="page">
       <div className="settings-section-head">
         <h1 className="page-title">Characters</h1>
-        {/* Two actions, not a third toggle. An "All characters" row drawn with the same control
-            as the characters under it read as one of them, and every click went there. */}
-        {characters.length > 1 && (
-          <span className="settings-bulk">
-            {WORLD_TYPES.map((option) => (
-              <button
-                key={option}
-                type="button"
-                className="party-cancel"
-                disabled={common === option}
-                onClick={() => setAll(option)}
-              >
-                Set all {worldLabel(option)}
-              </button>
-            ))}
-          </span>
-        )}
       </div>
 
       {failed && !loaded && <p>Couldn&apos;t load your characters.</p>}
@@ -186,10 +156,14 @@ export default function CharactersPage() {
 
           {error && <p className="routine-error">{error}</p>}
 
-          {/* Not said unless it is true: with every character in one world there is no default to
-              notice, because it is the world they are all already in. */}
-          {settings && common === null && (
-            <p className="party-hint">New characters start in {worldLabel(settings.worldType)}.</p>
+          {/* The list is one world's. This is the rest of the account, and it is said because an
+              empty page in the wrong world looks exactly like an account with no characters. */}
+          {settings && settings.otherWorldCharacters > 0 && (
+            <p className="party-hint">
+              {settings.otherWorldCharacters}{" "}
+              {settings.otherWorldCharacters === 1 ? "character" : "characters"} in{" "}
+              {worldLabel(otherWorld(settings.worldType))}.
+            </p>
           )}
         </>
       )}

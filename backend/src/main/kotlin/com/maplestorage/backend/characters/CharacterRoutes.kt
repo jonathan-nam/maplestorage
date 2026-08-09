@@ -1,11 +1,11 @@
 package com.maplestorage.backend.characters
 
 import com.maplestorage.backend.db.Characters
-import com.maplestorage.backend.db.Users
 import com.maplestorage.backend.plugins.parseUuidParam
 import com.maplestorage.backend.plugins.principalIdAndEmail
 import com.maplestorage.backend.plugins.span
 import com.maplestorage.backend.services.NexonLookupService
+import com.maplestorage.backend.users.activeWorldFor
 import com.maplestorage.backend.users.ensureUser
 import com.maplestorage.backend.users.worldTypeOrNull
 import io.ktor.http.HttpStatusCode
@@ -65,13 +65,9 @@ private suspend fun RoutingContext.createCharacter(nexonLookupService: NexonLook
                     .where { Characters.userId eq userId }
                     .count()
                     .toInt()
-            // The account's world, not the column default: a Heroic player adding their tenth
-            // character should not have to go and say so again.
-            val accountWorld =
-                Users
-                    .selectAll()
-                    .where { Users.id eq userId }
-                    .single()[Users.worldType]
+            // The world being shown, not the column default: you add a character into the world
+            // you are looking at, which is the only place it could go and still be visible.
+            val accountWorld = activeWorldFor(userId)
             Characters.insert {
                 it[id] = newId
                 it[Characters.userId] = userId
@@ -96,14 +92,18 @@ private suspend fun RoutingContext.listCharacters() {
     val characters =
         transaction {
             ensureUser(userId, email)
-            Characters
-                .selectAll()
-                .where { Characters.userId eq userId }
-                .orderBy(Characters.position)
-                .map { it.toCharacterResponse() }
+            charactersInActiveWorld(userId)
         }
     call.respond(characters)
 }
+
+/** This account's characters in the world it is looking at, in carousel order. */
+private fun charactersInActiveWorld(userId: String): List<CharacterResponse> =
+    Characters
+        .selectAll()
+        .where { (Characters.userId eq userId) and (Characters.worldType eq activeWorldFor(userId)) }
+        .orderBy(Characters.position)
+        .map { it.toCharacterResponse() }
 
 private suspend fun RoutingContext.reorderCharacters() {
     val (userId, email) = call.principalIdAndEmail()
@@ -119,27 +119,31 @@ private suspend fun RoutingContext.reorderCharacters() {
     val reordered =
         transaction {
             ensureUser(userId, email)
-            val owned =
+            // The world being shown, because that is the list the caller was looking at. It cannot
+            // name a character it was never sent, and requiring the whole account would refuse
+            // every reorder made while a world is toggled on.
+            val shown =
                 Characters
                     .selectAll()
-                    .where { Characters.userId eq userId }
-                    .map { it[Characters.id] }
-                    .toSet()
-            // Must be exactly this user's set, no missing, extra or duplicate ids, or position
-            // would end up with holes or collisions.
-            if (order.size != owned.size || order.toSet() != owned) {
+                    .where {
+                        (Characters.userId eq userId) and (Characters.worldType eq activeWorldFor(userId))
+                    }.orderBy(Characters.position)
+                    .map { it[Characters.id] to it[Characters.position] }
+            // Must be exactly that set, no missing, extra or duplicate ids, or position would end
+            // up with holes or collisions.
+            if (order.size != shown.size || order.toSet() != shown.map { it.first }.toSet()) {
                 return@transaction null
             }
+            // Permute the slots these characters already hold rather than numbering from zero. The
+            // other world's characters keep theirs, so position stays dense across the account and
+            // their order survives a reorder they were not part of.
+            val slots = shown.map { it.second }.sorted()
             order.forEachIndexed { index, characterId ->
                 Characters.update({ (Characters.id eq characterId) and (Characters.userId eq userId) }) {
-                    it[position] = index
+                    it[position] = slots[index]
                 }
             }
-            Characters
-                .selectAll()
-                .where { Characters.userId eq userId }
-                .orderBy(Characters.position)
-                .map { it.toCharacterResponse() }
+            charactersInActiveWorld(userId)
         }
 
     if (reordered == null) {

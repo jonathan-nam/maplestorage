@@ -12,8 +12,9 @@ import io.ktor.server.routing.RoutingContext
 import io.ktor.server.routing.get
 import io.ktor.server.routing.put
 import kotlinx.serialization.Serializable
+import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
-import org.jetbrains.exposed.v1.jdbc.select
+import org.jetbrains.exposed.v1.core.neq
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.jetbrains.exposed.v1.jdbc.update
@@ -22,16 +23,16 @@ import org.jetbrains.exposed.v1.jdbc.update
 
 @Serializable
 data class SettingsResponse(
-    // INTERACTIVE or HEROIC. What a newly added character starts in, and what "all characters"
-    // last said. NOT an assertion about the account: a character's own world is the truth, and
-    // one account can hold both.
+    // INTERACTIVE or HEROIC: the world the site is currently answering for. See activeWorldFor.
     val worldType: String,
-    // Whether ANY character is somewhere that trades.
-    //
-    // Derived, never stored, and the only thing the account-wide screens may key off: the section
-    // menu and the Drop Log's meso totals answer for the whole account, and reading `worldType`
-    // there would hide an Interactive character's real earnings behind a default nobody set.
+    // Whether anything in the world being shown can change hands. Every meso figure hangs off it.
     val trades: Boolean,
+    // How many characters the OTHER world holds.
+    //
+    // The one thing a mode cannot leave unsaid. Narrowing to one world hides the rest of the
+    // account by design, and a screen that is empty because you are standing in the wrong world
+    // looks exactly like a screen that is empty because you have nothing.
+    val otherWorldCharacters: Int,
 )
 
 @Serializable
@@ -54,24 +55,18 @@ private suspend fun RoutingContext.getSettings() {
     call.respond(settings)
 }
 
-/**
- * An account with no characters yet trades, so a first-time page is not quietly missing half of
- * itself before there is anything to be missing.
- */
 internal fun settingsFor(userId: String): SettingsResponse {
-    val worlds =
+    val world = activeWorldFor(userId)
+    val elsewhere =
         Characters
-            .select(Characters.worldType)
-            .where { Characters.userId eq userId }
-            .map { it[Characters.worldType] }
-    val default =
-        Users
             .selectAll()
-            .where { Users.id eq userId }
-            .single()[Users.worldType]
+            .where { (Characters.userId eq userId) and (Characters.worldType neq world) }
+            .count()
+            .toInt()
     return SettingsResponse(
-        worldType = default,
-        trades = worlds.isEmpty() || worlds.any { it == WORLD_INTERACTIVE },
+        worldType = world,
+        trades = world == WORLD_INTERACTIVE,
+        otherWorldCharacters = elsewhere,
     )
 }
 
@@ -84,16 +79,27 @@ private suspend fun RoutingContext.saveSettings() {
         return
     }
 
-    // The "all characters" control, which is also the only place the default is stated: saying it
-    // of the whole account is the one unambiguous answer to what the next character starts in.
-    // Setting a single character deliberately does NOT move it.
     val settings =
         transaction {
             ensureUser(userId, email)
-            Users.update({ Users.id eq userId }) { it[Users.worldType] = worldType }
-            Characters.update({ Characters.userId eq userId }) { it[Characters.worldType] = worldType }
+            setActiveWorld(userId, worldType)
             settingsFor(userId)
         }
 
     call.respond(settings)
+}
+
+/**
+ * Point the site at a world. Moves no character, which is the whole rule.
+ *
+ * This used to set every character's world too, back when it was a "Set all" button. Under a toggle
+ * that is the worst thing it could do: flipping to Reboot to look at your Reboot characters would
+ * convert your Interactive ones on the way, silently, and their parties would stop being able to
+ * sell what they had already sold. Pinned by a test.
+ */
+internal fun setActiveWorld(
+    userId: String,
+    world: String,
+) {
+    Users.update({ Users.id eq userId }) { it[worldType] = world }
 }

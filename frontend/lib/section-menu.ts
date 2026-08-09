@@ -7,11 +7,11 @@ export type SectionItem = {
   href: string;
   label: string;
   /**
-   * Only listed while some character of this account can trade.
+   * Only listed while the world being shown can trade.
    *
-   * The page still exists and still routes, so an old link is not a dead end. It is off the menu
-   * because a purely Heroic account has nothing to split, and offering them the tool anyway is the
-   * app explaining a control they cannot use. One Interactive character is enough to keep it.
+   * The page still exists and still routes, so an old link is not a dead end, and toggling back is
+   * one click. It is off the menu because there is nothing to split in a Heroic world, and offering
+   * the tool anyway is the app explaining a control that cannot be used from here.
    */
   interactiveOnly?: boolean;
   /**
@@ -71,13 +71,11 @@ export const MENU_HREFS = SECTIONS.flatMap((s) =>
 );
 
 /**
- * What to draw for this account, or everything while the answer is not known yet.
+ * What to draw for the world being shown, or everything while the answer is not known yet.
  *
- * `trades` is "does any character trade", not one world: an account with a foot in both keeps the
- * Interactive-only entries, because the character that needs them exists. Undefined is the moment
- * before /api/settings answers. Showing the full menu then is the old behaviour and costs a purely
- * Heroic account one entry for a few milliseconds; the panel does not even mount until the
- * hamburger is clicked, which is almost always after.
+ * Undefined is the moment before /api/settings answers. Showing the full menu then is the old
+ * behaviour and costs a Heroic account one entry for a few milliseconds; the panel does not even
+ * mount until the hamburger is clicked, which is almost always after.
  */
 export function sectionsFor(trades: boolean | undefined) {
   if (trades !== false) return SECTIONS;

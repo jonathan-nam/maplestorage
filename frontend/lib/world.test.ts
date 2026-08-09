@@ -1,5 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { canTrade, dropExistsIn, isPerMember, offersWallet, showsMoney, worldLabel } from "./world";
+import {
+  canTrade,
+  dropExistsIn,
+  isPerMember,
+  offersWallet,
+  otherWorld,
+  showsMoney,
+  worldLabel,
+  worldShortLabel,
+} from "./world";
 
 describe("what a world can do", () => {
   it("trades only in Interactive worlds", () => {
@@ -10,6 +19,19 @@ describe("what a world can do", () => {
   it("carries the old name for the world players still call Reboot", () => {
     expect(worldLabel("HEROIC")).toContain("Reboot");
     expect(worldLabel("INTERACTIVE")).toBe("Interactive");
+  });
+
+  it("drops the parenthetical where both names are on screen together", () => {
+    // The header toggle. "Heroic (Reboot)" beside "Interactive" is a pill twice the width of its
+    // neighbour, and with both names shown at once the gloss has nothing left to disambiguate.
+    expect(worldShortLabel("HEROIC")).toBe("Reboot");
+    expect(worldShortLabel("INTERACTIVE")).toBe("Interactive");
+  });
+
+  it("has an other world, and it is an involution", () => {
+    expect(otherWorld("HEROIC")).toBe("INTERACTIVE");
+    expect(otherWorld("INTERACTIVE")).toBe("HEROIC");
+    expect(otherWorld(otherWorld("HEROIC"))).toBe("HEROIC");
   });
 });
 
@@ -47,18 +69,17 @@ describe("whether everyone gets their own", () => {
 });
 
 describe("what an account is shown", () => {
-  it("draws mesos until no character is known to trade", () => {
-    // `trades`, never a single world, and that is the whole point of the field: an account with
-    // one Interactive character among Heroic ones has real earnings in the Drop Log, and keying
-    // this off an account-wide world would hide them behind a default nobody set.
+  it("draws mesos until the world being shown is one that cannot trade", () => {
+    // Undefined is the moment before /api/settings answers, and it draws them: erring towards
+    // showing beats blanking every figure on screen for a few milliseconds on every page load.
     expect(showsMoney(undefined)).toBe(true);
     expect(showsMoney(true)).toBe(true);
     expect(showsMoney(false)).toBe(false);
   });
 
   it("keeps the Wallet reachable while a share is still owed", () => {
-    // The rule that stops this from hiding what it dropped: moving every character to Heroic must
-    // not strand money somebody was already owed behind a link that no longer exists.
+    // The rule that stops this from hiding what it dropped: toggling to Heroic must not strand
+    // money somebody was already owed behind a link that no longer exists.
     expect(offersWallet(false, true)).toBe(true);
     expect(offersWallet(false, false)).toBe(false);
     expect(offersWallet(true, false)).toBe(true);

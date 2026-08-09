@@ -5,10 +5,12 @@ import com.maplestorage.backend.bosses.periodAfter
 import com.maplestorage.backend.bosses.weekOf
 import com.maplestorage.backend.db.BossCatalog
 import com.maplestorage.backend.db.BossDropAmount
+import com.maplestorage.backend.db.Characters
 import com.maplestorage.backend.db.DropCatalog
 import com.maplestorage.backend.db.Party
 import com.maplestorage.backend.db.PartyLoot
 import com.maplestorage.backend.db.PartyLootPayout
+import com.maplestorage.backend.users.activeWorldFor
 import kotlinx.datetime.LocalDate
 import org.jetbrains.exposed.v1.core.JoinType
 import org.jetbrains.exposed.v1.core.ResultRow
@@ -120,8 +122,12 @@ internal fun lootFor(partyId: Uuid): List<LootResponse> {
 internal fun allLootFor(userId: String): List<PartyLootPoolResponse> {
     val rows =
         lootWithCatalog()
+            // For the world lens only. The pool itself needs nothing from the character, but the
+            // Drop Log and the Wallet both sum across every party, and summing across two worlds
+            // would add mesos that cannot be earned to mesos that can.
+            .join(Characters, JoinType.INNER, Party.characterId, Characters.id)
             .selectAll()
-            .where { Party.userId eq userId }
+            .where { (Party.userId eq userId) and (Characters.worldType eq activeWorldFor(userId)) }
             .orderBy(PartyLoot.droppedOn to SortOrder.DESC, PartyLoot.createdAt to SortOrder.DESC)
             .toList()
     if (rows.isEmpty()) return emptyList()

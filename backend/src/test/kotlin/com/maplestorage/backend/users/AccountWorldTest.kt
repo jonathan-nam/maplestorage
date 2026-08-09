@@ -2,12 +2,15 @@ package com.maplestorage.backend.users
 
 import com.maplestorage.backend.config.Env
 import com.maplestorage.backend.db.Characters
+import com.maplestorage.backend.db.Users
 import org.flywaydb.core.Flyway
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.Database
 import org.jetbrains.exposed.v1.jdbc.deleteWhere
 import org.jetbrains.exposed.v1.jdbc.insert
+import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
+import org.jetbrains.exposed.v1.jdbc.update
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
@@ -18,12 +21,13 @@ import kotlin.time.Clock
 import kotlin.uuid.Uuid
 
 /**
- * `trades`, the one thing the account-wide screens are allowed to read.
+ * The world mode, and the two things every screen reads off it.
  *
- * An account can hold characters in both worlds, so "can this account trade" is a question about
- * the SET of them, not about users.world_type. Answering it from the stored world instead would
- * take the Split Utility off the menu and the meso totals off the Drop Log for somebody whose
- * Interactive character is still earning, which is money hidden behind a default nobody set.
+ * `worldType` is which world the site is answering for, and `trades` follows from it. An account
+ * holds characters in both, so the mode is a lens: the alternative was summing both worlds into one
+ * figure and asking "does anybody here trade", which cannot answer what a meso total is a total OF.
+ *
+ * The rule the toggle rests on is the last test: changing the mode moves nothing.
  */
 class AccountWorldTest {
     private val userId = "user_test_world_1"
@@ -49,7 +53,10 @@ class AccountWorldTest {
         // Held in a local: inside deleteWhere {} the table is the receiver, so a bare `userId`
         // binds to the COLUMN and the predicate is true of every row. See PartyLootTest.
         val owner = userId
-        transaction { Characters.deleteWhere { Characters.userId eq owner } }
+        transaction {
+            Characters.deleteWhere { Characters.userId eq owner }
+            Users.update({ Users.id eq owner }) { it[worldType] = WORLD_INTERACTIVE }
+        }
     }
 
     private fun character(
@@ -69,51 +76,73 @@ class AccountWorldTest {
         }
     }
 
+    /** The same call the PUT makes, so what the toggle actually does is what is under test. */
+    private fun mode(world: String) = setActiveWorld(userId, world)
+
     @Test
-    fun `one Interactive character among Heroic ones still trades`() {
+    fun `trades follows the world being shown, not the characters in the other one`() {
+        transaction {
+            ensureUser(userId, "$userId@example.com")
+            character("Rune", WORLD_HEROIC)
+            character("mechyfechy", WORLD_INTERACTIVE)
+
+            mode(WORLD_INTERACTIVE)
+            assertTrue(settingsFor(userId).trades)
+
+            // The Interactive character still exists and still earns. It is not what this screen is
+            // answering for, and a meso figure drawn here would be its earnings under a heading
+            // that says Heroic.
+            mode(WORLD_HEROIC)
+            assertFalse(settingsFor(userId).trades)
+        }
+    }
+
+    @Test
+    fun `an account with no characters answers for the world it is looking at`() {
+        transaction {
+            ensureUser(userId, "$userId@example.com")
+
+            assertTrue(settingsFor(userId).trades)
+            assertEquals(0, settingsFor(userId).otherWorldCharacters)
+        }
+    }
+
+    @Test
+    fun `the other world's characters are counted, so an empty list is not read as an empty account`() {
         transaction {
             ensureUser(userId, "$userId@example.com")
             character("Rune", WORLD_HEROIC)
             character("Steve", WORLD_HEROIC)
             character("mechyfechy", WORLD_INTERACTIVE)
 
-            assertTrue(settingsFor(userId).trades)
+            mode(WORLD_INTERACTIVE)
+            assertEquals(2, settingsFor(userId).otherWorldCharacters)
+
+            mode(WORLD_HEROIC)
+            assertEquals(1, settingsFor(userId).otherWorldCharacters)
         }
     }
 
     @Test
-    fun `an account entirely in Heroic worlds does not trade`() {
+    fun `changing the mode moves no character`() {
         transaction {
             ensureUser(userId, "$userId@example.com")
             character("Rune", WORLD_HEROIC)
-            character("Steve", WORLD_HEROIC)
+            character("mechyfechy", WORLD_INTERACTIVE)
 
-            assertFalse(settingsFor(userId).trades)
-        }
-    }
+            // What the old "Set all" control did, and what a toggle must never do: flipping to
+            // Heroic to look at your Heroic characters used to convert the Interactive ones on the
+            // way, silently, and their parties stopped being able to sell what they had sold.
+            mode(WORLD_HEROIC)
 
-    @Test
-    fun `an account with no characters yet trades`() {
-        transaction {
-            ensureUser(userId, "$userId@example.com")
-            // Nothing to be missing from yet, so a first-time page is not quietly half-drawn.
-            assertTrue(settingsFor(userId).trades)
-        }
-    }
-
-    @Test
-    fun `the stored world is a default for the next character, not a claim about the account`() {
-        transaction {
-            ensureUser(userId, "$userId@example.com")
-            // Every character moved to Heroic by hand, one at a time, which is what the settings
-            // page's per-character rows do. users.world_type is untouched by that, and reading it
-            // as the account's answer would say this account still trades. `trades` says it does
-            // not, which is the truth.
-            character("Rune", WORLD_HEROIC)
-
-            val settings = settingsFor(userId)
-            assertEquals(WORLD_INTERACTIVE, settings.worldType)
-            assertFalse(settings.trades)
+            val worlds =
+                Characters
+                    .selectAll()
+                    .where { Characters.userId eq userId }
+                    .map { it[Characters.name] to it[Characters.worldType] }
+                    .toMap()
+            assertEquals(WORLD_HEROIC, worlds["Rune"])
+            assertEquals(WORLD_INTERACTIVE, worlds["mechyfechy"])
         }
     }
 }

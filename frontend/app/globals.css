@@ -768,6 +768,39 @@ button.ms-slot {
   margin-left: auto;
 }
 
+/* The world the site is answering for. Segmented rather than a switch: a switch has an off
+   position, and neither of these is the absence of the other. */
+.world-toggle {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.world-tab {
+  padding: 3px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: 12px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.world-tab.active {
+  background: var(--bg);
+  color: var(--ink-strong);
+  font-weight: 600;
+}
+
+.world-tab:disabled {
+  cursor: default;
+}
+
 /* The account button: the user's main character in a fixed circle, with a small menu under it. */
 .user-avatar {
   position: relative;
@@ -866,11 +899,6 @@ img.user-avatar-img {
   gap: 12px;
   flex-wrap: wrap;
   margin: 24px 0 10px;
-}
-
-.settings-bulk {
-  display: inline-flex;
-  gap: 6px;
 }
 
 /* One character per row, read down the page. Wraps rather than squeezes on a narrow viewport:

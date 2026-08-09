@@ -17,9 +17,8 @@ export function SectionMenu() {
   const active = activeHref(pathname);
   const ref = useRef<HTMLDivElement>(null);
   const router = useRouter();
-  // An account with no trading character has nothing to split, so the Split Utility is not on
-  // their list. One Interactive character keeps it. It still routes either way, and prefetching it
-  // costs nothing worth branching on.
+  // Nothing splits in a Heroic world, so the Split Utility is off the list while one is shown. It
+  // still routes either way, and prefetching it costs nothing worth branching on.
   const sections = sectionsFor(useAccountSettings()?.trades);
 
   // The panel below only mounts while the menu is open, and <Link> prefetches on entering the

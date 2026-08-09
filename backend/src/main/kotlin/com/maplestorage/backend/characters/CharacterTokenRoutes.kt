@@ -6,6 +6,7 @@ import com.maplestorage.backend.db.RedemptionRule
 import com.maplestorage.backend.db.TokenCatalog
 import com.maplestorage.backend.plugins.parseUuidParam
 import com.maplestorage.backend.plugins.principalIdAndEmail
+import com.maplestorage.backend.users.activeWorldFor
 import com.maplestorage.backend.users.ensureUser
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.call
@@ -13,6 +14,7 @@ import io.ktor.server.response.respond
 import io.ktor.server.routing.RoutingContext
 import org.jetbrains.exposed.v1.core.JoinType
 import org.jetbrains.exposed.v1.core.ResultRow
+import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
@@ -46,8 +48,10 @@ internal suspend fun RoutingContext.getAllCharacterTokens() {
                     onColumn = TokenCatalog.id,
                     otherColumn = RedemptionRule.itemId,
                 ).selectAll()
-                // Scope to this user's characters. Without it the join reaches every user's rows.
-                .where { Characters.userId eq userId }
+                // Scope to this user's characters, in the world being shown. Without the first the
+                // join reaches every user's rows; without the second it returns counts for
+                // characters the caller's list does not contain.
+                .where { (Characters.userId eq userId) and (Characters.worldType eq activeWorldFor(userId)) }
                 .orderBy(TokenCatalog.sortOrder)
                 .groupBy({ it[CharacterTokenCount.characterId].toString() }) {
                     it.toCharacterTokenResponse()

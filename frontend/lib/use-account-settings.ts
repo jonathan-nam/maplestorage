@@ -8,18 +8,23 @@ import type { Settings } from "@/types/settings";
 // The account's settings, shared by every component that asks for them.
 //
 // A module store rather than the SWR cache in lib/cache.ts, because this one has to PUSH: the
-// settings page changes a character's world and the header is already mounted, so a cache the
-// header only reads on mount would leave the menu offering a tool the account just said it has no
-// use for.
+// world toggle sits in the header and changes what every mounted page is showing, so a cache read
+// only on mount would leave the menu offering a tool the account just toggled away from.
 
 export const SETTINGS_KEY = "/api/settings";
 
 let current: Settings | undefined;
 const listeners = new Set<() => void>();
 
-/** Called by whoever learns the answer: the fetch below, or the settings page after it writes. */
+/** Called by whoever learns the answer: the fetch below, or the toggle after it writes. */
 export function setAccountSettings(settings: Settings): void {
-  if (current?.worldType === settings.worldType && current?.trades === settings.trades) return;
+  if (
+    current?.worldType === settings.worldType &&
+    current?.trades === settings.trades &&
+    current?.otherWorldCharacters === settings.otherWorldCharacters
+  ) {
+    return;
+  }
   current = settings;
   for (const listener of listeners) listener();
 }

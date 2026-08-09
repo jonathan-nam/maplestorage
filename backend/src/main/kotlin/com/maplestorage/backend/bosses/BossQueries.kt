@@ -6,6 +6,7 @@ import com.maplestorage.backend.db.Characters
 import com.maplestorage.backend.parties.lootFromClear
 import com.maplestorage.backend.parties.unlootFromClear
 import com.maplestorage.backend.services.DetectedBossClear
+import com.maplestorage.backend.users.activeWorldFor
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
@@ -59,8 +60,11 @@ internal fun currentBossClearsFor(
         .innerJoin(Characters)
         .selectAll()
         .where {
-            // Scope to this user's characters. Without it the join reaches every user's rows.
+            // Scope to this user's characters, in the world being shown. Without the first the
+            // join reaches every user's rows. The second is the site's world lens: see
+            // activeWorldFor.
             (Characters.userId eq userId) and
+                (Characters.worldType eq activeWorldFor(userId)) and
                 currentPeriod.entries
                     .map { (reset, start) -> (BossCatalog.reset eq reset) and (BossClear.periodStart eq start) }
                     .reduce { a, b -> a or b }
@@ -87,6 +91,7 @@ internal fun weeklyClearsFor(
         .selectAll()
         .where {
             (Characters.userId eq userId) and
+                (Characters.worldType eq activeWorldFor(userId)) and
                 (BossCatalog.reset eq WEEKLY_CADENCE) and
                 (BossClear.periodStart eq weekStart)
         }.orderBy(BossCatalog.sortOrder)
@@ -104,8 +109,14 @@ internal fun earliestWeekStartFor(userId: String): LocalDate? {
         .innerJoin(BossCatalog)
         .innerJoin(Characters)
         .select(earliest)
-        .where { (Characters.userId eq userId) and (BossCatalog.reset eq WEEKLY_CADENCE) }
-        .firstOrNull()
+        .where {
+            // The lens again, and here it changes an ANSWER rather than a list: an unfiltered
+            // minimum would bound the back arrow by a week only the other world has clears in, and
+            // every step back into it would draw an empty grid that looks like a week off.
+            (Characters.userId eq userId) and
+                (Characters.worldType eq activeWorldFor(userId)) and
+                (BossCatalog.reset eq WEEKLY_CADENCE)
+        }.firstOrNull()
         ?.get(earliest)
 }
 

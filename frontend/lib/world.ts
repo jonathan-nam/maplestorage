@@ -23,6 +23,22 @@ export function worldLabel(world: WorldType): string {
   return world === "HEROIC" ? "Heroic (Reboot)" : "Interactive";
 }
 
+/**
+ * The same name where two of them sit side by side.
+ *
+ * The header toggle carries both worlds at once, and "Heroic (Reboot)" beside "Interactive" is a
+ * two-word pill next to a one-word one. The parenthetical is what goes: with both names on screen
+ * together, which is which is not in question.
+ */
+export function worldShortLabel(world: WorldType): string {
+  return world === "HEROIC" ? "Reboot" : "Interactive";
+}
+
+/** The one you are not in. There are two, so this is total. */
+export function otherWorld(world: WorldType): WorldType {
+  return world === "HEROIC" ? "INTERACTIVE" : "HEROIC";
+}
+
 /** Whether anything in this world can change hands. The gate on every meso figure in the app. */
 export function canTrade(world: WorldType): boolean {
   return world === "INTERACTIVE";
@@ -39,11 +55,12 @@ export function dropExistsIn(worlds: string | null, world: WorldType): boolean {
 }
 
 /**
- * Whether to draw meso figures on a screen that answers for the WHOLE account.
+ * Whether to draw meso figures on a screen that answers for the whole account.
  *
- * Takes `trades` (does any character trade), never one world, because an account can hold both and
- * the Drop Log sums across all of them. Keying this off a single stored world would hide an
- * Interactive character's real earnings behind a default nobody set.
+ * Takes `trades` from /api/settings, which now follows the world being SHOWN: every account-wide
+ * list is narrowed to it server-side, so the account no longer has two worlds' figures to add up
+ * and there is nothing left for this to hide. It used to mean "does any character trade", which it
+ * had to, back when one screen summed across both.
  *
  * Undefined is the moment before the answer arrives, and it draws them: that is what every screen
  * did before this existed, and it errs towards showing rather than hiding.
@@ -55,9 +72,9 @@ export function showsMoney(trades: boolean | undefined): boolean {
 /**
  * Whether to offer the Wallet.
  *
- * An account with no trading character cannot create a debt, so the page has nothing to answer. It
- * is still offered while a share is outstanding: money somebody is owed does not stop existing
- * because a world changed, and taking the link away over the top of it would hide what it dropped.
+ * Nothing in a Heroic world can create a debt, so the page has nothing to answer. It is still
+ * offered while a share is outstanding: money somebody is owed does not stop existing because a
+ * world changed, and taking the link away over the top of it would hide what it dropped.
  */
 export function offersWallet(trades: boolean | undefined, owed: boolean): boolean {
   return showsMoney(trades) || owed;
