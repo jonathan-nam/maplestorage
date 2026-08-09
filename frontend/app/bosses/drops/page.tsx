@@ -336,7 +336,15 @@ export default function DropLogPage() {
             onAddSale={(holder: Holder, pieces, amount) =>
               saleWrite(TRANCHES_KEY, {
                 method: "POST",
-                body: JSON.stringify({ holder, pieces, amount }),
+                body: JSON.stringify({ holder, pieces, amount, disposition: "SOLD" }),
+              })
+            }
+            // No amount: a redemption realized nothing, where a sale for zero would price those
+            // pieces at nothing. The server refuses the two disagreeing. See V46.
+            onAddKept={(holder: Holder, pieces) =>
+              saleWrite(TRANCHES_KEY, {
+                method: "POST",
+                body: JSON.stringify({ holder, pieces, disposition: "KEPT" }),
               })
             }
             onRemoveSale={(trancheId) =>
