@@ -769,6 +769,49 @@ button.ms-slot {
   margin-left: auto;
 }
 
+/* Covers the page from the moment a world is picked until the new one has finished loading.
+   Hidden by default and shown by a class on <html>, so the blocking script in RootLayout can raise
+   it before the new document's first paint. See WorldVeil. */
+.world-veil {
+  display: none;
+}
+
+html.switching-world .world-veil {
+  display: flex;
+  position: fixed;
+  inset: 0;
+  /* Above everything, the header included: the toggle you just clicked is part of what is being
+     replaced, so leaving it live would offer a second switch mid-switch. */
+  z-index: 100;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg);
+}
+
+/* Opacity, not a spinner. The page is being replaced wholesale rather than a row loading in place,
+   and a spinner in the middle of an empty screen reads as an error state on a dark background. */
+.world-veil-mark {
+  animation: world-veil-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes world-veil-pulse {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/* The veil still covers, it just stops breathing. Its job is hiding the swap, not the animation. */
+@media (prefers-reduced-motion: reduce) {
+  .world-veil-mark {
+    animation: none;
+    opacity: 1;
+  }
+}
+
 /* The world the site is answering for. Segmented rather than a switch: a switch has an off
    position, and neither of these is the absence of the other. */
 .world-toggle {
