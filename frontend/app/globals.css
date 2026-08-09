@@ -4470,6 +4470,11 @@ button.link:disabled {
   font-variant-numeric: tabular-nums;
 }
 
+/* The two halves of the page, above whichever one is showing. */
+.droplog-sections {
+  margin-bottom: 16px;
+}
+
 .droplog-filter {
   display: flex;
   align-items: center;
