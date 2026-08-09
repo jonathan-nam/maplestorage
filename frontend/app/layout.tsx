@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { SiteHeader } from "@/components/site-header";
 import { WebVitals } from "@/components/web-vitals";
+import { WorldVeil } from "@/components/world-veil";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -27,6 +28,18 @@ export const metadata: Metadata = {
 // `html:not(.has-session) .header-reserved` in globals.css.
 const RESERVE_CONTROLS = `try{var m=document.cookie.match(/(?:^|;\\s*)__client_uat=([^;]*)/);if(m&&m[1]&&m[1]!=="0")document.documentElement.classList.add("has-session")}catch(e){}`;
 
+// Carries the world-switch veil across the reload the switch does.
+//
+// WorldToggle raises the veil on click and sets this flag; the reload then throws that DOM away.
+// Restoring it here rather than from a React effect is the whole point: an effect runs after the
+// first paint, so the new world's page would flash for a frame before being covered, which is the
+// flicker the veil exists to remove.
+//
+// It takes itself down on `load`, and the flag is cleared the moment it is read, so a veil can only
+// ever outlive one navigation. The timeout is the backstop for the case that matters more than
+// tidiness: `load` never firing would otherwise leave the app behind a veil with no way out.
+const WORLD_VEIL = `try{if(sessionStorage.getItem("switching-world")){sessionStorage.removeItem("switching-world");var d=document.documentElement;d.classList.add("switching-world");var off=function(){d.classList.remove("switching-world")};window.addEventListener("load",off,{once:true});setTimeout(off,8000)}}catch(e){}`;
+
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <ClerkProvider>
@@ -36,7 +49,9 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       <html lang="en" suppressHydrationWarning>
         <body>
           <script dangerouslySetInnerHTML={{ __html: RESERVE_CONTROLS }} />
+          <script dangerouslySetInnerHTML={{ __html: WORLD_VEIL }} />
           <WebVitals />
+          <WorldVeil />
           <SiteHeader />
           {children}
         </body>
