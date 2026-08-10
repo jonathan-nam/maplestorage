@@ -41,3 +41,16 @@ describe("the step labels", () => {
     expect(rule?.[1]).toContain("var(--muted)");
   });
 });
+
+// A settled pile stays on the list and says so, because these bosses drop vestiges on every clear: the
+// card is a fixture, and hiding it would only mean it reappeared next week.
+describe("the fully-settled state", () => {
+  it("is styled as a quiet statement rather than a figure to act on", () => {
+    const rule = css.match(/^\.ledger-done \{([^}]*)\}/m);
+    expect(rule?.[1]).toContain("var(--muted)");
+  });
+
+  it("has no toggle left to hide it behind", () => {
+    expect(css).not.toContain("ledger-closed-toggle");
+  });
+});

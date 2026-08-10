@@ -10,6 +10,7 @@ import {
   monthLabel,
   weekLabel,
 } from "./drop-log";
+import { closedByHolder, holderOf } from "./vestige-ledger";
 import { splitOf } from "./loot";
 import type { Loot, PartyLootPool } from "@/types/loot";
 import type { Party, PartyMember } from "@/types/party";
@@ -655,6 +656,62 @@ describe("a piece drop counts YOUR share, not what fell", () => {
 
     const even = buildDropLog([trio()], [pool("pa", [coupons()])], tables);
     expect(couponsOwedByParty(even.entries).has("pa")).toBe(false);
+  });
+
+  it("stops counting a coupon drop once its books are closed", () => {
+    // The fourth place this blind spot turned up. `owedBy` is a fact about the party's ARRANGEMENT,
+    // `entitled - looted`, fixed when the drop was logged, so the badge said "20 coupons owed" and
+    // the row said "Owed" for ever, however completely the tranche ledger had been filled in.
+    const parties = [trio({ looterMemberId: "m2" })];
+    const pools = [pool("pa", [coupons()])];
+
+    const open = buildDropLog(parties, pools, tables);
+    expect(open.totals.piecesOwed).toBe(20);
+    expect(couponsOwedByParty(open.entries).get("pa")).toBe(20);
+    expect(dropStatusLabel(open.entries[0]!)).toBe("Owed");
+
+    // Closed by the holder who owes it, which is the seat that looted the lot.
+    const closed = closedByHolder([
+      { holder: holderOf(trio().members[1]!), lootIds: [coupons().id], unpaid: 0 },
+    ]).closed;
+    const done = buildDropLog(parties, pools, tables, closed);
+
+    expect(done.entries[0]!.closed).toBe(true);
+    expect(done.totals.piecesOwed).toBe(0);
+    expect(couponsOwedByParty(done.entries).has("pa")).toBe(false);
+    expect(dropStatusLabel(done.entries[0]!)).toBe("Settled");
+  });
+
+  it("closes it for the holder who owes it, not for anybody else", () => {
+    // A settlement is one person's decision, so somebody else's must change nothing here: otherwise
+    // closing your books with one partner would retire a debt owed by another.
+    const parties = [trio({ looterMemberId: "m2" })];
+    const pools = [pool("pa", [coupons()])];
+    const stranger = closedByHolder([
+      {
+        holder: { kind: "PERSON" as const, personId: "p-nobody", characterName: null },
+        lootIds: [coupons().id],
+        unpaid: 0,
+      },
+    ]).closed;
+
+    const log = buildDropLog(parties, pools, tables, stranger);
+    expect(log.entries[0]!.closed).toBe(false);
+    expect(couponsOwedByParty(log.entries).get("pa")).toBe(20);
+  });
+
+  it("closes it through the PERSON, whichever of their characters looted it", () => {
+    // The fold, one layer out. Chris brought two characters, so his pile is one and closing it
+    // against either of them closes the drop. Keyed by character this would have taken two.
+    const parties = [trio({ looterMemberId: "m2" })];
+    const pools = [pool("pa", [coupons()])];
+
+    for (const seat of [trio().members[1]!, trio().members[2]!]) {
+      const closed = closedByHolder([
+        { holder: holderOf(seat), lootIds: [coupons().id], unpaid: 0 },
+      ]).closed;
+      expect(buildDropLog(parties, pools, tables, closed).entries[0]!.closed).toBe(true);
+    }
   });
 
   it("still counts an ordinary drop that has not sold", () => {

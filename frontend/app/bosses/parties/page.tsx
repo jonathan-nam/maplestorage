@@ -16,6 +16,7 @@ import { bossLabel, difficultyLabel } from "@/lib/boss-difficulty";
 import { peek, put } from "@/lib/cache";
 import { buildDropLog, couponsOwedByParty } from "@/lib/drop-log";
 import { poolSize } from "@/lib/loot";
+import { closedByHolder } from "@/lib/vestige-ledger";
 import {
   byBoss,
   byCharacter,
@@ -37,6 +38,7 @@ import type { Boss, BossClearsView } from "@/types/boss";
 import type { Character } from "@/types/character";
 import type { DropTables } from "@/types/drop";
 import type { AddLootBody, PartyLootPool } from "@/types/loot";
+import type { VestigeSettlement } from "@/types/vestige";
 import type {
   Party,
   Person,
@@ -70,6 +72,7 @@ const DROPS_KEY = "/api/bosses/drops";
 // Every pool, for the coupons-owed figure on a row. Same key as the Drop Log, so the two share one
 // cached copy and cannot disagree about what is owed.
 const POOLS_KEY = "/api/parties/loot";
+const SETTLEMENTS_KEY = "/api/vestige-settlements";
 
 // Both lists take the week. The clears draw a past week's ticks, and the party list carries that
 // week's drop counts, so the badge beside a tick answers for the same week the tick does.
@@ -100,6 +103,9 @@ export default function PartiesPage() {
   const [dropTables, setDropTables] = useState<DropTables>(peek<DropTables>(DROPS_KEY) ?? {});
   const [people, setPeople] = useState<Person[]>(peek<Person[]>(PEOPLE_KEY) ?? []);
   const [pools, setPools] = useState<PartyLootPool[]>(peek<PartyLootPool[]>(POOLS_KEY) ?? []);
+  const [settlements, setSettlements] = useState<VestigeSettlement[]>(
+    peek<VestigeSettlement[]>(SETTLEMENTS_KEY) ?? [],
+  );
   const [state, setState] = useState<LoadState>(
     seededParties && seededBosses && seededCharacters ? "loaded" : "loading",
   );
@@ -234,27 +240,46 @@ export default function PartiesPage() {
           // Optional, for the coupons-owed figure on a row. Losing it costs that one number, and
           // a row that says nothing about coupons beats a page that says nothing at all.
           apiFetch<PartyLootPool[]>(POOLS_KEY, { method: "GET" }, withToken).catch(() => null),
+          // Optional, and what stops the coupons figure counting a debt somebody has already closed.
+          // Losing it overstates that number rather than blanking the page. See V52.
+          apiFetch<VestigeSettlement[]>(SETTLEMENTS_KEY, { method: "GET" }, withToken).catch(
+            () => null,
+          ),
         ]);
       })
-      .then(([, bossResult, characterResult, dropResult, peopleResult, poolResult]) => {
-        setBosses(bossResult);
-        setCharacters(characterResult);
-        put(BOSSES_KEY, bossResult);
-        put(CHARACTERS_KEY, characterResult);
-        if (dropResult) {
-          setDropTables(dropResult);
-          put(DROPS_KEY, dropResult);
-        }
-        if (peopleResult) {
-          setPeople(peopleResult);
-          put(PEOPLE_KEY, peopleResult);
-        }
-        if (poolResult) {
-          setPools(poolResult);
-          put(POOLS_KEY, poolResult);
-        }
-        setState("loaded");
-      })
+      .then(
+        ([
+          ,
+          bossResult,
+          characterResult,
+          dropResult,
+          peopleResult,
+          poolResult,
+          settlementResult,
+        ]) => {
+          setBosses(bossResult);
+          setCharacters(characterResult);
+          put(BOSSES_KEY, bossResult);
+          put(CHARACTERS_KEY, characterResult);
+          if (dropResult) {
+            setDropTables(dropResult);
+            put(DROPS_KEY, dropResult);
+          }
+          if (peopleResult) {
+            setPeople(peopleResult);
+            put(PEOPLE_KEY, peopleResult);
+          }
+          if (poolResult) {
+            setPools(poolResult);
+            put(POOLS_KEY, poolResult);
+          }
+          if (settlementResult) {
+            setSettlements(settlementResult);
+            put(SETTLEMENTS_KEY, settlementResult);
+          }
+          setState("loaded");
+        },
+      )
       // Only blank the page if there is nothing to show: a failed refresh behind data we already
       // have should leave that data up.
       .catch(() => setState((s) => (s === "loaded" ? "loaded" : "error")));
@@ -385,7 +410,11 @@ export default function PartiesPage() {
   const bossByKey = new Map(bosses.map((b) => [b.bossKey, b]));
   // Coupons somebody else is holding for you, per party. Through the Drop Log's own entries so the
   // badge and the log cannot disagree about what you are owed, rather than counted again here.
-  const couponsOwed = couponsOwedByParty(buildDropLog(parties, pools, dropTables).entries);
+  // Off the ledger's own notion of finished, not off the party's arrangement: `owedBy` is
+  // `entitled - looted` and never moves, so without the closures this counted a debt forever. See V52.
+  const couponsOwed = couponsOwedByParty(
+    buildDropLog(parties, pools, dropTables, closedByHolder(settlements).closed).entries,
+  );
   const history = week !== null;
 
   // No tables, no picker. Offering one without them would list nothing and then explain the empty

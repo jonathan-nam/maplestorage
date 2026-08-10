@@ -268,7 +268,8 @@ export default function DropLogPage() {
   const characterOrder = characters.map((c) => c.id);
   // The whole log is kept alongside the filtered one so the toolbar does not come and go: which
   // controls exist is a property of the account, not of what the filter currently leaves.
-  const whole = buildDropLog(parties, pools, dropTables);
+  const closures = closedByHolder(settlements);
+  const whole = buildDropLog(parties, pools, dropTables, closures.closed);
   const log = forCharacter(whole, character);
   const { totals } = log;
   const groups = groupDrops(log.entries, grouping);
@@ -287,7 +288,6 @@ export default function DropLogPage() {
   // never swap places in the queue and re-price each other.
   const bossOrder = new Map(bosses.map((b, i) => [b.bossKey, i]));
   const settled = outstanding(parties, pools, VESTIGE, bossOrder);
-  const closures = closedByHolder(settlements);
   const ledgers = holderLedgers(
     settled,
     salesByHolder(tranches),
