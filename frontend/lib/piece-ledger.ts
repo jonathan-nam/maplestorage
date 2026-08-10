@@ -218,6 +218,21 @@ export function sellableOf(drop: LedgerDrop): number {
   return Math.max(0, heldOf(drop) - (drop.kept ?? 0));
 }
 
+/**
+ * Pieces of this pile that are the holder's OWN, which is what a redemption comes off first.
+ *
+ * Their entitlement, capped by what they are actually holding: a seat owed more than they picked up
+ * has no surplus of their own to redeem. Absent holder reads the pile as all theirs, which is one
+ * seat having looted the lot.
+ *
+ * The line a redemption crosses, so `spreadKept` and the card that labels it read it from here
+ * rather than each deciding for themselves.
+ */
+export function ownShareOf(drop: LedgerDrop, holder?: string): number {
+  if (holder === undefined) return heldOf(drop);
+  return Math.min(heldOf(drop), entitlements(drop.total, drop.seats).get(holder) ?? 0);
+}
+
 /** How much of one drop the sales so far have covered, and what those pieces fetched. */
 export type DropCoverage = {
   covered: number;
@@ -280,11 +295,6 @@ export function spreadKept(drops: LedgerDrop[], kept: number, holder?: string): 
   if (kept <= 0) return drops;
   const newestFirst = inQueueOrder(drops).reverse();
 
-  const ownOf = (drop: LedgerDrop) =>
-    holder === undefined
-      ? heldOf(drop)
-      : Math.min(heldOf(drop), entitlements(drop.total, drop.seats).get(holder) ?? 0);
-
   let left = kept;
   const byId = new Map<string, number>();
   const take = (drop: LedgerDrop, upTo: number) => {
@@ -293,7 +303,7 @@ export function spreadKept(drops: LedgerDrop[], kept: number, holder?: string): 
     byId.set(drop.id, (byId.get(drop.id) ?? 0) + taken);
     left -= taken;
   };
-  for (const drop of newestFirst) take(drop, ownOf(drop));
+  for (const drop of newestFirst) take(drop, ownShareOf(drop, holder));
   // Only once their own share is gone. These are pieces they owe somebody, and redeeming them is
   // what `transfersOf` prices at the average their own sales got.
   for (const drop of newestFirst) take(drop, heldOf(drop) - (byId.get(drop.id) ?? 0));
