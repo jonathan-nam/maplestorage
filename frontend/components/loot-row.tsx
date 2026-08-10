@@ -19,6 +19,7 @@ export function LootRow({
   loot,
   party,
   boss,
+  status,
   busy,
   onSell,
   onUnsell,
@@ -29,6 +30,14 @@ export function LootRow({
   loot: Loot;
   party: Party;
   boss: Boss | null;
+  /**
+   * What this row says it is, when the raw status cannot say.
+   *
+   * A piece drop never sells through its own row, so it is PENDING for ever and "In the pool" was what
+   * every vestige stack read, whatever the tranche ledger said about it. Null is an ordinary drop,
+   * whose status IS the answer. See dropStatusLabel.
+   */
+  status?: string | null;
   busy: boolean;
   onSell: (body: SellLootBody) => void;
   onUnsell: () => void;
@@ -90,7 +99,7 @@ export function LootRow({
           </span>
         </div>
         <span className={`loot-status is-${loot.status.toLowerCase()}`}>
-          {statusLabel(loot.status)}
+          {status ?? statusLabel(loot.status)}
         </span>
       </header>
 

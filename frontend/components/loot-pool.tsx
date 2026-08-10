@@ -18,6 +18,7 @@ export function LootPool({
   loot,
   dropTables,
   bossByKey,
+  pieceStatus,
   adding,
   isSaving,
   onAdd,
@@ -31,6 +32,15 @@ export function LootPool({
   loot: Loot[];
   dropTables: DropTables;
   bossByKey: Map<string, Boss>;
+  /**
+   * What a COUPON row says it is, by loot id, from the Drop Log's own reading.
+   *
+   * A piece drop is PENDING for ever, because it settles through the tranche ledger and never through
+   * a sale on its own row, so the raw status said "In the pool" on every vestige stack a party had
+   * ever dropped. Passed in rather than derived here: the answer depends on the settlements, and this
+   * component has no business fetching them. See dropStatusLabel.
+   */
+  pieceStatus?: Map<string, string>;
   /** The picker's own add. Not the rows': one drop being logged does not lock the pool. */
   adding: boolean;
   /** Whether THIS drop's write is in flight, by its id. */
@@ -98,6 +108,7 @@ export function LootPool({
         title={sellable.length > 0 && coupons.length > 0 ? "Coupons" : null}
         party={party}
         bossByKey={bossByKey}
+        statusOf={pieceStatus}
         isSaving={isSaving}
         onSell={onSell}
         onUnsell={onUnsell}
@@ -120,6 +131,7 @@ function LootGroup({
   title,
   party,
   bossByKey,
+  statusOf,
   isSaving,
   onSell,
   onUnsell,
@@ -132,6 +144,8 @@ function LootGroup({
   title: string | null;
   party: Party;
   bossByKey: Map<string, Boss>;
+  /** What a coupon row says it is. Absent for the sellable group, which sells on its own row. */
+  statusOf?: Map<string, string>;
   isSaving: (lootId: string) => boolean;
   onSell: (lootId: string, body: SellLootBody) => void;
   onUnsell: (lootId: string) => void;
@@ -150,6 +164,7 @@ function LootGroup({
             loot={item}
             party={party}
             boss={item.bossKey ? (bossByKey.get(item.bossKey) ?? null) : null}
+            status={statusOf?.get(item.id) ?? null}
             busy={isSaving(item.id)}
             onSell={(body) => onSell(item.id, body)}
             onUnsell={() => onUnsell(item.id)}
