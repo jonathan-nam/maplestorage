@@ -24,8 +24,8 @@ import kotlin.test.assertEquals
  * has to fail here too, which a contains-check would let through.
  */
 class GrindstoneDropSeedTest {
-    // first-adversary is the one entry here carried over unverified, from before the tables were
-    // checked against the patch notes. Re-check it against the game before trusting this row.
+    // Every boss here is from the patch notes except first-adversary, which is from seeing one
+    // drop. The stronger of the two sources, so this set no longer has a row to re-check.
     private val life =
         setOf("kalos-the-guardian", "kaling", "limbo", "baldrix", "malefic-star", "first-adversary")
     private val faith = setOf("kaling", "limbo", "baldrix", "malefic-star")
