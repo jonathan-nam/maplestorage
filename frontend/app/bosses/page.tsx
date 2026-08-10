@@ -1,5 +1,6 @@
 "use client";
 
+import { PAGE_WAITING } from "@/components/route-loading";
 import { useAuth } from "@clerk/nextjs";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
@@ -168,7 +169,7 @@ export default function BossesPage() {
   const noRoster = state !== "loading" && characters.length === 0;
 
   return (
-    <main className="page">
+    <main className={state === "loading" ? PAGE_WAITING : "page"}>
       <h1 className="page-title">Individual View</h1>
 
       {/* Uploading files a capture against now, so it only makes sense on the live view. Offering

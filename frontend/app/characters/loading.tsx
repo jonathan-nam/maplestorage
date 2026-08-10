@@ -1,3 +1,5 @@
+import { RouteLoading } from "@/components/route-loading";
+
 // See app/inventory/loading.tsx for why these boundaries exist. A menu destination without one
 // cannot show anything until its own JS has mounted, however early the route was prefetched.
 //
@@ -6,11 +8,11 @@
 // conditional on data this boundary does not have, and guessing it wrong would move the title.
 export default function Loading() {
   return (
-    <main className="page">
+    <RouteLoading>
       <div className="settings-section-head">
         <h1 className="page-title">Characters</h1>
       </div>
       <p className="party-hint">Loading...</p>
-    </main>
+    </RouteLoading>
   );
 }

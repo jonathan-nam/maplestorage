@@ -1,5 +1,6 @@
 "use client";
 
+import { PAGE_WAITING } from "@/components/route-loading";
 import { useAuth } from "@clerk/nextjs";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
@@ -477,7 +478,7 @@ export default function PartiesPage() {
   );
 
   return (
-    <main className="page">
+    <main className={state === "loading" ? PAGE_WAITING : "page"}>
       {/* Beside the title, not among the tabs below: those pick what the list shows, so a link
           that leaves the page read as another one of them. */}
       <div className="page-head">

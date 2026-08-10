@@ -1,3 +1,4 @@
+import { RouteLoading } from "@/components/route-loading";
 import { DockSkeleton } from "@/components/dock-shell";
 import { CharactersSkeleton } from "@/components/loading-skeleton";
 
@@ -9,10 +10,10 @@ import { CharactersSkeleton } from "@/components/loading-skeleton";
 // renders for its own fetch, so handing over to the page is invisible.
 export default function Loading() {
   return (
-    <main className="page">
+    <RouteLoading>
       <h1 className="page-title">Inventory</h1>
       <DockSkeleton name="inventory" />
       <CharactersSkeleton />
-    </main>
+    </RouteLoading>
   );
 }

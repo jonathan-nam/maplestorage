@@ -1,5 +1,6 @@
 "use client";
 
+import { PAGE_WAITING } from "@/components/route-loading";
 import { useAuth } from "@clerk/nextjs";
 import Link from "next/link";
 import { useParams } from "next/navigation";
@@ -138,7 +139,7 @@ export default function PartyPage() {
   );
 
   return (
-    <main className="page">
+    <main className={state === "loading" ? PAGE_WAITING : "page"}>
       {/* Back where this page was reached from. A solo pool is not on Party View, so sending it
           there would be sending it to a list it is not in. */}
       <p className="loot-back">

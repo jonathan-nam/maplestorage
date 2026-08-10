@@ -292,12 +292,63 @@ body:has(.nav-pending) main {
   }
 }
 
+/* A page that is still waiting, whether for the route or for its own fetch. Same delay as the bar
+   above, and for the same reason: a wait that ends inside it should draw nothing.
+   Measured on the production build, clicking through to /bosses committed 12ms after the click and
+   painted its 980px matrix skeleton for a single frame between the outgoing 174px page and the
+   incoming 147px one. That is the flicker. It is not the bar's wait, it lands just after it, which
+   is why the bar's own delay never covered it.
+   `both` rather than an opacity:0 base: the backwards fill is what holds it hidden through the
+   delay, so the hidden state and the visible one stay in the one keyframe pair. */
+.page-waiting {
+  animation:
+    page-waiting-in 120ms ease-out 150ms both,
+    page-waiting-space 0s linear 150ms both;
+}
+
+/* Fades rather than appearing, so a wait long enough to need a skeleton eases into it instead of
+   swapping the page for a shimmer between two frames. */
+@keyframes page-waiting-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Hidden is not enough: an invisible 980px skeleton still pushes a scrollbar in and out for the
+   one frame it exists, which is the same flicker one layer down. Nothing is drawn before the
+   delay, so nothing is reserved either. Separate from the fade so the space opens exactly when the
+   fade starts rather than halfway through it, which is where a discrete max-height would land.
+   Its own 0s animation for the same reason.
+   Safe if `none` is ever dropped from a keyframe: max-height's initial value is already none, so
+   the failure is no collapse, never a skeleton clipped to nothing. */
+@keyframes page-waiting-space {
+  from {
+    max-height: 0;
+    overflow: hidden;
+  }
+  to {
+    max-height: none;
+    overflow: visible;
+  }
+}
+
 /* The bar stays, it just stops sweeping. Full width, because a stationary 40% stub at the left
    edge reads as a progress bar stuck at 40% rather than as a page on its way. */
 @media (prefers-reduced-motion: reduce) {
   .nav-pending::before {
     animation: none;
     width: 100%;
+  }
+
+  /* The delay stays, only the fade goes: it is the delay that stops the flicker, and appearing at
+     once is what reduced motion asks for. */
+  .page-waiting {
+    animation:
+      page-waiting-in 0s linear 150ms both,
+      page-waiting-space 0s linear 150ms both;
   }
 }
 
