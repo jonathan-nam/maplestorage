@@ -1,4 +1,4 @@
-import { RouteLoading } from "@/components/route-loading";
+import { RouteLoading, WaitingNote } from "@/components/route-loading";
 import Link from "next/link";
 
 // See app/inventory/loading.tsx. Mirrors app/bosses/routine/page.tsx, hint included, so handing
@@ -10,7 +10,7 @@ export default function Loading() {
         <Link href="/bosses">&larr; Individual View</Link>
       </p>
       <h1 className="page-title">Who runs what</h1>
-      <p className="party-hint">Loading...</p>
+      <WaitingNote />
     </RouteLoading>
   );
 }

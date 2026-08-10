@@ -4,6 +4,7 @@ import { useAuth } from "@clerk/nextjs";
 import { useEffect, useState } from "react";
 import { AddCharacter } from "@/components/add-character";
 import { CharacterRow } from "@/components/character-row";
+import { PAGE_WAITING, WaitingNote } from "@/components/route-loading";
 import { ApiError, apiFetch } from "@/lib/api";
 import { invalidate, peek, put } from "@/lib/cache";
 import { groupByWorld } from "@/lib/character-groups";
@@ -172,8 +173,10 @@ export default function CharactersPage() {
     }
   }
 
+  // Spells its wait as !loaded rather than a "loading" state, which is how it was missed when the
+  // rest of the app got the delay.
   return (
-    <main className="page">
+    <main className={!loaded && !failed ? PAGE_WAITING : "page"}>
       <div className="settings-section-head">
         <h1 className="page-title">Characters</h1>
         {/* Only while there is something to look up, so it takes itself off the page. Every
@@ -186,7 +189,7 @@ export default function CharactersPage() {
       </div>
 
       {failed && !loaded && <p>Couldn&apos;t load your characters.</p>}
-      {!loaded && !failed && <p className="party-hint">Loading...</p>}
+      {!loaded && !failed && <WaitingNote />}
 
       {loaded && (
         <>

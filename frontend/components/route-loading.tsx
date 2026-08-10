@@ -5,9 +5,22 @@ import type { ReactNode } from "react";
  *
  * One name for one rule, because the router's wait and the page's own fetch look identical on
  * screen and differ only in which component happens to be mounted. What it does is in globals.css
- * under .page-waiting: nothing is drawn for the first 150ms, the same delay the bar keeps.
+ * under .page-waiting: nothing is drawn for the first 400ms, so a page that arrives inside that
+ * appears once and whole instead of in stages.
  */
 export const PAGE_WAITING = "page page-waiting";
+
+/**
+ * The line that says a page is still coming.
+ *
+ * A component rather than the markup spelled out, for the same reason RouteLoading is one: it is
+ * written by copying a neighbour, and the class carrying its delay is silent to forget. Waits
+ * longer than the frame around it, because it is the one thing on a waiting page that gets thrown
+ * away rather than filled in. See .waiting-note in globals.css.
+ */
+export function WaitingNote({ children }: { children?: ReactNode }) {
+  return <p className="party-hint waiting-note">{children ?? "Loading..."}</p>;
+}
 
 /**
  * The <main> every route's loading.tsx renders.

@@ -25,16 +25,34 @@ describe("section menu indentation survives the cascade", () => {
 });
 
 describe("the wait for a page that has been asked for", () => {
-  // The delay is the design, not a tuning knob: a prefetched route commits in single-figure ms, so
-  // without it every navigation would flash the bar and dim the page for a frame. Dropping it
-  // turns feedback into a flicker, which is why it is pinned here rather than left to a comment.
-  const delayIn = (selector: string) => {
+  // The delays are the design, not tuning knobs: a prefetched route commits in single-figure ms,
+  // so without them every navigation would flash the bar, the dim and the frame for a frame each.
+  // Dropping one turns feedback into a flicker, which is why they are pinned here rather than left
+  // to a comment.
+  //
+  // `<name> <duration> [easing] <delay>`, per comma-separated animation. Both times are read
+  // rather than the first one found, because a delay silently read as a duration compares wrong.
+  // Both units, because a 0s duration is spelled 0s and an ms-only match would skip it.
+  const ms = (t: string) =>
+    t.endsWith("ms") ? Number(t.slice(0, -2)) : Number(t.slice(0, -1)) * 1000;
+  const delaysIn = (selector: string) => {
     const rule = new RegExp(
-      `${selector.replace(/[.:()]/g, "\\$&")} \\{[^}]*animation:[^;]*?(\\d+)ms`,
+      `${selector.replace(/[.:()]/g, "\\$&")} \\{[^}]*animation:\\s*([^;]+);`,
     );
-    const found = rule.exec(css);
-    expect(found, `no delayed animation on ${selector}`).not.toBeNull();
-    return Number(found?.[1]);
+    const shorthand = rule.exec(css)?.[1];
+    expect(shorthand, `no animation on ${selector}`).toBeDefined();
+    return (shorthand ?? "").split(",").map((part) => {
+      const times = part.match(/\d+m?s\b/g)?.map(ms);
+      expect(times, `expected a duration and a delay in "${part.trim()}"`).toHaveLength(2);
+      return times?.[1] as number;
+    });
+  };
+  const oneDelay = (selector: string) => {
+    const delays = delaysIn(selector);
+    // The fade and the space it takes have to start at the same moment or the box opens on an
+    // empty page, so a rule with several animations is only allowed one delay between them.
+    expect(new Set(delays).size, `${selector} staggers its animations`).toBe(1);
+    return delays[0] as number;
   };
 
   it("starts hidden, so nothing is drawn before the delay elapses", () => {
@@ -45,43 +63,53 @@ describe("the wait for a page that has been asked for", () => {
 
   it("waits the same before the bar and before the dim", () => {
     // Two rules, one moment. Staggering them reads as two separate things happening.
-    expect(delayIn(".nav-pending")).toBe(delayIn("body:has(.nav-pending) main"));
-    expect(delayIn(".nav-pending")).toBeGreaterThanOrEqual(100);
+    expect(oneDelay(".nav-pending")).toBe(oneDelay("body:has(.nav-pending) main"));
+    expect(oneDelay(".nav-pending")).toBeGreaterThanOrEqual(100);
   });
 
   it("keeps the delay on the sweep too", () => {
-    expect(delayIn(".nav-pending::before")).toBe(delayIn(".nav-pending"));
+    expect(oneDelay(".nav-pending::before")).toBe(oneDelay(".nav-pending"));
   });
 
-  // A waiting page is the same wait, and it broke the same way the bar would have without its
-  // delay. Measured on the production build: the click committed 12ms in, so /bosses drew its
-  // 980px matrix skeleton for one frame between the outgoing 174px page and the incoming 147px
-  // one. It lands just AFTER the bar's wait rather than during it, which is why the bar's own
-  // delay never covered it.
-  it("waits the same before the skeleton as before the bar", () => {
-    // `<name> <duration> [easing] <delay>`: duration first, delay second, per comma-separated
-    // animation. delayIn() takes the first time it finds, which here is a duration, so every
-    // animation on the rule is read on its own and they must agree. The fade and the space it
-    // takes have to start at the same moment or the box opens on an empty page.
-    const shorthand = /\.page-waiting \{[^}]*animation:\s*([^;]+);/.exec(css)?.[1];
-    // Both units, because a 0s duration is spelled 0s and an ms-only match silently reads the
-    // delay as the duration and finds nothing to compare.
-    const ms = (t: string) =>
-      t.endsWith("ms") ? Number(t.slice(0, -2)) : Number(t.slice(0, -1)) * 1000;
-    const delays = shorthand?.split(",").map((part) => {
-      const times = part.match(/\d+m?s\b/g)?.map(ms);
-      expect(times, `expected a duration and a delay in "${part.trim()}"`).toHaveLength(2);
-      return times?.[1];
-    });
-    expect(delays?.length).toBeGreaterThanOrEqual(2);
-    for (const delay of delays ?? []) expect(delay).toBe(delayIn(".nav-pending"));
+  // Three waits, longest last, and the order is the point. The bar answers "the click registered"
+  // and has to be quick. The frame is the page arriving, and drawing half of it early only buys a
+  // second update moments later: measured on the production build at a 300ms load, the frame
+  // appeared at 162ms and was replaced at 328ms, having spent 116 of its 166 visible ms still
+  // fading in. The note is the only part of that frame the page throws away rather than fills in,
+  // so it waits longest of all.
+  it("waits longer before the frame than before the bar", () => {
+    expect(oneDelay(".page-waiting")).toBeGreaterThan(oneDelay(".nav-pending"));
+  });
+
+  it("waits longer again before saying it is still loading", () => {
+    expect(oneDelay(".waiting-note")).toBeGreaterThan(oneDelay(".page-waiting"));
   });
 
   it("holds the skeleton hidden through the delay", () => {
     // The backwards half of `both` is the whole mechanism. With `forwards` alone the skeleton is
     // simply always on, which is the flicker the delay exists to prevent.
     expect(/\.page-waiting \{[^}]*animation:[^;]*\bboth\b/.test(css)).toBe(true);
+    expect(/\.waiting-note \{[^}]*animation:[^;]*\bboth\b/.test(css)).toBe(true);
     expect(/@keyframes page-waiting-in \{\s*from \{\s*opacity:\s*0;/.test(css)).toBe(true);
+  });
+
+  it("keeps every delay under reduced motion, and drops only the fades", () => {
+    // The delay is what stops the flicker; the fade is the part reduced motion asks to lose. A
+    // media block that quietly drops the delay with it puts the flicker back for those users only,
+    // where nobody would see it.
+    const reduced = /@media \(prefers-reduced-motion: reduce\) \{([\s\S]*?)\n\}/.exec(css)?.[1];
+    expect(reduced, "no reduced-motion block").toBeDefined();
+    for (const selector of [".page-waiting", ".waiting-note"]) {
+      const shorthand = new RegExp(`\\${selector} \\{[^}]*animation:\\s*([^;]+);`).exec(
+        reduced ?? "",
+      )?.[1];
+      expect(shorthand, `${selector} is not restated under reduced motion`).toBeDefined();
+      for (const part of (shorthand ?? "").split(",")) {
+        const times = part.match(/\d+m?s\b/g)?.map(ms);
+        expect(times?.[0], `${selector} still fades under reduced motion`).toBe(0);
+        expect(times?.[1]).toBe(oneDelay(selector));
+      }
+    }
   });
 });
 
@@ -115,5 +143,17 @@ describe("every wait wears the class", () => {
     expect(read(file), "a bare main opts out of the delay").not.toContain(
       '<main className="page">',
     );
+  });
+
+  // The note carries its own, longer delay, and spelling the line out by hand drops it: the page
+  // then says it is loading at the same moment the frame appears, and takes it back a few frames
+  // later. Every one of these was written by copying a neighbour, so assert against the tree.
+  const everything = [...boundaries, ...globSync("app/**/page.tsx", { cwd: root })];
+
+  it.each(everything)("%s says it is loading through WaitingNote", (file) => {
+    const src = read(file);
+    if (!/Loading\.\.\./.test(src)) return;
+    expect(src, "a hand-written loading line has no delay").toContain("WaitingNote");
+    expect(src).not.toMatch(/<p[^>]*>\s*Loading\.\.\./);
   });
 });

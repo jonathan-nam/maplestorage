@@ -1,11 +1,11 @@
-import { RouteLoading } from "@/components/route-loading";
+import { RouteLoading, WaitingNote } from "@/components/route-loading";
 
 // See app/inventory/loading.tsx for why these boundaries exist.
 export default function Loading() {
   return (
     <RouteLoading>
       <h1 className="page-title">Edit parties</h1>
-      <p className="party-hint">Loading...</p>
+      <WaitingNote />
     </RouteLoading>
   );
 }

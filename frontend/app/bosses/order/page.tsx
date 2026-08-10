@@ -1,6 +1,6 @@
 "use client";
 
-import { PAGE_WAITING } from "@/components/route-loading";
+import { PAGE_WAITING, WaitingNote } from "@/components/route-loading";
 import { useAuth } from "@clerk/nextjs";
 import { useDeferredValue, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 
@@ -461,7 +461,7 @@ export default function RunOrderPage() {
         ))}
       </div>
 
-      {fromAccount && state === "loading" && <p className="party-hint">Loading your parties...</p>}
+      {fromAccount && state === "loading" && <WaitingNote>Loading your parties...</WaitingNote>}
 
       {fromAccount && state === "error" && (
         <p className="finder-empty">

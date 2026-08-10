@@ -1,6 +1,6 @@
 "use client";
 
-import { PAGE_WAITING } from "@/components/route-loading";
+import { PAGE_WAITING, WaitingNote } from "@/components/route-loading";
 import { useAuth } from "@clerk/nextjs";
 import Link from "next/link";
 import { useParams } from "next/navigation";
@@ -151,7 +151,7 @@ export default function PartyPage() {
       </p>
 
       {state === "error" && <p>Couldn&apos;t load that party.</p>}
-      {state === "loading" && <p className="party-hint">Loading...</p>}
+      {state === "loading" && <WaitingNote />}
 
       {state === "loaded" && party && (
         <>

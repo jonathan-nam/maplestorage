@@ -292,18 +292,34 @@ body:has(.nav-pending) main {
   }
 }
 
-/* A page that is still waiting, whether for the route or for its own fetch. Same delay as the bar
-   above, and for the same reason: a wait that ends inside it should draw nothing.
+/* A page that is still waiting, whether for the route or for its own fetch. A wait that ends
+   inside the delay draws nothing at all, so the page appears once, whole, rather than in stages.
    Measured on the production build, clicking through to /bosses committed 12ms after the click and
    painted its 980px matrix skeleton for a single frame between the outgoing 174px page and the
-   incoming 147px one. That is the flicker. It is not the bar's wait, it lands just after it, which
-   is why the bar's own delay never covered it.
+   incoming 147px one. That is the flicker.
+   Longer than the bar's 150ms, which it used to match. The bar answers "the click registered" and
+   has to be quick; this is the page arriving, and drawing half of it early only buys a second
+   update moments later. Measured the same way on a 300ms load: the frame appeared at 162ms and was
+   replaced at 328ms, having spent 116 of its 166 visible ms still fading in. 400ms covers a load
+   like that whole. Raising it delays nothing, the hold is released the moment the page has its
+   data, so the only thing lost is the half-drawn stage.
    `both` rather than an opacity:0 base: the backwards fill is what holds it hidden through the
    delay, so the hidden state and the visible one stay in the one keyframe pair. */
 .page-waiting {
   animation:
-    page-waiting-in 120ms ease-out 150ms both,
-    page-waiting-space 0s linear 150ms both;
+    page-waiting-in 120ms ease-out 400ms both,
+    page-waiting-space 0s linear 400ms both;
+}
+
+/* The "Loading..." line, which is the one part of a waiting page that is thrown away rather than
+   filled in: the title and the shaped skeletons around it are what the page itself will show, in
+   the same places. So it waits again as long as the frame did. Past 800ms an empty body reads as
+   stuck and the line is worth its own update; before that it would be replaced about as fast as it
+   arrived, which is the same flicker one layer down.
+   No collapse to go with the fade, unlike .page-waiting: it is one line at the end of an otherwise
+   empty page, so the space it holds moves nothing, and html reserves the scrollbar regardless. */
+.waiting-note {
+  animation: page-waiting-in 120ms ease-out 800ms both;
 }
 
 /* Fades rather than appearing, so a wait long enough to need a skeleton eases into it instead of
@@ -347,8 +363,12 @@ body:has(.nav-pending) main {
      once is what reduced motion asks for. */
   .page-waiting {
     animation:
-      page-waiting-in 0s linear 150ms both,
-      page-waiting-space 0s linear 150ms both;
+      page-waiting-in 0s linear 400ms both,
+      page-waiting-space 0s linear 400ms both;
+  }
+
+  .waiting-note {
+    animation: page-waiting-in 0s linear 800ms both;
   }
 }
 
