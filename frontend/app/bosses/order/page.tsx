@@ -1,5 +1,6 @@
 "use client";
 
+import { PAGE_WAITING } from "@/components/route-loading";
 import { useAuth } from "@clerk/nextjs";
 import { useDeferredValue, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 
@@ -435,7 +436,7 @@ export default function RunOrderPage() {
   ).length;
 
   return (
-    <main className="page">
+    <main className={state === "loading" ? PAGE_WAITING : "page"}>
       <h1 className="page-title">Run Order</h1>
 
       <div className="basis-row" role="group" aria-label="Where the runs come from">

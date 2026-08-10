@@ -1,5 +1,6 @@
 "use client";
 
+import { PAGE_WAITING } from "@/components/route-loading";
 import { useAuth } from "@clerk/nextjs";
 import Link from "next/link";
 import { useEffect, useState } from "react";
@@ -117,7 +118,7 @@ export default function WalletPage() {
   const settled = state === "loaded" && wallet.counterparties.length === 0;
 
   return (
-    <main className="page">
+    <main className={state === "loading" ? PAGE_WAITING : "page"}>
       <p className="loot-back">
         <Link href="/bosses/parties">&larr; Party View</Link>
       </p>

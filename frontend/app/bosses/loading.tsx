@@ -1,3 +1,4 @@
+import { RouteLoading } from "@/components/route-loading";
 import { BossMatrix } from "@/components/boss-matrix";
 import { DockSkeleton } from "@/components/dock-shell";
 
@@ -8,10 +9,10 @@ import { DockSkeleton } from "@/components/dock-shell";
 // same shimmer table the page itself shows. Nothing to seed from here, this renders on the server.
 export default function Loading() {
   return (
-    <main className="page">
+    <RouteLoading>
       <h1 className="page-title">Individual View</h1>
       <DockSkeleton name="planner" picker />
       <BossMatrix loading bosses={[]} characters={[]} clearsByCharacter={{}} />
-    </main>
+    </RouteLoading>
   );
 }

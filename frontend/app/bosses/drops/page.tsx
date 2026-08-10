@@ -1,5 +1,6 @@
 "use client";
 
+import { PAGE_WAITING } from "@/components/route-loading";
 import { useAuth } from "@clerk/nextjs";
 import Link from "next/link";
 import { Fragment, useEffect, useState } from "react";
@@ -283,7 +284,7 @@ export default function DropLogPage() {
   const shown = shownSection(section, sections);
 
   return (
-    <main className="page">
+    <main className={state === "loading" ? PAGE_WAITING : "page"}>
       <h1 className="page-title">Drop Log</h1>
 
       {state === "error" && <p>Couldn&apos;t load your drops.</p>}
