@@ -401,5 +401,34 @@ describe("which bosses the redeemed pieces come off", () => {
     it("reads every piece as theirs when no holder is named", () => {
       expect(keptFor(150)).toEqual({ old: 0, mid: 50, new: 100 });
     });
+
+    it("measures their own share by the SHARES, not by halving the pile", () => {
+      // A 2:1 split where the small share loots the lot: 100 a night, and only a third is theirs.
+      // These seats are FOLDED holders, which is where a 2 comes from without anybody configuring
+      // an uneven split: the config's own control makes "one member takes more" and "one member
+      // loots everything" mutually exclusive, but two of one person's characters fold to 2 shares
+      // under either. See foldSeats in vestige-ledger.ts.
+      const uneven = pile.map((d) => ({ ...d, seats: [seat("A", 100, 1), seat("B", 0, 2)] }));
+      const keptOnUneven = (kept: number) =>
+        Object.fromEntries(spreadKept(uneven, kept, "m-A").map((d) => [d.id, d.kept ?? 0]));
+
+      // A third of 100 is 33, so their whole entitlement across the pile is 99: the 100th piece is
+      // already B's, and it comes off the newest end like any other overshoot.
+      expect(keptOnUneven(100)).toEqual({ old: 33, mid: 33, new: 34 });
+      // Under it, still off the newest end first.
+      expect(keptOnUneven(50)).toEqual({ old: 0, mid: 17, new: 33 });
+      // Over it, the surplus is B's pieces, and only then.
+      expect(keptOnUneven(150)).toEqual({ old: 33, mid: 33, new: 84 });
+    });
+
+    it("hands out the odd piece rather than losing it when the shares do not divide", () => {
+      // 100 across a 2:1:1 split is 50 / 25 / 25, and 181 is 90.5 / 45.25 / 45.25. Their own share
+      // comes off entitlements(), so the rounding is the same one the balances use.
+      const trio = [
+        { ...pile[0]!, total: 181, seats: [seat("A", 181, 1), seat("B", 0, 2), seat("C", 0, 1)] },
+      ];
+      expect(spreadKept(trio, 45, "m-A")[0]!.kept).toBe(45);
+      expect(spreadKept(trio, 46, "m-A")[0]!.kept).toBe(46);
+    });
   });
 });

@@ -828,4 +828,71 @@ describe("a holder redeeming their share rather than selling it", () => {
       ]);
     });
   });
+
+  describe("a lopsided split where the small share loots the lot", () => {
+    // 60 pieces, 40 mine and 20 his because I brought two characters, and he picks up all 60. His
+    // own share is a THIRD of the pile, so a redemption reads against 20, not against half of 60.
+    //
+    // Reachable without the config's uneven-split mode, which is the point of pinning it: that
+    // control and the looter one are the same select, so "one member takes more" and "one member
+    // loots everything" cannot both be chosen. Every seat here has 1 share and the 2:1 comes from
+    // the FOLD, which the config never sees as uneven at all.
+    const lopsided = () => [
+      seat("m1", "Husky", { mine: true }),
+      seat("m1b", "HuskyAlt", { mine: true }),
+      seat("m2", "BroChar", { person: ["p-bro", "Bro"] }),
+    ];
+
+    const oneNight = (tranches: { holder: Holder; pieces: number; amount: number | null }[]) =>
+      holderLedgers(
+        outstanding(
+          [party("pa", "limbo", lopsided(), "m2")],
+          [pool("pa", [coupon("l1", "limbo", 60, "2026-08-06")])],
+          VESTIGE,
+          ORDER,
+        ),
+        salesByHolder(tranches),
+        keptByHolder(tranches),
+      )[0]!;
+
+    it("owes me two thirds, and keeping his own third leaves all of mine sellable", () => {
+      const ledger = oneNight([
+        { holder: BRO, pieces: 20, amount: null },
+        { holder: BRO, pieces: 40, amount: 800 * M },
+      ]);
+      const limbo = ledger.drops[0]!;
+
+      expect(limbo.pieces).toBe(60);
+      expect(limbo.kept).toBe(20);
+      expect(limbo.sellable).toBe(40);
+      expect([ledger.owedToYou, ledger.settledToYou]).toEqual([40, 40]);
+      expect(ledger.dueNow).toBe(800 * M);
+      expect(unsold(ledger)).toBe(0);
+    });
+
+    it("prices the pieces of mine he redeems at the average his own sales got", () => {
+      // He keeps 30 of the 60 when only 20 are his, so 10 of mine are gone. The 30 he sold went at
+      // 20m, and my 40 are owed at that: 800m, more than the 600m he took in.
+      const ledger = oneNight([
+        { holder: BRO, pieces: 30, amount: null },
+        { holder: BRO, pieces: 30, amount: 600 * M },
+      ]);
+      const limbo = ledger.drops[0]!;
+
+      expect(limbo.sellable).toBe(30);
+      expect(limbo.transfers.map((t) => [t.to, t.pieces, t.send])).toEqual([["you", 40, 800 * M]]);
+      expect([ledger.owedToYou, ledger.settledToYou]).toEqual([40, 40]);
+    });
+
+    it("has no price to state at all once he has redeemed every piece", () => {
+      const ledger = oneNight([{ holder: BRO, pieces: 60, amount: null }]);
+      const limbo = ledger.drops[0]!;
+
+      expect(limbo.sellable).toBe(0);
+      // The debt is 40 and it is real. Nothing was ever listed, so there is no average to price it
+      // at, and a figure here would be one nobody was offered.
+      expect(limbo.transfers.map((t) => [t.pieces, t.send])).toEqual([[40, null]]);
+      expect([ledger.owedToYou, ledger.settledToYou]).toEqual([40, 0]);
+    });
+  });
 });
