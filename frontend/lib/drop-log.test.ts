@@ -738,6 +738,19 @@ describe("a piece drop counts YOUR share, not what fell", () => {
     for (const log of [own, owed, done]) expect(log.entries[0]!.status).toBe("PENDING");
   });
 
+  it("carries the share, so a pool row can say which number it is showing", () => {
+    // "Vestige of Erion Coupon x180 · Settled" read as 180 of mine being settled, when 90 ever were:
+    // the count beside the name is what FELL, which is right for a pool, and the status beside it is
+    // about my share. The Drop Log counts the same drop as x90 on purpose, so each screen has to say.
+    const log = buildDropLog([trio({ looterMemberId: "m2" })], [pool("pa", [coupons()])], tables);
+    const entry = log.entries[0]!;
+
+    expect(entry.quantity).toBe(60);
+    expect(entry.yours).toBe(20);
+    // The two differing is exactly when a pool row needs to say so. Equal means it came out even.
+    expect(entry.yours).not.toBe(entry.quantity);
+  });
+
   it("still counts an ordinary drop that has not sold", () => {
     // Nothing here is about pieces: a hammer nobody has sold is work whoever is holding it.
     const hammer = pending({ dropKey: "exceptional-hammer-face", name: "Hammer", quantity: 1 });

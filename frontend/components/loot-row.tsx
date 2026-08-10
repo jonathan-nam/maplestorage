@@ -20,6 +20,8 @@ export function LootRow({
   party,
   boss,
   status,
+  yours,
+  pieces,
   busy,
   onSell,
   onUnsell,
@@ -38,6 +40,24 @@ export function LootRow({
    * whose status IS the answer. See dropStatusLabel.
    */
   status?: string | null;
+  /**
+   * Pieces of this drop that are YOURS, for a coupon row. Null for an ordinary drop.
+   *
+   * The count beside the name is what FELL, which is right for a pool: the party is holding 180 and the
+   * controls below act on all of it. But the status beside it is about your share, so "x180 · Settled"
+   * read as 180 of yours being settled when only 90 ever were. The Drop Log counts the same drop as
+   * x90, deliberately, so each screen has to say which number it is showing.
+   */
+  yours?: number | null;
+  /**
+   * This drop is a stack of pieces, which does NOT sell through its own row. See isPieceDrop.
+   *
+   * It settles in tranches on the Drop Log, by COUNT. Selling it here would divide it as one pot of
+   * MONEY while the piece ledger was still counting the same drop in coupons: two settlements for one
+   * drop, which is the whole thing the ledger exists to prevent. The row was offering exactly that,
+   * because it gates the sale on PENDING and a piece drop is PENDING for ever.
+   */
+  pieces?: boolean;
   busy: boolean;
   onSell: (body: SellLootBody) => void;
   onUnsell: () => void;
@@ -66,6 +86,9 @@ export function LootRow({
   // everyone else. So it is a third basis rather than a second form, and the only thing it changes
   // on screen is who the last select names.
   const bought = loot.amountBasis === "BOUGHT";
+  // Only worth saying when it is not the whole stack. Zero counts: a party you keep the books for but
+  // did not run is owed none of it, and "0 out of 180" is the honest way to say so.
+  const share = yours !== null && yours !== undefined && yours !== loot.quantity ? yours : null;
 
   const amount = parseMesos(price);
   // Against every seat, not `ran`: a payout pinned before somebody left still names them, and
@@ -89,7 +112,18 @@ export function LootRow({
         <div className="loot-title">
           <span className="loot-name">
             {loot.name}
-            {loot.quantity > 1 && <span className="loot-count"> x{loot.quantity}</span>}
+            {/* Your share OUT OF what fell, as one figure, where the two differ. Both numbers belong on
+                a pool row (the party is holding all of it, and the status beside this is about your
+                part) and "x180 90 yours" made the reader do the subtraction. A drop that came out even
+                is already all yours, so it keeps the plain count rather than saying 180 out of 180. */}
+            {share !== null ? (
+              <span className="loot-count">
+                {" "}
+                {share} out of {loot.quantity}
+              </span>
+            ) : (
+              loot.quantity > 1 && <span className="loot-count"> x{loot.quantity}</span>
+            )}
           </span>
           <span className="loot-meta">
             {boss?.iconUrl && (
@@ -115,6 +149,16 @@ export function LootRow({
           product: the item cannot move again, so which seat ends up with it is the only lever the
           party has, and one button per seat is the shortest way to pull it. Not offered on a solo
           pool, which has nobody to take turns with. */}
+      {/* A piece row has no sale, so Remove is all it has: the pieces are priced on the Drop Log and
+          everything else here would act on a pot that does not exist. */}
+      {loot.status === "PENDING" && canSell && pieces && (
+        <div className="loot-actions">
+          <button type="button" className="party-delete" onClick={onDelete} disabled={busy}>
+            Remove
+          </button>
+        </div>
+      )}
+
       {loot.status === "PENDING" && !canSell && (
         <div className="loot-actions">
           {!party.solo &&
@@ -159,6 +203,7 @@ export function LootRow({
 
       {loot.status === "PENDING" &&
         canSell &&
+        !pieces &&
         (selling ? (
           <form
             className="loot-sale-form"
