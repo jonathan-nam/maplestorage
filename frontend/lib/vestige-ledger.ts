@@ -526,7 +526,8 @@ export function holderLedgers(
   for (const [key, mine] of byHolder) {
     const kept = keptByHolder.get(key) ?? 0;
     // Which bosses the redeemed pieces came off, before anything is priced: coverage and every
-    // transfer are measured against the sellable pile, so this has to be decided first.
+    // transfer are measured against the sellable pile, so this has to be decided first. Keyed by
+    // the holder so their own share of each drop is redeemed before anything they owe.
     //
     // One lootId appears at most once per holder, so keying by it inside this pile is safe. Across
     // piles it does not hold, which is why this runs per holder rather than over the whole list.
@@ -534,6 +535,7 @@ export function holderLedgers(
       spreadKept(
         mine.map((d) => d.drop),
         kept,
+        key,
       ).map((d) => [d.id, d]),
     );
     const pileOf = (d: OutstandingDrop) => spread.get(d.drop.id) ?? d.drop;

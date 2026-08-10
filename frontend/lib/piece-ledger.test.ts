@@ -375,4 +375,31 @@ describe("which bosses the redeemed pieces come off", () => {
     expect(backwards.complete).toBe(false);
     expect(backwards.averagePrice).toBeNull();
   });
+
+  describe("whose pieces they are, before which boss they came off", () => {
+    // The same three weeks, but a duo: A looted all 100 each night and half of every one is B's.
+    const shared = pile.map((d) => ({ ...d, seats: [seat("A", 100), seat("B", 0)] }));
+    const keptFor = (kept: number, holder?: string) =>
+      Object.fromEntries(spreadKept(shared, kept, holder).map((d) => [d.id, d.kept ?? 0]));
+
+    it("takes a holder's own share off every boss before touching anybody else's", () => {
+      // Their whole entitlement across the pile, so each boss keeps exactly the half that is B's
+      // for sale. Off whole bosses instead the newest two had nothing sellable left, B's pieces
+      // there could never be priced, and the oldest paid out as though A had sold their own half
+      // too: 150 of a 150-piece claim settled as 100.
+      expect(keptFor(150, "m-A")).toEqual({ old: 50, mid: 50, new: 50 });
+    });
+
+    it("still works newest first within their own share", () => {
+      expect(keptFor(80, "m-A")).toEqual({ old: 0, mid: 30, new: 50 });
+    });
+
+    it("spills into the pieces they owe once their own share is gone, newest first", () => {
+      expect(keptFor(200, "m-A")).toEqual({ old: 50, mid: 50, new: 100 });
+    });
+
+    it("reads every piece as theirs when no holder is named", () => {
+      expect(keptFor(150)).toEqual({ old: 0, mid: 50, new: 100 });
+    });
+  });
 });

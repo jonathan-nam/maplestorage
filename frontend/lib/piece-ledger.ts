@@ -253,32 +253,51 @@ function inQueueOrder(drops: LedgerDrop[]): LedgerDrop[] {
 }
 
 /**
- * Which drops a holder's redeemed pieces came off, NEWEST first.
+ * Which drops a holder's redeemed pieces came off: their OWN share first, newest end first.
  *
  * A redemption is a count and nothing more: a coupon in an inventory has no boss written on it, so
  * which clear it came from is not a fact anybody has. It has to be decided somewhere, and the queue
  * is where the same question about a sale is already answered.
  *
- * Newest first, which is the opposite end from a sale, and the reason is the invariant the whole file
- * turns on. Oldest first would take pieces out of the boss at the front of the queue, the one whose
- * debts have already been priced and quite possibly already paid, and un-price them. Coming off the
- * back, a redemption only ever touches bosses nothing has been paid for yet.
+ * Their own entitlement before anybody else's pieces, which is the rule that keeps the pro rata in
+ * `transfersOf` honest. Taken off whole drops instead, a holder redeeming exactly their own share of
+ * the pile emptied the newest bosses of everything sellable and left the creditor's pieces there
+ * unpriceable, while the oldest bosses paid out as though the holder had sold their own half too.
+ * That is #281 one level up: 195 kept and 195 sold on a 390 pile settled 105 of a 195-piece debt.
+ *
+ * Newest first inside each pass, which is the opposite end from a sale, and the reason is the
+ * invariant the whole file turns on. Oldest first would take pieces out of the boss at the front of
+ * the queue, the one whose debts have already been priced and quite possibly already paid, and
+ * un-price them.
+ *
+ * `holder` is whose pile it is, and absent means every piece reads as theirs, which is one seat
+ * having looted the lot.
  *
  * More kept than the pile holds is a miscount rather than a negative pile: every drop ends fully
  * kept and the surplus goes nowhere, which the caller can see by comparing the count to the pile.
  */
-export function spreadKept(drops: LedgerDrop[], kept: number): LedgerDrop[] {
+export function spreadKept(drops: LedgerDrop[], kept: number, holder?: string): LedgerDrop[] {
   if (kept <= 0) return drops;
   const newestFirst = inQueueOrder(drops).reverse();
 
+  const ownOf = (drop: LedgerDrop) =>
+    holder === undefined
+      ? heldOf(drop)
+      : Math.min(heldOf(drop), entitlements(drop.total, drop.seats).get(holder) ?? 0);
+
   let left = kept;
   const byId = new Map<string, number>();
-  for (const drop of newestFirst) {
-    if (left <= 0) break;
-    const take = Math.min(left, heldOf(drop));
-    byId.set(drop.id, take);
-    left -= take;
-  }
+  const take = (drop: LedgerDrop, upTo: number) => {
+    const taken = Math.min(left, upTo);
+    if (taken <= 0) return;
+    byId.set(drop.id, (byId.get(drop.id) ?? 0) + taken);
+    left -= taken;
+  };
+  for (const drop of newestFirst) take(drop, ownOf(drop));
+  // Only once their own share is gone. These are pieces they owe somebody, and redeeming them is
+  // what `transfersOf` prices at the average their own sales got.
+  for (const drop of newestFirst) take(drop, heldOf(drop) - (byId.get(drop.id) ?? 0));
+
   return drops.map((d) => (byId.has(d.id) ? { ...d, kept: byId.get(d.id) } : d));
 }
 

@@ -776,4 +776,56 @@ describe("a holder redeeming their share rather than selling it", () => {
     expect(ledger.dueNow).toBe(4_875 * M);
     expect(unsold(ledger)).toBe(0);
   });
+
+  describe("across several bosses in one queue", () => {
+    // Where #281 came back. One drop hid it: a redemption is spread over the QUEUE, so it is only
+    // with a second boss that the kept pieces can land on the wrong entitlements. Bro loots both
+    // nights of one week, holds 300, and half of each is mine.
+    const week = () => ({
+      parties: [
+        party("pa", "kalos-the-guardian", duo(), "m2"),
+        party("pb", "baldrix", duo(), "m2"),
+      ],
+      pools: [
+        pool("pa", [coupon("l1", "kalos-the-guardian", 180, "2026-08-06")]),
+        pool("pb", [coupon("l2", "baldrix", 120, "2026-08-06")]),
+      ],
+    });
+
+    const weekFor = (tranches: { holder: Holder; pieces: number; amount: number | null }[]) => {
+      const { parties, pools } = week();
+      return holderLedgers(
+        outstanding(parties, pools, VESTIGE, ORDER),
+        salesByHolder(tranches),
+        keptByHolder(tranches),
+      )[0]!;
+    };
+
+    it("clears when a holder keeps their own half and sells mine", () => {
+      const ledger = weekFor([
+        { holder: BRO, pieces: 150, amount: 3_750 * M },
+        { holder: BRO, pieces: 150, amount: null },
+      ]);
+
+      // Every boss holds back only Bro's own share, so my half of each is what his sale covered.
+      expect(ledger.drops.map((d) => [d.bossKey, d.kept, d.sellable, d.covered])).toEqual([
+        ["kalos-the-guardian", 90, 90, 90],
+        ["baldrix", 60, 60, 60],
+      ]);
+      // Taken off whole bosses instead, baldrix was wholly kept and read "no sale to price them"
+      // for good, and this settled 90 of 150 with 1.5b of the 3.75b unpaid.
+      expect([ledger.owedToYou, ledger.settledToYou]).toEqual([150, 150]);
+      expect(ledger.dueNow).toBe(3_750 * M);
+      expect(unsold(ledger)).toBe(0);
+      expect(ledger.drops.every((d) => d.complete)).toBe(true);
+    });
+
+    it("takes a part-redemption off the newest boss's own share first", () => {
+      const ledger = weekFor([{ holder: BRO, pieces: 60, amount: null }]);
+      expect(ledger.drops.map((d) => [d.bossKey, d.kept, d.sellable])).toEqual([
+        ["kalos-the-guardian", 0, 180],
+        ["baldrix", 60, 60],
+      ]);
+    });
+  });
 });
