@@ -714,6 +714,30 @@ describe("a piece drop counts YOUR share, not what fell", () => {
     }
   });
 
+  it("says what a coupon row is, since its raw status is PENDING for ever", () => {
+    // The party page's own rows read `statusLabel(loot.status)`, and a piece drop never sells through
+    // its own row, so every vestige stack a party had ever dropped said "In the pool" with the full
+    // amount beside it. These are the three answers that replace it.
+    const own = buildDropLog([trio()], [pool("pa", [coupons()])], tables);
+    expect(dropStatusLabel(own.entries[0]!)).toBe("Yours");
+
+    const owed = buildDropLog([trio({ looterMemberId: "m2" })], [pool("pa", [coupons()])], tables);
+    expect(dropStatusLabel(owed.entries[0]!)).toBe("Owed");
+
+    const closed = closedByHolder([
+      { holder: holderOf(trio().members[1]!), lootIds: [coupons().id], unpaid: 0 },
+    ]).closed;
+    const done = buildDropLog(
+      [trio({ looterMemberId: "m2" })],
+      [pool("pa", [coupons()])],
+      tables,
+      closed,
+    );
+    expect(dropStatusLabel(done.entries[0]!)).toBe("Settled");
+    // And the raw status has not moved under any of them, which is why it could never be the answer.
+    for (const log of [own, owed, done]) expect(log.entries[0]!.status).toBe("PENDING");
+  });
+
   it("still counts an ordinary drop that has not sold", () => {
     // Nothing here is about pieces: a hammer nobody has sold is work whoever is holding it.
     const hammer = pending({ dropKey: "exceptional-hammer-face", name: "Hammer", quantity: 1 });

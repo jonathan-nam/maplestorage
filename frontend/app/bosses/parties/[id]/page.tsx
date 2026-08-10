@@ -13,18 +13,21 @@ import { preloadBossArt } from "@/lib/preload-boss-art";
 import { useRowWrites } from "@/lib/use-row-writes";
 import { ApiError, apiFetch } from "@/lib/api";
 import { peek, put } from "@/lib/cache";
-import { buildDropLog, couponsOwedByParty } from "@/lib/drop-log";
+import { buildDropLog, couponsOwedByParty, dropStatusLabel } from "@/lib/drop-log";
 import { poolLabel, summarize } from "@/lib/loot";
+import { closedByHolder } from "@/lib/vestige-ledger";
 import { otherMembers, partySizeLabel } from "@/lib/parties";
 import type { Boss } from "@/types/boss";
 import type { DropTables } from "@/types/drop";
 import type { AddLootBody, Loot, SellLootBody } from "@/types/loot";
+import type { VestigeSettlement } from "@/types/vestige";
 import type { Party } from "@/types/party";
 
 type LoadState = "loading" | "loaded" | "error";
 
 const BOSSES_KEY = "/api/bosses";
 const DROPS_KEY = "/api/bosses/drops";
+const SETTLEMENTS_KEY = "/api/vestige-settlements";
 // Rows are keyed by their drop's id while they save. The picker is not a row, so it takes a name of
 // its own. See lib/use-row-writes.ts.
 const ADD_DROP = "add-drop";
@@ -41,6 +44,9 @@ export default function PartyPage() {
   const [loot, setLoot] = useState<Loot[]>([]);
   const [bosses, setBosses] = useState<Boss[]>(peek<Boss[]>(BOSSES_KEY) ?? []);
   const [dropTables, setDropTables] = useState<DropTables>(peek<DropTables>(DROPS_KEY) ?? {});
+  const [settlements, setSettlements] = useState<VestigeSettlement[]>(
+    peek<VestigeSettlement[]>(SETTLEMENTS_KEY) ?? [],
+  );
   const [state, setState] = useState<LoadState>("loading");
   // Per drop, so marking one share paid does not grey out every other row in the pool. One write at
   // a time still, because each one refetches the pool. See lib/use-row-writes.ts.
@@ -70,14 +76,18 @@ export default function PartyPage() {
           // The whole catalog's drop tables, cached: it is a few dozen rows and the picker needs
           // whichever boss you switch to next.
           apiFetch<DropTables>(DROPS_KEY, { method: "GET" }, withToken),
+          // What stops a closed debt still reading as owed here. See V52.
+          apiFetch<VestigeSettlement[]>(SETTLEMENTS_KEY, { method: "GET" }, withToken),
         ]);
       })
-      .then(([partyResult, , bossResult, dropResult]) => {
+      .then(([partyResult, , bossResult, dropResult, settlementResult]) => {
         setParty(partyResult);
         setBosses(bossResult);
         setDropTables(dropResult);
+        setSettlements(settlementResult);
         put(BOSSES_KEY, bossResult);
         put(DROPS_KEY, dropResult);
+        put(SETTLEMENTS_KEY, settlementResult);
         setState("loaded");
       })
       .catch(() => setState("error"));
@@ -124,7 +134,15 @@ export default function PartyPage() {
   // Through the Drop Log's own reading of them, the same as the card that links here. Counting
   // every PENDING row instead made this page disagree with that card about the same party: a
   // coupon row never sells, so it was pending for ever here while the card left it out.
-  const log = party ? buildDropLog([party], [{ partyId: party.id, loot }], dropTables) : null;
+  const closed = closedByHolder(settlements).closed;
+  const log = party
+    ? buildDropLog([party], [{ partyId: party.id, loot }], dropTables, closed)
+    : null;
+  // What each coupon row says it is: a piece drop is PENDING for ever, because it never sells through
+  // its own row, so the raw status read "In the pool" on every vestige stack this party ever dropped.
+  const pieceStatus = new Map(
+    (log?.entries ?? []).filter((e) => e.pieces).map((e) => [e.lootId, dropStatusLabel(e)]),
+  );
   const summary = summarize(loot);
   const poolLine = poolLabel(
     {
@@ -197,6 +215,7 @@ export default function PartyPage() {
 
           <LootPool
             party={party}
+            pieceStatus={pieceStatus}
             loot={loot}
             dropTables={dropTables}
             bossByKey={bossByKey}

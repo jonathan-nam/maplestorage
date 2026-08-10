@@ -53,6 +53,21 @@ export type WalletLine = {
   nets: number;
 };
 
+/**
+ * Coupon mesos one holder still owes you, from the piece ledger. See V51.
+ *
+ * Passed in rather than derived here, for the reason the rest of this file exists: the arithmetic is
+ * lib/piece-ledger.ts's and a second copy of it would be a second answer.
+ */
+export type CouponDebt = {
+  /** holderKey(), which is the same shape this file groups counterparties by. */
+  key: string;
+  name: string;
+  attributed: boolean;
+  /** Mesos still to come, after what has already arrived. Zero and closed piles are left out. */
+  amount: number;
+};
+
 export type Counterparty = {
   key: string;
   name: string;
@@ -66,6 +81,16 @@ export type Counterparty = {
   owed: number;
   /** owed - owe. Positive means they owe you. */
   net: number;
+  /**
+   * Of `owed`, how much is coupon debt from the piece ledger rather than an unpaid share. See V51.
+   *
+   * Counted in the totals, because it is money they owe you and a wallet that leaves it out is the
+   * wrong number this repo exists to prevent. Kept OUT of `lines` on purpose: a line is an unpaid
+   * payout row, `settlementFor` turns every one of them into a settle request, and a coupon debt has
+   * no payout row to clear. Folded in as a line it would produce a settle that looked like it worked.
+   * It settles on the Drop Log, where the receipts are.
+   */
+  coupons: number;
   lines: WalletLine[];
 };
 
@@ -81,6 +106,8 @@ export type Wallet = {
    * prevent, and a total with "2 unreadable" beside it is at least honest about being short.
    */
   unreadable: number;
+  /** Coupon debt across every holder. Part of `owed`, and named so the split can be said. */
+  coupons: number;
   /** Unpaid shares between two OTHER people in your party. Real, and not yours to settle. */
   betweenOthers: number;
   /** Unpaid shares between two of your OWN characters. Mesos to move, but nobody to settle with. */
@@ -93,7 +120,12 @@ export type Wallet = {
  * Only SOLD drops with an unpaid share count. A drop still in the pool is not a debt (nobody has
  * the mesos yet), and a paid share is not one either.
  */
-export function buildWallet(parties: Party[], pools: PartyLootPool[]): Wallet {
+export function buildWallet(
+  parties: Party[],
+  pools: PartyLootPool[],
+  /** What each holder still owes in coupon mesos. Empty is every wallet before V51. */
+  coupons: CouponDebt[] = [],
+): Wallet {
   const partyById = new Map(parties.map((p) => [p.id, p]));
   const groups = new Map<string, Counterparty>();
   let unreadable = 0;
@@ -149,6 +181,7 @@ export function buildWallet(parties: Party[], pools: PartyLootPool[]): Wallet {
             owe: 0,
             owed: 0,
             net: 0,
+            coupons: 0,
             lines: [],
           };
           groups.set(key, group);
@@ -175,6 +208,29 @@ export function buildWallet(parties: Party[], pools: PartyLootPool[]): Wallet {
     }
   }
 
+  // Coupon debt, folded onto the same people. A holder with no unpaid share still gets a row: they
+  // owe you money, and it being owed in a different ledger is not a reason to leave them off the page.
+  for (const debt of coupons) {
+    if (debt.amount <= 0) continue;
+    let group = groups.get(debt.key);
+    if (!group) {
+      group = {
+        key: debt.key,
+        name: debt.name,
+        attributed: debt.attributed,
+        owe: 0,
+        owed: 0,
+        net: 0,
+        coupons: 0,
+        lines: [],
+      };
+      groups.set(debt.key, group);
+    }
+    group.coupons += debt.amount;
+    group.owed += debt.amount;
+    group.net = group.owed - group.owe;
+  }
+
   const counterparties = [...groups.values()].sort(
     // By how much is outstanding either way, not by the net: a pair who owe each other 5b are the
     // relationship to look at first even when it nets to nothing.
@@ -183,7 +239,16 @@ export function buildWallet(parties: Party[], pools: PartyLootPool[]): Wallet {
   const owe = counterparties.reduce((sum, c) => sum + c.owe, 0);
   const owed = counterparties.reduce((sum, c) => sum + c.owed, 0);
 
-  return { counterparties, owe, owed, net: owed - owe, unreadable, betweenOthers, betweenMine };
+  return {
+    counterparties,
+    owe,
+    owed,
+    net: owed - owe,
+    unreadable,
+    coupons: counterparties.reduce((sum, c) => sum + c.coupons, 0),
+    betweenOthers,
+    betweenMine,
+  };
 }
 
 /**
@@ -194,6 +259,8 @@ export function buildWallet(parties: Party[], pools: PartyLootPool[]): Wallet {
  * outstanding after the money that covered it has already moved.
  */
 export function settlementFor(person: Counterparty): { lootId: string; memberId: string }[] {
+  // Off `lines`, which coupon debt is deliberately not in: it has no payout row, so a settle naming
+  // one would clear nothing while looking as though it had. See Counterparty.coupons.
   return person.lines.map((line) => ({ lootId: line.lootId, memberId: line.payeeId }));
 }
 

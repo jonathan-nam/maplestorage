@@ -392,6 +392,7 @@ describe("buildWallet", () => {
       owed: 0,
       net: 0,
       unreadable: 0,
+      coupons: 0,
       betweenOthers: 0,
       betweenMine: 0,
     });
@@ -498,6 +499,7 @@ describe("transferLine", () => {
     key: "person:p-chris",
     name: "Chris",
     attributed: true,
+    coupons: 0,
     owe: 0,
     owed: 0,
     net: 0,
@@ -539,5 +541,58 @@ describe("buildWallet, across a week the roster changed in", () => {
     expect(wallet.unreadable).toBe(0);
     expect(wallet.owe).toBe(splitOf(loot, p.seats)!.shares[0]!.pay);
     expect(wallet.counterparties.map((c) => c.name)).toEqual(["Chris"]);
+  });
+});
+
+describe("coupon debt on the wallet", () => {
+  // A wallet built only from sold drops missed the piece ledger entirely: a coupon never sells through
+  // its own row, so soldAt is null and the whole vestige debt was invisible on the page whose job is
+  // "who owes me money".
+  const owedInCoupons = {
+    key: "person:p-chris",
+    name: "Chris",
+    attributed: true,
+    amount: 4_860_000_000,
+  };
+
+  it("counts it as owed, and names it so the split can be read", () => {
+    const wallet = buildWallet([], [], [owedInCoupons]);
+    expect(wallet.owed).toBe(4_860_000_000);
+    expect(wallet.coupons).toBe(4_860_000_000);
+    expect(wallet.net).toBe(4_860_000_000);
+    expect(wallet.counterparties).toHaveLength(1);
+    expect(wallet.counterparties[0]!.coupons).toBe(4_860_000_000);
+  });
+
+  it("NEVER puts it in the lines, because Settle turns every line into a claim it moved", () => {
+    // The invariant that keeps this safe by construction rather than by filter. A coupon debt has no
+    // payout row, so a settle naming one would clear nothing and look as though it had.
+    const wallet = buildWallet([], [], [owedInCoupons]);
+    expect(wallet.counterparties[0]!.lines).toEqual([]);
+    expect(settlementFor(wallet.counterparties[0]!)).toEqual([]);
+  });
+
+  it("leaves out a debt with nothing left to come", () => {
+    expect(buildWallet([], [], [{ ...owedInCoupons, amount: 0 }]).counterparties).toEqual([]);
+    expect(buildWallet([], [], [{ ...owedInCoupons, amount: -5 }]).counterparties).toEqual([]);
+  });
+
+  it("folds onto the same person as their unpaid shares, not beside them", () => {
+    // The fold is the whole reason the wallet is worth having. Chris owing you for a Grindstone and for
+    // coupons is one relationship, and two rows would invite two transfers.
+    const p = party("pa", [mine("m1", "Husky"), theirs("m2", "CreedBratton", chris)]);
+    const wallet = buildWallet([p], [pool("pa", [sold()])], [owedInCoupons]);
+
+    expect(wallet.counterparties).toHaveLength(1);
+    const only = wallet.counterparties[0]!;
+    expect(only.name).toBe("Chris");
+    expect(only.coupons).toBe(4_860_000_000);
+    // The share on this drop runs the other way, since my seat sold it. So one row carries a debt in
+    // each direction, which is the fold doing its job: one relationship, and the net is one transfer.
+    expect(only.owe).toBeGreaterThan(0);
+    expect(only.owed).toBe(4_860_000_000);
+    // The shares stay settleable; the coupons stay out of it.
+    expect(only.lines.length).toBeGreaterThan(0);
+    expect(settlementFor(only).length).toBe(only.lines.length);
   });
 });
