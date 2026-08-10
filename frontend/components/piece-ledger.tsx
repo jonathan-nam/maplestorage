@@ -7,10 +7,10 @@ import { formatWeekStart } from "@/lib/boss-clears";
 import { bossLabel } from "@/lib/boss-difficulty";
 import { formatMesos, parseMesos, shortMesos } from "@/lib/drop-split";
 import { transferKey } from "@/lib/piece-ledger";
-import { type Holder, type HolderLedger, holderKey, unsold } from "@/lib/vestige-ledger";
+import { type Holder, type HolderLedger, holderKey, toCome, unsold } from "@/lib/vestige-ledger";
 import type { Boss } from "@/types/boss";
 import type { Party } from "@/types/party";
-import type { VestigeTranche } from "@/types/vestige";
+import type { VestigePayment, VestigeTranche } from "@/types/vestige";
 
 // One card per HOLDER: the pile a person is holding, the one box that prices it, and what each boss
 // they looted for owes once its own pieces are covered.
@@ -30,6 +30,7 @@ const MAX_PIECES = 1_000_000;
 export function PieceLedger({
   ledgers,
   tranches,
+  payments,
   bossByKey,
   partyById,
   iconUrl,
@@ -37,11 +38,15 @@ export function PieceLedger({
   onAddSale,
   onAddKept,
   onAddBought,
+  onAddPayment,
   onRemoveSale,
+  onRemovePayment,
 }: {
   ledgers: HolderLedger[];
   /** Every holder's tranches, keyed by holderKey(), oldest first as the server returns them. */
   tranches: Map<string, VestigeTranche[]>;
+  /** Every holder's receipts, keyed the same way. See V51. */
+  payments: Map<string, VestigePayment[]>;
   bossByKey: Map<string, Boss>;
   partyById: Map<string, Party>;
   /** The coupon's own sprite, backend-relative. Null when the catalog has no art for it. */
@@ -50,7 +55,9 @@ export function PieceLedger({
   onAddSale: (holder: Holder, pieces: number, amount: number) => Promise<void>;
   onAddKept: (holder: Holder, pieces: number) => Promise<void>;
   onAddBought: (holder: Holder, pieces: number, amount: number) => Promise<void>;
+  onAddPayment: (holder: Holder, amount: number) => Promise<void>;
   onRemoveSale: (trancheId: string) => Promise<void>;
+  onRemovePayment: (paymentId: string) => Promise<void>;
 }) {
   if (ledgers.length === 0) return null;
   return (
@@ -60,6 +67,7 @@ export function PieceLedger({
           key={holderKey(ledger.holder)}
           ledger={ledger}
           tranches={tranches.get(holderKey(ledger.holder)) ?? []}
+          payments={payments.get(holderKey(ledger.holder)) ?? []}
           bossByKey={bossByKey}
           partyById={partyById}
           iconUrl={iconUrl}
@@ -67,7 +75,9 @@ export function PieceLedger({
           onAddSale={onAddSale}
           onAddKept={onAddKept}
           onAddBought={onAddBought}
+          onAddPayment={onAddPayment}
           onRemoveSale={onRemoveSale}
+          onRemovePayment={onRemovePayment}
         />
       ))}
     </>
@@ -77,6 +87,7 @@ export function PieceLedger({
 function HolderCard({
   ledger,
   tranches,
+  payments,
   bossByKey,
   partyById,
   iconUrl,
@@ -84,10 +95,13 @@ function HolderCard({
   onAddSale,
   onAddKept,
   onAddBought,
+  onAddPayment,
   onRemoveSale,
+  onRemovePayment,
 }: {
   ledger: HolderLedger;
   tranches: VestigeTranche[];
+  payments: VestigePayment[];
   bossByKey: Map<string, Boss>;
   partyById: Map<string, Party>;
   iconUrl: string | null;
@@ -95,13 +109,16 @@ function HolderCard({
   onAddSale: (holder: Holder, pieces: number, amount: number) => Promise<void>;
   onAddKept: (holder: Holder, pieces: number) => Promise<void>;
   onAddBought: (holder: Holder, pieces: number, amount: number) => Promise<void>;
+  onAddPayment: (holder: Holder, amount: number) => Promise<void>;
   onRemoveSale: (trancheId: string) => Promise<void>;
+  onRemovePayment: (paymentId: string) => Promise<void>;
 }) {
   const [pieces, setPieces] = useState("");
   const [amount, setAmount] = useState("");
   const [keeping, setKeeping] = useState("");
   const [buying, setBuying] = useState("");
   const [buyingFor, setBuyingFor] = useState("");
+  const [got, setGot] = useState("");
   const [refusal, setRefusal] = useState<string | null>(null);
 
   // The pile's own progress, which belongs beside the boxes that take its numbers rather than in
@@ -143,6 +160,9 @@ function HolderCard({
     return typed.trim() === "" || !Number.isInteger(n) || n <= room ? typed : String(room);
   };
 
+  const gotTotal = parseMesos(got);
+  const payment = gotTotal !== null && gotTotal >= 1 ? gotTotal : null;
+
   const keptCount = Number(keeping.trim());
   const kept =
     Number.isInteger(keptCount) && keptCount >= 1 && keptCount <= Math.min(MAX_PIECES, keptRoom)
@@ -161,7 +181,7 @@ function HolderCard({
       : null;
 
   /** Keeps what was typed when the server refuses it, so a rejected sale can be corrected. */
-  async function write(action: Promise<void>, clear: "sale" | "kept" | "bought" | null) {
+  async function write(action: Promise<void>, clear: "sale" | "kept" | "bought" | "paid" | null) {
     setRefusal(null);
     try {
       await action;
@@ -174,6 +194,7 @@ function HolderCard({
         setBuying("");
         setBuyingFor("");
       }
+      if (clear === "paid") setGot("");
     } catch (e) {
       setRefusal(e instanceof Error ? e.message : "That didn't save.");
     }
@@ -199,11 +220,17 @@ function HolderCard({
           </span>
         </span>
         <span className="ledger-tally">
-          {/* Due NOW, for the pieces of yours that have already sold. The rest follows as the
-              stack goes; see the pro rata note in piece-ledger.ts. */}
-          {ledger.dueNow > 0 && (
-            <span className="droplog-take">{formatMesos(ledger.dueNow, true)} due</span>
-          )}
+          {/* Due NOW against what has arrived. Priced and paid are different facts, and showing only
+              the first is what left a fully sold pile reading exactly like one still waiting. The
+              money says "settled" and drops the figure once it is all in. See V51. */}
+          {ledger.settled
+            ? ledger.dueNow > 0 && <span className="loot-share-nets">settled</span>
+            : ledger.dueNow > 0 && (
+                <span className="droplog-take">
+                  {formatMesos(toCome(ledger), true)}
+                  {ledger.received > 0 ? " to come" : " due"}
+                </span>
+              )}
         </span>
       </header>
 
@@ -307,6 +334,35 @@ function HolderCard({
           </form>
         )}
 
+        {/* The one fact nothing else can know: the mesos arrived. Every other figure here follows
+            from what happened to the coupons, so without this a pile whose every piece was sold and
+            priced still read as outstanding. Only on somebody else's card, and only once there is
+            something to collect. See V51. */}
+        {ledger.holder.kind !== "SELF" && ledger.dueNow > 0 && (
+          <form
+            className="ledger-sale"
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (payment) void write(onAddPayment(ledger.holder, payment), "paid");
+            }}
+          >
+            <label className="loot-share-input">
+              paid me
+              <input
+                className="split-input"
+                value={got}
+                onChange={(e) => setGot(e.target.value)}
+                placeholder={toCome(ledger) > 0 ? shortMesos(toCome(ledger)) : "amount"}
+                inputMode="decimal"
+                aria-label={`What ${ledger.holderName} has paid you`}
+              />
+            </label>
+            <button type="submit" className="party-save" disabled={busy || payment === null}>
+              Add
+            </button>
+          </form>
+        )}
+
         <span className="ledger-tranches">
           {/* The PILE's frame, beside the boxes that take its numbers. */}
           <span>
@@ -314,10 +370,33 @@ function HolderCard({
             {ledger.kept > 0 &&
               (over > 0 ? ` · ${ledger.kept} kept, over by ${over}` : ` · ${ledger.kept} kept`)}
             {ledger.bought.pieces > 0 && ` · ${ledger.bought.pieces} of mine taken`}
+            {/* Overpayment is said rather than netted off: more arriving than is owed is a miscount
+                on one side, and a figure that quietly absorbed it would hide which. */}
+            {ledger.received > 0 &&
+              (ledger.received > ledger.dueNow
+                ? ` · ${shortMesos(ledger.received)} paid, ${shortMesos(ledger.received - ledger.dueNow)} over`
+                : ` · ${shortMesos(ledger.received)} of ${shortMesos(ledger.dueNow)} paid`)}
           </span>
 
           {/* What has been entered, in the order the queue spends it. Removable because a mistyped
               tranche re-prices every boss behind it, and there is nowhere else to correct one. */}
+          {/* Receipts, removable because a mistyped one says a bill is settled when it is not, and
+              this is the only place it can be corrected. See V51. */}
+          {payments.map((paid) => (
+            <span key={paid.id} className="ledger-tranche">
+              {`${shortMesos(paid.amount)} paid`}
+              <button
+                type="button"
+                className="link ledger-drop-sale"
+                disabled={busy}
+                onClick={() => void write(onRemovePayment(paid.id), null)}
+                aria-label={`Remove the ${formatMesos(paid.amount, true)} payment`}
+              >
+                ×
+              </button>
+            </span>
+          ))}
+
           {tranches.map((tranche) => (
             <span key={tranche.id} className="ledger-tranche">
               {/* A redemption has no price, so it says what it is rather than dividing by a

@@ -41,3 +41,19 @@ export type AddVestigeTrancheBody = {
   amount?: number;
   disposition: VestigeDisposition;
 };
+
+// One payment: mesos that actually arrived from a holder, against what their whole pile owes. No
+// pieces and no boss, because a payment is against the debt rather than against particular coupons.
+// See V51.
+export type VestigePayment = {
+  id: string;
+  holder: Holder;
+  amount: number;
+  receivedAt: string;
+};
+
+// POST /api/vestige-payments. Answers with the whole tally, not the row added.
+export type AddVestigePaymentBody = {
+  holder: Holder;
+  amount: number;
+};

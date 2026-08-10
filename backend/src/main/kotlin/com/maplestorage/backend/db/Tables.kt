@@ -432,6 +432,25 @@ object VestigeTranche : Table("vestige_tranche") {
     override val primaryKey = PrimaryKey(id)
 }
 
+// Mesos actually received from a holder, against what their whole pile owes. No pieces: which boss a
+// meso pays for is the queue's business, and storing it here would be storing a derived share.
+// See V51__vestige_payment.sql.
+object VestigePayment : Table("vestige_payment") {
+    val id = uuid("id")
+    val userId = reference("user_id", Users.id)
+
+    // vestige_tranche's holder shape, kind for kind: it is the same pile being talked about.
+    val holderKind = text("holder_kind")
+    val personId = optReference("person_id", Person.id)
+    val characterName = text("character_name").nullable()
+
+    val amount = long("amount")
+    val receivedAt = timestamp("received_at")
+    val createdAt = timestamp("created_at")
+
+    override val primaryKey = PrimaryKey(id)
+}
+
 object PartyLootPayout : Table("party_loot_payout") {
     val lootId = reference("loot_id", PartyLoot.id)
     val memberId = reference("member_id", PartyMember.id)

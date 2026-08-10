@@ -36,6 +36,7 @@ import {
   holderLedgers,
   keptByHolder,
   outstanding,
+  receivedByHolder,
   runningBalance,
   salesByHolder,
   unanswered,
@@ -46,7 +47,7 @@ import type { Character } from "@/types/character";
 import type { DropTables } from "@/types/drop";
 import type { Loot, LogDropBody, PartyLootPool } from "@/types/loot";
 import type { Party } from "@/types/party";
-import type { VestigeTranche } from "@/types/vestige";
+import type { VestigePayment, VestigeTranche } from "@/types/vestige";
 
 // The history of what dropped, and what it made, and where a drop is logged. Every meso is
 // lib/drop-log.ts's, which is splitOf()'s, which is splitDrop()'s. Nothing here adds anything up.
@@ -62,6 +63,7 @@ const BOSSES_KEY = "/api/bosses";
 const DROPS_KEY = "/api/bosses/drops";
 const CHARACTERS_KEY = "/api/characters";
 const TRANCHES_KEY = "/api/vestige-tranches";
+const PAYMENTS_KEY = "/api/vestige-payments";
 
 // The stacking drop the piece ledger is for. One key, because one item behaves this way: a boss
 // drops it in bundles that do not divide by looting alone. See lib/piece-ledger.ts.
@@ -81,6 +83,7 @@ export default function DropLogPage() {
     peek<Character[]>(CHARACTERS_KEY) ?? [],
   );
   const [tranches, setTranches] = useState<VestigeTranche[]>([]);
+  const [payments, setPayments] = useState<VestigePayment[]>([]);
 
   // A drop names the party it fell in and links to it, which draws its seats. See
   // lib/seat-sprites.ts.
@@ -94,14 +97,16 @@ export default function DropLogPage() {
 
   async function load(token?: string | null) {
     const withToken = token !== undefined ? () => Promise.resolve(token) : getToken;
-    const [partyResult, poolResult, trancheResult] = await Promise.all([
+    const [partyResult, poolResult, trancheResult, paymentResult] = await Promise.all([
       apiFetch<Party[]>(PARTIES_KEY, { method: "GET" }, withToken),
       apiFetch<PartyLootPool[]>(POOLS_KEY, { method: "GET" }, withToken),
       apiFetch<VestigeTranche[]>(TRANCHES_KEY, { method: "GET" }, withToken),
+      apiFetch<VestigePayment[]>(PAYMENTS_KEY, { method: "GET" }, withToken),
     ]);
     setParties(partyResult);
     setPools(poolResult);
     setTranches(trancheResult);
+    setPayments(paymentResult);
     put(PARTIES_KEY, partyResult);
   }
 
@@ -171,6 +176,18 @@ export default function DropLogPage() {
     } catch (e) {
       // Thrown on, not shown here: the card that asked for it is a screen away from this page's
       // error line, and a refusal nobody is looking at is a refusal that did not happen.
+      throw new Error(e instanceof ApiError ? e.body : "That didn't save.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  /** The same, for a receipt. Its own state, because a payment changes no piece. See V51. */
+  async function paymentWrite(path: string, options: RequestInit) {
+    setBusy(true);
+    try {
+      setPayments(await apiFetch<VestigePayment[]>(path, options, getToken));
+    } catch (e) {
       throw new Error(e instanceof ApiError ? e.body : "That didn't save.");
     } finally {
       setBusy(false);
@@ -256,6 +273,7 @@ export default function DropLogPage() {
     salesByHolder(tranches),
     keptByHolder(tranches),
     boughtByHolder(tranches),
+    receivedByHolder(payments),
   );
   // Nights that did not divide and that nobody has said the arrangement for. Above the ledger,
   // because until one is answered its pieces are missing from every figure below it.
@@ -265,6 +283,11 @@ export default function DropLogPage() {
   for (const tranche of tranches) {
     const key = holderKey(tranche.holder);
     tranchesByHolder.set(key, [...(tranchesByHolder.get(key) ?? []), tranche]);
+  }
+  const paymentsByHolder = new Map<string, VestigePayment[]>();
+  for (const paid of payments) {
+    const key = holderKey(paid.holder);
+    paymentsByHolder.set(key, [...(paymentsByHolder.get(key) ?? []), paid]);
   }
   // The piles of interchangeable drops waiting to be priced. Yours: a lot is filed against the seat
   // that sold it, and only your own seats are ones you can name as seller. A partner's pile stays on
@@ -455,6 +478,7 @@ export default function DropLogPage() {
                   <PieceLedger
                     ledgers={ledgers}
                     tranches={tranchesByHolder}
+                    payments={paymentsByHolder}
                     bossByKey={bossByKey}
                     partyById={partyById}
                     iconUrl={vestigeIcon}
@@ -481,8 +505,18 @@ export default function DropLogPage() {
                         body: JSON.stringify({ holder, pieces, amount, disposition: "BOUGHT" }),
                       })
                     }
+                    // The fact nothing else can know: the mesos arrived. See V51.
+                    onAddPayment={(holder: Holder, amount) =>
+                      paymentWrite(PAYMENTS_KEY, {
+                        method: "POST",
+                        body: JSON.stringify({ holder, amount }),
+                      })
+                    }
                     onRemoveSale={(trancheId) =>
                       saleWrite(`${TRANCHES_KEY}/${trancheId}`, { method: "DELETE" })
+                    }
+                    onRemovePayment={(paymentId) =>
+                      paymentWrite(`${PAYMENTS_KEY}/${paymentId}`, { method: "DELETE" })
                     }
                   />
                 </section>

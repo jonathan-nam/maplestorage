@@ -84,6 +84,21 @@ export type HolderLedger = {
   /** Mesos they owe you NOW, for the pieces of yours that have already sold. Pro rata. */
   dueNow: number;
   /**
+   * Mesos that have actually arrived. What `dueNow` is measured against. See V51.
+   *
+   * The fact nothing else can know. Every other figure on this card follows from what happened to the
+   * coupons, and a pile whose every piece was sold and priced still owes until this covers it: priced
+   * and paid are different, and without the second the bill could never be retired.
+   */
+  received: number;
+  /**
+   * Nothing left to enter and nothing left to collect, so the card can stop asking.
+   *
+   * Every sellable piece accounted for AND the money arrived. Both, because either alone is a pile
+   * halfway through: sold but unpaid is a bill, and paid but unsold is somebody who ran ahead.
+   */
+  settled: boolean;
+  /**
    * Pieces of the pile they are redeeming rather than selling, as entered.
    *
    * More than `pieces` is a miscount, and the two are carried side by side so it can be said out loud
@@ -529,6 +544,8 @@ export function holderLedgers(
   keptByHolder: Map<string, number> = new Map(),
   /** Pieces of yours each holder bought outright, and what they agreed to pay. See V50. */
   boughtByHolder: Map<string, { pieces: number; paid: number }> = new Map(),
+  /** Mesos that have actually arrived from each holder. See V51. */
+  receivedByHolder: Map<string, number> = new Map(),
 ): HolderLedger[] {
   const byHolder = new Map<string, OutstandingDrop[]>();
   for (const d of drops) {
@@ -603,20 +620,35 @@ export function holderLedgers(
     // told to send you is what you are owed, and two sums of that would be two answers.
     const yours = drops.flatMap((d) => d.transfers).filter((t) => t.toId === SELF_KEY);
 
+    const dueNow = yours.reduce((sum, t) => sum + (t.send ?? 0), 0);
+    const received = receivedByHolder.get(key) ?? 0;
+    const owedToYou = yours.reduce((sum, t) => sum + t.pieces, 0);
+    const settledToYou = yours.reduce((sum, t) => sum + t.settled, 0);
+
     ledgers.push({
       holder: mine[0]!.holder,
       holderName: mine[0]!.holderName,
       pieces: mine.reduce((sum, d) => sum + heldOf(d.drop), 0),
-      owedToYou: yours.reduce((sum, t) => sum + t.pieces, 0),
-      settledToYou: yours.reduce((sum, t) => sum + t.settled, 0),
-      dueNow: yours.reduce((sum, t) => sum + (t.send ?? 0), 0),
+      owedToYou,
+      settledToYou,
+      dueNow,
+      received,
+      // Every piece of yours accounted for, and the money here. A pile you owe nothing on is settled
+      // the moment it is priced, which is what makes your OWN card read as done rather than as a debt
+      // of zero waiting on a payment of zero.
+      settled: settledToYou === owedToYou && received >= dueNow,
       kept,
       ownShare: mine.reduce((sum, d) => sum + ownShareOf(d.drop, key), 0),
       bought,
       drops,
     });
   }
-  return ledgers.sort((a, b) => a.holderName.localeCompare(b.holderName));
+  // Settled piles last, then by name. Still listed, because the tranches and receipts that made them
+  // settled are corrected from this card and nowhere else, so dropping it would put a mistyped row
+  // beyond reach. Out of the way is not the same as gone.
+  return ledgers.sort(
+    (a, b) => Number(a.settled) - Number(b.settled) || a.holderName.localeCompare(b.holderName),
+  );
 }
 
 /**
@@ -706,6 +738,32 @@ export function boughtByHolder(rows: TrancheRow[]): Map<string, { pieces: number
     } else out.set(key, { pieces: row.pieces, paid: row.amount });
   }
   return out;
+}
+
+/**
+ * Mesos each holder has actually handed over. See V51.
+ *
+ * A total, like the redemptions: what a holder still owes is one number, and which boss a meso
+ * retires is already the queue's answer. The rows exist separately so a mistyped receipt can be
+ * removed the way a mistyped tranche is.
+ */
+export function receivedByHolder(rows: { holder: Holder; amount: number }[]): Map<string, number> {
+  const out = new Map<string, number>();
+  for (const row of rows) {
+    const key = holderKey(row.holder);
+    out.set(key, (out.get(key) ?? 0) + row.amount);
+  }
+  return out;
+}
+
+/**
+ * Mesos still to come from a holder, floored at zero. Overpayment is said, not folded away.
+ *
+ * Floored because a negative "to come" reads as the holder being owed, which they are not: too much
+ * arriving is a miscount on one side or the other, and the card names it rather than netting it off.
+ */
+export function toCome(ledger: HolderLedger): number {
+  return Math.max(0, ledger.dueNow - ledger.received);
 }
 
 /**
