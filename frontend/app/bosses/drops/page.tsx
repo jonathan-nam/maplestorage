@@ -26,6 +26,7 @@ import {
 import { formatMesos } from "@/lib/drop-split";
 import { formatDropped } from "@/lib/loot";
 import { type LotSaleBody, fungibleDropKeys, lotDrops } from "@/lib/lot-sale";
+import { useDropIcons } from "@/lib/drop-icons";
 import { useSeatSprites } from "@/lib/seat-sprites";
 import { useAccountSettings } from "@/lib/use-account-settings";
 import {
@@ -92,6 +93,8 @@ export default function DropLogPage() {
   // A drop names the party it fell in and links to it, which draws its seats. See
   // lib/seat-sprites.ts.
   useSeatSprites(parties);
+  // The Add Drop form's own picker draws them. See lib/drop-icons.ts.
+  useDropIcons(dropTables);
   const [state, setState] = useState<LoadState>("loading");
   const [character, setCharacter] = useState<string | null>(null);
   const [grouping, setGrouping] = useState<Grouping>("month");

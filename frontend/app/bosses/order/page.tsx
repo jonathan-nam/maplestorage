@@ -29,6 +29,7 @@ import { type Availability, planNight, screenRuns, tradeOffs } from "@/lib/boss-
 import { peek, put } from "@/lib/cache";
 import { runningThisPeriod } from "@/lib/parties";
 import { preloadRunArt } from "@/lib/preload-boss-art";
+import { useDropIcons } from "@/lib/drop-icons";
 import { useSeatSprites } from "@/lib/seat-sprites";
 import { useRowWrites } from "@/lib/use-row-writes";
 import { useShowTimes } from "@/lib/show-times";
@@ -149,6 +150,8 @@ export default function RunOrderPage() {
 
   // A run in the night links to its party, which draws its seats. See lib/seat-sprites.ts.
   useSeatSprites(parties);
+  // A run opens to the drop picker, which draws them. See lib/drop-icons.ts.
+  useDropIcons(dropTables);
 
   // Per row, so ticking one boss does not dim every other row's controls. See lib/use-row-writes.ts.
   const { isSaving, write } = useRowWrites();

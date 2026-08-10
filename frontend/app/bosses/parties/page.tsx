@@ -30,6 +30,7 @@ import {
 } from "@/lib/parties";
 import { preloadBossArt } from "@/lib/preload-boss-art";
 import { type CrossedReset, WEEKLY_CADENCE } from "@/lib/reset-countdown";
+import { useDropIcons } from "@/lib/drop-icons";
 import { useSeatSprites } from "@/lib/seat-sprites";
 import { useAccountSettings } from "@/lib/use-account-settings";
 import { useRowWrites } from "@/lib/use-row-writes";
@@ -132,6 +133,9 @@ export default function PartiesPage() {
 
   // The seats are drawn on the party page, which is a click from here. See lib/seat-sprites.ts.
   useSeatSprites(parties);
+  // The drop icons are drawn by the picker in a row's panel, a chevron from here. Same idea, and
+  // see lib/drop-icons.ts for why it warms differently.
+  useDropIcons(dropTables);
 
   // Stepping twice quickly fires two requests that can land in either order. Only the newest may
   // write state, or the list ends up showing a week the label disagrees with. Same guard as the

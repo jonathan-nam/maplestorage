@@ -3435,8 +3435,87 @@ button.link:disabled {
   margin-bottom: 14px;
 }
 
-.loot-drop-select {
+/* --- Which drop fell ---------------------------------------------------------------------- */
+
+/* A listbox rather than a <select>, because an <option> cannot hold the item's art. Wearing
+   .split-input so it sits in the row as the boxes beside it do. See components/drop-select.tsx. */
+.drop-select {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   min-width: 220px;
+  /* Less than .split-input's 9px: the 23px icon is taller than a line of text, and this keeps the
+     control the same height as the boxes it sits beside. */
+  padding: 6px 10px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.drop-select-list {
+  z-index: 20;
+  /* The panel is given the trigger's own width, and there is no global border-box reset in this
+     file: without this it came out 230px against a 220px trigger and overhung it. */
+  box-sizing: border-box;
+  margin: 2px 0 0;
+  padding: 4px;
+  overflow-y: auto;
+  list-style: none;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 35%);
+}
+
+.drop-select-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 8px;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+/* Highlight follows the keyboard AND the mouse, so there is only ever one. Which row is CHOSEN is
+   said by the trigger above, which is showing it. */
+.drop-select-row.active {
+  background: var(--surface-2);
+}
+
+/* 23 and not 22: see .finder-suggest-row img for why half of 46 is the only size that keeps every
+   source pixel. */
+.drop-select-icon {
+  width: 23px;
+  height: 23px;
+  flex: none;
+  object-fit: contain;
+  image-rendering: pixelated;
+}
+
+/* Art the pinned dataset has none of, and the two rows that are not an item. The frame still takes
+   its space so the labels line up down the list. */
+.drop-select-blank {
+  width: 23px;
+  height: 23px;
+  flex: none;
+}
+
+.drop-select-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Nothing picked yet. Reads as the placeholder a <select> drew for itself. */
+.drop-select-label.is-empty {
+  color: var(--muted);
+}
+
+.drop-select-arrow {
+  margin-left: auto;
+  padding-left: 4px;
+  color: var(--muted-2);
+  font-size: 10px;
 }
 
 .loot-list {

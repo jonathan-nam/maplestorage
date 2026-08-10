@@ -1,14 +1,9 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
+import { DropSelect } from "@/components/drop-select";
 import { apiAssetUrl } from "@/lib/api";
-import {
-  OTHER,
-  addDropBody,
-  defaultQuantity,
-  dropOptionLabel,
-  pickableDrops,
-} from "@/lib/drop-picker";
+import { OTHER, addDropBody, defaultQuantity, pickableDrops } from "@/lib/drop-picker";
 import type { WorldType } from "@/lib/world";
 import type { Boss } from "@/types/boss";
 import type { BossDrop } from "@/types/drop";
@@ -63,7 +58,6 @@ export function DropPicker({
   const [quantity, setQuantity] = useState("");
 
   const drops = pickableDrops(table, worldType);
-  const chosen = drops.find((d) => d.dropKey === dropKey);
   const body = addDropBody(bossKey, dropKey, customName, quantity);
 
   return (
@@ -87,11 +81,12 @@ export function DropPicker({
 
         {boss?.iconUrl && <img className="boss-portrait" src={apiAssetUrl(boss.iconUrl)} alt="" />}
 
-        <select
-          className="split-input loot-drop-select"
+        <DropSelect
+          drops={drops}
+          worldType={worldType}
           value={dropKey}
-          onChange={(e) => {
-            const picked = e.target.value;
+          label="Which drop"
+          onChange={(picked) => {
             setDropKey(picked);
             // Filled from the catalog on every change of drop, including back to nothing, so the
             // count belongs to what is currently picked. Typing over it stands: nothing refills a
@@ -103,16 +98,7 @@ export function DropPicker({
               ),
             );
           }}
-          aria-label="Which drop"
-        >
-          <option value="">pick a drop</option>
-          {drops.map((drop) => (
-            <option key={drop.dropKey} value={drop.dropKey}>
-              {dropOptionLabel(drop, worldType)}
-            </option>
-          ))}
-          <option value={OTHER}>something else...</option>
-        </select>
+        />
 
         {dropKey === OTHER && (
           <input
@@ -136,8 +122,6 @@ export function DropPicker({
             maxLength={7}
           />
         )}
-
-        {chosen?.iconUrl && <img className="loot-icon" src={apiAssetUrl(chosen.iconUrl)} alt="" />}
 
         <button type="submit" className="party-save" disabled={busy || !body}>
           Add drop

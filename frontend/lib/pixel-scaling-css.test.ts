@@ -18,6 +18,7 @@ const NATURAL = {
   ".ms-slot > img": 46, // item icon canvas
   ".loot-icon": 46,
   ".finder-suggest-row img": 46,
+  ".drop-select-icon": 46,
   ".finder-row li img": 46,
   ".boss-portrait": 26, // planner portrait, the game's own size
   ".run-art": 80, // the @2x portrait, BOSS_ART_2X

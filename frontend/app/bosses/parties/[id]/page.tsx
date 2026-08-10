@@ -14,6 +14,7 @@ import { useRowWrites } from "@/lib/use-row-writes";
 import { ApiError, apiFetch } from "@/lib/api";
 import { peek, put } from "@/lib/cache";
 import { buildDropLog, couponsOwedByParty, dropStatusLabel } from "@/lib/drop-log";
+import { useDropIcons } from "@/lib/drop-icons";
 import { poolLabel, summarize } from "@/lib/loot";
 import { closedByHolder } from "@/lib/vestige-ledger";
 import { otherMembers, partySizeLabel } from "@/lib/parties";
@@ -48,6 +49,8 @@ export default function PartyPage() {
     peek<VestigeSettlement[]>(SETTLEMENTS_KEY) ?? [],
   );
   const [state, setState] = useState<LoadState>("loading");
+  // The pool's picker draws them. See lib/drop-icons.ts.
+  useDropIcons(dropTables);
   // Per drop, so marking one share paid does not grey out every other row in the pool. One write at
   // a time still, because each one refetches the pool. See lib/use-row-writes.ts.
   const { isSaving, write } = useRowWrites();
