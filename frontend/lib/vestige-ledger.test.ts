@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   type Holder,
   boughtByHolder,
+  closedByHolder,
+  closureKey,
   holderKey,
   holderLedgers,
   holderOf,
@@ -11,6 +13,7 @@ import {
   runningBalance,
   receivedByHolder,
   salesByHolder,
+  stillOpen,
   suggestArrangement,
   toCome,
   unaccounted,
@@ -1104,5 +1107,89 @@ describe("what the card is still waiting to be told", () => {
     expect(over.accounted).toBe(400);
     expect(unaccounted(over)).toBe(0);
     expect(over.accounted - over.pieces).toBe(10);
+  });
+});
+
+describe("closing the books, which no arithmetic is entitled to do", () => {
+  const duo = () => [
+    seat("m1", "Husky", { mine: true }),
+    seat("m2", "BroChar", { person: ["p-bro", "Bro"] }),
+  ];
+  const week = () => ({
+    parties: [party("pa", "kalos-the-guardian", duo(), "m2"), party("pb", "baldrix", duo(), "m2")],
+    pools: [
+      pool("pa", [coupon("l1", "kalos-the-guardian", 180, "2026-08-06")]),
+      pool("pb", [coupon("l2", "baldrix", 120, "2026-08-06")]),
+    ],
+  });
+
+  const ledgerFor = (settlements: { holder: Holder; lootIds: string[]; unpaid: number }[]) => {
+    const { parties, pools } = week();
+    const rows = [
+      { holder: BRO, pieces: 150, amount: 3_750 * M, disposition: "SOLD" },
+      { holder: BRO, pieces: 150, amount: null, disposition: "KEPT" },
+    ];
+    return holderLedgers(
+      outstanding(parties, pools, VESTIGE, ORDER),
+      salesByHolder(rows),
+      keptByHolder(rows),
+      boughtByHolder(rows),
+      receivedByHolder([{ holder: BRO, amount: 3_700 * M }]),
+      closedByHolder(settlements),
+    )[0]!;
+  };
+
+  it("leaves a pile that balanced almost-but-not-quite open, since only a person can close it", () => {
+    const open = ledgerFor([]);
+    // Every piece accounted for and 3.7b of 3.75b in. No arithmetic may call that done.
+    expect(unaccounted(open)).toBe(0);
+    expect(toCome(open)).toBe(50 * M);
+    expect(open.closed).toBe(false);
+    expect(open.drops.every((d) => !d.closed)).toBe(true);
+  });
+
+  it("closes the drops it names, and records what was written off", () => {
+    const done = ledgerFor([{ holder: BRO, lootIds: ["l1", "l2"], unpaid: 50 * M }]);
+    expect(done.closed).toBe(true);
+    expect(done.writtenOff).toBe(50 * M);
+    expect(done.drops.every((d) => d.closed)).toBe(true);
+  });
+
+  it("closes only what it names, so next week's drop reopens the card", () => {
+    // The reason a settlement names DROPS and not a date: anything it did not name is still live.
+    const half = ledgerFor([{ holder: BRO, lootIds: ["l1"], unpaid: 0 }]);
+    expect(half.closed).toBe(false);
+    expect(half.drops.map((d) => [d.bossKey, d.closed])).toEqual([
+      ["kalos-the-guardian", true],
+      ["baldrix", false],
+    ]);
+  });
+
+  it("keeps closed drops in the pile, so what is left is not re-priced", () => {
+    // Closing is a display decision, not an arithmetic one. Dropping the closed rows from the ledger
+    // would hand their tranches to the bosses behind them and move a figure already paid.
+    const before = ledgerFor([]);
+    const after = ledgerFor([{ holder: BRO, lootIds: ["l1"], unpaid: 0 }]);
+    expect(after.pieces).toBe(before.pieces);
+    expect(after.dueNow).toBe(before.dueNow);
+    expect(after.drops.map((d) => d.sellable)).toEqual(before.drops.map((d) => d.sellable));
+  });
+
+  it("is keyed per holder and drop, so one person's closure is not another's", () => {
+    expect(closureKey(BRO, "l1")).not.toBe(closureKey(SELF, "l1"));
+    const { closed } = closedByHolder([{ holder: BRO, lootIds: ["l1"], unpaid: 0 }]);
+    expect(closed.has(closureKey(BRO, "l1"))).toBe(true);
+    expect(closed.has(closureKey(SELF, "l1"))).toBe(false);
+  });
+
+  it("stops a closed debt tilting next week's arrangement", () => {
+    const { parties, pools } = week();
+    const drops = outstanding(parties, pools, VESTIGE, ORDER);
+    const { closed } = closedByHolder([{ holder: BRO, lootIds: ["l1", "l2"], unpaid: 0 }]);
+
+    // Bro is 150 pieces over across the two nights and has paid for it, so he is no longer behind.
+    expect(runningBalance(drops).get(holderKey(BRO))).toBe(-150);
+    expect(stillOpen(drops, closed)).toEqual([]);
+    expect(runningBalance(stillOpen(drops, closed)).size).toBe(0);
   });
 });

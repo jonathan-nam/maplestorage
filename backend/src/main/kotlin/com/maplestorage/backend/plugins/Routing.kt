@@ -4,8 +4,7 @@ import com.maplestorage.backend.bosses.bossRoutes
 import com.maplestorage.backend.characters.characterRoutes
 import com.maplestorage.backend.parties.partyRoutes
 import com.maplestorage.backend.parties.peopleRoutes
-import com.maplestorage.backend.parties.vestigePaymentRoutes
-import com.maplestorage.backend.parties.vestigeRoutes
+import com.maplestorage.backend.parties.vestigeLedgerRoutes
 import com.maplestorage.backend.screenshots.screenshotRoutes
 import com.maplestorage.backend.services.NexonLookupService
 import com.maplestorage.backend.services.ScreenshotParser
@@ -118,17 +117,8 @@ fun Application.configureRouting(
                 peopleRoutes()
             }
 
-            // Not under /api/parties: a looter's pile spans every party they loot for, and keying it
-            // to one of them is the per-boss ledger this replaced. See VestigeRoutes.kt.
-            route("/api/vestige-tranches") {
-                vestigeRoutes()
-            }
-
-            // Beside the tranches rather than under them: a payment is against a holder's whole
-            // debt, and that debt spans every party they loot for. See V51.
-            route("/api/vestige-payments") {
-                vestigePaymentRoutes()
-            }
+            // Three paths, one feature, mounted together. See vestigeLedgerRoutes.
+            vestigeLedgerRoutes()
 
             route("/api/settings") {
                 settingsRoutes()

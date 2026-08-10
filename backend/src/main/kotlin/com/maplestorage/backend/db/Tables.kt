@@ -451,6 +451,31 @@ object VestigePayment : Table("vestige_payment") {
     override val primaryKey = PrimaryKey(id)
 }
 
+// One act of closing a holder's books, and which drops it closed. `unpaid` is what was still owed at
+// that moment, stored once per act and never split across the drops: that split would be a derived
+// share. See V52__vestige_settlement.sql.
+object VestigeSettlement : Table("vestige_settlement") {
+    val id = uuid("id")
+    val userId = reference("user_id", Users.id)
+
+    val holderKind = text("holder_kind")
+    val personId = optReference("person_id", Person.id)
+    val characterName = text("character_name").nullable()
+
+    val unpaid = long("unpaid")
+    val settledAt = timestamp("settled_at")
+    val createdAt = timestamp("created_at")
+
+    override val primaryKey = PrimaryKey(id)
+}
+
+object VestigeSettlementLoot : Table("vestige_settlement_loot") {
+    val settlementId = reference("settlement_id", VestigeSettlement.id)
+    val lootId = reference("loot_id", PartyLoot.id)
+
+    override val primaryKey = PrimaryKey(settlementId, lootId)
+}
+
 object PartyLootPayout : Table("party_loot_payout") {
     val lootId = reference("loot_id", PartyLoot.id)
     val memberId = reference("member_id", PartyMember.id)

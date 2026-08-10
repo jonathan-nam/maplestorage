@@ -117,6 +117,15 @@ export type HolderLedger = {
   /** Pieces entered as sold, whatever the queue has managed to spend them on. */
   soldPieces: number;
   /**
+   * Every drop under this holder has had its books closed, so the card is done. See V52.
+   *
+   * Not derived from the money, and it cannot be: a drop is queued on `entitled - looted`, fixed when
+   * it was logged, so nothing about a sale or a payment can retire it. Somebody decides.
+   */
+  closed: boolean;
+  /** Mesos written off across the acts that closed this pile. Said, because a write-off is a decision. */
+  writtenOff: number;
+  /**
    * Pieces of the pile whose fate has been entered: sold, kept, or taken.
    *
    * What the card counts towards `pieces`, and the nearest thing it has to an instruction: the gap
@@ -136,6 +145,8 @@ export type HolderLedger = {
     kept: number;
     /** Of those, how many they bought off you, and for what. Off the newest end as well. */
     bought: { pieces: number; paid: number } | null;
+    /** Its books are closed, so it is history rather than something the card is waiting on. See V52. */
+    closed: boolean;
     /** Pieces of it actually for sale, which is what `covered` counts towards. */
     sellable: number;
     covered: number;
@@ -556,6 +567,16 @@ export function holderLedgers(
   boughtByHolder: Map<string, { pieces: number; paid: number }> = new Map(),
   /** Mesos that have actually arrived from each holder. See V51. */
   receivedByHolder: Map<string, number> = new Map(),
+  /**
+   * Which (holder, drop) pairs have had their books closed, and what was written off. See V52.
+   *
+   * Closed drops STAY in the pile here, because the tranches were spent across all of it and dropping
+   * them would re-price what is left. Only what the card draws changes.
+   */
+  closures: { closed: Set<string>; writtenOff: Map<string, number> } = {
+    closed: new Set(),
+    writtenOff: new Map(),
+  },
 ): HolderLedger[] {
   const byHolder = new Map<string, OutstandingDrop[]>();
   for (const d of drops) {
@@ -618,6 +639,7 @@ export function holderLedgers(
         pieces: heldOf(pile),
         kept: pile.kept ?? 0,
         bought: pile.bought ?? null,
+        closed: closures.closed.has(closureKey(d.holder, d.lootId)),
         sellable: cover?.sellable ?? sellableOf(pile),
         covered: cover?.covered ?? 0,
         complete: cover?.complete ?? false,
@@ -654,6 +676,10 @@ export function holderLedgers(
       bought,
       soldPieces,
       accounted: soldPieces + kept + bought.pieces,
+      // Every drop closed, so there is nothing here anybody is waiting on. A pile with no drops at all
+      // cannot be closed: there would be nothing to have decided about.
+      closed: drops.length > 0 && drops.every((d) => d.closed),
+      writtenOff: closures.writtenOff.get(key) ?? 0,
       drops,
     });
   }
@@ -661,7 +687,10 @@ export function holderLedgers(
   // settled are corrected from this card and nowhere else, so dropping it would put a mistyped row
   // beyond reach. Out of the way is not the same as gone.
   return ledgers.sort(
-    (a, b) => Number(a.settled) - Number(b.settled) || a.holderName.localeCompare(b.holderName),
+    (a, b) =>
+      Number(a.closed) - Number(b.closed) ||
+      Number(a.settled) - Number(b.settled) ||
+      a.holderName.localeCompare(b.holderName),
   );
 }
 
@@ -752,6 +781,42 @@ export function boughtByHolder(rows: TrancheRow[]): Map<string, { pieces: number
     } else out.set(key, { pieces: row.pieces, paid: row.amount });
   }
   return out;
+}
+
+/**
+ * The key a closure is remembered by: one holder's decision about one drop.
+ *
+ * Both halves, because a drop split at the stack sits in several piles and closing one person's books
+ * says nothing about anybody else's.
+ */
+export function closureKey(holder: Holder, lootId: string): string {
+  return `${holderKey(holder)}|${lootId}`;
+}
+
+/** Every (holder, drop) whose books are closed, and what each act wrote off. See V52. */
+export function closedByHolder(rows: { holder: Holder; lootIds: string[]; unpaid: number }[]): {
+  closed: Set<string>;
+  writtenOff: Map<string, number>;
+} {
+  const closed = new Set<string>();
+  const writtenOff = new Map<string, number>();
+  for (const row of rows) {
+    for (const lootId of row.lootIds) closed.add(closureKey(row.holder, lootId));
+    const key = holderKey(row.holder);
+    writtenOff.set(key, (writtenOff.get(key) ?? 0) + row.unpaid);
+  }
+  return { closed, writtenOff };
+}
+
+/**
+ * The drops a holder still has open, which is what a rotation should be measured against.
+ *
+ * A closed debt was compensated, so it has no business tilting next week's suggested arrangement: a
+ * holder who took the odd stack four weeks running and paid for it every time would otherwise keep
+ * being suggested against forever.
+ */
+export function stillOpen(drops: OutstandingDrop[], closed: Set<string>): OutstandingDrop[] {
+  return drops.filter((d) => !closed.has(closureKey(d.holder, d.lootId)));
 }
 
 /**
