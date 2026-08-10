@@ -12,3 +12,21 @@ describe("the control that drops a sale", () => {
     expect(css).toMatch(/button\.ledger-drop-sale \{/);
   });
 });
+
+// The picker replaced three labelled boxes, so it carries their words ("they took mine, at a price")
+// and needs the same room the looter select gets. Unstyled it renders at the browser default and the
+// longest option is what clips.
+describe("the disposition picker", () => {
+  it("is sized like the other select this app styles", () => {
+    expect(css).toMatch(/\.ledger-sale select\.split-input \{/);
+  });
+});
+
+// The instruction is a count above the control it is about. Muted and tabular, so a changing number
+// does not shift the box beneath it.
+describe("the progress line", () => {
+  it("is tabular, so the digits do not jitter as it counts", () => {
+    const rule = css.match(/\.ledger-progress \{([^}]*)\}/);
+    expect(rule?.[1]).toContain("font-variant-numeric: tabular-nums");
+  });
+});

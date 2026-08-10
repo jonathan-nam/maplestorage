@@ -114,6 +114,16 @@ export type HolderLedger = {
   ownShare: number;
   /** Pieces of yours they bought outright, and what they agreed to pay. See V50. */
   bought: { pieces: number; paid: number };
+  /** Pieces entered as sold, whatever the queue has managed to spend them on. */
+  soldPieces: number;
+  /**
+   * Pieces of the pile whose fate has been entered: sold, kept, or taken.
+   *
+   * What the card counts towards `pieces`, and the nearest thing it has to an instruction: the gap
+   * between the two is exactly what it is still waiting to be told. Above `pieces` is a miscount, and
+   * carried raw so it can be said rather than clamped.
+   */
+  accounted: number;
   drops: {
     lootId: string;
     partyId: string;
@@ -581,7 +591,9 @@ export function holderLedgers(
     );
     const pileOf = (d: OutstandingDrop) => spread.get(d.drop.id) ?? d.drop;
 
-    const coverage = allocate(mine.map(pileOf), salesByHolder.get(key) ?? []);
+    const sales = salesByHolder.get(key) ?? [];
+    const soldPieces = sales.reduce((sum, s) => sum + s.pieces, 0);
+    const coverage = allocate(mine.map(pileOf), sales);
     // The queue's own order, so the card reads the way the pieces are being spent.
     const ordered = [...mine].sort(
       (a, b) =>
@@ -640,6 +652,8 @@ export function holderLedgers(
       kept,
       ownShare: mine.reduce((sum, d) => sum + ownShareOf(d.drop, key), 0),
       bought,
+      soldPieces,
+      accounted: soldPieces + kept + bought.pieces,
       drops,
     });
   }
@@ -764,6 +778,17 @@ export function receivedByHolder(rows: { holder: Holder; amount: number }[]): Ma
  */
 export function toCome(ledger: HolderLedger): number {
   return Math.max(0, ledger.dueNow - ledger.received);
+}
+
+/**
+ * Pieces of the pile nobody has said the fate of yet. Floored, so a miscount does not read negative.
+ *
+ * The card's one instruction while there are any: this many pieces are in somebody's inventory and
+ * the ledger has not been told what became of them. Zero is every piece accounted for, which is when
+ * the money becomes the only question left.
+ */
+export function unaccounted(ledger: HolderLedger): number {
+  return Math.max(0, ledger.pieces - ledger.accounted);
 }
 
 /**

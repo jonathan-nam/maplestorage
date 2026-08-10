@@ -5421,6 +5421,21 @@ button.link:disabled {
   width: 120px;
 }
 
+/* The card's one instruction, and it is a count. Sits directly above the control it is about, so the
+   number and the box that changes it read as one thing rather than as a note about it. */
+.ledger-progress {
+  font-size: 12px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* The disposition picker carries the vocabulary the three separate boxes used to, so it needs room for
+   an option like "they took mine, at a price". Same treatment as the looter select on a party config. */
+.ledger-sale select.split-input {
+  font-size: 13px;
+  padding: 6px 8px;
+}
+
 .ledger-tranches {
   display: flex;
   flex-wrap: wrap;

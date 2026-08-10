@@ -7,7 +7,14 @@ import { formatWeekStart } from "@/lib/boss-clears";
 import { bossLabel } from "@/lib/boss-difficulty";
 import { formatMesos, parseMesos, shortMesos } from "@/lib/drop-split";
 import { transferKey } from "@/lib/piece-ledger";
-import { type Holder, type HolderLedger, holderKey, toCome, unsold } from "@/lib/vestige-ledger";
+import {
+  type Holder,
+  type HolderLedger,
+  holderKey,
+  toCome,
+  unaccounted,
+  unsold,
+} from "@/lib/vestige-ledger";
 import type { Boss } from "@/types/boss";
 import type { Party } from "@/types/party";
 import type { VestigePayment, VestigeTranche } from "@/types/vestige";
@@ -26,6 +33,14 @@ import type { VestigePayment, VestigeTranche } from "@/types/vestige";
 
 /** What a sale is refused for, mirroring trancheRefusal in VestigeRoutes.kt. */
 const MAX_PIECES = 1_000_000;
+
+/**
+ * What became of a count of pieces. The three dispositions V50 stores, as the picker offers them.
+ *
+ * One control rather than three boxes, because it is one row: they are mutually exclusive fates for
+ * the same pieces, and asking all three at once asked four questions when there is only ever one.
+ */
+type Fate = "SOLD" | "KEPT" | "BOUGHT";
 
 export function PieceLedger({
   ledgers,
@@ -115,84 +130,71 @@ function HolderCard({
 }) {
   const [pieces, setPieces] = useState("");
   const [amount, setAmount] = useState("");
-  const [keeping, setKeeping] = useState("");
-  const [buying, setBuying] = useState("");
-  const [buyingFor, setBuyingFor] = useState("");
+  const [fate, setFate] = useState<Fate>("SOLD");
   const [got, setGot] = useState("");
   const [refusal, setRefusal] = useState<string | null>(null);
 
-  // The pile's own progress, which belongs beside the boxes that take its numbers rather than in
-  // the header. Sold counts against the sellable part: a redeemed piece was never going to sell.
-  const left = unsold(ledger);
-  const sellable = ledger.drops.reduce((sum, d) => sum + d.sellable, 0);
-  const sold = sellable - left;
-
   // Your side, in the units you are owed. What the header leads with.
   const toGo = ledger.owedToYou - ledger.settledToYou;
-  const over = ledger.kept - ledger.pieces;
+  const overEntered = Math.max(0, ledger.accounted - ledger.pieces);
+  const toEnter = unaccounted(ledger);
+
+  /**
+   * How many pieces this fate has room for.
+   *
+   * A redemption stops at the holder's OWN share and a purchase at what is left of yours, because the
+   * pieces past their share are not theirs to redeem. Bounding the redemption is only safe because the
+   * purchase exists to take what it turns away: clamping with nowhere for the surplus to go would
+   * record 195 of a 250 that really happened and leave 55 of your pieces waiting on a sale that is not
+   * coming. See V50.
+   *
+   * A sale is bounded only by what is unaccounted for. It is not a claim about whose pieces they were,
+   * so there is no share to measure it against.
+   *
+   * Rows already entered count against all three, so three of them cannot walk past what one cannot.
+   */
+  const room =
+    fate === "KEPT"
+      ? Math.min(toEnter, Math.max(0, ledger.ownShare - ledger.kept))
+      : fate === "BOUGHT"
+        ? Math.min(toEnter, Math.max(0, ledger.pieces - ledger.ownShare - ledger.bought.pieces))
+        : toEnter;
+
+  /** Caps as it is typed, so a number over the room never reaches the button. */
+  const clamp = (typed: string, cap: number) => {
+    const n = Number(typed.trim());
+    return typed.trim() === "" || !Number.isInteger(n) || n <= cap ? typed : String(cap);
+  };
 
   const count = Number(pieces.trim());
   const total = parseMesos(amount);
-  // A total above zero, matching V47: a stack that fetched nothing is the kept box beside this one,
-  // not a sale for nought. Refused here as well so the button greys out rather than round-tripping.
-  const sale =
-    Number.isInteger(count) && count >= 1 && count <= MAX_PIECES && total !== null && total >= 1
-      ? { pieces: count, amount: total }
-      : null;
-
   /**
-   * Redemptions stop at the holder's OWN share, purchases at what is left of yours.
+   * The row as typed, or null while it cannot be written.
    *
-   * Two boxes because the pieces past their share are not theirs to redeem, and pricing them at the
-   * average their own sales reached was a guess that got wilder the less pile was left. Bounding the
-   * redemption is only safe because the purchase box exists to take what it turns away: clamping with
-   * nowhere for the surplus to go would record 195 of a 250 that really happened and leave 55 of your
-   * pieces waiting on a sale that is not coming. See V50.
-   *
-   * Rows already entered count against both, so three of them cannot walk past what one cannot.
+   * A total above zero on the two fates that carry one, matching V47 and V50: a stack that fetched
+   * nothing is a redemption, not a sale for nought. Refused here as well as on the server, so the
+   * button greys out rather than round-tripping.
    */
-  const keptRoom = Math.max(0, ledger.ownShare - ledger.kept);
-  const boughtRoom = Math.max(0, ledger.pieces - ledger.ownShare - ledger.bought.pieces);
-
-  /** Caps as it is typed, so a number over the room never reaches the button. */
-  const clamp = (typed: string, room: number) => {
-    const n = Number(typed.trim());
-    return typed.trim() === "" || !Number.isInteger(n) || n <= room ? typed : String(room);
-  };
+  const entry =
+    Number.isInteger(count) && count >= 1 && count <= Math.min(MAX_PIECES, room)
+      ? fate === "KEPT"
+        ? { pieces: count, amount: null }
+        : total !== null && total >= 1
+          ? { pieces: count, amount: total }
+          : null
+      : null;
 
   const gotTotal = parseMesos(got);
   const payment = gotTotal !== null && gotTotal >= 1 ? gotTotal : null;
 
-  const keptCount = Number(keeping.trim());
-  const kept =
-    Number.isInteger(keptCount) && keptCount >= 1 && keptCount <= Math.min(MAX_PIECES, keptRoom)
-      ? keptCount
-      : null;
-
-  const buyCount = Number(buying.trim());
-  const buyTotal = parseMesos(buyingFor);
-  const bought =
-    Number.isInteger(buyCount) &&
-    buyCount >= 1 &&
-    buyCount <= Math.min(MAX_PIECES, boughtRoom) &&
-    buyTotal !== null &&
-    buyTotal >= 1
-      ? { pieces: buyCount, amount: buyTotal }
-      : null;
-
   /** Keeps what was typed when the server refuses it, so a rejected sale can be corrected. */
-  async function write(action: Promise<void>, clear: "sale" | "kept" | "bought" | "paid" | null) {
+  async function write(action: Promise<void>, clear: "entry" | "paid" | null) {
     setRefusal(null);
     try {
       await action;
-      if (clear === "sale") {
+      if (clear === "entry") {
         setPieces("");
         setAmount("");
-      }
-      if (clear === "kept") setKeeping("");
-      if (clear === "bought") {
-        setBuying("");
-        setBuyingFor("");
       }
       if (clear === "paid") setGot("");
     } catch (e) {
@@ -224,7 +226,15 @@ function HolderCard({
               the first is what left a fully sold pile reading exactly like one still waiting. The
               money says "settled" and drops the figure once it is all in. See V51. */}
           {ledger.settled
-            ? ledger.dueNow > 0 && <span className="loot-share-nets">settled</span>
+            ? // Overpayment is said rather than netted off: more arriving than was owed is a miscount
+              // on one side, and a settled card that absorbed it would hide which.
+              ledger.dueNow > 0 && (
+                <span className="loot-share-nets">
+                  {ledger.received > ledger.dueNow
+                    ? `settled, ${shortMesos(ledger.received - ledger.dueNow)} over`
+                    : "settled"}
+                </span>
+              )
             : ledger.dueNow > 0 && (
                 <span className="droplog-take">
                   {formatMesos(toCome(ledger), true)}
@@ -235,149 +245,115 @@ function HolderCard({
       </header>
 
       <div className="ledger-entry">
-        <form
-          className="ledger-sale"
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (sale) void write(onAddSale(ledger.holder, sale.pieces, sale.amount), "sale");
-          }}
-        >
-          <label className="loot-share-input">
-            sold
+        {/* The card's one instruction, and it is a COUNT rather than a sentence: the gap between what
+            the pile holds and what has been entered is exactly what it is waiting to be told. Once it
+            closes, the money below is the only question left. No prose explains the boxes; the picker's
+            options carry the vocabulary, the way the looter select does on a party config. */}
+        <span className="ledger-progress">
+          {toEnter > 0
+            ? `${ledger.accounted} of ${ledger.pieces} pieces accounted for`
+            : overEntered > 0
+              ? `all ${ledger.pieces} accounted for, ${overEntered} over`
+              : `all ${ledger.pieces} accounted for`}
+        </span>
+
+        {/* ONE form, because all three are one tranche row: a count, which of the three things happened
+            to it, and a price for the two that have one. Three separate boxes asked four questions at
+            once and permanently, when at any moment there is only ever this one. */}
+        {(toEnter > 0 || ledger.pieces === 0) && (
+          <form
+            className="ledger-sale"
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (!entry) return;
+              if (fate === "SOLD")
+                void write(onAddSale(ledger.holder, entry.pieces, entry.amount ?? 0), "entry");
+              if (fate === "KEPT") void write(onAddKept(ledger.holder, entry.pieces), "entry");
+              if (fate === "BOUGHT")
+                void write(onAddBought(ledger.holder, entry.pieces, entry.amount ?? 0), "entry");
+            }}
+          >
             <input
               className="split-input loot-count-input"
               value={pieces}
-              onChange={(e) => setPieces(e.target.value)}
-              placeholder="pieces"
+              onChange={(e) => setPieces(clamp(e.target.value, room))}
+              // The number it is waiting for, so the ordinary case is one keystroke away rather than
+              // something to work out from the counts.
+              placeholder={String(room > 0 ? room : ledger.pieces)}
               inputMode="numeric"
-              aria-label={`Pieces ${ledger.holderName} sold`}
+              aria-label={`Pieces, at most ${room}`}
             />
-          </label>
-          <label className="loot-share-input">
-            for
-            <input
+            <select
               className="split-input"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              placeholder="total"
-              inputMode="decimal"
-              aria-label={`What ${ledger.holderName} got for them`}
-            />
-          </label>
-          <button type="submit" className="party-save" disabled={busy || sale === null}>
-            Add sale
-          </button>
-        </form>
-
-        {/* Its own form, and no amount: a redemption realized nothing, and entering it as a sale for
-            zero would price those pieces at nothing and make the creditor absorb half of it. */}
-        <form
-          className="ledger-sale"
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (kept) void write(onAddKept(ledger.holder, kept), "kept");
-          }}
-        >
-          <label className="loot-share-input">
-            kept
-            <input
-              className="split-input loot-count-input"
-              value={keeping}
-              onChange={(e) => setKeeping(clamp(e.target.value, keptRoom))}
-              placeholder="pieces"
-              inputMode="numeric"
-              aria-label={`Pieces ${ledger.holderName} is keeping, at most ${keptRoom}`}
-            />
-          </label>
-          <button type="submit" className="party-save" disabled={busy || kept === null}>
-            Add kept
-          </button>
-        </form>
-
-        {/* Pieces of YOURS they took. An amount, because the alternative is pricing them at whatever
-            their own sales happened to reach, and off the pile, because they never went to market.
-            Only on somebody else's card: you cannot buy from yourself. See V50. */}
-        {ledger.holder.kind !== "SELF" && boughtRoom + ledger.bought.pieces > 0 && (
-          <form
-            className="ledger-sale"
-            onSubmit={(e) => {
-              e.preventDefault();
-              if (bought)
-                void write(onAddBought(ledger.holder, bought.pieces, bought.amount), "bought");
-            }}
-          >
-            <label className="loot-share-input">
-              took mine
-              <input
-                className="split-input loot-count-input"
-                value={buying}
-                onChange={(e) => setBuying(clamp(e.target.value, boughtRoom))}
-                placeholder="pieces"
-                inputMode="numeric"
-                aria-label={`Pieces of yours ${ledger.holderName} took, at most ${boughtRoom}`}
-              />
-            </label>
-            <label className="loot-share-input">
-              for
-              <input
-                className="split-input"
-                value={buyingFor}
-                onChange={(e) => setBuyingFor(e.target.value)}
-                placeholder="total"
-                inputMode="decimal"
-                aria-label={`What ${ledger.holderName} pays you for them`}
-              />
-            </label>
-            <button type="submit" className="party-save" disabled={busy || bought === null}>
+              value={fate}
+              onChange={(e) => setFate(e.target.value as Fate)}
+              aria-label="What happened to those pieces"
+              disabled={busy}
+            >
+              <option value="SOLD">they sold, on the market</option>
+              <option value="KEPT">they kept, their own share</option>
+              {ledger.holder.kind !== "SELF" && (
+                <option value="BOUGHT">they took mine, at a price</option>
+              )}
+            </select>
+            {/* A redemption realized nothing, so it has no price to give. Entered as a sale for zero
+                it would price those pieces at nothing and make the creditor absorb half of it. */}
+            {fate !== "KEPT" && (
+              <label className="loot-share-input">
+                for
+                <input
+                  className="split-input"
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                  placeholder="total"
+                  inputMode="decimal"
+                  aria-label="What they came to"
+                />
+              </label>
+            )}
+            <button type="submit" className="party-save" disabled={busy || entry === null}>
               Add
             </button>
           </form>
         )}
 
-        {/* The one fact nothing else can know: the mesos arrived. Every other figure here follows
-            from what happened to the coupons, so without this a pile whose every piece was sold and
-            priced still read as outstanding. Only on somebody else's card, and only once there is
-            something to collect. See V51. */}
-        {ledger.holder.kind !== "SELF" && ledger.dueNow > 0 && (
-          <form
-            className="ledger-sale"
-            onSubmit={(e) => {
-              e.preventDefault();
-              if (payment) void write(onAddPayment(ledger.holder, payment), "paid");
-            }}
-          >
-            <label className="loot-share-input">
-              paid me
-              <input
-                className="split-input"
-                value={got}
-                onChange={(e) => setGot(e.target.value)}
-                placeholder={toCome(ledger) > 0 ? shortMesos(toCome(ledger)) : "amount"}
-                inputMode="decimal"
-                aria-label={`What ${ledger.holderName} has paid you`}
-              />
-            </label>
-            <button type="submit" className="party-save" disabled={busy || payment === null}>
-              Add
-            </button>
-          </form>
+        {/* The money, and only once there is any to collect. The other half of the same sequence: a
+            bill cannot exist before the pieces above it have a price. See V51. */}
+        {ledger.holder.kind !== "SELF" && ledger.dueNow > 0 && !ledger.settled && (
+          <>
+            <span className="ledger-progress">
+              {ledger.received > 0
+                ? `${shortMesos(ledger.received)} of ${shortMesos(ledger.dueNow)} paid`
+                : `${shortMesos(ledger.dueNow)} owed`}
+            </span>
+            <form
+              className="ledger-sale"
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (payment) void write(onAddPayment(ledger.holder, payment), "paid");
+              }}
+            >
+              <label className="loot-share-input">
+                paid me
+                <input
+                  className="split-input"
+                  value={got}
+                  onChange={(e) => setGot(e.target.value)}
+                  placeholder={shortMesos(toCome(ledger))}
+                  inputMode="decimal"
+                  aria-label={`What ${ledger.holderName} has paid you`}
+                />
+              </label>
+              <button type="submit" className="party-save" disabled={busy || payment === null}>
+                Add
+              </button>
+            </form>
+          </>
         )}
 
+        {/* The rows behind those two counts. The four-clause summary that used to sit here said the
+            same things as the progress lines above and the chips below, in a third frame. */}
         <span className="ledger-tranches">
-          {/* The PILE's frame, beside the boxes that take its numbers. */}
-          <span>
-            {sold} of {sellable} sold
-            {ledger.kept > 0 &&
-              (over > 0 ? ` · ${ledger.kept} kept, over by ${over}` : ` · ${ledger.kept} kept`)}
-            {ledger.bought.pieces > 0 && ` · ${ledger.bought.pieces} of mine taken`}
-            {/* Overpayment is said rather than netted off: more arriving than is owed is a miscount
-                on one side, and a figure that quietly absorbed it would hide which. */}
-            {ledger.received > 0 &&
-              (ledger.received > ledger.dueNow
-                ? ` · ${shortMesos(ledger.received)} paid, ${shortMesos(ledger.received - ledger.dueNow)} over`
-                : ` · ${shortMesos(ledger.received)} of ${shortMesos(ledger.dueNow)} paid`)}
-          </span>
-
           {/* What has been entered, in the order the queue spends it. Removable because a mistyped
               tranche re-prices every boss behind it, and there is nowhere else to correct one. */}
           {/* Receipts, removable because a mistyped one says a bill is settled when it is not, and

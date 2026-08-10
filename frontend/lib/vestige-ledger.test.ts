@@ -13,6 +13,7 @@ import {
   salesByHolder,
   suggestArrangement,
   toCome,
+  unaccounted,
   unanswered,
   unsold,
 } from "./vestige-ledger";
@@ -1049,5 +1050,59 @@ describe("the money arriving, which nothing else can know", () => {
       ["Zed", false],
       ["Bro", true],
     ]);
+  });
+});
+
+describe("what the card is still waiting to be told", () => {
+  // The pile is 390, half of it mine, and Bro loots the lot.
+  const duo = () => [
+    seat("m1", "Husky", { mine: true }),
+    seat("m2", "BroChar", { person: ["p-bro", "Bro"] }),
+  ];
+
+  const ledgerFor = (
+    rows: { holder: Holder; pieces: number; amount: number | null; disposition?: string }[],
+  ) =>
+    holderLedgers(
+      outstanding(
+        [party("pa", "limbo", duo(), "m2")],
+        [pool("pa", [coupon("l1", "limbo", 390, "2026-08-03")])],
+        VESTIGE,
+        ORDER,
+      ),
+      salesByHolder(rows),
+      keptByHolder(rows),
+      boughtByHolder(rows),
+    )[0]!;
+
+  it("counts every fate towards the pile, so the gap is what is left to enter", () => {
+    const fresh = ledgerFor([]);
+    expect([fresh.accounted, unaccounted(fresh)]).toEqual([0, 390]);
+
+    // Each of the three closes the gap by its own pieces, whatever it did with them.
+    const part = ledgerFor([
+      { holder: BRO, pieces: 100, amount: 2_500 * M, disposition: "SOLD" },
+      { holder: BRO, pieces: 50, amount: null, disposition: "KEPT" },
+      { holder: BRO, pieces: 25, amount: 600 * M, disposition: "BOUGHT" },
+    ]);
+    expect([part.soldPieces, part.kept, part.bought.pieces]).toEqual([100, 50, 25]);
+    expect([part.accounted, unaccounted(part)]).toEqual([175, 215]);
+  });
+
+  it("closes to nothing when the whole pile is spoken for", () => {
+    const done = ledgerFor([
+      { holder: BRO, pieces: 195, amount: 4_875 * M, disposition: "SOLD" },
+      { holder: BRO, pieces: 195, amount: null, disposition: "KEPT" },
+    ]);
+    expect([done.accounted, unaccounted(done)]).toEqual([390, 0]);
+  });
+
+  it("floors at zero and carries the surplus, rather than reading negative", () => {
+    // More entered than the pile holds. Said, not clamped: the raw figures are both here so the card
+    // can name the excess instead of quietly absorbing it.
+    const over = ledgerFor([{ holder: BRO, pieces: 400, amount: 10_000 * M, disposition: "SOLD" }]);
+    expect(over.accounted).toBe(400);
+    expect(unaccounted(over)).toBe(0);
+    expect(over.accounted - over.pieces).toBe(10);
   });
 });
