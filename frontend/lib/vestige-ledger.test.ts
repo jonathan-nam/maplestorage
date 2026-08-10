@@ -9,8 +9,10 @@ import {
   ledgerForLoot,
   outstanding,
   runningBalance,
+  receivedByHolder,
   salesByHolder,
   suggestArrangement,
+  toCome,
   unanswered,
   unsold,
 } from "./vestige-ledger";
@@ -949,5 +951,103 @@ describe("a holder redeeming their share rather than selling it", () => {
       expect(limbo.transfers.map((t) => [t.pieces, t.send])).toEqual([[40, null]]);
       expect([ledger.owedToYou, ledger.settledToYou]).toEqual([40, 0]);
     });
+  });
+});
+
+describe("the money arriving, which nothing else can know", () => {
+  // A duo, Bro loots all 390, half is mine, and he keeps his own half and sells mine.
+  const duo = () => [
+    seat("m1", "Husky", { mine: true }),
+    seat("m2", "BroChar", { person: ["p-bro", "Bro"] }),
+  ];
+
+  const ledgerFor = (paid: number[]) =>
+    holderLedgers(
+      outstanding(
+        [party("pa", "limbo", duo(), "m2")],
+        [pool("pa", [coupon("l1", "limbo", 390, "2026-08-03")])],
+        VESTIGE,
+        ORDER,
+      ),
+      salesByHolder([{ holder: BRO, pieces: 195, amount: 4_875 * M }]),
+      keptByHolder([{ holder: BRO, pieces: 195, amount: null }]),
+      new Map(),
+      receivedByHolder(paid.map((amount) => ({ holder: BRO, amount }))),
+    )[0]!;
+
+  it("leaves a fully sold pile outstanding until the mesos come", () => {
+    // The confusion this exists for: 195 kept and 195 sold is every piece accounted for, and the
+    // card still had to be shown, because priced and paid are different facts.
+    const billed = ledgerFor([]);
+    expect([billed.owedToYou, billed.settledToYou]).toEqual([195, 195]);
+    expect(unsold(billed)).toBe(0);
+    expect(billed.dueNow).toBe(4_875 * M);
+    expect(billed.received).toBe(0);
+    expect(toCome(billed)).toBe(4_875 * M);
+    expect(billed.settled).toBe(false);
+  });
+
+  it("settles once it has all arrived, and sums the instalments to get there", () => {
+    const part = ledgerFor([2_000 * M]);
+    expect(part.received).toBe(2_000 * M);
+    expect(toCome(part)).toBe(2_875 * M);
+    expect(part.settled).toBe(false);
+
+    // Instalments are the point of the pro rata, so several receipts add up to one payment.
+    const done = ledgerFor([2_000 * M, 1_875 * M, 1_000 * M]);
+    expect(done.received).toBe(4_875 * M);
+    expect(toCome(done)).toBe(0);
+    expect(done.settled).toBe(true);
+  });
+
+  it("says an overpayment rather than netting it into a credit", () => {
+    const over = ledgerFor([5_000 * M]);
+    expect(over.received).toBe(5_000 * M);
+    // Floored, so "to come" cannot read negative and imply I owe him the difference.
+    expect(toCome(over)).toBe(0);
+    expect(over.settled).toBe(true);
+    // The raw figures are both carried, so the card can name the 125m rather than absorb it.
+    expect(over.received - over.dueNow).toBe(125 * M);
+  });
+
+  it("sums receipts per holder, and keeps one person's off another's", () => {
+    const rows = [
+      { holder: BRO, amount: 2_000 * M },
+      { holder: BRO, amount: 875 * M },
+      { holder: SELF, amount: 10 * M },
+    ];
+    expect(receivedByHolder(rows).get(holderKey(BRO))).toBe(2_875 * M);
+    expect(receivedByHolder(rows).get(holderKey(SELF))).toBe(10 * M);
+  });
+
+  it("puts a settled pile last, still listed so its rows can be corrected", () => {
+    const ledgers = holderLedgers(
+      outstanding(
+        [
+          party("pa", "limbo", duo(), "m2"),
+          party(
+            "pb",
+            "baldrix",
+            [seat("m3", "Husky", { mine: true }), seat("m4", "Zed", { person: ["p-zed", "Zed"] })],
+            "m4",
+          ),
+        ],
+        [
+          pool("pa", [coupon("l1", "limbo", 390, "2026-08-03")]),
+          pool("pb", [coupon("l2", "baldrix", 60, "2026-08-03")]),
+        ],
+        VESTIGE,
+        ORDER,
+      ),
+      salesByHolder([{ holder: BRO, pieces: 195, amount: 4_875 * M }]),
+      keptByHolder([{ holder: BRO, pieces: 195, amount: null }]),
+      new Map(),
+      receivedByHolder([{ holder: BRO, amount: 4_875 * M }]),
+    );
+    // Bro is settled and Zed has not even sold, so Bro sorts after him despite the name order.
+    expect(ledgers.map((l) => [l.holderName, l.settled])).toEqual([
+      ["Zed", false],
+      ["Bro", true],
+    ]);
   });
 });
