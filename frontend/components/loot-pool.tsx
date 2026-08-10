@@ -40,7 +40,7 @@ export function LootPool({
    * ever dropped. Passed in rather than derived here: the answer depends on the settlements, and this
    * component has no business fetching them. See dropStatusLabel.
    */
-  pieceStatus?: Map<string, string>;
+  pieceStatus?: Map<string, { status: string; yours: number }>;
   /** The picker's own add. Not the rows': one drop being logged does not lock the pool. */
   adding: boolean;
   /** Whether THIS drop's write is in flight, by its id. */
@@ -144,8 +144,8 @@ function LootGroup({
   title: string | null;
   party: Party;
   bossByKey: Map<string, Boss>;
-  /** What a coupon row says it is. Absent for the sellable group, which sells on its own row. */
-  statusOf?: Map<string, string>;
+  /** What a coupon row says it is, and how much of it is yours. Absent for the sellable group. */
+  statusOf?: Map<string, { status: string; yours: number }>;
   isSaving: (lootId: string) => boolean;
   onSell: (lootId: string, body: SellLootBody) => void;
   onUnsell: (lootId: string) => void;
@@ -164,7 +164,8 @@ function LootGroup({
             loot={item}
             party={party}
             boss={item.bossKey ? (bossByKey.get(item.bossKey) ?? null) : null}
-            status={statusOf?.get(item.id) ?? null}
+            status={statusOf?.get(item.id)?.status ?? null}
+            yours={statusOf?.get(item.id)?.yours ?? null}
             busy={isSaving(item.id)}
             onSell={(body) => onSell(item.id, body)}
             onUnsell={() => onUnsell(item.id)}

@@ -20,6 +20,7 @@ export function LootRow({
   party,
   boss,
   status,
+  yours,
   busy,
   onSell,
   onUnsell,
@@ -38,6 +39,15 @@ export function LootRow({
    * whose status IS the answer. See dropStatusLabel.
    */
   status?: string | null;
+  /**
+   * Pieces of this drop that are YOURS, for a coupon row. Null for an ordinary drop.
+   *
+   * The count beside the name is what FELL, which is right for a pool: the party is holding 180 and the
+   * controls below act on all of it. But the status beside it is about your share, so "x180 · Settled"
+   * read as 180 of yours being settled when only 90 ever were. The Drop Log counts the same drop as
+   * x90, deliberately, so each screen has to say which number it is showing.
+   */
+  yours?: number | null;
   busy: boolean;
   onSell: (body: SellLootBody) => void;
   onUnsell: () => void;
@@ -90,6 +100,11 @@ export function LootRow({
           <span className="loot-name">
             {loot.name}
             {loot.quantity > 1 && <span className="loot-count"> x{loot.quantity}</span>}
+            {/* Whose the count is not, said only where the two differ: a drop that came out even is
+                already all yours and "90 yours" beside x90 would be one fact twice. */}
+            {yours !== null && yours !== undefined && yours !== loot.quantity && (
+              <span className="loot-share-nets"> {yours} yours</span>
+            )}
           </span>
           <span className="loot-meta">
             {boss?.iconUrl && (

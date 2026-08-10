@@ -141,7 +141,9 @@ export default function PartyPage() {
   // What each coupon row says it is: a piece drop is PENDING for ever, because it never sells through
   // its own row, so the raw status read "In the pool" on every vestige stack this party ever dropped.
   const pieceStatus = new Map(
-    (log?.entries ?? []).filter((e) => e.pieces).map((e) => [e.lootId, dropStatusLabel(e)]),
+    (log?.entries ?? [])
+      .filter((e) => e.pieces)
+      .map((e) => [e.lootId, { status: dropStatusLabel(e), yours: e.yours }]),
   );
   const summary = summarize(loot);
   const poolLine = poolLabel(
