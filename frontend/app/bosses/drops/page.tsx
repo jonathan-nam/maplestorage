@@ -31,6 +31,7 @@ import { useAccountSettings } from "@/lib/use-account-settings";
 import {
   type Holder,
   SELF_KEY,
+  boughtByHolder,
   holderKey,
   holderLedgers,
   keptByHolder,
@@ -250,7 +251,12 @@ export default function DropLogPage() {
   // never swap places in the queue and re-price each other.
   const bossOrder = new Map(bosses.map((b, i) => [b.bossKey, i]));
   const settled = outstanding(parties, pools, VESTIGE, bossOrder);
-  const ledgers = holderLedgers(settled, salesByHolder(tranches), keptByHolder(tranches));
+  const ledgers = holderLedgers(
+    settled,
+    salesByHolder(tranches),
+    keptByHolder(tranches),
+    boughtByHolder(tranches),
+  );
   // Nights that did not divide and that nobody has said the arrangement for. Above the ledger,
   // because until one is answered its pieces are missing from every figure below it.
   const open = unanswered(parties, pools, VESTIGE);
@@ -465,6 +471,14 @@ export default function DropLogPage() {
                       saleWrite(TRANCHES_KEY, {
                         method: "POST",
                         body: JSON.stringify({ holder, pieces, disposition: "KEPT" }),
+                      })
+                    }
+                    // Pieces of yours they took instead of selling, at a price somebody agreed. An
+                    // amount like a sale, and off the pile like a redemption. See V50.
+                    onAddBought={(holder: Holder, pieces, amount) =>
+                      saleWrite(TRANCHES_KEY, {
+                        method: "POST",
+                        body: JSON.stringify({ holder, pieces, amount, disposition: "BOUGHT" }),
                       })
                     }
                     onRemoveSale={(trancheId) =>

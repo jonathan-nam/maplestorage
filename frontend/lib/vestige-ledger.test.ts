@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   type Holder,
+  boughtByHolder,
   holderKey,
   holderLedgers,
   holderOf,
@@ -680,12 +681,15 @@ describe("a holder redeeming their share rather than selling it", () => {
     pools: [pool("pa", [coupon("l1", "limbo", 390, "2026-08-03")])],
   });
 
-  const ledgerFor = (tranches: { holder: Holder; pieces: number; amount: number | null }[]) => {
+  const ledgerFor = (
+    tranches: { holder: Holder; pieces: number; amount: number | null; disposition?: string }[],
+  ) => {
     const { parties, pools } = night();
     return holderLedgers(
       outstanding(parties, pools, VESTIGE, ORDER),
       salesByHolder(tranches),
       keptByHolder(tranches),
+      boughtByHolder(tranches),
     )[0]!;
   };
 
@@ -775,5 +779,175 @@ describe("a holder redeeming their share rather than selling it", () => {
     expect(limbo.sellable).toBe(390);
     expect(ledger.dueNow).toBe(4_875 * M);
     expect(unsold(ledger)).toBe(0);
+  });
+
+  describe("across several bosses in one queue", () => {
+    // Where #281 came back. One drop hid it: a redemption is spread over the QUEUE, so it is only
+    // with a second boss that the kept pieces can land on the wrong entitlements. Bro loots both
+    // nights of one week, holds 300, and half of each is mine.
+    const week = () => ({
+      parties: [
+        party("pa", "kalos-the-guardian", duo(), "m2"),
+        party("pb", "baldrix", duo(), "m2"),
+      ],
+      pools: [
+        pool("pa", [coupon("l1", "kalos-the-guardian", 180, "2026-08-06")]),
+        pool("pb", [coupon("l2", "baldrix", 120, "2026-08-06")]),
+      ],
+    });
+
+    const weekFor = (
+      tranches: { holder: Holder; pieces: number; amount: number | null; disposition?: string }[],
+    ) => {
+      const { parties, pools } = week();
+      return holderLedgers(
+        outstanding(parties, pools, VESTIGE, ORDER),
+        salesByHolder(tranches),
+        keptByHolder(tranches),
+        boughtByHolder(tranches),
+      )[0]!;
+    };
+
+    it("clears when a holder keeps their own half and sells mine", () => {
+      const ledger = weekFor([
+        { holder: BRO, pieces: 150, amount: 3_750 * M },
+        { holder: BRO, pieces: 150, amount: null },
+      ]);
+
+      // Every boss holds back only Bro's own share, so my half of each is what his sale covered.
+      expect(ledger.drops.map((d) => [d.bossKey, d.kept, d.sellable, d.covered])).toEqual([
+        ["kalos-the-guardian", 90, 90, 90],
+        ["baldrix", 60, 60, 60],
+      ]);
+      // Taken off whole bosses instead, baldrix was wholly kept and read "no sale to price them"
+      // for good, and this settled 90 of 150 with 1.5b of the 3.75b unpaid.
+      expect([ledger.owedToYou, ledger.settledToYou]).toEqual([150, 150]);
+      expect(ledger.dueNow).toBe(3_750 * M);
+      expect(unsold(ledger)).toBe(0);
+      expect(ledger.drops.every((d) => d.complete)).toBe(true);
+    });
+
+    it("takes a part-redemption off the newest boss's own share first", () => {
+      const ledger = weekFor([{ holder: BRO, pieces: 60, amount: null }]);
+      expect(ledger.drops.map((d) => [d.bossKey, d.kept, d.sellable])).toEqual([
+        ["kalos-the-guardian", 0, 180],
+        ["baldrix", 60, 60],
+      ]);
+    });
+  });
+
+  describe("a lopsided split where the small share loots the lot", () => {
+    // 60 pieces, 40 mine and 20 his because I brought two characters, and he picks up all 60. His
+    // own share is a THIRD of the pile, so a redemption reads against 20, not against half of 60.
+    //
+    // Reachable without the config's uneven-split mode, which is the point of pinning it: that
+    // control and the looter one are the same select, so "one member takes more" and "one member
+    // loots everything" cannot both be chosen. Every seat here has 1 share and the 2:1 comes from
+    // the FOLD, which the config never sees as uneven at all.
+    const lopsided = () => [
+      seat("m1", "Husky", { mine: true }),
+      seat("m1b", "HuskyAlt", { mine: true }),
+      seat("m2", "BroChar", { person: ["p-bro", "Bro"] }),
+    ];
+
+    const oneNight = (
+      tranches: { holder: Holder; pieces: number; amount: number | null; disposition?: string }[],
+    ) =>
+      holderLedgers(
+        outstanding(
+          [party("pa", "limbo", lopsided(), "m2")],
+          [pool("pa", [coupon("l1", "limbo", 60, "2026-08-06")])],
+          VESTIGE,
+          ORDER,
+        ),
+        salesByHolder(tranches),
+        keptByHolder(tranches),
+        boughtByHolder(tranches),
+      )[0]!;
+
+    it("owes me two thirds, and keeping his own third leaves all of mine sellable", () => {
+      const ledger = oneNight([
+        { holder: BRO, pieces: 20, amount: null },
+        { holder: BRO, pieces: 40, amount: 800 * M },
+      ]);
+      const limbo = ledger.drops[0]!;
+
+      expect(limbo.pieces).toBe(60);
+      expect(limbo.kept).toBe(20);
+      expect(limbo.sellable).toBe(40);
+      expect([ledger.owedToYou, ledger.settledToYou]).toEqual([40, 40]);
+      expect(ledger.dueNow).toBe(800 * M);
+      expect(unsold(ledger)).toBe(0);
+    });
+
+    it("prices the pieces of mine he redeems at the average his own sales got", () => {
+      // He keeps 30 of the 60 when only 20 are his, so 10 of mine are gone. The 30 he sold went at
+      // 20m, and my 40 are owed at that: 800m, more than the 600m he took in.
+      const ledger = oneNight([
+        { holder: BRO, pieces: 30, amount: null },
+        { holder: BRO, pieces: 30, amount: 600 * M },
+      ]);
+      const limbo = ledger.drops[0]!;
+
+      expect(limbo.sellable).toBe(30);
+      expect(limbo.transfers.map((t) => [t.to, t.pieces, t.send])).toEqual([["you", 40, 800 * M]]);
+      expect([ledger.owedToYou, ledger.settledToYou]).toEqual([40, 40]);
+    });
+
+    it("prices the pieces he took at what he agreed, not at his own average", () => {
+      // V50. He keeps his own 20, and takes 10 of mine at 15m rather than the 20m his sale reached.
+      // Folded into KEPT, those 10 were priced at his 20m: a figure nobody agreed to.
+      const ledger = oneNight([
+        { holder: BRO, pieces: 20, amount: null, disposition: "KEPT" },
+        { holder: BRO, pieces: 10, amount: 150 * M, disposition: "BOUGHT" },
+        { holder: BRO, pieces: 30, amount: 600 * M, disposition: "SOLD" },
+      ]);
+      const limbo = ledger.drops[0]!;
+
+      // 60 held, 20 his and redeemed, 10 of mine taken, so 30 left to sell and all 30 are mine.
+      expect(limbo.sellable).toBe(30);
+      expect(limbo.bought).toEqual({ pieces: 10, paid: 150 * M });
+      expect(limbo.complete).toBe(true);
+      // The 30 sold are mine in full, plus the 10 at the price he agreed.
+      expect(limbo.transfers.map((t) => [t.pieces, t.settled, t.send])).toEqual([
+        [40, 40, 750 * M],
+      ]);
+      expect([ledger.owedToYou, ledger.settledToYou]).toEqual([40, 40]);
+      expect(ledger.dueNow).toBe(750 * M);
+      expect(unsold(ledger)).toBe(0);
+    });
+
+    it("keeps a purchase out of the sale queue, so it is not divided pro rata", () => {
+      // A BOUGHT row carries money and is still not a sale. Spent on the queue it would price other
+      // bosses, and in a party of three it would hand slices of one creditor's money to the others.
+      const rows = [
+        { holder: BRO, pieces: 10, amount: 150 * M, disposition: "BOUGHT" as const },
+        { holder: BRO, pieces: 30, amount: 600 * M, disposition: "SOLD" as const },
+      ];
+      expect(salesByHolder(rows).get(holderKey(BRO))).toHaveLength(1);
+      expect(boughtByHolder(rows).get(holderKey(BRO))).toEqual({ pieces: 10, paid: 150 * M });
+      // Not a redemption either, which reads the amount rather than the disposition.
+      expect(keptByHolder(rows).get(holderKey(BRO))).toBeUndefined();
+    });
+
+    it("reads a row cached from before BOUGHT existed as the sale it is", () => {
+      // lib/cache.ts hands back whatever shape the API had when the page last fetched, so a tab open
+      // across the deploy gets rows with no disposition at all. Absent must never read as BOUGHT:
+      // testing for SOLD instead would drop every sale already entered.
+      const stale = [{ holder: BRO, pieces: 30, amount: 600 * M }];
+      expect(salesByHolder(stale).get(holderKey(BRO))).toHaveLength(1);
+      expect(boughtByHolder(stale).get(holderKey(BRO))).toBeUndefined();
+    });
+
+    it("has no price to state at all once he has redeemed every piece", () => {
+      const ledger = oneNight([{ holder: BRO, pieces: 60, amount: null }]);
+      const limbo = ledger.drops[0]!;
+
+      expect(limbo.sellable).toBe(0);
+      // The debt is 40 and it is real. Nothing was ever listed, so there is no average to price it
+      // at, and a figure here would be one nobody was offered.
+      expect(limbo.transfers.map((t) => [t.pieces, t.send])).toEqual([[40, null]]);
+      expect([ledger.owedToYou, ledger.settledToYou]).toEqual([40, 0]);
+    });
   });
 });
