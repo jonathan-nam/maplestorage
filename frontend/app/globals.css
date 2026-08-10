@@ -5421,11 +5421,12 @@ button.link:disabled {
   width: 120px;
 }
 
-/* Piles whose books are closed come off the list behind this, rather than being removed: the x that
-   corrects a mistyped tranche lives on its own card, so gone would mean unreachable. */
-.ledger-closed-toggle {
-  align-self: flex-start;
+/* A pile whose books are closed. Said rather than hidden: these bosses drop vestiges on every clear, so
+   the card is a fixture and a missing one would only raise the question this answers. */
+.ledger-done {
   font-size: 12px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
 }
 
 /* The closing act and what it will close, on one line: the button and the count it acts on read as one

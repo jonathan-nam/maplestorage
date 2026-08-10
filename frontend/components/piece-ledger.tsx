@@ -75,13 +75,13 @@ export function PieceLedger({
   onRemoveSale: (trancheId: string) => Promise<void>;
   onRemovePayment: (paymentId: string) => Promise<void>;
 }) {
-  const [showClosed, setShowClosed] = useState(false);
   if (ledgers.length === 0) return null;
-  const open = ledgers.filter((l) => !l.closed);
-  const closed = ledgers.filter((l) => l.closed);
+  // Every card, settled ones included. These bosses drop vestiges on every clear, so a holder's card is
+  // a fixture rather than a task: hiding a settled one only means it reappears next week, and a card
+  // that says "fully settled" answers the question a missing card leaves open.
   return (
     <>
-      {(showClosed ? ledgers : open).map((ledger) => (
+      {ledgers.map((ledger) => (
         <HolderCard
           key={holderKey(ledger.holder)}
           ledger={ledger}
@@ -100,15 +100,6 @@ export function PieceLedger({
           onRemovePayment={onRemovePayment}
         />
       ))}
-      {closed.length > 0 && (
-        <button
-          type="button"
-          className="link ledger-closed-toggle"
-          onClick={() => setShowClosed(!showClosed)}
-        >
-          {showClosed ? "hide settled" : `${closed.length} settled`}
-        </button>
-      )}
     </>
   );
 }
@@ -249,10 +240,10 @@ function HolderCard({
               the first is what left a fully sold pile reading exactly like one still waiting. The
               money says "settled" and drops the figure once it is all in. See V51. */}
           {ledger.closed ? (
-            <span className="loot-share-nets">
+            <span className="ledger-done">
               {ledger.writtenOff > 0
-                ? `closed, ${shortMesos(ledger.writtenOff)} written off`
-                : "closed"}
+                ? `fully settled, ${shortMesos(ledger.writtenOff)} written off`
+                : "fully settled"}
             </span>
           ) : ledger.settled ? (
             // Overpayment is said rather than netted off: more arriving than was owed is a miscount

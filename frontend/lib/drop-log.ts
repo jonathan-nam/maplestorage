@@ -18,7 +18,7 @@
 
 import { formatWeekStart } from "./boss-clears";
 import { splitOf, statusLabel } from "./loot";
-import { holderKey, holderOf, yourShare } from "./vestige-ledger";
+import { closureKey, holderKey, holderOf, yourShare } from "./vestige-ledger";
 import type { DropTables } from "@/types/drop";
 import type { Loot, PartyLootPool } from "@/types/loot";
 import type { Party, PartyMember } from "@/types/party";
@@ -70,6 +70,15 @@ export type DropEntry = {
   yours: number;
   /** The character holding your share until they hand it over, when one seat looted the lot. */
   owedBy: string | null;
+  /**
+   * Its books are closed, so what `owedBy` says is history. See V52.
+   *
+   * `owedBy` is a fact about the party's ARRANGEMENT, true from the moment the drop is logged and
+   * never after: it is `entitled - looted`, which no sale, payment or redemption moves. So without
+   * this every coupon row read "Owed" for good and the party badge counted it forever, however
+   * completely the ledger had been filled in.
+   */
+  closed: boolean;
   bossKey: string | null;
   droppedOn: string;
   /** The reset week it fell in, as that week's Thursday. The server's reckoning, never redone here. */
@@ -204,6 +213,13 @@ export function buildDropLog(
   pools: PartyLootPool[],
   /** The catalog's drop tables. What says a row is a stack of pieces rather than one item. */
   dropTables: DropTables,
+  /**
+   * Which (holder, drop) pairs have had their books closed, from closedByHolder(). See V52.
+   *
+   * Passed in rather than derived, because whether a debt is finished is a DECISION and this file has
+   * no way to reach one. Empty is nothing closed, which is every log before V52.
+   */
+  closed: Set<string> = new Set(),
 ): DropLog {
   const partyById = new Map(parties.map((p) => [p.id, p]));
   const entries: DropEntry[] = [];
@@ -236,6 +252,9 @@ export function buildDropLog(
         // to you, it is you having it already.
         owedBy:
           pieces && looter !== null && holderKey(holderOf(looter)) !== "self" ? looter.name : null,
+        // The holder who owes it is the one whose books close it, so the key is theirs and not the
+        // party's. A drop in two piles is closed by whichever of them settled.
+        closed: looter !== null && closed.has(closureKey(holderOf(looter), loot.id)),
         bossKey: loot.bossKey,
         droppedOn: loot.droppedOn,
         weekStart: loot.weekStart,
@@ -284,7 +303,12 @@ export function isOutstanding(entry: DropEntry): boolean {
 export function dropStatusLabel(entry: DropEntry): string {
   // Neither coupon row belongs in "the pool", which now means drops waiting to be SOLD. One is
   // already in your inventory; the other is in somebody else's, which the row says beside this.
-  if (entry.pieces) return entry.owedBy === null ? "Yours" : "Owed";
+  // Settled first: a closed drop is finished whoever looted it, and "Owed" about one is the party's
+  // arrangement being reported as though it were the ledger's answer.
+  if (entry.pieces) {
+    if (entry.closed) return "Settled";
+    return entry.owedBy === null ? "Yours" : "Owed";
+  }
   return statusLabel(entry.status);
 }
 
@@ -298,7 +322,7 @@ function totalsOf(entries: DropEntry[]): DropLogTotals {
     taken: entries.filter((e) => e.status === "TAKEN").length,
     pending: entries.filter(isOutstanding).length,
     piecesOwed: entries
-      .filter((e) => e.pieces && e.owedBy !== null)
+      .filter((e) => e.pieces && e.owedBy !== null && !e.closed)
       .reduce((sum, e) => sum + e.yours, 0),
     pooled: entries.reduce((sum, e) => sum + (e.pooled ?? 0), 0),
     yourTake: entries.reduce((sum, e) => sum + (e.yourTake ?? 0), 0),
@@ -316,7 +340,9 @@ function totalsOf(entries: DropEntry[]): DropLogTotals {
 export function couponsOwedByParty(entries: DropEntry[]): Map<string, number> {
   const out = new Map<string, number>();
   for (const entry of entries) {
-    if (!entry.pieces || entry.owedBy === null) continue;
+    // A closed drop is not owed. Without this the badge read the party's ARRANGEMENT rather than the
+    // ledger, so "30 coupons owed" survived every sale, payment and settlement against it.
+    if (!entry.pieces || entry.owedBy === null || entry.closed) continue;
     out.set(entry.partyId, (out.get(entry.partyId) ?? 0) + entry.yours);
   }
   return out;
