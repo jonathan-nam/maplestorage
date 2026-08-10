@@ -86,6 +86,9 @@ export function LootRow({
   // everyone else. So it is a third basis rather than a second form, and the only thing it changes
   // on screen is who the last select names.
   const bought = loot.amountBasis === "BOUGHT";
+  // Only worth saying when it is not the whole stack. Zero counts: a party you keep the books for but
+  // did not run is owed none of it, and "0 out of 180" is the honest way to say so.
+  const share = yours !== null && yours !== undefined && yours !== loot.quantity ? yours : null;
 
   const amount = parseMesos(price);
   // Against every seat, not `ran`: a payout pinned before somebody left still names them, and
@@ -109,11 +112,17 @@ export function LootRow({
         <div className="loot-title">
           <span className="loot-name">
             {loot.name}
-            {loot.quantity > 1 && <span className="loot-count"> x{loot.quantity}</span>}
-            {/* Whose the count is not, said only where the two differ: a drop that came out even is
-                already all yours and "90 yours" beside x90 would be one fact twice. */}
-            {yours !== null && yours !== undefined && yours !== loot.quantity && (
-              <span className="loot-share-nets"> {yours} yours</span>
+            {/* Your share OUT OF what fell, as one figure, where the two differ. Both numbers belong on
+                a pool row (the party is holding all of it, and the status beside this is about your
+                part) and "x180 90 yours" made the reader do the subtraction. A drop that came out even
+                is already all yours, so it keeps the plain count rather than saying 180 out of 180. */}
+            {share !== null ? (
+              <span className="loot-count">
+                {" "}
+                {share} out of {loot.quantity}
+              </span>
+            ) : (
+              loot.quantity > 1 && <span className="loot-count"> x{loot.quantity}</span>
             )}
           </span>
           <span className="loot-meta">
