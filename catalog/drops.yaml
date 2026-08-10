@@ -88,6 +88,10 @@ drops:
   # --- Grindstones -------------------------------------------------------------------
   # Two item ids carry each grindstone name (2539003/2539004 and 2539001/2539002), the tradeable
   # and untradeable versions. The lower one is pinned; the art is the same either way.
+  #
+  # A boss can drop both, and which one it drops varies by DIFFICULTY: Kaling gives Life on the
+  # lower modes and Faith on the higher ones. A table has no difficulty in it, so both are listed
+  # on every boss that drops either. See the note above `tables` for why that way round.
   - key: grindstone-of-faith
     name: Grindstone of Faith
     icon_id: 2539003
@@ -170,9 +174,17 @@ drops:
 
 # What each boss drops. Keys on the left are catalog/bosses.yaml boss keys; a boss with no entry
 # simply has no table recorded yet, which the UI says rather than showing an empty one.
+#
+# A table is per boss, not per (boss, difficulty), and the asymmetry is deliberate. An option
+# nobody picks costs nothing, because a drop is only logged when one actually fell. An option that
+# is not there is a drop that cannot be entered at all, which is what happened to the Grindstone of
+# Life on Kaling. So where a drop is real on some modes and not others, it is listed.
+#
+# `worlds` is the exception, and only because a world is a fact we hold: see the flag's note above.
 tables:
   limbo:
     - whisper-of-the-source
+    - grindstone-of-life
     - grindstone-of-faith
     - eternal-armor-of-desire-box
     - ring-of-restraint-4
@@ -202,6 +214,7 @@ tables:
 
   kaling:
     - exceptional-hammer-earrings
+    - grindstone-of-life
     - grindstone-of-faith
     - ferocious-beast-eternal-armor-box
     - ring-of-restraint-4
@@ -225,6 +238,7 @@ tables:
 
   malefic-star:
     - blissful-nightmare
+    - grindstone-of-life
     - grindstone-of-faith
     - eternal-armor-of-radiance-box
     - ring-of-restraint-4
@@ -243,6 +257,7 @@ tables:
 
   baldrix:
     - oath-of-death
+    - grindstone-of-life
     - grindstone-of-faith
     - eternal-armor-of-oaths-box
     - ring-of-restraint-4
