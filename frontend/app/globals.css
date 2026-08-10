@@ -5421,6 +5421,39 @@ button.link:disabled {
   width: 120px;
 }
 
+/* Piles whose books are closed come off the list behind this, rather than being removed: the x that
+   corrects a mistyped tranche lives on its own card, so gone would mean unreachable. */
+.ledger-closed-toggle {
+  align-self: flex-start;
+  font-size: 12px;
+}
+
+/* The closing act and what it will close, on one line: the button and the count it acts on read as one
+   thing, so "closes 4 bosses, 56m unpaid" cannot be mistaken for a note about the card in general. */
+.ledger-close {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+/* Which step this is. The pieces and the money were one flat list of chips, so "195 kept" and
+   "4.86b paid" read as the same kind of thing when one is what became of the coupons and the other is
+   what came back for them. A label, not a heading: the card is one thing with two stages, not two
+   sections, so it sits in the flow rather than boxing them off. */
+.ledger-step {
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+/* Space before the second step, so the two do not run together. Not before the first, which already
+   has the entry area's own gap above it. */
+.ledger-step + .ledger-progress {
+  margin-top: -4px;
+}
+
 /* The card's one instruction, and it is a count. Sits directly above the control it is about, so the
    number and the box that changes it read as one thing rather than as a note about it. */
 .ledger-progress {

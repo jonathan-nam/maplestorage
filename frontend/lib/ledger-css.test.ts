@@ -26,7 +26,18 @@ describe("the disposition picker", () => {
 // does not shift the box beneath it.
 describe("the progress line", () => {
   it("is tabular, so the digits do not jitter as it counts", () => {
-    const rule = css.match(/\.ledger-progress \{([^}]*)\}/);
+    const rule = css.match(/^\.ledger-progress \{([^}]*)\}/m);
     expect(rule?.[1]).toContain("font-variant-numeric: tabular-nums");
+  });
+});
+
+// The two steps are what the card is FOR: what became of the coupons, then what came back for them.
+// Unstyled, the labels render at body size and read as headings, which boxes off a card that is one
+// thing in two stages.
+describe("the step labels", () => {
+  it("are quieter than the rows they introduce", () => {
+    const rule = css.match(/^\.ledger-step \{([^}]*)\}/m);
+    expect(rule?.[1]).toContain("text-transform: uppercase");
+    expect(rule?.[1]).toContain("var(--muted)");
   });
 });

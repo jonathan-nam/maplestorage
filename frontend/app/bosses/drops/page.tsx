@@ -34,9 +34,11 @@ import {
   boughtByHolder,
   holderKey,
   holderLedgers,
+  closedByHolder,
   keptByHolder,
   outstanding,
   receivedByHolder,
+  stillOpen,
   runningBalance,
   salesByHolder,
   unanswered,
@@ -47,7 +49,7 @@ import type { Character } from "@/types/character";
 import type { DropTables } from "@/types/drop";
 import type { Loot, LogDropBody, PartyLootPool } from "@/types/loot";
 import type { Party } from "@/types/party";
-import type { VestigePayment, VestigeTranche } from "@/types/vestige";
+import type { VestigePayment, VestigeSettlement, VestigeTranche } from "@/types/vestige";
 
 // The history of what dropped, and what it made, and where a drop is logged. Every meso is
 // lib/drop-log.ts's, which is splitOf()'s, which is splitDrop()'s. Nothing here adds anything up.
@@ -64,6 +66,7 @@ const DROPS_KEY = "/api/bosses/drops";
 const CHARACTERS_KEY = "/api/characters";
 const TRANCHES_KEY = "/api/vestige-tranches";
 const PAYMENTS_KEY = "/api/vestige-payments";
+const SETTLEMENTS_KEY = "/api/vestige-settlements";
 
 // The stacking drop the piece ledger is for. One key, because one item behaves this way: a boss
 // drops it in bundles that do not divide by looting alone. See lib/piece-ledger.ts.
@@ -84,6 +87,7 @@ export default function DropLogPage() {
   );
   const [tranches, setTranches] = useState<VestigeTranche[]>([]);
   const [payments, setPayments] = useState<VestigePayment[]>([]);
+  const [settlements, setSettlements] = useState<VestigeSettlement[]>([]);
 
   // A drop names the party it fell in and links to it, which draws its seats. See
   // lib/seat-sprites.ts.
@@ -97,16 +101,19 @@ export default function DropLogPage() {
 
   async function load(token?: string | null) {
     const withToken = token !== undefined ? () => Promise.resolve(token) : getToken;
-    const [partyResult, poolResult, trancheResult, paymentResult] = await Promise.all([
-      apiFetch<Party[]>(PARTIES_KEY, { method: "GET" }, withToken),
-      apiFetch<PartyLootPool[]>(POOLS_KEY, { method: "GET" }, withToken),
-      apiFetch<VestigeTranche[]>(TRANCHES_KEY, { method: "GET" }, withToken),
-      apiFetch<VestigePayment[]>(PAYMENTS_KEY, { method: "GET" }, withToken),
-    ]);
+    const [partyResult, poolResult, trancheResult, paymentResult, settlementResult] =
+      await Promise.all([
+        apiFetch<Party[]>(PARTIES_KEY, { method: "GET" }, withToken),
+        apiFetch<PartyLootPool[]>(POOLS_KEY, { method: "GET" }, withToken),
+        apiFetch<VestigeTranche[]>(TRANCHES_KEY, { method: "GET" }, withToken),
+        apiFetch<VestigePayment[]>(PAYMENTS_KEY, { method: "GET" }, withToken),
+        apiFetch<VestigeSettlement[]>(SETTLEMENTS_KEY, { method: "GET" }, withToken),
+      ]);
     setParties(partyResult);
     setPools(poolResult);
     setTranches(trancheResult);
     setPayments(paymentResult);
+    setSettlements(settlementResult);
     put(PARTIES_KEY, partyResult);
   }
 
@@ -176,6 +183,18 @@ export default function DropLogPage() {
     } catch (e) {
       // Thrown on, not shown here: the card that asked for it is a screen away from this page's
       // error line, and a refusal nobody is looking at is a refusal that did not happen.
+      throw new Error(e instanceof ApiError ? e.body : "That didn't save.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  /** The same, for closing a pile's books. See V52. */
+  async function settlementWrite(path: string, options: RequestInit) {
+    setBusy(true);
+    try {
+      setSettlements(await apiFetch<VestigeSettlement[]>(path, options, getToken));
+    } catch (e) {
       throw new Error(e instanceof ApiError ? e.body : "That didn't save.");
     } finally {
       setBusy(false);
@@ -268,17 +287,21 @@ export default function DropLogPage() {
   // never swap places in the queue and re-price each other.
   const bossOrder = new Map(bosses.map((b, i) => [b.bossKey, i]));
   const settled = outstanding(parties, pools, VESTIGE, bossOrder);
+  const closures = closedByHolder(settlements);
   const ledgers = holderLedgers(
     settled,
     salesByHolder(tranches),
     keptByHolder(tranches),
     boughtByHolder(tranches),
     receivedByHolder(payments),
+    closures,
   );
   // Nights that did not divide and that nobody has said the arrangement for. Above the ledger,
   // because until one is answered its pieces are missing from every figure below it.
   const open = unanswered(parties, pools, VESTIGE);
-  const behind = runningBalance(settled);
+  // Only the drops still open tilt the rotation: a debt that has been closed was compensated, so it
+  // has no business suggesting against the same person forever. See V52.
+  const behind = runningBalance(stillOpen(settled, closures.closed));
   const tranchesByHolder = new Map<string, VestigeTranche[]>();
   for (const tranche of tranches) {
     const key = holderKey(tranche.holder);
@@ -510,6 +533,13 @@ export default function DropLogPage() {
                       paymentWrite(PAYMENTS_KEY, {
                         method: "POST",
                         body: JSON.stringify({ holder, amount }),
+                      })
+                    }
+                    // Closing the books, which no arithmetic is entitled to do. See V52.
+                    onSettle={(holder: Holder, lootIds, unpaid) =>
+                      settlementWrite(SETTLEMENTS_KEY, {
+                        method: "POST",
+                        body: JSON.stringify({ holder, lootIds, unpaid }),
                       })
                     }
                     onRemoveSale={(trancheId) =>

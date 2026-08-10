@@ -14,6 +14,7 @@ import io.ktor.server.routing.RoutingContext
 import io.ktor.server.routing.delete
 import io.ktor.server.routing.get
 import io.ktor.server.routing.post
+import io.ktor.server.routing.route
 import kotlinx.serialization.Serializable
 import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and
@@ -101,6 +102,22 @@ data class AddVestigeTrancheRequest(
     /** Defaults to a sale, which is what every tranche was before V46. */
     val disposition: String = SOLD,
 )
+
+/**
+ * The piece ledger's three inputs, which are one feature under three paths.
+ *
+ * NOT under /api/parties: a looter's pile spans every party they loot for, and keying it to one of them
+ * is the per-boss ledger this replaced.
+ *
+ * Three paths because they are three different facts. What became of the coupons (a tranche), what came
+ * back for them (a payment, V51), and somebody deciding the books are closed (a settlement, V52). Only
+ * the first can be derived from anything.
+ */
+fun Route.vestigeLedgerRoutes() {
+    route("/api/vestige-tranches") { vestigeRoutes() }
+    route("/api/vestige-payments") { vestigePaymentRoutes() }
+    route("/api/vestige-settlements") { vestigeSettlementRoutes() }
+}
 
 fun Route.vestigeRoutes() {
     get { listTranches() }

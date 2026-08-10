@@ -57,3 +57,21 @@ export type AddVestigePaymentBody = {
   holder: Holder;
   amount: number;
 };
+
+// One act of closing a holder's books: which drops it covered, and what was left unpaid. The drops
+// rather than a date, so a drop backfilled from an earlier week later is not silently retired. See V52.
+export type VestigeSettlement = {
+  id: string;
+  holder: Holder;
+  lootIds: string[];
+  // Mesos still owed when the books closed. Zero is a pile that balanced.
+  unpaid: number;
+  settledAt: string;
+};
+
+// POST /api/vestige-settlements. Answers with every settlement, not the one added.
+export type AddVestigeSettlementBody = {
+  holder: Holder;
+  lootIds: string[];
+  unpaid: number;
+};
