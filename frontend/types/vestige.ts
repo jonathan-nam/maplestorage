@@ -11,27 +11,33 @@ export type VestigeTranche = {
   holder: Holder;
   pieces: number;
   // Mesos for the whole tranche. The per-piece figure is derived on every read, never stored. Null
-  // on a KEPT row, which has no sale and so no price. See V46.
+  // on a KEPT row alone, which realized nothing. See V50.
   amount: number | null;
-  // SOLD or KEPT. Read rather than inferred from a missing amount, the same way holder.kind is.
+  // Read rather than inferred, the same way holder.kind is: with three kinds and two of them
+  // carrying money, the amount can no longer say which this is.
   disposition: VestigeDisposition;
   soldAt: string;
 };
 
 /**
- * What happened to the pieces.
+ * What happened to the pieces. All three take them out of the sellable pile.
  *
- * KEPT is redeemed rather than sold, and comes out of the pile every price is derived from. Not the
- * same as a sale for nothing: that prices the pieces at zero and makes the creditor absorb half of
- * it, which is what #281 was.
+ * KEPT is redeemed rather than sold, and never more than the holder's own share. Not the same as a
+ * sale for nothing: that prices the pieces at zero and makes the creditor absorb half of it, which
+ * is what #281 was.
+ *
+ * BOUGHT is the creditor's pieces taken by the holder at an agreed price, paid to that creditor in
+ * full rather than divided pro rata: these never went to market, so there is no pile to divide. It
+ * is what lets KEPT be bounded at all. See V50.
  */
-export type VestigeDisposition = "SOLD" | "KEPT";
+export type VestigeDisposition = "SOLD" | "KEPT" | "BOUGHT";
 
 // POST /api/vestige-tranches. Answers with the whole tally, not the row added.
 export type AddVestigeTrancheBody = {
   holder: Holder;
   pieces: number;
-  // Absent on a KEPT row. The server refuses the two disagreeing, matching the check in V46.
+  // Absent on a KEPT row and required on the other two. The server refuses the two disagreeing,
+  // matching the check in V50.
   amount?: number;
   disposition: VestigeDisposition;
 };

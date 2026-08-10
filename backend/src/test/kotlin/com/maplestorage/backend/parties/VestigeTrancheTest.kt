@@ -207,6 +207,17 @@ class VestigeTrancheTest {
     }
 
     @Test
+    fun `a purchase of the creditor's pieces carries money, like a sale and unlike a redemption`() {
+        val self = VestigeHolder(kind = "SELF")
+
+        // V50. The third kind: pieces the holder was not entitled to, at a price somebody agreed
+        // rather than at whatever average the holder's own sales happened to reach.
+        assertNull(trancheRefusal(self, 10, 150_000_000, "BOUGHT"))
+        assertTrue(trancheRefusal(self, 10, null, "BOUGHT")!!.contains("amount"))
+        assertTrue(trancheRefusal(self, 10, 0, "BOUGHT")!!.contains("above zero"))
+    }
+
+    @Test
     fun `a redemption round-trips with no price, beside the sales it is not one of`() {
         transaction {
             ensureUser(userId, "$userId@example.com")

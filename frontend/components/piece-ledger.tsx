@@ -36,6 +36,7 @@ export function PieceLedger({
   busy,
   onAddSale,
   onAddKept,
+  onAddBought,
   onRemoveSale,
 }: {
   ledgers: HolderLedger[];
@@ -48,6 +49,7 @@ export function PieceLedger({
   busy: boolean;
   onAddSale: (holder: Holder, pieces: number, amount: number) => Promise<void>;
   onAddKept: (holder: Holder, pieces: number) => Promise<void>;
+  onAddBought: (holder: Holder, pieces: number, amount: number) => Promise<void>;
   onRemoveSale: (trancheId: string) => Promise<void>;
 }) {
   if (ledgers.length === 0) return null;
@@ -64,6 +66,7 @@ export function PieceLedger({
           busy={busy}
           onAddSale={onAddSale}
           onAddKept={onAddKept}
+          onAddBought={onAddBought}
           onRemoveSale={onRemoveSale}
         />
       ))}
@@ -80,6 +83,7 @@ function HolderCard({
   busy,
   onAddSale,
   onAddKept,
+  onAddBought,
   onRemoveSale,
 }: {
   ledger: HolderLedger;
@@ -90,11 +94,14 @@ function HolderCard({
   busy: boolean;
   onAddSale: (holder: Holder, pieces: number, amount: number) => Promise<void>;
   onAddKept: (holder: Holder, pieces: number) => Promise<void>;
+  onAddBought: (holder: Holder, pieces: number, amount: number) => Promise<void>;
   onRemoveSale: (trancheId: string) => Promise<void>;
 }) {
   const [pieces, setPieces] = useState("");
   const [amount, setAmount] = useState("");
   const [keeping, setKeeping] = useState("");
+  const [buying, setBuying] = useState("");
+  const [buyingFor, setBuyingFor] = useState("");
   const [refusal, setRefusal] = useState<string | null>(null);
 
   // The pile's own progress, which belongs beside the boxes that take its numbers rather than in
@@ -116,12 +123,45 @@ function HolderCard({
       ? { pieces: count, amount: total }
       : null;
 
+  /**
+   * Redemptions stop at the holder's OWN share, purchases at what is left of yours.
+   *
+   * Two boxes because the pieces past their share are not theirs to redeem, and pricing them at the
+   * average their own sales reached was a guess that got wilder the less pile was left. Bounding the
+   * redemption is only safe because the purchase box exists to take what it turns away: clamping with
+   * nowhere for the surplus to go would record 195 of a 250 that really happened and leave 55 of your
+   * pieces waiting on a sale that is not coming. See V50.
+   *
+   * Rows already entered count against both, so three of them cannot walk past what one cannot.
+   */
+  const keptRoom = Math.max(0, ledger.ownShare - ledger.kept);
+  const boughtRoom = Math.max(0, ledger.pieces - ledger.ownShare - ledger.bought.pieces);
+
+  /** Caps as it is typed, so a number over the room never reaches the button. */
+  const clamp = (typed: string, room: number) => {
+    const n = Number(typed.trim());
+    return typed.trim() === "" || !Number.isInteger(n) || n <= room ? typed : String(room);
+  };
+
   const keptCount = Number(keeping.trim());
   const kept =
-    Number.isInteger(keptCount) && keptCount >= 1 && keptCount <= MAX_PIECES ? keptCount : null;
+    Number.isInteger(keptCount) && keptCount >= 1 && keptCount <= Math.min(MAX_PIECES, keptRoom)
+      ? keptCount
+      : null;
+
+  const buyCount = Number(buying.trim());
+  const buyTotal = parseMesos(buyingFor);
+  const bought =
+    Number.isInteger(buyCount) &&
+    buyCount >= 1 &&
+    buyCount <= Math.min(MAX_PIECES, boughtRoom) &&
+    buyTotal !== null &&
+    buyTotal >= 1
+      ? { pieces: buyCount, amount: buyTotal }
+      : null;
 
   /** Keeps what was typed when the server refuses it, so a rejected sale can be corrected. */
-  async function write(action: Promise<void>, clear: "sale" | "kept" | null) {
+  async function write(action: Promise<void>, clear: "sale" | "kept" | "bought" | null) {
     setRefusal(null);
     try {
       await action;
@@ -130,6 +170,10 @@ function HolderCard({
         setAmount("");
       }
       if (clear === "kept") setKeeping("");
+      if (clear === "bought") {
+        setBuying("");
+        setBuyingFor("");
+      }
     } catch (e) {
       setRefusal(e instanceof Error ? e.message : "That didn't save.");
     }
@@ -212,10 +256,10 @@ function HolderCard({
             <input
               className="split-input loot-count-input"
               value={keeping}
-              onChange={(e) => setKeeping(e.target.value)}
+              onChange={(e) => setKeeping(clamp(e.target.value, keptRoom))}
               placeholder="pieces"
               inputMode="numeric"
-              aria-label={`Pieces ${ledger.holderName} is keeping`}
+              aria-label={`Pieces ${ledger.holderName} is keeping, at most ${keptRoom}`}
             />
           </label>
           <button type="submit" className="party-save" disabled={busy || kept === null}>
@@ -223,12 +267,53 @@ function HolderCard({
           </button>
         </form>
 
+        {/* Pieces of YOURS they took. An amount, because the alternative is pricing them at whatever
+            their own sales happened to reach, and off the pile, because they never went to market.
+            Only on somebody else's card: you cannot buy from yourself. See V50. */}
+        {ledger.holder.kind !== "SELF" && boughtRoom + ledger.bought.pieces > 0 && (
+          <form
+            className="ledger-sale"
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (bought)
+                void write(onAddBought(ledger.holder, bought.pieces, bought.amount), "bought");
+            }}
+          >
+            <label className="loot-share-input">
+              took mine
+              <input
+                className="split-input loot-count-input"
+                value={buying}
+                onChange={(e) => setBuying(clamp(e.target.value, boughtRoom))}
+                placeholder="pieces"
+                inputMode="numeric"
+                aria-label={`Pieces of yours ${ledger.holderName} took, at most ${boughtRoom}`}
+              />
+            </label>
+            <label className="loot-share-input">
+              for
+              <input
+                className="split-input"
+                value={buyingFor}
+                onChange={(e) => setBuyingFor(e.target.value)}
+                placeholder="total"
+                inputMode="decimal"
+                aria-label={`What ${ledger.holderName} pays you for them`}
+              />
+            </label>
+            <button type="submit" className="party-save" disabled={busy || bought === null}>
+              Add
+            </button>
+          </form>
+        )}
+
         <span className="ledger-tranches">
           {/* The PILE's frame, beside the boxes that take its numbers. */}
           <span>
             {sold} of {sellable} sold
             {ledger.kept > 0 &&
               (over > 0 ? ` · ${ledger.kept} kept, over by ${over}` : ` · ${ledger.kept} kept`)}
+            {ledger.bought.pieces > 0 && ` · ${ledger.bought.pieces} of mine taken`}
           </span>
 
           {/* What has been entered, in the order the queue spends it. Removable because a mistyped
@@ -236,10 +321,14 @@ function HolderCard({
           {tranches.map((tranche) => (
             <span key={tranche.id} className="ledger-tranche">
               {/* A redemption has no price, so it says what it is rather than dividing by a
-                  missing amount. See V46. */}
+                  missing amount. See V46. A purchase has one and is still not a sale, so it says
+                  which it is: two rows of "60 @ 25m" that settle differently would be one row
+                  repeated. See V50. */}
               {tranche.amount === null
                 ? `${tranche.pieces} kept`
-                : `${tranche.pieces} @ ${shortMesos(tranche.amount / tranche.pieces)}`}
+                : `${tranche.pieces} @ ${shortMesos(tranche.amount / tranche.pieces)}${
+                    tranche.disposition === "BOUGHT" ? " taken" : ""
+                  }`}
               <button
                 type="button"
                 className="link ledger-drop-sale"
@@ -289,6 +378,7 @@ function HolderCard({
                 <span className="loot-share-nets">
                   {drop.covered} of {drop.sellable}
                   {drop.kept > 0 && ` · ${drop.kept} kept`}
+                  {drop.bought && ` · ${drop.bought.pieces} taken`}
                 </span>
               </div>
 
@@ -311,9 +401,11 @@ function HolderCard({
                     ) : (
                       <>
                         <span className="droplog-take">{formatMesos(transfer.send, true)}</span>
+                        {/* No verb: a settled piece is one that sold OR one they took and paid
+                            for, and "sold" was only ever true while the second could not happen. */}
                         <span className="loot-share-nets">
                           {transfer.settled < transfer.pieces
-                            ? `${transfer.settled} of ${transfer.pieces} pieces sold`
+                            ? `${transfer.settled} of ${transfer.pieces} pieces`
                             : `${transfer.pieces} pieces`}
                         </span>
                       </>

@@ -27,7 +27,9 @@ import {
   balances,
   entitlements,
   heldOf,
+  ownShareOf,
   sellableOf,
+  spreadBought,
   spreadKept,
   transfersOf,
 } from "./piece-ledger";
@@ -88,6 +90,15 @@ export type HolderLedger = {
    * rather than clamped away: every drop reads as fully kept and the surplus is nowhere.
    */
   kept: number;
+  /**
+   * Pieces of the pile that are their OWN, which is the most they can redeem.
+   *
+   * What the kept box is bounded by. Pieces of yours they take anyway are a purchase, priced, rather
+   * than a redemption priced off whatever their own sales happened to reach. See V50.
+   */
+  ownShare: number;
+  /** Pieces of yours they bought outright, and what they agreed to pay. See V50. */
+  bought: { pieces: number; paid: number };
   drops: {
     lootId: string;
     partyId: string;
@@ -98,6 +109,8 @@ export type HolderLedger = {
     pieces: number;
     /** Of those, how many are being redeemed. Taken off the newest end of the queue. */
     kept: number;
+    /** Of those, how many they bought off you, and for what. Off the newest end as well. */
+    bought: { pieces: number; paid: number } | null;
     /** Pieces of it actually for sale, which is what `covered` counts towards. */
     sellable: number;
     covered: number;
@@ -514,6 +527,8 @@ export function holderLedgers(
    * V46 and still most of them.
    */
   keptByHolder: Map<string, number> = new Map(),
+  /** Pieces of yours each holder bought outright, and what they agreed to pay. See V50. */
+  boughtByHolder: Map<string, { pieces: number; paid: number }> = new Map(),
 ): HolderLedger[] {
   const byHolder = new Map<string, OutstandingDrop[]>();
   for (const d of drops) {
@@ -531,10 +546,19 @@ export function holderLedgers(
     //
     // One lootId appears at most once per holder, so keying by it inside this pile is safe. Across
     // piles it does not hold, which is why this runs per holder rather than over the whole list.
+    // Redemptions before purchases, because they come off different halves of the pile and the
+    // purchase is capped by what the redemption left sellable. Reversed, a redemption bounded by
+    // their own share could find that share already spent.
+    const bought = boughtByHolder.get(key) ?? { pieces: 0, paid: 0 };
     const spread = new Map(
-      spreadKept(
-        mine.map((d) => d.drop),
-        kept,
+      spreadBought(
+        spreadKept(
+          mine.map((d) => d.drop),
+          kept,
+          key,
+        ),
+        bought.pieces,
+        bought.paid,
         key,
       ).map((d) => [d.id, d]),
     );
@@ -564,6 +588,7 @@ export function holderLedgers(
         // count somebody else's stacks as unsold pieces of theirs.
         pieces: heldOf(pile),
         kept: pile.kept ?? 0,
+        bought: pile.bought ?? null,
         sellable: cover?.sellable ?? sellableOf(pile),
         covered: cover?.covered ?? 0,
         complete: cover?.complete ?? false,
@@ -586,6 +611,8 @@ export function holderLedgers(
       settledToYou: yours.reduce((sum, t) => sum + t.settled, 0),
       dueNow: yours.reduce((sum, t) => sum + (t.send ?? 0), 0),
       kept,
+      ownShare: mine.reduce((sum, d) => sum + ownShareOf(d.drop, key), 0),
+      bought,
       drops,
     });
   }
@@ -593,24 +620,42 @@ export function holderLedgers(
 }
 
 /**
+ * One tranche as these functions read it. `disposition` absent is a row cached from before V50.
+ *
+ * Named because three readers now have to agree on it, and on what an ABSENT disposition means.
+ */
+type TrancheRow = { holder: Holder; pieces: number; amount: number | null; disposition?: string };
+
+/**
+ * Whether a row is a purchase of the creditor's pieces rather than a sale. See V50.
+ *
+ * The one place `disposition` is read, and it is read POSITIVELY: absent can only mean a row cached
+ * from before BOUGHT existed, so it is never one. Testing for SOLD instead would be the cache trap
+ * in `bundlesOf` below, and worse: lib/cache.ts hands back whatever shape the API had when the page
+ * last fetched, and `undefined !== "SOLD"` is TRUE, so a tab open across the deploy would drop every
+ * sale already entered.
+ */
+function isBought(row: TrancheRow): boolean {
+  return row.disposition === "BOUGHT";
+}
+
+/**
  * The sales one holder has entered, keyed the way holderLedgers wants them.
  *
- * Rows with money in them. A KEPT row is pieces redeemed rather than sold, so it has no price to
- * spend on the queue; what those pieces do instead is come out of the sellable pile, which is
- * `keptByHolder` below.
+ * Rows with money in them, minus the purchases. A KEPT row is pieces redeemed rather than sold, so it
+ * has no price to spend on the queue; what those pieces do instead is come out of the sellable pile,
+ * which is `keptByHolder` below. A BOUGHT row has a price and is still not a sale: the money is one
+ * creditor's in full rather than the pile's to divide, so spending it on the queue would hand a slice
+ * of it to everybody else.
  *
- * Filtered on the AMOUNT rather than on `disposition`, which V46 makes equivalent: the check
- * constraint is `(disposition = 'SOLD') = (amount IS NOT NULL)`, so neither can drift from the other.
- * Reading `disposition` here would be the cache trap in `bundlesOf` below, and worse: a tab open
- * across the deploy hands this code rows from before the field existed, and `undefined !== "SOLD"`
- * is TRUE, so every sale already entered would be silently dropped as a redemption.
+ * The AMOUNT is what separates a sale from a redemption, which V50 keeps equivalent by check
+ * constraint. Only the purchase needs the disposition, and `isBought` says why that direction is the
+ * safe one to test.
  */
-export function salesByHolder(
-  rows: { holder: Holder; pieces: number; amount: number | null }[],
-): Map<string, PieceSale[]> {
+export function salesByHolder(rows: TrancheRow[]): Map<string, PieceSale[]> {
   const out = new Map<string, PieceSale[]>();
   for (const row of rows) {
-    if (row.amount === null) continue;
+    if (row.amount === null || isBought(row)) continue;
     // The tally stores a TOTAL, because that is what a partner reports ("1.2b for the 60"). The
     // per-piece figure the split needs is derived, never typed.
     const sale: PieceSale = { pieces: row.pieces, priceEach: row.amount / row.pieces };
@@ -632,14 +677,33 @@ export function salesByHolder(
  * amount and the disposition equivalent by check constraint, and reading `disposition` would read
  * `undefined` on a response cached from before the field existed.
  */
-export function keptByHolder(
-  rows: { holder: Holder; pieces: number; amount: number | null }[],
-): Map<string, number> {
+export function keptByHolder(rows: TrancheRow[]): Map<string, number> {
   const out = new Map<string, number>();
   for (const row of rows) {
     if (row.amount !== null) continue;
     const key = holderKey(row.holder);
     out.set(key, (out.get(key) ?? 0) + row.pieces);
+  }
+  return out;
+}
+
+/**
+ * Pieces of the creditor's that each holder bought, and what they paid for them. See V50.
+ *
+ * One count and one total per holder, so several purchases at different prices blend. Which boss each
+ * bought piece came off is decided on read by `spreadBought`, for the same reason a sale names none:
+ * a coupon in an inventory carries no record of the clear it fell on.
+ */
+export function boughtByHolder(rows: TrancheRow[]): Map<string, { pieces: number; paid: number }> {
+  const out = new Map<string, { pieces: number; paid: number }>();
+  for (const row of rows) {
+    if (!isBought(row) || row.amount === null) continue;
+    const key = holderKey(row.holder);
+    const seen = out.get(key);
+    if (seen) {
+      seen.pieces += row.pieces;
+      seen.paid += row.amount;
+    } else out.set(key, { pieces: row.pieces, paid: row.amount });
   }
   return out;
 }

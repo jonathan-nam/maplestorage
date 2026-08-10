@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   type Holder,
+  boughtByHolder,
   holderKey,
   holderLedgers,
   holderOf,
@@ -680,12 +681,15 @@ describe("a holder redeeming their share rather than selling it", () => {
     pools: [pool("pa", [coupon("l1", "limbo", 390, "2026-08-03")])],
   });
 
-  const ledgerFor = (tranches: { holder: Holder; pieces: number; amount: number | null }[]) => {
+  const ledgerFor = (
+    tranches: { holder: Holder; pieces: number; amount: number | null; disposition?: string }[],
+  ) => {
     const { parties, pools } = night();
     return holderLedgers(
       outstanding(parties, pools, VESTIGE, ORDER),
       salesByHolder(tranches),
       keptByHolder(tranches),
+      boughtByHolder(tranches),
     )[0]!;
   };
 
@@ -792,12 +796,15 @@ describe("a holder redeeming their share rather than selling it", () => {
       ],
     });
 
-    const weekFor = (tranches: { holder: Holder; pieces: number; amount: number | null }[]) => {
+    const weekFor = (
+      tranches: { holder: Holder; pieces: number; amount: number | null; disposition?: string }[],
+    ) => {
       const { parties, pools } = week();
       return holderLedgers(
         outstanding(parties, pools, VESTIGE, ORDER),
         salesByHolder(tranches),
         keptByHolder(tranches),
+        boughtByHolder(tranches),
       )[0]!;
     };
 
@@ -843,7 +850,9 @@ describe("a holder redeeming their share rather than selling it", () => {
       seat("m2", "BroChar", { person: ["p-bro", "Bro"] }),
     ];
 
-    const oneNight = (tranches: { holder: Holder; pieces: number; amount: number | null }[]) =>
+    const oneNight = (
+      tranches: { holder: Holder; pieces: number; amount: number | null; disposition?: string }[],
+    ) =>
       holderLedgers(
         outstanding(
           [party("pa", "limbo", lopsided(), "m2")],
@@ -853,6 +862,7 @@ describe("a holder redeeming their share rather than selling it", () => {
         ),
         salesByHolder(tranches),
         keptByHolder(tranches),
+        boughtByHolder(tranches),
       )[0]!;
 
     it("owes me two thirds, and keeping his own third leaves all of mine sellable", () => {
@@ -882,6 +892,51 @@ describe("a holder redeeming their share rather than selling it", () => {
       expect(limbo.sellable).toBe(30);
       expect(limbo.transfers.map((t) => [t.to, t.pieces, t.send])).toEqual([["you", 40, 800 * M]]);
       expect([ledger.owedToYou, ledger.settledToYou]).toEqual([40, 40]);
+    });
+
+    it("prices the pieces he took at what he agreed, not at his own average", () => {
+      // V50. He keeps his own 20, and takes 10 of mine at 15m rather than the 20m his sale reached.
+      // Folded into KEPT, those 10 were priced at his 20m: a figure nobody agreed to.
+      const ledger = oneNight([
+        { holder: BRO, pieces: 20, amount: null, disposition: "KEPT" },
+        { holder: BRO, pieces: 10, amount: 150 * M, disposition: "BOUGHT" },
+        { holder: BRO, pieces: 30, amount: 600 * M, disposition: "SOLD" },
+      ]);
+      const limbo = ledger.drops[0]!;
+
+      // 60 held, 20 his and redeemed, 10 of mine taken, so 30 left to sell and all 30 are mine.
+      expect(limbo.sellable).toBe(30);
+      expect(limbo.bought).toEqual({ pieces: 10, paid: 150 * M });
+      expect(limbo.complete).toBe(true);
+      // The 30 sold are mine in full, plus the 10 at the price he agreed.
+      expect(limbo.transfers.map((t) => [t.pieces, t.settled, t.send])).toEqual([
+        [40, 40, 750 * M],
+      ]);
+      expect([ledger.owedToYou, ledger.settledToYou]).toEqual([40, 40]);
+      expect(ledger.dueNow).toBe(750 * M);
+      expect(unsold(ledger)).toBe(0);
+    });
+
+    it("keeps a purchase out of the sale queue, so it is not divided pro rata", () => {
+      // A BOUGHT row carries money and is still not a sale. Spent on the queue it would price other
+      // bosses, and in a party of three it would hand slices of one creditor's money to the others.
+      const rows = [
+        { holder: BRO, pieces: 10, amount: 150 * M, disposition: "BOUGHT" as const },
+        { holder: BRO, pieces: 30, amount: 600 * M, disposition: "SOLD" as const },
+      ];
+      expect(salesByHolder(rows).get(holderKey(BRO))).toHaveLength(1);
+      expect(boughtByHolder(rows).get(holderKey(BRO))).toEqual({ pieces: 10, paid: 150 * M });
+      // Not a redemption either, which reads the amount rather than the disposition.
+      expect(keptByHolder(rows).get(holderKey(BRO))).toBeUndefined();
+    });
+
+    it("reads a row cached from before BOUGHT existed as the sale it is", () => {
+      // lib/cache.ts hands back whatever shape the API had when the page last fetched, so a tab open
+      // across the deploy gets rows with no disposition at all. Absent must never read as BOUGHT:
+      // testing for SOLD instead would drop every sale already entered.
+      const stale = [{ holder: BRO, pieces: 30, amount: 600 * M }];
+      expect(salesByHolder(stale).get(holderKey(BRO))).toHaveLength(1);
+      expect(boughtByHolder(stale).get(holderKey(BRO))).toBeUndefined();
     });
 
     it("has no price to state at all once he has redeemed every piece", () => {

@@ -50,6 +50,18 @@ private const val SOLD = "SOLD"
 private const val KEPT = "KEPT"
 
 /**
+ * The creditor's pieces, taken by the holder at an agreed price. See V50.
+ *
+ * Carries money like a sale and leaves the pile like a redemption. What it is NOT is a sale: the
+ * proceeds are one creditor's in full rather than the pile's to divide pro rata, because these
+ * pieces never went to market.
+ */
+private const val BOUGHT = "BOUGHT"
+
+/** Every disposition that names a price. Only a redemption realized nothing. */
+private val PRICED = setOf(SOLD, BOUGHT)
+
+/**
  * Whose pile a tranche is, as the three kinds V39 stores.
  *
  * Carried on the way out as well as in, so a client never has to infer the kind from which field is
@@ -189,11 +201,12 @@ internal fun trancheRefusal(
     when {
         holder.kind !in setOf(PERSON, SELF, CHARACTER) ->
             "holder.kind must be one of $PERSON, $SELF, $CHARACTER"
-        disposition !in setOf(SOLD, KEPT) -> "disposition must be one of $SOLD, $KEPT"
-        // Matching the constraint in V46. A KEPT row carrying money would price the very pieces it
-        // exists to say were never priced, and a SOLD row without it prices them at nothing.
-        (disposition == SOLD) != (amount != null) ->
-            "a $SOLD tranche needs an amount, and a $KEPT one has none"
+        disposition !in setOf(SOLD, KEPT, BOUGHT) ->
+            "disposition must be one of $SOLD, $KEPT, $BOUGHT"
+        // Matching the constraint in V50. A KEPT row carrying money would price the very pieces it
+        // exists to say were never priced, and a priced row without it prices them at nothing.
+        (disposition in PRICED) != (amount != null) ->
+            "a $SOLD or $BOUGHT tranche needs an amount, and a $KEPT one has none"
         // The kind and the reference cannot disagree, matching the constraints in V39: a PERSON pile
         // with no person is a pile belonging to nobody.
         (holder.kind == PERSON) != (holder.personId != null) ->
