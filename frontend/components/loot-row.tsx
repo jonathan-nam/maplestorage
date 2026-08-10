@@ -21,6 +21,7 @@ export function LootRow({
   boss,
   status,
   yours,
+  pieces,
   busy,
   onSell,
   onUnsell,
@@ -48,6 +49,15 @@ export function LootRow({
    * x90, deliberately, so each screen has to say which number it is showing.
    */
   yours?: number | null;
+  /**
+   * This drop is a stack of pieces, which does NOT sell through its own row. See isPieceDrop.
+   *
+   * It settles in tranches on the Drop Log, by COUNT. Selling it here would divide it as one pot of
+   * MONEY while the piece ledger was still counting the same drop in coupons: two settlements for one
+   * drop, which is the whole thing the ledger exists to prevent. The row was offering exactly that,
+   * because it gates the sale on PENDING and a piece drop is PENDING for ever.
+   */
+  pieces?: boolean;
   busy: boolean;
   onSell: (body: SellLootBody) => void;
   onUnsell: () => void;
@@ -130,6 +140,16 @@ export function LootRow({
           product: the item cannot move again, so which seat ends up with it is the only lever the
           party has, and one button per seat is the shortest way to pull it. Not offered on a solo
           pool, which has nobody to take turns with. */}
+      {/* A piece row has no sale, so Remove is all it has: the pieces are priced on the Drop Log and
+          everything else here would act on a pot that does not exist. */}
+      {loot.status === "PENDING" && canSell && pieces && (
+        <div className="loot-actions">
+          <button type="button" className="party-delete" onClick={onDelete} disabled={busy}>
+            Remove
+          </button>
+        </div>
+      )}
+
       {loot.status === "PENDING" && !canSell && (
         <div className="loot-actions">
           {!party.solo &&
@@ -174,6 +194,7 @@ export function LootRow({
 
       {loot.status === "PENDING" &&
         canSell &&
+        !pieces &&
         (selling ? (
           <form
             className="loot-sale-form"

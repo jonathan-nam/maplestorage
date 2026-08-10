@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 import { DropPicker } from "@/components/drop-picker";
 import { LootRow } from "@/components/loot-row";
 import { isPieceDrop } from "@/lib/drop-log";
@@ -109,6 +111,7 @@ export function LootPool({
         party={party}
         bossByKey={bossByKey}
         statusOf={pieceStatus}
+        pieces
         isSaving={isSaving}
         onSell={onSell}
         onUnsell={onUnsell}
@@ -132,6 +135,7 @@ function LootGroup({
   party,
   bossByKey,
   statusOf,
+  pieces,
   isSaving,
   onSell,
   onUnsell,
@@ -146,6 +150,8 @@ function LootGroup({
   bossByKey: Map<string, Boss>;
   /** What a coupon row says it is, and how much of it is yours. Absent for the sellable group. */
   statusOf?: Map<string, { status: string; yours: number }>;
+  /** These rows are stacks of pieces, which do not sell here. See LootRow's `pieces`. */
+  pieces?: boolean;
   isSaving: (lootId: string) => boolean;
   onSell: (lootId: string, body: SellLootBody) => void;
   onUnsell: (lootId: string) => void;
@@ -156,7 +162,13 @@ function LootGroup({
   if (rows.length === 0) return null;
   return (
     <>
-      {title && <h3 className="loot-group-title">{title}</h3>}
+      {title && (
+        <h3 className="loot-group-title">
+          {/* The coupon heading links to where they are priced, rather than a sentence saying so. The
+              row has no sale of its own, and one word already on screen can carry that. */}
+          {pieces ? <Link href="/bosses/drops">{title}</Link> : title}
+        </h3>
+      )}
       <div className="loot-list">
         {rows.map((item) => (
           <LootRow
@@ -166,6 +178,7 @@ function LootGroup({
             boss={item.bossKey ? (bossByKey.get(item.bossKey) ?? null) : null}
             status={statusOf?.get(item.id)?.status ?? null}
             yours={statusOf?.get(item.id)?.yours ?? null}
+            pieces={pieces}
             busy={isSaving(item.id)}
             onSell={(body) => onSell(item.id, body)}
             onUnsell={() => onUnsell(item.id)}
