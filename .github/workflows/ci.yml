@@ -55,6 +55,10 @@ jobs:
             catalog:
               - 'catalog/**'
               - 'backend/src/main/resources/db/migration/R__token_catalog.sql'
+              - 'backend/src/main/resources/db/migration/R__drop_catalog.sql'
+              # The art build.py validates. An icon-only change skipped this job, which is how a
+              # 37x37 drop icon shipped into a 46px box and was stretched 1.24x for months.
+              - 'backend/src/main/resources/seed-assets/**'
 
   backend:
     needs: changes

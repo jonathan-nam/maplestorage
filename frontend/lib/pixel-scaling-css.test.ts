@@ -13,6 +13,8 @@ const css = readFileSync(join(__dirname, "..", "app", "globals.css"), "utf8");
 // one is checked by a test that reads the asset rather than trusting this table:
 //   - vision/tests/test_boss_portraits.py pins the two boss sizes.
 //   - catalog/build.py pins the 46px icon canvas (ICON_CANVAS) and refuses art that misses it.
+//     It only started reading the assets' real dimensions once a 37x37 drop icon had been sitting
+//     in a 46px box; before that it checked the file existed and nothing more.
 //   - 96 is what the Nexon avatar endpoint returns; see .tile-sprite's comment.
 const NATURAL = {
   ".ms-slot > img": 46, // item icon canvas

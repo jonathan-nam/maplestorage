@@ -33,6 +33,7 @@ import argparse
 import json
 import re
 import pathlib
+import struct
 import sys
 
 import yaml
@@ -122,6 +123,33 @@ ICON_URL = "https://maplestory.io/api/GMS/{version}/item/{icon_id}/icon"
 # filter; the frontend paints the result 1:1.
 ICON_CANVAS = 46
 ICON_CONTENT = 32
+
+
+def png_size(path: pathlib.Path) -> tuple[int, int]:
+    """Width and height from the IHDR. Stdlib only: the plain build must not need Pillow."""
+    head = path.read_bytes()[:24]
+    if not head.startswith(b"\x89PNG\r\n\x1a\n"):
+        raise ValueError(f"{path} is not a PNG")
+    return struct.unpack(">II", head[16:24])
+
+
+def canvas_problem(icon: pathlib.Path) -> str | None:
+    """Art off the shared canvas, which the frontend draws 1:1 and so cannot correct.
+
+    `vestige-of-erion.png` shipped at 37x37 for months. The CSS box is 46, so the browser stretched
+    it 1.243x, and it read 1.44x larger than the icons beside it. Nothing caught it: the checks
+    below only asked whether the file existed.
+    """
+    if not icon.exists():
+        return None  # a missing file is already reported by the caller
+    w, h = png_size(icon)
+    if (w, h) != (ICON_CANVAS, ICON_CANVAS):
+        return (
+            f"{icon.relative_to(ROOT)} is {w}x{h}, not {ICON_CANVAS}x{ICON_CANVAS} "
+            f"(centre it on the canvas; see catalog/build.py ICON_CANVAS)"
+        )
+    return None
+
 
 KEY_CHARS = set("abcdefghijklmnopqrstuvwxyz0123456789-")
 
@@ -498,6 +526,8 @@ def check_art(items: list[dict]) -> list[str]:
             problems.append(f"missing vision template: {tpl.relative_to(ROOT)}  (cut one with vision/app/cv/build_icons.py)")
         if not icon.exists():
             problems.append(f"missing icon asset:     {icon.relative_to(ROOT)}")
+        if off := canvas_problem(icon):
+            problems.append(f"off-canvas icon:        {off}")
 
     # And nothing may exist that the manifest does not know about, an orphan template
     # is an item the parser can detect but the app cannot name, which is the same class
@@ -730,6 +760,8 @@ def check_drop_art(drops: list[dict]) -> list[str]:
         if not icon.exists():
             hint = "cut by hand, see catalog/drops.yaml" if d.get("art") == "cut" else "run --fetch-icons"
             problems.append(f"{d['key']}: missing {icon.relative_to(ROOT)} ({hint})")
+        if off := canvas_problem(icon):
+            problems.append(f"{d['key']}: {off}")
     return problems
 
 
@@ -757,6 +789,13 @@ def fetch_drop_icons(drops: list[dict]) -> None:
         got += 1
         print(f"  {d['key']:36} <- {icon_id} (v{version})")
     print(f"fetched {got} drop icons into {DROP_ICONS.relative_to(ROOT)}")
+
+    # No hand-cut pass here, unlike fetch_icons. Do not add one that calls _normalize_icon: the cap
+    # measures the alpha bbox, and a hand-cut sprite may be mostly glow. Vestige of Erion is 37x37
+    # of which the solid core is 33 (a>128), already inside the 26-32 the fetched icons occupy, so
+    # capping its bbox at 32 would shrink the core below the pack AND resample away the crisp
+    # outline. `art: cut` art is sized by a human; check_drop_art refuses it if it misses the
+    # canvas, which is the honest answer rather than a silent rescale.
 
 
 def _refuse_missing_art(problems: list[str]) -> None:
