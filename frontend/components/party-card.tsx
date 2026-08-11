@@ -89,7 +89,15 @@ export function PartyCard({
    * listing every drop under it would answer a different question from the one the badge asked.
    */
   pool?: {
+    /** THIS week's drops. Narrowed by dropsInWeek, which is where the rule lives. */
     loot: Loot[];
+    /**
+     * Drops from before this week, which are counted here and listed on the party's own page.
+     *
+     * Not a detail. The badge counts an unsold drop from any week, so a row can read "1 in the pool"
+     * over a week holding no such drop, and without this the panel would simply be short.
+     */
+    earlier: number;
     dropTables: DropTables;
     bossByKey: Map<string, Boss>;
     /** What a coupon row says it is. See PieceStatus. */
@@ -389,6 +397,14 @@ export function PartyCard({
               onSetPaid={pool.onSetPaid}
               onDelete={pool.onDelete}
             />
+          )}
+          {/* What this week's list does not hold, said rather than left out, and a way to it. The
+              badge above counts an unsold drop from any week, so this is the line that stops the
+              two disagreeing in silence. */}
+          {pool && pool.earlier > 0 && (
+            <Link className="party-loot-earlier" href={`/bosses/parties/${party.id}`}>
+              {pool.earlier} from earlier weeks
+            </Link>
           )}
         </div>
       )}

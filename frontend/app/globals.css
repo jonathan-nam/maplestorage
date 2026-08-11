@@ -4519,6 +4519,14 @@ button.link:disabled {
   margin: 6px 0 0;
 }
 
+/* What this week's list leaves out, and the way to it. Muted and last: it is there so the panel
+   cannot be read as the whole pool, not to ask for anything. */
+.party-loot-earlier {
+  align-self: flex-start;
+  font-size: 12px;
+  color: var(--muted);
+}
+
 /* The roster, and the way into changing it. Baseline-aligned to the sprites' names rather than
    centred on the tiles, which would float the button in the middle of a 56px sprite. */
 .party-row-roster {
