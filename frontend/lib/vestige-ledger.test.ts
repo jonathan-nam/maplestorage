@@ -1186,14 +1186,19 @@ describe("closing the books, which no arithmetic is entitled to do", () => {
     ],
   });
 
-  const ledgerFor = (settlements: { holder: Holder; lootIds: string[]; unpaid: number }[]) => {
+  /** The card for whichever of the two nights have been logged, with whatever has been closed. */
+  const ledgerOf = (
+    logged: string[],
+    settlements: { holder: Holder; lootIds: string[]; unpaid: number }[],
+  ) => {
     const { parties, pools } = week();
     const rows = [
       { holder: BRO, pieces: 150, amount: 3_750 * M, disposition: "SOLD" },
       { holder: BRO, pieces: 150, amount: null, disposition: "KEPT" },
     ];
+    const only = pools.map((p) => ({ ...p, loot: p.loot.filter((l) => logged.includes(l.id)) }));
     return holderLedgers(
-      outstanding(parties, pools, VESTIGE, ORDER),
+      outstanding(parties, only, VESTIGE, ORDER),
       salesByHolder(rows),
       keptByHolder(rows),
       boughtByHolder(rows),
@@ -1201,6 +1206,9 @@ describe("closing the books, which no arithmetic is entitled to do", () => {
       closedByHolder(settlements),
     )[0]!;
   };
+
+  const ledgerFor = (settlements: { holder: Holder; lootIds: string[]; unpaid: number }[]) =>
+    ledgerOf(["l1", "l2"], settlements);
 
   it("leaves a pile that balanced almost-but-not-quite open, since only a person can close it", () => {
     const open = ledgerFor([]);
@@ -1228,14 +1236,40 @@ describe("closing the books, which no arithmetic is entitled to do", () => {
     ]);
   });
 
-  it("keeps closed drops in the pile, so what is left is not re-priced", () => {
-    // Closing is a display decision, not an arithmetic one. Dropping the closed rows from the ledger
-    // would hand their tranches to the bosses behind them and move a figure already paid.
-    const before = ledgerFor([]);
-    const after = ledgerFor([{ holder: BRO, lootIds: ["l1"], unpaid: 0 }]);
-    expect(after.pieces).toBe(before.pieces);
-    expect(after.dueNow).toBe(before.dueNow);
-    expect(after.drops.map((d) => d.sellable)).toEqual(before.drops.map((d) => d.sellable));
+  it("freezes a closed drop at what it was worth the day it was closed", () => {
+    // The failure this exists for. A drop logged later takes redemption off the newest end of the
+    // queue, which changes what the drops behind it have left to sell. On a real account that
+    // rewrote two already-paid debts, of 747m and 1.49b, to zero, and said nothing.
+    const l1Of = (l: ReturnType<typeof ledgerOf>) => l.drops.find((d) => d.lootId === "l1")!;
+    // What the card said when l1 was the whole pile, which is the state it was settled in.
+    const settled = l1Of(ledgerOf(["l1"], []));
+    // The same drop once next week's l2 has been logged.
+    const later = l1Of(ledgerOf(["l1", "l2"], [{ holder: BRO, lootIds: ["l1"], unpaid: 0 }]));
+    expect(later.kept).toBe(settled.kept);
+    expect(later.sellable).toBe(settled.sellable);
+    expect(later.covered).toBe(settled.covered);
+    expect(later.transfers.map((t) => t.send)).toEqual(settled.transfers.map((t) => t.send));
+  });
+
+  it("counts only what is still open, so a paid debt is not asked for a second time", () => {
+    const half = ledgerFor([{ holder: BRO, lootIds: ["l1"], unpaid: 0 }]);
+    // l2 alone: Bro looted all 120 and half of them are Husky's.
+    expect(half.pieces).toBe(120);
+    expect(half.owedToYou).toBe(60);
+    // l1 keeps its row, because that is where a mistyped tranche of it is still corrected.
+    expect(half.drops.map((d) => [d.lootId, d.closed])).toEqual([
+      ["l1", true],
+      ["l2", false],
+    ]);
+  });
+
+  it("spends what arrived on the drops it closed before the ones still open", () => {
+    // Otherwise a holder who has paid billions over months reads as having already paid the debt
+    // that turned up this morning, because the receipts are one running total and nothing spends it.
+    const owedOnClosed = ledgerOf(["l1"], []).dueNow;
+    const half = ledgerFor([{ holder: BRO, lootIds: ["l1"], unpaid: 0 }]);
+    expect(half.received).toBe(Math.max(0, 3_700 * M - owedOnClosed));
+    expect(half.settled).toBe(false);
   });
 
   it("is keyed per holder and drop, so one person's closure is not another's", () => {
