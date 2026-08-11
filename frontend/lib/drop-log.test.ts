@@ -606,6 +606,17 @@ describe("a piece drop counts YOUR share, not what fell", () => {
     expect(consolidate(log.entries, ORDER)[0]!.fell).toBe(60);
   });
 
+  it("divides it by the week it fell in, not by the week the page asked for", () => {
+    // The log reads a pool spanning months against ONE roster, and `members` is whichever week the
+    // page asked for. Husky ran Limbo as a trio in July and as a duo this week: read against the
+    // duo, July's row claims 30 of the 60 for a character who got 20. See ranSeats.
+    const all = [mine("m1", "Huskyxkenshi"), theirs("m2", "CreedBratton"), theirs("m3", "Free")];
+    const nowADuo = trio({ members: [all[0]!, all[1]!], seats: all });
+    const july = coupons({ droppedOn: "2026-07-20", ranThatWeek: ["m1", "m2", "m3"] });
+
+    expect(buildDropLog([nowADuo], [pool("pa", [july])], tables).entries[0]!.yours).toBe(20);
+  });
+
   it("adds up to the runs it folds, which is what a fold means", () => {
     // The one that got past the first cut: the line summed your share while the runs behind the
     // chevron were drawn from what fell, so opening a fold of 40 showed two runs of 60.

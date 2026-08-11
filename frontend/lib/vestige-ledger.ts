@@ -246,9 +246,26 @@ export function dividesEvenly(bundles: number, holders: FoldedSeat[]): boolean {
   return holders.every((h) => (bundles * h.shares) % weight === 0);
 }
 
-/** The seats that ran, folded to the people behind them. Empty when there is nothing to divide. */
-function holdersOf(party: Party): FoldedSeat[] {
-  const ran = party.members;
+/**
+ * The seats that ran the week THIS drop fell in.
+ *
+ * A pool spans months and `party.members` is one week's answer, whichever week the page happened to
+ * ask for. So measuring an August drop against September's roster owes a share to somebody who was
+ * not there, which is the wrong number this file exists to avoid. The loot row carries
+ * `ranThatWeek` for exactly this, and loot-row.tsx and lot-sale.ts have read it all along.
+ *
+ * Falls back to `party.members` when the week names nobody. That is a party whose every seat has
+ * been retired, where the drop's week has no answer at all and the page's week is the only one
+ * there is. Reading it as an empty roster instead would say none of the drop is yours.
+ */
+export function ranSeats(loot: Loot, party: Party): PartyMember[] {
+  const ran = party.seats.filter((seat) => loot.ranThatWeek.includes(seat.id));
+  return ran.length > 0 ? ran : party.members;
+}
+
+/** Those seats folded to the people behind them. Empty when there is nothing to divide. */
+function holdersOf(loot: Loot, party: Party): FoldedSeat[] {
+  const ran = ranSeats(loot, party);
   if (ran.length < 2) return [];
   return foldSeats(ran);
 }
@@ -342,6 +359,14 @@ export type UnansweredDrop = {
   /** How many whole stacks it fell in. */
   bundles: number;
   /**
+   * The seats that ran that week, which is who a stack may be handed to.
+   *
+   * Carried rather than read off the party by the card: the party's roster is the week the page
+   * asked for, so a guest who ran the night this drop fell would not be offered a stack they are
+   * holding.
+   */
+  seats: PartyMember[];
+  /**
    * Pieces that cannot be where they belong, whoever picked up what.
    *
    * Known exactly even though the direction is not: the arrangement closest to even is forced, so
@@ -370,13 +395,15 @@ export function unanswered(
   for (const pool of pools) {
     const party = partyById.get(pool.partyId);
     if (!party) continue;
-    const holders = holdersOf(party);
-    if (holders.length < 2) continue;
-    const weight = holders.reduce((sum, h) => sum + h.shares, 0);
 
     for (const loot of pool.loot) {
       const bundles = bundlesOf(loot);
       if (loot.dropKey !== dropKey || loot.quantity < 1 || bundles === null) continue;
+      // Per drop, not per pool: a party that ran as a trio in July and a duo in August divides its
+      // two nights differently, and one roster for the pool would answer for the wrong one.
+      const holders = holdersOf(loot, party);
+      if (holders.length < 2) continue;
+      const weight = holders.reduce((sum, h) => sum + h.shares, 0);
       if (heldByHolder(loot, party, holders) !== null) continue;
 
       // What the closest-to-even arrangement still leaves misplaced. Halved because every piece
@@ -394,6 +421,7 @@ export function unanswered(
         weekStart: loot.weekStart,
         quantity: loot.quantity,
         bundles,
+        seats: ranSeats(loot, party),
         imbalance: Math.round(drift / 2),
       });
     }
@@ -502,15 +530,14 @@ export function outstanding(
     const party = partyById.get(pool.partyId);
     if (!party) continue;
 
-    // Who ran that week is who the shares are measured against, the same list a payout uses. Seats
-    // folded to holders: two characters of one person are one share of the drop and one party to
-    // the debt, so a night that folds to a single holder is nobody owing anybody.
-    const holders = holdersOf(party);
-    if (holders.length < 2) continue;
-    const byKey = new Map(holders.map((h) => [h.key, h]));
-
     for (const loot of pool.loot) {
       if (loot.dropKey !== dropKey || loot.quantity < 1) continue;
+      // Who ran THAT WEEK is who the shares are measured against, the same list a payout uses. Seats
+      // folded to holders: two characters of one person are one share of the drop and one party to
+      // the debt, so a night that folds to a single holder is nobody owing anybody.
+      const holders = holdersOf(loot, party);
+      if (holders.length < 2) continue;
+      const byKey = new Map(holders.map((h) => [h.key, h]));
       const held = heldByHolder(loot, party, holders);
       if (held === null) continue;
 

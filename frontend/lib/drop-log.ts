@@ -18,7 +18,7 @@
 
 import { formatWeekStart } from "./boss-clears";
 import { splitOf, statusLabel } from "./loot";
-import { closureKey, holderKey, holderOf, yourShare } from "./vestige-ledger";
+import { closureKey, holderKey, holderOf, ranSeats, yourShare } from "./vestige-ledger";
 import type { DropTables } from "@/types/drop";
 import type { Loot, PartyLootPool } from "@/types/loot";
 import type { Party, PartyMember } from "@/types/party";
@@ -247,7 +247,8 @@ export function buildDropLog(
         iconUrl: loot.iconUrl,
         quantity: loot.quantity,
         pieces,
-        yours: pieces ? yourShare(loot.quantity, party.members) : loot.quantity,
+        // Against the week the drop FELL in, not the week the page asked for. See ranSeats.
+        yours: pieces ? yourShare(loot.quantity, ranSeats(loot, party)) : loot.quantity,
         // Named only when somebody ELSE is holding it. Your own seat looting the lot is not a debt
         // to you, it is you having it already.
         owedBy:

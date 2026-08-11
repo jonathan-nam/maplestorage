@@ -95,7 +95,9 @@ function DropArrangement({
   busy: boolean;
   onSave: (partyId: string, lootId: string, bundles: Record<string, number>) => Promise<void>;
 }) {
-  const seats = party.members;
+  // The week's own roster, off the drop. The party's would be the week the page asked for, which
+  // cannot offer a stack to the guest who ran the night this fell on. See ranSeats.
+  const seats = drop.seats;
   // One entry per stack, holding the seat that picked it up. Built from the suggestion, so the
   // ordinary case is already right and the chips only have to be touched when it was not.
   const [owners, setOwners] = useState<string[]>(() => {
