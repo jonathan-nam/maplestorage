@@ -4,6 +4,7 @@ import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from
 import { createPortal } from "react-dom";
 import { apiAssetUrl } from "@/lib/api";
 import {
+  PLACEHOLDER,
   dropOptions,
   nextOption,
   panelPlacement,
@@ -45,12 +46,10 @@ export function DropSelect({
   label: string;
 }) {
   const options = dropOptions(drops, worldType);
-  // A value that is not on the list any more (the boss changed under it) reads as the empty row,
-  // which is row 0. The picker's own state is what it is; this only decides what is drawn.
-  const chosenIndex = Math.max(
-    0,
-    options.findIndex((o) => o.value === value),
-  );
+  // -1 for nothing picked, and for a value that is not on the list any more (the boss changed under
+  // it): both are the placeholder, and neither is a row to mark as selected.
+  const chosenIndex = options.findIndex((o) => o.value === value);
+  const chosen = options[chosenIndex] ?? PLACEHOLDER;
 
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(0);
@@ -98,7 +97,8 @@ export function DropSelect({
   }, [open, active, id]);
 
   function show() {
-    setActive(chosenIndex);
+    // On the picked row, or the first one when the placeholder is showing.
+    setActive(Math.max(0, chosenIndex));
     setOpen(true);
   }
 
@@ -135,8 +135,6 @@ export function DropSelect({
       if (option) choose(option);
     }
   }
-
-  const chosen = options[chosenIndex] ?? options[0];
 
   return (
     <>
@@ -192,9 +190,7 @@ export function DropSelect({
                 onMouseEnter={() => setActive(i)}
               >
                 <Icon option={option} />
-                <span className={`drop-select-label${option.value === "" ? " is-empty" : ""}`}>
-                  {option.label}
-                </span>
+                <span className="drop-select-label">{option.label}</span>
               </li>
             ))}
           </ul>,
