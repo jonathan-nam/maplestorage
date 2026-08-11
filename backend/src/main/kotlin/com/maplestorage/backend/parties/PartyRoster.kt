@@ -89,6 +89,26 @@ internal fun weeksSpelledOut(
 }
 
 /**
+ * Why this week cannot be told who ran, or null.
+ *
+ * Lives here rather than with the other validations because it is one claim with the fact it rests
+ * on, which is the next function down.
+ *
+ * A week that has not happened is refused outright: there is nothing to record about it, and the
+ * roster it would pin is the one the party would have reverted to on its own.
+ */
+internal fun validateRosterWeek(
+    partyId: Uuid,
+    week: LocalDate,
+    thisWeek: LocalDate,
+): String? =
+    when {
+        week > thisWeek -> "a week that has not happened yet cannot be answered for"
+        week != thisWeek && payoutsPinnedIn(partyId, week) -> "that week has already been paid out"
+        else -> null
+    }
+
+/**
  * Whether anything this party dropped in [week] has had its payouts pinned.
  *
  * What decides whether a past week's roster may still be said. A payout row was written from the

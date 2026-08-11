@@ -273,6 +273,61 @@ class PartyWeekRosterTest {
         }
     }
 
+    /** A boss this character has never had a party for, with a drop already in its pool. */
+    private fun soloWithADrop(): Triple<Uuid, Uuid, Uuid> {
+        ensureUser(userId, "$userId@example.com")
+        val mine = Uuid.random()
+        val now = Clock.System.now()
+        val owner = userId
+        Characters.insert {
+            it[Characters.id] = mine
+            it[Characters.userId] = owner
+            it[Characters.name] = "Rune"
+            it[Characters.worldType] = WORLD_INTERACTIVE
+            it[createdAt] = now
+            it[updatedAt] = now
+            it[position] = 0
+        }
+        val partyId = createSoloParty(userId, mine, bossIdForKey("limbo")!!, now)
+        val lootId =
+            addLoot(partyId, LootedDrop(dropIdForKey("grindstone-of-faith")!!), bossIdForKey("limbo"), todayUtc(), now)
+        return Triple(partyId, mine, lootId)
+    }
+
+    @Test
+    fun `a night with whoever was around gives the config no standing roster`() {
+        transaction {
+            val (partyId, characterId, lootId) = soloWithADrop()
+            // The pug case: no set party, and this Thursday it was Steve and Bob. Said as a WEEK.
+            openSoloParty(partyId, thisWeek(), Clock.System.now())
+            saveWeekRoster(partyId, characterId, thisWeek(), listOf("Steve", "Bob"), context())
+
+            val party = findParty(partyId, userId)!!
+            assertEquals(listOf("Rune", "Steve", "Bob"), party.members.map { it.name })
+            // Both are guests, so they are seats a payout can point at and nothing more. Written as
+            // the standing roster instead, they would be who every later week ran by default.
+            assertTrue(party.members.filter { it.name != "Rune" }.all { it.guest })
+            // What the ledger divides against, which is the whole point of answering the night: the
+            // drop that was sitting in a pool of one is now a drop three people are owed out of.
+            assertEquals(3, findLoot(lootId, partyId)!!.ranThatWeek.size)
+        }
+    }
+
+    @Test
+    fun `a later week nobody has answered for claims nobody, rather than last week's strangers`() {
+        transaction {
+            val (partyId, characterId, _) = soloWithADrop()
+            openSoloParty(partyId, thisWeek(), Clock.System.now())
+            saveWeekRoster(partyId, characterId, thisWeek(), listOf("Steve", "Bob"), context())
+
+            // Next Thursday, before anybody says anything about it. A standing roster here would
+            // divide 180 coupons three ways and owe a share to two people who were not in the game,
+            // which is a debt invented out of a default.
+            val next = thisWeek().plus(7, DateTimeUnit.DAY)
+            assertEquals(1, rosterFor(partyId, next).size, "your own character and nobody else")
+        }
+    }
+
     @Test
     fun `a past week is still answerable while everything it dropped is in the pool`() {
         transaction {

@@ -214,12 +214,8 @@ private suspend fun RoutingContext.saveWeekRosterRoute(nexonLookupService: Nexon
             // the payload, so a browser a day out cannot file a roster in the neighbouring week.
             val week = asked ?: thisWeek
             val problem =
-                if (week > thisWeek) {
-                    "a week that has not happened yet cannot be answered for"
-                } else if (week != thisWeek && payoutsPinnedIn(partyId, week)) {
-                    "that week has already been paid out"
-                } else {
-                    request.members?.let { members ->
+                validateRosterWeek(partyId, week, thisWeek)
+                    ?: request.members?.let { members ->
                         validateMembers(members)
                             ?: bossIdOfParty(partyId)?.let { boss ->
                                 validateWeekRoster(
@@ -231,13 +227,21 @@ private suspend fun RoutingContext.saveWeekRosterRoute(nexonLookupService: Nexon
                                 )
                             }
                     }
-                }
             when {
                 !ownsParty(partyId, userId) || characterId == null -> null
                 problem != null -> problem
                 else -> {
-                    val context = SeatContext(userId, sprites, Clock.System.now())
-                    saveWeekRoster(partyId, characterId, week, request.members, context)
+                    val now = Clock.System.now()
+                    // A pool opened for a boss run alone has no seats to name, so saying somebody
+                    // ran that week is also saying it is not a solo config. Done here rather than
+                    // by a POST first, because the two must not come apart: adopting through
+                    // POST /api/parties writes the names as the STANDING roster, and every later
+                    // week nobody answers for would then claim those same people ran. See
+                    // openSoloParty.
+                    if (!request.members.isNullOrEmpty() && isSoloParty(partyId)) {
+                        openSoloParty(partyId, week, now)
+                    }
+                    saveWeekRoster(partyId, characterId, week, request.members, SeatContext(userId, sprites, now))
                     findParty(partyId, userId)!!
                 }
             }

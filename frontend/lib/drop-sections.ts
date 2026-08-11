@@ -10,6 +10,13 @@ export type DropSection = { key: DropSectionKey; label: string };
 
 /** What the Sale Ledger would draw, in cards. */
 export type SaleCards = {
+  /**
+   * Weeks that dropped a coupon, which the week sheet steps through. One card holds all of them.
+   *
+   * Counted like the others even though it asks nothing: it is where a night's roster is said, and
+   * a pile of coupons nobody can split yet is exactly when somebody needs it.
+   */
+  runs: number;
   /** Nights nobody has said the stack arrangement for. One card holds all of them. */
   unanswered: number;
   /** One card per person holding a pile of coupons. */
@@ -18,8 +25,8 @@ export type SaleCards = {
   lots: number;
 };
 
-export function saleCards({ unanswered, holders, lots }: SaleCards): number {
-  return (unanswered > 0 ? 1 : 0) + holders + lots;
+export function saleCards({ runs, unanswered, holders, lots }: SaleCards): number {
+  return (runs > 0 ? 1 : 0) + (unanswered > 0 ? 1 : 0) + holders + lots;
 }
 
 /**
