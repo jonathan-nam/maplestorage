@@ -183,6 +183,24 @@ export function consolidate(parties: Party[], characterOrder: string[]): Consoli
 }
 
 /**
+ * The arrangements, without the nights.
+ *
+ * What the edit page answers for. A one-off is a config too, because the pool and the week it ran are
+ * records, but it is not something anybody set up: it was made on Party View for one week and it
+ * leaves on its own. Party View is where it is seen and taken off.
+ *
+ * So a one-off's difficulty and split are set when it is added and not afterwards. Adding it again
+ * takes over the same config, pool and all (see takeOverParty), which is both how one is corrected
+ * and how a night that keeps happening becomes a standing party.
+ *
+ * Solo-opened nights arrive this way as well, from a drop logged on a boss with no party. See
+ * openSoloParty.
+ */
+export function standingParties(parties: Party[]): Party[] {
+  return parties.filter((p) => !p.oneOff);
+}
+
+/**
  * The bosses this character can still be given a party for.
  *
  * Everything with no config, plus the one-offs whose period has passed. Those still hold the pair's

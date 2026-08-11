@@ -114,11 +114,11 @@ private suspend fun RoutingContext.getParty() {
 /**
  * Makes the config, or takes over the one already holding this pair's slot.
  *
- * Two configs can be sitting in that slot without being a party you can see. Logging a drop on a
- * boss nobody else was there for opens a solo config (see createSoloParty), and a one-off whose
- * period has passed is still a row, because the pool it holds and the week it ran are both records.
- * Neither is a second config for the pair, so both are taken over rather than refused: the drops
- * already pooled stay where they are.
+ * A config can sit in that slot without being a party anybody set up: logging a drop on a boss
+ * nobody else was there for opens a solo one (see createSoloParty), a retired one is kept for its
+ * pool, and a one-off is a night rather than an arrangement. None is a second config for the pair,
+ * so each is filled in rather than refused and the drops already pooled stay where they are. Which,
+ * and when, is takesOverConfig.
  *
  * A one-off run again in a later period is armed for that period rather than duplicated, which is
  * what keeps idx_party_character_boss and partyIdFor answering with one config.
@@ -144,7 +144,7 @@ private suspend fun RoutingContext.createPartyRoute(
                 } else {
                     partyIdFor(characterId, bossId)
                 }
-            val takeOver = held?.takeIf { isSoloParty(it) || isSpentOneOff(it, now) || isRetiredParty(it) }
+            val takeOver = held?.takeIf { takesOverConfig(it, request, now) }
             if (takeOver != null) {
                 val problem = validateSavedParty(userId, takeOver, request)
                 if (problem != null) {

@@ -293,6 +293,44 @@ class PartyPeriodSkipTest {
     }
 
     @Test
+    fun `a one-off still on its week becomes standing when it is asked for as a party`() {
+        transaction {
+            val character = mine()
+            val tonight = partyOn(character, "limbo", oneOff = true)
+            val request =
+                SavePartyRequest(character.toString(), "limbo", listOf("Steve", "Bob"), oneOff = false)
+
+            // The failure this guards: the edit page does not list one-offs, so refusing here would
+            // answer with "that character already has a party for this boss" about a row it does not
+            // show. Nothing about the night is lost, the config it already has is converted.
+            assertTrue(takesOverConfig(Uuid.parse(tonight.id), request, Clock.System.now()))
+            takeOverParty(userId, Uuid.parse(tonight.id), request, Clock.System.now())
+
+            val now = findParty(Uuid.parse(tonight.id), userId)!!
+            assertFalse(now.oneOff)
+            assertFalse(now.skippedThisPeriod)
+            // And standing means next period too, which is the whole difference.
+            val next = partiesFor(userId, thisWeek().plus(DAYS_IN_WEEK, DateTimeUnit.DAY))
+            assertFalse(next.first { it.id == tonight.id }.skippedThisPeriod)
+        }
+    }
+
+    @Test
+    fun `a one-off still on its week is NOT taken over by another one-off`() {
+        transaction {
+            val character = mine()
+            val tonight = partyOn(character, "limbo", oneOff = true)
+            val again =
+                SavePartyRequest(character.toString(), "limbo", listOf("Cara"), oneOff = true)
+
+            // Adding tonight's boss again tonight is not a second night, it is a mistake, and the
+            // roster already on the config is what a take-over would overwrite. Party View does not
+            // offer the boss either, so this is the stale-list case and a refusal is the answer.
+            assertFalse(takesOverConfig(Uuid.parse(tonight.id), again, Clock.System.now()))
+        }
+    }
+
+    @Test
     fun `a one-off keeps its pool after its period passes`() {
         transaction {
             val party = partyOn(mine(), "limbo", oneOff = true)

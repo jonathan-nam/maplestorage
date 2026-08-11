@@ -13,6 +13,7 @@ import {
   otherMembers,
   partySizeLabel,
   runningThisPeriod,
+  standingParties,
 } from "./parties";
 import type { Boss } from "@/types/boss";
 import type { Party, PartyMember } from "@/types/party";
@@ -261,6 +262,26 @@ describe("bossesWithoutConfig", () => {
     expect(bossesWithoutConfig([live], catalog, "char-1").map((b) => b.bossKey)).toEqual([
       "baldrix",
     ]);
+  });
+});
+
+describe("standingParties", () => {
+  it("leaves out the one-offs, which nobody set up and nobody has to take off", () => {
+    const standing = config("p1", "char-1", "limbo", ["X"]);
+    const tonight = { ...config("p2", "char-1", "baldrix", ["Y"]), oneOff: true };
+
+    expect(standingParties([standing, tonight]).map((p) => p.id)).toEqual(["p1"]);
+  });
+
+  it("offers a one-off's boss for a standing party, since its row is not there to say so", () => {
+    // What the edit page does with the two together. Refusing the boss would leave the select
+    // silently short of it, with the row that explains the absence on another page.
+    const catalog = [boss("limbo", "Limbo"), boss("baldrix", "Baldrix")];
+    const tonight = { ...config("p1", "char-1", "limbo", ["X"]), oneOff: true };
+
+    expect(
+      bossesWithoutConfig(standingParties([tonight]), catalog, "char-1").map((b) => b.bossKey),
+    ).toEqual(["limbo", "baldrix"]);
   });
 });
 

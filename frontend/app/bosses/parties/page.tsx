@@ -778,20 +778,10 @@ export default function PartiesPage() {
             </div>
           </div>
 
-          {parties.length === 0 && (
-            <p className="finder-empty">
-              No parties yet. <Link href="/bosses/parties/edit">Set them up</Link>: pick a
-              character, then say who they run each boss with.
-            </p>
-          )}
+          {/* Above every line about the list, the way the Drop Log's Add Drop is: the form is one
+              thing and what the list is or is not showing is another.
 
-          {/* Not "nothing cleared": that week's clears are real and the Individual View has them.
-              These parties just were not around for it. */}
-          {parties.length > 0 && shown.length === 0 && (
-            <p className="finder-empty">No parties in this week. {emptyWeekReason}</p>
-          )}
-
-          {/* Live view only. The server writes a one-off into the period its own clock is in, so
+              Live view only. The server writes a one-off into the period its own clock is in, so
               offering this under a past week's label would file the night in a week the screen is
               not showing. Same rule as the drop picker. */}
           {!history && characters.length > 0 && (
@@ -803,6 +793,19 @@ export default function PartiesPage() {
               error={addError}
               onAdd={addOneOff}
             />
+          )}
+
+          {parties.length === 0 && (
+            <p className="finder-empty">
+              No parties yet. <Link href="/bosses/parties/edit">Set them up</Link>: pick a
+              character, then say who they run each boss with.
+            </p>
+          )}
+
+          {/* Not "nothing cleared": that week's clears are real and the Individual View has them.
+              These parties just were not around for it. */}
+          {parties.length > 0 && shown.length === 0 && (
+            <p className="finder-empty">No parties in this week. {emptyWeekReason}</p>
           )}
 
           {shown.length > 0 && running.length === 0 && (
