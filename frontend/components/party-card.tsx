@@ -6,6 +6,7 @@ import { DropPicker } from "@/components/drop-picker";
 import { LootList } from "@/components/loot-list";
 import { RosterInputs } from "@/components/roster-inputs";
 import { RosterStrip } from "@/components/roster-strip";
+import { StackAssign } from "@/components/stack-assign";
 import { ApiError, apiAssetUrl } from "@/lib/api";
 import { clearClass, clearStateLabel, nextClear } from "@/lib/boss-clears";
 import type { PieceStatus } from "@/lib/drop-log";
@@ -13,6 +14,7 @@ import { poolLabel } from "@/lib/loot";
 import { guaranteedDrop, otherMembers, partySizeLabel } from "@/lib/parties";
 import type { Boss } from "@/types/boss";
 import type { BossDrop, DropTables } from "@/types/drop";
+import type { StackDrop } from "@/lib/vestige-stacks";
 import type { AddLootBody, Loot, SellLootBody } from "@/types/loot";
 import type { Party } from "@/types/party";
 
@@ -48,6 +50,7 @@ export function PartyCard({
   pool,
   onSaveRoster,
   onTakeOff,
+  stacks,
 }: {
   party: Party;
   heading: ReactNode;
@@ -120,6 +123,18 @@ export function PartyCard({
    * row can show the server's reason.
    */
   onSaveRoster?: (members: string[] | null) => Promise<void>;
+  /**
+   * This week's coupon nights on this boss, and who picked up which stacks of them.
+   *
+   * Under the roster because it is the next question about the same people: who was here, then what
+   * each of them walked off with. Omitted on a past week, which is shown and not edited, and absent
+   * on a night with nothing to hand out (one stack, or a party that folds to one person).
+   */
+  stacks?: {
+    drops: StackDrop[];
+    behind: Map<string, number>;
+    onSave: (lootId: string, bundles: Record<string, number>) => Promise<void>;
+  };
   /**
    * Takes this boss off the period, leaving the config standing.
    *
@@ -357,6 +372,19 @@ export function PartyCard({
           {/* The row is normally gone by the time this could show, so it only ever says the take-off
               did not land. */}
           {offError && <p className="split-error">{offError}</p>}
+
+          {/* Straight under the roster, because it is the next question about those same people.
+              One block per night, which in an ordinary week is exactly one. */}
+          {stacks?.drops.map((drop) => (
+            <StackAssign
+              key={drop.lootId}
+              drop={drop}
+              party={party}
+              behind={stacks.behind}
+              busy={busy ?? false}
+              onSave={stacks.onSave}
+            />
+          ))}
           {onAddDrop && (
             <>
               <DropPicker

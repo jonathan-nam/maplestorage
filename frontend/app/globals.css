@@ -4161,6 +4161,15 @@ button.link:disabled {
   margin-left: 2px;
 }
 
+/* This week's coupons, handed out under the boss row that dropped them. The same boxes the config
+   uses for shares, so "a number per member" reads the same on both screens; what differs is that
+   these are STACKS somebody picked up rather than a ratio they are owed. */
+.config-vestige {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
 .config-looter-label {
   font-size: 12px;
   color: var(--muted);
