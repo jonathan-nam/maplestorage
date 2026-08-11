@@ -1,220 +1,164 @@
 import { describe, expect, it } from "vitest";
 import {
-  assignableDrops,
-  assignedStacks,
-  openingCounts,
-  pieceTallies,
-  stacksToSave,
+  type ShareConfig,
+  parseStacks,
+  piecesPerWeek,
+  shareConfig,
+  sharesFromStacks,
+  stacksLabel,
+  stacksPerWeek,
 } from "./vestige-stacks";
-import type { Loot } from "@/types/loot";
-import type { Party, PartyMember } from "@/types/party";
+import type { BossDrop } from "@/types/drop";
+import type { PartyMember } from "@/types/party";
 
 const VESTIGE = "vestige-of-erion";
-const WEEK = "2026-08-06";
 
-const seat = (
-  id: string,
-  name: string,
-  { mine = false, person = null as string | null } = {},
-): PartyMember => ({
+const seat = (id: string, name: string, shares = 1): PartyMember => ({
   id,
   name,
-  personId: person,
-  personName: person ? "Bro" : null,
-  characterId: mine ? `char-${id}` : null,
+  personId: null,
+  personName: null,
+  characterId: null,
   spriteImgUrl: null,
   guest: false,
-  shares: 1,
+  shares,
 });
 
-const party = (seats: PartyMember[], over: Partial<Party> = {}): Party => ({
-  id: "pa",
-  characterId: seats[0]!.characterId ?? `char-${seats[0]!.id}`,
-  solo: false,
-  oneOff: false,
-  retired: false,
-  worldType: "INTERACTIVE",
-  bossKey: "limbo",
-  difficulty: "HARD",
-  minutes: null,
-  looterMemberId: null,
-  members: seats,
-  seats,
-  usualRoster: true,
-  skippedThisPeriod: false,
-  pendingLoot: 0,
-  awaitingPayout: 0,
-  settledLoot: 0,
-  cleared: null,
-  clearedByHand: false,
-  createdAt: "2026-07-01T00:00:00Z",
-  updatedAt: "2026-07-01T00:00:00Z",
-  ...over,
-});
+/** Hard Limbo: 180 coupons in 3 stacks of 60. */
+const table = (over: Partial<BossDrop> = {}): BossDrop[] => [
+  {
+    dropKey: VESTIGE,
+    name: "Vestige of Erion Coupon",
+    iconUrl: null,
+    perMember: null,
+    worlds: "INTERACTIVE",
+    quantity: 1,
+    fungible: false,
+    pieces: { HARD: 180 },
+    bundles: { HARD: 3 },
+    ...over,
+  },
+];
 
-const coupon = (over: Partial<Loot> = {}): Loot => ({
-  id: "l1",
-  dropKey: VESTIGE,
-  customName: null,
-  name: "Vestige of Erion Coupon",
-  iconUrl: null,
-  perMember: null,
-  bossKey: "limbo",
-  quantity: 180,
-  droppedOn: WEEK,
-  weekStart: WEEK,
-  status: "PENDING",
-  saleAmount: null,
-  amountBasis: null,
-  splitMethod: null,
-  sellerShares: null,
-  sellerMemberId: null,
-  takenByMemberId: null,
-  soldAt: null,
-  payouts: [],
-  ranThatWeek: ["m1", "m2", "m3"],
-  bundles: 3,
-  bundlesBy: [],
-  ...over,
-});
+const config = (seats: PartyMember[]): ShareConfig => shareConfig(table(), "HARD", VESTIGE, seats)!;
 
-/** Your character and two strangers, on a boss that drops 180 in 3 stacks of 60. */
-const trio = () => [seat("m1", "Husky", { mine: true }), seat("m2", "Rune"), seat("m3", "Bob")];
-
-describe("which nights can be handed out", () => {
-  it("takes this week's coupon drop, with its stack size worked out", () => {
-    const [drop] = assignableDrops(party(trio()), [coupon()], VESTIGE);
-
-    expect(drop!.bundles).toBe(3);
-    expect(drop!.size).toBe(60);
-    expect(drop!.seats.map((s) => s.name)).toEqual(["Husky", "Rune", "Bob"]);
-    expect(drop!.recorded).toBe(false);
+describe("what there is to split", () => {
+  it("reads the boss's own table, so the split exists before the coupons do", () => {
+    const found = config([seat("m1", "Husky"), seat("m2", "Rune")]);
+    expect(found.quantity).toBe(180);
+    expect(found.bundles).toBe(3);
+    expect(found.size).toBe(60);
   });
 
-  it("leaves out another drop, and one already gone", () => {
-    // Which WEEK is not this function's rule: it takes the rows the panel is already showing, so
-    // dropsInWeek narrows them once and the boxes cannot cover a different set.
-    const p = party(trio());
-    const cases: Loot[] = [
-      coupon({ id: "b", dropKey: "grindstone-of-faith" }),
-      // Its payouts were pinned from the roster that ran it, so the stacks can no longer move.
-      coupon({ id: "c", soldAt: "2026-08-07T00:00:00Z" }),
-      coupon({ id: "d", takenByMemberId: "m1" }),
-    ];
-
-    expect(assignableDrops(p, cases, VESTIGE)).toEqual([]);
-  });
-
-  it("leaves out a night with nothing to hand out", () => {
-    const p = party(trio());
-    // One stack cannot be shared however anybody agreed.
-    expect(assignableDrops(p, [coupon({ bundles: 1 })], VESTIGE)).toEqual([]);
-
-    // And a party that folds to ONE person: three characters, one human, nothing owed to anybody.
-    const mine = [seat("m1", "Husky", { mine: true }), seat("m2", "morebuff12", { mine: true })];
-    const solo = party(mine);
-    expect(assignableDrops(solo, [coupon({ ranThatWeek: ["m1", "m2"] })], VESTIGE)).toEqual([]);
-  });
-
-  it("reads an arrangement naming somebody the week no longer has as unsaid", () => {
-    // Record the stacks, then drop Bob from the week. His stack cannot be drawn against this
-    // roster, and showing the rest would be an arrangement two stacks short calling itself saved.
-    const p = party(trio());
-    const stale = coupon({
-      ranThatWeek: ["m1", "m2"],
-      bundlesBy: [
-        { memberId: "m1", bundles: 2 },
-        { memberId: "m3", bundles: 1 },
-      ],
-    });
-
-    const [drop] = assignableDrops(p, [stale], VESTIGE);
-    expect(drop!.recorded).toBe(false);
-    expect(drop!.counts).toEqual({});
+  it("has nothing to split without a mode, a stack count, or two sides", () => {
+    const two = [seat("m1", "Husky"), seat("m2", "Rune")];
+    // Nobody has said which difficulty, so what drops is not known.
+    expect(shareConfig(table(), null, VESTIGE, two)).toBeNull();
+    // The catalog has not counted the stacks, which is not a claim that it falls in one.
+    expect(shareConfig(table({ bundles: {} }), "HARD", VESTIGE, two)).toBeNull();
+    // A boss that drops none at this mode.
+    expect(shareConfig(table(), "NORMAL", VESTIGE, two)).toBeNull();
+    // One seat is not a split.
+    expect(shareConfig(table(), "HARD", VESTIGE, [seat("m1", "Husky")])).toBeNull();
   });
 });
 
-describe("where the boxes open", () => {
-  const drop = (over: Partial<Loot> = {}) =>
-    assignableDrops(party(trio()), [coupon(over)], VESTIGE)[0]!;
-
-  it("shows the arrangement recorded, so a wrong one is corrected rather than re-guessed", () => {
-    const saved = drop({
-      bundlesBy: [
-        { memberId: "m1", bundles: 2 },
-        { memberId: "m2", bundles: 1 },
-      ],
-    });
-
-    expect(openingCounts(saved, party(trio()), new Map())).toEqual({ m1: 2, m2: 1 });
+describe("what each share comes to", () => {
+  it("says a half where a week cannot divide, which is the whole point", () => {
+    // A duo on even shares splitting three stacks. No single week hands out 1.5, and every
+    // fortnight does: the odd stack rotates, and this is that arrangement said as one figure.
+    const stacks = stacksPerWeek(config([seat("m1", "Husky"), seat("m2", "Rune")]));
+    expect(stacks.get("m1")).toBe(1.5);
+    expect(stacks.get("m2")).toBe(1.5);
   });
 
-  it("opens on the agreed looter holding the lot when nothing is recorded", () => {
-    const p = party(trio(), { looterMemberId: "m2" });
-    expect(openingCounts(drop(), p, new Map())).toEqual({ m2: 3 });
+  it("counts a ratio out in stacks and in coupons", () => {
+    const uneven = config([seat("m1", "Husky", 2), seat("m2", "Rune", 1)]);
+    expect(stacksPerWeek(uneven).get("m1")).toBe(2);
+    expect(stacksPerWeek(uneven).get("m2")).toBe(1);
+    expect(piecesPerWeek(uneven).get("m1")).toBe(120);
+    expect(piecesPerWeek(uneven).get("m2")).toBe(60);
   });
 
-  it("ignores a looter who sat the week out", () => {
-    // Bob loots for this party as a rule, and was not there. Opening on him would suggest three
-    // stacks in the hands of somebody who was not in the game. So it falls to the balance instead,
-    // which for a duo on three stacks is two and one: there is no even answer, and that is the
-    // point of the night being answerable at all.
-    const p = party(trio(), { looterMemberId: "m3" });
-    const night = drop({ ranThatWeek: ["m1", "m2"] });
-
-    expect(openingCounts(night, p, new Map())).toEqual({ m1: 2, m2: 1 });
-  });
-
-  it("otherwise opens balanced, a stack each", () => {
-    expect(openingCounts(drop(), party(trio()), new Map())).toEqual({ m1: 1, m2: 1, m3: 1 });
+  it("gives a seat on no share nothing, which is a real arrangement", () => {
+    // See V44: somebody there for the clear, paid some other way.
+    const carried = config([seat("m1", "Husky", 1), seat("m2", "Rune", 0)]);
+    expect(stacksPerWeek(carried).get("m2")).toBe(0);
+    expect(piecesPerWeek(carried).get("m2")).toBe(0);
   });
 });
 
-describe("what the boxes come to", () => {
-  const drop = () => assignableDrops(party(trio()), [coupon()], VESTIGE)[0]!;
-
-  it("sums the stacks placed, which is the only rule the server enforces", () => {
-    expect(assignedStacks({ m1: 2, m2: 1, m3: 0 })).toBe(3);
-    expect(assignedStacks({ m1: 1, m2: 1 })).toBe(2);
+describe("turning typed stacks back into a ratio", () => {
+  it("reduces, so an even split is 1:1 however it was typed", () => {
+    const shares = sharesFromStacks(
+      new Map([
+        ["m1", 1.5],
+        ["m2", 1.5],
+      ]),
+    );
+    expect(Object.fromEntries(shares!)).toEqual({ m1: 1, m2: 1 });
   });
 
-  it("leaves a seat on none out, rather than sending a zero the server refuses", () => {
-    expect(stacksToSave({ m1: 2, m2: 1, m3: 0 })).toEqual({ m1: 2, m2: 1 });
+  it("carries halves that do not reduce away", () => {
+    // 1.5, 0.5 and 1 doubles to 3, 1, 2, which share no divisor.
+    const shares = sharesFromStacks(
+      new Map([
+        ["m1", 1.5],
+        ["m2", 0.5],
+        ["m3", 1],
+      ]),
+    );
+    expect(Object.fromEntries(shares!)).toEqual({ m1: 3, m2: 1, m3: 2 });
   });
 
-  it("says what each of them took AND what they were due, never only the gap", () => {
-    // Husky takes two of the three stacks. Neither number follows from the other: "120" alone does
-    // not say whether it is too much, and "60 over" alone does not say 60 out of what.
-    const tally = pieceTallies(drop(), { m1: 2, m2: 1, m3: 0 });
+  it("round-trips: what it stores draws the same stacks back", () => {
+    const typed = new Map([
+      ["m1", 1.5],
+      ["m2", 0.5],
+      ["m3", 1],
+    ]);
+    const shares = sharesFromStacks(typed)!;
+    const seats = [...shares].map(([id, n]) => seat(id, id, n));
+    const drawn = stacksPerWeek(config(seats));
 
-    expect(tally.get("self")).toEqual({ took: 120, due: 60 });
-    expect(tally.get("character:rune")).toEqual({ took: 60, due: 60 });
-    expect(tally.get("character:bob")).toEqual({ took: 0, due: 60 });
+    expect(drawn.get("m1")).toBe(1.5);
+    expect(drawn.get("m2")).toBe(0.5);
+    expect(drawn.get("m3")).toBe(1);
   });
 
-  it("measures one person's two characters as one holder on two shares", () => {
-    // A human who brings two characters is due twice as much, and is due it ONCE. So a stack each
-    // all round is exactly fair here, even though it is 60 to you and 120 to them.
-    const seats = [
-      seat("m1", "Husky", { mine: true }),
-      seat("m2", "CreedBratton", { person: "p-bro" }),
-      seat("m3", "Freeballynn", { person: "p-bro" }),
-    ];
-    const night = assignableDrops(party(seats), [coupon()], VESTIGE)[0]!;
+  it("refuses a quarter, and refuses a split of nothing", () => {
+    expect(sharesFromStacks(new Map([["m1", 1.25]]))).toBeNull();
+    // A ratio of zeroes divides nothing, and every entitlement off it is a division by zero.
+    expect(
+      sharesFromStacks(
+        new Map([
+          ["m1", 0],
+          ["m2", 0],
+        ]),
+      ),
+    ).toBeNull();
+  });
+});
 
-    const even = pieceTallies(night, { m1: 1, m2: 1, m3: 1 });
-    expect(even.get("self")).toEqual({ took: 60, due: 60 });
-    expect(even.get("person:p-bro")).toEqual({ took: 120, due: 120 });
-
-    // Their two seats are summed against one entitlement rather than reading as one owed and one
-    // owing: three stacks across the pair is 180 taken against 120 due.
-    const grabbed = pieceTallies(night, { m1: 0, m2: 2, m3: 1 });
-    expect(grabbed.get("self")).toEqual({ took: 0, due: 60 });
-    expect(grabbed.get("person:p-bro")).toEqual({ took: 180, due: 120 });
+describe("reading a box", () => {
+  it("takes whole numbers, halves, and the way somebody actually types a half", () => {
+    expect(parseStacks("2")).toBe(2);
+    expect(parseStacks("1.5")).toBe(1.5);
+    expect(parseStacks(".5")).toBe(0.5);
+    // Blank is none, which is a seat that takes nothing out of this boss.
+    expect(parseStacks("")).toBe(0);
   });
 
-  it("has took equal due for everybody on a night that divided", () => {
-    const tally = pieceTallies(drop(), { m1: 1, m2: 1, m3: 1 });
-    expect([...tally.values()].every((t) => t.took === t.due)).toBe(true);
+  it("refuses anything finer than a half, and anything that is not a count", () => {
+    expect(parseStacks("1.25")).toBeNull();
+    expect(parseStacks("-1")).toBeNull();
+    expect(parseStacks("two")).toBeNull();
+    expect(parseStacks("1.")).toBeNull();
+  });
+
+  it("writes a half back as a half and a whole as a whole", () => {
+    expect(stacksLabel(1.5)).toBe("1.5");
+    expect(stacksLabel(2)).toBe("2");
+    expect(stacksLabel(0)).toBe("0");
   });
 });

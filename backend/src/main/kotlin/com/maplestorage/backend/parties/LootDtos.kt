@@ -66,6 +66,13 @@ data class LootResponse(
     // will owe, which is neither the party as it stands now nor every seat it has ever had. The
     // seller select reads this, so it offers exactly what the sell route accepts.
     val ranThatWeek: List<String> = emptyList(),
+    // What each of those seats' shares was IN THAT WEEK, keyed by seat id. Empty is every seat on
+    // its standing party_member.shares, which is every week nobody has changed the deal behind.
+    //
+    // Carried beside the roster because it answers the other half of the same question: who ran, and
+    // on what share. Without it a new deal re-divides every outstanding drop the moment it is
+    // agreed, including weeks somebody was already shown a figure for. See V55.
+    val sharesThatWeek: Map<String, Int> = emptyMap(),
     // How many equal stacks this drop fell in, for this boss and the party's difficulty. Null is
     // uncounted, NOT one: the ledger reads it to decide whether the drop could divide by looting at
     // all, and a wrong one there invents a debt. See V41__loot_bundles.sql.

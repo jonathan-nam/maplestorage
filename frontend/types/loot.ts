@@ -50,6 +50,13 @@ export type Loot = {
   // Seat ids of who ran the week this drop FELL in. Who may be named as its seller and who a sale
   // will owe, which is neither the party as it stands now nor every seat it has ever had.
   ranThatWeek: string[];
+  // What each of those seats' shares was IN THAT WEEK, by seat id. Empty is every seat on its
+  // standing share, which is every week nobody has changed the deal behind. See V55.
+  //
+  // OPTIONAL on purpose. lib/cache.ts hands back whatever shape the API had when the page last
+  // fetched, so a tab open across the deploy that adds this gets rows without it; absent has to
+  // mean "the standing share", which is exactly what those rows meant when they were cached.
+  sharesThatWeek?: Record<string, number>;
   // How many equal stacks this drop fell in, for its boss and the party's difficulty. Null is
   // uncounted, NOT one stack: it is read to decide whether the drop could divide by looting at all.
   bundles: number | null;

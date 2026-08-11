@@ -312,6 +312,10 @@ object PartyWeekSeat : Table("party_week_seat") {
     val weekStart = date("week_start")
     val memberId = reference("member_id", PartyMember.id)
 
+    // This seat's share in THIS week. Null is the standing party_member.shares, which is what every
+    // row written before V55 holds and what most weeks will always hold. See V55__party_week_shares.
+    val shares = integer("shares").nullable()
+
     override val primaryKey = PrimaryKey(partyId, weekStart, memberId)
 }
 
