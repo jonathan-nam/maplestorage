@@ -274,6 +274,45 @@ class PartyWeekRosterTest {
     }
 
     @Test
+    fun `a past week is still answerable while everything it dropped is in the pool`() {
+        transaction {
+            val party = trio()
+            val partyId = Uuid.parse(party.id)
+            // The case that made the old this-week-only rule bite: a Wednesday night run, come back
+            // to on Thursday morning. The reset had put it out of reach an hour after it happened.
+            val lastWeek = thisWeek().plus(-7, DateTimeUnit.DAY)
+            addGrindstoneOn(party, lastWeek)
+
+            assertFalse(payoutsPinnedIn(partyId, lastWeek), "nothing sold, so nothing to contradict")
+        }
+    }
+
+    @Test
+    fun `a week closes to edits once a drop in it has been sold`() {
+        transaction {
+            val party = trio()
+            val partyId = Uuid.parse(party.id)
+            val lastWeek = thisWeek().plus(-7, DateTimeUnit.DAY)
+            val lootId = addGrindstoneOn(party, lastWeek)
+            val seller = rosterFor(partyId, lastWeek).first()
+            sellLoot(
+                lootId,
+                SellLootRequest(1_000_000, "LISTED", "FAIR", seller.toString()),
+                seller,
+                partyId,
+                Clock.System.now(),
+            )
+
+            // The payout was pinned from the roster as it stood. Rewriting who ran now would owe a
+            // share to somebody the rows do not name, and the two would disagree with nothing on
+            // screen saying which is right.
+            assertTrue(payoutsPinnedIn(partyId, lastWeek))
+            // Per week, not per party: the week beside it never sold anything and is still open.
+            assertFalse(payoutsPinnedIn(partyId, thisWeek()))
+        }
+    }
+
+    @Test
     fun `a drop names the week it fell in, cut on Thursday`() {
         transaction {
             val party = trio()

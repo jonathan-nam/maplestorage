@@ -181,11 +181,17 @@ private suspend fun RoutingContext.savePartyRoute(nexonLookupService: NexonLooku
 }
 
 /**
- * Says who ran this week, or puts the week back to the usual party.
+ * Says who ran a week, or puts that week back to the usual party.
  *
- * This week only. A past week's payouts were pinned when its drops sold and are never re-derived,
- * so rewriting who ran back then would leave the roster and the money owed disagreeing, with
- * nothing on screen to say which of the two is right.
+ * This week unless one is named, and a named past week has to be one nothing was paid out of. A
+ * payout was pinned when its drop sold and is never re-derived, so rewriting who ran behind one
+ * leaves the roster and the money owed disagreeing, with nothing on screen to say which is right.
+ * A week whose drops are all still in the pool has no such row to contradict, and refusing it meant
+ * a Wednesday night could not be answered for on Thursday morning: the reset had moved it out of
+ * reach an hour after it was run.
+ *
+ * Never a week that has not happened. There is nothing to record about it, and the roster it would
+ * pin is one the party would otherwise have reverted to on its own.
  *
  * The party's own roster is untouched: that is what PUT /{id} is for.
  */
@@ -204,12 +210,14 @@ private suspend fun RoutingContext.saveWeekRosterRoute(nexonLookupService: Nexon
             ensureUser(userId, email)
             val characterId = characterIdOfParty(partyId)
             val thisWeek = currentWeek()
-            // Omitted means this week, which is also the only one allowed. Taken from the server's
-            // clock rather than the payload so a browser a day out cannot file a roster in the
-            // neighbouring week.
+            // Omitted means this week. Which week THIS is comes from the server's clock rather than
+            // the payload, so a browser a day out cannot file a roster in the neighbouring week.
+            val week = asked ?: thisWeek
             val problem =
-                if (asked != null && asked != thisWeek) {
-                    "only this week's party can be changed"
+                if (week > thisWeek) {
+                    "a week that has not happened yet cannot be answered for"
+                } else if (week != thisWeek && payoutsPinnedIn(partyId, week)) {
+                    "that week has already been paid out"
                 } else {
                     request.members?.let { members ->
                         validateMembers(members)
@@ -218,7 +226,7 @@ private suspend fun RoutingContext.saveWeekRosterRoute(nexonLookupService: Nexon
                                     userId,
                                     boss,
                                     exclude = partyId,
-                                    thisWeek,
+                                    week,
                                     rosterOf(characterId, members),
                                 )
                             }
@@ -229,7 +237,7 @@ private suspend fun RoutingContext.saveWeekRosterRoute(nexonLookupService: Nexon
                 problem != null -> problem
                 else -> {
                     val context = SeatContext(userId, sprites, Clock.System.now())
-                    saveWeekRoster(partyId, characterId, thisWeek, request.members, context)
+                    saveWeekRoster(partyId, characterId, week, request.members, context)
                     findParty(partyId, userId)!!
                 }
             }

@@ -2,6 +2,9 @@ package com.maplestorage.backend.parties
 
 import com.maplestorage.backend.bosses.WEEKLY_CADENCE
 import com.maplestorage.backend.bosses.periodStartFor
+import com.maplestorage.backend.bosses.weekOf
+import com.maplestorage.backend.db.PartyLoot
+import com.maplestorage.backend.db.PartyLootPayout
 import com.maplestorage.backend.db.PartyMember
 import com.maplestorage.backend.db.PartyWeekSeat
 import kotlinx.datetime.LocalDate
@@ -83,6 +86,36 @@ internal fun weeksSpelledOut(
         .where { (PartyWeekSeat.partyId inList partyIds) and (PartyWeekSeat.weekStart eq week) }
         .map { it[PartyWeekSeat.partyId] }
         .toSet()
+}
+
+/**
+ * Whether anything this party dropped in [week] has had its payouts pinned.
+ *
+ * What decides whether a past week's roster may still be said. A payout row was written from the
+ * roster as it stood when the drop sold and is never re-derived, so rewriting who ran behind one
+ * leaves the roster and the money owed disagreeing with nothing on screen saying which is right.
+ * Until a drop sells there is nothing pinned to disagree with, and the week is still answerable.
+ *
+ * Filtered in Kotlin rather than in SQL because the reset week is BossPeriod.kt's to work out, and a
+ * second implementation of it in a WHERE clause is a second answer to which week a Thursday drop is
+ * in. A pool is a handful of rows.
+ */
+internal fun payoutsPinnedIn(
+    partyId: Uuid,
+    week: LocalDate,
+): Boolean {
+    val inWeek =
+        PartyLoot
+            .selectAll()
+            .where { PartyLoot.partyId eq partyId }
+            .filter { weekOf(it[PartyLoot.droppedOn]) == week }
+            .map { it[PartyLoot.id] }
+    if (inWeek.isEmpty()) return false
+    return PartyLootPayout
+        .selectAll()
+        .where { PartyLootPayout.lootId inList inWeek }
+        .empty()
+        .not()
 }
 
 /** Every week of this one party that names its own roster, rather than running the usual one. */
