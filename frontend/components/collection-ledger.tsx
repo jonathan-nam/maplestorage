@@ -89,10 +89,13 @@ function CollectionCard({
     }
   }
 
-  // Both halves, each only when there is one. Two facts, said once each.
+  // Each half only when there is one. The mesos are already netted, so "in shares" is one figure
+  // rather than two directions. `owedByYou` is on a row that got here on its pieces alone, and it is
+  // said so those are not chased off somebody you are behind with.
   const summary = [
     row.pieces > 0 ? `${row.pieces} pieces` : null,
     row.mesos > 0 ? `${shortMesos(row.mesos)} in shares` : null,
+    row.owedByYou > 0 ? `you owe ${shortMesos(row.owedByYou)}` : null,
   ]
     .filter(Boolean)
     .join(" · ");

@@ -75,16 +75,20 @@ const line = (lootId: string, pay: number, direction: "owe" | "owed" = "owed"): 
   nets: Math.floor(pay * 0.95),
 });
 
-const counterparty = (key: string, name: string, lines: WalletLine[]): Counterparty => ({
-  key,
-  name,
-  attributed: key.startsWith("person:"),
-  owe: 0,
-  owed: lines.reduce((sum, l) => sum + l.pay, 0),
-  net: 0,
-  coupons: 0,
-  lines,
-});
+const counterparty = (key: string, name: string, lines: WalletLine[]): Counterparty => {
+  const owed = lines.filter((l) => l.direction === "owed").reduce((sum, l) => sum + l.pay, 0);
+  const owe = lines.filter((l) => l.direction === "owe").reduce((sum, l) => sum + l.pay, 0);
+  return {
+    key,
+    name,
+    attributed: key.startsWith("person:"),
+    owe,
+    owed,
+    net: owed - owe,
+    coupons: 0,
+    lines,
+  };
+};
 
 const wallet = (counterparties: Counterparty[]): Wallet => ({
   counterparties,
@@ -168,6 +172,75 @@ describe("who belongs on the list at all", () => {
       wallet([counterparty("person:p-bro", "Bro", [line("l2", 900 * M, "owe")])]),
     );
     expect(rows).toEqual([]);
+  });
+});
+
+describe("netting, which is mesos against mesos and never pieces", () => {
+  it("nets the two directions to one figure", () => {
+    // They owe you 1b of shares and you owe them 400m: one transfer of 600m settles both, and the
+    // 400m that no longer crosses saves its 5% hop.
+    const rows = buildCollection(
+      [],
+      wallet([
+        counterparty("person:p-bro", "Bro", [line("l1", 1_000 * M), line("l2", 400 * M, "owe")]),
+      ]),
+    );
+    expect(rows[0]!.mesos).toBe(600 * M);
+    expect(rows[0]!.owedByYou).toBe(0);
+  });
+
+  it("drops them off the list when the netting leaves YOU behind", () => {
+    // Jonathan's case: they record a sale owing you 1b, you already owed them 1.5b, so you owe 500m.
+    // That is not something to collect, so it is not on the ledger for collecting.
+    const rows = buildCollection(
+      [],
+      wallet([
+        counterparty("person:p-bro", "Bro", [line("l1", 1_000 * M), line("l2", 1_500 * M, "owe")]),
+      ]),
+    );
+    expect(rows).toEqual([]);
+  });
+
+  it("says what you owe when their PIECES put them on the list anyway", () => {
+    // So a pile is not chased off somebody you are 500m behind with.
+    const rows = buildCollection(
+      [ledger(BRO, "Bro", { owedToYou: 80, drops: [owing("l3", "first-adversary", 80)] })],
+      wallet([
+        counterparty("person:p-bro", "Bro", [line("l1", 1_000 * M), line("l2", 1_500 * M, "owe")]),
+      ]),
+    );
+    expect([rows[0]!.pieces, rows[0]!.mesos, rows[0]!.owedByYou]).toEqual([80, 0, 500 * M]);
+  });
+
+  it("carries no share line once the netting runs against you, so Mark paid cannot reach one", () => {
+    // Settling what YOU owe is a different act. A button here that marked those rows paid would
+    // clear a debt of yours off a card about collecting.
+    const rows = buildCollection(
+      [ledger(BRO, "Bro", { owedToYou: 80, drops: [owing("l3", "first-adversary", 80)] })],
+      wallet([counterparty("person:p-bro", "Bro", [line("l2", 1_500 * M, "owe")])]),
+    );
+    expect(sharesOf(rows[0]!)).toEqual([]);
+  });
+
+  it("settles BOTH directions when the net runs to you, since one transfer covers them", () => {
+    const rows = buildCollection(
+      [],
+      wallet([
+        counterparty("person:p-bro", "Bro", [line("l1", 1_000 * M), line("l2", 400 * M, "owe")]),
+      ]),
+    );
+    expect(sharesOf(rows[0]!).map((s) => s.lootId)).toEqual(["l1", "l2"]);
+  });
+
+  it("never nets a piece debt against a meso one", () => {
+    // The two are not commensurable: a piece has no price until somebody names one, and the sides
+    // come off different nights at different prices.
+    const rows = buildCollection(
+      [ledger(BRO, "Bro", { owedToYou: 80, drops: [owing("l3", "first-adversary", 80)] })],
+      wallet([counterparty("person:p-bro", "Bro", [line("l2", 400 * M, "owe")])]),
+    );
+    expect(rows[0]!.pieces).toBe(80);
+    expect(rows[0]!.owedByYou).toBe(400 * M);
   });
 
   it("keeps an unattributed character as their own row, rather than guessing", () => {

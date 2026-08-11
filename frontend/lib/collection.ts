@@ -46,8 +46,21 @@ export type Collection = {
   holder: Holder | null;
   /** Pieces of yours they hold. Deliberately unpriced. */
   pieces: number;
-  /** Mesos from shares of their sales that are still unpaid. A real figure, unlike the pieces. */
+  /**
+   * Mesos they owe you once both directions are netted off. A real figure, unlike the pieces.
+   *
+   * NET, because one transfer of the difference is how this is actually settled and it saves a hop's
+   * Auction House fee on the value that no longer crosses. Zero when the two sides cancel or you are
+   * the one behind, and then `owedByYou` carries it instead.
+   */
   mesos: number;
+  /**
+   * Mesos YOU owe them, when the netting comes out that way. Never collectable, said anyway.
+   *
+   * A row only reaches the list on its pieces once this is set, and it is there so those pieces are
+   * not chased off somebody you are behind with. Settling it is not this ledger's act.
+   */
+  owedByYou: number;
   /** Mesos that have arrived from them, against the pieces. */
   received: number;
   drops: HeldOfYours[];
@@ -61,6 +74,7 @@ const blank = (key: string, name: string, attributed: boolean): Collection => ({
   holder: null,
   pieces: 0,
   mesos: 0,
+  owedByYou: 0,
   received: 0,
   drops: [],
   lines: [],
@@ -104,23 +118,35 @@ export function buildCollection(ledgers: HolderLedger[], wallet: Wallet): Collec
     out.set(key, row);
   }
 
-  // The shares. Only what they owe YOU: a share you owe THEM runs the other way and belongs on a
-  // ledger that does not exist yet, so it is left out rather than shown with its sign flipped.
+  // The shares, NETTED: what they owe you less what you owe them, per person. One transfer of the
+  // difference is how this is settled, and it saves the 5% hop on the value that no longer crosses.
+  //
+  // Mesos against mesos only. Pieces are not netted and cannot be: a piece debt has no price until
+  // somebody names one, and the two sides come off different nights at different prices, so calling
+  // 50 pieces owed against 25 owed "25 pieces" states a figure that matches neither side.
   for (const person of wallet.counterparties) {
-    const lines = person.lines.filter((line) => line.direction === "owed");
-    if (lines.length === 0) continue;
-
+    if (person.lines.length === 0) continue;
+    const net = person.owed - person.owe;
     const row = out.get(person.key) ?? blank(person.key, person.name, person.attributed);
-    row.lines = lines;
-    row.mesos = lines.reduce((sum, line) => sum + line.pay, 0);
+
+    if (net > 0) {
+      // Every line, both directions, because settling the net marks BOTH sides paid. Two sides that
+      // cancel still have shares behind them, and the wallet's own settle names all of them.
+      row.lines = person.lines;
+      row.mesos = net;
+    } else {
+      // Nothing to collect. The shares belong to the act that settles what YOU owe, not this one, so
+      // no line is carried and Mark paid cannot reach them from here.
+      row.owedByYou = -net;
+    }
     out.set(person.key, row);
   }
 
   // Mesos first, because that is the half with a figure on it and the half you can act on today.
   // Pieces break the tie, then the name, so the list never reorders itself between two reads.
-  return [...out.values()].sort(
-    (a, b) => b.mesos - a.mesos || b.pieces - a.pieces || a.name.localeCompare(b.name),
-  );
+  return [...out.values()]
+    .filter((row) => row.mesos > 0 || row.pieces > 0)
+    .sort((a, b) => b.mesos - a.mesos || b.pieces - a.pieces || a.name.localeCompare(b.name));
 }
 
 /**
