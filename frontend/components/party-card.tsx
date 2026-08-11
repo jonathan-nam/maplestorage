@@ -3,14 +3,17 @@
 import Link from "next/link";
 import { type ReactNode, useState } from "react";
 import { DropPicker } from "@/components/drop-picker";
+import { LootList } from "@/components/loot-list";
 import { RosterInputs } from "@/components/roster-inputs";
 import { RosterStrip } from "@/components/roster-strip";
 import { ApiError, apiAssetUrl } from "@/lib/api";
 import { clearClass, clearStateLabel, nextClear } from "@/lib/boss-clears";
+import type { PieceStatus } from "@/lib/drop-log";
 import { poolLabel } from "@/lib/loot";
 import { guaranteedDrop, otherMembers, partySizeLabel } from "@/lib/parties";
-import type { BossDrop } from "@/types/drop";
-import type { AddLootBody } from "@/types/loot";
+import type { Boss } from "@/types/boss";
+import type { BossDrop, DropTables } from "@/types/drop";
+import type { AddLootBody, Loot, SellLootBody } from "@/types/loot";
 import type { Party } from "@/types/party";
 
 // One config: who ran this boss this week, and what its pool is up to.
@@ -42,6 +45,7 @@ export function PartyCard({
   onToggleClear,
   dropTable,
   onAddDrop,
+  pool,
   onSaveRoster,
   onTakeOff,
 }: {
@@ -76,6 +80,31 @@ export function PartyCard({
    */
   onAddDrop?: (body: AddLootBody) => Promise<void>;
   /**
+   * The pool itself, so the row can say what "1 in the pool" IS and settle it here.
+   *
+   * The same rows, controls and coupon split the party's own page draws, through the same
+   * component: a drop sold from this panel and one sold there are one write.
+   *
+   * Omitted on a past week. The badge above is scoped to the week on screen and a pool is not, so
+   * listing every drop under it would answer a different question from the one the badge asked.
+   */
+  pool?: {
+    loot: Loot[];
+    dropTables: DropTables;
+    bossByKey: Map<string, Boss>;
+    /** What a coupon row says it is. See PieceStatus. */
+    pieceStatus?: PieceStatus;
+    /** Why the last write to THIS pool did not land. The page holds it; the row says it. */
+    error?: string | null;
+    /** Per drop, so settling one does not dim the rest of the pool. */
+    isSaving: (lootId: string) => boolean;
+    onSell: (lootId: string, body: SellLootBody) => void;
+    onUnsell: (lootId: string) => void;
+    onSetTaken: (lootId: string, memberId: string | null) => void;
+    onSetPaid: (lootId: string, memberId: string, paid: boolean) => void;
+    onDelete: (lootId: string) => void;
+  };
+  /**
    * Sets who ran THIS week, or puts it back to the usual party with null.
    *
    * Omitted on a past week, which is shown and not edited: the server refuses to write one anyway,
@@ -99,14 +128,19 @@ export function PartyCard({
   const [draft, setDraft] = useState<string[]>([]);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [offError, setOffError] = useState<string | null>(null);
-  const pool = poolLabel(party, couponsOwed);
+  // The badge, named as the party page names it: `pool` is the pool itself here.
+  const poolLine = poolLabel(party, couponsOwed);
   // The coupon this boss drops for certain at the mode this party runs, or null.
   const guaranteed = guaranteedDrop(dropTable, party.difficulty);
   const panelId = `party-panel-${party.id}`;
   const others = otherMembers(party);
   // A solo party has no roster, but it does have a pool, so it opens too now.
   const opens =
-    others.length > 0 || Boolean(onAddDrop) || Boolean(onSaveRoster) || Boolean(onTakeOff);
+    others.length > 0 ||
+    Boolean(pool?.loot.length) ||
+    Boolean(onAddDrop) ||
+    Boolean(onSaveRoster) ||
+    Boolean(onTakeOff);
 
   const saved = others.map((m) => m.name);
   const cleaned = draft.map((m) => m.trim()).filter((m) => m !== "");
@@ -189,12 +223,12 @@ export function PartyCard({
         {/* Work to do gets the line; a settled pool gets it quietly when there is none. It used
             to say nothing at all once everything was paid, which erased the pool from the row and
             left no way to tell a party with a season of drops from one that never dropped. */}
-        {pool && (
+        {poolLine && (
           <Link
-            className={pool.done ? "party-loot-summary is-done" : "party-loot-summary"}
+            className={poolLine.done ? "party-loot-summary is-done" : "party-loot-summary"}
             href={`/bosses/parties/${party.id}`}
           >
-            {pool.text}
+            {poolLine.text}
           </Link>
         )}
 
@@ -337,6 +371,24 @@ export function PartyCard({
               {/* Beside the picker, so it cannot outlive the control it is about. */}
               {addError && <p className="split-error">{addError}</p>}
             </>
+          )}
+          {/* Under the picker, the order the party's own page puts them in. What the badge in the
+              header is counting, item by item, with the same controls on each. */}
+          {pool?.error && <p className="split-error">{pool.error}</p>}
+          {pool && (
+            <LootList
+              party={party}
+              loot={pool.loot}
+              dropTables={pool.dropTables}
+              bossByKey={pool.bossByKey}
+              pieceStatus={pool.pieceStatus}
+              isSaving={pool.isSaving}
+              onSell={pool.onSell}
+              onUnsell={pool.onUnsell}
+              onSetTaken={pool.onSetTaken}
+              onSetPaid={pool.onSetPaid}
+              onDelete={pool.onDelete}
+            />
           )}
         </div>
       )}

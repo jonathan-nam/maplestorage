@@ -18,7 +18,10 @@ const source = (...parts: string[]) =>
   readFileSync(join(__dirname, "..", ...parts), "utf8").replace(/\s+/g, " ");
 
 const row = source("components", "loot-row.tsx");
-const pool = source("components", "loot-pool.tsx");
+// The rows themselves, wherever they are drawn from. LootList is the one component that renders
+// them, on the party's page and in a Party View row alike, so this is the one place the flag can be
+// dropped.
+const list = source("components", "loot-list.tsx");
 
 describe("a piece drop cannot be sold through its own row", () => {
   it("gates the sale form on it, alongside the status and the world", () => {
@@ -32,7 +35,16 @@ describe("a piece drop cannot be sold through its own row", () => {
   it("is told which rows those are, or the gate would never close", () => {
     // The prop defaults to undefined and every call type-checks without it, so tsc will not catch a
     // coupon group that forgets to pass it.
-    expect(pool).toContain("pieces={pieces}");
-    expect(pool).toContain("statusOf={pieceStatus} pieces");
+    expect(list).toContain("pieces={pieces}");
+    expect(list).toContain("statusOf={pieceStatus} pieces");
+  });
+
+  it("splits the coupons out wherever the rows are drawn, so no caller can skip it", () => {
+    // Party View draws the same pool in a row's panel. It reaches the rows through LootList, so the
+    // split above applies to it too; passing `loot` to a group of its own would not.
+    for (const caller of ["loot-pool.tsx", "party-card.tsx"]) {
+      expect(source("components", caller)).toContain("<LootList");
+      expect(source("components", caller)).not.toContain("<LootRow");
+    }
   });
 });

@@ -9,6 +9,7 @@ import {
   groupDrops,
   monthLabel,
   oneBossBehind,
+  pieceStatusByParty,
   weekLabel,
 } from "./drop-log";
 import type { DropEntry } from "./drop-log";
@@ -659,6 +660,31 @@ describe("a piece drop counts YOUR share, not what fell", () => {
     expect(log.totals.piecesOwed).toBe(20);
     // And "in the pool" is not what it is. It is in somebody else's inventory, which the row says.
     expect(dropStatusLabel(log.entries[0]!)).toBe("Owed");
+  });
+
+  it("tells a party's own pool what its coupon rows say, and leaves the rest alone", () => {
+    // What Party View's panels draw a vestige stack with. Without it the row falls back to its raw
+    // status, which is PENDING for ever, so the pool would read "In the pool" under a badge that
+    // deliberately does not count it: the same drop said two ways on one line.
+    const hammer = drop({ id: "l2", status: "PENDING", soldAt: null, saleAmount: null });
+    const log = buildDropLog(
+      [trio({ looterMemberId: "m2" })],
+      [pool("pa", [coupons({ id: "l1" }), hammer])],
+      tables,
+    );
+    const forParty = pieceStatusByParty(log.entries).get("pa")!;
+
+    expect(forParty.get("l1")).toEqual({ status: "Owed", yours: 20 });
+    // Yours out of what fell, which is the pair of numbers the row shows.
+    expect(log.entries.find((e) => e.lootId === "l1")!.quantity).toBe(60);
+    // An ordinary drop is absent, not given a second reading of a status it already carries.
+    expect(forParty.has("l2")).toBe(false);
+  });
+
+  it("has nothing to say about a party whose pool holds no coupons", () => {
+    const log = buildDropLog([duo()], [pool("pa", [drop()])], tables);
+
+    expect(pieceStatusByParty(log.entries).has("pa")).toBe(false);
   });
 
   it("gives each party its own coupons-owed figure for the row badge", () => {
