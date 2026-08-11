@@ -6,13 +6,13 @@ import { Fragment } from "react";
 import { LootRow } from "@/components/loot-row";
 import { StackAssign } from "@/components/stack-assign";
 import { isPieceDrop, type PieceStatus } from "@/lib/drop-log";
-import type { StackDrop } from "@/lib/vestige-stacks";
+import type { ShareConfig } from "@/lib/vestige-stacks";
 import type { Loot, SellLootBody } from "@/types/loot";
 import type { Boss } from "@/types/boss";
 import type { DropTables } from "@/types/drop";
 import type { Party } from "@/types/party";
 
-/** The nights that can still be handed out, and the write that does it. */
+/** How this party splits the coupons, and the write that changes it. */
 export type StackAssignment = {
   /**
    * What to head the group with while these boxes are under it.
@@ -22,9 +22,10 @@ export type StackAssignment = {
    * which drop this is names it, and this stays a group of piece rows.
    */
   title: string;
-  drops: StackDrop[];
-  behind: Map<string, number>;
-  onSave: (lootId: string, bundles: Record<string, number>) => Promise<void>;
+  /** What the boss drops and who is splitting it. Off the catalog, not off a logged drop. */
+  config: ShareConfig;
+  /** The new ratio, by seat id. */
+  onSave: (shares: Map<string, number>) => Promise<void>;
 };
 
 // The rows of a pool, split into what sells and what settles in coupons. Carried by the party's own
@@ -44,6 +45,7 @@ export function LootList({
   pieceStatus,
   stacks,
   editing,
+  busy,
   isSaving,
   onSell,
   onUnsell,
@@ -69,6 +71,8 @@ export function LootList({
    * inputs, so one press opens everything on the row that can be answered.
    */
   editing?: boolean;
+  /** Whether the ROW's own write is in flight. The config save is the party's, not one drop's. */
+  busy?: boolean;
   /** Whether THIS drop's write is in flight, by its id. */
   isSaving: (lootId: string) => boolean;
   onSell: (lootId: string, body: SellLootBody) => void;
@@ -113,6 +117,7 @@ export function LootList({
         pieces
         stacks={stacks}
         editing={editing}
+        busy={busy}
         isSaving={isSaving}
         onSell={onSell}
         onUnsell={onUnsell}
@@ -138,6 +143,7 @@ function LootGroup({
   statusOf,
   stacks,
   editing,
+  busy,
   pieces,
   isSaving,
   onSell,
@@ -157,6 +163,8 @@ function LootGroup({
   stacks?: StackAssignment;
   /** Whether those boxes take typing. See LootList. */
   editing?: boolean;
+  /** Whether the row's own write is in flight. */
+  busy?: boolean;
   /** These rows are stacks of pieces, which do not sell here. See LootRow's `pieces`. */
   pieces?: boolean;
   isSaving: (lootId: string) => boolean;
@@ -166,7 +174,9 @@ function LootGroup({
   onSetPaid: (lootId: string, memberId: string, paid: boolean) => void;
   onDelete: (lootId: string) => void;
 }) {
-  if (rows.length === 0) return null;
+  // Nothing to draw, unless there is a split to show: what a boss drops is a fact about the boss,
+  // so the config stands in a week nobody has run it yet and in one they did not run at all.
+  if (rows.length === 0 && !stacks) return null;
   // The config is ONE object: a heading, what fell, and the boxes that hand it out. Framed like a
   // pile on the Sale Ledger rather than left as three things stacked loose in the panel, which is
   // what it looked like beside the picker and the roster. Only when the boxes are there: the other
@@ -186,9 +196,6 @@ function LootGroup({
       )}
       <div className="loot-list">
         {rows.map((item) => {
-          // The night this row is, when it can still be handed out. Under the row rather than
-          // beside it: the row says what fell, and this says where it went.
-          const drop = stacks?.drops.find((d) => d.lootId === item.id);
           return (
             <Fragment key={item.id}>
               <LootRow
@@ -205,20 +212,20 @@ function LootGroup({
                 onSetPaid={(memberId, paid) => onSetPaid(item.id, memberId, paid)}
                 onDelete={() => onDelete(item.id)}
               />
-              {drop && stacks && (
-                <StackAssign
-                  drop={drop}
-                  party={party}
-                  behind={stacks.behind}
-                  editing={editing ?? false}
-                  busy={isSaving(item.id)}
-                  onSave={stacks.onSave}
-                />
-              )}
             </Fragment>
           );
         })}
       </div>
+      {/* Once for the group, under the rows it is about: the split is the PARTY's, and a week that
+          dropped twice would otherwise draw the same boxes twice. */}
+      {stacks && (
+        <StackAssign
+          config={stacks.config}
+          editing={editing ?? false}
+          busy={busy ?? false}
+          onSave={stacks.onSave}
+        />
+      )}
     </Frame>
   );
 }

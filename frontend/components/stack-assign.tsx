@@ -1,117 +1,102 @@
 "use client";
 
 import { useState } from "react";
-import { holderKey, holderOf } from "@/lib/vestige-ledger";
 import {
-  type StackDrop,
-  assignedStacks,
-  openingCounts,
-  pieceTallies,
-  stacksToSave,
+  type ShareConfig,
+  parseStacks,
+  piecesPerWeek,
+  sharesFromStacks,
+  stacksLabel,
+  stacksPerWeek,
 } from "@/lib/vestige-stacks";
-import type { Party } from "@/types/party";
 
-// Who picked up which stacks of this week's coupons, under the boss row that dropped them.
+// How this party splits the boss's coupons: one box per member, holding stacks A WEEK.
 //
-// One box per member, holding STACKS. The pieces are under the box because the pieces are what
-// people say to each other, and the stack is what can actually be handed over: a stack is
-// indivisible, so a box that took pieces could be typed into a number nobody could pick up.
+// A half is ordinary. 1.5 a week is three stacks over two, which is what the odd stack rotating
+// already does; this is that arrangement said as one figure rather than as an alternation nobody
+// can read off a share. What is saved is the party's share ratio, so 1.5 and 1.5 is 1:1.
 //
-// The same grid the party config uses for shares, and for the same reason: it is the shape for
-// "a number per member", and this page already has one.
+// The same grid the party config uses for shares, because it is the same fact said in the unit
+// people actually use: the config asks for a ratio, and nobody says "two to one", they say "he
+// takes four stacks and I take two".
 //
-// Save is refused until the boxes come to the stacks that fell. An arrangement that does not add up
-// looks answered and measures a debt against stacks nobody accounted for, which is the wrong number
-// this whole feature exists to avoid.
+// Read-only until the panel's own Edit, which is the one that already swaps the roster for its
+// inputs: one press opens everything on the row that can be answered.
 
 export function StackAssign({
-  drop,
-  party,
-  behind,
+  config,
   editing,
   busy,
   onSave,
 }: {
-  drop: StackDrop;
-  party: Party;
-  /** Each holder's position across what is already recorded, so the odd stack rotates. */
-  behind: Map<string, number>;
-  /** Whether the boxes take typing, which is the panel's own Edit. See LootList. */
+  config: ShareConfig;
   editing: boolean;
   busy: boolean;
-  onSave: (lootId: string, bundles: Record<string, number>) => Promise<void>;
+  /** The new ratio, by seat id. The page turns it into the party's own save. */
+  onSave: (shares: Map<string, number>) => Promise<void>;
 }) {
-  // Read-only until Edit, and then only what was RECORDED. The boxes open on a looter or a balanced
-  // guess when nothing has been said, and drawing that here would put a split nobody entered on
-  // screen as though it had happened. What is known unasked is what each of them is due.
-  if (!editing) return <StackSummary drop={drop} />;
-  return <StackBoxes drop={drop} party={party} behind={behind} busy={busy} onSave={onSave} />;
+  if (!editing) return <ShareSummary config={config} />;
+  return <ShareBoxes config={config} busy={busy} onSave={onSave} />;
 }
 
-/** What the config says when nobody is editing it: what fell, and where it went if that was said. */
-function StackSummary({ drop }: { drop: StackDrop }) {
-  // Against the recorded arrangement, or against nothing. `due` does not depend on the counts, so
-  // the second still carries every seat's entitlement and simply has nobody taking anything.
-  const tallies = pieceTallies(drop, drop.recorded ? drop.counts : {});
+/** What the split says when nobody is editing it: what falls, and what each of them takes of it. */
+function ShareSummary({ config }: { config: ShareConfig }) {
+  const stacks = stacksPerWeek(config);
+  const pieces = piecesPerWeek(config);
   return (
     <div className="config-vestige">
       <span className="config-share-drop">
-        {drop.quantity} in {drop.bundles} stacks of {drop.size}
+        {config.quantity} in {config.bundles} stacks of {config.size}
       </span>
       <div className="config-shares">
-        {drop.seats.map((seat) => {
-          const tally = tallies.get(holderKey(holderOf(seat))) ?? { took: 0, due: 0 };
-          return (
-            <span className="config-share" key={seat.id}>
-              {seat.name}
-              {/* Only what is known. With nothing recorded, what anybody took is exactly what this
-                  screen cannot say, and what they are due is true either way. */}
-              <span className="config-share-stacks">
-                {drop.recorded ? `${tally.took} took, ${tally.due} due` : `${tally.due} due`}
-              </span>
+        {config.seats.map((seat) => (
+          <span className="config-share" key={seat.id}>
+            {seat.name}
+            {/* Both, because neither follows from the other without the stack size in your head. */}
+            <span className="config-share-stacks">
+              {stacksLabel(stacks.get(seat.id) ?? 0)} a week, {pieces.get(seat.id) ?? 0} coupons
             </span>
-          );
-        })}
+          </span>
+        ))}
       </div>
     </div>
   );
 }
 
-function StackBoxes({
-  drop,
-  party,
-  behind,
+function ShareBoxes({
+  config,
   busy,
   onSave,
 }: {
-  drop: StackDrop;
-  party: Party;
-  behind: Map<string, number>;
+  config: ShareConfig;
   busy: boolean;
-  onSave: (lootId: string, bundles: Record<string, number>) => Promise<void>;
+  onSave: (shares: Map<string, number>) => Promise<void>;
 }) {
-  // Keyed on what is recorded, so a save redraws from what the server wrote. Text rather than
-  // numbers, so a half-typed box is refused at Save instead of snapping to something nobody meant.
-  const [counts, setCounts] = useState<Record<string, string>>(() =>
-    Object.fromEntries(
-      Object.entries(openingCounts(drop, party, behind)).map(([id, n]) => [id, String(n)]),
-    ),
+  // Opened on what the party is already split by. Text rather than numbers, so a half-typed box is
+  // refused at Save instead of snapping to something nobody meant.
+  const [boxes, setBoxes] = useState<Record<string, string>>(() =>
+    Object.fromEntries([...stacksPerWeek(config)].map(([id, stacks]) => [id, stacksLabel(stacks)])),
   );
   const [refusal, setRefusal] = useState<string | null>(null);
 
-  const parsed = Object.fromEntries(drop.seats.map((s) => [s.id, parseStacks(counts[s.id] ?? "")]));
-  const readable = drop.seats.every((s) => parsed[s.id] !== null);
-  const whole = Object.fromEntries(drop.seats.map((s) => [s.id, parsed[s.id] ?? 0]));
-  const assigned = assignedStacks(whole);
-  const adds = readable && assigned === drop.bundles;
-  // Only once the boxes add up. Half-placed stacks make everybody look short, which is a debt that
-  // is not real yet, against an arrangement nobody has finished saying.
-  const tallies = adds ? pieceTallies(drop, whole) : null;
+  const parsed = new Map(config.seats.map((seat) => [seat.id, parseStacks(boxes[seat.id] ?? "")]));
+  const readable = [...parsed.values()].every((value) => value !== null);
+  const typed = new Map([...parsed].map(([id, value]) => [id, value ?? 0]));
+  const placed = [...typed.values()].reduce((sum, n) => sum + n, 0);
+  // The week has to be shared out whole. A ratio that comes to less than what falls is not a split
+  // of it, and the difference would quietly become somebody's.
+  const adds = readable && placed === config.bundles;
+  const pieces = adds ? piecesFor(config, typed) : null;
 
   async function save() {
     setRefusal(null);
+    const shares = sharesFromStacks(typed);
+    if (!shares) {
+      setRefusal("that is not a split");
+      return;
+    }
     try {
-      await onSave(drop.lootId, stacksToSave(whole));
+      await onSave(shares);
     } catch (e) {
       setRefusal(e instanceof Error ? e.message : "That didn't save.");
     }
@@ -119,38 +104,28 @@ function StackBoxes({
 
   return (
     <div className="config-vestige">
-      {/* What there is to hand out, ahead of the boxes rather than after them. Trailing the row it
-          reads as the last member's figure. */}
       <span className="config-share-drop">
-        {drop.quantity} in {drop.bundles} stacks of {drop.size}
+        {config.quantity} in {config.bundles} stacks of {config.size}
       </span>
 
       <div className="config-shares">
-        {drop.seats.map((seat) => {
-          const tally = tallies?.get(holderKey(holderOf(seat))) ?? null;
-          return (
-            <label className="config-share" key={seat.id}>
-              {seat.name}
-              <input
-                className="split-input"
-                value={counts[seat.id] ?? ""}
-                onChange={(e) => setCounts({ ...counts, [seat.id]: e.target.value })}
-                placeholder="0"
-                inputMode="numeric"
-                aria-label={`Stacks ${seat.name} picked up`}
-                disabled={busy}
-              />
-              {/* BOTH numbers, because neither can be worked out from the other: what this many
-                  stacks comes to, and what they were owed out of what fell. Until the boxes add up
-                  there is no honest entitlement to show, so it is the pieces alone. */}
-              <span className="config-share-stacks">
-                {tally
-                  ? `${tally.took} took, ${tally.due} due`
-                  : `${(parsed[seat.id] ?? 0) * drop.size}`}
-              </span>
-            </label>
-          );
-        })}
+        {config.seats.map((seat) => (
+          <label className="config-share" key={seat.id}>
+            {seat.name}
+            <input
+              className="split-input"
+              value={boxes[seat.id] ?? ""}
+              onChange={(e) => setBoxes({ ...boxes, [seat.id]: e.target.value })}
+              placeholder="0"
+              inputMode="decimal"
+              aria-label={`Stacks a week ${seat.name} takes`}
+              disabled={busy}
+            />
+            <span className="config-share-stacks">
+              {pieces ? `${pieces.get(seat.id) ?? 0} coupons` : ""}
+            </span>
+          </label>
+        ))}
       </div>
 
       <div className="loot-actions">
@@ -162,14 +137,14 @@ function StackBoxes({
         >
           Save
         </button>
-        {/* Only the arithmetic, and only while it is wrong. What is left to place is the one thing
+        {/* Only the arithmetic, and only while it is wrong: what is left to place is the one thing
             the boxes cannot show, and it is what the button is waiting for. */}
         {readable && !adds && (
           <span className="split-error">
-            {assigned} of {drop.bundles} stacks placed
+            {stacksLabel(placed)} of {config.bundles} stacks split
           </span>
         )}
-        {!readable && <span className="split-error">whole stacks only</span>}
+        {!readable && <span className="split-error">whole or half stacks</span>}
       </div>
 
       {refusal && <p className="split-error">{refusal}</p>}
@@ -177,10 +152,7 @@ function StackBoxes({
   );
 }
 
-/** A box's value as stacks, or null when it is not a count. Blank is none, which is a real answer. */
-function parseStacks(value: string): number | null {
-  const text = value.trim();
-  if (text === "") return 0;
-  if (!/^\d+$/.test(text)) return null;
-  return Number(text);
+/** What the typed stacks come to in coupons, straight off the stack size. */
+function piecesFor(config: ShareConfig, stacks: Map<string, number>): Map<string, number> {
+  return new Map([...stacks].map(([id, value]) => [id, value * config.size]));
 }

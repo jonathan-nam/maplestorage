@@ -17,7 +17,7 @@ import { peek, put } from "@/lib/cache";
 import { buildDropLog, couponsOwedByParty, pieceStatusByParty } from "@/lib/drop-log";
 import { dropsInWeek } from "@/lib/loot";
 import { closedByHolder, outstanding, runningBalance, stillOpen } from "@/lib/vestige-ledger";
-import { assignableDrops } from "@/lib/vestige-stacks";
+import { shareConfig } from "@/lib/vestige-stacks";
 import {
   byBoss,
   byCharacter,
@@ -322,6 +322,52 @@ export default function PartiesPage() {
   }
 
   /**
+   * Changes how this party splits its coupons, from this week on.
+   *
+   * Through the party's own save, which is the one route that writes a standing share, so the
+   * server pins every earlier week that already dropped something before the new value lands. See
+   * pinSharesBefore: without it, a new deal re-divides July's outstanding coupons and tells nobody.
+   *
+   * Keyed by NAME because that is what SavePartyBody takes, and it carries the party's existing
+   * difficulty, minutes and looter: the route writes all of them, so sending the shares alone would
+   * quietly clear the rest.
+   */
+  async function saveShares(party: Party, shares: Map<string, number>) {
+    const byName = new Map(party.members.map((m) => [m.id, m.name]));
+    const named: Record<string, number> = {};
+    for (const [seatId, count] of shares) {
+      const name = byName.get(seatId);
+      if (name) named[name] = count;
+    }
+    await write(party.id, async () => {
+      await apiFetch<Party>(
+        `${PARTIES_KEY}/${party.id}`,
+        {
+          method: "PUT",
+          body: JSON.stringify({
+            characterId: party.characterId,
+            bossKey: party.bossKey,
+            members: party.members
+              .filter((m) => m.characterId !== party.characterId)
+              .map((m) => m.name),
+            difficulty: party.difficulty,
+            minutes: party.minutes,
+            looterName: party.seats.find((s) => s.id === party.looterMemberId)?.name ?? null,
+            shares: named,
+          } satisfies SavePartyBody),
+        },
+        getToken,
+      );
+      // Both lists: the shares are on the party, and every pool row's entitlement is read against
+      // them, so a pool left stale would draw the old split under the new one.
+      const refreshed = await apiFetch<Party[]>(PARTIES_KEY, { method: "GET" }, getToken);
+      setParties(refreshed);
+      put(PARTIES_KEY, refreshed);
+      await refreshPools();
+    });
+  }
+
+  /**
    * Sets who ran THIS week, or puts the week back to the usual party with null.
    *
    * Not the config's own roster: that is the edit page's, and changing it here would rewrite every
@@ -491,31 +537,26 @@ export default function PartiesPage() {
   );
 
   /**
-   * This week's coupon nights on a boss row, and the write that hands them out.
+   * How this party splits the boss's coupons, and the write that changes it.
    *
-   * The live view only, the same rule the pool and the roster follow: a past week is shown and not
-   * edited, and its payouts were pinned from the roster that ran it.
+   * Off the CATALOG, not off a logged drop: what the boss drops is a fact about the boss, so the
+   * split can be agreed before the week's coupons have fallen and stays on screen in a week nobody
+   * ran it.
    *
-   * Off the same rows the panel lists, through the same dropsInWeek, so the boxes cannot cover a
-   * different set of drops from the ones above them.
+   * The live view only, the same rule the pool and the roster follow. A past week is shown and not
+   * edited, and its share is now pinned anyway: see pinSharesBefore.
    */
   const stacksFor = (party: Party) => {
     if (history) return undefined;
-    const shown = dropsInWeek(
-      lootByParty.get(party.id) ?? [],
-      view?.currentWeekStart ?? null,
-    ).shown;
-    const drops = assignableDrops(party, shown, VESTIGE);
-    if (drops.length === 0) return undefined;
+    const config = shareConfig(dropTables[party.bossKey], party.difficulty, VESTIGE, party.members);
+    if (!config) return undefined;
     return {
       // Named for the item rather than for the catalog row, which calls it a "Vestige of Erion
       // Coupon": the heading would then read Coupon Config, and the row underneath already says
-      // Coupon. One string, beside the key it belongs to.
+      // Coupon.
       title: "Vestige of Erion Config",
-      drops,
-      behind,
-      onSave: (lootId: string, bundles: Record<string, number>) =>
-        writeDrop(party, lootId, "/bundles", { method: "PUT", body: JSON.stringify({ bundles }) }),
+      config,
+      onSave: (shares: Map<string, number>) => saveShares(party, shares),
     };
   };
 

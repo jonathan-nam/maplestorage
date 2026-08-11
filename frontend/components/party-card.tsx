@@ -409,6 +409,7 @@ export function PartyCard({
               pieceStatus={pool.pieceStatus}
               stacks={stacks}
               editing={editing}
+              busy={busy}
               isSaving={pool.isSaving}
               onSell={pool.onSell}
               onUnsell={pool.onUnsell}
