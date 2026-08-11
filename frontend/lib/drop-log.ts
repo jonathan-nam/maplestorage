@@ -481,6 +481,16 @@ export function foldNames(
   return distinct.length <= max ? distinct.join(", ") : `${distinct.length} ${plural}`;
 }
 
+/**
+ * Whether every row behind a fold came off one boss.
+ *
+ * The line above already names the bosses, so where there is only one, naming it again on each run
+ * says the same three words eleven times. What tells those runs apart is the date.
+ */
+export function oneBossBehind(entries: DropEntry[]): boolean {
+  return new Set(entries.map((e) => e.bossKey ?? null)).size === 1;
+}
+
 function lineOf(key: string, entries: DropEntry[], folded: boolean): DropLine {
   const sold = entries.filter((e) => e.pooled !== null);
   const first = entries[0]!;

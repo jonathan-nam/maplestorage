@@ -8,8 +8,10 @@ import {
   forCharacter,
   groupDrops,
   monthLabel,
+  oneBossBehind,
   weekLabel,
 } from "./drop-log";
+import type { DropEntry } from "./drop-log";
 import { closedByHolder, holderOf } from "./vestige-ledger";
 import { splitOf } from "./loot";
 import type { Loot, PartyLootPool } from "@/types/loot";
@@ -809,5 +811,27 @@ describe("foldNames", () => {
     expect(foldNames(["Limbo", null, undefined, "Baldrix", ""], "bosses")).toBe("Limbo, Baldrix");
     expect(foldNames([null, undefined], "bosses")).toBeNull();
     expect(foldNames([], "bosses")).toBeNull();
+  });
+});
+
+describe("oneBossBehind", () => {
+  // Only bossKey is read, so a run is only its boss here.
+  const run = (bossKey: string | null) => ({ bossKey }) as DropEntry;
+
+  it("is true when every run came off the same boss", () => {
+    // Eleven Kalos runs behind one coupon fold: the line above says Kalos, and each run repeating
+    // it says nothing eleven times.
+    expect(oneBossBehind([run("kalos-the-guardian"), run("kalos-the-guardian")])).toBe(true);
+    expect(oneBossBehind([run("kalos-the-guardian")])).toBe(true);
+  });
+
+  it("is false when the fold spans bosses, which is when the name tells them apart", () => {
+    expect(oneBossBehind([run("kalos-the-guardian"), run("limbo")])).toBe(false);
+    // A boss and a free-text row filed with none are still two different answers.
+    expect(oneBossBehind([run("kalos-the-guardian"), run(null)])).toBe(false);
+  });
+
+  it("is true when no run has a boss at all, so the date is all there is either way", () => {
+    expect(oneBossBehind([run(null), run(null)])).toBe(true);
   });
 });

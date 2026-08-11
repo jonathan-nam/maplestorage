@@ -19,6 +19,7 @@ import {
   consolidate,
   dropStatusLabel,
   foldNames,
+  oneBossBehind,
   type DropEntry,
   type DropGroup,
   type Grouping,
@@ -675,6 +676,9 @@ function DropRow({
   const runs = `${line.entries.length} runs`;
   // A heading per character is only worth the row when there is more than one to tell apart.
   const heads = showCharacter && new Set(line.entries.map((e) => e.characterId)).size > 1;
+  // The fold's own meta names the one boss they all came off, so the runs under it are told apart
+  // by date instead of by the same name once per run.
+  const oneBoss = oneBossBehind(line.entries);
 
   return (
     <li className={`droplog-row status-${entry.status.toLowerCase()}${open ? " is-open" : ""}`}>
@@ -745,7 +749,7 @@ function DropRow({
               )}
               <RunRow
                 entry={e}
-                boss={bossByKey.get(e.bossKey ?? "") ?? null}
+                boss={oneBoss ? null : (bossByKey.get(e.bossKey ?? "") ?? null)}
                 characterName={characterById.get(e.characterId)?.name ?? null}
                 showCharacter={showCharacter && !heads}
               />
@@ -770,7 +774,8 @@ function RunRow({
   showCharacter: boolean;
 }) {
   const meta = [
-    formatDropped(entry.droppedOn),
+    // Not said twice: where there is no boss to name, the date IS the label above.
+    boss ? formatDropped(entry.droppedOn) : null,
     showCharacter ? characterName : null,
     entry.owedBy ? `${entry.owedBy} looted` : null,
     entry.sellerName
@@ -783,8 +788,9 @@ function RunRow({
       {/* No portrait: the drop's own icon is on the line above, and a second column of art told
           nobody which run this was that the boss name did not already say. */}
       <Link href={`/bosses/parties/${entry.partyId}`} className="loot-name">
-        {/* The drop is named by the line above, so the run is named by its boss. Free text can be
-            filed with no boss at all, and then the date is all there is to click. */}
+        {/* The drop is named by the line above, so the run is named by its boss. Null where the
+            line above already named the one boss they all came off, and where free text was filed
+            with no boss at all: the date is what is left to tell the runs apart. */}
         {boss?.name ?? formatDropped(entry.droppedOn)}
         {/* Yours, the same as the line above sums. Counting what fell here made a fold of 440
             open onto runs adding up to 900. */}
