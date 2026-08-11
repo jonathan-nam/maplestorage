@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
   buildDropLog,
+  byCharacter,
   consolidate,
   couponsOwedByParty,
   dropStatusLabel,
   foldNames,
+  foldStatus,
   forCharacter,
   groupDrops,
   monthLabel,
@@ -562,6 +564,91 @@ describe("consolidate", () => {
     expect(line.entries.map((e) => e.lootId)).toEqual(["l2", "l1"]);
     expect(line.entries.map((e) => e.quantity)).toEqual([30, 90]);
     expect(line.yours).toBe(line.entries.reduce((sum, e) => sum + e.quantity, 0));
+  });
+});
+
+describe("byCharacter", () => {
+  /** Sold by the one seat that is in the party, so every row's split can be read. */
+  const alone = (id: string, seller: string, droppedOn: string) =>
+    drop({ id, droppedOn, sellerMemberId: seller, payouts: [] });
+
+  /** Three characters' worth of one drop, folded, in the roster order consolidate() puts them in. */
+  const fold = (roster: string[]) => {
+    const log = buildDropLog(
+      [
+        party("pa", [mine("m1", "Huskyxkenshi")]),
+        party("pb", [mine("m2", "acornacorn", "char-m2")]),
+        party("pc", [mine("m3", "warrior2020", "char-m3")]),
+      ],
+      [
+        pool("pa", [alone("l1", "m1", "2026-07-20")]),
+        pool("pb", [alone("l2", "m2", "2026-07-22")]),
+        pool("pc", [alone("l3", "m3", "2026-07-21")]),
+        pool("pa", [alone("l4", "m1", "2026-07-23")]),
+      ],
+      {},
+    );
+    return consolidate(log.entries, roster)[0]!;
+  };
+
+  it("splits a fold by character and subtotals what each of them got", () => {
+    const folds = byCharacter(fold(["char-m1", "char-m2", "char-m3"]).entries);
+    expect(folds.map((f) => f.characterId)).toEqual(["char-m1", "char-m2", "char-m3"]);
+    expect(folds.map((f) => f.yours)).toEqual([2, 1, 1]);
+    expect(folds[0]!.entries.map((e) => e.lootId)).toEqual(["l4", "l1"]);
+  });
+
+  it("keeps the roster order the fold arrived in, rather than reaching for its own", () => {
+    // Two orders for one list is two lists: the runs are already sorted, so this walks them.
+    const folds = byCharacter(fold(["char-m3", "char-m1", "char-m2"]).entries);
+    expect(folds.map((f) => f.characterId)).toEqual(["char-m3", "char-m1", "char-m2"]);
+  });
+
+  it("loses no run: every row behind the fold is behind exactly one character", () => {
+    const line = fold(["char-m1", "char-m2", "char-m3"]);
+    const behind = byCharacter(line.entries).flatMap((f) => f.entries.map((e) => e.lootId));
+    expect(behind.sort()).toEqual(line.entries.map((e) => e.lootId).sort());
+    expect(byCharacter(line.entries).reduce((sum, f) => sum + f.yours, 0)).toBe(line.yours);
+  });
+
+  it("sums the money over the rows that sold, and says nothing when none did", () => {
+    const sold = byCharacter(fold(["char-m1", "char-m2", "char-m3"]).entries)[0]!;
+    // Two sales of 10b listed, the seller's fee off each. Whatever splitOf makes of one, the pair
+    // is twice it: this file never re-derives a split.
+    expect(sold.pooled).toBe((sold.entries[0]!.pooled ?? 0) * 2);
+
+    const log = buildDropLog(
+      [party("pa", [mine("m1", "Huskyxkenshi")])],
+      [pool("pa", [pending({ id: "l1" }), pending({ id: "l2", droppedOn: "2026-07-22" })])],
+      {},
+    );
+    const unsold = byCharacter(consolidate(log.entries, ["char-m1"])[0]!.entries)[0]!;
+    expect(unsold.pooled).toBeNull();
+    expect(unsold.yourTake).toBeNull();
+  });
+});
+
+describe("foldStatus", () => {
+  const entry = (over: Partial<DropEntry>): DropEntry =>
+    ({ status: "PENDING", pieces: false, owedBy: null, closed: false, ...over }) as DropEntry;
+
+  it("says the one status when every row agrees", () => {
+    expect(foldStatus([entry({}), entry({})])).toBe("In the pool");
+  });
+
+  it("counts the rows instead when they disagree", () => {
+    // "In the pool" over a line that is half sold would be the wrong half.
+    expect(foldStatus([entry({}), entry({ status: "SOLD" })])).toBe("2 runs");
+  });
+
+  it("reads each row the way the row reads itself, not off its raw status", () => {
+    // Coupon rows never sell, so they are PENDING for ever. Off the raw status this fold would be
+    // "In the pool" about pieces that are already in the inventory.
+    const coupons = [entry({ pieces: true }), entry({ pieces: true })];
+    expect(foldStatus(coupons)).toBe("Yours");
+    expect(foldStatus([...coupons, entry({ pieces: true, owedBy: "CreedBratton" })])).toBe(
+      "3 runs",
+    );
   });
 });
 
