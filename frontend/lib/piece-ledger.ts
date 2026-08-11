@@ -128,10 +128,9 @@ export type LedgerDrop = {
   /**
    * Pieces of this pile the holder is redeeming rather than selling. Absent is none of them.
    *
-   * Taken out of the denominator every price is derived from, because a piece that will never be
-   * listed can never contribute a price. Their own share first, and the input is bounded there, so a
-   * pile's sellable count is never less than what the holder owes out of it: that is what keeps the
-   * pro rata in `transfersOf` an interpolation. Pieces of the creditor's taken anyway are `bought`.
+   * Counted per HOLDER now, not per drop: which boss a redemption came off only mattered while a
+   * debt was priced boss by boss. Kept on the type because the card bounds the redemption box at
+   * the holder's own share, and `ownShareOf` is what draws that line.
    */
   kept?: number;
   /**
@@ -158,8 +157,8 @@ export function heldOf(drop: LedgerDrop): number {
  * has no surplus of their own to redeem. Absent holder reads the pile as all theirs, which is one
  * seat having looted the lot.
  *
- * The line a redemption crosses, so `spreadKept` and the card that labels it read it from here
- * rather than each deciding for themselves.
+ * The line a redemption crosses, and the card that bounds its box reads it from here rather than
+ * deciding for itself.
  */
 export function ownShareOf(drop: LedgerDrop, holder?: string): number {
   if (holder === undefined) return heldOf(drop);
