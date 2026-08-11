@@ -28,12 +28,64 @@ export function StackAssign({
   drop,
   party,
   behind,
+  editing,
   busy,
   onSave,
 }: {
   drop: StackDrop;
   party: Party;
   /** Each holder's position across what is already recorded, so the odd stack rotates. */
+  behind: Map<string, number>;
+  /** Whether the boxes take typing, which is the panel's own Edit. See LootList. */
+  editing: boolean;
+  busy: boolean;
+  onSave: (lootId: string, bundles: Record<string, number>) => Promise<void>;
+}) {
+  // Read-only until Edit, and then only what was RECORDED. The boxes open on a looter or a balanced
+  // guess when nothing has been said, and drawing that here would put a split nobody entered on
+  // screen as though it had happened. What is known unasked is what each of them is due.
+  if (!editing) return <StackSummary drop={drop} />;
+  return <StackBoxes drop={drop} party={party} behind={behind} busy={busy} onSave={onSave} />;
+}
+
+/** What the config says when nobody is editing it: what fell, and where it went if that was said. */
+function StackSummary({ drop }: { drop: StackDrop }) {
+  // Against the recorded arrangement, or against nothing. `due` does not depend on the counts, so
+  // the second still carries every seat's entitlement and simply has nobody taking anything.
+  const tallies = pieceTallies(drop, drop.recorded ? drop.counts : {});
+  return (
+    <div className="config-vestige">
+      <span className="config-share-drop">
+        {drop.quantity} in {drop.bundles} stacks of {drop.size}
+      </span>
+      <div className="config-shares">
+        {drop.seats.map((seat) => {
+          const tally = tallies.get(holderKey(holderOf(seat))) ?? { took: 0, due: 0 };
+          return (
+            <span className="config-share" key={seat.id}>
+              {seat.name}
+              {/* Only what is known. With nothing recorded, what anybody took is exactly what this
+                  screen cannot say, and what they are due is true either way. */}
+              <span className="config-share-stacks">
+                {drop.recorded ? `${tally.took} took, ${tally.due} due` : `${tally.due} due`}
+              </span>
+            </span>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function StackBoxes({
+  drop,
+  party,
+  behind,
+  busy,
+  onSave,
+}: {
+  drop: StackDrop;
+  party: Party;
   behind: Map<string, number>;
   busy: boolean;
   onSave: (lootId: string, bundles: Record<string, number>) => Promise<void>;

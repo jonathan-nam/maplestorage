@@ -3433,6 +3433,20 @@ button.link:disabled {
   font-weight: 400;
 }
 
+/* The coupon config as ONE object: the heading, what fell, and the boxes that hand it out, inside a
+   single frame instead of stacked loose in the panel between the picker and the roster. The same
+   frame a pile has on the Sale Ledger, which is what this is: one drop, and what is still to say
+   about it. Its own rule rather than .ledger-card, whose bottom margin is for a column of cards. */
+.loot-config-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
 .loot-add {
   display: flex;
   flex-wrap: wrap;
@@ -4454,6 +4468,13 @@ button.link:disabled {
 
 .party-row-panel .loot-group-title {
   margin: 6px 0 0;
+}
+
+/* Inside the config's frame the heading is the first thing in it, so the panel's own top margin
+   would push it off its own border. After the rule above on purpose: the two have equal weight and
+   the later one wins. */
+.party-row-panel .loot-config-card .loot-group-title {
+  margin: 0;
 }
 
 /* What this week's list leaves out, and the way to it. Muted and last: it is there so the panel

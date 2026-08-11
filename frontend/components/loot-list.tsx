@@ -43,6 +43,7 @@ export function LootList({
   bossByKey,
   pieceStatus,
   stacks,
+  editing,
   isSaving,
   onSell,
   onUnsell,
@@ -61,6 +62,13 @@ export function LootList({
    * Absent on the party's own page and on a past week, where the rows are read rather than answered.
    */
   stacks?: StackAssignment;
+  /**
+   * Whether the panel is in edit mode, which is the only state the stack boxes take typing in.
+   *
+   * Owned by the card and not by the page: it is the same Edit that swaps the roster strip for its
+   * inputs, so one press opens everything on the row that can be answered.
+   */
+  editing?: boolean;
   /** Whether THIS drop's write is in flight, by its id. */
   isSaving: (lootId: string) => boolean;
   onSell: (lootId: string, body: SellLootBody) => void;
@@ -104,6 +112,7 @@ export function LootList({
         statusOf={pieceStatus}
         pieces
         stacks={stacks}
+        editing={editing}
         isSaving={isSaving}
         onSell={onSell}
         onUnsell={onUnsell}
@@ -128,6 +137,7 @@ function LootGroup({
   bossByKey,
   statusOf,
   stacks,
+  editing,
   pieces,
   isSaving,
   onSell,
@@ -145,6 +155,8 @@ function LootGroup({
   statusOf?: PieceStatus;
   /** Who picked up which stacks, drawn under the row it is about. */
   stacks?: StackAssignment;
+  /** Whether those boxes take typing. See LootList. */
+  editing?: boolean;
   /** These rows are stacks of pieces, which do not sell here. See LootRow's `pieces`. */
   pieces?: boolean;
   isSaving: (lootId: string) => boolean;
@@ -155,15 +167,21 @@ function LootGroup({
   onDelete: (lootId: string) => void;
 }) {
   if (rows.length === 0) return null;
+  // The config is ONE object: a heading, what fell, and the boxes that hand it out. Framed like a
+  // pile on the Sale Ledger rather than left as three things stacked loose in the panel, which is
+  // what it looked like beside the picker and the roster. Only when the boxes are there: the other
+  // groups are lists to scan, and a border round a list of bordered rows is a box in a box.
+  const Frame = stacks ? "div" : Fragment;
+  const frameProps = stacks ? { className: "loot-config-card" } : {};
   return (
-    <>
-      {/* Lighter when it heads the boxes: it is naming a block you are about to fill in, not
-          calling for attention over a list. See .is-config. */}
+    <Frame {...frameProps}>
+      {/* Lighter when it heads the boxes, and not a link: it names the block under it rather than
+          pointing somewhere, and an underline said it went to the Drop Log. See .is-config. */}
       {title && (
         <h3 className={stacks ? "loot-group-title is-config" : "loot-group-title"}>
           {/* The coupon heading links to where they are priced, rather than a sentence saying so. The
               row has no sale of its own, and one word already on screen can carry that. */}
-          {pieces ? <Link href="/bosses/drops">{title}</Link> : title}
+          {pieces && !stacks ? <Link href="/bosses/drops">{title}</Link> : title}
         </h3>
       )}
       <div className="loot-list">
@@ -192,6 +210,7 @@ function LootGroup({
                   drop={drop}
                   party={party}
                   behind={stacks.behind}
+                  editing={editing ?? false}
                   busy={isSaving(item.id)}
                   onSave={stacks.onSave}
                 />
@@ -200,6 +219,6 @@ function LootGroup({
           );
         })}
       </div>
-    </>
+    </Frame>
   );
 }
