@@ -6,7 +6,7 @@ import { apiAssetUrl } from "@/lib/api";
 import { formatWeekStart } from "@/lib/boss-clears";
 import { bossLabel } from "@/lib/boss-difficulty";
 import { formatMesos, parseMesos, shortMesos } from "@/lib/drop-split";
-import { FATES, type Fate, asksAnything, roomFor } from "@/lib/ledger-fates";
+import { FATES, type Fate, asksAnything, owes, roomFor, settledOf } from "@/lib/ledger-fates";
 import { transferKey } from "@/lib/piece-ledger";
 import { type Holder, type HolderLedger, holderKey, unaccounted } from "@/lib/vestige-ledger";
 import type { Boss } from "@/types/boss";
@@ -206,22 +206,18 @@ function HolderCard({
             the same kind of thing when one is what became of the coupons and the other is what came
             back for them. See V50 and V51. */}
         <span className="ledger-step">pieces</span>
-        {/* The card's one instruction, and it is a COUNT rather than a sentence: the gap between what
-            the pile holds and what has been entered is exactly what it is waiting to be told. No prose
-            explains the boxes; the picker's options carry the vocabulary, the way the looter select
-            does on a party config.
+        {/* The card's one instruction, and it is a COUNT rather than a sentence. No prose explains the
+            boxes; the picker's options carry the vocabulary, the way the looter select does on a party
+            config.
 
-            Only on a pile that owes somebody. A night that divided the way it fell is done when it is
-            logged, and since #354 nothing is derived from what became of the coupons, so the count
-            asked for a pile's worth of typing to move a figure nobody reads. The form stays either
-            way: recording a sale is offered, it is just no longer demanded. See asksAnything. */}
+            The count is the DEBT, not the pile. Of 1160 coupons in your inventory 1150 were your own,
+            and counting those demanded 1160 answers for a 10-piece debt. The form stays either way:
+            recording a sale is offered, it is just never demanded. See asksAnything. */}
         {asksAnything(ledger) && (
           <span className="ledger-progress">
-            {toEnter > 0
-              ? `${ledger.accounted} of ${ledger.pieces} pieces accounted for`
-              : overEntered > 0
-                ? `all ${ledger.pieces} accounted for, ${overEntered} over`
-                : `all ${ledger.pieces} accounted for`}
+            {settledOf(ledger) < owes(ledger)
+              ? `${settledOf(ledger)} of ${owes(ledger)} pieces accounted for`
+              : `all ${ledger.pieces} accounted for, ${overEntered} over`}
           </span>
         )}
 

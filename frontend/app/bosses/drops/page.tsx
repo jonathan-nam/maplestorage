@@ -13,6 +13,7 @@ import { TrancheHistory } from "@/components/tranche-history";
 import { ApiError, apiAssetUrl, apiFetch } from "@/lib/api";
 import { peek, put } from "@/lib/cache";
 import { buildCollection, stillOnSaleLedger } from "@/lib/collection";
+import { worthDrawing } from "@/lib/ledger-fates";
 import { buildWallet } from "@/lib/wallet";
 import { type DropSectionKey, dropSections, saleCards, shownSection } from "@/lib/drop-sections";
 import {
@@ -109,6 +110,8 @@ export default function DropLogPage() {
   const [state, setState] = useState<LoadState>("loading");
   const [character, setCharacter] = useState<string | null>(null);
   const [grouping, setGrouping] = useState<Grouping>("month");
+  // Whether the reader has asked for the box that sells out of a pile nobody is owed anything from.
+  const [sellingOwn, setSellingOwn] = useState(false);
   const [section, setSection] = useState<DropSectionKey>("drops");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -361,11 +364,14 @@ export default function DropLogPage() {
   // The Sale Ledger is piles you can sell out of, which is yours. Somebody else's stays only while
   // it has rows recorded under the old shape, as history: those are correctable nowhere else. What
   // they OWE is the Collection Ledger's to say, and only its, so the two never give two answers.
-  const { yours, history } = stillOnSaleLedger(
-    ledgers,
-    (key) =>
-      (tranchesByHolder.get(key)?.length ?? 0) > 0 || (paymentsByHolder.get(key)?.length ?? 0) > 0,
-  );
+  const recorded = (key: string) =>
+    (tranchesByHolder.get(key)?.length ?? 0) > 0 || (paymentsByHolder.get(key)?.length ?? 0) > 0;
+  const { yours, history } = stillOnSaleLedger(ledgers, recorded);
+  // Of your own piles, the ones with something to answer. A pile that owes nobody is somewhere a sale
+  // may be recorded and nothing else, so it waits behind the control that offers exactly that rather
+  // than standing on screen saying "holding 1140" at somebody with nothing to do about it.
+  const { drawn, quiet } = worthDrawing(yours, recorded);
+  const shownYours = sellingOwn ? [...drawn, ...quiet] : drawn;
   const historyHolders = history.map((l) => ({
     key: holderKey(l.holder),
     holder: l.holder,
@@ -394,7 +400,7 @@ export default function DropLogPage() {
   const hasSales =
     saleCards({
       unanswered: open.length,
-      holders: yours.length + history.length,
+      holders: shownYours.length + history.length,
       lots: money ? lots.length : 0,
     }) > 0;
 
@@ -546,7 +552,9 @@ export default function DropLogPage() {
                   piles: both are "sold N for X". Titling only one of them said the other was a
                   statement rather than an entry. No rule under it either, because what follows is
                   more of the same thing and there is nothing there to divide. */}
-              {(sellableLots || ledgers.length > 0) && (
+              {/* Gated on what will actually draw, not on there being ledgers at all: a pile held
+                  back for owing nobody leaves the heading standing over nothing. */}
+              {(sellableLots || shownYours.length > 0 || history.length > 0) && (
                 <section className="loot-pool">
                   <h2 className="loot-pool-title">Record Sale</h2>
 
@@ -563,7 +571,7 @@ export default function DropLogPage() {
                   )}
 
                   <PieceLedger
-                    ledgers={yours}
+                    ledgers={shownYours}
                     tranches={tranchesByHolder}
                     bossByKey={bossByKey}
                     partyById={partyById}
@@ -612,6 +620,16 @@ export default function DropLogPage() {
                     }
                   />
                 </section>
+              )}
+
+              {/* The way back to a pile that owes nobody. Holding coupons is not a task, so it is not
+                  a card until it is asked for, but they are still yours to sell and a ledger that
+                  will not admit you hold them cannot take the sale. After the cards rather than
+                  above them: it is the way to one more of the same, not a heading over them. */}
+              {quiet.length > 0 && !sellingOwn && (
+                <button type="button" className="party-save" onClick={() => setSellingOwn(true)}>
+                  Record a sale
+                </button>
               )}
 
               {/* Last, and the one real boundary on this tab: every card above takes a sale, and this
