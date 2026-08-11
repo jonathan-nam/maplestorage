@@ -2,10 +2,8 @@
 
 import { useState, type ReactNode } from "react";
 import { DropSelect } from "@/components/drop-select";
-import { apiAssetUrl } from "@/lib/api";
 import { OTHER, addDropBody, defaultQuantity, pickableDrops } from "@/lib/drop-picker";
 import type { WorldType } from "@/lib/world";
-import type { Boss } from "@/types/boss";
 import type { BossDrop } from "@/types/drop";
 import type { AddLootBody } from "@/types/loot";
 
@@ -16,15 +14,15 @@ import type { AddLootBody } from "@/types/loot";
 // because a pool full of "grindstone", "Grindstone" and "grindstone of faith" is a pool you cannot
 // count. Anything the tables do not list is still typeable.
 //
-// The boss is a prop, not a control here: a pool belongs to a config, and a config IS one boss. A
-// caller that has to ask which boss (the Drop Log does, since it covers all of them) asks in
-// `lead`, and the answer arrives as `bossKey`.
+// The boss is not a control here: a pool belongs to a config, and a config IS one boss. A caller
+// that has to ask which boss (the Drop Log does, since it covers all of them) asks in `lead`, and
+// the answer arrives as `bossKey`. Nor is it drawn: every screen carrying this form already names
+// the boss above it.
 
 export function DropPicker({
   bossKey,
   worldType,
   table,
-  boss,
   busy,
   lead,
   difficulty,
@@ -41,8 +39,6 @@ export function DropPicker({
   worldType: WorldType;
   /** This boss's whole table. */
   table: BossDrop[] | undefined;
-  /** Leads the form where the surrounding screen does not already say which boss this is. */
-  boss?: Boss | null;
   busy: boolean;
   /** Controls the caller needs answered first, inside this form so there is one submit. */
   lead?: ReactNode;
@@ -78,8 +74,6 @@ export function DropPicker({
         }}
       >
         {lead}
-
-        {boss?.iconUrl && <img className="boss-portrait" src={apiAssetUrl(boss.iconUrl)} alt="" />}
 
         <DropSelect
           drops={drops}

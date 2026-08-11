@@ -67,7 +67,6 @@ export function LootPool({
         worldType={party.worldType}
         table={dropTables[party.bossKey]}
         difficulty={party.difficulty}
-        boss={bossByKey.get(party.bossKey) ?? null}
         busy={adding}
         onAdd={onAdd}
       />

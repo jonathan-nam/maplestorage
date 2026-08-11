@@ -31,6 +31,7 @@ export function LootRow({
 }: {
   loot: Loot;
   party: Party;
+  /** Named, not drawn: a pool is one boss and the page's title already carries its art. */
   boss: Boss | null;
   /**
    * What this row says it is, when the raw status cannot say.
@@ -126,9 +127,6 @@ export function LootRow({
             )}
           </span>
           <span className="loot-meta">
-            {boss?.iconUrl && (
-              <img className="boss-portrait is-small" src={apiAssetUrl(boss.iconUrl)} alt="" />
-            )}
             {[boss?.name, formatDropped(loot.droppedOn)].filter(Boolean).join(" · ")}
           </span>
         </div>
