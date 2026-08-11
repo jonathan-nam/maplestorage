@@ -135,7 +135,7 @@ function ShareBoxes({
           disabled={busy || !adds}
           onClick={() => void save()}
         >
-          Save
+          Save split
         </button>
         {/* Only the arithmetic, and only while it is wrong: what is left to place is the one thing
             the boxes cannot show, and it is what the button is waiting for. */}
