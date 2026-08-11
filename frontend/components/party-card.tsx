@@ -210,7 +210,7 @@ export function PartyCard({
         {/* The name is the way into the party, in every grouping. It used to be plain text, which
             left a party with an empty pool reachable only by clicking the word "Duo": the badge
             below is absent until something drops, and that is exactly when you go looking for
-            where to add one. Filed by party the boss chip already does this job. */}
+            where to add one. */}
         <Link className="party-row-heading" href={`/bosses/parties/${party.id}`}>
           {heading}
         </Link>
