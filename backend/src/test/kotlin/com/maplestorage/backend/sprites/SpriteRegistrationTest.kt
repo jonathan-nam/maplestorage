@@ -121,7 +121,7 @@ class SpriteRegistrationTest {
     @Test
     fun `registering does not disturb bytes already held`() {
         strandedCharacter()
-        val png = byteArrayOf(0x89.toByte(), 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 5)
+        val png = TEST_PNG
         val now = Clock.System.now()
         transaction {
             CharacterSprite.insert {
@@ -145,21 +145,34 @@ class SpriteRegistrationTest {
         // A MockEngine that serves the image and FAILS any ranking call, which is what pins the
         // point: this path has the URL already, so it must not need a lookup to fetch bytes. That is
         // what lets a party seat be cached without being put on the daily lookup clock.
-        val png = byteArrayOf(0x89.toByte(), 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 3)
+        val png = TEST_PNG
         val engine =
             MockEngine { request ->
                 if (request.url.host == "www.nexon.com") {
-                    error("warmUnfetched must not make a ranking call")
+                    error("warming must not make a ranking call")
                 }
                 respond(png, HttpStatusCode.OK, headersOf(HttpHeaders.ContentType, "image/png"))
             }
         val client = HttpClient(engine)
         val job = SpriteRefreshJob(NexonLookupService(client), SpriteCache(client))
 
-        val warmed = runBlocking { job.warmUnfetched() }
-        assertTrue(warmed >= 1, "expected the stranded sprite to be warmed, got $warmed")
+        // warmOne, NOT warmUnfetched. That one picks its own work from the whole table, and calling
+        // it here wrote this mock's bytes over every byteless sprite in the shared dev database.
+        assertTrue(runBlocking { job.warmOne(strandedUrl) }, "expected the stranded sprite to warm")
         assertContentEquals(png, transaction { cachedSprite(spriteKey(strandedUrl)) }?.image)
         client.close()
+    }
+
+    @Test
+    fun `the unfetched query finds a registered sprite that has no bytes`() {
+        strandedCharacter()
+        transaction { registerUnknownSprites() }
+        // Membership, not count: the query is table-wide, so a count here would be a count of the dev
+        // database. This is also the seam warmUnfetched drives, tested without letting it write.
+        assertTrue(
+            transaction { unfetchedSprites(limit = Int.MAX_VALUE) }.contains(strandedUrl),
+            "a registered sprite with no bytes should be queued for warming",
+        )
     }
 
     @Test

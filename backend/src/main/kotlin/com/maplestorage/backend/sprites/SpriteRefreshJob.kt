@@ -103,23 +103,26 @@ class SpriteRefreshJob(
      * Nexon on every page load, which is the whole problem this cache exists to solve.
      */
     suspend fun warmUnfetched(limit: Int = BATCH): Int {
-        val pending =
-            transaction {
-                CharacterSprite
-                    .selectAll()
-                    .where { CharacterSprite.image eq null }
-                    .orderBy(CharacterSprite.createdAt to SortOrder.ASC)
-                    .limit(limit)
-                    .map { it[CharacterSprite.sourceUrl] }
-            }
+        val pending = transaction { unfetchedSprites(limit) }
         var stored = 0
         for ((index, url) in pending.withIndex()) {
             if (index > 0) delay(PACING)
-            val bytes = spriteCache.fetch(url) ?: continue
-            transaction { spriteCache.store(url, bytes) }
-            stored++
+            if (warmOne(url)) stored++
         }
         return stored
+    }
+
+    /**
+     * Fetches and stores the bytes for one known URL. True if bytes landed.
+     *
+     * The seam every test uses, because [warmUnfetched] picks its own work from the whole table: a
+     * test calling that against the shared dev database warms every byteless row in it, which is how
+     * a 9-byte stub ended up written over 14 real sprites. A test names its URL.
+     */
+    internal suspend fun warmOne(url: String): Boolean {
+        val bytes = spriteCache.fetch(url) ?: return false
+        transaction { spriteCache.store(url, bytes) }
+        return true
     }
 
     internal suspend fun refresh(
@@ -169,6 +172,21 @@ class SpriteRefreshJob(
             .limit(limit)
             .map { Due(it[Characters.id], it[Characters.userId], it[Characters.name]) }
 }
+
+/**
+ * Registered sprites with no bytes yet, oldest first.
+ *
+ * Top-level, like its neighbours below, because it reads the table and nothing else.
+ *
+ * Must be called from inside a `transaction { }` block.
+ */
+fun unfetchedSprites(limit: Int = BATCH): List<String> =
+    CharacterSprite
+        .selectAll()
+        .where { CharacterSprite.image eq null }
+        .orderBy(CharacterSprite.createdAt to SortOrder.ASC)
+        .limit(limit)
+        .map { it[CharacterSprite.sourceUrl] }
 
 /** Every sprite URL any row currently points at, by proxy key. */
 private fun referencedSprites(): Map<String, String> {

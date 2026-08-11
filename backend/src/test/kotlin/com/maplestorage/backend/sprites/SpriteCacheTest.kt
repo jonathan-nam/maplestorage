@@ -43,7 +43,7 @@ import kotlin.uuid.Uuid
 class SpriteCacheTest {
     private val userId = "user_test_sprite_cache"
     private val url = "https://msavatar1.nexon.net/Character/CACHETEST.png"
-    private val png = byteArrayOf(0x89.toByte(), 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 1, 2, 3)
+    private val png = TEST_PNG
 
     @BeforeTest
     fun migrate() {
@@ -116,6 +116,19 @@ class SpriteCacheTest {
         runBlocking {
             assertNull(cacheServing(HttpStatusCode.NotFound, ByteArray(0)).fetch(url))
             assertNull(cacheServing(HttpStatusCode.ServiceUnavailable, ByteArray(0)).fetch(url))
+        }
+
+    @Test
+    fun `something that starts like a png but carries no image is refused`() =
+        runBlocking {
+            // A truncated body: the right 8 bytes and nothing behind them, which is what a connection
+            // dropped mid-response leaves. The signature check alone passed it, and storing it put a
+            // broken image behind a year of `immutable`. Caught for real when a 9-byte test stub was
+            // written over 14 live sprites.
+            assertNull(cacheServing(HttpStatusCode.OK, TRUNCATED_PNG).fetch(url))
+            assertNull(cacheServing(HttpStatusCode.OK, ByteArray(0)).fetch(url))
+            // The floor is the smallest thing that can be a PNG, so a real one still passes.
+            assertContentEquals(TEST_PNG, cacheServing(HttpStatusCode.OK, TEST_PNG).fetch(url))
         }
 
     @Test
