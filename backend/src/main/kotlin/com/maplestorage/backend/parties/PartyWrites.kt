@@ -216,20 +216,27 @@ internal enum class Removal {
  * nothing points at is deleted, so a config made by mistake does not sit retired forever.
  *
  * All time, not the shown week. A settled drop from months ago is exactly the record this keeps.
+ *
+ * The tick this period goes first, so what is left is what somebody actually entered. See
+ * withdrawClear: a config whose only drop was one a clear filed for it is a config nothing points
+ * at, and is deleted rather than retired over a row the app wrote itself.
  */
 internal fun retireOrDeleteParty(
     partyId: Uuid,
     userId: String,
+    now: Instant,
 ): Removal =
     when {
         !ownsParty(partyId, userId) -> Removal.NOT_FOUND
-        PartyLoot.selectAll().where { PartyLoot.partyId eq partyId }.empty() -> {
-            Party.deleteWhere { (Party.id eq partyId) and (Party.userId eq userId) }
-            Removal.DELETED
-        }
         else -> {
-            Party.update({ (Party.id eq partyId) and (Party.userId eq userId) }) { it[standing] = false }
-            Removal.RETIRED
+            withdrawClear(partyId, now)
+            if (PartyLoot.selectAll().where { PartyLoot.partyId eq partyId }.empty()) {
+                Party.deleteWhere { (Party.id eq partyId) and (Party.userId eq userId) }
+                Removal.DELETED
+            } else {
+                Party.update({ (Party.id eq partyId) and (Party.userId eq userId) }) { it[standing] = false }
+                Removal.RETIRED
+            }
         }
     }
 

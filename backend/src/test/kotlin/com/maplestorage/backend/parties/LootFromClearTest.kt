@@ -312,23 +312,46 @@ class LootFromClearTest {
             val bossId = bossIdForKey("kalos-the-guardian")!!
             val now = Clock.System.now()
 
-            // A drop of its own, so deleting the config retires it and keeps the pool.
-            lootFromClear(characterId, bossId, "WEEKLY", today, now)
-            assertEquals(Removal.RETIRED, retireOrDeleteParty(partyId, userId))
+            // A drop somebody LOGGED, so deleting the config retires it and keeps the pool. A
+            // clear-filed row would not do here any more: deleting takes this period's tick back
+            // and its coupons with it, and a config nothing else points at is deleted outright.
+            // See withdrawClear.
+            val logged =
+                addLoot(partyId, LootedDrop(dropIdForKey("grindstone-of-faith")!!), bossId, today, now)
+            assertEquals(Removal.RETIRED, retireOrDeleteParty(partyId, userId, now))
 
             // A later week, so it is the retirement stopping this and not the once-a-period rule.
             lootFromClear(characterId, bossId, "WEEKLY", LocalDate.parse("2026-08-15"), now)
 
-            assertEquals(1, pool(partyId).size, "a config you deleted does not keep collecting")
             // addLoot revives whatever it inserts into, which is right for a drop somebody logged
             // and wrong for a clear: ticking the boss would un-delete the party as a side effect,
             // and its coupons would be split with a guest nobody said was there.
+            assertEquals(
+                listOf(logged.toString()),
+                pool(partyId).map { it.id },
+                "a config you deleted does not keep collecting",
+            )
             assertTrue(findParty(partyId, userId)!!.retired)
             assertTrue(partiesFor(userId).none { it.id == partyId.toString() })
+        }
+    }
 
-            // What it already holds is still the clear's to take back. Rows filed into a retired
-            // config before this rule existed have to stay removable by the tick that put them there.
-            unlootFromClear(characterId, bossId, "WEEKLY", today)
+    @Test
+    fun `a row filed into an earlier period is still the clear's to take back`() {
+        transaction {
+            val (characterId, partyId) = party()
+            val bossId = bossIdForKey("kalos-the-guardian")!!
+            val now = Clock.System.now()
+            // A period that is over, which is the one deleting the config does not reach into.
+            val backThen = LocalDate.parse("2026-07-25")
+
+            lootFromClear(characterId, bossId, "WEEKLY", backThen, now)
+            retireOrDeleteParty(partyId, userId, now)
+
+            // Rows filed into a config before it was retired stay removable by the tick that put
+            // them there, which is the only thing that may take them.
+            assertEquals(1, pool(partyId).size)
+            unlootFromClear(characterId, bossId, "WEEKLY", backThen)
             assertTrue(pool(partyId).isEmpty())
         }
     }

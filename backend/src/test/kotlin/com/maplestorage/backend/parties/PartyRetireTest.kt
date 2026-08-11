@@ -1,18 +1,25 @@
 package com.maplestorage.backend.parties
 
+import com.maplestorage.backend.bosses.periodStartFor
+import com.maplestorage.backend.bosses.upsertBossClears
 import com.maplestorage.backend.config.Env
+import com.maplestorage.backend.db.BossClear
 import com.maplestorage.backend.db.Characters
 import com.maplestorage.backend.db.Party
 import com.maplestorage.backend.db.Person
 import com.maplestorage.backend.db.Screenshots
+import com.maplestorage.backend.services.DetectedBossClear
 import com.maplestorage.backend.users.WORLD_INTERACTIVE
 import com.maplestorage.backend.users.ensureUser
 import kotlinx.datetime.LocalDate
 import org.flywaydb.core.Flyway
+import org.jetbrains.exposed.v1.core.and
+import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.inList
 import org.jetbrains.exposed.v1.jdbc.Database
 import org.jetbrains.exposed.v1.jdbc.deleteWhere
 import org.jetbrains.exposed.v1.jdbc.insert
+import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
@@ -111,7 +118,7 @@ class PartyRetireTest {
             sellLoot(lootId, sale(seller.id), Uuid.parse(seller.id), partyId, Clock.System.now())
             val before = lootFor(partyId).single()
 
-            assertEquals(Removal.RETIRED, retireOrDeleteParty(partyId, userId))
+            assertEquals(Removal.RETIRED, retireOrDeleteParty(partyId, userId, Clock.System.now()))
 
             // The record the retire exists for: the drop, the sale and who is owed for it, all
             // exactly as they were.
@@ -127,13 +134,133 @@ class PartyRetireTest {
         }
     }
 
+    /** The same trio on a mode, so a clear can file the coupons the catalog guarantees. */
+    private fun hardTrio(): PartyResponse {
+        val party = trio()
+        saveParty(
+            userId,
+            Uuid.parse(party.id),
+            SavePartyRequest(party.characterId, "limbo", listOf("Steve", "Bob"), difficulty = "HARD"),
+            Clock.System.now(),
+        )
+        return findParty(Uuid.parse(party.id), userId)!!
+    }
+
+    private fun clearRow(
+        party: PartyResponse,
+        period: LocalDate,
+    ) = BossClear
+        .selectAll()
+        .where {
+            (BossClear.characterId eq Uuid.parse(party.characterId)) and
+                (BossClear.bossCatalogId eq bossIdForKey("limbo")!!) and
+                (BossClear.periodStart eq period)
+        }.firstOrNull()
+
+    @Test
+    fun `deleting a config takes back the tick it was ticked through, and what that tick filed`() {
+        transaction {
+            val party = hardTrio()
+            val partyId = Uuid.parse(party.id)
+            val boss = bossIdForKey("limbo")!!
+            val now = Clock.System.now()
+            // Hard Limbo's 60 coupons are guaranteed, so the tick files them itself.
+            setPartyClear(party, boss, bossResetOf(boss)!!, cleared = true, now = now)
+            assertTrue(lootFor(partyId).isNotEmpty(), "the clear filed its coupons")
+
+            // Deleted, not retired: the only row pointing at the config was one the app wrote.
+            assertEquals(Removal.DELETED, retireOrDeleteParty(partyId, userId, now))
+
+            assertNull(findParty(partyId, userId))
+            // And the boss is not ticked, so adding the config back starts from nothing said.
+            assertNull(clearRow(party, periodStartFor(bossResetOf(boss)!!, now)))
+        }
+    }
+
+    @Test
+    fun `a clear read off a capture survives the config being deleted`() {
+        transaction {
+            val party = hardTrio()
+            val partyId = Uuid.parse(party.id)
+            val boss = bossIdForKey("limbo")!!
+            val now = Clock.System.now()
+            val shot = Uuid.random()
+            // Held in a local: inside insert {} the TABLE is the receiver, so a bare `userId` is
+            // the COLUMN and the row is written with a column reference for a value. Same trap as
+            // cleanUp's.
+            val owner = userId
+            Screenshots.insert {
+                it[Screenshots.id] = shot
+                it[Screenshots.userId] = owner
+                it[Screenshots.characterId] = Uuid.parse(party.characterId)
+                it[Screenshots.type] = "PLANNER"
+                it[uploadedAt] = now
+                it[parseStatus] = "SUCCESS"
+            }
+            upsertBossClears(
+                Uuid.parse(party.characterId),
+                listOf(DetectedBossClear("limbo", true)),
+                shot,
+                now,
+            )
+
+            retireOrDeleteParty(partyId, userId, now)
+
+            // A capture read this off the planner. Deleting a config does not unmake a screenshot.
+            val kept = clearRow(party, periodStartFor(bossResetOf(boss)!!, now))
+            assertEquals(shot, kept?.get(BossClear.sourceScreenshotId))
+        }
+    }
+
+    @Test
+    fun `a tick from an earlier period is left where it is`() {
+        transaction {
+            val party = hardTrio()
+            val partyId = Uuid.parse(party.id)
+            val boss = bossIdForKey("limbo")!!
+            val now = Clock.System.now()
+            val lastPeriod = LocalDate.parse("2026-07-16")
+            BossClear.insert {
+                it[characterId] = Uuid.parse(party.characterId)
+                it[bossCatalogId] = boss
+                it[periodStart] = lastPeriod
+                it[cleared] = true
+                it[capturedAt] = now
+                it[sourceScreenshotId] = null
+            }
+
+            retireOrDeleteParty(partyId, userId, now)
+
+            // A boss killed in July was still killed in July, and the clear matrix draws it.
+            assertTrue(clearRow(party, lastPeriod)?.get(BossClear.cleared) == true)
+        }
+    }
+
+    @Test
+    fun `a drop somebody logged still retires the config, with the tick withdrawn`() {
+        transaction {
+            val party = hardTrio()
+            val partyId = Uuid.parse(party.id)
+            val boss = bossIdForKey("limbo")!!
+            val now = Clock.System.now()
+            val lootId = addGrindstone(party)
+            setPartyClear(party, boss, bossResetOf(boss)!!, cleared = true, now = now)
+
+            assertEquals(Removal.RETIRED, retireOrDeleteParty(partyId, userId, now))
+
+            // What a human entered is the record the retire exists for. What the tick filed is not.
+            assertEquals(listOf(lootId.toString()), lootFor(partyId).map { it.id })
+            assertNull(clearRow(party, periodStartFor(bossResetOf(boss)!!, now)))
+        }
+    }
+
     @Test
     fun `a party that has never held a drop is deleted outright`() {
         transaction {
             val party = trio()
             val partyId = Uuid.parse(party.id)
 
-            assertEquals(Removal.DELETED, retireOrDeleteParty(partyId, userId))
+            assertEquals(Removal.DELETED, retireOrDeleteParty(partyId, userId, Clock.System.now()))
             assertNull(findParty(partyId, userId))
             assertTrue(partiesFor(userId, includeRetired = true).none { it.id == party.id })
         }
@@ -147,7 +274,7 @@ class PartyRetireTest {
             val lootId = addGrindstone(party)
             val seller = party.members[0]
             sellLoot(lootId, sale(seller.id), Uuid.parse(seller.id), partyId, Clock.System.now())
-            retireOrDeleteParty(partyId, userId)
+            retireOrDeleteParty(partyId, userId, Clock.System.now())
 
             // The wallet reads allLootFor against the configs partiesFor hands it. Both sides have
             // to still carry this one, or the debt silently stops existing.
@@ -168,7 +295,7 @@ class PartyRetireTest {
             val party = trio()
             val partyId = Uuid.parse(party.id)
             val lootId = addGrindstone(party)
-            retireOrDeleteParty(partyId, userId)
+            retireOrDeleteParty(partyId, userId, Clock.System.now())
 
             // Added again with a different roster, which is what picking the boss back up looks
             // like. Steve is gone, Cara is new.
@@ -197,7 +324,7 @@ class PartyRetireTest {
             val party = trio()
             val partyId = Uuid.parse(party.id)
             addGrindstone(party)
-            retireOrDeleteParty(partyId, userId)
+            retireOrDeleteParty(partyId, userId, Clock.System.now())
             assertTrue(partiesFor(userId).none { it.id == party.id })
 
             // Something fell on it, so it is a boss this character runs after all. Without this the

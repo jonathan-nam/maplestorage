@@ -2,6 +2,8 @@ package com.maplestorage.backend.parties
 
 import com.maplestorage.backend.bosses.periodAfter
 import com.maplestorage.backend.bosses.periodOf
+import com.maplestorage.backend.bosses.periodStartFor
+import com.maplestorage.backend.db.BossClear
 import com.maplestorage.backend.db.BossDropAmount
 import com.maplestorage.backend.db.DropCatalog
 import com.maplestorage.backend.db.Party
@@ -184,3 +186,50 @@ private fun guaranteedDrops(
         .where {
             (BossDropAmount.bossCatalogId eq bossCatalogId) and (BossDropAmount.difficulty eq difficulty)
         }.map { it[BossDropAmount.dropCatalogId] to it[BossDropAmount.pieces] }
+
+/**
+ * Takes back the clear this config's boss is ticked for in the period it is in now.
+ *
+ * A tick made through a party row is that party saying it ran the boss, so taking the config off
+ * Party View takes the statement with it, along with the coupons the tick filed on its own (see
+ * unlootFromClear). Without this, deleting a config and adding it again handed back a boss already
+ * ticked and a pool already holding its guaranteed drop, neither of which anybody had entered.
+ *
+ * The ROW is deleted rather than set false. False is somebody saying the boss is NOT done, which is
+ * a claim of its own that the clear matrix draws; nobody is making it. Nobody has said anything.
+ *
+ * A hand tick only. A clear with a screenshot behind it is what a capture read off the planner, and
+ * deleting a config does not unmake a capture or make its evidence wrong.
+ *
+ * This period only. Earlier ones are history, which the matrix draws and a retired pool keeps, and a
+ * boss killed in July was still killed in July.
+ */
+internal fun withdrawClear(
+    partyId: Uuid,
+    now: Instant,
+) {
+    val config = Party.selectAll().where { Party.id eq partyId }.firstOrNull()
+    val bossId = config?.get(Party.bossCatalogId)
+    val characterId = config?.get(Party.characterId)
+    val reset = bossId?.let(::bossResetOf)
+    if (bossId == null || characterId == null || reset == null) return
+    val period = periodStartFor(reset, now)
+    val ticked =
+        BossClear
+            .selectAll()
+            .where {
+                (BossClear.characterId eq characterId) and
+                    (BossClear.bossCatalogId eq bossId) and
+                    (BossClear.periodStart eq period)
+            }.firstOrNull()
+    if (ticked == null || ticked[BossClear.sourceScreenshotId] != null) return
+
+    // Before the row goes, while there is still a clear for it to be the inverse of. Only ever takes
+    // rows the app filed and nobody has spoken for, which is unlootFromClear's own rule.
+    unlootFromClear(characterId, bossId, reset, todayIn(now))
+    BossClear.deleteWhere {
+        (BossClear.characterId eq characterId) and
+            (BossClear.bossCatalogId eq bossId) and
+            (BossClear.periodStart eq period)
+    }
+}

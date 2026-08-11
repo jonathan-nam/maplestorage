@@ -302,7 +302,7 @@ private suspend fun RoutingContext.deletePartyRoute() {
     val outcome =
         transaction {
             ensureUser(userId, email)
-            retireOrDeleteParty(partyId, userId)
+            retireOrDeleteParty(partyId, userId, Clock.System.now())
         }
     if (outcome == Removal.NOT_FOUND) {
         call.respond(HttpStatusCode.NotFound)
