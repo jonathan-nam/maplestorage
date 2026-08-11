@@ -209,7 +209,13 @@ function RunRow({
             <StackChips
               // Remounted when the recorded arrangement changes, so a save redraws from what the
               // server wrote rather than from the chips that asked for it.
-              key={JSON.stringify(run.recorded)}
+              //
+              // Through countKey, which is sorted. bundlesFor() has no ORDER BY, so the same
+              // arrangement can come back with its rows the other way round, and a key that turned
+              // on that order would remount these chips while somebody was still clicking them:
+              // any save on the page refetches the pools, and their half-made arrangement would
+              // vanish with nothing said.
+              key={countKey(recordedArrangement(run) ?? [])}
               run={run}
               behind={behind}
               busy={busy}
