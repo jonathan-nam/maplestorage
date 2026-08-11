@@ -3439,6 +3439,11 @@ button.link:disabled {
   /* Less than .split-input's 9px: the icon is taller than a line of text, and this keeps the
      control the same height as the boxes it sits beside. */
   padding: 6px 10px;
+  /* Room for the icon whether one is drawn or not: the icon, this rule's padding, its border. A
+     button is border-box by UA default (measured), so the total is what has to be stated. Without
+     it the field was 35px with the placeholder and 37px once an icon appeared, and picking a drop
+     nudged the boxes beside it. */
+  min-height: calc(23px + 12px + 2px);
   text-align: left;
   cursor: pointer;
 }
@@ -3483,8 +3488,10 @@ button.link:disabled {
   image-rendering: pixelated;
 }
 
-/* Art the pinned dataset has none of, and the two rows that are not an item. The frame still takes
-   its space so the labels line up down the list. */
+/* A LIST row whose art the pinned dataset has none of, and "something else...". The frame still
+   takes its space so the labels line up down the list. The closed control draws no frame: with
+   nothing above or below it there is no column to keep, and an empty box beside "Select a drop..."
+   reads as a missing image. */
 .drop-select-blank {
   width: 46px;
   height: 46px;
@@ -3492,14 +3499,8 @@ button.link:disabled {
 }
 
 /* Half size in the CLOSED control, which is a field in a row of fields: at 46 it stood 56px tall
-   against 37px boxes beside it. The list is where the art is being read, and it keeps full size.
-   Two rules rather than one selector list, so lib/pixel-scaling-css.test.ts can read each. */
+   against 37px boxes beside it. The list is where the art is being read, and it keeps full size. */
 .drop-select > .drop-select-icon {
-  width: 23px;
-  height: 23px;
-}
-
-.drop-select > .drop-select-blank {
   width: 23px;
   height: 23px;
 }

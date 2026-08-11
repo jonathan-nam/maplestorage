@@ -22,12 +22,18 @@ describe("dropOptions", () => {
     expect(options.map((o) => o.value)).toEqual(["grindstone", OTHER]);
   });
 
-  // The bug: "pick a drop" was carried into the list as row 0, so an instruction sat where a choice
-  // goes. It belongs to the closed control only.
+  // The bug: the placeholder was carried into the list as row 0, so an instruction sat where a
+  // choice goes. It belongs to the closed control only.
   it("never offers the placeholder as something to choose", () => {
     const options = dropOptions([drop()], "INTERACTIVE");
     expect(options.map((o) => o.value)).not.toContain(PLACEHOLDER.value);
     expect(options.map((o) => o.label)).not.toContain(PLACEHOLDER.label);
+  });
+
+  // What makes the field draw no icon frame at all: Icon renders nothing without a URL, and only a
+  // list row substitutes the blank. An icon here would put an empty box beside the instruction.
+  it("gives the placeholder no art to draw", () => {
+    expect(PLACEHOLDER.iconUrl).toBeNull();
   });
 
   it("carries the icon through, and a null one as null rather than dropping the row", () => {

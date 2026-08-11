@@ -14,11 +14,14 @@ export type DropOption = { value: string; label: string; iconUrl: string | null 
 /**
  * What the closed control says while nothing is picked, and NOT a row.
  *
- * A <select> drew this for itself and offered it back as an option; carrying it into the list put
- * "pick a drop" among the drops, which is an instruction sitting where a choice goes. Nothing needs
- * to choose it: a successful add clears the picker, and Escape leaves what was already there.
+ * A <select> drew this for itself and offered it back as an option; carrying it into the list put an
+ * instruction where a choice goes. Nothing needs to choose it: a successful add clears the picker,
+ * and Escape leaves what was already there.
+ *
+ * No art, and the field draws no frame for it. A row keeps its blank frame to line the labels up
+ * down the list, but there is nothing above or below this one to line up with.
  */
-export const PLACEHOLDER: DropOption = { value: "", label: "pick a drop", iconUrl: null };
+export const PLACEHOLDER: DropOption = { value: "", label: "Select a drop...", iconUrl: null };
 
 /**
  * The rows: this boss's drops, then "type it instead".

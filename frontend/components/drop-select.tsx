@@ -24,10 +24,16 @@ import type { BossDrop } from "@/types/drop";
 // The choosing logic that a native popup used to provide is in lib/drop-select.ts, under test. This
 // file is the markup and the events.
 
-/** The blank frame for a row with no art, so the labels line up either way. See BossDrop.iconUrl. */
+/** The art, or nothing at all. Used by the closed control, which has no column to keep. */
 function Icon({ option }: { option: DropOption }) {
-  if (!option.iconUrl) return <span className="drop-select-blank" aria-hidden="true" />;
+  if (!option.iconUrl) return null;
   return <img className="drop-select-icon" src={apiAssetUrl(option.iconUrl)} alt="" />;
+}
+
+/** In a row, a missing icon keeps its frame, so the labels line up down the list. */
+function RowIcon({ option }: { option: DropOption }) {
+  if (!option.iconUrl) return <span className="drop-select-blank" aria-hidden="true" />;
+  return <Icon option={option} />;
 }
 
 export function DropSelect({
@@ -189,7 +195,7 @@ export function DropSelect({
                 }}
                 onMouseEnter={() => setActive(i)}
               >
-                <Icon option={option} />
+                <RowIcon option={option} />
                 <span className="drop-select-label">{option.label}</span>
               </li>
             ))}
