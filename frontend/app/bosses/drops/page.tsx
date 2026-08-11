@@ -565,7 +565,6 @@ export default function DropLogPage() {
                   <PieceLedger
                     ledgers={yours}
                     tranches={tranchesByHolder}
-                    payments={paymentsByHolder}
                     bossByKey={bossByKey}
                     partyById={partyById}
                     iconUrl={vestigeIcon}
@@ -592,25 +591,8 @@ export default function DropLogPage() {
                         body: JSON.stringify({ holder, pieces, amount, disposition: "BOUGHT" }),
                       })
                     }
-                    // The fact nothing else can know: the mesos arrived. See V51.
-                    onAddPayment={(holder: Holder, amount) =>
-                      paymentWrite(PAYMENTS_KEY, {
-                        method: "POST",
-                        body: JSON.stringify({ holder, amount }),
-                      })
-                    }
-                    // Closing the books, which no arithmetic is entitled to do. See V52.
-                    onSettle={(holder: Holder, lootIds, unpaid) =>
-                      settlementWrite(SETTLEMENTS_KEY, {
-                        method: "POST",
-                        body: JSON.stringify({ holder, lootIds, unpaid }),
-                      })
-                    }
                     onRemoveSale={(trancheId) =>
                       saleWrite(`${TRANCHES_KEY}/${trancheId}`, { method: "DELETE" })
-                    }
-                    onRemovePayment={(paymentId) =>
-                      paymentWrite(`${PAYMENTS_KEY}/${paymentId}`, { method: "DELETE" })
                     }
                   />
 

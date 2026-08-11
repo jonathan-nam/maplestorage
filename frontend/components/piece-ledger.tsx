@@ -7,16 +7,10 @@ import { formatWeekStart } from "@/lib/boss-clears";
 import { bossLabel } from "@/lib/boss-difficulty";
 import { formatMesos, parseMesos, shortMesos } from "@/lib/drop-split";
 import { transferKey } from "@/lib/piece-ledger";
-import {
-  type Holder,
-  type HolderLedger,
-  holderKey,
-  toCome,
-  unaccounted,
-} from "@/lib/vestige-ledger";
+import { type Holder, type HolderLedger, holderKey, unaccounted } from "@/lib/vestige-ledger";
 import type { Boss } from "@/types/boss";
 import type { Party } from "@/types/party";
-import type { VestigePayment, VestigeTranche } from "@/types/vestige";
+import type { VestigeTranche } from "@/types/vestige";
 
 // One card per HOLDER: the pile a person is holding, the one box that prices it, and what each boss
 // they looted for owes once its own pieces are covered.
@@ -44,7 +38,6 @@ type Fate = "SOLD" | "KEPT" | "BOUGHT";
 export function PieceLedger({
   ledgers,
   tranches,
-  payments,
   bossByKey,
   partyById,
   iconUrl,
@@ -52,16 +45,11 @@ export function PieceLedger({
   onAddSale,
   onAddKept,
   onAddBought,
-  onAddPayment,
-  onSettle,
   onRemoveSale,
-  onRemovePayment,
 }: {
   ledgers: HolderLedger[];
   /** Every holder's tranches, keyed by holderKey(), oldest first as the server returns them. */
   tranches: Map<string, VestigeTranche[]>;
-  /** Every holder's receipts, keyed the same way. See V51. */
-  payments: Map<string, VestigePayment[]>;
   bossByKey: Map<string, Boss>;
   partyById: Map<string, Party>;
   /** The coupon's own sprite, backend-relative. Null when the catalog has no art for it. */
@@ -70,10 +58,7 @@ export function PieceLedger({
   onAddSale: (holder: Holder, pieces: number, amount: number) => Promise<void>;
   onAddKept: (holder: Holder, pieces: number) => Promise<void>;
   onAddBought: (holder: Holder, pieces: number, amount: number) => Promise<void>;
-  onAddPayment: (holder: Holder, amount: number) => Promise<void>;
-  onSettle: (holder: Holder, lootIds: string[], unpaid: number) => Promise<void>;
   onRemoveSale: (trancheId: string) => Promise<void>;
-  onRemovePayment: (paymentId: string) => Promise<void>;
 }) {
   if (ledgers.length === 0) return null;
   // Every card, settled ones included. These bosses drop vestiges on every clear, so a holder's card is
@@ -86,7 +71,6 @@ export function PieceLedger({
           key={holderKey(ledger.holder)}
           ledger={ledger}
           tranches={tranches.get(holderKey(ledger.holder)) ?? []}
-          payments={payments.get(holderKey(ledger.holder)) ?? []}
           bossByKey={bossByKey}
           partyById={partyById}
           iconUrl={iconUrl}
@@ -94,10 +78,7 @@ export function PieceLedger({
           onAddSale={onAddSale}
           onAddKept={onAddKept}
           onAddBought={onAddBought}
-          onAddPayment={onAddPayment}
-          onSettle={onSettle}
           onRemoveSale={onRemoveSale}
-          onRemovePayment={onRemovePayment}
         />
       ))}
     </>
@@ -107,7 +88,6 @@ export function PieceLedger({
 function HolderCard({
   ledger,
   tranches,
-  payments,
   bossByKey,
   partyById,
   iconUrl,
@@ -115,14 +95,10 @@ function HolderCard({
   onAddSale,
   onAddKept,
   onAddBought,
-  onAddPayment,
-  onSettle,
   onRemoveSale,
-  onRemovePayment,
 }: {
   ledger: HolderLedger;
   tranches: VestigeTranche[];
-  payments: VestigePayment[];
   bossByKey: Map<string, Boss>;
   partyById: Map<string, Party>;
   iconUrl: string | null;
@@ -130,19 +106,13 @@ function HolderCard({
   onAddSale: (holder: Holder, pieces: number, amount: number) => Promise<void>;
   onAddKept: (holder: Holder, pieces: number) => Promise<void>;
   onAddBought: (holder: Holder, pieces: number, amount: number) => Promise<void>;
-  onAddPayment: (holder: Holder, amount: number) => Promise<void>;
-  onSettle: (holder: Holder, lootIds: string[], unpaid: number) => Promise<void>;
   onRemoveSale: (trancheId: string) => Promise<void>;
-  onRemovePayment: (paymentId: string) => Promise<void>;
 }) {
   const [pieces, setPieces] = useState("");
   const [amount, setAmount] = useState("");
   const [fate, setFate] = useState<Fate>("SOLD");
-  const [got, setGot] = useState("");
   const [refusal, setRefusal] = useState<string | null>(null);
 
-  // Your side, in the units you are owed. What the header leads with.
-  const toGo = ledger.owedToYou - ledger.settledToYou;
   const overEntered = Math.max(0, ledger.accounted - ledger.pieces);
   const toEnter = unaccounted(ledger);
 
@@ -191,14 +161,9 @@ function HolderCard({
           : null
       : null;
 
-  const gotTotal = parseMesos(got);
-  const payment = gotTotal !== null && gotTotal >= 1 ? gotTotal : null;
-
-  // The drops still open under this holder: what Mark settled would close, and what the queue lists.
-  // A closed drop stays in the LEDGER, because the tranches were spent across the whole pile, and only
-  // stops being drawn. See V52.
+  // The bosses still open under this holder, which is what the queue lists. A closed one is history
+  // and is said as a count rather than dropped. See V52.
   const open = ledger.drops.filter((d) => !d.closed);
-  const openLoot = open.map((d) => d.lootId);
   const closedCount = ledger.drops.length - open.length;
 
   /** Keeps what was typed when the server refuses it, so a rejected sale can be corrected. */
@@ -210,7 +175,6 @@ function HolderCard({
         setPieces("");
         setAmount("");
       }
-      if (clear === "paid") setGot("");
     } catch (e) {
       setRefusal(e instanceof Error ? e.message : "That didn't save.");
     }
@@ -234,42 +198,15 @@ function HolderCard({
           <span className="loot-name">
             {ledger.holder.kind === "SELF" ? "You" : ledger.holderName}
           </span>
-          <span className="loot-meta">
-            {/* YOUR side, in the units you are owed. The pile's own numbers moved down to the boxes
-                that take them: leading with one frame and counting in the other is what made "why
-                do I enter 390 when I am owed 195" a question the card kept provoking. */}
-            {ledger.holder.kind === "SELF"
-              ? `holding ${ledger.pieces}`
-              : `owes you ${ledger.owedToYou} pieces · ${ledger.settledToYou} priced · ${toGo} to go`}
-          </span>
+          <span className="loot-meta">{`holding ${ledger.pieces}`}</span>
         </span>
         <span className="ledger-tally">
-          {/* Due NOW against what has arrived. Priced and paid are different facts, and showing only
-              the first is what left a fully sold pile reading exactly like one still waiting. The
-              money says "settled" and drops the figure once it is all in. See V51. */}
-          {ledger.closed ? (
+          {ledger.closed && (
             <span className="ledger-done">
               {ledger.writtenOff > 0
                 ? `fully settled, ${shortMesos(ledger.writtenOff)} written off`
                 : "fully settled"}
             </span>
-          ) : ledger.settled ? (
-            // Overpayment is said rather than netted off: more arriving than was owed is a miscount
-            // on one side, and a settled card that absorbed it would hide which.
-            ledger.dueNow > 0 && (
-              <span className="loot-share-nets">
-                {ledger.received > ledger.dueNow
-                  ? `settled, ${shortMesos(ledger.received - ledger.dueNow)} over`
-                  : "settled"}
-              </span>
-            )
-          ) : (
-            ledger.dueNow > 0 && (
-              <span className="droplog-take">
-                {formatMesos(toCome(ledger), true)}
-                {ledger.received > 0 ? " to come" : " due"}
-              </span>
-            )
           )}
         </span>
       </header>
@@ -383,90 +320,6 @@ function HolderCard({
           ))}
         </span>
 
-        {/* The money, and only once there is any to collect. The other half of the same sequence: a
-            bill cannot exist before the pieces above it have a price. See V51. */}
-        {ledger.holder.kind !== "SELF" &&
-          ledger.dueNow > 0 &&
-          !ledger.settled &&
-          !ledger.closed && (
-            <>
-              <span className="ledger-step">money</span>
-              <span className="ledger-progress">
-                {ledger.received > 0
-                  ? `${shortMesos(ledger.received)} of ${shortMesos(ledger.dueNow)} paid`
-                  : `${shortMesos(ledger.dueNow)} owed`}
-              </span>
-              <form
-                className="ledger-sale"
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  if (payment) void write(onAddPayment(ledger.holder, payment), "paid");
-                }}
-              >
-                <label className="loot-share-input">
-                  paid me
-                  <input
-                    className="split-input"
-                    value={got}
-                    onChange={(e) => setGot(e.target.value)}
-                    placeholder={shortMesos(toCome(ledger))}
-                    inputMode="decimal"
-                    aria-label={`What ${ledger.holderName} has paid you`}
-                  />
-                </label>
-                <button type="submit" className="party-save" disabled={busy || payment === null}>
-                  Add
-                </button>
-              </form>
-
-              {/* This step's own rows. Removable because a mistyped receipt says a bill is settled when
-                it is not, and this is the only place it can be corrected. See V51. */}
-              {payments.length > 0 && (
-                <span className="ledger-tranches">
-                  {payments.map((paid) => (
-                    <span key={paid.id} className="ledger-tranche">
-                      {`${shortMesos(paid.amount)} paid`}
-                      <button
-                        type="button"
-                        className="link ledger-drop-sale"
-                        disabled={busy}
-                        onClick={() => void write(onRemovePayment(paid.id), null)}
-                        aria-label={`Remove the ${formatMesos(paid.amount, true)} payment`}
-                      >
-                        ×
-                      </button>
-                    </span>
-                  ))}
-                </span>
-              )}
-            </>
-          )}
-
-        {/* The one thing about this card that cannot be derived: somebody deciding it is done. Offered
-            once every piece is accounted for, and NOT once the money balances, because closing on
-            "close enough" is the case it exists for. What is left owing goes on the record with it, so
-            writing off 56m is a decision rather than a number that quietly vanished. See V52. */}
-        {ledger.holder.kind !== "SELF" &&
-          !ledger.closed &&
-          toEnter === 0 &&
-          openLoot.length > 0 && (
-            <span className="ledger-close">
-              <button
-                type="button"
-                className="party-save"
-                disabled={busy}
-                onClick={() => void write(onSettle(ledger.holder, openLoot, toCome(ledger)), null)}
-              >
-                Mark settled
-              </button>
-              <span className="ledger-progress">
-                {toCome(ledger) > 0
-                  ? `closes ${openLoot.length} ${openLoot.length === 1 ? "boss" : "bosses"}, ${shortMesos(toCome(ledger))} unpaid`
-                  : `closes ${openLoot.length} ${openLoot.length === 1 ? "boss" : "bosses"}`}
-              </span>
-            </span>
-          )}
-
         {refusal && <span className="split-error">{refusal}</span>}
       </div>
 
@@ -492,52 +345,16 @@ function HolderCard({
                       one fact that fold would otherwise lose. */}
                   {drop.looterName} · week of {formatWeekStart(drop.weekStart)}
                 </span>
-                {/* Against the SELLABLE part, so a pile whose sellable half has gone reads as
-                    finished. Empty when there is nothing to sell: a full bar would say done and an
-                    empty one would say nothing has happened, and neither is true. */}
-                <span className="ledger-bar" aria-hidden="true">
-                  <span
-                    className="ledger-bar-fill"
-                    style={{
-                      width: drop.sellable > 0 ? `${(drop.covered / drop.sellable) * 100}%` : "0",
-                    }}
-                  />
-                </span>
-                <span className="loot-share-nets">
-                  {drop.covered} of {drop.sellable}
-                  {drop.kept > 0 && ` · ${drop.kept} kept`}
-                  {drop.bought && ` · ${drop.bought.pieces} taken`}
-                </span>
+                <span className="loot-share-nets">{drop.pieces}</span>
               </div>
 
+              {/* Pieces of this night that are somebody else's, in counts. No price: only the holder
+                  can sell a coupon, and what these are worth is whatever the two of you agree. */}
               <ul className="loot-shares">
                 {drop.transfers.map((transfer) => (
                   <li key={transferKey(transfer)}>
                     <span className="loot-share-name">owes {transfer.to}</span>
-                    {transfer.send === null ? (
-                      // None of its pieces have sold, so there is no price to pay them at. The
-                      // count is the fact; money would be a guess at the next tranche.
-                      //
-                      // Two ways to get here and they are not the same promise. Waiting on a sale
-                      // will be priced. A pile with nothing left to sell never will, and saying
-                      // "when they sell" about it is a date that cannot come.
-                      <span className="loot-share-nets">
-                        {drop.sellable === 0
-                          ? `${transfer.pieces} pieces, no sale to price them`
-                          : `${transfer.pieces} pieces, priced when they sell`}
-                      </span>
-                    ) : (
-                      <>
-                        <span className="droplog-take">{formatMesos(transfer.send, true)}</span>
-                        {/* No verb: a settled piece is one that sold OR one they took and paid
-                            for, and "sold" was only ever true while the second could not happen. */}
-                        <span className="loot-share-nets">
-                          {transfer.settled < transfer.pieces
-                            ? `${transfer.settled} of ${transfer.pieces} pieces`
-                            : `${transfer.pieces} pieces`}
-                        </span>
-                      </>
-                    )}
+                    <span className="loot-share-nets">{transfer.pieces} pieces</span>
                   </li>
                 ))}
               </ul>

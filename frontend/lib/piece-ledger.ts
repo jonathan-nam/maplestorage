@@ -2,32 +2,18 @@
 //
 // A boss drops vestige coupons in bundles, more bundles than a small party has members, so they do
 // not divide by looting alone: somebody ends up holding pieces that are not theirs. This works out
-// who is short, who is over, what the transfers between them are, and what those are worth once the
-// pieces have actually been sold.
+// who is short, who is over, and how many pieces move between them.
 //
 // It is NOT the money split in drop-split.ts, and it is not a second copy of it. That file divides
-// one pot among seats and grosses each payout up for the fee on its hop. This one divides a COUNT,
-// which is exact, and turns into mesos only through the prices the seller really got.
+// one pot among seats. This one divides a COUNT, which is exact, and it stops there.
 //
-// Pieces are liquid and the price moves, so a stack goes out in tranches: 100 at 25m, then 80 at
-// 24m. Nothing here stores an average. The tranches are what a human entered and the average is
-// derived from them, so a price nobody got cannot end up in a payout.
-//
-// Not every piece is for sale. A holder may redeem their own share instead, and coupons are
-// single-trade, so a holder who does that cannot hand the pieces they owe to somebody who wants to
-// sell: the receiver would get something unsellable. Only the holder can turn a creditor's share
-// into mesos. So a pile is priced over the part of it that is FOR SALE, never the whole pile. See
-// `sellableOf`. Measuring against the whole pile was issue #281: the creditor was paid the fraction
-// of their claim that matched the fraction of the pile the holder happened to sell.
-
-import { FEE_STANDARD } from "./drop-split";
-
-/** One tranche, as the seller entered it. */
-export type PieceSale = {
-  pieces: number;
-  /** Listed price of ONE piece in that tranche. */
-  priceEach: number;
-};
+// It used to go further, and no longer does. A debt was priced by apportioning the holder's own sale
+// proceeds pro rata over the part of their pile that was for sale, tranche by tranche, so the ledger
+// had to be told what somebody else sold at. That is not knowable and it was not the reader's job:
+// coupons are single-trade, so only the holder can sell them, and the two sides of a debt come off
+// different nights at different prices. A debt is now a count of pieces, and what it is worth is
+// whatever the two of them agree. The apportioning machinery (allocate, spreadKept, spreadBought,
+// the coverage queue and everything #281 and #316 were about) is deleted rather than left unused.
 
 /** One seat on a stacking drop: what they took, and what fraction of it is theirs. */
 export type LedgerSeat = {
@@ -49,88 +35,14 @@ export type SeatBalance = {
   balance: number;
 };
 
-/** How far through the stack the seller is. */
-export type SaleProgress = {
-  piecesSold: number;
-  unsold: number;
-  /** Listed value of everything sold so far. */
-  gross: number;
-  /** Exact average listed price of a piece sold, or null before anything has. */
-  averagePrice: number | null;
-  /**
-   * Every piece is accounted for, so what each seat is owed can be stated as a final figure. Until
-   * then it cannot: the pieces still to shift may go at a different price, and the average so far
-   * would put a number on screen that the last tranche is about to change.
-   */
-  complete: boolean;
-  /** More pieces sold than the row says dropped, which is a miscount rather than a payout. */
-  oversold: boolean;
-};
-
-/** One transfer that clears part of the ledger. */
+/** One debt out of a drop: this many of the creditor's pieces are in the debtor's inventory. */
 export type PieceTransfer = {
   fromId: string;
   toId: string;
   from: string;
   to: string;
   pieces: number;
-  /** How many of those pieces have sold, so this much of the debt is settled and cannot move. */
-  settled: number;
-  /**
-   * Mesos to send NOW, for the pieces that have sold. Null while none of them have.
-   *
-   * Pro rata over the SELLABLE pile, so a debt is cleared in instalments as the stack goes rather
-   * than in one payment at the end. It comes to the same money as waiting, but only because every
-   * sellable piece eventually sells: taken over the whole pile instead, a holder who kept part of
-   * theirs left the receiver stuck at the same fraction of their claim, permanently and with the
-   * holder holding the lever. That was issue #281. What pro rata buys is that the receiver does not
-   * wait on the last piece of a stack that may sit for weeks, and no instalment is ever revised,
-   * because each one is settled against the price its own tranches really got.
-   *
-   * Sending exactly this leaves the receiver holding what they would have held had they looted those
-   * pieces and sold them themselves: they pay the Auction House once on the way in, which is the one
-   * fee their own sale would have cost them. The sender pays a fee on their sale too, so the second
-   * hop is theirs to eat, and that is what taking somebody else's pieces costs.
-   */
-  send: number | null;
-  /** What the receiver is left holding after the fee on that transfer. Null with `send`. */
-  nets: number | null;
 };
-
-/**
- * The tranches left once the first `pieces` of them have been spent, in order and at their prices.
- *
- * `allocate` drains the list from the front, so this is what a second pass over the drops it did not
- * reach may still spend. A tranche the count lands inside is split rather than dropped, which is what
- * makes two passes come to the same figures as the one they replace.
- */
-export function salesAfter(sales: PieceSale[], pieces: number): PieceSale[] {
-  let spent = Math.max(0, pieces);
-  const left: PieceSale[] = [];
-  for (const sale of sales) {
-    if (spent >= sale.pieces) {
-      spent -= sale.pieces;
-      continue;
-    }
-    left.push(spent > 0 ? { pieces: sale.pieces - spent, priceEach: sale.priceEach } : sale);
-    spent = 0;
-  }
-  return left;
-}
-
-/** What has sold, and whether that is all of it. Money is derived here and stored nowhere. */
-export function saleProgress(total: number, sales: PieceSale[]): SaleProgress {
-  const piecesSold = sales.reduce((sum, s) => sum + s.pieces, 0);
-  const gross = sales.reduce((sum, s) => sum + s.pieces * s.priceEach, 0);
-  return {
-    piecesSold,
-    unsold: Math.max(0, total - piecesSold),
-    gross,
-    averagePrice: piecesSold > 0 ? gross / piecesSold : null,
-    complete: piecesSold === total && total > 0,
-    oversold: piecesSold > total,
-  };
-}
 
 /**
  * A whole divided by weights, in whole units that add up to exactly the whole.
@@ -240,16 +152,6 @@ export function heldOf(drop: LedgerDrop): number {
 }
 
 /**
- * Pieces of the pile that are actually for sale, which is what every price here is derived from.
- *
- * Floored at zero: keeping more than you hold is a miscount, not a negative pile, and letting it go
- * negative would flip the sign of every payout derived from it.
- */
-export function sellableOf(drop: LedgerDrop): number {
-  return Math.max(0, heldOf(drop) - (drop.kept ?? 0) - (drop.bought?.pieces ?? 0));
-}
-
-/**
  * Pieces of this pile that are the holder's OWN, which is what a redemption comes off first.
  *
  * Their entitlement, capped by what they are actually holding: a seat owed more than they picked up
@@ -264,194 +166,23 @@ export function ownShareOf(drop: LedgerDrop, holder?: string): number {
   return Math.min(heldOf(drop), entitlements(drop.total, drop.seats).get(holder) ?? 0);
 }
 
-/** How much of one drop the sales so far have covered, and what those pieces fetched. */
-export type DropCoverage = {
-  covered: number;
-  /** Listed value of the covered pieces, at the prices they actually went for. */
-  cost: number;
-  /**
-   * Pieces of this pile that are for sale, which is what `covered` counts towards.
-   *
-   * Carried out so a caller can tell the two zero-progress states apart. Nothing sold yet with
-   * pieces still to list is a pile waiting; nothing sold with nothing left to list is a pile that
-   * will never produce a price, and saying "priced when they sell" about it is a promise that
-   * cannot come true.
-   */
-  sellable: number;
-  /**
-   * Every sellable piece has sold, so nothing about it can move again.
-   *
-   * False for a wholly kept pile, which has no realized price and so no debt that can be stated.
-   * That is a refusal, not an oversight: the alternative is pricing somebody's share at a figure
-   * nobody was ever offered.
-   */
-  complete: boolean;
-  /** Weighted average listed price of the pieces that covered it. Null until it is covered. */
-  averagePrice: number | null;
-};
-
-/** The queue's order: first cleared, first paid, with the boss's own order breaking a week. */
-function inQueueOrder(drops: LedgerDrop[]): LedgerDrop[] {
-  return [...drops].sort(
-    (a, b) =>
-      a.weekStart.localeCompare(b.weekStart) || a.order - b.order || a.id.localeCompare(b.id),
-  );
-}
-
 /**
- * Which drops a holder's redeemed pieces came off: their OWN share first, newest end first.
- *
- * A redemption is a count and nothing more: a coupon in an inventory has no boss written on it, so
- * which clear it came from is not a fact anybody has. It has to be decided somewhere, and the queue
- * is where the same question about a sale is already answered.
- *
- * Their own entitlement before anybody else's pieces, which is the rule that keeps the pro rata in
- * `transfersOf` honest. Taken off whole drops instead, a holder redeeming exactly their own share of
- * the pile emptied the newest bosses of everything sellable and left the creditor's pieces there
- * unpriceable, while the oldest bosses paid out as though the holder had sold their own half too.
- * That is #281 one level up: 195 kept and 195 sold on a 390 pile settled 105 of a 195-piece debt.
- *
- * Newest first inside each pass, which is the opposite end from a sale, and the reason is the
- * invariant the whole file turns on. Oldest first would take pieces out of the boss at the front of
- * the queue, the one whose debts have already been priced and quite possibly already paid, and
- * un-price them.
- *
- * `holder` is whose pile it is, and absent means every piece reads as theirs, which is one seat
- * having looted the lot.
- *
- * More kept than the pile holds is a miscount rather than a negative pile: every drop ends fully
- * kept and the surplus goes nowhere, which the caller can see by comparing the count to the pile.
- */
-export function spreadKept(drops: LedgerDrop[], kept: number, holder?: string): LedgerDrop[] {
-  if (kept <= 0) return drops;
-  const newestFirst = inQueueOrder(drops).reverse();
-
-  let left = kept;
-  const byId = new Map<string, number>();
-  const take = (drop: LedgerDrop, upTo: number) => {
-    const taken = Math.min(left, upTo);
-    if (taken <= 0) return;
-    byId.set(drop.id, (byId.get(drop.id) ?? 0) + taken);
-    left -= taken;
-  };
-  for (const drop of newestFirst) take(drop, ownShareOf(drop, holder));
-  // Only once their own share is gone. The card bounds the input there, so reaching this means data
-  // written before V50 or a party edited since: the pieces are somebody else's and there is no price
-  // to state for them, which is what BOUGHT exists to supply.
-  for (const drop of newestFirst) take(drop, heldOf(drop) - (byId.get(drop.id) ?? 0));
-
-  return drops.map((d) => (byId.has(d.id) ? { ...d, kept: byId.get(d.id) } : d));
-}
-
-/**
- * Which drops the pieces a holder BOUGHT came off, newest first. See V50.
- *
- * Only ever the creditor's part of a pile, because that is what a purchase is: pieces the holder was
- * not entitled to, taken at an agreed price rather than redeemed for nothing. Their own share is not
- * for sale to them, they already have it.
- *
- * Newest first for the same reason as a redemption: it cannot reach back and re-price a boss whose
- * debts have already been settled.
- *
- * The money divides by the pieces it bought, exactly. Several purchases at different prices come in
- * as one total and one count, so what lands on each boss is the blended price, which is the only
- * figure available: a coupon carries no note of which clear it came from or what was paid for it.
- */
-export function spreadBought(
-  drops: LedgerDrop[],
-  bought: number,
-  paid: number,
-  holder?: string,
-): LedgerDrop[] {
-  if (bought <= 0) return drops;
-  const newestFirst = inQueueOrder(drops).reverse();
-
-  let left = bought;
-  const taken: { id: string; pieces: number }[] = [];
-  for (const drop of newestFirst) {
-    if (left <= 0) break;
-    // Capped by what is still sellable as well as by the creditor's part, so a piece already
-    // redeemed cannot be bought a second time and drive the pile negative.
-    const room = Math.min(sellableOf(drop), heldOf(drop) - ownShareOf(drop, holder));
-    const take = Math.min(left, Math.max(0, room));
-    if (take > 0) {
-      taken.push({ id: drop.id, pieces: take });
-      left -= take;
-    }
-  }
-
-  const money = largestRemainder(
-    paid,
-    taken.map((t) => t.pieces),
-  );
-  const byId = new Map(taken.map((t, i) => [t.id, { pieces: t.pieces, paid: money[i] ?? 0 }]));
-  return drops.map((d) => (byId.has(d.id) ? { ...d, bought: byId.get(d.id) } : d));
-}
-
-/**
- * Which sales paid for which drop, oldest boss first.
- *
- * A looter accumulates pieces week after week and sells them in tranches, so "wait until everything
- * has sold" would never come true: next week's clear always adds more. Instead the tranches drain
- * into the queue in order, and a drop is payable as soon as ITS pieces are covered.
- *
- * First cleared, first paid. Drops from the same week are one place in the queue, broken by the
- * boss's own order so the answer never depends on which row was read first.
- *
- * The reason this beats a running average over everything: once a drop is covered, later tranches
- * flow past it into the next one, so its average can never move again. A figure somebody has already
- * been paid stays the figure they were paid, with nothing stored to keep it that way.
- */
-export function allocate(drops: LedgerDrop[], sales: PieceSale[]): Map<string, DropCoverage> {
-  const queue = inQueueOrder(drops);
-  const tranches = sales.map((s) => ({ left: s.pieces, priceEach: s.priceEach }));
-
-  let next = 0;
-  const out = new Map<string, DropCoverage>();
-  for (const drop of queue) {
-    // Against the SELLABLE part of the pile, not the whole drop and not the whole pile: these
-    // tranches are one holder's, they can only ever sell the stacks they picked up, and of those
-    // only the ones they are not redeeming. A wholly kept pile takes no tranches at all, so the
-    // queue flows past it to the next boss rather than stalling behind pieces nobody will list.
-    const sellable = sellableOf(drop);
-    let covered = 0;
-    let cost = 0;
-    while (covered < sellable && next < tranches.length) {
-      const tranche = tranches[next]!;
-      const take = Math.min(sellable - covered, tranche.left);
-      covered += take;
-      cost += take * tranche.priceEach;
-      tranche.left -= take;
-      if (tranche.left === 0) next += 1;
-    }
-    const complete = covered === sellable && sellable > 0;
-    out.set(drop.id, {
-      covered,
-      cost,
-      sellable,
-      complete,
-      averagePrice: complete ? cost / sellable : null,
-    });
-  }
-  return out;
-}
-
-/**
- * The transfers that clear one drop, and what each is worth so far.
+ * Who owes whom out of one drop, and how many pieces.
  *
  * Deterministic on purpose: seats over their share pay seats under it, both in seat order. A stable
- * list is what lets "paid" be remembered against a pair, and it means two people reading the same
- * row are told to send the same things.
+ * list is what lets a debt be remembered against a pair, and it means two people reading the same
+ * row are told the same thing.
  *
  * Empty when the pieces were looted the way they divide, which is the ordinary night. Nothing to
  * say beats a list of zeroes.
  *
- * Every figure is rounded UP, so the person who took somebody else's pieces absorbs the dust rather
- * than the person waiting to be paid. Same rule as the money split, for the same reason.
+ * A COUNT and never a price. What the pieces are worth is not something this can see: coupons are
+ * single-trade, so only the holder can sell them, and the two sides of a debt come off different
+ * nights at different prices. It used to apportion the holder's sale proceeds pro rata over the
+ * sellable pile, which is what made the ledger ask for somebody else's tranches one by one.
  */
 export function transfersOf(
   drop: LedgerDrop,
-  coverage: DropCoverage | undefined,
   /**
    * Only the debts owed BY this seat, for a drop split across several piles.
    *
@@ -464,78 +195,24 @@ export function transfersOf(
   const owing = position.filter((p) => p.balance < 0).map((p) => ({ ...p, left: -p.balance }));
   const owed = position.filter((p) => p.balance > 0).map((p) => ({ ...p, left: p.balance }));
 
-  // What this pile's sold pieces actually fetched. Never a forecast of the unsold ones: a figure
-  // over pieces that have not gone yet is a guess at a price nobody has been offered.
-  const covered = coverage?.covered ?? 0;
-  const sold = coverage?.cost ?? 0;
-  const sellable = sellableOf(drop);
-
-  // Every pair, before any money: the bought pieces are shared out over the pairs and the money over
-  // those, so both need the whole list first. Same order either way, so who pays whom never moves.
-  const pairs: { debtor: SeatBalance; creditor: SeatBalance; pieces: number }[] = [];
+  const out: PieceTransfer[] = [];
   let step = 0;
   for (const debtor of owing) {
     while (debtor.left > 0 && step < owed.length) {
       const creditor = owed[step]!;
       const pieces = Math.min(debtor.left, creditor.left);
-      pairs.push({ debtor, creditor, pieces });
-      debtor.left -= pieces;
-      creditor.left -= pieces;
-      if (creditor.left === 0) step += 1;
-    }
-  }
-
-  // Which pairs the purchase covered, in that same order, then the money over exactly those pieces.
-  // A purchase is of the creditor's pieces by definition, so it can only ever land on these pairs.
-  let unbought = drop.bought?.pieces ?? 0;
-  const boughtBy = pairs.map((p) => {
-    const taken = Math.min(p.pieces, unbought);
-    unbought -= taken;
-    return taken;
-  });
-  const paidBy = largestRemainder(drop.bought?.paid ?? 0, boughtBy);
-
-  const out: PieceTransfer[] = [];
-  pairs.forEach(({ debtor, creditor, pieces }, i) => {
-    {
-      const boughtPieces = boughtBy[i] ?? 0;
-      const paid = paidBy[i] ?? 0;
-      // What is left to settle through sales once the bought pieces are taken off. Never more than
-      // the sellable pile, because a redemption is bounded by the holder's own share and a purchase
-      // comes out of both sides at once, which is what keeps the ratio below an interpolation.
-      const rest = pieces - boughtPieces;
-      // This pair's proportion of the debtor's SELLABLE pile, applied to what has sold so far.
-      // Sellable, because that is what their tranches drain and what their own remaining share
-      // comes out of. Cumulative, so a payment already made is a prefix of it and never has to be
-      // taken back.
-      //
-      // Over the whole pile instead, a debtor who kept part of theirs paid the creditor only the
-      // fraction they chose to sell, and the creditor was never paid for the rest (#281). Over the
-      // sellable part it comes out right at every stopping point, including a debtor who keeps
-      // their entire share and sells the creditor's: all of that pile is the creditor's, so all of
-      // its proceeds are too.
-      const proRata =
-        covered === 0 || sellable === 0 || rest === 0 ? null : Math.ceil((sold * rest) / sellable);
-      // The purchase price stands on its own: those pieces never went to market, so no ratio of a
-      // pile applies to them. Null only when there is nothing at all to state yet.
-      const send = proRata === null && paid === 0 ? null : (proRata ?? 0) + paid;
       out.push({
         fromId: debtor.memberId,
         toId: creditor.memberId,
         from: debtor.name,
         to: creditor.name,
         pieces,
-        // How many of this pair's pieces are accounted for. A bought piece is settled outright, at
-        // a price nobody had to infer. The rest is rounded DOWN, so an instalment never claims to
-        // have settled a piece that has not sold.
-        settled:
-          boughtPieces +
-          (sellable === 0 ? 0 : Math.min(rest, Math.floor((covered * rest) / sellable))),
-        send,
-        nets: send === null ? null : Math.floor(send * (1 - FEE_STANDARD)),
       });
+      debtor.left -= pieces;
+      creditor.left -= pieces;
+      if (creditor.left === 0) step += 1;
     }
-  });
+  }
   return from === undefined ? out : out.filter((t) => t.fromId === from);
 }
 
