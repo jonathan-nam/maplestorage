@@ -3,7 +3,7 @@ import {
   assignableDrops,
   assignedStacks,
   openingCounts,
-  pieceDrift,
+  pieceTallies,
   stacksToSave,
 } from "./vestige-stacks";
 import type { Loot } from "@/types/loot";
@@ -182,19 +182,19 @@ describe("what the boxes come to", () => {
     expect(stacksToSave({ m1: 2, m2: 1, m3: 0 })).toEqual({ m1: 2, m2: 1 });
   });
 
-  it("says who is holding somebody else's coupons, in pieces", () => {
-    // Husky takes two of the three stacks. A third of 180 is 60 each, so he is 60 over and Bob,
-    // who bent down for nothing, is 60 short.
-    const owed = pieceDrift(drop(), { m1: 2, m2: 1, m3: 0 });
+  it("says what each of them took AND what they were due, never only the gap", () => {
+    // Husky takes two of the three stacks. Neither number follows from the other: "120" alone does
+    // not say whether it is too much, and "60 over" alone does not say 60 out of what.
+    const tally = pieceTallies(drop(), { m1: 2, m2: 1, m3: 0 });
 
-    expect(owed.get("self")).toBe(60);
-    expect(owed.get("character:rune")).toBe(0);
-    expect(owed.get("character:bob")).toBe(-60);
+    expect(tally.get("self")).toEqual({ took: 120, due: 60 });
+    expect(tally.get("character:rune")).toEqual({ took: 60, due: 60 });
+    expect(tally.get("character:bob")).toEqual({ took: 0, due: 60 });
   });
 
   it("measures one person's two characters as one holder on two shares", () => {
-    // A human who brings two characters is owed twice as much, and is owed it ONCE. So a stack
-    // each all round is exactly fair here, even though it is 60 to you and 120 to them.
+    // A human who brings two characters is due twice as much, and is due it ONCE. So a stack each
+    // all round is exactly fair here, even though it is 60 to you and 120 to them.
     const seats = [
       seat("m1", "Husky", { mine: true }),
       seat("m2", "CreedBratton", { person: "p-bro" }),
@@ -202,18 +202,19 @@ describe("what the boxes come to", () => {
     ];
     const night = assignableDrops(party(seats), [coupon()], VESTIGE)[0]!;
 
-    const even = pieceDrift(night, { m1: 1, m2: 1, m3: 1 });
-    expect(even.get("self")).toBe(0);
-    expect(even.get("person:p-bro")).toBe(0);
+    const even = pieceTallies(night, { m1: 1, m2: 1, m3: 1 });
+    expect(even.get("self")).toEqual({ took: 60, due: 60 });
+    expect(even.get("person:p-bro")).toEqual({ took: 120, due: 120 });
 
-    // And their two seats net against each other rather than reading as one owed and one owing:
-    // three stacks across the pair is 180 held against a 120 entitlement, over by one stack.
-    const grabbed = pieceDrift(night, { m1: 0, m2: 2, m3: 1 });
-    expect(grabbed.get("self")).toBe(-60);
-    expect(grabbed.get("person:p-bro")).toBe(60);
+    // Their two seats are summed against one entitlement rather than reading as one owed and one
+    // owing: three stacks across the pair is 180 taken against 120 due.
+    const grabbed = pieceTallies(night, { m1: 0, m2: 2, m3: 1 });
+    expect(grabbed.get("self")).toEqual({ took: 0, due: 60 });
+    expect(grabbed.get("person:p-bro")).toEqual({ took: 180, due: 120 });
   });
 
-  it("is all zeroes on a night that divided", () => {
-    expect([...pieceDrift(drop(), { m1: 1, m2: 1, m3: 1 }).values()]).toEqual([0, 0, 0]);
+  it("has took equal due for everybody on a night that divided", () => {
+    const tally = pieceTallies(drop(), { m1: 1, m2: 1, m3: 1 });
+    expect([...tally.values()].every((t) => t.took === t.due)).toBe(true);
   });
 });

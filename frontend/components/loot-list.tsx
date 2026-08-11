@@ -14,6 +14,14 @@ import type { Party } from "@/types/party";
 
 /** The nights that can still be handed out, and the write that does it. */
 export type StackAssignment = {
+  /**
+   * What to head the group with while these boxes are under it.
+   *
+   * Passed in rather than built from the rows: the catalog calls the drop a "Vestige of Erion
+   * Coupon", and a heading made of that plus a word would read Coupon Config. The page that knows
+   * which drop this is names it, and this stays a group of piece rows.
+   */
+  title: string;
   drops: StackDrop[];
   behind: Map<string, number>;
   onSave: (lootId: string, bundles: Record<string, number>) => Promise<void>;
@@ -69,9 +77,7 @@ export function LootList({
   // The coupons are headed by their own NAME when the boxes are under them, because then the group
   // is a block of controls rather than a row: what it is called is the one thing tying the count,
   // the boxes and the Save together. "Coupons" over one row said nothing the row did not.
-  const named = new Set(coupons.map((item) => item.name));
-  const couponTitle =
-    stacks && named.size === 1 ? (coupons[0]?.name ?? null) : headed ? "Coupons" : null;
+  const couponTitle = stacks ? stacks.title : headed ? "Coupons" : null;
 
   return (
     <>
@@ -151,8 +157,10 @@ function LootGroup({
   if (rows.length === 0) return null;
   return (
     <>
+      {/* Lighter when it heads the boxes: it is naming a block you are about to fill in, not
+          calling for attention over a list. See .is-config. */}
       {title && (
-        <h3 className="loot-group-title">
+        <h3 className={stacks ? "loot-group-title is-config" : "loot-group-title"}>
           {/* The coupon heading links to where they are priced, rather than a sentence saying so. The
               row has no sale of its own, and one word already on screen can carry that. */}
           {pieces ? <Link href="/bosses/drops">{title}</Link> : title}

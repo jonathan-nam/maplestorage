@@ -3426,6 +3426,13 @@ button.link:disabled {
   color: var(--muted);
 }
 
+/* The heading over the stack boxes carries no weight of its own. It names a block you are about to
+   fill in, and the boxes under it are what the eye should land on. Only this one: "Drops" and
+   "Coupons" still head lists you are meant to scan. */
+.loot-group-title.is-config {
+  font-weight: 400;
+}
+
 .loot-add {
   display: flex;
   flex-wrap: wrap;

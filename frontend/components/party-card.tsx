@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { type ReactNode, useState } from "react";
 import { DropPicker } from "@/components/drop-picker";
-import { LootList } from "@/components/loot-list";
+import { LootList, type StackAssignment } from "@/components/loot-list";
 import { RosterInputs } from "@/components/roster-inputs";
 import { RosterStrip } from "@/components/roster-strip";
 import { ApiError, apiAssetUrl } from "@/lib/api";
@@ -13,7 +13,6 @@ import { poolLabel } from "@/lib/loot";
 import { guaranteedDrop, otherMembers, partySizeLabel } from "@/lib/parties";
 import type { Boss } from "@/types/boss";
 import type { BossDrop, DropTables } from "@/types/drop";
-import type { StackDrop } from "@/lib/vestige-stacks";
 import type { AddLootBody, Loot, SellLootBody } from "@/types/loot";
 import type { Party } from "@/types/party";
 
@@ -130,11 +129,7 @@ export function PartyCard({
    * not edited, and absent on a night with nothing to hand out (one stack, or a party that folds to
    * one person).
    */
-  stacks?: {
-    drops: StackDrop[];
-    behind: Map<string, number>;
-    onSave: (lootId: string, bundles: Record<string, number>) => Promise<void>;
-  };
+  stacks?: StackAssignment;
   /**
    * Takes this boss off the period, leaving the config standing.
    *
