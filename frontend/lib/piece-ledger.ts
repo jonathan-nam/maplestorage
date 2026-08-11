@@ -97,6 +97,27 @@ export type PieceTransfer = {
   nets: number | null;
 };
 
+/**
+ * The tranches left once the first `pieces` of them have been spent, in order and at their prices.
+ *
+ * `allocate` drains the list from the front, so this is what a second pass over the drops it did not
+ * reach may still spend. A tranche the count lands inside is split rather than dropped, which is what
+ * makes two passes come to the same figures as the one they replace.
+ */
+export function salesAfter(sales: PieceSale[], pieces: number): PieceSale[] {
+  let spent = Math.max(0, pieces);
+  const left: PieceSale[] = [];
+  for (const sale of sales) {
+    if (spent >= sale.pieces) {
+      spent -= sale.pieces;
+      continue;
+    }
+    left.push(spent > 0 ? { pieces: sale.pieces - spent, priceEach: sale.priceEach } : sale);
+    spent = 0;
+  }
+  return left;
+}
+
 /** What has sold, and whether that is all of it. Money is derived here and stored nowhere. */
 export function saleProgress(total: number, sales: PieceSale[]): SaleProgress {
   const piecesSold = sales.reduce((sum, s) => sum + s.pieces, 0);

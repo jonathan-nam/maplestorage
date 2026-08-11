@@ -6,6 +6,7 @@ import {
   balances,
   entitlements,
   saleProgress,
+  salesAfter,
   spreadKept,
   transferKey,
   transfersOf,
@@ -111,6 +112,35 @@ describe("selling a stack in tranches", () => {
     const progress = saleProgress(180, [{ pieces: 200, priceEach: 25 * M }]);
     expect(progress.oversold).toBe(true);
     expect(progress.complete).toBe(false);
+  });
+
+  it("hands on what a first pass did not spend, splitting a tranche at its own price", () => {
+    // What lets the closed drops be priced on their own and the open ones on what is left.
+    expect(salesAfter(sales, 0)).toEqual(sales);
+    expect(salesAfter(sales, 100)).toEqual([{ pieces: 80, priceEach: 24 * M }]);
+    // Landing inside a tranche keeps the rest of it at the price it went for, never a blend.
+    expect(salesAfter(sales, 40)).toEqual([
+      { pieces: 60, priceEach: 25 * M },
+      { pieces: 80, priceEach: 24 * M },
+    ]);
+    expect(salesAfter(sales, 180)).toEqual([]);
+    // Never more than there is, so a miscount upstream cannot make the tail negative.
+    expect(salesAfter(sales, 500)).toEqual([]);
+  });
+
+  it("splits a tranche list into two passes that come to the same money as one", () => {
+    // The invariant the two-pass ledger rests on: what the first pass spends plus what the second
+    // spends is the whole list, at the prices each piece really went for.
+    const gross = (rows: PieceSale[]) => rows.reduce((sum, s) => sum + s.pieces * s.priceEach, 0);
+    for (const cut of [0, 1, 40, 100, 101, 179, 180]) {
+      const first = salesAfter(sales, 0).flatMap((s) => [s]);
+      const tail = salesAfter(sales, cut);
+      const spent = gross(first) - gross(tail);
+      expect(spent + gross(tail)).toBe(gross(sales));
+      expect(sales.reduce((n, s) => n + s.pieces, 0) - tail.reduce((n, s) => n + s.pieces, 0)).toBe(
+        Math.min(cut, 180),
+      );
+    }
   });
 });
 
