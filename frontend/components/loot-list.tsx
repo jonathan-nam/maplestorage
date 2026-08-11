@@ -14,6 +14,14 @@ import type { Party } from "@/types/party";
 
 /** The nights that can still be handed out, and the write that does it. */
 export type StackAssignment = {
+  /**
+   * What to head the group with while these boxes are under it.
+   *
+   * Passed in rather than built from the rows: the catalog calls the drop a "Vestige of Erion
+   * Coupon", and a heading made of that plus a word would read Coupon Config. The page that knows
+   * which drop this is names it, and this stays a group of piece rows.
+   */
+  title: string;
   drops: StackDrop[];
   behind: Map<string, number>;
   onSave: (lootId: string, bundles: Record<string, number>) => Promise<void>;
@@ -35,6 +43,7 @@ export function LootList({
   bossByKey,
   pieceStatus,
   stacks,
+  editing,
   isSaving,
   onSell,
   onUnsell,
@@ -53,6 +62,13 @@ export function LootList({
    * Absent on the party's own page and on a past week, where the rows are read rather than answered.
    */
   stacks?: StackAssignment;
+  /**
+   * Whether the panel is in edit mode, which is the only state the stack boxes take typing in.
+   *
+   * Owned by the card and not by the page: it is the same Edit that swaps the roster strip for its
+   * inputs, so one press opens everything on the row that can be answered.
+   */
+  editing?: boolean;
   /** Whether THIS drop's write is in flight, by its id. */
   isSaving: (lootId: string) => boolean;
   onSell: (lootId: string, body: SellLootBody) => void;
@@ -69,9 +85,7 @@ export function LootList({
   // The coupons are headed by their own NAME when the boxes are under them, because then the group
   // is a block of controls rather than a row: what it is called is the one thing tying the count,
   // the boxes and the Save together. "Coupons" over one row said nothing the row did not.
-  const named = new Set(coupons.map((item) => item.name));
-  const couponTitle =
-    stacks && named.size === 1 ? (coupons[0]?.name ?? null) : headed ? "Coupons" : null;
+  const couponTitle = stacks ? stacks.title : headed ? "Coupons" : null;
 
   return (
     <>
@@ -98,6 +112,7 @@ export function LootList({
         statusOf={pieceStatus}
         pieces
         stacks={stacks}
+        editing={editing}
         isSaving={isSaving}
         onSell={onSell}
         onUnsell={onUnsell}
@@ -122,6 +137,7 @@ function LootGroup({
   bossByKey,
   statusOf,
   stacks,
+  editing,
   pieces,
   isSaving,
   onSell,
@@ -139,6 +155,8 @@ function LootGroup({
   statusOf?: PieceStatus;
   /** Who picked up which stacks, drawn under the row it is about. */
   stacks?: StackAssignment;
+  /** Whether those boxes take typing. See LootList. */
+  editing?: boolean;
   /** These rows are stacks of pieces, which do not sell here. See LootRow's `pieces`. */
   pieces?: boolean;
   isSaving: (lootId: string) => boolean;
@@ -149,13 +167,21 @@ function LootGroup({
   onDelete: (lootId: string) => void;
 }) {
   if (rows.length === 0) return null;
+  // The config is ONE object: a heading, what fell, and the boxes that hand it out. Framed like a
+  // pile on the Sale Ledger rather than left as three things stacked loose in the panel, which is
+  // what it looked like beside the picker and the roster. Only when the boxes are there: the other
+  // groups are lists to scan, and a border round a list of bordered rows is a box in a box.
+  const Frame = stacks ? "div" : Fragment;
+  const frameProps = stacks ? { className: "loot-config-card" } : {};
   return (
-    <>
+    <Frame {...frameProps}>
+      {/* Lighter when it heads the boxes, and not a link: it names the block under it rather than
+          pointing somewhere, and an underline said it went to the Drop Log. See .is-config. */}
       {title && (
-        <h3 className="loot-group-title">
+        <h3 className={stacks ? "loot-group-title is-config" : "loot-group-title"}>
           {/* The coupon heading links to where they are priced, rather than a sentence saying so. The
               row has no sale of its own, and one word already on screen can carry that. */}
-          {pieces ? <Link href="/bosses/drops">{title}</Link> : title}
+          {pieces && !stacks ? <Link href="/bosses/drops">{title}</Link> : title}
         </h3>
       )}
       <div className="loot-list">
@@ -184,6 +210,7 @@ function LootGroup({
                   drop={drop}
                   party={party}
                   behind={stacks.behind}
+                  editing={editing ?? false}
                   busy={isSaving(item.id)}
                   onSave={stacks.onSave}
                 />
@@ -192,6 +219,6 @@ function LootGroup({
           );
         })}
       </div>
-    </>
+    </Frame>
   );
 }

@@ -508,6 +508,10 @@ export default function PartiesPage() {
     const drops = assignableDrops(party, shown, VESTIGE);
     if (drops.length === 0) return undefined;
     return {
+      // Named for the item rather than for the catalog row, which calls it a "Vestige of Erion
+      // Coupon": the heading would then read Coupon Config, and the row underneath already says
+      // Coupon. One string, beside the key it belongs to.
+      title: "Vestige of Erion Config",
       drops,
       behind,
       onSave: (lootId: string, bundles: Record<string, number>) =>

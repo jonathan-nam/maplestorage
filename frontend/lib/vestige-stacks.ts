@@ -127,30 +127,42 @@ export function stacksToSave(counts: Record<string, number>): Record<string, num
   return Object.fromEntries(Object.entries(counts).filter(([, n]) => n > 0));
 }
 
+/** What one person picked up, and what they were owed, both in PIECES. */
+export type Tally = {
+  /** Pieces the boxes give them: their stacks times the stack size. */
+  took: number;
+  /** Pieces their share comes to out of what fell. */
+  due: number;
+};
+
 /**
- * How far each seat's boxed stacks sit from the share they are entitled to, in PIECES.
+ * What each holder took and what they were due, in PIECES.
  *
- * Positive is holding somebody else's, negative is owed. What the row says out loud once the boxes
- * add up, because "who is short" is the only thing the numbers are for and working it out from three
- * stack counts and a share is exactly the arithmetic nobody should be doing in their head.
+ * Both numbers, not the difference between them. The difference alone said a member was 60 over
+ * without ever saying 60 out of WHAT, so a row could not be checked against what actually happened:
+ * "he has 120 and he was owed 60" is the sentence somebody says out loud, and neither half of it
+ * can be worked out from the other.
  *
- * Measured per HOLDER and then reported on their seats, so two characters of one person net out
- * against each other rather than reading as one owed and one owing.
+ * Measured per HOLDER and reported against every seat of theirs, both halves alike. Two characters
+ * of one person net out against each other rather than reading as one owed and one owing, and a
+ * person who brings two characters is due twice as much and due it once.
  */
-export function pieceDrift(drop: StackDrop, counts: Record<string, number>): Map<string, number> {
+export function pieceTallies(drop: StackDrop, counts: Record<string, number>): Map<string, Tally> {
   const holders = foldSeats(drop.seats);
   const weight = holders.reduce((sum, h) => sum + h.shares, 0);
-  const drift = new Map<string, number>();
-  if (weight <= 0) return drift;
+  const tallies = new Map<string, Tally>();
+  if (weight <= 0) return tallies;
 
-  const held = new Map<string, number>();
+  const took = new Map<string, number>();
   for (const seat of drop.seats) {
     const key = holderKey(holderOf(seat));
-    held.set(key, (held.get(key) ?? 0) + (counts[seat.id] ?? 0) * drop.size);
+    took.set(key, (took.get(key) ?? 0) + (counts[seat.id] ?? 0) * drop.size);
   }
   for (const holder of holders) {
-    const entitled = (drop.quantity * holder.shares) / weight;
-    drift.set(holder.key, (held.get(holder.key) ?? 0) - entitled);
+    tallies.set(holder.key, {
+      took: took.get(holder.key) ?? 0,
+      due: (drop.quantity * holder.shares) / weight,
+    });
   }
-  return drift;
+  return tallies;
 }

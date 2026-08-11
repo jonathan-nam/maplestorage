@@ -6,7 +6,7 @@ import {
   type StackDrop,
   assignedStacks,
   openingCounts,
-  pieceDrift,
+  pieceTallies,
   stacksToSave,
 } from "@/lib/vestige-stacks";
 import type { Party } from "@/types/party";
@@ -28,12 +28,64 @@ export function StackAssign({
   drop,
   party,
   behind,
+  editing,
   busy,
   onSave,
 }: {
   drop: StackDrop;
   party: Party;
   /** Each holder's position across what is already recorded, so the odd stack rotates. */
+  behind: Map<string, number>;
+  /** Whether the boxes take typing, which is the panel's own Edit. See LootList. */
+  editing: boolean;
+  busy: boolean;
+  onSave: (lootId: string, bundles: Record<string, number>) => Promise<void>;
+}) {
+  // Read-only until Edit, and then only what was RECORDED. The boxes open on a looter or a balanced
+  // guess when nothing has been said, and drawing that here would put a split nobody entered on
+  // screen as though it had happened. What is known unasked is what each of them is due.
+  if (!editing) return <StackSummary drop={drop} />;
+  return <StackBoxes drop={drop} party={party} behind={behind} busy={busy} onSave={onSave} />;
+}
+
+/** What the config says when nobody is editing it: what fell, and where it went if that was said. */
+function StackSummary({ drop }: { drop: StackDrop }) {
+  // Against the recorded arrangement, or against nothing. `due` does not depend on the counts, so
+  // the second still carries every seat's entitlement and simply has nobody taking anything.
+  const tallies = pieceTallies(drop, drop.recorded ? drop.counts : {});
+  return (
+    <div className="config-vestige">
+      <span className="config-share-drop">
+        {drop.quantity} in {drop.bundles} stacks of {drop.size}
+      </span>
+      <div className="config-shares">
+        {drop.seats.map((seat) => {
+          const tally = tallies.get(holderKey(holderOf(seat))) ?? { took: 0, due: 0 };
+          return (
+            <span className="config-share" key={seat.id}>
+              {seat.name}
+              {/* Only what is known. With nothing recorded, what anybody took is exactly what this
+                  screen cannot say, and what they are due is true either way. */}
+              <span className="config-share-stacks">
+                {drop.recorded ? `${tally.took} took, ${tally.due} due` : `${tally.due} due`}
+              </span>
+            </span>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function StackBoxes({
+  drop,
+  party,
+  behind,
+  busy,
+  onSave,
+}: {
+  drop: StackDrop;
+  party: Party;
   behind: Map<string, number>;
   busy: boolean;
   onSave: (lootId: string, bundles: Record<string, number>) => Promise<void>;
@@ -52,7 +104,9 @@ export function StackAssign({
   const whole = Object.fromEntries(drop.seats.map((s) => [s.id, parsed[s.id] ?? 0]));
   const assigned = assignedStacks(whole);
   const adds = readable && assigned === drop.bundles;
-  const drift = adds ? pieceDrift(drop, whole) : null;
+  // Only once the boxes add up. Half-placed stacks make everybody look short, which is a debt that
+  // is not real yet, against an arrangement nobody has finished saying.
+  const tallies = adds ? pieceTallies(drop, whole) : null;
 
   async function save() {
     setRefusal(null);
@@ -73,7 +127,7 @@ export function StackAssign({
 
       <div className="config-shares">
         {drop.seats.map((seat) => {
-          const owed = drift?.get(holderKey(holderOf(seat))) ?? 0;
+          const tally = tallies?.get(holderKey(holderOf(seat))) ?? null;
           return (
             <label className="config-share" key={seat.id}>
               {seat.name}
@@ -86,10 +140,13 @@ export function StackAssign({
                 aria-label={`Stacks ${seat.name} picked up`}
                 disabled={busy}
               />
-              {/* The pieces that many stacks is, and then what it leaves them owed. Never both: the
-                  count is the fact, and the debt is only worth saying when there is one. */}
+              {/* BOTH numbers, because neither can be worked out from the other: what this many
+                  stacks comes to, and what they were owed out of what fell. Until the boxes add up
+                  there is no honest entitlement to show, so it is the pieces alone. */}
               <span className="config-share-stacks">
-                {owed === 0 ? piecesLabel((parsed[seat.id] ?? 0) * drop.size) : driftLabel(owed)}
+                {tally
+                  ? `${tally.took} took, ${tally.due} due`
+                  : `${(parsed[seat.id] ?? 0) * drop.size}`}
               </span>
             </label>
           );
@@ -126,14 +183,4 @@ function parseStacks(value: string): number | null {
   if (text === "") return 0;
   if (!/^\d+$/.test(text)) return null;
   return Number(text);
-}
-
-/** What that many stacks comes to. Zero is said in words: "0 pieces" reads as a figure to act on. */
-function piecesLabel(pieces: number): string {
-  return pieces === 0 ? "none" : `${pieces}`;
-}
-
-/** What this member is holding beyond their share, or short of it, in pieces. */
-function driftLabel(owed: number): string {
-  return owed > 0 ? `+${owed} to pay out` : `${-owed} owed to them`;
 }
