@@ -15,7 +15,7 @@ import { cellState, clearOfCell, clearStateLabel, indexClears } from "@/lib/boss
 import { bossLabel, difficultyLabel } from "@/lib/boss-difficulty";
 import { peek, put } from "@/lib/cache";
 import { buildDropLog, couponsOwedByParty, pieceStatusByParty } from "@/lib/drop-log";
-import { poolSize } from "@/lib/loot";
+import { dropsInWeek, poolSize } from "@/lib/loot";
 import { closedByHolder } from "@/lib/vestige-ledger";
 import {
   byBoss,
@@ -484,11 +484,21 @@ export default function PartiesPage() {
    * reads the catalog's tables, so without them a stack of vestige coupons would be listed as an
    * ordinary drop with a sale button on it, which is the two-settlements-for-one-drop the piece
    * ledger exists to prevent. The week rule is in the card's own docs.
+   *
+   * One week's drops, not the pool: the row is about the week on screen, and the whole pool under it
+   * was a season of drops headed by tonight. What that leaves out is counted, never dropped, because
+   * the badge above counts an unsold drop from any week. See dropsInWeek.
+   *
+   * The week is the clears view's, which is the server's own reckoning and the same one every row's
+   * weekStart was stamped with. Null while that view has not arrived, which shows the pool whole
+   * rather than narrowing it against a week nothing has named yet.
    */
-  const poolFor = (party: Party) =>
-    canAddDrops
+  const poolFor = (party: Party) => {
+    const week = dropsInWeek(lootByParty.get(party.id) ?? [], view?.currentWeekStart ?? null);
+    return canAddDrops
       ? {
-          loot: lootByParty.get(party.id) ?? [],
+          loot: week.shown,
+          earlier: week.earlier,
           dropTables,
           bossByKey,
           pieceStatus: pieceStatus.get(party.id),
@@ -510,6 +520,8 @@ export default function PartiesPage() {
           onDelete: (lootId: string) => writeDrop(party, lootId, "", { method: "DELETE" }),
         }
       : undefined;
+  };
+
   // The names already spelled somewhere, for the editor's datalist. Built from what the page has:
   // people is optional, and its absence costs suggestions rather than the editor.
   const knownCharacters = knownCharacterNames(characters, people, parties);
