@@ -3443,8 +3443,10 @@ button.link:disabled {
   display: flex;
   align-items: center;
   gap: 8px;
-  min-width: 220px;
-  /* Less than .split-input's 9px: the 23px icon is taller than a line of text, and this keeps the
+  /* Wider than the 220px the select needed: the list is given this width, and a 46px icon in each
+     row takes it out of the name. */
+  min-width: 264px;
+  /* Less than .split-input's 9px: the icon is taller than a line of text, and this keeps the
      control the same height as the boxes it sits beside. */
   padding: 6px 10px;
   text-align: left;
@@ -3470,7 +3472,7 @@ button.link:disabled {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 5px 8px;
+  padding: 2px 8px;
   border-radius: 5px;
   cursor: pointer;
 }
@@ -3481,11 +3483,11 @@ button.link:disabled {
   background: var(--surface-2);
 }
 
-/* 23 and not 22: see .finder-suggest-row img for why half of 46 is the only size that keeps every
-   source pixel. */
+/* The art at its own size. Half of 46 was legible only if you already knew the icon, and 46 is the
+   only step up from it: nearest-neighbour at anything between drops source pixels unevenly. */
 .drop-select-icon {
-  width: 23px;
-  height: 23px;
+  width: 46px;
+  height: 46px;
   flex: none;
   object-fit: contain;
   image-rendering: pixelated;
@@ -3494,9 +3496,22 @@ button.link:disabled {
 /* Art the pinned dataset has none of, and the two rows that are not an item. The frame still takes
    its space so the labels line up down the list. */
 .drop-select-blank {
+  width: 46px;
+  height: 46px;
+  flex: none;
+}
+
+/* Half size in the CLOSED control, which is a field in a row of fields: at 46 it stood 56px tall
+   against 37px boxes beside it. The list is where the art is being read, and it keeps full size.
+   Two rules rather than one selector list, so lib/pixel-scaling-css.test.ts can read each. */
+.drop-select > .drop-select-icon {
   width: 23px;
   height: 23px;
-  flex: none;
+}
+
+.drop-select > .drop-select-blank {
+  width: 23px;
+  height: 23px;
 }
 
 .drop-select-label {

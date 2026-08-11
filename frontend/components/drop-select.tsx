@@ -181,6 +181,9 @@ export function DropSelect({
                 role="option"
                 aria-selected={i === chosenIndex}
                 className={`drop-select-row${i === active ? " active" : ""}`}
+                // The full name for the ones the row is too narrow for, which the 46px art made
+                // more of. A tooltip, not a wider panel: the panel is as wide as the field.
+                title={option.label}
                 // mousedown, not click: the trigger's blur closes the list before a click lands.
                 onMouseDown={(e) => {
                   e.preventDefault();
