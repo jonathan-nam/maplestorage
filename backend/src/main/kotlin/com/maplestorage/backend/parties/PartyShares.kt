@@ -86,6 +86,10 @@ internal fun weekSharesFor(
  * A past week that already named its own roster or its own shares keeps them: it has an answer, and
  * this is not it. A week nobody spelled out is spelled out now, at the roster it actually ran, which
  * is the same move pinWeeksAlreadyDropped makes and for the same reason.
+ *
+ * A LIVE week is the other way round: it is put back to the standing deal, share and all. The rule
+ * has to say what every week reads and not only what it writes, or a week pinned before the rule
+ * changed keeps the pin and no edit can ever reach it.
  */
 internal fun pinWeeksAlreadyWritten(
     partyId: Uuid,
@@ -128,25 +132,34 @@ internal fun pinWeeksAlreadyWritten(
         // they were not on.
         rosterFor(partyId, week).forEach { seatId ->
             val key = week to seatId
+            // What this week's share should read after the edit: the old deal where the week is
+            // settled, and the standing one, spelled NULL, where it is still being played.
+            val pin = if (settled) standing[seatId] else null
+            // A settled week names its own share and a live week does not, so this says the row is
+            // already the shape it should be. Its share is then that week's own and not this
+            // edit's, whichever of the two it is.
+            val asItShouldBe = (existing[key] != null) == settled
             when {
                 key !in existing ->
                     PartyWeekSeat.insert {
                         it[PartyWeekSeat.partyId] = partyId
                         it[weekStart] = week
                         it[memberId] = seatId
-                        // NULL is the standing share, which is what a live week is on.
-                        it[shares] = if (settled) standing[seatId] else null
+                        it[shares] = pin
                     }
-                settled && existing[key] == null ->
+                asItShouldBe -> Unit
+                // Either a settled week that had no share, or a LIVE one that does. The second is
+                // an earlier edit's pin, from before a live week was allowed to move, and clearing
+                // it is the point: stopping the wrong pin from being made left every week that
+                // already carried one stuck on it for good.
+                else ->
                     PartyWeekSeat.update({
                         (PartyWeekSeat.partyId eq partyId) and
                             (PartyWeekSeat.weekStart eq week) and
                             (PartyWeekSeat.memberId eq seatId)
                     }) {
-                        it[shares] = standing[seatId]
+                        it[shares] = pin
                     }
-                // Already answered for, or still being played. Neither is this edit's to write.
-                else -> Unit
             }
         }
     }

@@ -5,6 +5,7 @@ import com.maplestorage.backend.config.Env
 import com.maplestorage.backend.db.Characters
 import com.maplestorage.backend.db.Party
 import com.maplestorage.backend.db.PartyMember
+import com.maplestorage.backend.db.PartyWeekSeat
 import com.maplestorage.backend.users.WORLD_INTERACTIVE
 import com.maplestorage.backend.users.ensureUser
 import kotlinx.datetime.DateTimeUnit
@@ -506,6 +507,40 @@ class PartyWeekRosterTest {
             val steve = findParty(partyId, userId)!!.members.first { it.name == "Steve" }
             assertEquals(3, steve.shares)
             assertNull(findLoot(lootId, partyId)!!.sharesThatWeek[steve.id], "the standing deal")
+        }
+    }
+
+    @Test
+    fun `a live week pinned by an older edit is put back on the standing deal`() {
+        transaction {
+            val party = trio()
+            val partyId = Uuid.parse(party.id)
+            val lootId = addGrindstoneOn(party, todayUtc())
+            val steve = party.members.first { it.name == "Steve" }
+
+            // This week, pinned at the even split, which is what every edit did before a live week
+            // was allowed to move. Written straight in because nothing writes one any more.
+            party.members.forEach { seat ->
+                PartyWeekSeat.insert {
+                    it[PartyWeekSeat.partyId] = partyId
+                    it[weekStart] = thisWeek()
+                    it[memberId] = Uuid.parse(seat.id)
+                    it[shares] = 1
+                }
+            }
+
+            saveParty(
+                userId,
+                partyId,
+                SavePartyRequest(party.characterId, "limbo", listOf("Steve", "Bob"), shares = mapOf("Steve" to 3)),
+                Clock.System.now(),
+            )
+
+            // The pin is the week's answer and beats the standing weight on read, so leaving it
+            // there left the config saying 3 and this week's drop still dividing evenly, with every
+            // further edit doing nothing at all. That is what the fix looked like from the outside:
+            // still broken.
+            assertNull(findLoot(lootId, partyId)!!.sharesThatWeek[steve.id], "back on the standing deal")
         }
     }
 
