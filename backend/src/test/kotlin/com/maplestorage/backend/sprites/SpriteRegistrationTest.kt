@@ -3,8 +3,16 @@ package com.maplestorage.backend.sprites
 import com.maplestorage.backend.config.Env
 import com.maplestorage.backend.db.CharacterSprite
 import com.maplestorage.backend.db.Characters
+import com.maplestorage.backend.services.NexonLookupService
 import com.maplestorage.backend.users.WORLD_INTERACTIVE
 import com.maplestorage.backend.users.ensureUser
+import io.ktor.client.HttpClient
+import io.ktor.client.engine.mock.MockEngine
+import io.ktor.client.engine.mock.respond
+import io.ktor.http.HttpHeaders
+import io.ktor.http.HttpStatusCode
+import io.ktor.http.headersOf
+import kotlinx.coroutines.runBlocking
 import org.flywaydb.core.Flyway
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.inList
@@ -15,9 +23,11 @@ import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
+import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 import kotlin.time.Clock
 import kotlin.uuid.Uuid
 
@@ -125,6 +135,31 @@ class SpriteRegistrationTest {
 
         transaction { registerUnknownSprites() }
         assertEquals(png.size, transaction { cachedSprite(spriteKey(strandedUrl)) }?.image?.size)
+    }
+
+    @Test
+    fun `a registered sprite with no bytes is warmed without a ranking lookup`() {
+        strandedCharacter()
+        transaction { registerUnknownSprites() }
+
+        // A MockEngine that serves the image and FAILS any ranking call, which is what pins the
+        // point: this path has the URL already, so it must not need a lookup to fetch bytes. That is
+        // what lets a party seat be cached without being put on the daily lookup clock.
+        val png = byteArrayOf(0x89.toByte(), 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 3)
+        val engine =
+            MockEngine { request ->
+                if (request.url.host == "www.nexon.com") {
+                    error("warmUnfetched must not make a ranking call")
+                }
+                respond(png, HttpStatusCode.OK, headersOf(HttpHeaders.ContentType, "image/png"))
+            }
+        val client = HttpClient(engine)
+        val job = SpriteRefreshJob(NexonLookupService(client), SpriteCache(client))
+
+        val warmed = runBlocking { job.warmUnfetched() }
+        assertTrue(warmed >= 1, "expected the stranded sprite to be warmed, got $warmed")
+        assertContentEquals(png, transaction { cachedSprite(spriteKey(strandedUrl)) }?.image)
+        client.close()
     }
 
     @Test

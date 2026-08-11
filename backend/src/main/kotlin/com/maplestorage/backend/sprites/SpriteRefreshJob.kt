@@ -59,9 +59,11 @@ private val ORPHAN_GRACE = 7.days
  * outfit is a new URL) but the URL on the character does. That is what this refreshes; the byte
  * cache follows from it.
  *
- * Party seats that are not one of this account's characters are deliberately not in scope. Those
- * have their own policy in PartySprites.kt (fill when empty, retry a miss after a week), and putting
- * every seat of every roster on a daily clock would multiply the call volume by roster size.
+ * Party seats that are not one of this account's characters are deliberately not RE-ASKED here.
+ * Those have their own policy in PartySprites.kt (fill when empty, retry a miss after a week), and
+ * putting every seat of every roster on a daily lookup clock would multiply the ranking calls by
+ * roster size. Their bytes are still cached, by [warmUnfetched]: that needs no lookup, because the
+ * URL is already stored. So a seat's outfit can go stale while its art is served from our own cache.
  */
 class SpriteRefreshJob(
     private val nexonLookupService: NexonLookupService,
@@ -87,6 +89,37 @@ class SpriteRefreshJob(
             refresh(character, Clock.System.now())
         }
         return due.size
+    }
+
+    /**
+     * Fetches the bytes for registered sprites that have none yet, and returns how many landed.
+     *
+     * Separate from [runOnce] because it needs no ranking lookup: the URL is already known, so this
+     * is one image fetch rather than the four ranking calls plus a fetch that finding a URL costs.
+     *
+     * It is also the only thing that ever caches a party seat who is not one of your characters.
+     * Those are deliberately not on the daily lookup clock (see the class comment), so without this
+     * they would stay registered-but-byteless forever: drawn via the redirect, but redirected to
+     * Nexon on every page load, which is the whole problem this cache exists to solve.
+     */
+    suspend fun warmUnfetched(limit: Int = BATCH): Int {
+        val pending =
+            transaction {
+                CharacterSprite
+                    .selectAll()
+                    .where { CharacterSprite.image eq null }
+                    .orderBy(CharacterSprite.createdAt to SortOrder.ASC)
+                    .limit(limit)
+                    .map { it[CharacterSprite.sourceUrl] }
+            }
+        var stored = 0
+        for ((index, url) in pending.withIndex()) {
+            if (index > 0) delay(PACING)
+            val bytes = spriteCache.fetch(url) ?: continue
+            transaction { spriteCache.store(url, bytes) }
+            stored++
+        }
+        return stored
     }
 
     internal suspend fun refresh(
@@ -225,11 +258,14 @@ fun Application.startSpriteRefresh(job: SpriteRefreshJob) {
             runCatching {
                 val registered = transaction { registerUnknownSprites() }
                 val asked = job.runOnce()
+                // After the lookups, so a URL they just registered is warmed by this same tick.
+                val warmed = job.warmUnfetched()
                 val swept = transaction { sweepOrphanedSprites(Clock.System.now()) }
-                if (asked > 0 || swept > 0 || registered > 0) {
+                // Silent on a tick that did nothing, which is most of them.
+                if (registered + asked + warmed + swept > 0) {
                     log.info(
                         "Sprite refresh: registered $registered, asked about $asked character(s), " +
-                            "swept $swept cached sprite(s)",
+                            "warmed $warmed, swept $swept cached sprite(s)",
                     )
                 }
             }.onFailure {
