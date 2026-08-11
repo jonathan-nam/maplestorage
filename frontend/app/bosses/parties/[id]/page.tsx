@@ -6,7 +6,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { LootPool } from "@/components/loot-pool";
-import { SeatChip } from "@/components/seat-chip";
+import { RosterStrip } from "@/components/roster-strip";
 import { apiAssetUrl } from "@/lib/api";
 import { bossLabel } from "@/lib/boss-difficulty";
 import { preloadBossArt } from "@/lib/preload-boss-art";
@@ -189,11 +189,9 @@ export default function PartyPage() {
                 .join(", ")}`}
           </h1>
           <div className="party-card-head">
-            <ul className="party-roster">
-              {party.members.map((member) => (
-                <SeatChip key={member.id} member={member} />
-              ))}
-            </ul>
+            {/* Your own character among them, unlike the strips on Party View, which put it in the
+                header and list only the others. Here it is one of the shares. */}
+            <RosterStrip members={party.members} />
             <span className="party-card-size">{partySizeLabel(party.members.length)}</span>
           </div>
 
