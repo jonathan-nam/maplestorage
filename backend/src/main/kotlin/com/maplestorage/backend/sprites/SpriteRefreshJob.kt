@@ -15,6 +15,8 @@ import org.jetbrains.exposed.v1.core.inList
 import org.jetbrains.exposed.v1.core.less
 import org.jetbrains.exposed.v1.core.or
 import org.jetbrains.exposed.v1.jdbc.deleteWhere
+import org.jetbrains.exposed.v1.jdbc.insertIgnore
+import org.jetbrains.exposed.v1.jdbc.select
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.jetbrains.exposed.v1.jdbc.update
@@ -135,6 +137,48 @@ class SpriteRefreshJob(
             .map { Due(it[Characters.id], it[Characters.userId], it[Characters.name]) }
 }
 
+/** Every sprite URL any row currently points at, by proxy key. */
+private fun referencedSprites(): Map<String, String> {
+    val characterUrls = Characters.selectAll().mapNotNull { it[Characters.spriteImgUrl] }
+    val seatUrls = PartyMember.selectAll().mapNotNull { it[PartyMember.spriteImgUrl] }
+    return (characterUrls + seatUrls).associateBy { spriteKey(it) }
+}
+
+/**
+ * Registers any sprite URL a row points at that the cache has never heard of.
+ *
+ * The safety net for the one failure this cache can produce that is worse than what it replaced. The
+ * DTO hands out a proxy path for any stored URL, computed without touching this table, so a URL that
+ * was never registered is a path the route answers 404 for and an image that is simply gone. That is
+ * what happened to every sprite predating V53 (see V54__backfill_character_sprite.sql), and a write
+ * path added later that forgets to register would do it again.
+ *
+ * Registered with no bytes, which is the state the route redirects to Nexon for, so an unregistered
+ * sprite is drawn from the moment this runs and cached when the refresh next reaches it.
+ *
+ * Must be called from inside a `transaction { }` block.
+ */
+fun registerUnknownSprites(): Int {
+    val referenced = referencedSprites()
+    if (referenced.isEmpty()) return 0
+    val known =
+        CharacterSprite
+            .select(CharacterSprite.urlSha256)
+            .where { CharacterSprite.urlSha256 inList referenced.keys.toList() }
+            .map { it[CharacterSprite.urlSha256] }
+            .toSet()
+    val missing = referenced.filterKeys { it !in known }
+    val now = Clock.System.now()
+    missing.forEach { (key, url) ->
+        CharacterSprite.insertIgnore {
+            it[urlSha256] = key
+            it[sourceUrl] = url
+            it[createdAt] = now
+        }
+    }
+    return missing.size
+}
+
 /**
  * Deletes cached sprites nothing points at, once they are past [ORPHAN_GRACE].
  *
@@ -145,9 +189,7 @@ class SpriteRefreshJob(
  * Must be called from inside a `transaction { }` block.
  */
 fun sweepOrphanedSprites(now: Instant): Int {
-    val characterUrls = Characters.selectAll().mapNotNull { it[Characters.spriteImgUrl] }
-    val seatUrls = PartyMember.selectAll().mapNotNull { it[PartyMember.spriteImgUrl] }
-    val referenced = (characterUrls + seatUrls).map { spriteKey(it) }.toSet()
+    val referenced = referencedSprites().keys
 
     val cutoff = now - ORPHAN_GRACE
     val orphans =
@@ -169,15 +211,26 @@ fun sweepOrphanedSprites(now: Instant): Int {
  */
 fun Application.startSpriteRefresh(job: SpriteRefreshJob) {
     launch {
-        // Not on boot. A deploy restarts the process, and refreshing on every restart turns a busy
-        // afternoon of deploys into a burst of lookups that the clock exists to avoid.
+        // Registering costs one query and no outbound call, and an unregistered sprite is a BROKEN
+        // IMAGE rather than an uncached one, so it does not wait for the first tick.
+        runCatching { transaction { registerUnknownSprites() } }
+            .onSuccess { if (it > 0) log.info("Sprite refresh: registered $it sprite(s) on boot") }
+            .onFailure { log.warn("Sprite registration on boot failed", it) }
+
+        // The lookups themselves are not on boot. A deploy restarts the process, and refreshing on
+        // every restart turns a busy afternoon of deploys into a burst of lookups that the clock
+        // exists to avoid.
         delay(TICK_INTERVAL)
         while (true) {
             runCatching {
+                val registered = transaction { registerUnknownSprites() }
                 val asked = job.runOnce()
                 val swept = transaction { sweepOrphanedSprites(Clock.System.now()) }
-                if (asked > 0 || swept > 0) {
-                    log.info("Sprite refresh: asked about $asked character(s), swept $swept cached sprite(s)")
+                if (asked > 0 || swept > 0 || registered > 0) {
+                    log.info(
+                        "Sprite refresh: registered $registered, asked about $asked character(s), " +
+                            "swept $swept cached sprite(s)",
+                    )
                 }
             }.onFailure {
                 // The loop outlives one bad tick. A lookup that throws, a database blip: the next
