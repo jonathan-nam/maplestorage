@@ -28,8 +28,19 @@ describe("a piece drop cannot be sold through its own row", () => {
     expect(row).toContain('loot.status === "PENDING" && canSell && !pieces &&');
   });
 
-  it("still offers Remove, so a mis-logged coupon stack can be corrected", () => {
-    expect(row).toContain('loot.status === "PENDING" && canSell && pieces &&');
+  it("still offers Remove on the pool's own page, so a mis-logged stack can be corrected", () => {
+    expect(row).toContain('loot.status === "PENDING" && canSell && pieces && couponRemovable &&');
+    // The pool page says nothing about the flag, and the row defaults it on: that page is the one
+    // place a coupon stack can still be taken back off.
+    expect(row).toContain("couponRemovable = true");
+    expect(source("components", "loot-pool.tsx")).not.toContain("couponRemovable");
+  });
+
+  it("withholds it in a Party View row, where the stack heads its own config", () => {
+    expect(source("components", "party-card.tsx")).toContain("couponRemovable={false}");
+    // Through the list, the same route `pieces` takes. Without this the panel's flag would stop at
+    // the group and every coupon row would keep its Remove.
+    expect(list).toContain("couponRemovable={couponRemovable}");
   });
 
   it("is told which rows those are, or the gate would never close", () => {

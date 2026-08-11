@@ -286,6 +286,10 @@ export function PartyCard({
           same sprite. */}
       {expanded && (
         <div id={panelId} className="party-row-panel">
+          {/* One heading per block, in the order the panel already went in. Only where the block is
+              answerable: a past week's roster is read, so naming it for the control it does not
+              carry would be a heading over a list of sprites. */}
+          {onSaveRoster && <h3 className="loot-group-title">Add Member</h3>}
           {editing && onSaveRoster ? (
             <>
               <RosterInputs members={draft} onChange={setDraft} />
@@ -376,6 +380,7 @@ export function PartyCard({
 
           {onAddDrop && (
             <>
+              <h3 className="loot-group-title">Add Drop</h3>
               <DropPicker
                 bossKey={party.bossKey}
                 worldType={party.worldType}
@@ -408,6 +413,9 @@ export function PartyCard({
               bossByKey={pool.bossByKey}
               pieceStatus={pool.pieceStatus}
               stacks={stacks}
+              // The stack is what the config under it is about, so removing it from here would take
+              // the split and the week's pickup with it. The pool's own page still corrects one.
+              couponRemovable={false}
               editing={editing}
               busy={busy}
               isSaving={pool.isSaving}

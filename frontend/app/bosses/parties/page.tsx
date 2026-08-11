@@ -556,11 +556,14 @@ export default function PartiesPage() {
       // Coupon": the heading would then read Coupon Config, and the row underneath already says
       // Coupon.
       title: "Vestige of Erion Config",
+      // The deal, which is a standing fact about the party and not about any one night.
+      entitledTitle: "Entitled each week",
       config,
       onSave: (shares: Map<string, number>) => saveShares(party, shares),
       // What actually got picked up, per night. Off the rows the panel is already showing, so the
       // boxes cannot cover a different set of drops from the ones above them.
       pickup: {
+        title: "Looted this week",
         drops: assignableDrops(
           party,
           dropsInWeek(lootByParty.get(party.id) ?? [], view?.currentWeekStart ?? null).shown,
