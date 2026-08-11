@@ -515,8 +515,72 @@ export function oneBossBehind(entries: DropEntry[]): boolean {
   return new Set(entries.map((e) => e.bossKey ?? null)).size === 1;
 }
 
-function lineOf(key: string, entries: DropEntry[], folded: boolean): DropLine {
+/**
+ * One status for several rows, or how many rows there are when they disagree.
+ *
+ * Off each row's own reading, not its raw status: a fold of coupon drops that are all already yours
+ * agrees, where "in the pool" over it would be the wrong word one level up. Mixed is said as a count
+ * because naming one of the statuses would name the wrong half.
+ */
+export function foldStatus(entries: DropEntry[]): string {
+  const statuses = [...new Set(entries.map(dropStatusLabel))];
+  return statuses.length === 1 ? statuses[0]! : `${entries.length} runs`;
+}
+
+/** What a set of rows made, or null when none of them sold. Summed over `pooled`, per the header. */
+function sumSold(entries: DropEntry[]): { pooled: number | null; yourTake: number | null } {
   const sold = entries.filter((e) => e.pooled !== null);
+  if (sold.length === 0) return { pooled: null, yourTake: null };
+  return {
+    pooled: sold.reduce((sum, e) => sum + (e.pooled ?? 0), 0),
+    yourTake: sold.reduce((sum, e) => sum + (e.yourTake ?? 0), 0),
+  };
+}
+
+/** One character's share of a fold, and the runs it came off. */
+export type CharacterFold = {
+  characterId: string;
+  /** How many of the drop are theirs, across those runs. Summed like a line's, off `yours`. */
+  yours: number;
+  /** Their runs, in the order the fold holds them, which is newest first. */
+  entries: DropEntry[];
+  pooled: number | null;
+  yourTake: number | null;
+};
+
+/**
+ * A fold's rows split by character, each subtotalled.
+ *
+ * The level between a stacking drop and the nights it fell on: six characters clearing five bosses
+ * a week is thirty rows behind one chevron, and the question asked of it is how many each character
+ * got, not which Tuesday.
+ *
+ * Order is first appearance, which consolidate() has already put in roster order. Deliberately not
+ * re-sorted here: two orders for one list is two lists.
+ */
+export function byCharacter(entries: DropEntry[]): CharacterFold[] {
+  const folds: CharacterFold[] = [];
+  const byId = new Map<string, CharacterFold>();
+  for (const entry of entries) {
+    let fold = byId.get(entry.characterId);
+    if (!fold) {
+      fold = {
+        characterId: entry.characterId,
+        yours: 0,
+        entries: [],
+        pooled: null,
+        yourTake: null,
+      };
+      byId.set(entry.characterId, fold);
+      folds.push(fold);
+    }
+    fold.entries.push(entry);
+    fold.yours += entry.yours;
+  }
+  return folds.map((fold) => ({ ...fold, ...sumSold(fold.entries) }));
+}
+
+function lineOf(key: string, entries: DropEntry[], folded: boolean): DropLine {
   const first = entries[0]!;
   return {
     key,
@@ -528,7 +592,6 @@ function lineOf(key: string, entries: DropEntry[], folded: boolean): DropLine {
     fell: entries.reduce((sum, e) => sum + e.quantity, 0),
     entries,
     folded,
-    pooled: sold.length === 0 ? null : sold.reduce((sum, e) => sum + (e.pooled ?? 0), 0),
-    yourTake: sold.length === 0 ? null : sold.reduce((sum, e) => sum + (e.yourTake ?? 0), 0),
+    ...sumSold(entries),
   };
 }
