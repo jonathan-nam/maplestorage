@@ -4161,13 +4161,19 @@ button.link:disabled {
   margin-left: 2px;
 }
 
-/* This week's coupons, handed out under the boss row that dropped them. The same boxes the config
-   uses for shares, so "a number per member" reads the same on both screens; what differs is that
-   these are STACKS somebody picked up rather than a ratio they are owed. */
+/* This week's coupons, handed out under the row that says what fell. The same boxes the config uses
+   for shares, so "a number per member" reads the same on both screens; what differs is that these
+   are STACKS somebody picked up rather than a ratio they are owed.
+
+   Hung off the row above rather than floating beside it. It is a second thing to do about ONE drop,
+   and the indent is what says so; loose in the list it read as another drop. Same shape the ledger
+   uses to hang a boss's debts under it. */
 .config-vestige {
   display: flex;
   flex-direction: column;
   gap: 6px;
+  border-left: 2px solid var(--line-soft);
+  padding-left: 12px;
 }
 
 .config-looter-label {

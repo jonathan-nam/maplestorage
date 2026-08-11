@@ -6,7 +6,6 @@ import { DropPicker } from "@/components/drop-picker";
 import { LootList } from "@/components/loot-list";
 import { RosterInputs } from "@/components/roster-inputs";
 import { RosterStrip } from "@/components/roster-strip";
-import { StackAssign } from "@/components/stack-assign";
 import { ApiError, apiAssetUrl } from "@/lib/api";
 import { clearClass, clearStateLabel, nextClear } from "@/lib/boss-clears";
 import type { PieceStatus } from "@/lib/drop-log";
@@ -126,9 +125,10 @@ export function PartyCard({
   /**
    * This week's coupon nights on this boss, and who picked up which stacks of them.
    *
-   * Under the roster because it is the next question about the same people: who was here, then what
-   * each of them walked off with. Omitted on a past week, which is shown and not edited, and absent
-   * on a night with nothing to hand out (one stack, or a party that folds to one person).
+   * Handed to the pool rather than drawn here, so the boxes sit under the coupon row they are about
+   * rather than above the picker with the row below it. Omitted on a past week, which is shown and
+   * not edited, and absent on a night with nothing to hand out (one stack, or a party that folds to
+   * one person).
    */
   stacks?: {
     drops: StackDrop[];
@@ -373,18 +373,6 @@ export function PartyCard({
               did not land. */}
           {offError && <p className="split-error">{offError}</p>}
 
-          {/* Straight under the roster, because it is the next question about those same people.
-              One block per night, which in an ordinary week is exactly one. */}
-          {stacks?.drops.map((drop) => (
-            <StackAssign
-              key={drop.lootId}
-              drop={drop}
-              party={party}
-              behind={stacks.behind}
-              busy={busy ?? false}
-              onSave={stacks.onSave}
-            />
-          ))}
           {onAddDrop && (
             <>
               <DropPicker
@@ -418,6 +406,7 @@ export function PartyCard({
               dropTables={pool.dropTables}
               bossByKey={pool.bossByKey}
               pieceStatus={pool.pieceStatus}
+              stacks={stacks}
               isSaving={pool.isSaving}
               onSell={pool.onSell}
               onUnsell={pool.onUnsell}

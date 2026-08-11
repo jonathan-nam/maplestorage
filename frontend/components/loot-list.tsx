@@ -1,13 +1,23 @@
 "use client";
 
 import Link from "next/link";
+import { Fragment } from "react";
 
 import { LootRow } from "@/components/loot-row";
+import { StackAssign } from "@/components/stack-assign";
 import { isPieceDrop, type PieceStatus } from "@/lib/drop-log";
+import type { StackDrop } from "@/lib/vestige-stacks";
 import type { Loot, SellLootBody } from "@/types/loot";
 import type { Boss } from "@/types/boss";
 import type { DropTables } from "@/types/drop";
 import type { Party } from "@/types/party";
+
+/** The nights that can still be handed out, and the write that does it. */
+export type StackAssignment = {
+  drops: StackDrop[];
+  behind: Map<string, number>;
+  onSave: (lootId: string, bundles: Record<string, number>) => Promise<void>;
+};
 
 // The rows of a pool, split into what sells and what settles in coupons. Carried by the party's own
 // page and by a row on Party View, the same component in both so the two cannot disagree about
@@ -24,6 +34,7 @@ export function LootList({
   dropTables,
   bossByKey,
   pieceStatus,
+  stacks,
   isSaving,
   onSell,
   onUnsell,
@@ -36,6 +47,12 @@ export function LootList({
   dropTables: DropTables;
   bossByKey: Map<string, Boss>;
   pieceStatus?: PieceStatus;
+  /**
+   * Who picked up which stacks, for the coupon rows that can still be handed out.
+   *
+   * Absent on the party's own page and on a past week, where the rows are read rather than answered.
+   */
+  stacks?: StackAssignment;
   /** Whether THIS drop's write is in flight, by its id. */
   isSaving: (lootId: string) => boolean;
   onSell: (lootId: string, body: SellLootBody) => void;
@@ -49,6 +66,12 @@ export function LootList({
   const sellable = loot.filter((item) => !isPieceDrop(item, party, dropTables));
   // Headed only when both kinds are present. A pool of one kind is just the pool.
   const headed = sellable.length > 0 && coupons.length > 0;
+  // The coupons are headed by their own NAME when the boxes are under them, because then the group
+  // is a block of controls rather than a row: what it is called is the one thing tying the count,
+  // the boxes and the Save together. "Coupons" over one row said nothing the row did not.
+  const named = new Set(coupons.map((item) => item.name));
+  const couponTitle =
+    stacks && named.size === 1 ? (coupons[0]?.name ?? null) : headed ? "Coupons" : null;
 
   return (
     <>
@@ -69,11 +92,12 @@ export function LootList({
       />
       <LootGroup
         rows={coupons}
-        title={headed ? "Coupons" : null}
+        title={couponTitle}
         party={party}
         bossByKey={bossByKey}
         statusOf={pieceStatus}
         pieces
+        stacks={stacks}
         isSaving={isSaving}
         onSell={onSell}
         onUnsell={onUnsell}
@@ -97,6 +121,7 @@ function LootGroup({
   party,
   bossByKey,
   statusOf,
+  stacks,
   pieces,
   isSaving,
   onSell,
@@ -112,6 +137,8 @@ function LootGroup({
   bossByKey: Map<string, Boss>;
   /** What a coupon row says it is, and how much of it is yours. Absent for the sellable group. */
   statusOf?: PieceStatus;
+  /** Who picked up which stacks, drawn under the row it is about. */
+  stacks?: StackAssignment;
   /** These rows are stacks of pieces, which do not sell here. See LootRow's `pieces`. */
   pieces?: boolean;
   isSaving: (lootId: string) => boolean;
@@ -132,23 +159,38 @@ function LootGroup({
         </h3>
       )}
       <div className="loot-list">
-        {rows.map((item) => (
-          <LootRow
-            key={item.id}
-            loot={item}
-            party={party}
-            boss={item.bossKey ? (bossByKey.get(item.bossKey) ?? null) : null}
-            status={statusOf?.get(item.id)?.status ?? null}
-            yours={statusOf?.get(item.id)?.yours ?? null}
-            pieces={pieces}
-            busy={isSaving(item.id)}
-            onSell={(body) => onSell(item.id, body)}
-            onUnsell={() => onUnsell(item.id)}
-            onSetTaken={(memberId) => onSetTaken(item.id, memberId)}
-            onSetPaid={(memberId, paid) => onSetPaid(item.id, memberId, paid)}
-            onDelete={() => onDelete(item.id)}
-          />
-        ))}
+        {rows.map((item) => {
+          // The night this row is, when it can still be handed out. Under the row rather than
+          // beside it: the row says what fell, and this says where it went.
+          const drop = stacks?.drops.find((d) => d.lootId === item.id);
+          return (
+            <Fragment key={item.id}>
+              <LootRow
+                loot={item}
+                party={party}
+                boss={item.bossKey ? (bossByKey.get(item.bossKey) ?? null) : null}
+                status={statusOf?.get(item.id)?.status ?? null}
+                yours={statusOf?.get(item.id)?.yours ?? null}
+                pieces={pieces}
+                busy={isSaving(item.id)}
+                onSell={(body) => onSell(item.id, body)}
+                onUnsell={() => onUnsell(item.id)}
+                onSetTaken={(memberId) => onSetTaken(item.id, memberId)}
+                onSetPaid={(memberId, paid) => onSetPaid(item.id, memberId, paid)}
+                onDelete={() => onDelete(item.id)}
+              />
+              {drop && stacks && (
+                <StackAssign
+                  drop={drop}
+                  party={party}
+                  behind={stacks.behind}
+                  busy={isSaving(item.id)}
+                  onSave={stacks.onSave}
+                />
+              )}
+            </Fragment>
+          );
+        })}
       </div>
     </>
   );
