@@ -8,7 +8,7 @@ import { KnownCharacters } from "@/components/known-characters";
 import { LogDrop } from "@/components/log-drop";
 import { LotSale } from "@/components/lot-sale";
 import { PieceLedger } from "@/components/piece-ledger";
-import { StackArrangement } from "@/components/stack-arrangement";
+import { UnansweredNights } from "@/components/unanswered-nights";
 import { WeekRuns } from "@/components/week-runs";
 import { ApiError, apiAssetUrl, apiFetch } from "@/lib/api";
 import { peek, put } from "@/lib/cache";
@@ -264,11 +264,11 @@ export default function DropLogPage() {
    * arrangement turns a drop nobody could be paid for into one that owes somebody, and every other
    * boss in that holder's queue is re-priced behind it.
    */
-  async function bundlesWrite(partyId: string, lootId: string, bundles: Record<string, number>) {
+  async function saveStacks(run: WeekRun, bundles: Record<string, number>) {
     setBusy(true);
     try {
       await apiFetch<Loot>(
-        `/api/parties/${partyId}/loot/${lootId}/bundles`,
+        `/api/parties/${run.partyId}/loot/${run.lootId}/bundles`,
         { method: "PUT", body: JSON.stringify({ bundles }) },
         getToken,
       );
@@ -350,6 +350,9 @@ export default function DropLogPage() {
   const weeks = runWeeks(pools, VESTIGE);
   const shownWeek = (week !== null && weeks.includes(week) ? week : weeks[0]) ?? "";
   const runs = weekRuns(parties, pools, VESTIGE, shownWeek, characterOrder, bossOrder);
+  // Off the unanswered list rather than worked out again: the size of a night's imbalance has one
+  // implementation, and a second would be a second answer to it.
+  const misplaced = new Map(open.map((drop) => [drop.lootId, drop.imbalance]));
   // Only the drops still open tilt the rotation: a debt that has been closed was compensated, so it
   // has no business suggesting against the same person forever. See V52.
   const behind = runningBalance(stillOpen(settled, closures.closed));
@@ -607,8 +610,10 @@ export default function DropLogPage() {
                 </section>
               )}
 
-              {/* The two cards nothing can be priced through, in the order the questions come: who
-                  was there, then who picked up which stack. */}
+              {/* The one real boundary on this tab: every card above takes a sale, and neither of
+                  these can be acted on for money at all. The sheet is where a night is said, both
+                  halves of it; the prompt under it names the nights still owed an answer, across
+                  every week rather than the one on screen. */}
               <WeekRuns
                 runs={runs}
                 weeks={weeks}
@@ -617,24 +622,21 @@ export default function DropLogPage() {
                 bossByKey={bossByKey}
                 characterById={characterById}
                 partyById={partyById}
+                behind={behind}
+                misplaced={misplaced}
                 iconUrl={vestigeIcon}
                 busy={busy}
                 onSave={saveRun}
+                onSaveStacks={saveStacks}
               />
 
-              {/* Last, and the one real boundary on this tab: every card above takes a sale, and this
-                  one cannot be acted on for money at all. It names the nights whose arrangement
-                  nobody has said, and nothing about them can be priced until somebody does. Still on
-                  screen, because a drop that owes somebody and cannot say who is exactly what must
-                  not be quietly dropped. */}
-              <StackArrangement
+              <UnansweredNights
                 drops={open}
                 partyById={partyById}
                 bossByKey={bossByKey}
-                behind={behind}
                 iconUrl={vestigeIcon}
                 busy={busy}
-                onSave={bundlesWrite}
+                onGoToWeek={setWeek}
               />
             </>
           )}
