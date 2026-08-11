@@ -4457,12 +4457,20 @@ button.link:disabled {
   color: var(--muted);
 }
 
-/* The roster, and the way into changing it. Baseline-aligned to the sprites' names rather than
-   centred on the tiles, which would float the button in the middle of a 56px sprite. */
+/* The roster on the left, the row's own controls in the panel's top corner. */
 .party-row-roster {
   display: flex;
-  align-items: flex-end;
+  align-items: flex-start;
   gap: 12px;
+}
+
+/* Hard right, the way the clear state sits in the row's header: the eye runs down one edge. Top
+   rather than centred, so the pair stays put whether the strip below is one row of sprites or two. */
+.party-row-actions {
+  display: flex;
+  gap: 8px;
+  margin-left: auto;
+  flex: none;
 }
 
 .party-row-panel .split-error {
