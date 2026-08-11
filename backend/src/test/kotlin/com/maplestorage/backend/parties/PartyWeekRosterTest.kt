@@ -273,6 +273,100 @@ class PartyWeekRosterTest {
         }
     }
 
+    /** A boss this character has never had a party for, with a drop already in its pool. */
+    private fun soloWithADrop(): Triple<Uuid, Uuid, Uuid> {
+        ensureUser(userId, "$userId@example.com")
+        val mine = Uuid.random()
+        val now = Clock.System.now()
+        val owner = userId
+        Characters.insert {
+            it[Characters.id] = mine
+            it[Characters.userId] = owner
+            it[Characters.name] = "Rune"
+            it[Characters.worldType] = WORLD_INTERACTIVE
+            it[createdAt] = now
+            it[updatedAt] = now
+            it[position] = 0
+        }
+        val partyId = createSoloParty(userId, mine, bossIdForKey("limbo")!!, now)
+        val lootId =
+            addLoot(partyId, LootedDrop(dropIdForKey("grindstone-of-faith")!!), bossIdForKey("limbo"), todayUtc(), now)
+        return Triple(partyId, mine, lootId)
+    }
+
+    @Test
+    fun `a night with whoever was around gives the config no standing roster`() {
+        transaction {
+            val (partyId, characterId, lootId) = soloWithADrop()
+            // The pug case: no set party, and this Thursday it was Steve and Bob. Said as a WEEK.
+            openSoloParty(partyId, thisWeek(), Clock.System.now())
+            saveWeekRoster(partyId, characterId, thisWeek(), listOf("Steve", "Bob"), context())
+
+            val party = findParty(partyId, userId)!!
+            assertEquals(listOf("Rune", "Steve", "Bob"), party.members.map { it.name })
+            // Both are guests, so they are seats a payout can point at and nothing more. Written as
+            // the standing roster instead, they would be who every later week ran by default.
+            assertTrue(party.members.filter { it.name != "Rune" }.all { it.guest })
+            // What the ledger divides against, which is the whole point of answering the night: the
+            // drop that was sitting in a pool of one is now a drop three people are owed out of.
+            assertEquals(3, findLoot(lootId, partyId)!!.ranThatWeek.size)
+        }
+    }
+
+    @Test
+    fun `a later week nobody has answered for claims nobody, rather than last week's strangers`() {
+        transaction {
+            val (partyId, characterId, _) = soloWithADrop()
+            openSoloParty(partyId, thisWeek(), Clock.System.now())
+            saveWeekRoster(partyId, characterId, thisWeek(), listOf("Steve", "Bob"), context())
+
+            // Next Thursday, before anybody says anything about it. A standing roster here would
+            // divide 180 coupons three ways and owe a share to two people who were not in the game,
+            // which is a debt invented out of a default.
+            val next = thisWeek().plus(7, DateTimeUnit.DAY)
+            assertEquals(1, rosterFor(partyId, next).size, "your own character and nobody else")
+        }
+    }
+
+    @Test
+    fun `a past week is still answerable while everything it dropped is in the pool`() {
+        transaction {
+            val party = trio()
+            val partyId = Uuid.parse(party.id)
+            // The case that made the old this-week-only rule bite: a Wednesday night run, come back
+            // to on Thursday morning. The reset had put it out of reach an hour after it happened.
+            val lastWeek = thisWeek().plus(-7, DateTimeUnit.DAY)
+            addGrindstoneOn(party, lastWeek)
+
+            assertFalse(payoutsPinnedIn(partyId, lastWeek), "nothing sold, so nothing to contradict")
+        }
+    }
+
+    @Test
+    fun `a week closes to edits once a drop in it has been sold`() {
+        transaction {
+            val party = trio()
+            val partyId = Uuid.parse(party.id)
+            val lastWeek = thisWeek().plus(-7, DateTimeUnit.DAY)
+            val lootId = addGrindstoneOn(party, lastWeek)
+            val seller = rosterFor(partyId, lastWeek).first()
+            sellLoot(
+                lootId,
+                SellLootRequest(1_000_000, "LISTED", "FAIR", seller.toString()),
+                seller,
+                partyId,
+                Clock.System.now(),
+            )
+
+            // The payout was pinned from the roster as it stood. Rewriting who ran now would owe a
+            // share to somebody the rows do not name, and the two would disagree with nothing on
+            // screen saying which is right.
+            assertTrue(payoutsPinnedIn(partyId, lastWeek))
+            // Per week, not per party: the week beside it never sold anything and is still open.
+            assertFalse(payoutsPinnedIn(partyId, thisWeek()))
+        }
+    }
+
     @Test
     fun `a drop names the week it fell in, cut on Thursday`() {
         transaction {

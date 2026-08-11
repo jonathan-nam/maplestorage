@@ -243,6 +243,69 @@ describe("which drops are outstanding", () => {
   });
 });
 
+describe("a drop is measured against the week it fell in", () => {
+  // A pool spans months and the party is not the same every night: a trio in July, a duo in August.
+  // `party.members` is whichever ONE week the page asked for, so reading the pool against it answers
+  // for the wrong night. The drop carries its own week's seats, and now they are what is read.
+  const roster = trio();
+  const [husky, rune] = roster;
+
+  /** The party as this week sees it, which is the duo. Every seat is still on it. */
+  const thisWeekIsADuo = (looter: string | null): Party => ({
+    ...party("pa", "limbo", roster, looter),
+    members: [husky!, rune!],
+  });
+
+  it("divides July's trio three ways while this week is a duo", () => {
+    const july = coupon("l1", "limbo", 60, "2026-07-30", { ranThatWeek: ["m1", "m2", "m3"] });
+    const rows = outstanding([thisWeekIsADuo("m1")], [pool("pa", [july])], VESTIGE, ORDER);
+
+    // Husky looted the lot for three people. Read against this week it would owe Rune 30, which is
+    // the whole of Bob's share handed to somebody else.
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.drop.seats.map((s) => s.name)).toEqual(["you", "Rune", "Bob"]);
+    expect(rows[0]!.drop.seats.map((s) => s.looted)).toEqual([60, 0, 0]);
+  });
+
+  it("asks about the duo's night and not the trio's, on one pool holding both", () => {
+    // Three stacks of 20. The trio takes one each and owes nobody; the duo cannot, and 10 pieces
+    // end up on the wrong side of the party.
+    const drops = [
+      coupon("l1", "limbo", 60, "2026-07-30", { bundles: 3, ranThatWeek: ["m1", "m2", "m3"] }),
+      coupon("l2", "limbo", 60, "2026-08-06", { bundles: 3, ranThatWeek: ["m1", "m2"] }),
+    ];
+    const open = unanswered([thisWeekIsADuo(null)], [pool("pa", drops)], VESTIGE);
+
+    expect(open.map((d) => d.lootId)).toEqual(["l2"]);
+    expect(open[0]!.imbalance).toBe(10);
+    // And the stacks may only be handed to the two who were there.
+    expect(open[0]!.seats.map((s) => s.name)).toEqual(["Husky", "Rune"]);
+  });
+
+  it("hands a stack to the guest who ran that night, not to this week's roster", () => {
+    // Bob is out this week. July's odd stack is his, and a card drawing this week's seats could
+    // neither say so nor correct it.
+    const july = coupon("l1", "limbo", 60, "2026-07-30", { bundles: 3, ranThatWeek: ["m1", "m3"] });
+    const open = unanswered([thisWeekIsADuo(null)], [pool("pa", [july])], VESTIGE);
+
+    expect(open[0]!.seats.map((s) => s.name)).toEqual(["Husky", "Bob"]);
+  });
+
+  it("falls back to the party when the week names nobody, rather than reading it as empty", () => {
+    // Every seat retired and no week spelled out. There is no answer for that week, and an empty
+    // roster would say none of the 60 is yours.
+    const p = thisWeekIsADuo("m1");
+    const rows = outstanding(
+      [p],
+      [pool("pa", [coupon("l1", "limbo", 60, "2026-07-30")])],
+      VESTIGE,
+      ORDER,
+    );
+
+    expect(rows[0]!.drop.seats.map((s) => s.name)).toEqual(["you", "Rune"]);
+  });
+});
+
 describe("a debt is between people, not between characters", () => {
   it("nets two of your characters into one seat, so you are owed once", () => {
     // Husky loots 60 for a trio of you, your alt, and Jared. Two thirds of it is already yours.

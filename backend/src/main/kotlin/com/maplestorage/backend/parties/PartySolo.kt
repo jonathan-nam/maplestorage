@@ -5,6 +5,7 @@ import com.maplestorage.backend.db.Party
 import com.maplestorage.backend.db.PartyLoot
 import com.maplestorage.backend.db.PartyMember
 import com.maplestorage.backend.db.PartyWeekSeat
+import kotlinx.datetime.LocalDate
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.insert
@@ -105,6 +106,46 @@ internal fun adoptSoloParty(
     pinWeeksAlreadyDropped(partyId)
     Party.update({ Party.id eq partyId }) { it[solo] = false }
     saveParty(userId, partyId, request, now, sprites)
+}
+
+/**
+ * Opens a solo pool up to a week that was not solo, WITHOUT giving it a standing roster.
+ *
+ * The other half of adoptSoloParty, for somebody who keeps no set parties. There, naming the party
+ * IS the arrangement and the names become standing seats. Here the names are one Thursday's, and
+ * writing them as standing would make every later week nobody answers for claim those same people
+ * ran: rostersFor falls back to the standing seats, so next week's 180 coupons would divide three
+ * ways and owe a share to somebody who was not in the game. That is a debt invented out of a
+ * default, which is the wrong number this repo exists to prevent.
+ *
+ * So the config becomes a party whose only standing seat is your own character, and each week names
+ * its own guests. A week nobody has answered for is then a roster of one, which divides nothing and
+ * asks nothing, which is exactly what is known about it.
+ *
+ * One-off rather than standing for the same reason, and armed only for the period being answered: a
+ * night with whoever was around is not a boss this character now runs every week.
+ */
+internal fun openSoloParty(
+    partyId: Uuid,
+    week: LocalDate,
+    now: Instant,
+) {
+    // Before anything else, as adoptSoloParty does: every week that already holds a drop is spelled
+    // out as the seat that was there alone, so the guests named now cannot reach back over a night
+    // they were not in. The week being answered is overwritten by saveWeekRoster straight after.
+    pinWeeksAlreadyDropped(partyId)
+    Party.update({ Party.id eq partyId }) {
+        it[solo] = false
+        it[oneOff] = true
+        it[updatedAt] = now
+    }
+    setRunsInPeriod(
+        partyId,
+        oneOff = true,
+        periodShown(bossResetOf(bossIdOfParty(partyId)!!)!!, week, now),
+        runs = true,
+        now = now,
+    )
 }
 
 /**

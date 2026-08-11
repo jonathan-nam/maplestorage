@@ -181,11 +181,17 @@ private suspend fun RoutingContext.savePartyRoute(nexonLookupService: NexonLooku
 }
 
 /**
- * Says who ran this week, or puts the week back to the usual party.
+ * Says who ran a week, or puts that week back to the usual party.
  *
- * This week only. A past week's payouts were pinned when its drops sold and are never re-derived,
- * so rewriting who ran back then would leave the roster and the money owed disagreeing, with
- * nothing on screen to say which of the two is right.
+ * This week unless one is named, and a named past week has to be one nothing was paid out of. A
+ * payout was pinned when its drop sold and is never re-derived, so rewriting who ran behind one
+ * leaves the roster and the money owed disagreeing, with nothing on screen to say which is right.
+ * A week whose drops are all still in the pool has no such row to contradict, and refusing it meant
+ * a Wednesday night could not be answered for on Thursday morning: the reset had moved it out of
+ * reach an hour after it was run.
+ *
+ * Never a week that has not happened. There is nothing to record about it, and the roster it would
+ * pin is one the party would otherwise have reverted to on its own.
  *
  * The party's own roster is untouched: that is what PUT /{id} is for.
  */
@@ -204,32 +210,38 @@ private suspend fun RoutingContext.saveWeekRosterRoute(nexonLookupService: Nexon
             ensureUser(userId, email)
             val characterId = characterIdOfParty(partyId)
             val thisWeek = currentWeek()
-            // Omitted means this week, which is also the only one allowed. Taken from the server's
-            // clock rather than the payload so a browser a day out cannot file a roster in the
-            // neighbouring week.
+            // Omitted means this week. Which week THIS is comes from the server's clock rather than
+            // the payload, so a browser a day out cannot file a roster in the neighbouring week.
+            val week = asked ?: thisWeek
             val problem =
-                if (asked != null && asked != thisWeek) {
-                    "only this week's party can be changed"
-                } else {
-                    request.members?.let { members ->
+                validateRosterWeek(partyId, week, thisWeek)
+                    ?: request.members?.let { members ->
                         validateMembers(members)
                             ?: bossIdOfParty(partyId)?.let { boss ->
                                 validateWeekRoster(
                                     userId,
                                     boss,
                                     exclude = partyId,
-                                    thisWeek,
+                                    week,
                                     rosterOf(characterId, members),
                                 )
                             }
                     }
-                }
             when {
                 !ownsParty(partyId, userId) || characterId == null -> null
                 problem != null -> problem
                 else -> {
-                    val context = SeatContext(userId, sprites, Clock.System.now())
-                    saveWeekRoster(partyId, characterId, thisWeek, request.members, context)
+                    val now = Clock.System.now()
+                    // A pool opened for a boss run alone has no seats to name, so saying somebody
+                    // ran that week is also saying it is not a solo config. Done here rather than
+                    // by a POST first, because the two must not come apart: adopting through
+                    // POST /api/parties writes the names as the STANDING roster, and every later
+                    // week nobody answers for would then claim those same people ran. See
+                    // openSoloParty.
+                    if (!request.members.isNullOrEmpty() && isSoloParty(partyId)) {
+                        openSoloParty(partyId, week, now)
+                    }
+                    saveWeekRoster(partyId, characterId, week, request.members, SeatContext(userId, sprites, now))
                     findParty(partyId, userId)!!
                 }
             }
