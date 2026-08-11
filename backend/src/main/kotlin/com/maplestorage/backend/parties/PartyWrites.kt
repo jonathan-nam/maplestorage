@@ -294,12 +294,13 @@ internal fun writeMembers(
     val sharesByName = shares.mapKeys { (name, _) -> name.trim().lowercase() }
     val wanted = names.associate { it.lowercase() to (sharesByName[it.lowercase()] ?: 1) }
 
-    // Before the party moves, freeze it onto every week already written into. A week with no rows
-    // of its own is read as whoever is in the party today, and entitlement is derived from
-    // party_member.shares on read, so without this an edit rewrites nights already played. Here
-    // rather than at the callers: this is the one place a standing roster is written, and a second
-    // caller that forgot would be silent. See pinWeeksAlreadyWritten.
-    pinWeeksAlreadyWritten(partyId, wanted)
+    // Before the party moves, freeze the roster onto every week already written into, and the split
+    // onto the settled ones. A week with no rows of its own is read as whoever is in the party
+    // today, and entitlement is derived from party_member.shares on read, so without this an edit
+    // rewrites nights already played. Which weeks each of the two reaches is pinWeeksAlreadyWritten's
+    // to say. Here rather than at the callers: this is the one place a standing roster is written,
+    // and a second caller that forgot would be silent.
+    pinWeeksAlreadyWritten(partyId, wanted, context.now)
 
     val existing = seatIdsByName(partyId)
 

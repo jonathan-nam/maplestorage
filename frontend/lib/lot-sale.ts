@@ -129,8 +129,8 @@ export function lotQueue(
  * Each seat's weight in the week this drop fell in, keyed by seat id. What the sale pins.
  *
  * The week's own deal where it named one, the standing weight otherwise. A config edit freezes the
- * weeks already written into (see pinWeeksAlreadyWritten), so reading the standing weight alone
- * would sell an old night on a deal agreed after it.
+ * share of every week already over (see pinWeeksAlreadyWritten), so reading the standing weight
+ * alone would sell an old night on a deal agreed after it.
  */
 function sharesOf(ran: PartyMember[], loot: Loot): Record<string, number> {
   return Object.fromEntries(ran.map((s) => [s.id, loot.sharesThatWeek?.[s.id] ?? s.shares]));

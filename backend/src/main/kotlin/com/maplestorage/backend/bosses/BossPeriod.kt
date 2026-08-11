@@ -23,6 +23,10 @@ val RESET_CADENCES = listOf("WEEKLY", "DAILY", "MONTHLY")
 // weeklyClearsFor.
 const val WEEKLY_CADENCE = "WEEKLY"
 
+// The only cadence whose period is LONGER than a week, so the only one a week can straddle two of.
+// See liveFrom.
+const val MONTHLY_CADENCE = "MONTHLY"
+
 // UTC, because that is when the game resets, not when the player is asleep. A clear captured at
 // 20:00 Wednesday in Los Angeles is already Thursday in UTC and belongs to the NEW week; filing it
 // in local time would put it in the week that just ended, where it reads as a second clear in a
