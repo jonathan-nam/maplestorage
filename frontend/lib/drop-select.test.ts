@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { OTHER } from "./drop-picker";
-import { NOTHING_LABEL, dropOptions, nextOption, panelPlacement } from "./drop-select";
+import { PLACEHOLDER, dropOptions, nextOption, panelPlacement } from "./drop-select";
 import type { BossDrop } from "@/types/drop";
 
 const drop = (over: Partial<BossDrop> = {}): BossDrop => ({
@@ -17,25 +17,32 @@ const drop = (over: Partial<BossDrop> = {}): BossDrop => ({
 });
 
 describe("dropOptions", () => {
-  it("keeps the empty row and the escape hatch around the boss's own drops", () => {
+  it("offers the boss's drops and the escape hatch", () => {
     const options = dropOptions([drop()], "INTERACTIVE");
-    expect(options.map((o) => o.value)).toEqual(["", "grindstone", OTHER]);
-    expect(options[0].label).toBe(NOTHING_LABEL);
+    expect(options.map((o) => o.value)).toEqual(["grindstone", OTHER]);
+  });
+
+  // The bug: "pick a drop" was carried into the list as row 0, so an instruction sat where a choice
+  // goes. It belongs to the closed control only.
+  it("never offers the placeholder as something to choose", () => {
+    const options = dropOptions([drop()], "INTERACTIVE");
+    expect(options.map((o) => o.value)).not.toContain(PLACEHOLDER.value);
+    expect(options.map((o) => o.label)).not.toContain(PLACEHOLDER.label);
   });
 
   it("carries the icon through, and a null one as null rather than dropping the row", () => {
     const options = dropOptions([drop(), drop({ dropKey: "unknown", iconUrl: null })], "HEROIC");
-    expect(options[1]?.iconUrl).toBe("/drop-icons/grindstone.png");
-    expect(options[2]).toMatchObject({ value: "unknown", iconUrl: null });
+    expect(options[0]?.iconUrl).toBe("/drop-icons/grindstone.png");
+    expect(options[1]).toMatchObject({ value: "unknown", iconUrl: null });
   });
 
   it("labels a per-member drop the way the select did, so the copy did not change", () => {
     const options = dropOptions([drop({ perMember: "ALWAYS" })], "INTERACTIVE");
-    expect(options[1]?.label).toBe("Grindstone of Life (one each)");
+    expect(options[0]?.label).toBe("Grindstone of Life (one each)");
   });
 
-  it("offers only the two fixed rows for a boss with no table", () => {
-    expect(dropOptions([], "INTERACTIVE").map((o) => o.value)).toEqual(["", OTHER]);
+  it("offers only the escape hatch for a boss with no table", () => {
+    expect(dropOptions([], "INTERACTIVE").map((o) => o.value)).toEqual([OTHER]);
   });
 });
 

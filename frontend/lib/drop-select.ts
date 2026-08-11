@@ -8,24 +8,26 @@ import { OTHER, dropOptionLabel } from "./drop-picker";
 import type { BossDrop } from "@/types/drop";
 import type { WorldType } from "./world";
 
-/** One row of the list. `value` is what the picker's state holds: a drop key, OTHER, or "". */
+/** One row of the list. `value` is what the picker's state holds: a drop key, or OTHER. */
 export type DropOption = { value: string; label: string; iconUrl: string | null };
 
-/** The empty row, kept because the <select> it replaces could be put back to nothing. */
-export const NOTHING_LABEL = "pick a drop";
+/**
+ * What the closed control says while nothing is picked, and NOT a row.
+ *
+ * A <select> drew this for itself and offered it back as an option; carrying it into the list put
+ * "pick a drop" among the drops, which is an instruction sitting where a choice goes. Nothing needs
+ * to choose it: a successful add clears the picker, and Escape leaves what was already there.
+ */
+export const PLACEHOLDER: DropOption = { value: "", label: "pick a drop", iconUrl: null };
 
 /**
- * The rows, in the order a select showed them: nothing, this boss's drops, then "type it instead".
+ * The rows: this boss's drops, then "type it instead".
  *
  * Takes the drops already narrowed to the party's world (pickableDrops), not the whole table. The
  * world filter is the one rule here that can produce a wrong pool, so it stays in one place.
- *
- * Typed as non-empty, which is what lets the trigger draw a row without a fallback for the case of
- * no rows at all: a boss with no table still has these two.
  */
-export function dropOptions(drops: BossDrop[], world: WorldType): [DropOption, ...DropOption[]] {
+export function dropOptions(drops: BossDrop[], world: WorldType): DropOption[] {
   return [
-    { value: "", label: NOTHING_LABEL, iconUrl: null },
     ...drops.map((drop) => ({
       value: drop.dropKey,
       label: dropOptionLabel(drop, world),
