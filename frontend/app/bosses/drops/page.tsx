@@ -4,12 +4,15 @@ import { PAGE_WAITING } from "@/components/route-loading";
 import { useAuth } from "@clerk/nextjs";
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { CollectionLedger } from "@/components/collection-ledger";
 import { LogDrop } from "@/components/log-drop";
 import { LotSale } from "@/components/lot-sale";
 import { PieceLedger } from "@/components/piece-ledger";
 import { StackArrangement } from "@/components/stack-arrangement";
 import { ApiError, apiAssetUrl, apiFetch } from "@/lib/api";
 import { peek, put } from "@/lib/cache";
+import { buildCollection } from "@/lib/collection";
+import { buildWallet } from "@/lib/wallet";
 import { type DropSectionKey, dropSections, shownSection } from "@/lib/drop-sections";
 import {
   buildDropLog,
@@ -53,7 +56,7 @@ import { showsMoney } from "@/lib/world";
 import type { Boss } from "@/types/boss";
 import type { Character } from "@/types/character";
 import type { DropTables } from "@/types/drop";
-import type { Loot, LogDropBody, PartyLootPool } from "@/types/loot";
+import type { Loot, LogDropBody, PartyLootPool, SettleBody } from "@/types/loot";
 import type { Party } from "@/types/party";
 import type { VestigePayment, VestigeSettlement, VestigeTranche } from "@/types/vestige";
 
@@ -67,6 +70,8 @@ type LoadState = "loading" | "loaded" | "error";
 // find, so without these the log would quietly be missing them. See partiesFor.
 const PARTIES_KEY = "/api/parties?solo=include&retired=include";
 const POOLS_KEY = "/api/parties/loot";
+// The Wallet's settle, reused rather than reimplemented: one act, one endpoint, one set of rows.
+const SETTLE_KEY = "/api/parties/loot/settle";
 const BOSSES_KEY = "/api/bosses";
 const DROPS_KEY = "/api/bosses/drops";
 const CHARACTERS_KEY = "/api/characters";
@@ -209,6 +214,32 @@ export default function DropLogPage() {
     }
   }
 
+  /**
+   * Marks a person's unpaid SHARES paid, which is the other half of a collection.
+   *
+   * The Wallet's own act, against the same payout rows, rather than a second way to mark a share
+   * paid: two of those would disagree the first time one of them was changed. Answers with the
+   * pools, so the rows redraw from what the server wrote.
+   */
+  async function settleShares(payouts: { lootId: string; memberId: string }[]) {
+    if (payouts.length === 0) return;
+    setBusy(true);
+    try {
+      const body: SettleBody = { payouts };
+      setPools(
+        await apiFetch<PartyLootPool[]>(
+          SETTLE_KEY,
+          { method: "POST", body: JSON.stringify(body) },
+          getToken,
+        ),
+      );
+    } catch (e) {
+      throw new Error(e instanceof ApiError ? e.body : "That didn't save.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   /** The same, for a receipt. Its own state, because a payment changes no piece. See V51. */
   async function paymentWrite(path: string, options: RequestInit) {
     setBusy(true);
@@ -306,6 +337,10 @@ export default function DropLogPage() {
     receivedByHolder(payments),
     closures,
   );
+  // What other people owe you, in both units it can be owed in: pieces of yours they are holding,
+  // and shares of a sale they made. Off the same two aggregations the ledger and the wallet already
+  // run, so there is no third answer to keep in step.
+  const collection = buildCollection(ledgers, buildWallet(parties, pools));
   // Nights that did not divide and that nobody has said the arrangement for. Above the ledger,
   // because until one is answered its pieces are missing from every figure below it.
   const open = unanswered(parties, pools, VESTIGE);
@@ -338,11 +373,14 @@ export default function DropLogPage() {
   // What fell, and what it was sold for, one at a time. Both halves are entered into rather than
   // read, so they stay on one page: a drop and the sale that prices it are the same evening's work.
   // See lib/drop-sections.ts for why the chosen tab is not drawn straight from state.
-  const sections = dropSections({
-    unanswered: open.length,
-    holders: ledgers.length,
-    lots: money ? lots.length : 0,
-  });
+  const sections = dropSections(
+    {
+      unanswered: open.length,
+      holders: ledgers.length,
+      lots: money ? lots.length : 0,
+    },
+    collection.length,
+  );
   const shown = shownSection(section, sections);
 
   return (
@@ -577,6 +615,33 @@ export default function DropLogPage() {
                 onSave={bundlesWrite}
               />
             </>
+          )}
+
+          {shown === "collection" && (
+            <section className="loot-pool">
+              <h2 className="loot-pool-title">Collection Ledger</h2>
+              <CollectionLedger
+                rows={collection}
+                bossByKey={bossByKey}
+                partyById={partyById}
+                busy={busy}
+                onAddPayment={(holder: Holder, amount) =>
+                  paymentWrite(PAYMENTS_KEY, {
+                    method: "POST",
+                    body: JSON.stringify({ holder, amount }),
+                  })
+                }
+                onSettlePieces={(holder: Holder, lootIds) =>
+                  settlementWrite(SETTLEMENTS_KEY, {
+                    method: "POST",
+                    // Nothing written off: a piece debt was never priced, so there is no shortfall
+                    // to record. What they sent is on the receipts.
+                    body: JSON.stringify({ holder, lootIds, unpaid: 0 }),
+                  })
+                }
+                onSettleShares={settleShares}
+              />
+            </section>
           )}
         </>
       )}
