@@ -10,6 +10,7 @@ import com.maplestorage.backend.users.ensureUser
 import kotlinx.datetime.DateTimeUnit
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
+import kotlinx.datetime.atStartOfDayIn
 import kotlinx.datetime.plus
 import kotlinx.datetime.toLocalDateTime
 import org.flywaydb.core.Flyway
@@ -78,11 +79,11 @@ class PartyWeekRosterTest {
         }
     }
 
-    /** The same trio on a mode, which is what a clear needs before it can file what it guarantees. */
-    private fun hardTrio(): PartyResponse = trio(difficulty = "HARD")
-
     /** Your character plus Steve and Bob, which is the usual party in every test here. */
-    private fun trio(difficulty: String? = null): PartyResponse {
+    private fun trio(
+        difficulty: String? = null,
+        bossKey: String = "limbo",
+    ): PartyResponse {
         ensureUser(userId, "$userId@example.com")
         val mine = Uuid.random()
         val now = Clock.System.now()
@@ -96,8 +97,8 @@ class PartyWeekRosterTest {
             it[updatedAt] = now
             it[position] = 0
         }
-        val request = SavePartyRequest(mine.toString(), "limbo", listOf("Steve", "Bob"), difficulty = difficulty)
-        val id = createParty(userId, mine, bossIdForKey("limbo")!!, request, now)
+        val request = SavePartyRequest(mine.toString(), bossKey, listOf("Steve", "Bob"), difficulty = difficulty)
+        val id = createParty(userId, mine, bossIdForKey(bossKey)!!, request, now)
         return findParty(id, userId)!!
     }
 
@@ -118,11 +119,12 @@ class PartyWeekRosterTest {
     private fun addGrindstoneOn(
         party: PartyResponse,
         on: LocalDate,
+        bossKey: String = "limbo",
     ): Uuid =
         addLoot(
             Uuid.parse(party.id),
             LootedDrop(dropIdForKey("grindstone-of-faith")!!),
-            bossIdForKey("limbo"),
+            bossIdForKey(bossKey),
             on,
             Clock.System.now(),
         )
@@ -530,9 +532,92 @@ class PartyWeekRosterTest {
     }
 
     @Test
+    fun `a month that has closed keeps its deal, even in the week it opened the next one in`() {
+        transaction {
+            val party = trio(bossKey = "black-mage")
+            val partyId = Uuid.parse(party.id)
+            // Black Mage is MONTHLY. August 2026 opens on a Saturday, so the month starts inside the
+            // week of Thursday 2026-07-30, and that week holds July's last two days. Measuring the
+            // live period by the WEEK its period starts in would call that week live and hand July's
+            // outstanding coupons to a deal agreed in August.
+            val lootId = addGrindstoneOn(party, LocalDate.parse("2026-07-31"), bossKey = "black-mage")
+
+            saveParty(
+                userId,
+                partyId,
+                SavePartyRequest(party.characterId, "black-mage", listOf("Steve", "Bob"), shares = mapOf("Steve" to 3)),
+                LocalDate.parse("2026-08-02").atStartOfDayIn(TimeZone.UTC),
+            )
+
+            val steve = findParty(partyId, userId)!!.members.first { it.name == "Steve" }
+            assertEquals(1, findLoot(lootId, partyId)!!.sharesThatWeek[steve.id])
+        }
+    }
+
+    @Test
+    fun `a week with a sale behind it keeps the split that sale was paid on`() {
+        transaction {
+            val party = trio()
+            val partyId = Uuid.parse(party.id)
+            val lootId = addGrindstoneOn(party, todayUtc())
+            val seller = party.members.first { it.name == "Rune" }
+            val steve = party.members.first { it.name == "Steve" }
+            sellLoot(
+                lootId,
+                SellLootRequest(9_500_000_000, "LISTED", "FAIR", seller.id),
+                Uuid.parse(seller.id),
+                partyId,
+                Clock.System.now(),
+            )
+
+            saveParty(
+                userId,
+                partyId,
+                SavePartyRequest(party.characterId, "limbo", listOf("Steve", "Bob"), shares = mapOf("Steve" to 3)),
+                Clock.System.now(),
+            )
+
+            // The payout rows were written from the split in force and are never re-derived, so
+            // moving the week now would leave the receipt and the drop above it owing different
+            // figures for one night.
+            assertEquals(1, findLoot(lootId, partyId)!!.sharesThatWeek[steve.id])
+        }
+    }
+
+    @Test
+    fun `saying who ran a week already pinned leaves the deal it ran under alone`() {
+        transaction {
+            val party = trio()
+            val partyId = Uuid.parse(party.id)
+            val lastWeek = todayUtc().plus(-DAYS_IN_WEEK, DateTimeUnit.DAY)
+            val lootId = addGrindstoneOn(party, lastWeek)
+            saveParty(
+                userId,
+                partyId,
+                SavePartyRequest(party.characterId, "limbo", listOf("Steve", "Bob"), shares = mapOf("Steve" to 3)),
+                Clock.System.now(),
+            )
+            val steve = findParty(partyId, userId)!!.members.first { it.name == "Steve" }
+            assertEquals(1, findLoot(lootId, partyId)!!.sharesThatWeek[steve.id], "pinned by the edit")
+
+            // The week's rows are REPLACED, and the share rides on them, so answering who ran also
+            // handed the night back to today's standing split.
+            saveWeekRoster(
+                partyId,
+                Uuid.parse(party.characterId),
+                weekOf(lastWeek),
+                listOf("Steve", "Bob"),
+                context(),
+            )
+
+            assertEquals(1, findLoot(lootId, partyId)!!.sharesThatWeek[steve.id])
+        }
+    }
+
+    @Test
     fun `the coupons a clear files itself do not pin the split they fell under`() {
         transaction {
-            val party = hardTrio()
+            val party = trio(difficulty = "HARD")
             val partyId = Uuid.parse(party.id)
             val boss = bossIdForKey("limbo")!!
             // Hard Limbo's 60 coupons are guaranteed, so the tick files them on its own and the week

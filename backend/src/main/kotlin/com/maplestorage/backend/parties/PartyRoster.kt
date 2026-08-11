@@ -176,6 +176,16 @@ internal fun saveWeekRoster(
     members: List<String>?,
     context: SeatContext,
 ) {
+    // The week's own shares, carried across the rewrite. The rows are replaced rather than edited,
+    // and shares ride on them (see V55), so without this saying who ran a week ALSO handed it back
+    // to today's standing split, silently and for a week that was pinned precisely because somebody
+    // had been shown a figure for it.
+    val pinned =
+        PartyWeekSeat
+            .selectAll()
+            .where { (PartyWeekSeat.partyId eq partyId) and (PartyWeekSeat.weekStart eq week) }
+            .mapNotNull { row -> row[PartyWeekSeat.shares]?.let { row[PartyWeekSeat.memberId] to it } }
+            .toMap()
     PartyWeekSeat.deleteWhere { (PartyWeekSeat.partyId eq partyId) and (PartyWeekSeat.weekStart eq week) }
     if (members == null) return
 
@@ -193,6 +203,7 @@ internal fun saveWeekRoster(
             it[PartyWeekSeat.partyId] = partyId
             it[weekStart] = week
             it[memberId] = seatId
+            it[shares] = pinned[seatId]
         }
     }
 }
