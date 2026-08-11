@@ -24,7 +24,7 @@ FROM (VALUES
     ('ferocious-beast-eternal-armor-box', 'Ferocious Beast Eternal Armor Box', 'ferocious-beast-eternal-armor-box.png', NULL, NULL, 1, TRUE, 12),
     ('ancient-eternal-armor-box', 'Ancient Eternal Armor Box', 'ancient-eternal-armor-box.png', NULL, NULL, 1, TRUE, 13),
     ('eternal-armor-of-oaths-box', 'Eternal Armor of Oaths Box', 'eternal-armor-of-oaths-box.png', NULL, NULL, 1, TRUE, 14),
-    ('eternal-armor-of-radiance-box', 'Eternal Armor of Radiance Box', NULL, NULL, NULL, 1, TRUE, 15),
+    ('eternal-armor-of-radiance-box', 'Eternal Armor of Radiance Box', 'eternal-armor-of-radiance-box.png', NULL, NULL, 1, TRUE, 15),
     ('mitras-rage-selection-box', 'Mitra''s Rage Selection Box', 'mitras-rage-selection-box.png', NULL, NULL, 1, FALSE, 16),
     ('ring-of-restraint-4', 'Ring of Restraint Lv. 4', 'ring-of-restraint-4.png', 'HEROIC', NULL, 1, FALSE, 17),
     ('continuous-ring-4', 'Continuous Ring Lv. 4', 'continuous-ring-4.png', 'HEROIC', NULL, 1, FALSE, 18),

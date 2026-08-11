@@ -52,6 +52,9 @@ jobs:
               - 'vision/**'
               - 'catalog/**'
               - 'test-fixtures/**'
+              # The seed art vision/tests reads: the boss portraits it re-cuts, and the drop icons
+              # it checks are registered. Without this an art-only change skips both.
+              - 'backend/src/main/resources/seed-assets/**'
             catalog:
               - 'catalog/**'
               - 'backend/src/main/resources/db/migration/R__token_catalog.sql'
