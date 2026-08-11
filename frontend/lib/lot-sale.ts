@@ -19,7 +19,7 @@ import { largestRemainder } from "./piece-ledger";
 import { holderKey, holderOf } from "./vestige-ledger";
 import { canTrade } from "./world";
 import type { DropTables } from "@/types/drop";
-import type { PartyLootPool } from "@/types/loot";
+import type { Loot, PartyLootPool } from "@/types/loot";
 import type { Party, PartyMember } from "@/types/party";
 
 /**
@@ -61,7 +61,7 @@ export type LotRow = {
   sellerMemberId: string;
   sellerName: string;
   /**
-   * What each seat that ran takes, seeded from their standing weight.
+   * What each seat that ran takes, seeded from their weight in the week the drop fell in.
    *
    * The same seeding the per-row sale form does, so a lot splits the way that party's sales already
    * split and a party where somebody carries needs no typing.
@@ -115,7 +115,7 @@ export function lotQueue(
         characterId: party.characterId,
         sellerMemberId: seller.id,
         sellerName: seller.name,
-        shares: sharesOf(ran),
+        shares: sharesOf(ran, loot),
       });
     }
   }
@@ -125,9 +125,15 @@ export function lotQueue(
   );
 }
 
-/** Each seat's standing weight, keyed by seat id. What the sale pins. */
-function sharesOf(ran: PartyMember[]): Record<string, number> {
-  return Object.fromEntries(ran.map((s) => [s.id, s.shares]));
+/**
+ * Each seat's weight in the week this drop fell in, keyed by seat id. What the sale pins.
+ *
+ * The week's own deal where it named one, the standing weight otherwise. A config edit freezes the
+ * weeks already written into (see pinWeeksAlreadyWritten), so reading the standing weight alone
+ * would sell an old night on a deal agreed after it.
+ */
+function sharesOf(ran: PartyMember[], loot: Loot): Record<string, number> {
+  return Object.fromEntries(ran.map((s) => [s.id, loot.sharesThatWeek?.[s.id] ?? s.shares]));
 }
 
 /** Which rows a lot of this size covers, or why it covers none. */

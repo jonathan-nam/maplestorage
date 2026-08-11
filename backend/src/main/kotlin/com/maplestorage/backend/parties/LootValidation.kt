@@ -28,7 +28,7 @@ internal fun sharesRefusal(
     when {
         shares.keys.any { it !in ranThatWeek } -> "shares may only name somebody who ran this boss that week"
         // Zero for the same reason a config allows it: a seat that takes nothing from this party.
-        // The sale defaults each box from the seat's standing share, so refusing zero here would
+        // The sale defaults each box from the seat's share that week, so refusing zero here would
         // make every drop from such a party unsellable. See V44.
         shares.values.any { it < 0 || it > MAX_SHARES } -> "a share count must be between 0 and $MAX_SHARES"
         // Somebody has to be holding the pot. All zeroes divides by nothing. The seller's own count

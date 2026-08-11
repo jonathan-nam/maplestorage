@@ -19,6 +19,17 @@ export function otherMembers(party: Party) {
 }
 
 /**
+ * The others in the party ITSELF, rather than in the week being shown.
+ *
+ * What the config editor edits. `members` is one week's roster, and a week that has been written
+ * into keeps the party it ran (see pinWeeksAlreadyWritten), so editing off it would offer this
+ * week's guest as a standing member and drop the member who sat the week out.
+ */
+export function standingMembers(party: Party) {
+  return party.seats.filter((s) => !s.guest && s.characterId !== party.characterId);
+}
+
+/**
  * Every character name the app already knows: your roster, the people list, and whoever is already
  * sitting in a party.
  *

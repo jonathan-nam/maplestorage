@@ -417,6 +417,113 @@ class PartyWeekRosterTest {
         }
     }
 
+    /** Bob out, Dana in, as the party ITSELF. The edit every test below is about. */
+    private fun danaForBob(party: PartyResponse) =
+        saveParty(
+            userId,
+            Uuid.parse(party.id),
+            SavePartyRequest(party.characterId, "limbo", listOf("Steve", "Dana")),
+            Clock.System.now(),
+        )
+
+    private fun nextWeek(party: PartyResponse) =
+        partiesFor(userId, thisWeek().plus(DAYS_IN_WEEK, DateTimeUnit.DAY)).first { it.id == party.id }
+
+    @Test
+    fun `a week nobody has written into is the party as it is edited to`() {
+        transaction {
+            val party = trio()
+            // Nothing has dropped and nobody has ticked the boss, so the config is still a template
+            // for this week: swapping a member before the run is the party that runs it.
+            danaForBob(party)
+
+            val shown = findParty(Uuid.parse(party.id), userId)!!
+            assertEquals(listOf("Rune", "Steve", "Dana"), shown.members.map { it.name })
+            assertTrue(shown.usualRoster, "nothing to spell out")
+        }
+    }
+
+    @Test
+    fun `a week that dropped something keeps the party that dropped it, and the edit lands next week`() {
+        transaction {
+            val party = trio()
+            addGrindstoneOn(party, todayUtc())
+
+            danaForBob(party)
+
+            // Bob ran this week and the grindstone is still in the pool. Putting Dana in his place
+            // now would owe her a share of a night she was not in.
+            val shown = findParty(Uuid.parse(party.id), userId)!!
+            assertEquals(listOf("Rune", "Steve", "Bob"), shown.members.map { it.name })
+            assertFalse(shown.usualRoster)
+            assertEquals(listOf("Rune", "Steve", "Dana"), nextWeek(party).members.map { it.name })
+        }
+    }
+
+    @Test
+    fun `a week the boss was cleared in keeps the party that cleared it`() {
+        transaction {
+            val party = trio()
+            val boss = bossIdForKey("limbo")!!
+            // A clear says the party ran just as a drop does, and a night that dropped nothing is
+            // still a night three people turned up for.
+            setPartyClear(party, boss, bossResetOf(boss)!!, cleared = true, now = Clock.System.now())
+
+            danaForBob(party)
+
+            assertEquals(
+                listOf("Rune", "Steve", "Bob"),
+                findParty(Uuid.parse(party.id), userId)!!.members.map { it.name },
+            )
+            assertEquals(listOf("Rune", "Steve", "Dana"), nextWeek(party).members.map { it.name })
+        }
+    }
+
+    @Test
+    fun `a new deal divides the week it was agreed in by the old one`() {
+        transaction {
+            val party = trio()
+            val partyId = Uuid.parse(party.id)
+            val lootId = addGrindstoneOn(party, todayUtc())
+
+            saveParty(
+                userId,
+                partyId,
+                SavePartyRequest(party.characterId, "limbo", listOf("Steve", "Bob"), shares = mapOf("Steve" to 3)),
+                Clock.System.now(),
+            )
+
+            // The drop is already in the pool, so it divides by the deal that was in force when it
+            // fell. Reading the standing weight would hand Steve three quarters of a night that was
+            // split evenly, with nobody told the figure had moved.
+            val steve = findParty(partyId, userId)!!.members.first { it.name == "Steve" }
+            assertEquals(1, findLoot(lootId, partyId)!!.sharesThatWeek[steve.id])
+            assertEquals(3, nextWeek(party).members.first { it.name == "Steve" }.shares)
+        }
+    }
+
+    @Test
+    fun `changing what the config says about itself leaves the week alone`() {
+        transaction {
+            val party = trio()
+            val partyId = Uuid.parse(party.id)
+            addGrindstoneOn(party, todayUtc())
+
+            // Same party, different mode. Nothing about the week moves, so spelling it out would
+            // claim it ran something other than the usual party.
+            saveParty(
+                userId,
+                partyId,
+                SavePartyRequest(party.characterId, "limbo", listOf("Steve", "Bob"), difficulty = "HARD"),
+                Clock.System.now(),
+            )
+
+            val shown = findParty(partyId, userId)!!
+            assertTrue(shown.usualRoster)
+            assertEquals("HARD", shown.difficulty)
+        }
+    }
+
     private fun seatsNamed(
         partyId: Uuid,
         name: String,

@@ -250,27 +250,29 @@ internal fun writeMembers(
     // in is the whole party, so absence is the answer rather than a gap to preserve.
     shares: Map<String, Int> = emptyMap(),
 ) {
-    // Before a share moves, freeze the current one onto every earlier week that already dropped
-    // something. Entitlement is derived from party_member.shares on read, so without this, agreeing
-    // a new split re-divides every outstanding drop by it, including weeks somebody has already
-    // been shown a figure for. Here rather than at the callers: this is the one place a standing
-    // share is written, and a second caller that forgot would be silent. See pinSharesBefore.
-    pinSharesBefore(partyId, currentWeek())
-
     val names = seatNames(ownSeatName(ownCharacterId), members)
+    val sharesByName = shares.mapKeys { (name, _) -> name.trim().lowercase() }
+    val wanted = names.associate { it.lowercase() to (sharesByName[it.lowercase()] ?: 1) }
+
+    // Before the party moves, freeze it onto every week already written into. A week with no rows
+    // of its own is read as whoever is in the party today, and entitlement is derived from
+    // party_member.shares on read, so without this an edit rewrites nights already played. Here
+    // rather than at the callers: this is the one place a standing roster is written, and a second
+    // caller that forgot would be silent. See pinWeeksAlreadyWritten.
+    pinWeeksAlreadyWritten(partyId, wanted)
+
     val existing = seatIdsByName(partyId)
 
     val kept = names.mapNotNull { existing[it.lowercase()] }.toSet()
     retireOrDelete(partyId, existing.values.filterNot { it in kept })
 
     val mine = ownCharacterIds(context.userId)
-    val sharesByName = shares.mapKeys { (name, _) -> name.trim().lowercase() }
 
     names.forEachIndexed { index, name ->
         val characterId = mine[name.lowercase()]
         val looked = characterId == null && context.sprites.containsKey(name)
         val seatId = existing[name.lowercase()]
-        val seatShares = sharesByName[name.lowercase()] ?: 1
+        val seatShares = wanted.getValue(name.lowercase())
         if (seatId == null) {
             insertSeat(partyId, name, characterId, index, NewSeat(standing = true, shares = seatShares), context)
         } else {

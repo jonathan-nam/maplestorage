@@ -1,6 +1,10 @@
 package com.maplestorage.backend.parties
 
+import com.maplestorage.backend.bosses.WEEKLY_CADENCE
+import com.maplestorage.backend.bosses.periodAfter
 import com.maplestorage.backend.bosses.weekOf
+import com.maplestorage.backend.db.BossClear
+import com.maplestorage.backend.db.Party
 import com.maplestorage.backend.db.PartyLoot
 import com.maplestorage.backend.db.PartyMember
 import com.maplestorage.backend.db.PartyWeekSeat
@@ -13,15 +17,17 @@ import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.update
 import kotlin.uuid.Uuid
 
-// What each seat's share was, in a given week.
+// What each seat's share was, in a given week, and what freezes it there.
 //
 // `party_member.shares` is a STANDING arrangement and one value, and every unsold drop's
 // entitlement is derived from it on READ (see foldSeats and entitlements). So agreeing a new split
 // today re-divides every outstanding drop by it, including weeks somebody has already been shown a
-// figure for. Nobody is told; the number simply changes.
+// figure for. Nobody is told; the number simply changes. The roster does the same one step along: a
+// week with no rows of its own reads as whoever is in the party TODAY.
 //
 // A week may therefore name its own shares, exactly as it can already name its own roster, and on
-// the same row: party_week_seat already says "this member, in this week". See V55.
+// the same row: party_week_seat already says "this member, in this week". See V55. One insert pins
+// both facts, which is why the pin lives here beside the read.
 //
 // Beside PartyRoster.kt rather than in it, because that file answers who RAN and this answers on
 // what terms. Inside a transaction, like the rest.
@@ -48,20 +54,30 @@ internal fun weekSharesFor(
 }
 
 /**
- * Freezes the CURRENT shares onto every week before [from] that already holds a drop.
+ * Freezes the roster and the shares as they stand onto every week already written into.
  *
- * What makes a new deal apply from now on rather than backwards. Run BEFORE the standing value is
- * written, or there is nothing left to pin.
+ * A config is a TEMPLATE, and that is what makes an ordinary edit reach back over nights already
+ * played: swap a member in August and July's outstanding coupons re-divide, and a week somebody
+ * guested in is drawn with today's party. So the weeks that have been written into keep what they
+ * read now, and the edit applies from the first week nobody has written into, which is next week.
  *
- * A week that already named its own shares is left alone: it has an answer, and this is not it. A
- * week nobody spelled out is spelled out now, at the roster it actually ran, which is the same move
- * pinWeeksAlreadyDropped makes and for the same reason.
+ * Run BEFORE the standing roster is written, or there is nothing left to pin.
+ *
+ * Nothing is pinned when [wanted] is what the party already says. The config's other fields (its
+ * difficulty, its run time, who loots) do not move a week, and spelling one out for them would
+ * claim it ran something other than the usual party.
+ *
+ * A week that already named its own roster or its own shares keeps them: it has an answer, and this
+ * is not it. A week nobody spelled out is spelled out now, at the roster it actually ran, which is
+ * the same move pinWeeksAlreadyDropped makes and for the same reason.
  */
-internal fun pinSharesBefore(
+internal fun pinWeeksAlreadyWritten(
     partyId: Uuid,
-    from: LocalDate,
+    // The roster about to be written: each seat by lowercased name, and what it takes.
+    wanted: Map<String, Int>,
 ) {
-    val weeks = weeksWithDropsBefore(partyId, from)
+    if (wanted == standingSeats(partyId)) return
+    val weeks = weeksAlreadyWritten(partyId)
     if (weeks.isEmpty()) return
 
     val standing =
@@ -110,14 +126,65 @@ internal fun pinSharesBefore(
     }
 }
 
-/** The weeks this party dropped something in, before [from]. The only weeks a pin can matter to. */
-private fun weeksWithDropsBefore(
-    partyId: Uuid,
-    from: LocalDate,
-): List<LocalDate> =
+/** The party as it stands: every seat in the usual roster, by lowercased name, and what it takes. */
+private fun standingSeats(partyId: Uuid): Map<String, Int> =
+    PartyMember
+        .selectAll()
+        .where { (PartyMember.partyId eq partyId) and (PartyMember.standing eq true) }
+        .associate { it[PartyMember.name].lowercase() to it[PartyMember.shares] }
+
+/**
+ * Every week this config has already been written into, up to the one the app is in now.
+ *
+ * Written is something DROPPED in it, or the boss ticked cleared in it. Either says the party ran,
+ * and the party that ran is the one the config held at the time. A week nobody has written into is
+ * still the template's to fill, which is what lets an edit made before this week's run reach it.
+ *
+ * Never a week after this one. A MONTHLY boss's clear covers the weeks either side of today as well
+ * as today's, and freezing those would hold an edit back until the month turned over.
+ */
+private fun weeksAlreadyWritten(partyId: Uuid): List<LocalDate> {
+    val thisWeek = currentWeek()
+    return (weeksDroppedIn(partyId) + weeksClearedIn(partyId)).distinct().filter { it <= thisWeek }
+}
+
+/** The weeks this party dropped something in. */
+private fun weeksDroppedIn(partyId: Uuid): List<LocalDate> =
     PartyLoot
         .selectAll()
         .where { PartyLoot.partyId eq partyId }
         .map { weekOf(it[PartyLoot.droppedOn]) }
-        .distinct()
-        .filter { it < from }
+
+/**
+ * The weeks this config's boss was ticked cleared in, per the boss's own cadence.
+ *
+ * A clear is filed against a PERIOD, and only a weekly boss's period is a week. A daily one lands
+ * inside a week, and a monthly one spans four or five without saying which of them the kill was in,
+ * so all of them count as written rather than the pin guessing one.
+ */
+private fun weeksClearedIn(partyId: Uuid): List<LocalDate> {
+    val config = Party.selectAll().where { Party.id eq partyId }.firstOrNull() ?: return emptyList()
+    val bossId = config[Party.bossCatalogId]
+    val characterId = config[Party.characterId]
+    return bossResetOf(bossId)
+        ?.let { reset ->
+            BossClear
+                .selectAll()
+                .where {
+                    (BossClear.characterId eq characterId) and
+                        (BossClear.bossCatalogId eq bossId) and
+                        (BossClear.cleared eq true)
+                }.flatMap { weeksIn(reset, it[BossClear.periodStart]) }
+        }.orEmpty()
+}
+
+/** The weeks a period covers, stepped by BossPeriod's own reckoning rather than a second one. */
+private fun weeksIn(
+    reset: String,
+    periodStart: LocalDate,
+): List<LocalDate> {
+    val ends = periodAfter(reset, periodStart)
+    return generateSequence(weekOf(periodStart)) { periodAfter(WEEKLY_CADENCE, it) }
+        .takeWhile { it < ends }
+        .toList()
+}
