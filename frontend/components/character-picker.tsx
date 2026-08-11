@@ -1,6 +1,7 @@
 "use client";
 
 import { CarouselFrame } from "@/components/carousel-frame";
+import { spriteUrl } from "@/lib/api";
 import { useCarousel } from "@/lib/use-carousel";
 import type { Character } from "@/types/character";
 
@@ -37,7 +38,7 @@ export function CharacterPicker({
           onClick={() => onSelect(character.id)}
         >
           {character.spriteImgUrl ? (
-            <img className="tile-sprite" src={character.spriteImgUrl} alt="" />
+            <img className="tile-sprite" src={spriteUrl(character.spriteImgUrl)} alt="" />
           ) : (
             <div className="tile-sprite" />
           )}

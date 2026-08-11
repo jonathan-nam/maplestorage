@@ -1,6 +1,7 @@
 package com.maplestorage.backend.parties
 
 import com.maplestorage.backend.services.NexonLookupService
+import com.maplestorage.backend.sprites.SpriteCache
 import com.maplestorage.backend.users.ensureUser
 import io.ktor.server.routing.RoutingContext
 import kotlinx.coroutines.async
@@ -30,6 +31,7 @@ internal suspend fun RoutingContext.lookUpSprites(
     members: List<String>,
     email: String,
     nexonLookupService: NexonLookupService,
+    spriteCache: SpriteCache,
 ): Map<String, String?> {
     val known =
         transaction {
@@ -51,10 +53,21 @@ internal suspend fun RoutingContext.lookUpSprites(
 
     // Outside the transaction above: an outbound HTTP call per name, and holding a connection
     // across it would tie up the pool for as long as Nexon takes to answer.
-    return coroutineScope {
-        wanted
-            .map { name -> async { name to nexonLookupService.lookup(name)?.spriteImgUrl } }
-            .awaitAll()
-            .toMap()
+    val found =
+        coroutineScope {
+            wanted
+                .map { name ->
+                    async {
+                        val url = nexonLookupService.lookup(name)?.spriteImgUrl
+                        // Warmed here, alongside the lookup that produced the URL, so the seat is
+                        // drawn from our own bytes the first time the roster renders.
+                        name to (url to url?.let { spriteCache.fetch(it) })
+                    }
+                }.awaitAll()
+                .toMap()
+        }
+    transaction {
+        found.values.forEach { (url, bytes) -> url?.let { spriteCache.store(it, bytes) } }
     }
+    return found.mapValues { (_, urlAndBytes) -> urlAndBytes.first }
 }

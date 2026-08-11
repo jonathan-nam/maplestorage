@@ -1,5 +1,6 @@
 "use client";
 
+import { spriteUrl } from "@/lib/api";
 import type { PartyMember } from "@/types/party";
 
 // The people in a party, as the sprites they are.
@@ -17,7 +18,7 @@ export function RosterStrip({ members }: { members: PartyMember[] }) {
           title={member.characterId ? "One of your characters" : (member.personName ?? undefined)}
         >
           {member.spriteImgUrl ? (
-            <img className="roster-sprite" src={member.spriteImgUrl} alt="" />
+            <img className="roster-sprite" src={spriteUrl(member.spriteImgUrl)} alt="" />
           ) : (
             // The lookup found nothing, or has not run. The frame is drawn anyway so a party of
             // five does not go ragged around the one character nobody could find.

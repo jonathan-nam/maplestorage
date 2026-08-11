@@ -2,7 +2,7 @@
 
 import { type CSSProperties, useState } from "react";
 
-import { apiAssetUrl } from "@/lib/api";
+import { apiAssetUrl, spriteUrl } from "@/lib/api";
 import {
   cellState,
   cellStateLabel,
@@ -175,7 +175,11 @@ export function BossMatrix({
                 {loading ? (
                   <span className="skeleton sk-face" />
                 ) : character.spriteImgUrl ? (
-                  <img className="boss-char-sprite" src={character.spriteImgUrl} alt="" />
+                  <img
+                    className="boss-char-sprite"
+                    src={spriteUrl(character.spriteImgUrl)}
+                    alt=""
+                  />
                 ) : (
                   <span className="boss-char-sprite is-empty" aria-hidden="true" />
                 )}

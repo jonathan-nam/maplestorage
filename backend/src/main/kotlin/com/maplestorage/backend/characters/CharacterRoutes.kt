@@ -5,6 +5,7 @@ import com.maplestorage.backend.plugins.parseUuidParam
 import com.maplestorage.backend.plugins.principalIdAndEmail
 import com.maplestorage.backend.plugins.span
 import com.maplestorage.backend.services.NexonLookupService
+import com.maplestorage.backend.sprites.SpriteCache
 import com.maplestorage.backend.users.activeWorldFor
 import com.maplestorage.backend.users.ensureUser
 import io.ktor.http.HttpStatusCode
@@ -27,8 +28,11 @@ import org.jetbrains.exposed.v1.jdbc.update
 import kotlin.time.Clock
 import kotlin.uuid.Uuid
 
-fun Route.characterRoutes(nexonLookupService: NexonLookupService) {
-    post { createCharacter(nexonLookupService) }
+fun Route.characterRoutes(
+    nexonLookupService: NexonLookupService,
+    spriteCache: SpriteCache,
+) {
+    post { createCharacter(nexonLookupService, spriteCache) }
     get { listCharacters() }
     // Registered BEFORE /{id}, or the parameter route swallows the literal.
     get("/tokens") { getAllCharacterTokens() }
@@ -36,12 +40,15 @@ fun Route.characterRoutes(nexonLookupService: NexonLookupService) {
     put("/order") { reorderCharacters() }
     get("/{id}") { getCharacter() }
     put("/{id}") { updateCharacter() }
-    post("/{id}/refresh") { refreshCharacter(nexonLookupService) }
+    post("/{id}/refresh") { refreshCharacter(nexonLookupService, spriteCache) }
     get("/{id}/tokens") { getCharacterTokens() }
     delete("/{id}") { deleteCharacter() }
 }
 
-private suspend fun RoutingContext.createCharacter(nexonLookupService: NexonLookupService) {
+private suspend fun RoutingContext.createCharacter(
+    nexonLookupService: NexonLookupService,
+    spriteCache: SpriteCache,
+) {
     val (userId, email) = call.principalIdAndEmail()
     val request = call.receive<CreateCharacterRequest>()
     if (request.name.isBlank()) {
@@ -50,6 +57,9 @@ private suspend fun RoutingContext.createCharacter(nexonLookupService: NexonLook
     }
 
     val lookup = call.span("nexon") { nexonLookupService.lookup(request.name) }
+    // Before the transaction, not inside it: an outbound fetch holding a pooled connection ties it
+    // up for as long as Nexon takes. A null here is fine, the route falls back to redirecting.
+    val spriteBytes = lookup?.spriteImgUrl?.let { call.span("sprite") { spriteCache.fetch(it) } }
     val now = Clock.System.now()
     val newId = Uuid.random()
 
@@ -88,10 +98,14 @@ private suspend fun RoutingContext.createCharacter(nexonLookupService: NexonLook
                 it[worldType] = detected?.worldType ?: activeWorldFor(userId)
                 it[spriteImgUrl] = lookup?.spriteImgUrl
                 it[spriteRefreshedAt] = if (lookup != null) now else null
+                // We asked, whatever came back. A name that resolved to nothing is not re-asked
+                // until it comes due like everything else.
+                it[spriteCheckedAt] = now
                 it[createdAt] = now
                 it[updatedAt] = now
                 it[position] = nextPosition
             }
+            lookup?.spriteImgUrl?.let { spriteCache.store(it, spriteBytes) }
             findOwnedCharacter(newId, userId)
         }
 
@@ -195,7 +209,10 @@ private suspend fun RoutingContext.updateCharacter() {
     respondFoundOrNotFound(updated)
 }
 
-private suspend fun RoutingContext.refreshCharacter(nexonLookupService: NexonLookupService) {
+private suspend fun RoutingContext.refreshCharacter(
+    nexonLookupService: NexonLookupService,
+    spriteCache: SpriteCache,
+) {
     val (userId, email) = call.principalIdAndEmail()
     val characterId = call.parseUuidParam("id") ?: return
 
@@ -210,11 +227,15 @@ private suspend fun RoutingContext.refreshCharacter(nexonLookupService: NexonLoo
     }
 
     val lookup = call.span("nexon") { nexonLookupService.lookup(existingName) }
+    val spriteBytes = lookup?.spriteImgUrl?.let { call.span("sprite") { spriteCache.fetch(it) } }
     val refreshed =
         transaction {
             // A transient lookup failure leaves existing level/job/sprite untouched rather than
             // nulling out previously-good data.
-            if (lookup != null) applyLookup(characterId, userId, lookup, Clock.System.now())
+            if (lookup != null) {
+                applyLookup(characterId, userId, lookup, Clock.System.now())
+                spriteCache.store(lookup.spriteImgUrl, spriteBytes)
+            }
             findOwnedCharacter(characterId, userId)
         }
     call.respond(refreshed!!)

@@ -5,6 +5,7 @@ import com.maplestorage.backend.db.BossCatalog
 import com.maplestorage.backend.plugins.parseUuidParam
 import com.maplestorage.backend.plugins.principalIdAndEmail
 import com.maplestorage.backend.services.NexonLookupService
+import com.maplestorage.backend.sprites.SpriteCache
 import com.maplestorage.backend.users.ensureUser
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.call
@@ -26,9 +27,12 @@ import kotlin.uuid.Uuid
 // A config is one of your characters, on one boss, with the people that character runs it with.
 // The character and the boss are what it IS, so they are set once, at create.
 
-fun Route.partyRoutes(nexonLookupService: NexonLookupService) {
+fun Route.partyRoutes(
+    nexonLookupService: NexonLookupService,
+    spriteCache: SpriteCache,
+) {
     get { listParties() }
-    post { createPartyRoute(nexonLookupService) }
+    post { createPartyRoute(nexonLookupService, spriteCache) }
     // Before /{id}, and matched ahead of it whatever the order: Ktor scores a constant segment
     // above a parameter. Every pool at once, for the wallet, and the wallet's one settle back.
     get("/loot") { listAllLoot() }
@@ -39,8 +43,8 @@ fun Route.partyRoutes(nexonLookupService: NexonLookupService) {
     // lotSaleRoute.
     post("/loot/lot") { lotSaleRoute() }
     get("/{id}") { getParty() }
-    put("/{id}") { savePartyRoute(nexonLookupService) }
-    put("/{id}/roster") { saveWeekRosterRoute(nexonLookupService) }
+    put("/{id}") { savePartyRoute(nexonLookupService, spriteCache) }
+    put("/{id}/roster") { saveWeekRosterRoute(nexonLookupService, spriteCache) }
     put("/{id}/clear") { setClearRoute() }
     put("/{id}/skip") { setSkipRoute() }
     delete("/{id}") { deletePartyRoute() }
@@ -117,10 +121,13 @@ private suspend fun RoutingContext.getParty() {
  * A one-off run again in a later period is armed for that period rather than duplicated, which is
  * what keeps idx_party_character_boss and partyIdFor answering with one config.
  */
-private suspend fun RoutingContext.createPartyRoute(nexonLookupService: NexonLookupService) {
+private suspend fun RoutingContext.createPartyRoute(
+    nexonLookupService: NexonLookupService,
+    spriteCache: SpriteCache,
+) {
     val (userId, email) = call.principalIdAndEmail()
     val request = call.receive<SavePartyRequest>()
-    val sprites = lookUpSprites(userId, request.members, email, nexonLookupService)
+    val sprites = lookUpSprites(userId, request.members, email, nexonLookupService, spriteCache)
 
     val outcome =
         transaction {
@@ -157,11 +164,14 @@ private suspend fun RoutingContext.createPartyRoute(nexonLookupService: NexonLoo
     respondToSave(outcome, HttpStatusCode.Created)
 }
 
-private suspend fun RoutingContext.savePartyRoute(nexonLookupService: NexonLookupService) {
+private suspend fun RoutingContext.savePartyRoute(
+    nexonLookupService: NexonLookupService,
+    spriteCache: SpriteCache,
+) {
     val (userId, email) = call.principalIdAndEmail()
     val partyId = call.parseUuidParam("id") ?: return
     val request = call.receive<SavePartyRequest>()
-    val sprites = lookUpSprites(userId, request.members, email, nexonLookupService)
+    val sprites = lookUpSprites(userId, request.members, email, nexonLookupService, spriteCache)
 
     val outcome =
         transaction {
@@ -195,7 +205,10 @@ private suspend fun RoutingContext.savePartyRoute(nexonLookupService: NexonLooku
  *
  * The party's own roster is untouched: that is what PUT /{id} is for.
  */
-private suspend fun RoutingContext.saveWeekRosterRoute(nexonLookupService: NexonLookupService) {
+private suspend fun RoutingContext.saveWeekRosterRoute(
+    nexonLookupService: NexonLookupService,
+    spriteCache: SpriteCache,
+) {
     val (userId, email) = call.principalIdAndEmail()
     val partyId = call.parseUuidParam("id") ?: return
     val request = call.receive<SaveWeekRosterRequest>()
@@ -203,7 +216,7 @@ private suspend fun RoutingContext.saveWeekRosterRoute(nexonLookupService: Nexon
         parseWeekParam(request.week).getOrElse {
             return call.respond(HttpStatusCode.BadRequest, it.message.orEmpty())
         }
-    val sprites = lookUpSprites(userId, request.members.orEmpty(), email, nexonLookupService)
+    val sprites = lookUpSprites(userId, request.members.orEmpty(), email, nexonLookupService, spriteCache)
 
     val outcome =
         transaction {

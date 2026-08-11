@@ -12,6 +12,9 @@ import com.maplestorage.backend.services.NexonLookupService
 import com.maplestorage.backend.services.VisionServiceClient
 import com.maplestorage.backend.services.createNexonHttpClient
 import com.maplestorage.backend.services.createVisionHttpClient
+import com.maplestorage.backend.sprites.SpriteCache
+import com.maplestorage.backend.sprites.SpriteRefreshJob
+import com.maplestorage.backend.sprites.startSpriteRefresh
 import io.ktor.server.application.Application
 import io.ktor.server.application.ApplicationStopped
 import io.ktor.server.engine.embeddedServer
@@ -42,5 +45,14 @@ fun Application.module() {
     monitor.subscribe(ApplicationStopped) { visionHttpClient.close() }
     val screenshotParser = VisionServiceClient(visionHttpClient, Env.visionServiceUrl)
 
-    configureRouting(NexonLookupService(nexonHttpClient), screenshotParser)
+    // Shares the Nexon client: same third party, and one connection pool rather than two. The JSON
+    // negotiation installed on it is irrelevant to fetching bytes.
+    val nexonLookupService = NexonLookupService(nexonHttpClient)
+    val spriteCache = SpriteCache(nexonHttpClient)
+
+    configureRouting(nexonLookupService, screenshotParser, spriteCache)
+
+    // An outfit is the player's to change and nothing tells us when they have, so the sprite URL is
+    // re-asked for on a clock. See SpriteRefreshJob.
+    startSpriteRefresh(SpriteRefreshJob(nexonLookupService, spriteCache))
 }

@@ -8,6 +8,8 @@ import com.maplestorage.backend.parties.vestigeLedgerRoutes
 import com.maplestorage.backend.screenshots.screenshotRoutes
 import com.maplestorage.backend.services.NexonLookupService
 import com.maplestorage.backend.services.ScreenshotParser
+import com.maplestorage.backend.sprites.SpriteCache
+import com.maplestorage.backend.sprites.spriteRoutes
 import com.maplestorage.backend.tokens.tokenRoutes
 import com.maplestorage.backend.users.settingsRoutes
 import io.ktor.http.CacheControl
@@ -26,6 +28,7 @@ import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 fun Application.configureRouting(
     nexonLookupService: NexonLookupService,
     screenshotParser: ScreenshotParser,
+    spriteCache: SpriteCache,
 ) {
     routing {
         // A day, and public: these are static art keyed by a stable filename, so without it the
@@ -61,6 +64,10 @@ fun Application.configureRouting(
         // Boss portraits, cut from a planner capture. Public and cached like the other art.
         staticResources("/boss-icons", "seed-assets/bosses") { cacheControl(iconCache) }
 
+        // Character sprites, proxied from Nexon. Not staticResources: these are fetched at runtime
+        // and live in the database, not in the jar. Public for the same reason as the art above.
+        spriteRoutes()
+
         // Unauthenticated on purpose, this is what the ALB target group polls
         // (see infra/alb.tf's health_check block). No DB touch here: a slow or
         // briefly-unavailable RDS shouldn't flip the target group unhealthy.
@@ -94,7 +101,7 @@ fun Application.configureRouting(
             }
 
             route("/api/characters") {
-                characterRoutes(nexonLookupService)
+                characterRoutes(nexonLookupService, spriteCache)
             }
 
             route("/api/screenshots") {
@@ -110,7 +117,7 @@ fun Application.configureRouting(
             }
 
             route("/api/parties") {
-                partyRoutes(nexonLookupService)
+                partyRoutes(nexonLookupService, spriteCache)
             }
 
             route("/api/people") {

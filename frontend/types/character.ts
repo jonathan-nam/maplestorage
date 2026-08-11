@@ -13,6 +13,8 @@ export type Character = {
   // INTERACTIVE or HEROIC. Detected from the world on the way in, falling back to the world being
   // shown when the lookup found nothing.
   worldType: WorldType;
+  // Backend-relative, resolve with spriteUrl(). Our own proxy path, not Nexon's URL: they serve
+  // sprites with no cache headers, so every page load refetched every one of them.
   spriteImgUrl: string | null;
   spriteRefreshedAt: string | null;
   createdAt: string;

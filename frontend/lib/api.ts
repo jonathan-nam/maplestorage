@@ -17,6 +17,23 @@ export function apiAssetUrl(path: string): string {
   return `${url}${path.includes("?") ? "&" : "?"}v=${ASSET_VERSION}`;
 }
 
+/**
+ * Resolves a character sprite for an `<img>`.
+ *
+ * Not apiAssetUrl, for two reasons. There is no version stamp: the backend keys these by a hash of
+ * the source URL, which encodes the outfit, so the bytes behind a path cannot change and a stamp
+ * would only throw the year-long cache away on every deploy.
+ *
+ * And an already-absolute value passes through untouched. The API only sends backend-relative
+ * paths, but Clerk's unsafeMetadata holds a copy for the account avatar (see character-row.tsx),
+ * written before this proxy existed and still an absolute Nexon URL for anyone who set their main
+ * back then. Prefixing that would break their avatar until they picked a main again.
+ */
+export function spriteUrl(sprite: string): string {
+  if (/^https?:\/\//.test(sprite)) return sprite;
+  return `${API_BASE_URL ?? ""}${sprite}`;
+}
+
 export class ApiError extends Error {
   constructor(
     public status: number,

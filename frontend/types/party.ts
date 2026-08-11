@@ -13,6 +13,7 @@ export type PartyMember = {
   // Set when the seat is one of YOUR characters. The config's own character is always the first
   // seat, so this is set on at least one of them.
   characterId: string | null;
+  // Backend-relative, resolve with spriteUrl(). See Character.spriteImgUrl.
   spriteImgUrl: string | null;
   // Not in the party's usual roster: here for this week only, or gone from it since. Said out loud
   // because "who is in this party" and "who ran it that week" now have different answers.

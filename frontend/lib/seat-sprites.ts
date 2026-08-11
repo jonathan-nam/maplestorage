@@ -1,23 +1,35 @@
 import { useEffect } from "react";
+import { spriteUrl } from "@/lib/api";
 import type { Party } from "@/types/party";
 
-/** Every distinct seat sprite in a list of parties. A character in four parties is one URL. */
+/**
+ * Every distinct seat sprite in a list of parties. A character in four parties is one URL.
+ *
+ * Resolved through spriteUrl, because what the API sends is backend-relative: assigning the bare
+ * path to an <img> would warm a URL on the frontend's own origin, which is a 404 in dev and in prod
+ * both.
+ */
 export function seatSpriteUrls(parties: Party[]): string[] {
   const urls = new Set<string>();
   for (const party of parties) {
     for (const member of party.members) {
-      if (member.spriteImgUrl) urls.add(member.spriteImgUrl);
+      if (member.spriteImgUrl) urls.add(spriteUrl(member.spriteImgUrl));
     }
   }
   return [...urls];
 }
 
-// The warmed sprites, HELD rather than fetched and forgotten, which is the whole trick.
+// The warmed sprites, held rather than fetched and forgotten.
 //
-// Nexon serves them with no cache headers at all, so a warm lands in the renderer's memory cache
-// and is evicted from it at leisure. Measured in headless Chrome against the real URLs: an <img>
-// asking 5 seconds later got it free, one asking 60 seconds later paid again, and one asking with
-// the element still referenced got it free. Keeping the element keeps the image.
+// This used to be the whole trick, back when these were Nexon URLs: they came with no cache headers
+// at all, so a warm landed in the renderer's memory cache and was evicted at leisure. Measured in
+// headless Chrome against the real URLs: an <img> asking 5 seconds later got it free, one asking 60
+// seconds later paid again, and one asking with the element still referenced got it free.
+//
+// They are our own paths now (see lib/api.ts spriteUrl), served immutable for a year, so the HTTP
+// cache does that job and survives a reload as well. The hold stays for the one case it does not
+// cover: a sprite whose bytes have not been fetched yet redirects to Nexon as no-store, and that
+// one is uncacheable exactly as before.
 //
 // Bounded by the characters in your parties, at 96x96 each. A full page load starts over.
 const held = new Map<string, HTMLImageElement>();
