@@ -323,12 +323,12 @@ export default function PartiesPage() {
   }
 
   /**
-   * Changes how this party splits its coupons, from the next week nobody has written into.
+   * Changes how this party splits its coupons, from the period on screen on.
    *
    * Through the party's own save, which is the one route that writes a standing share, so the
-   * server pins every week that has already dropped or cleared something before the new value
-   * lands. See pinWeeksAlreadyWritten: without it, a new deal re-divides July's outstanding coupons
-   * and tells nobody.
+   * server pins every week that is OVER and already dropped or cleared something before the new
+   * value lands. See pinWeeksAlreadyWritten: without it, a new deal re-divides July's outstanding
+   * coupons and tells nobody. Tonight's is the deal being agreed, so it moves with the config.
    *
    * Keyed by NAME because that is what SavePartyBody takes, and it carries the party's existing
    * difficulty, minutes and looter: the route writes all of them, so sending the shares alone would

@@ -26,6 +26,7 @@ import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlin.time.Clock
 import kotlin.uuid.Uuid
@@ -77,8 +78,11 @@ class PartyWeekRosterTest {
         }
     }
 
+    /** The same trio on a mode, which is what a clear needs before it can file what it guarantees. */
+    private fun hardTrio(): PartyResponse = trio(difficulty = "HARD")
+
     /** Your character plus Steve and Bob, which is the usual party in every test here. */
-    private fun trio(): PartyResponse {
+    private fun trio(difficulty: String? = null): PartyResponse {
         ensureUser(userId, "$userId@example.com")
         val mine = Uuid.random()
         val now = Clock.System.now()
@@ -92,7 +96,7 @@ class PartyWeekRosterTest {
             it[updatedAt] = now
             it[position] = 0
         }
-        val request = SavePartyRequest(mine.toString(), "limbo", listOf("Steve", "Bob"))
+        val request = SavePartyRequest(mine.toString(), "limbo", listOf("Steve", "Bob"), difficulty = difficulty)
         val id = createParty(userId, mine, bossIdForKey("limbo")!!, request, now)
         return findParty(id, userId)!!
     }
@@ -480,7 +484,7 @@ class PartyWeekRosterTest {
     }
 
     @Test
-    fun `a new deal divides the week it was agreed in by the old one`() {
+    fun `a new deal divides the week it was agreed in by itself`() {
         transaction {
             val party = trio()
             val partyId = Uuid.parse(party.id)
@@ -493,12 +497,66 @@ class PartyWeekRosterTest {
                 Clock.System.now(),
             )
 
-            // The drop is already in the pool, so it divides by the deal that was in force when it
-            // fell. Reading the standing weight would hand Steve three quarters of a night that was
-            // split evenly, with nobody told the figure had moved.
+            // The night is over, the week is not. A drop is what makes people sit down and agree a
+            // split, so pinning the old one here left the config saying 3 and the drop under it
+            // still dividing evenly, with no way to reach the frozen figure and no week's roster to
+            // correct it through.
             val steve = findParty(partyId, userId)!!.members.first { it.name == "Steve" }
+            assertEquals(3, steve.shares)
+            assertNull(findLoot(lootId, partyId)!!.sharesThatWeek[steve.id], "the standing deal")
+        }
+    }
+
+    @Test
+    fun `a week that is over keeps the deal it was run under`() {
+        transaction {
+            val party = trio()
+            val partyId = Uuid.parse(party.id)
+            val lootId = addGrindstoneOn(party, todayUtc().plus(-DAYS_IN_WEEK, DateTimeUnit.DAY))
+
+            saveParty(
+                userId,
+                partyId,
+                SavePartyRequest(party.characterId, "limbo", listOf("Steve", "Bob"), shares = mapOf("Steve" to 3)),
+                Clock.System.now(),
+            )
+
+            // The whole of V55. Last week's coupons are outstanding and everybody has been shown a
+            // figure for them, so a deal agreed today must not hand Steve three quarters of them.
+            val steve = findParty(partyId, userId)!!.members.first { it.name == "Steve" }
+            assertEquals(3, steve.shares)
             assertEquals(1, findLoot(lootId, partyId)!!.sharesThatWeek[steve.id])
-            assertEquals(3, nextWeek(party).members.first { it.name == "Steve" }.shares)
+        }
+    }
+
+    @Test
+    fun `the coupons a clear files itself do not pin the split they fell under`() {
+        transaction {
+            val party = hardTrio()
+            val partyId = Uuid.parse(party.id)
+            val boss = bossIdForKey("limbo")!!
+            // Hard Limbo's 60 coupons are guaranteed, so the tick files them on its own and the week
+            // is written before anybody has been asked what the split is. A party made and cleared
+            // in the same sitting could then never be given one. See lootFromClear.
+            setPartyClear(party, boss, bossResetOf(boss)!!, cleared = true, now = Clock.System.now())
+
+            saveParty(
+                userId,
+                partyId,
+                SavePartyRequest(
+                    party.characterId,
+                    "limbo",
+                    listOf("Steve", "Bob"),
+                    shares = mapOf("Steve" to 3),
+                    difficulty = "HARD",
+                ),
+                Clock.System.now(),
+            )
+
+            val steve = findParty(partyId, userId)!!.members.first { it.name == "Steve" }
+            val coupons = lootFor(partyId).first { it.dropKey == "vestige-of-erion" }
+            assertEquals(3, steve.shares)
+            assertNull(coupons.sharesThatWeek[steve.id], "the standing deal")
         }
     }
 

@@ -2,6 +2,7 @@ package com.maplestorage.backend.parties
 
 import com.maplestorage.backend.bosses.WEEKLY_CADENCE
 import com.maplestorage.backend.bosses.periodAfter
+import com.maplestorage.backend.bosses.periodStartFor
 import com.maplestorage.backend.bosses.weekOf
 import com.maplestorage.backend.db.BossClear
 import com.maplestorage.backend.db.Party
@@ -15,6 +16,7 @@ import org.jetbrains.exposed.v1.core.inList
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.update
+import kotlin.time.Clock
 import kotlin.uuid.Uuid
 
 // What each seat's share was, in a given week, and what freezes it there.
@@ -26,8 +28,9 @@ import kotlin.uuid.Uuid
 // week with no rows of its own reads as whoever is in the party TODAY.
 //
 // A week may therefore name its own shares, exactly as it can already name its own roster, and on
-// the same row: party_week_seat already says "this member, in this week". See V55. One insert pins
-// both facts, which is why the pin lives here beside the read.
+// the same row: party_week_seat already says "this member, in this week". See V55. One insert
+// carries both facts, which is why the pin lives here beside the read. They are not pinned on the
+// same terms: see pinWeeksAlreadyWritten.
 //
 // Beside PartyRoster.kt rather than in it, because that file answers who RAN and this answers on
 // what terms. Inside a transaction, like the rest.
@@ -54,12 +57,19 @@ internal fun weekSharesFor(
 }
 
 /**
- * Freezes the roster and the shares as they stand onto every week already written into.
+ * Freezes the roster as it stands onto every week already written into, and the shares onto every
+ * one of those that is over.
  *
  * A config is a TEMPLATE, and that is what makes an ordinary edit reach back over nights already
  * played: swap a member in August and July's outstanding coupons re-divide, and a week somebody
- * guested in is drawn with today's party. So the weeks that have been written into keep what they
- * read now, and the edit applies from the first week nobody has written into, which is next week.
+ * guested in is drawn with today's party. So the weeks that have been written into keep the roster
+ * they read now, and a swap applies from the first week nobody has written into.
+ *
+ * The two part company on the period the app is CURRENTLY in. Who ran is settled by turning up;
+ * what they agreed is not. Freezing the live period made the usual order of things impossible:
+ * ticking Hard Limbo cleared files its 60 guaranteed coupons on its own, which pinned the default
+ * split before anybody had been asked, and no per-week share exists to correct it with (the week's
+ * roster has one, see PartyRoster). So the live period takes the new deal, as V55 said it would.
  *
  * Run BEFORE the standing roster is written, or there is nothing left to pin.
  *
@@ -67,9 +77,9 @@ internal fun weekSharesFor(
  * difficulty, its run time, who loots) do not move a week, and spelling one out for them would
  * claim it ran something other than the usual party.
  *
- * A week that already named its own roster or its own shares keeps them: it has an answer, and this
- * is not it. A week nobody spelled out is spelled out now, at the roster it actually ran, which is
- * the same move pinWeeksAlreadyDropped makes and for the same reason.
+ * A past week that already named its own roster or its own shares keeps them: it has an answer, and
+ * this is not it. A week nobody spelled out is spelled out now, at the roster it actually ran, which
+ * is the same move pinWeeksAlreadyDropped makes and for the same reason.
  */
 internal fun pinWeeksAlreadyWritten(
     partyId: Uuid,
@@ -79,6 +89,10 @@ internal fun pinWeeksAlreadyWritten(
     if (wanted == standingSeats(partyId)) return
     val weeks = weeksAlreadyWritten(partyId)
     if (weeks.isEmpty()) return
+    // The first week of the period the app is in. Every week from here on is still being played, so
+    // its share is the standing one and stays that way. Off the BOSS's period rather than off this
+    // week, or a monthly boss would pin the weeks of the month it is still in.
+    val live = liveWeek(partyId)
 
     val standing =
         PartyMember
@@ -98,6 +112,8 @@ internal fun pinWeeksAlreadyWritten(
             }
 
     weeks.forEach { week ->
+        // A week that is over. Its roster is pinned either way; only these keep the old split too.
+        val over = week < live
         // The roster as that week actually ran, not every seat the party has ever had: a guest from
         // another week was not in this one, and writing them in would invent a share for a night
         // they were not on.
@@ -109,9 +125,10 @@ internal fun pinWeeksAlreadyWritten(
                         it[PartyWeekSeat.partyId] = partyId
                         it[weekStart] = week
                         it[memberId] = seatId
-                        it[shares] = standing[seatId]
+                        // NULL is the standing share, which is what a live week is on.
+                        it[shares] = if (over) standing[seatId] else null
                     }
-                existing[key] == null ->
+                over && existing[key] == null ->
                     PartyWeekSeat.update({
                         (PartyWeekSeat.partyId eq partyId) and
                             (PartyWeekSeat.weekStart eq week) and
@@ -119,11 +136,29 @@ internal fun pinWeeksAlreadyWritten(
                     }) {
                         it[shares] = standing[seatId]
                     }
-                // Already answered for. Its share is that week's own, and this is not it.
+                // Already answered for, or still being played. Neither is this edit's to write.
                 else -> Unit
             }
         }
     }
+}
+
+/**
+ * The first week of the period this config's boss is in now.
+ *
+ * This week for a weekly boss and for a daily one, and the week the month opened in for a monthly:
+ * a period that is still being run is still being agreed, however many weeks it covers.
+ *
+ * This week when the boss cannot be found, which pins nothing that is not over on any reading.
+ */
+private fun liveWeek(partyId: Uuid): LocalDate {
+    val reset =
+        Party
+            .selectAll()
+            .where { Party.id eq partyId }
+            .firstOrNull()
+            ?.let { bossResetOf(it[Party.bossCatalogId]) }
+    return reset?.let { weekOf(periodStartFor(it, Clock.System.now())) } ?: currentWeek()
 }
 
 /** The party as it stands: every seat in the usual roster, by lowercased name, and what it takes. */
