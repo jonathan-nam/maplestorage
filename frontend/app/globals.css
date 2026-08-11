@@ -2436,7 +2436,12 @@ button.link:disabled {
   list-style: none;
 }
 
+/* The label, and on the bosses that ask for one, the mode. The label grows rather than the select,
+   so "has a party" keeps sitting at the right-hand edge on the rows that have neither. */
 .routine-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   border-top: 1px solid var(--line-soft);
 }
 
@@ -2453,6 +2458,7 @@ button.link:disabled {
 
 .routine-label {
   display: flex;
+  flex: 1;
   align-items: center;
   gap: 10px;
   padding: 6px 4px;

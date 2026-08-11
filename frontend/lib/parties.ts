@@ -219,3 +219,14 @@ export function guaranteedDrop(
   if (!table || difficulty === null) return null;
   return table.find((drop) => (drop.pieces?.[difficulty] ?? 0) > 0) ?? null;
 }
+
+/**
+ * Whether a clear on this boss can say anything about what fell, at any mode.
+ *
+ * What decides whether the mode is worth asking for. A clear files what the catalog guarantees, so
+ * on a boss with no amount at any of its modes there is nothing for a mode to unlock and a select
+ * beside it would be a control that does nothing. Eight bosses of the catalog have one.
+ */
+export function hasGuaranteedDrop(table: BossDrop[] | undefined): boolean {
+  return (table ?? []).some((drop) => Object.keys(drop.pieces ?? {}).length > 0);
+}

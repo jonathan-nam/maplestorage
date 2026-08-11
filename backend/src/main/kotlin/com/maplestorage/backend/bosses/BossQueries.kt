@@ -129,6 +129,28 @@ private fun ResultRow.toBossClearResponse() =
     )
 
 /**
+ * Whether this character's boss is ticked cleared for the period [on] falls in.
+ *
+ * A missing row reads as not cleared. Absent means nothing has said anything about the boss this
+ * period, and the caller is asking so it can file what a clear guarantees, which needs the tick on
+ * record rather than merely not contradicted. See setSoloDifficulty.
+ */
+internal fun bossClearedOn(
+    characterId: Uuid,
+    bossCatalogId: Uuid,
+    reset: String,
+    on: LocalDate,
+): Boolean =
+    BossClear
+        .selectAll()
+        .where {
+            (BossClear.characterId eq characterId) and
+                (BossClear.bossCatalogId eq bossCatalogId) and
+                (BossClear.periodStart eq periodOf(reset, on))
+        }.firstOrNull()
+        ?.get(BossClear.cleared) == true
+
+/**
  * Ticks one character's boss cleared for the period it is currently in, or un-ticks it.
  *
  * The same row a capture writes and the matrix reads, so ticking a cell and uploading a planner are

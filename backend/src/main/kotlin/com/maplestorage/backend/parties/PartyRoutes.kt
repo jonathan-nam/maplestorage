@@ -38,6 +38,8 @@ fun Route.partyRoutes(nexonLookupService: NexonLookupService) {
     // A pile of one interchangeable drop, priced in one go across every pool it sits in. See
     // lotSaleRoute.
     post("/loot/lot") { lotSaleRoute() }
+    // Which mode a boss run alone is run at, by character and boss. Constant, so ahead of /{id}.
+    put("/solo") { setSoloDifficultyRoute() }
     get("/{id}") { getParty() }
     put("/{id}") { savePartyRoute(nexonLookupService) }
     put("/{id}/roster") { saveWeekRosterRoute(nexonLookupService) }

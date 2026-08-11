@@ -1,5 +1,6 @@
 package com.maplestorage.backend.parties
 
+import com.maplestorage.backend.bosses.bossClearedOn
 import com.maplestorage.backend.bosses.weekOf
 import com.maplestorage.backend.db.Party
 import com.maplestorage.backend.db.PartyLoot
@@ -88,6 +89,48 @@ internal fun poolFor(
     bossCatalogId: Uuid,
     now: Instant,
 ): Uuid = partyIdFor(characterId, bossCatalogId) ?: createSoloParty(userId, characterId, bossCatalogId, now)
+
+/**
+ * Records which mode this character runs a boss at alone, opening the pool if it has none yet.
+ *
+ * The one thing a clear cannot say for itself. Coupons are per (boss, difficulty) and no boss drops
+ * them at every mode it has, so "Kalos cleared" on its own is 180 coupons or none, and a party gets
+ * this off the config it already has. See lootFromClear.
+ *
+ * The pool is opened by naming a mode, before anything has fallen in it. It is the same row logging
+ * a drop would have opened, and it holds nothing until a clear or a human puts something there.
+ *
+ * Re-files the period this instant falls in, both ways round: it takes back only the rows it filed
+ * itself and puts back what the mode it has NOW guarantees. So a mode named after the clear was
+ * ticked does not leave this week's coupons missing until the reset, and Chaos corrected to Extreme
+ * leaves one row of 180 rather than two.
+ *
+ * Null when the pair is held by a party. That config carries the mode already, beside the roster and
+ * the split it is read with, and writing one here would edit a party through a door that sees
+ * neither.
+ */
+internal fun setSoloDifficulty(
+    userId: String,
+    characterId: Uuid,
+    bossCatalogId: Uuid,
+    reset: String,
+    difficulty: String?,
+    now: Instant,
+): Uuid? {
+    val held = partyIdFor(characterId, bossCatalogId)
+    if (held != null && !isSoloParty(held)) return null
+    val partyId = held ?: createSoloParty(userId, characterId, bossCatalogId, now)
+    Party.update({ Party.id eq partyId }) {
+        it[Party.difficulty] = difficulty
+        it[updatedAt] = now
+    }
+    val today = todayIn(now)
+    unlootFromClear(characterId, bossCatalogId, reset, today)
+    if (bossClearedOn(characterId, bossCatalogId, reset, today)) {
+        lootFromClear(characterId, bossCatalogId, reset, today, now)
+    }
+    return partyId
+}
 
 /**
  * Turns a solo pool into the party it now is, without back-dating the new seats onto its drops.

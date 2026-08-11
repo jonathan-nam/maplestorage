@@ -149,7 +149,7 @@ internal fun setPartyClear(
 }
 
 /** Today, as the clock the periods are measured on sees it. */
-private fun todayIn(now: Instant): LocalDate = now.toLocalDateTime(TimeZone.UTC).date
+internal fun todayIn(now: Instant): LocalDate = now.toLocalDateTime(TimeZone.UTC).date
 
 /**
  * The clear a drop implies: something fell, so the boss died.
