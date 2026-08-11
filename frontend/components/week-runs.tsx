@@ -115,6 +115,13 @@ function RunRow({
   const [refusal, setRefusal] = useState<string | null>(null);
 
   const named = members.map((m) => m.trim()).filter((m) => m !== "");
+  // Whether the boxes still say something the night does not. What acknowledges a save: the row
+  // redraws from what the server wrote, this goes false, and the button goes quiet. Nothing else on
+  // screen need move, and on a night that divides evenly nothing else would.
+  //
+  // Compared raw rather than as a set, so two names swapped round is a change. It is: the order is
+  // the seats' order, and it is what the roster strip draws.
+  const changed = named.join("|").toLowerCase() !== run.others.join("|").toLowerCase();
   // The stack size, which is what somebody actually bent down for. Only where the drop falls in
   // more than one: "180 in 1 stack" is the same fact as 180, said twice.
   const stacks = run.bundles !== null && run.bundles > 1 ? ` in ${run.bundles} stacks` : "";
@@ -151,7 +158,7 @@ function RunRow({
           <button
             type="button"
             className="party-save"
-            disabled={busy || named.length === 0}
+            disabled={busy || named.length === 0 || !changed}
             onClick={() => void save()}
           >
             Save

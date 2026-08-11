@@ -13,7 +13,7 @@
 // the night divisible.
 
 import { ranSeats } from "./vestige-ledger";
-import type { PartyLootPool } from "@/types/loot";
+import type { Loot, PartyLootPool } from "@/types/loot";
 import type { Party, PartyMember } from "@/types/party";
 
 /** One night: what fell, and who was there for it. */
@@ -44,15 +44,30 @@ export type WeekRun = {
   locked: "sold" | "taken" | null;
 };
 
-/** Every week this coupon has dropped in, newest first. What the sheet steps through. */
+/**
+ * Every week this coupon has dropped in, newest first. What the sheet steps through.
+ *
+ * The same test weekRuns() admits a row on, `bossKey` included: a week offered here that turns out
+ * to hold nothing would land the reader on an empty card with no way to tell it from a bug.
+ */
 export function runWeeks(pools: PartyLootPool[], dropKey: string): string[] {
   const weeks = new Set<string>();
   for (const pool of pools) {
     for (const loot of pool.loot) {
-      if (loot.dropKey === dropKey && loot.quantity >= 1) weeks.add(loot.weekStart);
+      if (isRun(loot, dropKey)) weeks.add(loot.weekStart);
     }
   }
   return [...weeks].sort().reverse();
+}
+
+/**
+ * Whether this row is a night the sheet can answer for.
+ *
+ * A pool is one character and one boss, so a row with no boss cannot be made into a party: there is
+ * no pair to take over. Nothing a clear files is ever missing one.
+ */
+function isRun(loot: Loot, dropKey: string): loot is Loot & { bossKey: string } {
+  return loot.dropKey === dropKey && loot.quantity >= 1 && loot.bossKey !== null;
 }
 
 /**
@@ -80,10 +95,7 @@ export function weekRuns(
     if (!party) continue;
 
     for (const loot of pool.loot) {
-      if (loot.dropKey !== dropKey || loot.weekStart !== week || loot.quantity < 1) continue;
-      // A pool is one character and one boss, so a row with no boss cannot be adopted into a party:
-      // there is no pair to take over. Nothing the clear files is ever missing one.
-      if (loot.bossKey === null) continue;
+      if (!isRun(loot, dropKey) || loot.weekStart !== week) continue;
 
       const seats = ranSeats(loot, party);
       runs.push({

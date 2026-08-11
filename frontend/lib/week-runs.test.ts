@@ -190,7 +190,11 @@ describe("one week's nights", () => {
   it("leaves out a drop with no boss, which has no pair to make a party from", () => {
     const p = alone("pa", "limbo");
     const loose = coupon("l1", "limbo", JULY, { bossKey: null });
+    const pools = [pool("pa", [loose])];
 
-    expect(weekRuns([p], [pool("pa", [loose])], VESTIGE, JULY, ORDER, BOSSES)).toEqual([]);
+    expect(weekRuns([p], pools, VESTIGE, JULY, ORDER, BOSSES)).toEqual([]);
+    // And the week it fell in is not offered either. Offered and then empty, the reader lands on a
+    // card with nothing on it and no way to tell that from a bug.
+    expect(runWeeks(pools, VESTIGE)).toEqual([]);
   });
 });
