@@ -306,6 +306,34 @@ class LootFromClearTest {
     }
 
     @Test
+    fun `a retired config collects nothing more, and a clear does not bring it back`() {
+        transaction {
+            val (characterId, partyId) = party()
+            val bossId = bossIdForKey("kalos-the-guardian")!!
+            val now = Clock.System.now()
+
+            // A drop of its own, so deleting the config retires it and keeps the pool.
+            lootFromClear(characterId, bossId, "WEEKLY", today, now)
+            assertEquals(Removal.RETIRED, retireOrDeleteParty(partyId, userId))
+
+            // A later week, so it is the retirement stopping this and not the once-a-period rule.
+            lootFromClear(characterId, bossId, "WEEKLY", LocalDate.parse("2026-08-15"), now)
+
+            assertEquals(1, pool(partyId).size, "a config you deleted does not keep collecting")
+            // addLoot revives whatever it inserts into, which is right for a drop somebody logged
+            // and wrong for a clear: ticking the boss would un-delete the party as a side effect,
+            // and its coupons would be split with a guest nobody said was there.
+            assertTrue(findParty(partyId, userId)!!.retired)
+            assertTrue(partiesFor(userId).none { it.id == partyId.toString() })
+
+            // What it already holds is still the clear's to take back. Rows filed into a retired
+            // config before this rule existed have to stay removable by the tick that put them there.
+            unlootFromClear(characterId, bossId, "WEEKLY", today)
+            assertTrue(pool(partyId).isEmpty())
+        }
+    }
+
+    @Test
     fun `a row a human logged is never taken back by a clear`() {
         transaction {
             val (characterId, partyId) = party()
