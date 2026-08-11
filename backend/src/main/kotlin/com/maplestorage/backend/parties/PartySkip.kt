@@ -129,6 +129,30 @@ internal fun isSpentOneOff(
 }
 
 /**
+ * Whether the config already holding this pair's slot is filled in rather than refused.
+ *
+ * Three kinds are not a party anybody set up, so a second config must not be made for them: a solo
+ * pool, a retired config, and a one-off whose period has passed.
+ *
+ * A one-off still ON its period is the fourth, and only when the request is standing. That is the
+ * pair saying "we are doing this every week now", and the edit page offers the boss for exactly that
+ * reason: a one-off is not one of its rows, so the only way it could otherwise answer is a refusal
+ * naming a config the page does not show. Asked for as a one-off again it is still refused, where
+ * the request would overwrite tonight's roster with itself.
+ *
+ * Must run inside a transaction. See takeOverParty for what filling it in does.
+ */
+internal fun takesOverConfig(
+    partyId: Uuid,
+    request: SavePartyRequest,
+    now: Instant,
+): Boolean =
+    isSoloParty(partyId) ||
+        isRetiredParty(partyId) ||
+        isSpentOneOff(partyId, now) ||
+        (!request.oneOff && isOneOff(partyId))
+
+/**
  * Fills in the config already holding this pair's slot, whichever kind it is.
  *
  * A solo pool becomes a party, and adoptSoloParty pins the weeks its drops already fell in. A
@@ -166,9 +190,9 @@ internal fun takeOverParty(
         Party.update({ Party.id eq partyId }) { it[oneOff] = true }
         setRunsInPeriod(partyId, oneOff = true, period, runs = true, now = now)
     } else if (!solo) {
-        // A spent one-off asked for as a standing party, which is what "we are doing this every
-        // week now" looks like. Its armed periods are left alone: they are what a past week is
-        // drawn from, and a standing config does not read them.
+        // A one-off asked for as a standing party, which is what "we are doing this every week now"
+        // looks like, whether or not its own week is still on. Its armed periods are left alone:
+        // they are what a past week is drawn from, and a standing config does not read them.
         Party.update({ Party.id eq partyId }) { it[oneOff] = false }
     }
 }

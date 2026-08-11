@@ -12,8 +12,12 @@ import type { Party, SavePartyBody } from "@/types/party";
 // week after, which is the wrong shape for a night somebody talks you into: it would be on the list
 // for ever, and taking it off again is a second job.
 //
-// Closed by default. An open form above a list you came to read is a control explaining itself, and
-// what this is for is said by the button that opens it.
+// A panel with the form in it, the shape the Drop Log's Add Drop has: both are a form above the list
+// of what it has already recorded. It was a button that opened one, which kept the form out of the
+// way at the price of having to be found first.
+//
+// The week is on the Add button rather than the heading. It is what the click does, and the heading
+// naming it would say the same thing twice.
 
 export function AddForWeek({
   characters,
@@ -31,7 +35,6 @@ export function AddForWeek({
   error: string | null;
   onAdd: (body: SavePartyBody) => Promise<void>;
 }) {
-  const [open, setOpen] = useState(false);
   const [characterId, setCharacterId] = useState("");
   const [bossKey, setBossKey] = useState("");
   const [difficulty, setDifficulty] = useState("");
@@ -48,18 +51,10 @@ export function AddForWeek({
     setMember("");
   }
 
-  if (!open) {
-    return (
-      <div className="loot-actions">
-        <button type="button" className="party-cancel" onClick={() => setOpen(true)}>
-          Add for this week
-        </button>
-      </div>
-    );
-  }
-
   return (
-    <>
+    <section className="loot-pool add-panel">
+      <h2 className="loot-pool-title">Add Party</h2>
+
       <div className="loot-actions">
         <select
           className="split-input"
@@ -145,22 +140,10 @@ export function AddForWeek({
             reset();
           }}
         >
-          Add
-        </button>
-
-        <button
-          type="button"
-          className="party-cancel"
-          disabled={busy}
-          onClick={() => {
-            setOpen(false);
-            reset();
-          }}
-        >
-          Cancel
+          Add for this week
         </button>
       </div>
       {error && <p className="split-error">{error}</p>}
-    </>
+    </section>
   );
 }

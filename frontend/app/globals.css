@@ -3406,10 +3406,11 @@ button.link:disabled {
   color: var(--ink-strong);
 }
 
-/* Add Drop, ruled off from the log under it. A form above and a list of what it has recorded below
-   is a real boundary, which is why this is here and why Record Sale does NOT have one: everything
-   on that tab either side of a rule would be another card taking another sale. */
-.droplog-action {
+/* Add Drop, and Add Party on the parties page, ruled off from the list under it. A form above and a
+   list of what it has recorded below is a real boundary, which is why this is here and why Record
+   Sale does NOT have one: everything on that tab either side of a rule would be another card taking
+   another sale. */
+.add-panel {
   padding-bottom: 22px;
   border-bottom: 1px solid var(--line);
   margin-bottom: 26px;

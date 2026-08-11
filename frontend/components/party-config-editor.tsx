@@ -6,7 +6,7 @@ import { KNOWN_CHARACTERS_ID, KnownCharacters } from "@/components/known-charact
 import { RosterInputs } from "@/components/roster-inputs";
 import { apiAssetUrl } from "@/lib/api";
 import { MAX_MINUTES, parseMinutes } from "@/lib/boss-minutes";
-import { bossesWithoutConfig, otherMembers } from "@/lib/parties";
+import { bossesWithoutConfig, otherMembers, standingParties } from "@/lib/parties";
 import { parseShares, sharesKey } from "@/lib/shares";
 import { suggestArrangement } from "@/lib/vestige-ledger";
 import type { Boss } from "@/types/boss";
@@ -83,18 +83,22 @@ export function PartyConfigEditor({
 }) {
   const [addingBoss, setAddingBoss] = useState("");
   const bossByKey = new Map(bosses.map((b) => [b.bossKey, b]));
-  const available = bossesWithoutConfig(parties, bosses, characterId);
+  // The one-offs are not rows here, so they do not hold their boss back from the select either:
+  // asking for one as a standing party takes over the config it already has, pool and all, which is
+  // how a night that keeps happening becomes an arrangement. See takeOverParty.
+  const standing = standingParties(parties);
+  const available = bossesWithoutConfig(standing, bosses, characterId);
 
   return (
     <section className="configs">
-      {parties.length === 0 && (
+      {standing.length === 0 && (
         <p className="party-hint">
           {characterName} has no parties yet. A boss they solo needs none, so add only the ones they
           run with somebody.
         </p>
       )}
 
-      {parties.map((party) => (
+      {standing.map((party) => (
         <ConfigRow
           key={party.id}
           party={party}
@@ -367,20 +371,15 @@ function ConfigRow({
           disabled={busy}
           onChange={setMinutes}
         />
-        {/* Named so the row is not read as a standing party that happens to be off. The two look
-            identical on this page otherwise, and they revert opposite ways. */}
-        {party.oneOff && <span className="party-difficulty">one-off</span>}
-
         {/* Where a boss that is off Party View is found again. The row is off that page entirely, so
             this is the only place it can be said, and it belongs beside Remove: one is the week, the
             other is for good.
 
-            The wording differs because the act does. Putting a standing party back is undoing
-            something you did; a one-off's week simply ended, and choosing it again is running it
-            again. */}
+            Every row here is a standing party, so this is always undoing something you did. Running
+            a spent one-off again is Party View's Add Party, which offers that boss back. */}
         {party.skippedThisPeriod && (
           <button type="button" className="party-save" onClick={onPutBack} disabled={busy}>
-            {party.oneOff ? "Run it again this week" : "Put back this week"}
+            Put back this week
           </button>
         )}
         <button type="button" className="party-delete" onClick={onDelete} disabled={busy}>
