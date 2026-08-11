@@ -13,7 +13,7 @@ import { preloadBossArt } from "@/lib/preload-boss-art";
 import { useRowWrites } from "@/lib/use-row-writes";
 import { ApiError, apiFetch } from "@/lib/api";
 import { peek, put } from "@/lib/cache";
-import { buildDropLog, couponsOwedByParty, dropStatusLabel } from "@/lib/drop-log";
+import { buildDropLog, couponsOwedByParty, pieceStatusByParty } from "@/lib/drop-log";
 import { useDropIcons } from "@/lib/drop-icons";
 import { poolLabel, summarize } from "@/lib/loot";
 import { closedByHolder } from "@/lib/vestige-ledger";
@@ -143,11 +143,8 @@ export default function PartyPage() {
     : null;
   // What each coupon row says it is: a piece drop is PENDING for ever, because it never sells through
   // its own row, so the raw status read "In the pool" on every vestige stack this party ever dropped.
-  const pieceStatus = new Map(
-    (log?.entries ?? [])
-      .filter((e) => e.pieces)
-      .map((e) => [e.lootId, { status: dropStatusLabel(e), yours: e.yours }]),
-  );
+  // The same reading Party View's panels use, from the same place.
+  const pieceStatus = party ? pieceStatusByParty(log?.entries ?? []).get(party.id) : undefined;
   const summary = summarize(loot);
   const poolLine = poolLabel(
     {

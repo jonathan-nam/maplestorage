@@ -349,6 +349,29 @@ export function couponsOwedByParty(entries: DropEntry[]): Map<string, number> {
   return out;
 }
 
+/** What a coupon row says it is, and how much of it is yours, by loot id. */
+export type PieceStatus = Map<string, { status: string; yours: number }>;
+
+/**
+ * What each COUPON row says it is, per party, for the pools a screen draws.
+ *
+ * Off the same entries couponsOwedByParty reads, so a pool and the badge above it cannot disagree
+ * about a stack of vestiges. Ordinary drops are absent: their own status IS the answer, and putting
+ * a second reading of it in this map would be two answers to one question.
+ *
+ * A party with no coupon rows is absent rather than empty, which the callers spread as undefined.
+ */
+export function pieceStatusByParty(entries: DropEntry[]): Map<string, PieceStatus> {
+  const out = new Map<string, PieceStatus>();
+  for (const entry of entries) {
+    if (!entry.pieces) continue;
+    const forParty = out.get(entry.partyId) ?? new Map();
+    forParty.set(entry.lootId, { status: dropStatusLabel(entry), yours: entry.yours });
+    out.set(entry.partyId, forParty);
+  }
+  return out;
+}
+
 /** The log narrowed to one character, or all of it. Totals are recomputed, never scaled. */
 export function forCharacter(log: DropLog, characterId: string | null): DropLog {
   if (characterId === null) return log;

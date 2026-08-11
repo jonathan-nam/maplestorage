@@ -14,7 +14,7 @@ import { ApiError, apiAssetUrl, apiFetch } from "@/lib/api";
 import { cellState, clearOfCell, clearStateLabel, indexClears } from "@/lib/boss-clears";
 import { bossLabel, difficultyLabel } from "@/lib/boss-difficulty";
 import { peek, put } from "@/lib/cache";
-import { buildDropLog, couponsOwedByParty } from "@/lib/drop-log";
+import { buildDropLog, couponsOwedByParty, pieceStatusByParty } from "@/lib/drop-log";
 import { poolSize } from "@/lib/loot";
 import { closedByHolder } from "@/lib/vestige-ledger";
 import {
@@ -38,7 +38,7 @@ import { offersWallet } from "@/lib/world";
 import type { Boss, BossClearsView } from "@/types/boss";
 import type { Character } from "@/types/character";
 import type { DropTables } from "@/types/drop";
-import type { AddLootBody, PartyLootPool } from "@/types/loot";
+import type { AddLootBody, PartyLootPool, SellLootBody } from "@/types/loot";
 import type { VestigeSettlement } from "@/types/vestige";
 import type {
   Party,
@@ -123,6 +123,9 @@ export default function PartiesPage() {
   const [week, setWeek] = useState<string | null>(null);
   const [stepping, setStepping] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
+  // Why the last write to a pool did not land, and whose. Carried with the party's id so the row
+  // that failed is the row that says so, rather than every open panel on the page.
+  const [poolError, setPoolError] = useState<{ partyId: string; message: string } | null>(null);
   // Whether anything, in any week, still owes somebody. Held apart from `parties` because that
   // list is now scoped to the week on screen: a share owed on a drop from three weeks ago is still
   // a share owed, and stepping back must not retire the link to where it is settled. Written on
@@ -388,13 +391,31 @@ export default function PartiesPage() {
   }
 
   /**
+   * Both lists a pool write moves: the rows in the panel, and the counts the badge is read off.
+   *
+   * Refetched rather than patched in place, for the reason the party's own page gives: which of the
+   * three counts a drop lands in, and what its status now is, are the server's to derive.
+   *
+   * Live view only, so PARTIES_KEY is the right list to refetch and to cache. Both keys are the same
+   * ones the Drop Log and the party page read, so a settled drop is settled everywhere at once.
+   */
+  async function refreshPools() {
+    const [refreshed, poolResult] = await Promise.all([
+      apiFetch<Party[]>(PARTIES_KEY, { method: "GET" }, getToken),
+      apiFetch<PartyLootPool[]>(POOLS_KEY, { method: "GET" }, getToken),
+    ]);
+    setParties(refreshed);
+    put(PARTIES_KEY, refreshed);
+    setPools(poolResult);
+    put(POOLS_KEY, poolResult);
+  }
+
+  /**
    * Logs a drop from the row, without leaving the list.
    *
    * The pool it lands in is the party page's, the same POST that page makes, so a drop added here
-   * and one added there are the same row. The counts are refetched rather than incremented in
-   * place: which of the three a drop counts towards is the server's to derive.
+   * and one added there are the same row.
    *
-   * Live view only, so PARTIES_KEY is the right list to refetch and to cache. See onAddDrop.
    * Throws on failure, which is what makes the row say so.
    */
   async function addDrop(party: Party, body: AddLootBody) {
@@ -404,10 +425,34 @@ export default function PartiesPage() {
         { method: "POST", body: JSON.stringify(body) },
         getToken,
       );
-      const refreshed = await apiFetch<Party[]>(PARTIES_KEY, { method: "GET" }, getToken);
-      setParties(refreshed);
-      put(PARTIES_KEY, refreshed);
+      await refreshPools();
     });
+  }
+
+  /**
+   * One write against one drop, keyed by that drop so only its row dims.
+   *
+   * Every route here is the party page's own, so selling from this panel and selling from there are
+   * one write and cannot come out differently. A refusal is kept with the party it was about.
+   */
+  async function writeDrop(party: Party, lootId: string, path: string, options: RequestInit) {
+    setPoolError(null);
+    try {
+      await write(lootId, async () => {
+        await apiFetch<unknown>(
+          `${PARTIES_KEY}/${party.id}/loot/${lootId}${path}`,
+          options,
+          getToken,
+        );
+        await refreshPools();
+      });
+    } catch (e) {
+      // The server's own reason. It is the only part of a refusal you can act on.
+      setPoolError({
+        partyId: party.id,
+        message: e instanceof ApiError ? e.body : "That didn't save.",
+      });
+    }
   }
 
   const characterById = new Map(characters.map((c) => [c.id, c]));
@@ -416,9 +461,11 @@ export default function PartiesPage() {
   // badge and the log cannot disagree about what you are owed, rather than counted again here.
   // Off the ledger's own notion of finished, not off the party's arrangement: `owedBy` is
   // `entitled - looted` and never moves, so without the closures this counted a debt forever. See V52.
-  const couponsOwed = couponsOwedByParty(
-    buildDropLog(parties, pools, dropTables, closedByHolder(settlements).closed).entries,
-  );
+  const log = buildDropLog(parties, pools, dropTables, closedByHolder(settlements).closed);
+  const couponsOwed = couponsOwedByParty(log.entries);
+  // What each COUPON row in a panel says it is, off the same entries the badge above it is counted
+  // from, so the two cannot disagree about a stack of vestiges.
+  const pieceStatus = pieceStatusByParty(log.entries);
   const history = week !== null;
 
   // No tables, no picker. Offering one without them would list nothing and then explain the empty
@@ -428,6 +475,41 @@ export default function PartiesPage() {
   // Never on a past week: the server stamps a drop with today, so one added under last week's
   // label would land in a week this screen is not showing.
   const canAddDrops = !history && haveDropTables;
+  const lootByParty = new Map(pools.map((pool) => [pool.partyId, pool.loot]));
+
+  /**
+   * What a row's panel draws its pool from, or nothing where it must not draw one.
+   *
+   * Both of canAddDrops' conditions apply again here, and the second is not incidental: isPieceDrop
+   * reads the catalog's tables, so without them a stack of vestige coupons would be listed as an
+   * ordinary drop with a sale button on it, which is the two-settlements-for-one-drop the piece
+   * ledger exists to prevent. The week rule is in the card's own docs.
+   */
+  const poolFor = (party: Party) =>
+    canAddDrops
+      ? {
+          loot: lootByParty.get(party.id) ?? [],
+          dropTables,
+          bossByKey,
+          pieceStatus: pieceStatus.get(party.id),
+          error: poolError?.partyId === party.id ? poolError.message : null,
+          isSaving,
+          onSell: (lootId: string, body: SellLootBody) =>
+            writeDrop(party, lootId, "/sale", { method: "PUT", body: JSON.stringify(body) }),
+          onUnsell: (lootId: string) => writeDrop(party, lootId, "/sale", { method: "DELETE" }),
+          onSetTaken: (lootId: string, memberId: string | null) =>
+            writeDrop(party, lootId, "/taken", {
+              method: "PUT",
+              body: JSON.stringify({ memberId }),
+            }),
+          onSetPaid: (lootId: string, memberId: string, paid: boolean) =>
+            writeDrop(party, lootId, `/payouts/${memberId}`, {
+              method: "PUT",
+              body: JSON.stringify({ paid }),
+            }),
+          onDelete: (lootId: string) => writeDrop(party, lootId, "", { method: "DELETE" }),
+        }
+      : undefined;
   // The names already spelled somewhere, for the editor's datalist. Built from what the page has:
   // people is optional, and its absence costs suggestions rather than the editor.
   const knownCharacters = knownCharacterNames(characters, people, parties);
@@ -696,6 +778,7 @@ export default function PartiesPage() {
                         }
                         dropTable={dropTables[party.bossKey]}
                         onAddDrop={canAddDrops ? (body) => addDrop(party, body) : undefined}
+                        pool={poolFor(party)}
                         onSaveRoster={history ? undefined : (members) => saveRoster(party, members)}
                         onTakeOff={history ? undefined : () => setSkipped(party, true)}
                         heading={
@@ -810,6 +893,7 @@ export default function PartiesPage() {
                       onToggleClear={history ? undefined : (cleared) => toggleClear(party, cleared)}
                       dropTable={dropTables[party.bossKey]}
                       onAddDrop={canAddDrops ? (body) => addDrop(party, body) : undefined}
+                      pool={poolFor(party)}
                       onSaveRoster={history ? undefined : (members) => saveRoster(party, members)}
                       onTakeOff={history ? undefined : () => setSkipped(party, true)}
                       heading={

@@ -4498,9 +4498,9 @@ button.link:disabled {
   gap: 10px;
 }
 
-/* What the row opens to: the roster, then the drop picker. Indented past the chevron so it hangs
-   under the heading rather than under the arrow that opened it (18px control + the header's 10px
-   gap). */
+/* What the row opens to: the roster, the drop picker, then the pool those drops land in. Indented
+   past the chevron so it hangs under the heading rather than under the arrow that opened it (18px
+   control + the header's 10px gap). */
 .party-row-panel {
   display: flex;
   flex-direction: column;
@@ -4508,10 +4508,15 @@ button.link:disabled {
   padding-left: 28px;
 }
 
-/* The picker's own bottom margin is for the loot pool, where a list of drops follows it. Nothing
-   follows it here. */
+/* The picker's own bottom margin is the pool page's, where the rows sit directly under it. Here the
+   panel's own gap does that, and the margin would hang below a picker with an empty pool under it.
+   Same for the heading that splits the coupons off. */
 .party-row-panel .loot-add {
   margin-bottom: 0;
+}
+
+.party-row-panel .loot-group-title {
+  margin: 6px 0 0;
 }
 
 /* The roster, and the way into changing it. Baseline-aligned to the sprites' names rather than
