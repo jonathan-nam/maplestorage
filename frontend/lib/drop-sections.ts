@@ -1,14 +1,15 @@
-// The Drop Log's two halves: what fell, and what it was sold for.
+// The Drop Log's three ledgers: what fell, what you sold, and what you are owed.
 //
-// Split out of the page because the tab row has a silent failure mode. The Sale Ledger exists only
-// while there is a card behind it, so recording the last tranche can take the tab away underneath
-// the reader, and a page left on a section that no longer exists draws nothing at all.
+// All three are always offered, empty or not. They used to come and go with their contents, which
+// had two costs: a tab could vanish from under the reader as they recorded the last thing on it,
+// silently moving them somewhere else, and a ledger nobody had ever had anything on was invisible,
+// so there was no way to learn it existed. An empty one says so instead.
 
 export type DropSectionKey = "drops" | "sales" | "collection";
 
 export type DropSection = { key: DropSectionKey; label: string };
 
-/** What the Sale Ledger would draw, in cards. */
+/** What the Sale Ledger would draw, in cards. Zero is what puts the empty line on screen. */
 export type SaleCards = {
   /** Nights nobody has said the stack arrangement for. One card holds all of them. */
   unanswered: number;
@@ -22,27 +23,21 @@ export function saleCards({ unanswered, holders, lots }: SaleCards): number {
   return (unanswered > 0 ? 1 : 0) + holders + lots;
 }
 
-/**
- * The tabs to draw, or none.
- *
- * No tabs when there is nothing behind either of the other two: the page is then only the drops, and
- * a lone tab over them is a control that filters nothing. The Drop Ledger is never the empty one,
- * because every card on the other tabs comes off a drop that is in it.
- *
- * `collection` is what OTHERS owe you, which is a different question from what you can sell, so it
- * gets a tab rather than a section: the Sale Ledger is piles you can act on alone, and this is the
- * ones you are waiting on somebody for.
- */
-export function dropSections(cards: SaleCards, collection = 0): DropSection[] {
-  if (saleCards(cards) === 0 && collection === 0) return [];
+/** The tabs, which are the same three however little is behind them. */
+export function dropSections(): DropSection[] {
   return [
     { key: "drops", label: "Drop Ledger" },
-    ...(saleCards(cards) > 0 ? [{ key: "sales" as const, label: "Sale Ledger" }] : []),
-    ...(collection > 0 ? [{ key: "collection" as const, label: "Collection Ledger" }] : []),
+    { key: "sales", label: "Sale Ledger" },
+    { key: "collection", label: "Collection Ledger" },
   ];
 }
 
-/** The section to draw: the chosen one while it still exists, else the drops. */
+/**
+ * The section to draw: the chosen one, since all three always exist.
+ *
+ * Kept as a function rather than read straight from state because it is the guard against a key
+ * that is not a section at all, from an old cached value or a hand-edited one.
+ */
 export function shownSection(chosen: DropSectionKey, sections: DropSection[]): DropSectionKey {
   return sections.some((s) => s.key === chosen) ? chosen : "drops";
 }
