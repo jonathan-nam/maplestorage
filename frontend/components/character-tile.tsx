@@ -1,5 +1,6 @@
 "use client";
 
+import { spriteUrl } from "@/lib/api";
 import type { Character } from "@/types/character";
 
 // One card in the inventory picker: who this is, and whether you are looking at them.
@@ -24,7 +25,7 @@ export function CharacterTile({
       onClick={onSelect}
     >
       {character.spriteImgUrl ? (
-        <img className="tile-sprite" src={character.spriteImgUrl} alt="" />
+        <img className="tile-sprite" src={spriteUrl(character.spriteImgUrl)} alt="" />
       ) : (
         <span className="tile-sprite" />
       )}

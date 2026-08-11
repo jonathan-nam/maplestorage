@@ -8,6 +8,7 @@ import com.maplestorage.backend.db.Party
 import com.maplestorage.backend.db.PartyMember
 import com.maplestorage.backend.db.Person
 import com.maplestorage.backend.db.PersonCharacter
+import com.maplestorage.backend.sprites.spriteProxyPath
 import com.maplestorage.backend.users.WORLD_INTERACTIVE
 import com.maplestorage.backend.users.activeWorldFor
 import kotlinx.datetime.LocalDate
@@ -323,10 +324,14 @@ private fun clearStateFor(rows: List<ResultRow>): Map<Uuid, ClearState> {
 private fun spriteFor(
     row: ResultRow,
     spritesByName: Map<String, String>,
-): String? =
-    row.getOrNull(Characters.spriteImgUrl)
-        ?: row[PartyMember.spriteImgUrl]
-        ?: spritesByName[row[PartyMember.name].lowercase()]
+): String? {
+    val nexonUrl =
+        row.getOrNull(Characters.spriteImgUrl)
+            ?: row[PartyMember.spriteImgUrl]
+            ?: spritesByName[row[PartyMember.name].lowercase()]
+    // What goes out is our own proxy path, never Nexon's URL. See spriteProxyPath.
+    return nexonUrl?.let { spriteProxyPath(it) }
+}
 
 private fun ResultRow.toPartyResponse(
     members: List<PartyMemberResponse>,

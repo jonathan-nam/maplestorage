@@ -1,5 +1,6 @@
 package com.maplestorage.backend.db
 
+import com.maplestorage.backend.sprites.SPRITE_KEY_LENGTH
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import org.jetbrains.exposed.v1.core.Table
@@ -38,7 +39,12 @@ object Characters : Table("characters") {
     // which nothing populates.
     val worldType = text("world_type")
     val spriteImgUrl = text("sprite_img_url").nullable()
+
+    // When the lookup last ANSWERED, and when it was last asked. Both, because a name that has
+    // stopped ranking leaves the first alone and the daily refresh has to select on the second or it
+    // re-asks the same dead names every tick. See V53.
     val spriteRefreshedAt = timestamp("sprite_refreshed_at").nullable()
+    val spriteCheckedAt = timestamp("sprite_checked_at").nullable()
     val createdAt = timestamp("created_at")
     val updatedAt = timestamp("updated_at")
 
@@ -496,4 +502,19 @@ object PartyLootBundle : Table("party_loot_bundle") {
     val bundles = integer("bundles")
 
     override val primaryKey = PrimaryKey(lootId, memberId)
+}
+
+// Cached Nexon sprite bytes, keyed by sha256 of the source URL. Content-addressed, because the URL
+// encodes the outfit: the bytes at a given URL never change, so a row never needs invalidating and
+// two seats in identical gear share one. See V53__character_sprite_cache.sql.
+object CharacterSprite : Table("character_sprite") {
+    val urlSha256 = char("url_sha256", SPRITE_KEY_LENGTH)
+    val sourceUrl = text("source_url")
+
+    // Null until a warm succeeds. The route redirects to sourceUrl in that state.
+    val image = binary("image").nullable()
+    val fetchedAt = timestamp("fetched_at").nullable()
+    val createdAt = timestamp("created_at")
+
+    override val primaryKey = PrimaryKey(urlSha256)
 }

@@ -2,6 +2,7 @@ package com.maplestorage.backend.characters
 
 import com.maplestorage.backend.db.Characters
 import com.maplestorage.backend.services.NexonLookupResult
+import com.maplestorage.backend.sprites.spriteProxyPath
 import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
@@ -55,6 +56,9 @@ internal fun applyLookup(
         }
         row[Characters.spriteImgUrl] = lookup.spriteImgUrl
         row[Characters.spriteRefreshedAt] = now
+        // Asking by hand counts as asking, so a character refreshed manually is not also picked up
+        // by the daily job an hour later.
+        row[Characters.spriteCheckedAt] = now
         row[Characters.updatedAt] = now
     }
 }
@@ -67,7 +71,8 @@ fun ResultRow.toCharacterResponse() =
         jobName = this[Characters.jobName],
         worldName = this[Characters.worldName],
         worldType = this[Characters.worldType],
-        spriteImgUrl = this[Characters.spriteImgUrl],
+        // The proxy path, never Nexon's URL. See spriteProxyPath.
+        spriteImgUrl = this[Characters.spriteImgUrl]?.let { spriteProxyPath(it) },
         spriteRefreshedAt = this[Characters.spriteRefreshedAt]?.toString(),
         createdAt = this[Characters.createdAt].toString(),
         updatedAt = this[Characters.updatedAt].toString(),

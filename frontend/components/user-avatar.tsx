@@ -2,6 +2,7 @@
 
 import { useClerk, useUser } from "@clerk/nextjs";
 import { useEffect, useRef, useState } from "react";
+import { spriteUrl } from "@/lib/api";
 
 // The account button, showing the user's chosen main character instead of the OAuth photo. Clerk
 // still owns the actual account actions; this only replaces the avatar and the small menu around
@@ -49,7 +50,7 @@ export function UserAvatar() {
         {sprite ? (
           <span
             className="user-avatar-img sprite-face"
-            style={{ backgroundImage: `url("${sprite}")` }}
+            style={{ backgroundImage: `url("${spriteUrl(sprite)}")` }}
             aria-hidden="true"
           />
         ) : (

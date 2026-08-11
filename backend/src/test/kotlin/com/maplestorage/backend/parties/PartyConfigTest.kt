@@ -11,6 +11,7 @@ import com.maplestorage.backend.db.PartyMember
 import com.maplestorage.backend.db.Person
 import com.maplestorage.backend.db.Screenshots
 import com.maplestorage.backend.services.DetectedBossClear
+import com.maplestorage.backend.sprites.spriteProxyPath
 import com.maplestorage.backend.users.ensureUser
 import org.flywaydb.core.Flyway
 import org.jetbrains.exposed.v1.core.and
@@ -124,7 +125,9 @@ class PartyConfigTest {
             // points at seats and you are usually the one who sold the drop.
             assertEquals(listOf("mechyfechy", "CreedBratton"), party.members.map { it.name })
             assertEquals(mine.toString(), party.members[0].characterId)
-            assertEquals("https://nexon.example/mech.png", party.members[0].spriteImgUrl)
+            // The seat is drawn from our own proxy path, not Nexon's URL, which is what stops a
+            // roster refetching every sprite on every page load. See spriteProxyPath.
+            assertEquals(spriteProxyPath("https://nexon.example/mech.png"), party.members[0].spriteImgUrl)
             assertNull(party.members[1].characterId)
         }
     }

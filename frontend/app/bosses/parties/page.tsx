@@ -10,7 +10,7 @@ import { PartyCard } from "@/components/party-card";
 import { ResetTimer } from "@/components/reset-timer";
 import { RosterStrip } from "@/components/roster-strip";
 import { WeekStepper } from "@/components/week-stepper";
-import { ApiError, apiAssetUrl, apiFetch } from "@/lib/api";
+import { ApiError, apiAssetUrl, apiFetch, spriteUrl } from "@/lib/api";
 import { cellState, clearOfCell, indexClears } from "@/lib/boss-clears";
 import { bossLabel, difficultyLabel } from "@/lib/boss-difficulty";
 import { peek, put } from "@/lib/cache";
@@ -840,7 +840,11 @@ export default function PartiesPage() {
                     {/* The frame is drawn either way, so a roster where one lookup came back empty
                         does not go ragged around it. */}
                     {character?.spriteImgUrl ? (
-                      <img className="party-banner-sprite" src={character.spriteImgUrl} alt="" />
+                      <img
+                        className="party-banner-sprite"
+                        src={spriteUrl(character.spriteImgUrl)}
+                        alt=""
+                      />
                     ) : (
                       <span className="party-banner-sprite is-empty" aria-hidden="true" />
                     )}
@@ -911,7 +915,7 @@ export default function PartiesPage() {
                           {characterById.get(party.characterId)?.spriteImgUrl && (
                             <img
                               className="seat-sprite"
-                              src={characterById.get(party.characterId)!.spriteImgUrl!}
+                              src={spriteUrl(characterById.get(party.characterId)!.spriteImgUrl!)}
                               alt=""
                             />
                           )}

@@ -2,7 +2,7 @@
 
 import { useAuth, useUser } from "@clerk/nextjs";
 import { useState } from "react";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, spriteUrl } from "@/lib/api";
 import type { Character } from "@/types/character";
 
 // One character, and everything you can do to it.
@@ -95,7 +95,7 @@ export function CharacterRow({
       </button>
 
       {character.spriteImgUrl ? (
-        <img className="character-row-sprite" src={character.spriteImgUrl} alt="" />
+        <img className="character-row-sprite" src={spriteUrl(character.spriteImgUrl)} alt="" />
       ) : (
         <span className="character-row-sprite" aria-hidden="true" />
       )}
