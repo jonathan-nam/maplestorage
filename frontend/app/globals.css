@@ -4780,10 +4780,22 @@ button.link:disabled {
   gap: 8px;
 }
 
-/* Whose runs these are. Deliberately not the .party-banner a character gets on Party View: that
-   one carries a 96px sprite, which is taller than the four rows it would be heading here. */
-.droplog-run-head {
-  margin-top: 10px;
+/* One character's share, which opens onto their own nights. Deliberately not the .party-banner a
+   character gets on Party View: that one carries a 96px sprite, which is taller than the four rows
+   it would be heading here. */
+.droplog-character {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.droplog-character-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.droplog-character-head .loot-name {
   color: var(--ink-strong);
   font-size: 12px;
   /* Weight rather than size: at 13px it was the boss names' own register, and a heading that
@@ -4792,8 +4804,11 @@ button.link:disabled {
   letter-spacing: 0.02em;
 }
 
-.droplog-run-head:first-child {
-  margin-top: 0;
+/* The nights under a character. No rule and no second indent step: the chevron column already
+   nests them, and a border here boxed every character off as a card of its own. */
+.droplog-runs.is-nested {
+  padding: 0 0 0 28px;
+  border-top: 0;
 }
 
 .droplog-run {
@@ -4801,12 +4816,6 @@ button.link:disabled {
   flex-wrap: wrap;
   align-items: center;
   gap: 8px;
-}
-
-/* Indented under the name above them, so the group reads as one block. */
-.droplog-run-head + .droplog-run,
-.droplog-run-head ~ .droplog-run {
-  padding-left: 12px;
 }
 
 .droplog-run .loot-name {
@@ -4909,7 +4918,8 @@ button.link:disabled {
 /* Every row that folds: a config in any of the three party lists, a stacking drop in the Drop
    Log. A chevron that does not turn reads as a button that did nothing. */
 .party-row.is-open .party-row-chevron,
-.droplog-row.is-open .party-row-chevron,
+.droplog-row.is-open > .droplog-row-head .party-row-chevron,
+.droplog-character.is-open > .droplog-character-head .party-row-chevron,
 .run-table tr.is-open .party-row-chevron {
   transform: rotate(90deg);
 }

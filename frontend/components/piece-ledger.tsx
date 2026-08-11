@@ -219,20 +219,28 @@ function HolderCard({
   return (
     <section className="ledger-card">
       <header className="ledger-head">
+        {/* The coupon is named here rather than on screen: it is the same on every card, so the
+            title spends its words on the one thing that differs. */}
         {iconUrl ? (
-          <img className="loot-icon" src={apiAssetUrl(iconUrl)} alt="" />
+          <img className="loot-icon" src={apiAssetUrl(iconUrl)} alt="Vestige of Erion" />
         ) : (
           <span className="loot-icon" aria-hidden="true" />
         )}
         <span className="loot-title">
-          <span className="loot-name">Vestige of Erion</span>
+          {/* WHOSE pile this is, because that is what picks the card. Every card was titled "Vestige
+              of Erion", which is true of all of them and so told them apart not at all: two piles
+              read as one card drawn twice, and the page exists to have a sale typed into the right
+              one. Coupons are single-trade, so the pile that sold them is the person holding them. */}
+          <span className="loot-name">
+            {ledger.holder.kind === "SELF" ? "You" : ledger.holderName}
+          </span>
           <span className="loot-meta">
             {/* YOUR side, in the units you are owed. The pile's own numbers moved down to the boxes
                 that take them: leading with one frame and counting in the other is what made "why
                 do I enter 390 when I am owed 195" a question the card kept provoking. */}
             {ledger.holder.kind === "SELF"
-              ? `you hold ${ledger.pieces}`
-              : `${ledger.holderName} owes you ${ledger.owedToYou} pieces · ${ledger.settledToYou} priced · ${toGo} to go`}
+              ? `holding ${ledger.pieces}`
+              : `owes you ${ledger.owedToYou} pieces · ${ledger.settledToYou} priced · ${toGo} to go`}
           </span>
         </span>
         <span className="ledger-tally">

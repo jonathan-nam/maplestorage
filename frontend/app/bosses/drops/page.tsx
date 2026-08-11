@@ -3,7 +3,7 @@
 import { PAGE_WAITING } from "@/components/route-loading";
 import { useAuth } from "@clerk/nextjs";
 import Link from "next/link";
-import { Fragment, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { LogDrop } from "@/components/log-drop";
 import { LotSale } from "@/components/lot-sale";
 import { PieceLedger } from "@/components/piece-ledger";
@@ -13,12 +13,15 @@ import { peek, put } from "@/lib/cache";
 import { type DropSectionKey, dropSections, shownSection } from "@/lib/drop-sections";
 import {
   buildDropLog,
+  byCharacter,
   forCharacter,
   groupDrops,
+  type CharacterFold,
   type DropLine,
   consolidate,
   dropStatusLabel,
   foldNames,
+  foldStatus,
   oneBossBehind,
   type DropEntry,
   type DropGroup,
@@ -666,15 +669,10 @@ function DropRow({
           : null,
       ].filter(Boolean);
 
-  // One status for a fold only when every row agrees. Mixed is said as a count, because "in the
-  // pool" over a line that is half sold would be the wrong half.
-  // Off the row's own reading, not its raw status: a fold of coupon drops that are all already
-  // yours agrees, and saying "in the pool" over it would be the same wrong word one level up.
-  const statuses = [...new Set(line.entries.map(dropStatusLabel))];
-  const status = statuses.length === 1 ? statuses[0]! : `${line.entries.length} rows`;
+  const status = foldStatus(line.entries);
   const unreadable = line.entries.some((e) => e.unreadable);
   const runs = `${line.entries.length} runs`;
-  // A heading per character is only worth the row when there is more than one to tell apart.
+  // A level per character is only worth the chevron when there is more than one to tell apart.
   const heads = showCharacter && new Set(line.entries.map((e) => e.characterId)).size > 1;
   // The fold's own meta names the one boss they all came off, so the runs under it are told apart
   // by date instead of by the same name once per run.
@@ -736,24 +734,97 @@ function DropRow({
 
       {line.folded && open && (
         <ul className="droplog-runs" id={panelId}>
-          {line.entries.map((e, i) => (
-            <Fragment key={e.lootId}>
-              {/* The runs arrive grouped by character, so the name is a heading over each group
-                  rather than a word repeated down the list. Only where it says something: under
-                  the character filter, or a fold that is all one character, the line above has
-                  already named them. */}
-              {heads && e.characterId !== line.entries[i - 1]?.characterId && (
-                <li className="droplog-run-head">
-                  {characterById.get(e.characterId)?.name ?? "Unknown character"}
-                </li>
-              )}
-              <RunRow
-                entry={e}
-                boss={oneBoss ? null : (bossByKey.get(e.bossKey ?? "") ?? null)}
-                characterName={characterById.get(e.characterId)?.name ?? null}
-                showCharacter={showCharacter && !heads}
-              />
-            </Fragment>
+          {/* Whose they are first, and only then which nights. A week of five bosses on six
+              characters is thirty rows, and what is asked of a coupon fold is how many each
+              character got. Skipped where there is one character to tell apart: the line above has
+              already named them, and a chevron onto a single group opens onto itself. */}
+          {heads
+            ? byCharacter(line.entries).map((fold) => (
+                <CharacterRuns
+                  key={fold.characterId}
+                  fold={fold}
+                  name={characterById.get(fold.characterId)?.name ?? "Unknown character"}
+                  panelId={`${panelId}-${fold.characterId}`}
+                  bossByKey={bossByKey}
+                  oneBoss={oneBoss}
+                />
+              ))
+            : line.entries.map((e) => (
+                <RunRow
+                  key={e.lootId}
+                  entry={e}
+                  boss={oneBoss ? null : (bossByKey.get(e.bossKey ?? "") ?? null)}
+                  characterName={characterById.get(e.characterId)?.name ?? null}
+                  showCharacter={showCharacter}
+                />
+              ))}
+        </ul>
+      )}
+    </li>
+  );
+}
+
+/** One character's share of a fold, opening onto the nights it came off. */
+function CharacterRuns({
+  fold,
+  name,
+  panelId,
+  bossByKey,
+  oneBoss,
+}: {
+  fold: CharacterFold;
+  name: string;
+  panelId: string;
+  bossByKey: Map<string, Boss>;
+  /** Every run behind the whole fold came off one boss, so its runs are told apart by date. */
+  oneBoss: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const runs = `${fold.entries.length} runs`;
+
+  return (
+    <li className={`droplog-character${open ? " is-open" : ""}`}>
+      <div className="droplog-character-head">
+        <button
+          type="button"
+          className="party-row-toggle"
+          aria-expanded={open}
+          aria-controls={panelId}
+          onClick={() => setOpen((o) => !o)}
+        >
+          <span className="party-row-chevron" aria-hidden="true" />
+          <span className="visually-hidden">
+            {open ? `Hide ${name}'s ${runs}` : `Show ${name}'s ${runs}`}
+          </span>
+        </button>
+
+        {/* The name links nowhere: these runs are several parties, and picking one of them to be
+            the destination is picking whichever happened to be first. The runs carry the links. */}
+        <span className="loot-name">
+          {name}
+          <span className="loot-count"> x{fold.yours}</span>
+        </span>
+
+        <Amounts
+          label={foldStatus(fold.entries)}
+          statusClass={fold.entries[0]!.status.toLowerCase()}
+          unreadable={fold.entries.some((e) => e.unreadable)}
+          pooled={fold.pooled}
+          yourTake={fold.yourTake}
+        />
+      </div>
+
+      {open && (
+        <ul className="droplog-runs is-nested" id={panelId}>
+          {fold.entries.map((e) => (
+            <RunRow
+              key={e.lootId}
+              entry={e}
+              boss={oneBoss ? null : (bossByKey.get(e.bossKey ?? "") ?? null)}
+              characterName={name}
+              // Named by the row above, so a run under it would be saying it a second time.
+              showCharacter={false}
+            />
           ))}
         </ul>
       )}

@@ -404,7 +404,9 @@ export default function PartiesPage() {
    */
   async function setSkipped(party: Party, skipped: boolean) {
     await write(party.id, async () => {
-      await apiFetch<Party>(
+      // Not typed as a Party: taking a one-off off its period deletes it, and that answers 204 with
+      // no config to send back. The list below is what redraws either way.
+      await apiFetch<unknown>(
         `${PARTIES_KEY}/${party.id}/skip`,
         { method: "PUT", body: JSON.stringify({ skipped } satisfies SetPartySkipBody) },
         getToken,
