@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { runWeeks, weekRuns } from "./week-runs";
+import {
+  countKey,
+  recordedArrangement,
+  runWeeks,
+  stacksBySeat,
+  suggestedArrangement,
+  weekRuns,
+  type WeekRun,
+} from "./week-runs";
 import type { Loot, PartyLootPool } from "@/types/loot";
 import type { Party, PartyMember } from "@/types/party";
 
@@ -196,5 +204,103 @@ describe("one week's nights", () => {
     // And the week it fell in is not offered either. Offered and then empty, the reader lands on a
     // card with nothing on it and no way to tell that from a bug.
     expect(runWeeks(pools, VESTIGE)).toEqual([]);
+  });
+});
+
+describe("what a row says about its stacks", () => {
+  const three = () => [seat("m1", "Husky", true), seat("m2", "Rune"), seat("m3", "Bob")];
+
+  const night = (over: Partial<Loot> = {}, partyOver: Partial<Party> = {}) => {
+    const p = party("pa", "limbo", three(), partyOver);
+    const loot = coupon("l1", "limbo", JULY, {
+      bundles: 3,
+      ranThatWeek: ["m1", "m2", "m3"],
+      ...over,
+    });
+    return weekRuns([p], [pool("pa", [loot])], VESTIGE, JULY, ORDER, BOSSES)[0]!;
+  };
+
+  it("counts PEOPLE, so one person's two characters are not a night that divides", () => {
+    // Nothing to allocate: both stacks are already theirs however they were picked up. Counted as
+    // seats this would read as a duo and offer chips over a debt that cannot exist.
+    const mine = [seat("m1", "Husky", true), seat("m2", "morebuff12", true)];
+    const p = party("pa", "limbo", mine);
+    const loot = coupon("l1", "limbo", JULY, { bundles: 2, ranThatWeek: ["m1", "m2"] });
+    const run = weekRuns([p], [pool("pa", [loot])], VESTIGE, JULY, ORDER, BOSSES)[0]!;
+
+    expect(run.seats).toHaveLength(2);
+    expect(run.holders).toBe(1);
+  });
+
+  it("keeps 'nobody has said' apart from an arrangement that was entered", () => {
+    // What the chips open on turns on this. Empty read as an arrangement would look answered, and
+    // the night would never be offered the looter it actually had.
+    expect(night().recorded).toBeNull();
+    expect(night({ bundlesBy: [{ memberId: "m1", bundles: 3 }] }).recorded).toEqual({ m1: 3 });
+  });
+
+  it("ignores a looter who sat the week out", () => {
+    // Bob loots for this party as a rule, and was not there. Opening the chips on him would put
+    // three stacks in the hands of somebody who was not in the game.
+    expect(
+      night({ ranThatWeek: ["m1", "m2"] }, { looterMemberId: "m3" }).looterMemberId,
+    ).toBeNull();
+    expect(night({}, { looterMemberId: "m3" }).looterMemberId).toBe("m3");
+  });
+});
+
+describe("where the chips open", () => {
+  const seats = [seat("m1", "Husky", true), seat("m2", "Rune"), seat("m3", "Bob")];
+  const run = (over: Partial<WeekRun> = {}): WeekRun => ({
+    lootId: "l1",
+    partyId: "pa",
+    characterId: "char-m1",
+    bossKey: "limbo",
+    weekStart: JULY,
+    quantity: 180,
+    bundles: 3,
+    seats,
+    others: ["Rune", "Bob"],
+    locked: null,
+    holders: 3,
+    recorded: null,
+    looterMemberId: null,
+    ...over,
+  });
+
+  it("shows the arrangement already recorded, so a wrong one can be corrected", () => {
+    // The gap this card exists to close: a night answered once had no control at all, so an
+    // arrangement entered wrongly was permanent.
+    expect(recordedArrangement(run({ recorded: { m1: 2, m2: 1 } }))).toEqual(["m1", "m1", "m2"]);
+  });
+
+  it("reads an arrangement naming somebody the week no longer has as unsaid", () => {
+    // Record the stacks, then edit the week's roster to drop Bob. His stack cannot be drawn against
+    // this roster, and padding it out would hand it to somebody who did not take it.
+    const stale = run({ recorded: { m1: 2, m3: 1 }, seats: seats.slice(0, 2) });
+    expect(recordedArrangement(stale)).toBeNull();
+  });
+
+  it("opens on the agreed looter holding the lot, when nothing is recorded", () => {
+    expect(suggestedArrangement(run({ looterMemberId: "m2" }), new Map())).toEqual([
+      "m2",
+      "m2",
+      "m2",
+    ]);
+  });
+
+  it("otherwise opens balanced, a stack each", () => {
+    expect(suggestedArrangement(run(), new Map())).toEqual(["m1", "m2", "m3"]);
+  });
+
+  it("compares two arrangements by seat, not by the order the chips sit in", () => {
+    // Cycling a chip and putting it back must not leave Save lit. Compared as objects this turned
+    // on key insertion order, which cycling changes.
+    expect(countKey(["m1", "m2", "m1"])).toBe(countKey(["m1", "m1", "m2"]));
+    expect(countKey(["m1", "m2", "m1"])).not.toBe(countKey(["m1", "m2", "m2"]));
+  });
+
+  it("leaves a seat with no stacks out, rather than sending a zero the server refuses", () => {
+    expect(Object.fromEntries(stacksBySeat(["m1", "m1", "m2"]))).toEqual({ m1: 2, m2: 1 });
   });
 });
