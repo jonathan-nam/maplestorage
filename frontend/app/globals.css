@@ -3794,10 +3794,12 @@ button.link:disabled {
 }
 
 /* On a row's heading rather than in a chip, where there is height to spare. A chip is a word with a
-   face on it and stays at 24; a heading is where you are actually looking for the character. */
+   face on it and stays at 24; a heading is where you are actually looking for the character, so it
+   gets the whole 96px render at 1:1, the size the banner and the roster strip draw. Both places
+   that use this are Party View's headings, and a column of them lines up by the feet. */
 .seat-sprite.is-large {
-  width: 48px;
-  height: 48px;
+  width: 96px;
+  height: 96px;
 }
 
 .party-seat-chip {
@@ -4485,9 +4487,12 @@ button.link:disabled {
 }
 
 /* Right of everything on the same line, which is the point: the eye runs down one column of
-   states rather than hunting for them under each row. */
+   states rather than hunting for them under each row.
+   Centred, against .party-clear's own flex-start: the by-boss list draws the character at the full
+   96px, and a pill pinned to the top of a row that tall sits above the name it answers for. */
 .party-row-head .party-clear {
   margin-left: auto;
+  align-self: center;
 }
 
 .party-row .roster-strip {
