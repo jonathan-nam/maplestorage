@@ -1,5 +1,6 @@
 package com.maplestorage.backend.parties
 
+import com.maplestorage.backend.bosses.periodAfter
 import com.maplestorage.backend.bosses.periodOf
 import com.maplestorage.backend.bosses.periodStartFor
 import com.maplestorage.backend.db.BossClear
@@ -14,7 +15,9 @@ import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.core.greaterEq
 import org.jetbrains.exposed.v1.core.inList
+import org.jetbrains.exposed.v1.core.less
 import org.jetbrains.exposed.v1.jdbc.deleteWhere
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
@@ -229,6 +232,43 @@ internal fun retireOrDeleteParty(
             Removal.RETIRED
         }
     }
+
+/**
+ * Takes a one-off's night back: its drops for [period], and the config once nothing points at it.
+ *
+ * The inverse of the rule above, because a one-off is a night rather than an arrangement. Taking it
+ * off its period says the night did not happen, and a pool for a night that did not happen is a
+ * count nobody can trace: the Sale Ledger reads pools without the run marks, so 60 coupons sat under
+ * a Hard Limbo that was gone from every page which could have explained them.
+ *
+ * EVERYTHING the period holds, not only what a clear filed, and a sold row is not spared. Deleting a
+ * drop one at a time already takes its payouts and its bundles with it (see deleteLoot), so this is
+ * that button applied to the night rather than a new way to lose a settled split.
+ *
+ * One way. Arming the config again gives an empty pool to type into, because nothing here can know
+ * which of the drops that were there fell on the night being put back.
+ *
+ * Returns true when the config went too, which is retireOrDeleteParty's rule unchanged: a row
+ * nothing points at is deleted. Earlier periods keep it alive, since running the same boss again
+ * arms the config it already has rather than making a second one.
+ *
+ * A standing party never reaches here. See setSkipRoute, which is the only caller.
+ */
+internal fun retractNight(
+    partyId: Uuid,
+    reset: String,
+    period: LocalDate,
+): Boolean {
+    val nextPeriod = periodAfter(reset, period)
+    PartyLoot.deleteWhere {
+        (PartyLoot.partyId eq partyId) and
+            (PartyLoot.droppedOn greaterEq period) and
+            (PartyLoot.droppedOn less nextPeriod)
+    }
+    if (!PartyLoot.selectAll().where { PartyLoot.partyId eq partyId }.empty()) return false
+    Party.deleteWhere { Party.id eq partyId }
+    return true
+}
 
 /**
  * Writes the USUAL seats, YOUR character first.
