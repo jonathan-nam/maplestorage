@@ -42,6 +42,7 @@ import kotlin.uuid.Uuid
  * appear rather than a wrong row:
  *
  *  - no config for the pair, so there is no pool to file into
+ *  - a RETIRED config, whose pool is history rather than a party still running
  *  - no difficulty recorded, so which amount applies is unknown
  *  - no amount for that boss and difficulty, which is most of them
  *  - a row already there for this period, so re-ticking a clear does not stack up three of them
@@ -56,15 +57,20 @@ internal fun lootFromClear(
     // One expression rather than a chain of early returns: each of these is the same answer, that
     // there is nothing this clear can be sure of.
     val partyId = partyIdFor(characterId, bossCatalogId)
-    val difficulty =
+    val config =
         partyId?.let {
             Party
                 .selectAll()
                 .where { Party.id eq it }
                 .firstOrNull()
-                ?.get(Party.difficulty)
         }
-    if (partyId == null || difficulty == null) return
+    val difficulty = config?.get(Party.difficulty)
+    // Deleting a config that has drops retires it and keeps the pool, so the history survives (see
+    // retireOrDeleteParty). History is not a party still running, and filing into one put 120
+    // coupons in a deleted party's pool nine days after it went, split with a guest who was not
+    // there. Nothing says where it came from either: the config is off Party View by then.
+    val standing = config?.get(Party.standing) == true
+    if (partyId == null || difficulty == null || !standing) return
 
     val period = periodOf(reset, on)
     val nextPeriod = periodAfter(reset, period)
@@ -113,6 +119,9 @@ private fun alreadyFiled(
  * Only rows the app added itself (from_clear), and only while they are untouched: a row that has
  * been sold is money somebody is owed, and un-ticking a clear is not a statement about that. A row a
  * human logged is left alone whatever the clear says, because they saw it fall.
+ *
+ * A retired config is NOT skipped here, unlike lootFromClear: rows filed into one before that rule
+ * existed still have to be removable by the tick that put them there.
  */
 internal fun unlootFromClear(
     characterId: Uuid,
