@@ -334,38 +334,44 @@ export function PartyCard({
           ) : (
             <div className="party-row-roster">
               {others.length > 0 && <RosterStrip members={others} />}
-              {onSaveRoster && (
-                <button
-                  type="button"
-                  className="party-cancel"
-                  onClick={() => {
-                    setDraft(saved.length > 0 ? saved : [""]);
-                    setEditing(true);
-                    setSaveError(null);
-                  }}
-                >
-                  Edit
-                </button>
-              )}
-              {/* Behind the disclosure rather than in the header, which already holds the clear
+              {/* The panel's corner, not the end of the roster. Both act on the row, and sitting
+                  them after the last sprite read as being about that character. Behind the
+                  disclosure either way, rather than in the header, which already holds the clear
                   button: the one control pressed every week should not sit beside the one that
                   takes the row off the page. */}
-              {onTakeOff && (
-                <button
-                  type="button"
-                  className="party-delete"
-                  disabled={busy}
-                  onClick={async () => {
-                    setOffError(null);
-                    try {
-                      await onTakeOff();
-                    } catch {
-                      setOffError("That didn't save.");
-                    }
-                  }}
-                >
-                  Delete
-                </button>
+              {(onSaveRoster || onTakeOff) && (
+                <div className="party-row-actions">
+                  {onSaveRoster && (
+                    <button
+                      type="button"
+                      className="party-cancel"
+                      onClick={() => {
+                        setDraft(saved.length > 0 ? saved : [""]);
+                        setEditing(true);
+                        setSaveError(null);
+                      }}
+                    >
+                      Edit
+                    </button>
+                  )}
+                  {onTakeOff && (
+                    <button
+                      type="button"
+                      className="party-delete"
+                      disabled={busy}
+                      onClick={async () => {
+                        setOffError(null);
+                        try {
+                          await onTakeOff();
+                        } catch {
+                          setOffError("That didn't save.");
+                        }
+                      }}
+                    >
+                      Delete
+                    </button>
+                  )}
+                </div>
               )}
             </div>
           )}
