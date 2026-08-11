@@ -5,7 +5,9 @@ import { Fragment } from "react";
 
 import { LootRow } from "@/components/loot-row";
 import { StackAssign } from "@/components/stack-assign";
+import { StackPickup } from "@/components/stack-pickup";
 import { isPieceDrop, type PieceStatus } from "@/lib/drop-log";
+import type { StackDrop } from "@/lib/vestige-pickup";
 import type { ShareConfig } from "@/lib/vestige-stacks";
 import type { Loot, SellLootBody } from "@/types/loot";
 import type { Boss } from "@/types/boss";
@@ -26,6 +28,17 @@ export type StackAssignment = {
   config: ShareConfig;
   /** The new ratio, by seat id. */
   onSave: (shares: Map<string, number>) => Promise<void>;
+  /**
+   * What actually got picked up, per night, for the drops that can still be said.
+   *
+   * A different fact from the config above it: that is the deal, this is what happened, and the debt
+   * is the gap. Keyed by loot id, because it belongs to one drop and the config belongs to the party.
+   */
+  pickup: {
+    drops: StackDrop[];
+    behind: Map<string, number>;
+    onSave: (lootId: string, bundles: Record<string, number>) => Promise<void>;
+  };
 };
 
 // The rows of a pool, split into what sells and what settles in coupons. Carried by the party's own
@@ -196,6 +209,8 @@ function LootGroup({
       )}
       <div className="loot-list">
         {rows.map((item) => {
+          // The night this row is, when it can still be said who took what.
+          const night = stacks?.pickup.drops.find((d) => d.lootId === item.id);
           return (
             <Fragment key={item.id}>
               <LootRow
@@ -212,6 +227,18 @@ function LootGroup({
                 onSetPaid={(memberId, paid) => onSetPaid(item.id, memberId, paid)}
                 onDelete={() => onDelete(item.id)}
               />
+              {night && stacks && (
+                <div className="config-vestige">
+                  <StackPickup
+                    drop={night}
+                    party={party}
+                    behind={stacks.pickup.behind}
+                    editing={editing ?? false}
+                    busy={busy ?? false}
+                    onSave={stacks.pickup.onSave}
+                  />
+                </div>
+              )}
             </Fragment>
           );
         })}

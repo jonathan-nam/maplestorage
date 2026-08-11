@@ -17,6 +17,7 @@ import { peek, put } from "@/lib/cache";
 import { buildDropLog, couponsOwedByParty, pieceStatusByParty } from "@/lib/drop-log";
 import { dropsInWeek } from "@/lib/loot";
 import { closedByHolder, outstanding, runningBalance, stillOpen } from "@/lib/vestige-ledger";
+import { assignableDrops } from "@/lib/vestige-pickup";
 import { shareConfig } from "@/lib/vestige-stacks";
 import {
   byBoss,
@@ -557,6 +558,21 @@ export default function PartiesPage() {
       title: "Vestige of Erion Config",
       config,
       onSave: (shares: Map<string, number>) => saveShares(party, shares),
+      // What actually got picked up, per night. Off the rows the panel is already showing, so the
+      // boxes cannot cover a different set of drops from the ones above them.
+      pickup: {
+        drops: assignableDrops(
+          party,
+          dropsInWeek(lootByParty.get(party.id) ?? [], view?.currentWeekStart ?? null).shown,
+          VESTIGE,
+        ),
+        behind,
+        onSave: (lootId: string, bundles: Record<string, number>) =>
+          writeDrop(party, lootId, "/bundles", {
+            method: "PUT",
+            body: JSON.stringify({ bundles }),
+          }),
+      },
     };
   };
 
