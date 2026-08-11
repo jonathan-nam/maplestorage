@@ -4,12 +4,10 @@ import { PAGE_WAITING } from "@/components/route-loading";
 import { useAuth } from "@clerk/nextjs";
 import Link from "next/link";
 import { Fragment, useEffect, useState } from "react";
-import { KnownCharacters } from "@/components/known-characters";
 import { LogDrop } from "@/components/log-drop";
 import { LotSale } from "@/components/lot-sale";
 import { PieceLedger } from "@/components/piece-ledger";
-import { UnansweredNights } from "@/components/unanswered-nights";
-import { WeekRuns } from "@/components/week-runs";
+import { StackArrangement } from "@/components/stack-arrangement";
 import { ApiError, apiAssetUrl, apiFetch } from "@/lib/api";
 import { peek, put } from "@/lib/cache";
 import { type DropSectionKey, dropSections, shownSection } from "@/lib/drop-sections";
@@ -47,14 +45,12 @@ import {
   salesByHolder,
   unanswered,
 } from "@/lib/vestige-ledger";
-import { type WeekRun, runWeeks, weekRuns } from "@/lib/week-runs";
-import { knownCharacterNames } from "@/lib/parties";
 import { showsMoney } from "@/lib/world";
 import type { Boss } from "@/types/boss";
 import type { Character } from "@/types/character";
 import type { DropTables } from "@/types/drop";
 import type { Loot, LogDropBody, PartyLootPool } from "@/types/loot";
-import type { Party, Person } from "@/types/party";
+import type { Party } from "@/types/party";
 import type { VestigePayment, VestigeSettlement, VestigeTranche } from "@/types/vestige";
 
 // The history of what dropped, and what it made, and where a drop is logged. Every meso is
@@ -70,9 +66,6 @@ const POOLS_KEY = "/api/parties/loot";
 const BOSSES_KEY = "/api/bosses";
 const DROPS_KEY = "/api/bosses/drops";
 const CHARACTERS_KEY = "/api/characters";
-// For the name datalist only. Seats are matched to existing rows BY NAME, so a spelling that misses
-// abandons a seat and makes another; the list is what keeps that from happening. See RosterInputs.
-const PEOPLE_KEY = "/api/people";
 const TRANCHES_KEY = "/api/vestige-tranches";
 const PAYMENTS_KEY = "/api/vestige-payments";
 const SETTLEMENTS_KEY = "/api/vestige-settlements";
@@ -94,7 +87,6 @@ export default function DropLogPage() {
   const [characters, setCharacters] = useState<Character[]>(
     peek<Character[]>(CHARACTERS_KEY) ?? [],
   );
-  const [people, setPeople] = useState<Person[]>(peek<Person[]>(PEOPLE_KEY) ?? []);
   const [tranches, setTranches] = useState<VestigeTranche[]>([]);
   const [payments, setPayments] = useState<VestigePayment[]>([]);
   const [settlements, setSettlements] = useState<VestigeSettlement[]>([]);
@@ -108,10 +100,6 @@ export default function DropLogPage() {
   const [character, setCharacter] = useState<string | null>(null);
   const [grouping, setGrouping] = useState<Grouping>("month");
   const [section, setSection] = useState<DropSectionKey>("drops");
-  // Null is the newest week that dropped one, which is where the sheet opens. Held as a choice
-  // rather than resolved on load: the newest week moves when a drop is logged, and a reader part
-  // way through filling in last week should not be stepped off it.
-  const [week, setWeek] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -145,18 +133,15 @@ export default function DropLogPage() {
           // the picker needs whichever boss is chosen next.
           apiFetch<DropTables>(DROPS_KEY, { method: "GET" }, withToken),
           apiFetch<Character[]>(CHARACTERS_KEY, { method: "GET" }, withToken),
-          apiFetch<Person[]>(PEOPLE_KEY, { method: "GET" }, withToken),
         ]);
       })
-      .then(([, bossResult, dropResult, characterResult, peopleResult]) => {
+      .then(([, bossResult, dropResult, characterResult]) => {
         setBosses(bossResult);
         setDropTables(dropResult);
         setCharacters(characterResult);
-        setPeople(peopleResult);
         put(BOSSES_KEY, bossResult);
         put(DROPS_KEY, dropResult);
         put(CHARACTERS_KEY, characterResult);
-        put(PEOPLE_KEY, peopleResult);
         setState("loaded");
       })
       // The pools are never cached, so there is nothing to fall back to.
@@ -264,43 +249,16 @@ export default function DropLogPage() {
    * arrangement turns a drop nobody could be paid for into one that owes somebody, and every other
    * boss in that holder's queue is re-priced behind it.
    */
-  async function saveStacks(run: WeekRun, bundles: Record<string, number>) {
+  async function bundlesWrite(partyId: string, lootId: string, bundles: Record<string, number>) {
     setBusy(true);
     try {
       await apiFetch<Loot>(
-        `/api/parties/${run.partyId}/loot/${run.lootId}/bundles`,
+        `/api/parties/${partyId}/loot/${lootId}/bundles`,
         { method: "PUT", body: JSON.stringify({ bundles }) },
         getToken,
       );
       setPools(await apiFetch<PartyLootPool[]>(POOLS_KEY, {}, getToken));
     } catch (e) {
-      throw new Error(e instanceof ApiError ? e.body : "That didn't save.");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  /**
-   * Says who ran one Grandis night.
-   *
-   * One request, whether or not the pool was opened for a boss run alone: the route makes it a
-   * party of one and names the week's guests in the same transaction, because the two coming apart
-   * would leave a config that is no longer solo with nobody in it. See openSoloParty.
-   *
-   * Both lists back, not just the pools: a new name becomes a seat, and the names this card draws
-   * come off `party.seats` through the drop's own `ranThatWeek`.
-   */
-  async function saveRun(run: WeekRun, members: string[]) {
-    setBusy(true);
-    try {
-      await apiFetch<Party>(
-        `/api/parties/${run.partyId}/roster`,
-        { method: "PUT", body: JSON.stringify({ week: run.weekStart, members }) },
-        getToken,
-      );
-      await load();
-    } catch (e) {
-      // Thrown on rather than shown on the page's error line, which is a tab away from this card.
       throw new Error(e instanceof ApiError ? e.body : "That didn't save.");
     } finally {
       setBusy(false);
@@ -345,14 +303,6 @@ export default function DropLogPage() {
   // Nights that did not divide and that nobody has said the arrangement for. Above the ledger,
   // because until one is answered its pieces are missing from every figure below it.
   const open = unanswered(parties, pools, VESTIGE);
-  // The week sheet: who ran each Grandis night. The chosen week while it still has a drop in it,
-  // else the newest, the same guard shownSection makes for a tab that stops existing.
-  const weeks = runWeeks(pools, VESTIGE);
-  const shownWeek = (week !== null && weeks.includes(week) ? week : weeks[0]) ?? "";
-  const runs = weekRuns(parties, pools, VESTIGE, shownWeek, characterOrder, bossOrder);
-  // Off the unanswered list rather than worked out again: the size of a night's imbalance has one
-  // implementation, and a second would be a second answer to it.
-  const misplaced = new Map(open.map((drop) => [drop.lootId, drop.imbalance]));
   // Only the drops still open tilt the rotation: a debt that has been closed was compensated, so it
   // has no business suggesting against the same person forever. See V52.
   const behind = runningBalance(stillOpen(settled, closures.closed));
@@ -383,7 +333,6 @@ export default function DropLogPage() {
   // read, so they stay on one page: a drop and the sale that prices it are the same evening's work.
   // See lib/drop-sections.ts for why the chosen tab is not drawn straight from state.
   const sections = dropSections({
-    runs: weeks.length,
     unanswered: open.length,
     holders: ledgers.length,
     lots: money ? lots.length : 0,
@@ -393,9 +342,6 @@ export default function DropLogPage() {
   return (
     <main className={state === "loading" ? PAGE_WAITING : "page"}>
       <h1 className="page-title">Drop Log</h1>
-
-      {/* Once for the page, for every name box the week sheet draws. */}
-      <KnownCharacters names={knownCharacterNames(characters, people, parties)} />
 
       {state === "error" && <p>Couldn&apos;t load your drops.</p>}
       {state === "loading" && <p className="party-hint">Loading...</p>}
@@ -610,33 +556,19 @@ export default function DropLogPage() {
                 </section>
               )}
 
-              {/* The one real boundary on this tab: every card above takes a sale, and neither of
-                  these can be acted on for money at all. The sheet is where a night is said, both
-                  halves of it; the prompt under it names the nights still owed an answer, across
-                  every week rather than the one on screen. */}
-              <WeekRuns
-                runs={runs}
-                weeks={weeks}
-                week={shownWeek}
-                onWeek={setWeek}
-                bossByKey={bossByKey}
-                characterById={characterById}
-                partyById={partyById}
-                behind={behind}
-                misplaced={misplaced}
-                iconUrl={vestigeIcon}
-                busy={busy}
-                onSave={saveRun}
-                onSaveStacks={saveStacks}
-              />
-
-              <UnansweredNights
+              {/* Last, and the one real boundary on this tab: every card above takes a sale, and this
+                  one cannot be acted on for money at all. It names the nights whose arrangement
+                  nobody has said, and nothing about them can be priced until somebody does. Still on
+                  screen, because a drop that owes somebody and cannot say who is exactly what must
+                  not be quietly dropped. */}
+              <StackArrangement
                 drops={open}
                 partyById={partyById}
                 bossByKey={bossByKey}
+                behind={behind}
                 iconUrl={vestigeIcon}
                 busy={busy}
-                onGoToWeek={setWeek}
+                onSave={bundlesWrite}
               />
             </>
           )}
