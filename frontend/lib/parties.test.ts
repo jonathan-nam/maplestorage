@@ -13,6 +13,7 @@ import {
   otherMembers,
   partySizeLabel,
   runningThisPeriod,
+  standingMembers,
   standingParties,
 } from "./parties";
 import type { Boss } from "@/types/boss";
@@ -65,6 +66,27 @@ describe("otherMembers", () => {
   it("leaves your own character out, because the config already is that character", () => {
     const party = config("p1", "char-1", "limbo", ["CreedBratton"]);
     expect(otherMembers(party).map((m) => m.name)).toEqual(["CreedBratton"]);
+  });
+});
+
+describe("standingMembers", () => {
+  /** A week that ran with Dwight in Creed's place, the party itself unchanged. */
+  const guestWeek = (): Party => {
+    const party = config("p1", "char-1", "limbo", ["CreedBratton"]);
+    const dwight = { ...seat("Dwight"), guest: true };
+    return {
+      ...party,
+      members: [seat("mine", "char-1"), dwight],
+      seats: [...party.seats, dwight],
+      usualRoster: false,
+    };
+  };
+
+  it("is the party, not the week being shown", () => {
+    // What the config editor prefills from. Reading the week instead would offer Dwight as a
+    // standing member and drop Creed, on a save that was only meant to change the difficulty.
+    expect(standingMembers(guestWeek()).map((m) => m.name)).toEqual(["CreedBratton"]);
+    expect(otherMembers(guestWeek()).map((m) => m.name)).toEqual(["Dwight"]);
   });
 });
 

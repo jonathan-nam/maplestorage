@@ -84,12 +84,14 @@ export function LootRow({
   const ran = party.seats.filter((m) => loot.ranThatWeek.includes(m.id));
   const [sellerMemberId, setSellerMemberId] = useState(ran[0]?.id ?? "");
   const [selling, setSelling] = useState(false);
-  // Seeded from each seat's standing weight, so a party where somebody always carries needs no
-  // typing, and a one-off arrangement is one box away. What is saved is this, not the standing
+  // Seeded from each seat's weight in the week this drop FELL in, falling back to the standing one
+  // for the weeks that named no deal of their own. A party where somebody always carries needs no
+  // typing, and a one-off arrangement is one box away. What is saved is this, not either stored
   // value, so a sale keeps the shares it was actually split on.
   const [shares, setShares] = useState<Record<string, string>>({});
   const shareOf = (memberId: string) =>
-    shares[memberId] ?? String(ran.find((m) => m.id === memberId)?.shares ?? 1);
+    shares[memberId] ??
+    String(loot.sharesThatWeek?.[memberId] ?? ran.find((m) => m.id === memberId)?.shares ?? 1);
   const entered = ran.map((m) => parseShares(shareOf(m.id)));
   const sharesReadable = entered.every((count) => count !== null);
   // A member buying it off the party is the same shape as a sale: they hold the value and owe

@@ -274,8 +274,8 @@ export function ranSeats(loot: Loot, party: Party): PartyMember[] {
   const ran = party.seats.filter((seat) => loot.ranThatWeek.includes(seat.id));
   // On the share that was in force THAT WEEK, not the one the party is on now. A deal agreed today
   // must not re-divide a drop from a week somebody has already been shown a figure for, which is
-  // what pinSharesBefore froze and this is what reads it. Absent is the standing share, which is
-  // every week nobody has changed the deal behind, and every row written before V55.
+  // what pinWeeksAlreadyWritten froze and this is what reads it. Absent is the standing share,
+  // which is every week nobody has changed the deal behind, and every row written before V55.
   const shares = loot.sharesThatWeek ?? {};
   return (ran.length > 0 ? ran : party.members).map((seat) =>
     seat.id in shares ? { ...seat, shares: shares[seat.id]! } : seat,

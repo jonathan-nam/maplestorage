@@ -155,6 +155,20 @@ describe("the queue a lot is drawn from", () => {
     expect(queue[0]?.shares).toEqual({ m1: 1, m2: 2 });
   });
 
+  it("carries the week's own deal over the standing one", () => {
+    // The week was split evenly and the party has since agreed Rune carries. A config edit freezes
+    // the weeks already written into, so seeding this row from the standing weight would sell an
+    // old night on a deal nobody had made when it fell.
+    const carried = [seat("m1", "Husky", { mine: true }), seat("m2", "Rune", { shares: 2 })];
+    const queue = lotQueue(
+      [party("p1", "limbo", carried)],
+      [pool("p1", [drop("l1", STONE, "2026-07-30", ["m1", "m2"], { sharesThatWeek: { m2: 1 } })])],
+      STONE,
+      SELF_KEY,
+    );
+    expect(queue[0]?.shares).toEqual({ m1: 1, m2: 1 });
+  });
+
   it("leaves out a row that has already sold", () => {
     const sold = [
       pool("p1", [drop("l1", STONE, "2026-07-30", ["m1"], { soldAt: "2026-08-01T00:00:00Z" })]),

@@ -323,11 +323,12 @@ export default function PartiesPage() {
   }
 
   /**
-   * Changes how this party splits its coupons, from this week on.
+   * Changes how this party splits its coupons, from the next week nobody has written into.
    *
    * Through the party's own save, which is the one route that writes a standing share, so the
-   * server pins every earlier week that already dropped something before the new value lands. See
-   * pinSharesBefore: without it, a new deal re-divides July's outstanding coupons and tells nobody.
+   * server pins every week that has already dropped or cleared something before the new value
+   * lands. See pinWeeksAlreadyWritten: without it, a new deal re-divides July's outstanding coupons
+   * and tells nobody.
    *
    * Keyed by NAME because that is what SavePartyBody takes, and it carries the party's existing
    * difficulty, minutes and looter: the route writes all of them, so sending the shares alone would
@@ -547,7 +548,7 @@ export default function PartiesPage() {
    * ran it.
    *
    * The live view only, the same rule the pool and the roster follow. A past week is shown and not
-   * edited, and its share is now pinned anyway: see pinSharesBefore.
+   * edited, and its share is now pinned anyway: see pinWeeksAlreadyWritten.
    */
   const stacksFor = (party: Party) => {
     if (history) return undefined;

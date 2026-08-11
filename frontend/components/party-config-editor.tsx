@@ -6,7 +6,7 @@ import { KNOWN_CHARACTERS_ID, KnownCharacters } from "@/components/known-charact
 import { RosterInputs } from "@/components/roster-inputs";
 import { apiAssetUrl } from "@/lib/api";
 import { MAX_MINUTES, parseMinutes } from "@/lib/boss-minutes";
-import { bossesWithoutConfig, otherMembers, standingParties } from "@/lib/parties";
+import { bossesWithoutConfig, standingMembers, standingParties } from "@/lib/parties";
 import { parseShares, sharesKey } from "@/lib/shares";
 import { suggestArrangement } from "@/lib/vestige-ledger";
 import type { Boss } from "@/types/boss";
@@ -279,11 +279,13 @@ function ConfigRow({
   onDelete: () => void;
   onPutBack: () => void;
 }) {
-  const saved = otherMembers(party).map((m) => m.name);
+  // The party itself, not the week being shown: a week already written into keeps the roster it
+  // ran, so editing off that one would promote its guest and drop the member who sat it out.
+  const saved = standingMembers(party).map((m) => m.name);
   const savedDifficulty = party.difficulty ?? "";
   const savedMinutes = party.minutes === null ? "" : String(party.minutes);
   // Your own character's seat, which the roster inputs leave out because it IS the config.
-  const ownName = party.members.find((m) => m.characterId === party.characterId)?.name ?? "";
+  const ownName = party.seats.find((s) => s.characterId === party.characterId)?.name ?? "";
   // The seat that loots, held as a NAME: it is what the save sends, and it survives the seat being
   // renamed in the same edit.
   const savedLooter = party.seats.find((s) => s.id === party.looterMemberId)?.name ?? "";
@@ -294,7 +296,7 @@ function ConfigRow({
   // What each seat takes, by name, as typed. Keyed by name for the same reason the looter is: it
   // is what the save sends, and it survives a seat being renamed in this same edit.
   const savedShares = Object.fromEntries(
-    party.seats.filter((s) => s.shares !== 1).map((s) => [s.name, String(s.shares)]),
+    party.seats.filter((s) => !s.guest && s.shares !== 1).map((s) => [s.name, String(s.shares)]),
   );
   const [shares, setShares] = useState<Record<string, string>>(savedShares);
   const [uneven, setUneven] = useState(Object.keys(savedShares).length > 0);
@@ -308,7 +310,7 @@ function ConfigRow({
   // The roster as it is being edited, not as it was saved, so somebody added in this same edit can
   // be picked and a renamed seat keeps whatever it was designated for.
   const rosterNames = [ownName, ...members.map((m) => m.trim())].filter((name) => name !== "");
-  const attributed = otherMembers(party).filter((m) => m.personName);
+  const attributed = standingMembers(party).filter((m) => m.personName);
   const badShares = rosterNames.some((name) => parseShares(shares[name] ?? "") === null);
 
   /**
