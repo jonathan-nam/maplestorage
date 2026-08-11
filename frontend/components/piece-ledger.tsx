@@ -6,6 +6,7 @@ import { apiAssetUrl } from "@/lib/api";
 import { formatWeekStart } from "@/lib/boss-clears";
 import { bossLabel } from "@/lib/boss-difficulty";
 import { formatMesos, parseMesos, shortMesos } from "@/lib/drop-split";
+import { FATES, type Fate, roomFor } from "@/lib/ledger-fates";
 import { transferKey } from "@/lib/piece-ledger";
 import { type Holder, type HolderLedger, holderKey, unaccounted } from "@/lib/vestige-ledger";
 import type { Boss } from "@/types/boss";
@@ -28,12 +29,19 @@ import type { VestigeTranche } from "@/types/vestige";
 const MAX_PIECES = 1_000_000;
 
 /**
- * What became of a count of pieces. The three dispositions V50 stores, as the picker offers them.
+ * What the picker calls each fate, on somebody else's card and on your own.
  *
  * One control rather than three boxes, because it is one row: they are mutually exclusive fates for
  * the same pieces, and asking all three at once asked four questions when there is only ever one.
+ *
+ * Two wordings because the card is drawn for a pile you are looking at and for one you are holding,
+ * and "they took mine" on your own pile says the opposite of what it would mean.
  */
-type Fate = "SOLD" | "KEPT" | "BOUGHT";
+const LABELS: Record<Fate, { theirs: string; yours: string }> = {
+  SOLD: { theirs: "they sold, on the market", yours: "I sold, on the market" },
+  KEPT: { theirs: "they kept, their own share", yours: "I kept, my own share" },
+  BOUGHT: { theirs: "they took mine, at a price", yours: "I took theirs, at a price" },
+};
 
 export function PieceLedger({
   ledgers,
@@ -116,26 +124,7 @@ function HolderCard({
   const overEntered = Math.max(0, ledger.accounted - ledger.pieces);
   const toEnter = unaccounted(ledger);
 
-  /**
-   * How many pieces this fate has room for.
-   *
-   * A redemption stops at the holder's OWN share and a purchase at what is left of yours, because the
-   * pieces past their share are not theirs to redeem. Bounding the redemption is only safe because the
-   * purchase exists to take what it turns away: clamping with nowhere for the surplus to go would
-   * record 195 of a 250 that really happened and leave 55 of your pieces waiting on a sale that is not
-   * coming. See V50.
-   *
-   * A sale is bounded only by what is unaccounted for. It is not a claim about whose pieces they were,
-   * so there is no share to measure it against.
-   *
-   * Rows already entered count against all three, so three of them cannot walk past what one cannot.
-   */
-  const room =
-    fate === "KEPT"
-      ? Math.min(toEnter, Math.max(0, ledger.ownShare - ledger.kept))
-      : fate === "BOUGHT"
-        ? Math.min(toEnter, Math.max(0, ledger.pieces - ledger.ownShare - ledger.bought.pieces))
-        : toEnter;
+  const room = roomFor(ledger, fate);
 
   /** Caps as it is typed, so a number over the room never reaches the button. */
   const clamp = (typed: string, cap: number) => {
@@ -262,11 +251,14 @@ function HolderCard({
               aria-label="What happened to those pieces"
               disabled={busy}
             >
-              <option value="SOLD">they sold, on the market</option>
-              <option value="KEPT">they kept, their own share</option>
-              {ledger.holder.kind !== "SELF" && (
-                <option value="BOUGHT">they took mine, at a price</option>
-              )}
+              {/* All three on every card. BOUGHT was hidden on your own, which read as "you cannot
+                  buy your own coupons" and meant "the pieces in your pile that are somebody else's
+                  can only be sold": a pile you meant to keep never reached all-accounted-for. */}
+              {FATES.map((f) => (
+                <option key={f} value={f}>
+                  {ledger.holder.kind === "SELF" ? LABELS[f].yours : LABELS[f].theirs}
+                </option>
+              ))}
             </select>
             {/* A redemption realized nothing, so it has no price to give. Entered as a sale for zero
                 it would price those pieces at nothing and make the creditor absorb half of it. */}
