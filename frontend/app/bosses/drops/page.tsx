@@ -36,6 +36,7 @@ import { useAccountSettings } from "@/lib/use-account-settings";
 import {
   type Holder,
   SELF_KEY,
+  alsoHeldByYou,
   boughtByHolder,
   holderKey,
   holderLedgers,
@@ -295,8 +296,10 @@ export default function DropLogPage() {
   // never swap places in the queue and re-price each other.
   const bossOrder = new Map(bosses.map((b, i) => [b.bossKey, i]));
   const settled = outstanding(parties, pools, VESTIGE, bossOrder);
+  // Your own coupons from the nights that owed nobody anything, which the queue above leaves out.
+  // They are yours to sell, so the card that takes a sale has to know you are holding them.
   const ledgers = holderLedgers(
-    settled,
+    [...settled, ...alsoHeldByYou(parties, pools, VESTIGE, bossOrder, settled)],
     salesByHolder(tranches),
     keptByHolder(tranches),
     boughtByHolder(tranches),

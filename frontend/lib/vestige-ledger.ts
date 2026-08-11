@@ -595,6 +595,84 @@ export function outstanding(
 }
 
 /**
+ * The coupons of yours that `outstanding()` leaves out, as pile rows of your own.
+ *
+ * That one queues DEBTS, so it drops two kinds of night on purpose: one everybody landed square on,
+ * and a boss you ran alone. Nobody owes anything on either, so there is nothing to settle.
+ *
+ * Those coupons are still in your inventory and still sell. A Sale Ledger that will not admit you
+ * hold them cannot take the sale, and it does not say so: it counted 80 against the 200 really
+ * held, because a Jupiter stack that divided three ways and a Malefic Star that divided two both
+ * came out square. Only YOUR piles, because a pile you cannot sell from needs no row here.
+ *
+ * Kept apart from `outstanding` rather than folded into it: the wallet and the party list read that
+ * one for what is OWED, and a balanced night owes nothing. Widening it would put a row with no debt
+ * into both.
+ */
+export function alsoHeldByYou(
+  parties: Party[],
+  pools: PartyLootPool[],
+  dropKey: string,
+  bossOrder: Map<string, number>,
+  queued: OutstandingDrop[],
+): OutstandingDrop[] {
+  const already = new Set(
+    queued.filter((d) => holderKey(d.holder) === SELF_KEY).map((d) => d.lootId),
+  );
+  const partyById = new Map(parties.map((p) => [p.id, p]));
+  const out: OutstandingDrop[] = [];
+
+  for (const pool of pools) {
+    const party = partyById.get(pool.partyId);
+    if (!party) continue;
+
+    for (const loot of pool.loot) {
+      if (loot.dropKey !== dropKey || loot.quantity < 1) continue;
+      if (already.has(loot.id)) continue;
+
+      const ran = ranSeats(loot, party);
+      const holders = foldSeats(ran);
+      const mine = holders.find((h) => h.key === SELF_KEY);
+      if (!mine) continue;
+
+      // Nobody else was there, so every piece that fell is yours and there is no arrangement to
+      // read. `heldByHolder` cannot answer this one: it divides by the holders' weight, and a lone
+      // holder never reaches that branch because `holdersOf` refuses a night of fewer than two.
+      const held =
+        holders.length === 1
+          ? new Map([[SELF_KEY, { pieces: loot.quantity, by: ran[0]?.name ?? mine.name }]])
+          : heldByHolder(loot, party, holders);
+      if (held === null) continue;
+      const pile = held.get(SELF_KEY);
+      if (!pile || pile.pieces < 1) continue;
+
+      out.push({
+        lootId: loot.id,
+        partyId: pool.partyId,
+        bossKey: loot.bossKey,
+        holder: mine.holder,
+        holderName: mine.name,
+        looterName: pile.by,
+        drop: {
+          id: loot.id,
+          weekStart: loot.weekStart,
+          order: bossOrder.get(loot.bossKey ?? "") ?? Number.MAX_SAFE_INTEGER,
+          total: loot.quantity,
+          held: pile.pieces,
+          seats: holders.map((h) => ({
+            memberId: h.key,
+            name: h.name,
+            looted: held.get(h.key)?.pieces ?? 0,
+            shares: h.shares,
+          })),
+        },
+      });
+    }
+  }
+  return out;
+}
+
+/**
  * One card per holder: their pile, their queue, and what each boss owes.
  *
  * Sales are per holder because that is who sold them. One person's characters share a queue: the
