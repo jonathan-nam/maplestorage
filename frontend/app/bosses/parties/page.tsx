@@ -16,7 +16,8 @@ import { bossLabel, difficultyLabel } from "@/lib/boss-difficulty";
 import { peek, put } from "@/lib/cache";
 import { buildDropLog, couponsOwedByParty, pieceStatusByParty } from "@/lib/drop-log";
 import { dropsInWeek } from "@/lib/loot";
-import { closedByHolder } from "@/lib/vestige-ledger";
+import { closedByHolder, outstanding, runningBalance, stillOpen } from "@/lib/vestige-ledger";
+import { assignableDrops } from "@/lib/vestige-stacks";
 import {
   byBoss,
   byCharacter,
@@ -73,6 +74,10 @@ const DROPS_KEY = "/api/bosses/drops";
 // cached copy and cannot disagree about what is owed.
 const POOLS_KEY = "/api/parties/loot";
 const SETTLEMENTS_KEY = "/api/vestige-settlements";
+
+// The stacking drop the stack boxes under a boss row are for. One key, because one item behaves
+// this way: a boss drops it in bundles that do not divide by looting alone. See lib/piece-ledger.ts.
+const VESTIGE = "vestige-of-erion";
 
 // Both lists take the week. The clears draw a past week's ticks, and the party list carries that
 // week's drop counts, so the badge beside a tick answers for the same week the tick does.
@@ -476,6 +481,40 @@ export default function PartiesPage() {
   const canAddDrops = !history && haveDropTables;
   const lootByParty = new Map(pools.map((pool) => [pool.partyId, pool.loot]));
 
+  // How far ahead or behind each holder is across every night already answered, so the odd stack
+  // rotates instead of landing on the same person every week. Only the drops still open count: a
+  // debt that was closed was compensated, and would otherwise suggest against them forever. See V52.
+  const closures = closedByHolder(settlements);
+  const bossOrder = new Map(bosses.map((b, i) => [b.bossKey, i]));
+  const behind = runningBalance(
+    stillOpen(outstanding(parties, pools, VESTIGE, bossOrder), closures.closed),
+  );
+
+  /**
+   * This week's coupon nights on a boss row, and the write that hands them out.
+   *
+   * The live view only, the same rule the pool and the roster follow: a past week is shown and not
+   * edited, and its payouts were pinned from the roster that ran it.
+   *
+   * Off the same rows the panel lists, through the same dropsInWeek, so the boxes cannot cover a
+   * different set of drops from the ones above them.
+   */
+  const stacksFor = (party: Party) => {
+    if (history) return undefined;
+    const shown = dropsInWeek(
+      lootByParty.get(party.id) ?? [],
+      view?.currentWeekStart ?? null,
+    ).shown;
+    const drops = assignableDrops(party, shown, VESTIGE);
+    if (drops.length === 0) return undefined;
+    return {
+      drops,
+      behind,
+      onSave: (lootId: string, bundles: Record<string, number>) =>
+        writeDrop(party, lootId, "/bundles", { method: "PUT", body: JSON.stringify({ bundles }) }),
+    };
+  };
+
   /**
    * What a row's panel draws its pool from, or nothing where it must not draw one.
    *
@@ -623,6 +662,7 @@ export default function PartiesPage() {
         dropTable={dropTables[party.bossKey]}
         onAddDrop={canAddDrops ? (body) => addDrop(party, body) : undefined}
         pool={poolFor(party)}
+        stacks={stacksFor(party)}
         onSaveRoster={history ? undefined : (members) => saveRoster(party, members)}
         onTakeOff={history ? undefined : () => setSkipped(party, true)}
         heading={
@@ -863,6 +903,7 @@ export default function PartiesPage() {
                       dropTable={dropTables[party.bossKey]}
                       onAddDrop={canAddDrops ? (body) => addDrop(party, body) : undefined}
                       pool={poolFor(party)}
+                      stacks={stacksFor(party)}
                       onSaveRoster={history ? undefined : (members) => saveRoster(party, members)}
                       onTakeOff={history ? undefined : () => setSkipped(party, true)}
                       heading={

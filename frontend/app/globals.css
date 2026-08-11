@@ -4161,6 +4161,15 @@ button.link:disabled {
   margin-left: 2px;
 }
 
+/* This week's coupons, handed out under the boss row that dropped them. The same boxes the config
+   uses for shares, so "a number per member" reads the same on both screens; what differs is that
+   these are STACKS somebody picked up rather than a ratio they are owed. */
+.config-vestige {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
 .config-looter-label {
   font-size: 12px;
   color: var(--muted);
@@ -5541,21 +5550,6 @@ button.ledger-drop-sale:hover:not(:disabled) {
 
 .ledger-drop-head .loot-name:hover {
   color: var(--accent);
-}
-
-/* The unanswered prompt's rows act on this page rather than navigating, so they are buttons. They
-   still have to read as the boss name, not as a control competing with the sheet's Save above, so
-   the browser's chrome comes off and the rule above supplies the hover. Same bare-button shape as
-   .group-toggle. */
-.ledger-drop-head button.loot-name {
-  padding: 0;
-  border: 0;
-  background: none;
-  font: inherit;
-  font-size: 14px;
-  color: var(--ink-strong);
-  text-align: left;
-  cursor: pointer;
 }
 
 /* How much of this boss's pieces the sales have covered. The figure beside it is the fact; this
