@@ -5,6 +5,8 @@ import com.maplestorage.backend.db.Characters
 import com.maplestorage.backend.db.Party
 import com.maplestorage.backend.db.Person
 import com.maplestorage.backend.db.Screenshots
+import com.maplestorage.backend.db.VestigeSettlement
+import com.maplestorage.backend.db.VestigeSettlementLoot
 import com.maplestorage.backend.users.WORLD_INTERACTIVE
 import com.maplestorage.backend.users.ensureUser
 import kotlinx.datetime.LocalDate
@@ -20,6 +22,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 import kotlin.time.Clock
+import kotlin.time.Instant
 import kotlin.uuid.Uuid
 
 /**
@@ -55,19 +58,16 @@ class LootFromClearTest {
         val owners = listOf(userId)
         transaction {
             Party.deleteWhere { Party.userId inList owners }
+            // After the pools, whose drops the closures point at. Nothing cascades the other way.
+            VestigeSettlement.deleteWhere { VestigeSettlement.userId inList owners }
             Person.deleteWhere { Person.userId inList owners }
             Characters.deleteWhere { Characters.userId inList owners }
             Screenshots.deleteWhere { Screenshots.userId inList owners }
         }
     }
 
-    /** A party on Extreme Kalos, which drops 180 coupons, unless [difficulty] says otherwise. */
-    private fun party(
-        difficulty: String? = "EXTREME",
-        boss: String = "kalos-the-guardian",
-        others: List<String> = listOf("Steve"),
-        looterName: String? = null,
-    ): Pair<Uuid, Uuid> {
+    /** One character of this account, which every case here runs something on. */
+    private fun character(): Uuid {
         ensureUser(userId, "$userId@example.com")
         val mine = Uuid.random()
         val now = Clock.System.now()
@@ -81,6 +81,18 @@ class LootFromClearTest {
             it[updatedAt] = now
             it[position] = 0
         }
+        return mine
+    }
+
+    /** A party on Extreme Kalos, which drops 180 coupons, unless [difficulty] says otherwise. */
+    private fun party(
+        difficulty: String? = "EXTREME",
+        boss: String = "kalos-the-guardian",
+        others: List<String> = listOf("Steve"),
+        looterName: String? = null,
+    ): Pair<Uuid, Uuid> {
+        val mine = character()
+        val now = Clock.System.now()
         val bossId = bossIdForKey(boss)!!
         val request =
             SavePartyRequest(
@@ -196,6 +208,37 @@ class LootFromClearTest {
     }
 
     @Test
+    fun `a boss run alone files the whole drop, because one seat took all of it`() {
+        transaction {
+            val characterId = character()
+            val bossId = bossIdForKey("kalos-the-guardian")!!
+            val partyId = setSoloDifficulty(userId, characterId, bossId, "WEEKLY", "EXTREME", Clock.System.now())!!
+
+            lootFromClear(characterId, bossId, "WEEKLY", today, Clock.System.now())
+
+            // 180, not a share of 180. There is one seat, so those are the same number here, and the
+            // row is WHAT FELL either way. See V40.
+            assertEquals(180, pool(partyId).single().quantity)
+            assertTrue(findParty(partyId, userId)!!.solo)
+        }
+    }
+
+    @Test
+    fun `a boss run alone at no stated mode files nothing`() {
+        transaction {
+            // The reason this is asked for at all: Extreme Kalos gives 180 and Chaos Kalos none, and
+            // a clear does not say which was killed. Guessing is the wrong count wearing a real name.
+            val characterId = character()
+            val bossId = bossIdForKey("kalos-the-guardian")!!
+            val partyId = poolFor(userId, characterId, bossId, Clock.System.now())
+
+            lootFromClear(characterId, bossId, "WEEKLY", today, Clock.System.now())
+
+            assertTrue(pool(partyId).isEmpty())
+        }
+    }
+
+    @Test
     fun `un-ticking takes back what the clear added, and leaves a sale alone`() {
         transaction {
             val (characterId, partyId) = party()
@@ -220,6 +263,45 @@ class LootFromClearTest {
             )
             unlootFromClear(characterId, bossId, "WEEKLY", today)
             assertEquals(1, pool(partyId).size)
+        }
+    }
+
+    @Test
+    fun `un-ticking leaves a pile whose books have been closed`() {
+        transaction {
+            val (characterId, partyId) = party()
+            val bossId = bossIdForKey("kalos-the-guardian")!!
+            val now = Clock.System.now()
+            lootFromClear(characterId, bossId, "WEEKLY", today, now)
+            // Coupons never get a sold_at: they settle through the tranche ledger, so "unsold" says
+            // nothing about whether anybody is finished with them. Closing the books is what does,
+            // and the closure names this row, so deleting it would take the closure with it.
+            closeBooks(Uuid.parse(pool(partyId).single().id), now)
+
+            unlootFromClear(characterId, bossId, "WEEKLY", today)
+
+            assertEquals(1, pool(partyId).size)
+        }
+    }
+
+    /** One act of closing a holder's books over one drop, as VestigeSettlementRoutes writes it. */
+    private fun closeBooks(
+        lootId: Uuid,
+        now: Instant,
+    ) {
+        val settlementId = Uuid.random()
+        val owner = userId
+        VestigeSettlement.insert {
+            it[id] = settlementId
+            it[VestigeSettlement.userId] = owner
+            it[holderKind] = "SELF"
+            it[unpaid] = 0
+            it[settledAt] = now
+            it[createdAt] = now
+        }
+        VestigeSettlementLoot.insert {
+            it[VestigeSettlementLoot.settlementId] = settlementId
+            it[VestigeSettlementLoot.lootId] = lootId
         }
     }
 

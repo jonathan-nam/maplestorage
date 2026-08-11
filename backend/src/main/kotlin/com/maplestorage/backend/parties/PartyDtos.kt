@@ -193,3 +193,17 @@ data class SetPartySkipRequest(
 data class SetClearRequest(
     val cleared: Boolean,
 )
+
+/**
+ * Which mode a character runs a boss at alone.
+ *
+ * By character and boss rather than by config id: the pool may not exist yet, and naming the mode is
+ * what opens it. Null is a real answer, and is what every solo pool says until somebody says
+ * otherwise. See setSoloDifficulty.
+ */
+@Serializable
+data class SetSoloDifficultyRequest(
+    val characterId: String,
+    val bossKey: String,
+    val difficulty: String? = null,
+)

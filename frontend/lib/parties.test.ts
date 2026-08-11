@@ -7,6 +7,7 @@ import {
   existedInWeek,
   filterByClear,
   guaranteedDrop,
+  hasGuaranteedDrop,
   isCleared,
   knownCharacterNames,
   otherMembers,
@@ -321,5 +322,22 @@ describe("guaranteedDrop", () => {
   it("says nothing when nobody has recorded a difficulty, or there is no table", () => {
     expect(guaranteedDrop([grindstone, coupon], null)).toBeNull();
     expect(guaranteedDrop(undefined, "EXTREME")).toBeNull();
+  });
+
+  // Which bosses the routine list asks a mode for. A boss whose table carries an amount at some mode
+  // has something a clear can file once the mode is known; on every other boss the select would be a
+  // control that changes nothing, so it is not drawn.
+  it("knows a boss whose clear can file something, before any mode is chosen", () => {
+    expect(hasGuaranteedDrop([grindstone, coupon])).toBe(true);
+    expect(hasGuaranteedDrop([grindstone])).toBe(false);
+    expect(hasGuaranteedDrop([])).toBe(false);
+    expect(hasGuaranteedDrop(undefined)).toBe(false);
+  });
+
+  it("reads a row that predates the pieces field as carrying no amount", () => {
+    // lib/cache.ts hands back whatever shape the API had when the page last fetched, so a tab open
+    // across a deploy gets a drop with no `pieces` at all rather than an empty one.
+    const old = { ...grindstone, pieces: undefined } as unknown as typeof grindstone;
+    expect(hasGuaranteedDrop([old])).toBe(false);
   });
 });

@@ -2,10 +2,12 @@ package com.maplestorage.backend.parties
 
 import io.ktor.client.request.get
 import io.ktor.client.request.post
+import io.ktor.client.request.put
 import io.ktor.client.statement.bodyAsText
 import io.ktor.server.response.respond
 import io.ktor.server.routing.get
 import io.ktor.server.routing.post
+import io.ktor.server.routing.put
 import io.ktor.server.routing.route
 import io.ktor.server.routing.routing
 import io.ktor.server.testing.testApplication
@@ -44,6 +46,22 @@ class PartyRouteOrderTest {
             // The neighbours still resolve to themselves.
             assertEquals("one party: abc", client.get("/parties/abc").bodyAsText())
             assertEquals("one pool", client.get("/parties/abc/loot").bodyAsText())
+        }
+
+    @Test
+    fun `and on PUT, where the parameter beside it takes a config id`() =
+        testApplication {
+            application {
+                routing {
+                    put("/parties/solo") { call.respond("solo difficulty") }
+                    put("/parties/{id}") { call.respond("save party: ${call.parameters["id"]}") }
+                }
+            }
+
+            // Per method, not once for the tree: /solo and /{id} are both PUTs, and the id handler
+            // would have answered "malformed id" for a path that is not one.
+            assertEquals("solo difficulty", client.put("/parties/solo").bodyAsText())
+            assertEquals("save party: abc", client.put("/parties/abc").bodyAsText())
         }
 
     @Test

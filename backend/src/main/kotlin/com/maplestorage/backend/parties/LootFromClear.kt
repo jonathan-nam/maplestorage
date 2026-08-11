@@ -6,10 +6,13 @@ import com.maplestorage.backend.db.BossDropAmount
 import com.maplestorage.backend.db.DropCatalog
 import com.maplestorage.backend.db.Party
 import com.maplestorage.backend.db.PartyLoot
+import com.maplestorage.backend.db.PartyLootBundle
+import com.maplestorage.backend.db.VestigeSettlementLoot
 import kotlinx.datetime.LocalDate
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.greaterEq
+import org.jetbrains.exposed.v1.core.inList
 import org.jetbrains.exposed.v1.core.less
 import org.jetbrains.exposed.v1.jdbc.deleteWhere
 import org.jetbrains.exposed.v1.jdbc.selectAll
@@ -32,11 +35,13 @@ import kotlin.uuid.Uuid
 /**
  * Files what this clear guarantees, if anything.
  *
- * Silent about everything it cannot be sure of, and each of these is a reason a party sees nothing
+ * Solo pools file too. One seat means the whole drop is yours, which is the same row a party gets
+ * and a share of one nobody has to work out.
+ *
+ * Silent about everything it cannot be sure of, and each of these is a reason a pool sees nothing
  * appear rather than a wrong row:
  *
  *  - no config for the pair, so there is no pool to file into
- *  - a solo config, where one seat means nothing to divide and nothing to owe
  *  - no difficulty recorded, so which amount applies is unknown
  *  - no amount for that boss and difficulty, which is most of them
  *  - a row already there for this period, so re-ticking a clear does not stack up three of them
@@ -50,7 +55,7 @@ internal fun lootFromClear(
 ) {
     // One expression rather than a chain of early returns: each of these is the same answer, that
     // there is nothing this clear can be sure of.
-    val partyId = partyIdFor(characterId, bossCatalogId)?.takeUnless { isSoloParty(it) }
+    val partyId = partyIdFor(characterId, bossCatalogId)
     val difficulty =
         partyId?.let {
             Party
@@ -118,13 +123,45 @@ internal fun unlootFromClear(
     val partyId = partyIdFor(characterId, bossCatalogId) ?: return
     val period = periodOf(reset, on)
     val nextPeriod = periodAfter(reset, period)
-    PartyLoot.deleteWhere {
-        (PartyLoot.partyId eq partyId) and
-            (PartyLoot.fromClear eq true) and
-            (PartyLoot.soldAt eq null) and
-            (PartyLoot.droppedOn greaterEq period) and
-            (PartyLoot.droppedOn less nextPeriod)
-    }
+    val filed =
+        PartyLoot
+            .selectAll()
+            .where {
+                (PartyLoot.partyId eq partyId) and
+                    (PartyLoot.fromClear eq true) and
+                    (PartyLoot.soldAt eq null) and
+                    (PartyLoot.droppedOn greaterEq period) and
+                    (PartyLoot.droppedOn less nextPeriod)
+            }.map { it[PartyLoot.id] }
+    val spoken = spokenFor(filed)
+    val loose = filed.filterNot { it in spoken }
+    if (loose.isEmpty()) return
+    PartyLoot.deleteWhere { PartyLoot.id inList loose }
+}
+
+/**
+ * The rows something else has already said something about.
+ *
+ * `sold_at` alone is not enough to call a row untouched. A drop that comes in pieces never gets one:
+ * it settles through the tranche ledger, so its sold_at stays null for ever (see LootPoolWork.kt),
+ * and coupons are the only thing a clear files. Without this, closing a holder's books and then
+ * correcting the mode you ran would take the closure with the row, silently.
+ *
+ * Two claims, both a human's: the books closed over this drop, and which seat picked up which stack.
+ */
+private fun spokenFor(lootIds: List<Uuid>): Set<Uuid> {
+    if (lootIds.isEmpty()) return emptySet()
+    val settled =
+        VestigeSettlementLoot
+            .selectAll()
+            .where { VestigeSettlementLoot.lootId inList lootIds }
+            .map { it[VestigeSettlementLoot.lootId] }
+    val bundled =
+        PartyLootBundle
+            .selectAll()
+            .where { PartyLootBundle.lootId inList lootIds }
+            .map { it[PartyLootBundle.lootId] }
+    return (settled + bundled).toSet()
 }
 
 /** What this boss drops for certain at this difficulty, as (drop id -> pieces). */

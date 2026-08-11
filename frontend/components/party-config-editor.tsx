@@ -1,10 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import { DifficultySelect } from "@/components/difficulty-select";
 import { KNOWN_CHARACTERS_ID, KnownCharacters } from "@/components/known-characters";
 import { RosterInputs } from "@/components/roster-inputs";
 import { apiAssetUrl } from "@/lib/api";
-import { difficultyLabel } from "@/lib/boss-difficulty";
 import { MAX_MINUTES, parseMinutes } from "@/lib/boss-minutes";
 import { bossesWithoutConfig, otherMembers } from "@/lib/parties";
 import { parseShares, sharesKey } from "@/lib/shares";
@@ -205,44 +205,6 @@ function AddParty({
       </button>
       <KnownCharacters names={knownCharacters} />
     </>
-  );
-}
-
-/**
- * The mode this party runs, out of the ones the boss has.
- *
- * Empty is a real answer, not a prompt to be filled in: a config can predate the column, or the
- * group may not have settled on one. It is never defaulted to Normal, which would be the app
- * saying something nobody said.
- */
-function DifficultySelect({
-  difficulties,
-  value,
-  label,
-  disabled,
-  onChange,
-}: {
-  difficulties: string[];
-  value: string;
-  label: string;
-  disabled?: boolean;
-  onChange: (difficulty: string) => void;
-}) {
-  return (
-    <select
-      className="split-input config-difficulty"
-      value={value}
-      aria-label={label}
-      disabled={disabled || difficulties.length === 0}
-      onChange={(e) => onChange(e.target.value)}
-    >
-      <option value="">difficulty...</option>
-      {difficulties.map((difficulty) => (
-        <option key={difficulty} value={difficulty}>
-          {difficultyLabel(difficulty)}
-        </option>
-      ))}
-    </select>
   );
 }
 

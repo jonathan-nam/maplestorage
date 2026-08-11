@@ -13,15 +13,20 @@ import { preloadBossArt } from "@/lib/preload-boss-art";
 import { useRowWrites } from "@/lib/use-row-writes";
 import type { Boss, BossClearsView } from "@/types/boss";
 import type { Character } from "@/types/character";
-import type { Party } from "@/types/party";
+import type { DropTables } from "@/types/drop";
+import type { Party, SoloDifficultyBody } from "@/types/party";
 
 type LoadState = "loading" | "loaded" | "error";
 
 const BOSSES_KEY = "/api/bosses";
 const CLEARS_KEY = "/api/bosses/clears";
 const CHARACTERS_KEY = "/api/characters";
-const PARTIES_KEY = "/api/parties";
+// Solo pools included: they are where the mode of a boss run alone is kept, and this page is where
+// it is said. They are still not parties, and the lock below leaves them out. See partiesFor.
+const PARTIES_KEY = "/api/parties?solo=include";
+const DROPS_KEY = "/api/bosses/drops";
 const ROUTINE_KEY = "/api/bosses/routine";
+const SOLO_KEY = "/api/parties/solo";
 
 // Which bosses each character runs, one character at a time.
 //
@@ -39,6 +44,7 @@ export default function BossRoutinePage() {
     peek<Character[]>(CHARACTERS_KEY) ?? [],
   );
   const [parties, setParties] = useState<Party[]>(peek<Party[]>(PARTIES_KEY) ?? []);
+  const [dropTables, setDropTables] = useState<DropTables>(peek<DropTables>(DROPS_KEY) ?? {});
   const [view, setView] = useState<BossClearsView | null>(peek<BossClearsView>(CLEARS_KEY) ?? null);
   const [state, setState] = useState<LoadState>("loading");
   const [selected, setSelected] = useState<string | null>(null);
@@ -62,17 +68,20 @@ export default function BossRoutinePage() {
           apiFetch<Character[]>(CHARACTERS_KEY, { method: "GET" }, withToken),
           apiFetch<Party[]>(PARTIES_KEY, { method: "GET" }, withToken),
           apiFetch<BossClearsView>(CLEARS_KEY, { method: "GET" }, withToken),
+          apiFetch<DropTables>(DROPS_KEY, { method: "GET" }, withToken),
         ]);
       })
-      .then(([bossResult, characterResult, partyResult, viewResult]) => {
+      .then(([bossResult, characterResult, partyResult, viewResult, dropResult]) => {
         setBosses(bossResult);
         setCharacters(characterResult);
         setParties(partyResult);
         setView(viewResult);
+        setDropTables(dropResult);
         put(BOSSES_KEY, bossResult);
         put(CHARACTERS_KEY, characterResult);
         put(PARTIES_KEY, partyResult);
         put(CLEARS_KEY, viewResult);
+        put(DROPS_KEY, dropResult);
         // Open on the first character rather than on a prompt to choose one, like Edit parties.
         setSelected((current) => current ?? characterResult[0]?.id ?? null);
         setState("loaded");
@@ -117,11 +126,50 @@ export default function BossRoutinePage() {
     }
   }
 
+  /**
+   * Records which mode this character runs a boss at alone, and refetches nothing else.
+   *
+   * The answer is the config as written, which is the pool this may have just opened. Merged by id
+   * rather than by refetching the list: the tick above sends the whole routine, and a list arriving
+   * from here would be one more thing that could land on top of it.
+   */
+  async function setDifficulty(bossKey: string, difficulty: string | null) {
+    if (!selected) return;
+    const body: SoloDifficultyBody = { characterId: selected, bossKey, difficulty };
+
+    setError(null);
+    try {
+      await write(bossKey, async () => {
+        const saved = await apiFetch<Party>(
+          SOLO_KEY,
+          { method: "PUT", body: JSON.stringify(body) },
+          getToken,
+        );
+        setParties((current) => {
+          const next = current.filter((p) => p.id !== saved.id).concat(saved);
+          put(PARTIES_KEY, next);
+          return next;
+        });
+      });
+    } catch (e) {
+      setError(e instanceof ApiError ? e.body : "Couldn't save that.");
+    }
+  }
+
   const character = characters.find((c) => c.id === selected) ?? null;
   // A party config for this character and boss already says they run it, so the box is locked
   // rather than refused after the fact. See BossRoutineEditor.
+  //
+  // Solo pools are not that claim, and are excluded: one is a pool holding what fell on a boss run
+  // alone, and locking a row over it would leave nothing to "remove first". Same line setBossRoutine
+  // draws on the server.
   const lockedBossKeys = new Set(
-    parties.filter((p) => p.characterId === selected).map((p) => p.bossKey),
+    parties.filter((p) => p.characterId === selected && !p.solo).map((p) => p.bossKey),
+  );
+  const soloDifficulty = new Map(
+    parties
+      .filter((p) => p.characterId === selected && p.solo)
+      .map((p) => [p.bossKey, p.difficulty]),
   );
 
   return (
@@ -155,10 +203,13 @@ export default function BossRoutinePage() {
               <BossRoutineEditor
                 characterName={character.name}
                 bosses={bosses}
+                dropTables={dropTables}
                 skipped={skipped}
                 lockedBossKeys={lockedBossKeys}
+                soloDifficulty={soloDifficulty}
                 isSaving={isSaving}
                 onToggle={toggle}
+                onDifficulty={setDifficulty}
               />
             )}
           </>

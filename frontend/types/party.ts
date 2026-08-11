@@ -113,6 +113,18 @@ export type SavePartyBody = {
 };
 
 /**
+ * What PUT /api/parties/solo takes: which mode a character runs a boss at alone.
+ *
+ * By character and boss, not by config id. The pool may not exist yet, and naming the mode is what
+ * opens it. Refused on a boss that has a party, whose mode is on the config with its roster.
+ */
+export type SoloDifficultyBody = {
+  characterId: string;
+  bossKey: string;
+  difficulty: string | null;
+};
+
+/**
  * What PUT /api/parties/{id}/roster takes: who ran one week.
  *
  * `members` null puts the week back to the usual roster, which is a deletion rather than a copy of

@@ -1,5 +1,6 @@
 package com.maplestorage.backend.parties
 
+import com.maplestorage.backend.bosses.setBossClearByHand
 import com.maplestorage.backend.bosses.setBossRoutine
 import com.maplestorage.backend.config.Env
 import com.maplestorage.backend.db.Characters
@@ -178,6 +179,78 @@ class PartySoloTest {
             // roster rather than from the party as it stands, which now has Steve in it.
             assertTrue(findLoot(lootId, partyId)!!.payouts.isEmpty())
             assertEquals(listOf(Uuid.parse(alone)), rosterFor(partyId, weekOf20Jul))
+        }
+    }
+
+    @Test
+    fun `naming the mode opens the pool before anything has fallen in it`() {
+        transaction {
+            val characterId = character()
+            val bossId = bossIdForKey("limbo")!!
+
+            val partyId = setSoloDifficulty(userId, characterId, bossId, "WEEKLY", "HARD", Clock.System.now())!!
+
+            val pool = findParty(partyId, userId)!!
+            assertTrue(pool.solo)
+            assertEquals("HARD", pool.difficulty)
+            // Empty, and stays empty until a clear or a human puts something in it. Naming the mode
+            // is not a claim that the boss has been run.
+            assertTrue(lootFor(partyId).isEmpty())
+        }
+    }
+
+    @Test
+    fun `a mode named after the clear was ticked files that period's coupons`() {
+        transaction {
+            val characterId = character()
+            val now = Clock.System.now()
+            // The ordinary order: the boss is ticked, and nothing can be filed because nobody has
+            // said which mode. Without this the coupons would be missing until the next reset.
+            assertTrue(setBossClearByHand(userId, characterId, "limbo", true, now))
+
+            val partyId = setSoloDifficulty(userId, characterId, bossIdForKey("limbo")!!, "WEEKLY", "HARD", now)!!
+
+            assertEquals(60, lootFor(partyId).single().quantity)
+        }
+    }
+
+    @Test
+    fun `correcting the mode re-files rather than leaving the count the old one gave`() {
+        transaction {
+            val characterId = character()
+            val bossId = bossIdForKey("kaling")!!
+            val now = Clock.System.now()
+            setBossClearByHand(userId, characterId, "kaling", true, now)
+
+            setSoloDifficulty(userId, characterId, bossId, "WEEKLY", "HARD", now)
+            val partyId = partyIdFor(characterId, bossId)!!
+            assertEquals(60, lootFor(partyId).single().quantity)
+
+            // Extreme Kaling gives 480. The 60 is a row the app filed itself and its premise has
+            // changed, so it goes rather than sitting beside the new one.
+            setSoloDifficulty(userId, characterId, bossId, "WEEKLY", "EXTREME", now)
+            assertEquals(480, lootFor(partyId).single().quantity)
+
+            // And a mode that drops none leaves nothing, which is what the catalog says about it.
+            setSoloDifficulty(userId, characterId, bossId, "WEEKLY", "EASY", now)
+            assertTrue(lootFor(partyId).isEmpty())
+        }
+    }
+
+    @Test
+    fun `a boss with a party keeps its mode on the party`() {
+        transaction {
+            val characterId = character()
+            val bossId = bossIdForKey("limbo")!!
+            val now = Clock.System.now()
+            val request =
+                SavePartyRequest(characterId.toString(), "limbo", listOf("Steve"), difficulty = "HARD")
+            val partyId = createParty(userId, characterId, bossId, request, now)
+
+            // Refused, not applied. The party's mode is read beside its roster and its split, and
+            // this door sees neither.
+            assertNull(setSoloDifficulty(userId, characterId, bossId, "WEEKLY", "NORMAL", now))
+            assertEquals("HARD", findParty(partyId, userId)!!.difficulty)
         }
     }
 
