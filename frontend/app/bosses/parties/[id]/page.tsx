@@ -182,6 +182,15 @@ export default function PartyPage() {
               solo pool has no roster to name, and "with" trailing off into nothing was what the
               same line drew for it. */}
           <h1 className="page-title">
+            {/* The one place the page says which boss this is. Everything under it (the picker, the
+                rows) belongs to the same boss, so it is said here or it is not said. */}
+            {bossByKey.get(party.bossKey)?.iconUrl && (
+              <img
+                className="boss-portrait"
+                src={apiAssetUrl(bossByKey.get(party.bossKey)!.iconUrl!)}
+                alt=""
+              />
+            )}
             {bossLabel(bossByKey.get(party.bossKey)?.name ?? party.bossKey, party.difficulty)}
             {!party.solo &&
               ` with ${otherMembers(party)
@@ -194,19 +203,6 @@ export default function PartyPage() {
             <RosterStrip members={party.members} />
             <span className="party-card-size">{partySizeLabel(party.members.length)}</span>
           </div>
-
-          <ul className="party-bosses">
-            <li>
-              {bossByKey.get(party.bossKey)?.iconUrl && (
-                <img
-                  className="boss-portrait"
-                  src={apiAssetUrl(bossByKey.get(party.bossKey)!.iconUrl!)}
-                  alt=""
-                />
-              )}
-              {bossLabel(bossByKey.get(party.bossKey)?.name ?? party.bossKey, party.difficulty)}
-            </li>
-          </ul>
 
           {poolLine && (
             <p className={poolLine.done ? "party-loot-summary is-done" : "party-loot-summary"}>
