@@ -286,19 +286,24 @@ export function PartyCard({
           same sprite. */}
       {expanded && (
         <div id={panelId} className="party-row-panel">
+          {/* One heading per block, in the order the panel already went in. Only where the block is
+              answerable: a past week's roster is read, so naming it for the control it does not
+              carry would be a heading over a list of sprites. */}
+          {onSaveRoster && <h3 className="loot-group-title">Add Member</h3>}
           {editing && onSaveRoster ? (
             <>
               <RosterInputs members={draft} onChange={setDraft} />
               <div className="loot-actions">
                 {/* The label carries the scope, so nothing else has to explain it. Saving here
-                    changes the week, not the party. */}
+                    changes the week, not the party. Named among three Saves in one open panel,
+                    which is why the other two say what they are for too. */}
                 <button
                   type="button"
                   className="party-save"
                   disabled={busy || !dirty || cleaned.length === 0}
                   onClick={() => save(cleaned)}
                 >
-                  Save for this week
+                  Save roster for this week
                 </button>
                 {/* Only once the week has been spelled out: there is nothing to go back to
                     otherwise, and offering it would imply the week is currently unusual. */}
@@ -312,17 +317,6 @@ export function PartyCard({
                     Use the usual party
                   </button>
                 )}
-                <button
-                  type="button"
-                  className="party-cancel"
-                  disabled={busy}
-                  onClick={() => {
-                    setEditing(false);
-                    setSaveError(null);
-                  }}
-                >
-                  Cancel
-                </button>
               </div>
               {saveError && <p className="split-error">{saveError}</p>}
             </>
@@ -376,6 +370,7 @@ export function PartyCard({
 
           {onAddDrop && (
             <>
+              <h3 className="loot-group-title">Add Drop</h3>
               <DropPicker
                 bossKey={party.bossKey}
                 worldType={party.worldType}
@@ -408,6 +403,9 @@ export function PartyCard({
               bossByKey={pool.bossByKey}
               pieceStatus={pool.pieceStatus}
               stacks={stacks}
+              // The stack is what the config under it is about, so removing it from here would take
+              // the split and the week's pickup with it. The pool's own page still corrects one.
+              couponRemovable={false}
               editing={editing}
               busy={busy}
               isSaving={pool.isSaving}
@@ -425,6 +423,27 @@ export function PartyCard({
             <Link className="party-loot-earlier" href={`/bosses/parties/${party.id}`}>
               {pool.earlier} from earlier weeks
             </Link>
+          )}
+
+          {/* One press opens the roster, the night's pickup and the split, so one press has to
+              close them: the way out used to be the roster's own Cancel, which is off the top of
+              the screen by the time you are in the config. Last in the panel, where the block you
+              are answering is. Each Save is its own write and stands, so this only drops boxes
+              nobody saved. */}
+          {editing && (
+            <div className="loot-actions">
+              <button
+                type="button"
+                className="party-cancel"
+                disabled={busy}
+                onClick={() => {
+                  setEditing(false);
+                  setSaveError(null);
+                }}
+              >
+                Done
+              </button>
+            </div>
           )}
         </div>
       )}

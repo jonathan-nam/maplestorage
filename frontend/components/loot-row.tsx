@@ -22,6 +22,7 @@ export function LootRow({
   status,
   yours,
   pieces,
+  couponRemovable = true,
   busy,
   onSell,
   onUnsell,
@@ -59,6 +60,14 @@ export function LootRow({
    * because it gates the sale on PENDING and a piece drop is PENDING for ever.
    */
   pieces?: boolean;
+  /**
+   * Whether a piece row offers Remove. Only a piece row reads it: every other row's Remove goes
+   * with the sale controls beside it.
+   *
+   * False in the Party View panel, where the stack is what the split and the pickup under it are
+   * about. The pool's own page keeps it, so a mis-logged stack can still be corrected.
+   */
+  couponRemovable?: boolean;
   busy: boolean;
   onSell: (body: SellLootBody) => void;
   onUnsell: () => void;
@@ -148,8 +157,9 @@ export function LootRow({
           party has, and one button per seat is the shortest way to pull it. Not offered on a solo
           pool, which has nobody to take turns with. */}
       {/* A piece row has no sale, so Remove is all it has: the pieces are priced on the Drop Log and
-          everything else here would act on a pot that does not exist. */}
-      {loot.status === "PENDING" && canSell && pieces && (
+          everything else here would act on a pot that does not exist. Withheld where the row heads a
+          config, which would go with it. See couponRemovable. */}
+      {loot.status === "PENDING" && canSell && pieces && couponRemovable && (
         <div className="loot-actions">
           <button type="button" className="party-delete" onClick={onDelete} disabled={busy}>
             Remove

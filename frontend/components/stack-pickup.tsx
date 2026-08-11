@@ -139,7 +139,7 @@ function PickupBoxes({
           disabled={busy || !adds}
           onClick={() => void save()}
         >
-          Save
+          Save pickup
         </button>
         {readable && !adds && (
           <span className="split-error">

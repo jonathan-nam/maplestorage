@@ -26,6 +26,8 @@ export type StackAssignment = {
   title: string;
   /** What the boss drops and who is splitting it. Off the catalog, not off a logged drop. */
   config: ShareConfig;
+  /** Heads the split itself, which is the standing deal rather than any one night. */
+  entitledTitle: string;
   /** The new ratio, by seat id. */
   onSave: (shares: Map<string, number>) => Promise<void>;
   /**
@@ -35,6 +37,8 @@ export type StackAssignment = {
    * is the gap. Keyed by loot id, because it belongs to one drop and the config belongs to the party.
    */
   pickup: {
+    /** Heads the boxes under a night's row. What happened, against the deal above it. */
+    title: string;
     drops: StackDrop[];
     behind: Map<string, number>;
     onSave: (lootId: string, bundles: Record<string, number>) => Promise<void>;
@@ -57,6 +61,7 @@ export function LootList({
   bossByKey,
   pieceStatus,
   stacks,
+  couponRemovable,
   editing,
   busy,
   isSaving,
@@ -77,6 +82,8 @@ export function LootList({
    * Absent on the party's own page and on a past week, where the rows are read rather than answered.
    */
   stacks?: StackAssignment;
+  /** Whether a coupon row offers Remove. See LootRow's couponRemovable. */
+  couponRemovable?: boolean;
   /**
    * Whether the panel is in edit mode, which is the only state the stack boxes take typing in.
    *
@@ -128,6 +135,7 @@ export function LootList({
         bossByKey={bossByKey}
         statusOf={pieceStatus}
         pieces
+        couponRemovable={couponRemovable}
         stacks={stacks}
         editing={editing}
         busy={busy}
@@ -155,6 +163,7 @@ function LootGroup({
   bossByKey,
   statusOf,
   stacks,
+  couponRemovable,
   editing,
   busy,
   pieces,
@@ -174,6 +183,8 @@ function LootGroup({
   statusOf?: PieceStatus;
   /** Who picked up which stacks, drawn under the row it is about. */
   stacks?: StackAssignment;
+  /** Whether a coupon row offers Remove. See LootRow's couponRemovable. */
+  couponRemovable?: boolean;
   /** Whether those boxes take typing. See LootList. */
   editing?: boolean;
   /** Whether the row's own write is in flight. */
@@ -220,6 +231,7 @@ function LootGroup({
                 status={statusOf?.get(item.id)?.status ?? null}
                 yours={statusOf?.get(item.id)?.yours ?? null}
                 pieces={pieces}
+                couponRemovable={couponRemovable}
                 busy={isSaving(item.id)}
                 onSell={(body) => onSell(item.id, body)}
                 onUnsell={() => onUnsell(item.id)}
@@ -228,16 +240,21 @@ function LootGroup({
                 onDelete={() => onDelete(item.id)}
               />
               {night && stacks && (
-                <div className="config-vestige">
-                  <StackPickup
-                    drop={night}
-                    party={party}
-                    behind={stacks.pickup.behind}
-                    editing={editing ?? false}
-                    busy={busy ?? false}
-                    onSave={stacks.pickup.onSave}
-                  />
-                </div>
+                <>
+                  {/* The two blocks under a coupon row are different facts, so each is named:
+                      what the party agreed, and what the night actually went like. */}
+                  <h4 className="loot-group-title is-config">{stacks.pickup.title}</h4>
+                  <div className="config-vestige">
+                    <StackPickup
+                      drop={night}
+                      party={party}
+                      behind={stacks.pickup.behind}
+                      editing={editing ?? false}
+                      busy={busy ?? false}
+                      onSave={stacks.pickup.onSave}
+                    />
+                  </div>
+                </>
               )}
             </Fragment>
           );
@@ -246,12 +263,15 @@ function LootGroup({
       {/* Once for the group, under the rows it is about: the split is the PARTY's, and a week that
           dropped twice would otherwise draw the same boxes twice. */}
       {stacks && (
-        <StackAssign
-          config={stacks.config}
-          editing={editing ?? false}
-          busy={busy ?? false}
-          onSave={stacks.onSave}
-        />
+        <>
+          <h4 className="loot-group-title is-config">{stacks.entitledTitle}</h4>
+          <StackAssign
+            config={stacks.config}
+            editing={editing ?? false}
+            busy={busy ?? false}
+            onSave={stacks.onSave}
+          />
+        </>
       )}
     </Frame>
   );
