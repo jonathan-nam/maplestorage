@@ -10,6 +10,10 @@
 // Without it they could only be sold, so a pile you meant to keep never finished.
 //
 // `coversThePile` is that property, stated once so a test can hold it.
+//
+// The other half is `asksAnything`: WHETHER a pile has a question at all. Since #354 deleted the
+// apportioning, no debt is derived from these rows, so a pile that owes nobody gets the same figures
+// whatever it is told. Asking it to account for itself is work with no reader.
 
 import { unaccounted } from "./vestige-ledger";
 import type { HolderLedger } from "./vestige-ledger";
@@ -51,4 +55,31 @@ export function roomFor(ledger: HolderLedger, fate: Fate): number {
  */
 export function coversThePile(ledger: HolderLedger): boolean {
   return roomFor(ledger, "KEPT") + roomFor(ledger, "BOUGHT") >= unaccounted(ledger);
+}
+
+/**
+ * Pieces this pile owes somebody, across the drops still open.
+ *
+ * Off the transfers, which are already filtered to what THIS holder owes, so a pile you are merely
+ * the creditor of counts zero: what they are holding of yours is the Collection Ledger's to say.
+ */
+export function owes(ledger: HolderLedger): number {
+  return ledger.drops
+    .filter((d) => !d.closed)
+    .reduce((sum, d) => sum + d.transfers.reduce((n, t) => n + t.pieces, 0), 0);
+}
+
+/**
+ * Whether the card has a question, or is only somewhere a sale MAY be recorded.
+ *
+ * A night that divided the way it fell is finished when it is logged. Nothing is derived from what
+ * became of those coupons, so "0 of 1140 pieces accounted for" asked for 1140 pieces of typing to
+ * move a figure nobody reads. The count is an instruction, and an instruction with no consequence is
+ * the narration this app's screens are not allowed to carry.
+ *
+ * Over-entry still speaks, whoever holds the pile: more entered than the pile holds is a miscount,
+ * and a card that went quiet about it would be hiding what it dropped rather than saying it short.
+ */
+export function asksAnything(ledger: HolderLedger): boolean {
+  return owes(ledger) > 0 || ledger.accounted > ledger.pieces;
 }
