@@ -816,7 +816,7 @@ export default function PartiesPage() {
                         <>
                           {characterById.get(party.characterId)?.spriteImgUrl && (
                             <img
-                              className="seat-sprite is-large"
+                              className="seat-sprite"
                               src={characterById.get(party.characterId)!.spriteImgUrl!}
                               alt=""
                             />

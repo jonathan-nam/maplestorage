@@ -3151,10 +3151,19 @@ button.link:disabled {
   background: var(--surface);
 }
 
+/* The pool page's head: who ran it, and how many of them. The roster is the strip's 112px tiles,
+   so the size label sits at the top beside it rather than against the middle of a wrapped strip. */
 .party-card-head {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 10px;
+}
+
+/* Takes the width so the tiles wrap at the page edge instead of running off it, which puts the
+   size label hard right, where this page's clear state also sits. */
+.party-card-head .roster-strip {
+  flex: 1;
+  min-width: 0;
 }
 
 .party-card-name {
@@ -3170,7 +3179,6 @@ button.link:disabled {
   letter-spacing: 0.04em;
 }
 
-.party-roster,
 .party-bosses {
   display: flex;
   flex-wrap: wrap;
@@ -3178,24 +3186,6 @@ button.link:disabled {
   margin: 0;
   padding: 0;
   list-style: none;
-}
-
-.party-seat-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 3px 8px;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  font-size: 12px;
-  color: var(--ink);
-}
-
-/* Your own characters are marked, because the point of the page is telling them apart from the
-   five other names in the party. */
-.party-seat-chip.is-mine {
-  border-color: var(--accent);
-  color: var(--ink-strong);
 }
 
 .party-mvp {
@@ -3796,32 +3786,18 @@ button.link:disabled {
   cursor: default;
 }
 
-/* Party member sprites and boss portraits.
-   Both are pixel art, so both are drawn at a size that does not resample them into mush: the boss
-   portraits are cut from the planner at 26px and are shown at 26 or at exactly half. */
+/* The character on the heading of a Party View row or card. 96px is the Nexon render's own size,
+   so this is 1:1 and not an enlargement; see .tile-sprite. A column of them lines up by the feet. */
 .seat-sprite {
-  width: 24px;
-  height: 24px;
+  width: 96px;
+  height: 96px;
   flex: none;
   object-fit: contain;
   object-position: center bottom;
   image-rendering: pixelated;
 }
 
-/* On a row's heading rather than in a chip, where there is height to spare. A chip is a word with a
-   face on it and stays at 24; a heading is where you are actually looking for the character, so it
-   gets the whole 96px render at 1:1, the size the banner and the roster strip draw. Both places
-   that use this are Party View's headings, and a column of them lines up by the feet. */
-.seat-sprite.is-large {
-  width: 96px;
-  height: 96px;
-}
-
-.party-seat-chip {
-  /* Taller than a text-only chip now that it carries a face. */
-  padding: 2px 8px 2px 3px;
-}
-
+/* Pixel art cut from the planner at 26px, so drawn at 26 or at exactly half, never at a fraction. */
 .boss-portrait {
   width: 26px;
   height: 26px;
@@ -4241,13 +4217,6 @@ button.link:disabled {
   padding: 6px 8px;
 }
 
-/* Whose character a seat is, said by the People page rather than repeated per party. */
-.party-person {
-  font-size: 10px;
-  letter-spacing: 0.04em;
-  color: var(--muted-2);
-}
-
 /* The People page: one line per person, their characters as a comma-separated list, because that
    is how they are said out loud and a row of inputs per character is furniture. */
 .people-list {
@@ -4395,6 +4364,13 @@ button.link:disabled {
   white-space: nowrap;
   font-size: 11px;
   color: var(--ink);
+}
+
+/* Yours. Only the pool page's strip lists your own character beside the rest, and there telling
+   your share from theirs is the question the page exists to answer. The other two strips are the
+   others only, so this never fires on them. */
+.roster-tile.is-mine .roster-name {
+  color: var(--accent);
 }
 
 .roster-person {

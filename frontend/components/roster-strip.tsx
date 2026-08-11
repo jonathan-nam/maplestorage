@@ -11,7 +11,11 @@ export function RosterStrip({ members }: { members: PartyMember[] }) {
   return (
     <ul className="roster-strip">
       {members.map((member) => (
-        <li key={member.id} className="roster-tile" title={member.personName ?? undefined}>
+        <li
+          key={member.id}
+          className={`roster-tile${member.characterId ? " is-mine" : ""}`}
+          title={member.characterId ? "One of your characters" : (member.personName ?? undefined)}
+        >
           {member.spriteImgUrl ? (
             <img className="roster-sprite" src={member.spriteImgUrl} alt="" />
           ) : (

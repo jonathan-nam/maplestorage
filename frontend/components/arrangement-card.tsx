@@ -47,7 +47,7 @@ export function ArrangementCard({
           // Nobody to show. The width is kept so the headings stay in one column.
           <span className="party-row-toggle is-empty" aria-hidden="true" />
         )}
-        {sprite && <img className="seat-sprite is-large" src={sprite} alt="" />}
+        {sprite && <img className="seat-sprite" src={sprite} alt="" />}
         <h3 className="boss-run-name">{name}</h3>
         <span className="party-card-size">{partySizeLabel(members.length + 1)}</span>
       </header>
