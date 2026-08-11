@@ -13,17 +13,17 @@ import type { Boss } from "@/types/boss";
 import type { Party } from "@/types/party";
 import type { VestigeTranche } from "@/types/vestige";
 
-// One card per HOLDER: the pile a person is holding, the one box that prices it, and what each boss
-// they looted for owes once its own pieces are covered.
+// Your own pile: the coupons you are holding, the box that says what became of them, and the bosses
+// they came off.
+//
+// Only piles you can sell out of reach this card. What somebody ELSE holds is a debt rather than a
+// sale, and it is the Collection Ledger's, stated in pieces: see lib/collection.ts.
 //
 // A person, not a character. One human running three characters has one pile and one box, and each
 // boss row names which of their characters looted it, so the fold hides nothing.
 //
-// Nothing here computes a meso. Every figure comes off the HolderLedger, which is
-// lib/vestige-ledger.ts's, which is lib/piece-ledger.ts's. The one thing this file decides is what
-// to draw when a figure is not yet knowable, and the answer is the pieces and no money: a boss
-// whose pieces are still unsold has no price, and an average of the tranches so far would be a
-// number the next tranche moves.
+// Nothing here computes a meso, and there is no longer one to compute. Every figure comes off the
+// HolderLedger, which is lib/vestige-ledger.ts's, which is lib/piece-ledger.ts's.
 
 /** What a sale is refused for, mirroring trancheRefusal in VestigeRoutes.kt. */
 const MAX_PIECES = 1_000_000;

@@ -786,8 +786,8 @@ export function salesByHolder(rows: TrancheRow[]): Map<string, number> {
 /**
  * How many pieces each holder is redeeming rather than selling.
  *
- * A total, because only the total matters: which bosses the pieces come off is decided on read by
- * `spreadKept`, and the rows exist separately so a redemption entered by mistake can be removed.
+ * A total, because only the total matters: nothing asks which boss a redeemed piece came off any
+ * more, and the rows exist separately so a redemption entered by mistake can be removed.
  *
  * Rows with no money, the same test `salesByHolder` uses and for the same reason: V46 makes the
  * amount and the disposition equivalent by check constraint, and reading `disposition` would read
@@ -806,9 +806,9 @@ export function keptByHolder(rows: TrancheRow[]): Map<string, number> {
 /**
  * Pieces of the creditor's that each holder bought, and what they paid for them. See V50.
  *
- * One count and one total per holder, so several purchases at different prices blend. Which boss each
- * bought piece came off is decided on read by `spreadBought`, for the same reason a sale names none:
- * a coupon in an inventory carries no record of the clear it fell on.
+ * One count and one total per holder, so several purchases at different prices blend. No boss is
+ * named on one, for the same reason a sale names none: a coupon in an inventory carries no record of
+ * the clear it fell on, and nothing needs to know now that no debt is priced boss by boss.
  */
 export function boughtByHolder(rows: TrancheRow[]): Map<string, { pieces: number; paid: number }> {
   const out = new Map<string, { pieces: number; paid: number }>();
