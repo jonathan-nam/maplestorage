@@ -168,6 +168,11 @@ drops:
   # flattened over a light grey slot. Those pixels are part grey by construction, so no key or
   # un-multiply recovers them, and every version was either boxed in grey or wrong in colour. If this
   # ever needs replacing, replace it with a sprite and not a capture.
+  #
+  # It is stored centred on the 46x46 canvas, unscaled. It shipped as a bare 37x37 file, which the
+  # 46px CSS box then stretched 1.243x, so it read 1.44x larger than every icon beside it. Centre a
+  # replacement the same way and do not rescale it: 42% of its pixels are semi-transparent, so a
+  # resample bleeds the transparent black and magenta into the glow.
   - key: vestige-of-erion
     name: Vestige of Erion Coupon
     art: cut
