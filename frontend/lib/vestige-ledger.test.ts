@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   type Holder,
+  SELF_KEY,
+  alsoHeldByYou,
   boughtByHolder,
   closedByHolder,
   closureKey,
@@ -1288,5 +1290,129 @@ describe("closing the books, which no arithmetic is entitled to do", () => {
     expect(runningBalance(drops).get(holderKey(BRO))).toBe(-150);
     expect(stillOpen(drops, closed)).toEqual([]);
     expect(runningBalance(stillOpen(drops, closed)).size).toBe(0);
+  });
+});
+
+describe("the coupons you hold that owe nobody anything", () => {
+  // The Sale Ledger takes a sale, so it has to admit every coupon you could sell. `outstanding()`
+  // queues DEBTS and drops a night that came out square, which on a real account hid a stack of 120
+  // and left the card reading 80 against the 200 really held.
+  const mine = (id: string, name: string) => seat(id, name, { mine: true });
+
+  it("adds a night that divided exactly, which the debt queue leaves out", () => {
+    // Three seats, one stack each, all on one share: everybody landed on their entitlement.
+    const parties = [
+      party(
+        "pj",
+        "limbo",
+        [mine("m1", "mechyfechy"), seat("m2", "Zaddy"), seat("m3", "Premial")],
+        null,
+      ),
+    ];
+    const pools = [
+      pool("pj", [
+        coupon("lj", "limbo", 360, "2026-08-06", {
+          bundles: 3,
+          bundlesBy: [
+            { memberId: "m1", bundles: 1 },
+            { memberId: "m2", bundles: 1 },
+            { memberId: "m3", bundles: 1 },
+          ],
+        }),
+      ]),
+    ];
+    const queued = outstanding(parties, pools, VESTIGE, ORDER);
+    expect(queued).toEqual([]);
+    expect(alsoHeldByYou(parties, pools, VESTIGE, ORDER, queued).map((d) => d.drop.held)).toEqual([
+      120,
+    ]);
+  });
+
+  it("adds a boss you ran alone, where there is no arrangement to read", () => {
+    const parties = [party("ps", "limbo", [mine("m1", "mechyfechy")], null)];
+    const pools = [pool("ps", [coupon("ls", "limbo", 180, "2026-08-06", { bundles: 3 })])];
+    const queued = outstanding(parties, pools, VESTIGE, ORDER);
+    expect(queued).toEqual([]);
+    expect(alsoHeldByYou(parties, pools, VESTIGE, ORDER, queued).map((d) => d.drop.held)).toEqual([
+      180,
+    ]);
+  });
+
+  it("does not count a pile the queue already has, which would double it", () => {
+    // The uneven night: you took 1 stack of 3 and were due 2, so the queue already holds your pile.
+    const parties = [party("pa", "baldrix", [mine("m1", "mechyfechy"), seat("m2", "Creed")], null)];
+    const pools = [
+      pool("pa", [
+        coupon("la", "baldrix", 240, "2026-08-06", {
+          bundles: 3,
+          bundlesBy: [
+            { memberId: "m1", bundles: 1 },
+            { memberId: "m2", bundles: 2 },
+          ],
+        }),
+      ]),
+    ];
+    const queued = outstanding(parties, pools, VESTIGE, ORDER);
+    expect(queued.filter((d) => holderKey(d.holder) === SELF_KEY).map((d) => d.drop.held)).toEqual([
+      80,
+    ]);
+    expect(alsoHeldByYou(parties, pools, VESTIGE, ORDER, queued)).toEqual([]);
+  });
+
+  it("leaves somebody else's balanced pile alone, since you cannot sell out of it", () => {
+    const parties = [party("pb", "limbo", [seat("m1", "Creed"), seat("m2", "Zaddy")], null)];
+    const pools = [
+      pool("pb", [
+        coupon("lb", "limbo", 60, "2026-08-06", {
+          bundles: 2,
+          bundlesBy: [
+            { memberId: "m1", bundles: 1 },
+            { memberId: "m2", bundles: 1 },
+          ],
+        }),
+      ]),
+    ];
+    expect(alsoHeldByYou(parties, pools, VESTIGE, ORDER, [])).toEqual([]);
+  });
+
+  it("comes to the whole pile once the card adds them up", () => {
+    const parties = [
+      party("pa", "baldrix", [mine("m1", "mechyfechy"), seat("m2", "Creed")], null),
+      party(
+        "pj",
+        "limbo",
+        [mine("m3", "mechyfechy"), seat("m4", "Zaddy"), seat("m5", "Premial")],
+        null,
+      ),
+    ];
+    const pools = [
+      pool("pa", [
+        coupon("la", "baldrix", 240, "2026-08-06", {
+          bundles: 3,
+          bundlesBy: [
+            { memberId: "m1", bundles: 1 },
+            { memberId: "m2", bundles: 2 },
+          ],
+        }),
+      ]),
+      pool("pj", [
+        coupon("lj", "limbo", 360, "2026-08-06", {
+          bundles: 3,
+          bundlesBy: [
+            { memberId: "m3", bundles: 1 },
+            { memberId: "m4", bundles: 1 },
+            { memberId: "m5", bundles: 1 },
+          ],
+        }),
+      ]),
+    ];
+    const queued = outstanding(parties, pools, VESTIGE, ORDER);
+    const ledgers = holderLedgers(
+      [...queued, ...alsoHeldByYou(parties, pools, VESTIGE, ORDER, queued)],
+      salesByHolder([]),
+    );
+    const you = ledgers.find((l) => holderKey(l.holder) === SELF_KEY)!;
+    // 80 off the uneven night plus 120 off the one that divided. It used to read 80.
+    expect(you.pieces).toBe(200);
   });
 });
