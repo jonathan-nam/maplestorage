@@ -14,12 +14,19 @@ import kotlin.time.Clock
 
 // One route, in a file of its own, as the drop log's is. See LootLogRoute.kt.
 
+/** The config went with the night. A success with no party to answer with, not a 404. */
+private object Gone
+
 /**
- * Takes this boss off the period, or puts it back, leaving the config where it is.
+ * Takes this boss off the period, or puts it back, leaving a STANDING config where it is.
  *
  * A week off is not the party ending. Saying it by deleting the config would take the seats and the
  * pool with it and need retyping next Thursday, which is why the mark is a row of its own and why
  * going back to the config's default is that row's deletion.
+ *
+ * A ONE-OFF is the other way round, because it is a night rather than an arrangement: taking it off
+ * is the night not happening, so its drops for the period go with it and the config follows once
+ * nothing points at it. See retractNight, which holds the whole rule.
  *
  * One route for both kinds of config, because the question is the same one. What differs is which
  * way the default runs: a standing party is on until this says otherwise, a one-off is off until it
@@ -52,16 +59,22 @@ internal suspend fun RoutingContext.setSkipRoute() {
                 // off the neighbouring week.
                 asked != null && asked != currentWeek() -> "only this week can be changed"
                 else -> {
-                    setRunsInPeriod(
-                        partyId,
-                        isOneOff(partyId),
-                        periodShown(reset, week = null, now = now),
-                        runs = !request.skipped,
-                        now = now,
-                    )
-                    findParty(partyId, userId)
+                    val oneOff = isOneOff(partyId)
+                    val period = periodShown(reset, week = null, now = now)
+                    setRunsInPeriod(partyId, oneOff, period, runs = !request.skipped, now = now)
+                    if (oneOff && request.skipped && retractNight(partyId, reset, period)) {
+                        Gone
+                    } else {
+                        findParty(partyId, userId)
+                    }
                 }
             }
         }
-    respondToSave(outcome, HttpStatusCode.OK)
+    // Ahead of respondToSave, which reads every non-party as a failure and would answer a config
+    // that is gone because it worked with the 404 that means it was never there.
+    if (outcome === Gone) {
+        call.respond(HttpStatusCode.NoContent)
+    } else {
+        respondToSave(outcome, HttpStatusCode.OK)
+    }
 }
