@@ -22,6 +22,15 @@ private const val MAX_SPRITE_BYTES = 512 * 1024
 // signature rather than as eight unexplained numbers.
 private val PNG_MAGIC = "89504e470d0a1a0a".hexToByteArray()
 
+// The smallest thing that can be a PNG at all: the 8-byte signature, a 25-byte IHDR, and a 12-byte
+// IEND. Anything shorter carries no image however right its first 8 bytes look.
+//
+// The signature check alone is not enough, which is not hypothetical. A TRUNCATED response passes it
+// and gets stored behind a year of `immutable`, so a connection dropped mid-body would cache a broken
+// image for a year. Found when a test's 9-byte stub sailed through this and was written over 14 real
+// sprites; the stub was the accident, storing it was this bug.
+private const val MIN_PNG_BYTES = 8 + 25 + 12
+
 /** A cached sprite: the bytes if we have them, and the URL they came from either way. */
 class CachedSprite(
     val sourceUrl: String,
@@ -55,7 +64,8 @@ class SpriteCache(
             // than content-type for the same reason: the header is theirs to get wrong.
             when {
                 bytes.size > MAX_SPRITE_BYTES -> null
-                !bytes.copyOfRange(0, minOf(PNG_MAGIC.size, bytes.size)).contentEquals(PNG_MAGIC) -> null
+                bytes.size < MIN_PNG_BYTES -> null
+                !bytes.copyOfRange(0, PNG_MAGIC.size).contentEquals(PNG_MAGIC) -> null
                 else -> bytes
             }
         }.getOrNull()

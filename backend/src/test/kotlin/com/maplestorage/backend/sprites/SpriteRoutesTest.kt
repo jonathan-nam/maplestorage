@@ -32,7 +32,7 @@ import kotlin.time.Clock
 class SpriteRoutesTest {
     private val hit = "https://msavatar1.nexon.net/Character/ROUTEHIT.png"
     private val pending = "https://msavatar1.nexon.net/Character/ROUTEPENDING.png"
-    private val png = byteArrayOf(0x89.toByte(), 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 7, 7)
+    private val png = TEST_PNG
 
     @BeforeTest
     fun seed() {

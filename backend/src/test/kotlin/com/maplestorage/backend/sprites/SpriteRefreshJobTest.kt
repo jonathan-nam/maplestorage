@@ -55,7 +55,7 @@ class SpriteRefreshJobTest {
     private val userId = "user_test_sprite_refresh"
     private val oldUrl = "https://msavatar1.nexon.net/Character/OLDFIT.png"
     private val newUrl = "https://msavatar1.nexon.net/Character/NEWFIT.png"
-    private val png = byteArrayOf(0x89.toByte(), 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 9)
+    private val png = TEST_PNG
 
     @BeforeTest
     fun migrate() {

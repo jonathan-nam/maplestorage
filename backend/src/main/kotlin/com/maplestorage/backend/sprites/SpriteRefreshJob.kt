@@ -15,6 +15,8 @@ import org.jetbrains.exposed.v1.core.inList
 import org.jetbrains.exposed.v1.core.less
 import org.jetbrains.exposed.v1.core.or
 import org.jetbrains.exposed.v1.jdbc.deleteWhere
+import org.jetbrains.exposed.v1.jdbc.insertIgnore
+import org.jetbrains.exposed.v1.jdbc.select
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.jetbrains.exposed.v1.jdbc.update
@@ -57,9 +59,11 @@ private val ORPHAN_GRACE = 7.days
  * outfit is a new URL) but the URL on the character does. That is what this refreshes; the byte
  * cache follows from it.
  *
- * Party seats that are not one of this account's characters are deliberately not in scope. Those
- * have their own policy in PartySprites.kt (fill when empty, retry a miss after a week), and putting
- * every seat of every roster on a daily clock would multiply the call volume by roster size.
+ * Party seats that are not one of this account's characters are deliberately not RE-ASKED here.
+ * Those have their own policy in PartySprites.kt (fill when empty, retry a miss after a week), and
+ * putting every seat of every roster on a daily lookup clock would multiply the ranking calls by
+ * roster size. Their bytes are still cached, by [warmUnfetched]: that needs no lookup, because the
+ * URL is already stored. So a seat's outfit can go stale while its art is served from our own cache.
  */
 class SpriteRefreshJob(
     private val nexonLookupService: NexonLookupService,
@@ -85,6 +89,40 @@ class SpriteRefreshJob(
             refresh(character, Clock.System.now())
         }
         return due.size
+    }
+
+    /**
+     * Fetches the bytes for registered sprites that have none yet, and returns how many landed.
+     *
+     * Separate from [runOnce] because it needs no ranking lookup: the URL is already known, so this
+     * is one image fetch rather than the four ranking calls plus a fetch that finding a URL costs.
+     *
+     * It is also the only thing that ever caches a party seat who is not one of your characters.
+     * Those are deliberately not on the daily lookup clock (see the class comment), so without this
+     * they would stay registered-but-byteless forever: drawn via the redirect, but redirected to
+     * Nexon on every page load, which is the whole problem this cache exists to solve.
+     */
+    suspend fun warmUnfetched(limit: Int = BATCH): Int {
+        val pending = transaction { unfetchedSprites(limit) }
+        var stored = 0
+        for ((index, url) in pending.withIndex()) {
+            if (index > 0) delay(PACING)
+            if (warmOne(url)) stored++
+        }
+        return stored
+    }
+
+    /**
+     * Fetches and stores the bytes for one known URL. True if bytes landed.
+     *
+     * The seam every test uses, because [warmUnfetched] picks its own work from the whole table: a
+     * test calling that against the shared dev database warms every byteless row in it, which is how
+     * a 9-byte stub ended up written over 14 real sprites. A test names its URL.
+     */
+    internal suspend fun warmOne(url: String): Boolean {
+        val bytes = spriteCache.fetch(url) ?: return false
+        transaction { spriteCache.store(url, bytes) }
+        return true
     }
 
     internal suspend fun refresh(
@@ -136,6 +174,63 @@ class SpriteRefreshJob(
 }
 
 /**
+ * Registered sprites with no bytes yet, oldest first.
+ *
+ * Top-level, like its neighbours below, because it reads the table and nothing else.
+ *
+ * Must be called from inside a `transaction { }` block.
+ */
+fun unfetchedSprites(limit: Int = BATCH): List<String> =
+    CharacterSprite
+        .selectAll()
+        .where { CharacterSprite.image eq null }
+        .orderBy(CharacterSprite.createdAt to SortOrder.ASC)
+        .limit(limit)
+        .map { it[CharacterSprite.sourceUrl] }
+
+/** Every sprite URL any row currently points at, by proxy key. */
+private fun referencedSprites(): Map<String, String> {
+    val characterUrls = Characters.selectAll().mapNotNull { it[Characters.spriteImgUrl] }
+    val seatUrls = PartyMember.selectAll().mapNotNull { it[PartyMember.spriteImgUrl] }
+    return (characterUrls + seatUrls).associateBy { spriteKey(it) }
+}
+
+/**
+ * Registers any sprite URL a row points at that the cache has never heard of.
+ *
+ * The safety net for the one failure this cache can produce that is worse than what it replaced. The
+ * DTO hands out a proxy path for any stored URL, computed without touching this table, so a URL that
+ * was never registered is a path the route answers 404 for and an image that is simply gone. That is
+ * what happened to every sprite predating V53 (see V54__backfill_character_sprite.sql), and a write
+ * path added later that forgets to register would do it again.
+ *
+ * Registered with no bytes, which is the state the route redirects to Nexon for, so an unregistered
+ * sprite is drawn from the moment this runs and cached when the refresh next reaches it.
+ *
+ * Must be called from inside a `transaction { }` block.
+ */
+fun registerUnknownSprites(): Int {
+    val referenced = referencedSprites()
+    if (referenced.isEmpty()) return 0
+    val known =
+        CharacterSprite
+            .select(CharacterSprite.urlSha256)
+            .where { CharacterSprite.urlSha256 inList referenced.keys.toList() }
+            .map { it[CharacterSprite.urlSha256] }
+            .toSet()
+    val missing = referenced.filterKeys { it !in known }
+    val now = Clock.System.now()
+    missing.forEach { (key, url) ->
+        CharacterSprite.insertIgnore {
+            it[urlSha256] = key
+            it[sourceUrl] = url
+            it[createdAt] = now
+        }
+    }
+    return missing.size
+}
+
+/**
  * Deletes cached sprites nothing points at, once they are past [ORPHAN_GRACE].
  *
  * Without this the table gains a row per outfit change per character and never loses one. The
@@ -145,9 +240,7 @@ class SpriteRefreshJob(
  * Must be called from inside a `transaction { }` block.
  */
 fun sweepOrphanedSprites(now: Instant): Int {
-    val characterUrls = Characters.selectAll().mapNotNull { it[Characters.spriteImgUrl] }
-    val seatUrls = PartyMember.selectAll().mapNotNull { it[PartyMember.spriteImgUrl] }
-    val referenced = (characterUrls + seatUrls).map { spriteKey(it) }.toSet()
+    val referenced = referencedSprites().keys
 
     val cutoff = now - ORPHAN_GRACE
     val orphans =
@@ -169,15 +262,29 @@ fun sweepOrphanedSprites(now: Instant): Int {
  */
 fun Application.startSpriteRefresh(job: SpriteRefreshJob) {
     launch {
-        // Not on boot. A deploy restarts the process, and refreshing on every restart turns a busy
-        // afternoon of deploys into a burst of lookups that the clock exists to avoid.
+        // Registering costs one query and no outbound call, and an unregistered sprite is a BROKEN
+        // IMAGE rather than an uncached one, so it does not wait for the first tick.
+        runCatching { transaction { registerUnknownSprites() } }
+            .onSuccess { if (it > 0) log.info("Sprite refresh: registered $it sprite(s) on boot") }
+            .onFailure { log.warn("Sprite registration on boot failed", it) }
+
+        // The lookups themselves are not on boot. A deploy restarts the process, and refreshing on
+        // every restart turns a busy afternoon of deploys into a burst of lookups that the clock
+        // exists to avoid.
         delay(TICK_INTERVAL)
         while (true) {
             runCatching {
+                val registered = transaction { registerUnknownSprites() }
                 val asked = job.runOnce()
+                // After the lookups, so a URL they just registered is warmed by this same tick.
+                val warmed = job.warmUnfetched()
                 val swept = transaction { sweepOrphanedSprites(Clock.System.now()) }
-                if (asked > 0 || swept > 0) {
-                    log.info("Sprite refresh: asked about $asked character(s), swept $swept cached sprite(s)")
+                // Silent on a tick that did nothing, which is most of them.
+                if (registered + asked + warmed + swept > 0) {
+                    log.info(
+                        "Sprite refresh: registered $registered, asked about $asked character(s), " +
+                            "warmed $warmed, swept $swept cached sprite(s)",
+                    )
                 }
             }.onFailure {
                 // The loop outlives one bad tick. A lookup that throws, a database blip: the next
