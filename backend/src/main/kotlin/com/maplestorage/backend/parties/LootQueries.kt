@@ -94,6 +94,28 @@ private fun ranThatWeekFor(rows: List<ResultRow>): Map<Uuid, List<String>> {
     }
 }
 
+/**
+ * The share each seat was on in each drop's own week, keyed by drop.
+ *
+ * Only where a week named one. Empty is every seat on its standing share, which is every week
+ * nobody has changed the deal behind, and is what all of them held before V55.
+ *
+ * Carried beside ranThatWeek and for the same reason: a drop belongs to the week it fell in, and
+ * the deal that divides it is the one that was in force THEN. Without this the pinning is a table
+ * nobody reads, and agreeing a new split re-divides every outstanding drop by it.
+ */
+private fun sharesThatWeekFor(rows: List<ResultRow>): Map<Uuid, Map<String, Int>> {
+    val sharesByWeek =
+        rows
+            .groupBy({ weekOf(it[PartyLoot.droppedOn]) }) { it[PartyLoot.partyId] }
+            .mapValues { (week, partyIds) -> weekSharesFor(partyIds.distinct(), week) }
+
+    return rows.associate { row ->
+        val shares = sharesByWeek[weekOf(row[PartyLoot.droppedOn])]?.get(row[PartyLoot.partyId])
+        row[PartyLoot.id] to shares.orEmpty().mapKeys { it.key.toString() }
+    }
+}
+
 internal fun lootFor(partyId: Uuid): List<LootResponse> {
     val rows =
         lootWithCatalog()
@@ -107,11 +129,13 @@ internal fun lootFor(partyId: Uuid): List<LootResponse> {
 
     val payoutsByLoot = payoutsFor(rows.map { it[PartyLoot.id] })
     val ranByLoot = ranThatWeekFor(rows)
+    val sharesByLoot = sharesThatWeekFor(rows)
     val bundlesByLoot = bundlesFor(rows.map { it[PartyLoot.id] })
     return rows.map {
         it.toLootResponse(
             payoutsByLoot[it[PartyLoot.id]].orEmpty(),
             ranByLoot[it[PartyLoot.id]].orEmpty(),
+            sharesByLoot[it[PartyLoot.id]].orEmpty(),
             bundlesByLoot[it[PartyLoot.id]].orEmpty(),
         )
     }
@@ -139,11 +163,13 @@ internal fun allLootFor(userId: String): List<PartyLootPoolResponse> {
 
     val payoutsByLoot = payoutsFor(rows.map { it[PartyLoot.id] })
     val ranByLoot = ranThatWeekFor(rows)
+    val sharesByLoot = sharesThatWeekFor(rows)
     val bundlesByLoot = bundlesFor(rows.map { it[PartyLoot.id] })
     val response = { row: ResultRow ->
         row.toLootResponse(
             payoutsByLoot[row[PartyLoot.id]].orEmpty(),
             ranByLoot[row[PartyLoot.id]].orEmpty(),
+            sharesByLoot[row[PartyLoot.id]].orEmpty(),
             bundlesByLoot[row[PartyLoot.id]].orEmpty(),
         )
     }
@@ -200,6 +226,7 @@ private fun statusOf(
 private fun ResultRow.toLootResponse(
     payouts: List<LootPayoutResponse>,
     ranThatWeek: List<String>,
+    sharesThatWeek: Map<String, Int>,
     bundlesBy: List<LootBundleResponse>,
 ): LootResponse {
     val sold = this[PartyLoot.soldAt] != null
@@ -227,6 +254,7 @@ private fun ResultRow.toLootResponse(
         soldAt = this[PartyLoot.soldAt]?.toString(),
         payouts = payouts,
         ranThatWeek = ranThatWeek,
+        sharesThatWeek = sharesThatWeek,
         bundles = this.getOrNull(BossDropAmount.bundles),
         bundlesBy = bundlesBy,
     )

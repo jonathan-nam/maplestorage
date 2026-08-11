@@ -250,6 +250,13 @@ internal fun writeMembers(
     // in is the whole party, so absence is the answer rather than a gap to preserve.
     shares: Map<String, Int> = emptyMap(),
 ) {
+    // Before a share moves, freeze the current one onto every earlier week that already dropped
+    // something. Entitlement is derived from party_member.shares on read, so without this, agreeing
+    // a new split re-divides every outstanding drop by it, including weeks somebody has already
+    // been shown a figure for. Here rather than at the callers: this is the one place a standing
+    // share is written, and a second caller that forgot would be silent. See pinSharesBefore.
+    pinSharesBefore(partyId, currentWeek())
+
     val names = seatNames(ownSeatName(ownCharacterId), members)
     val existing = seatIdsByName(partyId)
 
