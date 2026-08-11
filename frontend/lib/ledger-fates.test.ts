@@ -1,9 +1,10 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { FATES, coversThePile, roomFor } from "./ledger-fates";
+import { FATES, asksAnything, coversThePile, owes, roomFor } from "./ledger-fates";
 import {
   type Holder,
+  alsoHeldByYou,
   holderLedgers,
   keptByHolder,
   outstanding,
@@ -117,6 +118,27 @@ const yourPile = (kept = 0, bought = { pieces: 0, paid: 0 }) =>
     ),
   )[0]!;
 
+/**
+ * A night that divided the way it fell: a duo, 60 in 2 stacks, one each.
+ *
+ * Nobody owes anybody, so `outstanding` drops it and `alsoHeldByYou` is what puts your 30 on the
+ * card, which is the only reason the pile is drawn at all. The shape the card used to demand 30
+ * pieces of typing for.
+ */
+const squarePile = () => {
+  const parties = [
+    party(
+      [seat("m1", "Husky", { mine: true }), seat("m2", "BroChar", { person: ["p-bro", "Bro"] })],
+      null,
+    ),
+  ];
+  const pools = [pool([{ ...coupon(60), bundles: 2 }])];
+  const queued = outstanding(parties, pools, VESTIGE, ORDER);
+  // The premise: a square night owes nothing, so it is not in the queue at all.
+  expect(queued).toHaveLength(0);
+  return holderLedgers(alsoHeldByYou(parties, pools, VESTIGE, ORDER, queued), new Map())[0]!;
+};
+
 describe("the answers a pile can be given", () => {
   it("offers all three whoever is holding it", () => {
     // BOUGHT used to be somebody else's fate only. It is not about buying your own coupons, it is
@@ -190,6 +212,60 @@ describe("whether the answers can account for the whole pile", () => {
   });
 });
 
+// A pile that owes nobody gets the same figures whatever it is told, because #354 left no debt
+// derived from these rows. So the count is an instruction with no consequence, and 24 square nights
+// asked for 1140 pieces of typing to move a figure nobody reads.
+describe("whether the card has anything to ask", () => {
+  it("asks nothing of a night that divided the way it fell", () => {
+    const square = squarePile();
+    expect(square.pieces).toBe(30);
+    expect(owes(square)).toBe(0);
+    // The pile is unaccounted for and that is fine: nothing turns on the answer.
+    expect(unaccounted(square)).toBe(30);
+    expect(asksAnything(square)).toBe(false);
+  });
+
+  it("still asks a pile that owes somebody, which is what the count is for", () => {
+    const mine = yourPile();
+    expect(owes(mine)).toBe(30);
+    expect(asksAnything(mine)).toBe(true);
+  });
+
+  it("keeps asking a debt already answered, so the rows stay correctable", () => {
+    // Every piece entered, and the debt is still 30: the count going quiet here would take the
+    // tranche rows' own heading with it.
+    const done = yourPile(30, { pieces: 30, paid: 750 * M });
+    expect(unaccounted(done)).toBe(0);
+    expect(asksAnything(done)).toBe(true);
+  });
+
+  it("speaks up when more was entered than the pile holds, owed or not", () => {
+    // A miscount is the one thing a quiet card may not swallow. 40 kept against a 30 pile.
+    const over = holderLedgers(
+      alsoHeldByYou(
+        [
+          party(
+            [
+              seat("m1", "Husky", { mine: true }),
+              seat("m2", "BroChar", { person: ["p-bro", "Bro"] }),
+            ],
+            null,
+          ),
+        ],
+        [pool([{ ...coupon(60), bundles: 2 }])],
+        VESTIGE,
+        ORDER,
+        [],
+      ),
+      new Map(),
+      keptByHolder([{ holder: SELF, pieces: 40, amount: null }]),
+    )[0]!;
+    expect([over.pieces, over.accounted]).toEqual([30, 40]);
+    expect(owes(over)).toBe(0);
+    expect(asksAnything(over)).toBe(true);
+  });
+});
+
 // A source test rather than a unit one: what went wrong was a condition in the JSX, not a figure.
 // The option list is where the dead end was, so this is the line that must not come back.
 const source = readFileSync(join(__dirname, "..", "components", "piece-ledger.tsx"), "utf8");
@@ -205,6 +281,18 @@ describe("the picker the card draws", () => {
 
   it("gates no option on whose pile it is, which is what left yours unanswerable", () => {
     expect(picker![0]).not.toContain('!== "SELF"');
+  });
+
+  it("puts the count behind the question, so a square pile is not asked", () => {
+    // The gate is the whole fix. Ungated, the count returns and every square night demands a
+    // pile's worth of typing again.
+    expect(source).toMatch(/asksAnything\(ledger\) && \(\s*<span className="ledger-progress">/);
+  });
+
+  it("leaves the form ungated, so a sale is offered where it is no longer demanded", () => {
+    // Hiding the form with the count would re-break what alsoHeldByYou exists for: a Sale Ledger
+    // that will not admit you hold the coupons cannot take the sale.
+    expect(source).toMatch(/\{\(toEnter > 0 \|\| ledger\.pieces === 0\) && \(\s*<form/);
   });
 
   it("words the purchase for the pile it is drawn on, since the directions are opposite claims", () => {
