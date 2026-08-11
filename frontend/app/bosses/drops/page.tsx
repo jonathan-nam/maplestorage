@@ -9,9 +9,10 @@ import { LogDrop } from "@/components/log-drop";
 import { LotSale } from "@/components/lot-sale";
 import { PieceLedger } from "@/components/piece-ledger";
 import { StackArrangement } from "@/components/stack-arrangement";
+import { TrancheHistory } from "@/components/tranche-history";
 import { ApiError, apiAssetUrl, apiFetch } from "@/lib/api";
 import { peek, put } from "@/lib/cache";
-import { buildCollection } from "@/lib/collection";
+import { buildCollection, stillOnSaleLedger } from "@/lib/collection";
 import { buildWallet } from "@/lib/wallet";
 import { type DropSectionKey, dropSections, shownSection } from "@/lib/drop-sections";
 import {
@@ -357,6 +358,19 @@ export default function DropLogPage() {
     const key = holderKey(paid.holder);
     paymentsByHolder.set(key, [...(paymentsByHolder.get(key) ?? []), paid]);
   }
+  // The Sale Ledger is piles you can sell out of, which is yours. Somebody else's stays only while
+  // it has rows recorded under the old shape, as history: those are correctable nowhere else. What
+  // they OWE is the Collection Ledger's to say, and only its, so the two never give two answers.
+  const { yours, history } = stillOnSaleLedger(
+    ledgers,
+    (key) =>
+      (tranchesByHolder.get(key)?.length ?? 0) > 0 || (paymentsByHolder.get(key)?.length ?? 0) > 0,
+  );
+  const historyHolders = history.map((l) => ({
+    key: holderKey(l.holder),
+    holder: l.holder,
+    name: l.holderName,
+  }));
   // The piles of interchangeable drops waiting to be priced. Yours: a lot is filed against the seat
   // that sold it, and only your own seats are ones you can name as seller. A partner's pile stays on
   // its rows, where each names its own seller.
@@ -376,7 +390,7 @@ export default function DropLogPage() {
   const sections = dropSections(
     {
       unanswered: open.length,
-      holders: ledgers.length,
+      holders: yours.length + history.length,
       lots: money ? lots.length : 0,
     },
     collection.length,
@@ -547,7 +561,7 @@ export default function DropLogPage() {
                   )}
 
                   <PieceLedger
-                    ledgers={ledgers}
+                    ledgers={yours}
                     tranches={tranchesByHolder}
                     payments={paymentsByHolder}
                     bossByKey={bossByKey}
@@ -590,6 +604,22 @@ export default function DropLogPage() {
                         body: JSON.stringify({ holder, lootIds, unpaid }),
                       })
                     }
+                    onRemoveSale={(trancheId) =>
+                      saleWrite(`${TRANCHES_KEY}/${trancheId}`, { method: "DELETE" })
+                    }
+                    onRemovePayment={(paymentId) =>
+                      paymentWrite(`${PAYMENTS_KEY}/${paymentId}`, { method: "DELETE" })
+                    }
+                  />
+
+                  {/* Somebody else's rows, from when their sales were entered here. No debt and no
+                      total: what they owe is the Collection Ledger's to say. Here so a mistyped one
+                      can still be taken back, and gone once there are none left. */}
+                  <TrancheHistory
+                    holders={historyHolders}
+                    tranches={tranchesByHolder}
+                    payments={paymentsByHolder}
+                    busy={busy}
                     onRemoveSale={(trancheId) =>
                       saleWrite(`${TRANCHES_KEY}/${trancheId}`, { method: "DELETE" })
                     }

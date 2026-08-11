@@ -138,3 +138,27 @@ export function sharesOf(row: Collection): { lootId: string; memberId: string }[
 export function isEmpty(row: Collection): boolean {
   return row.pieces === 0 && row.mesos === 0;
 }
+
+/**
+ * The piles the Sale Ledger still draws: yours, and anyone else's that has rows already recorded.
+ *
+ * Yours because they are the only ones you can sell out of. Somebody else's ONLY as history: their
+ * sales used to be entered tranche by tranche and those rows can be corrected nowhere else, so
+ * filtering them away would put a mistyped figure beyond reach. What they owe is not stated there,
+ * on the Collection Ledger's side of the split, so the two cannot give two answers.
+ *
+ * A holder with nothing recorded never gets a card, which is every debt from here on: the list dies
+ * out as each old pile is cleared.
+ */
+export function stillOnSaleLedger<T extends { holder: Holder }>(
+  ledgers: T[],
+  recorded: (key: string) => boolean,
+): { yours: T[]; history: T[] } {
+  const yours: T[] = [];
+  const history: T[] = [];
+  for (const ledger of ledgers) {
+    if (ledger.holder.kind === "SELF") yours.push(ledger);
+    else if (recorded(holderKey(ledger.holder))) history.push(ledger);
+  }
+  return { yours, history };
+}

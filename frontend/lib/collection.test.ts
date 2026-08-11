@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildCollection, isEmpty, sharesOf } from "./collection";
+import { buildCollection, isEmpty, sharesOf, stillOnSaleLedger } from "./collection";
 import type { Holder, HolderLedger } from "./vestige-ledger";
 import type { Counterparty, Wallet, WalletLine } from "./wallet";
 
@@ -229,5 +229,43 @@ describe("what a settle would touch", () => {
     );
     expect(rows[0]!.holder).toBeNull();
     expect(isEmpty(rows[0]!)).toBe(false);
+  });
+});
+
+describe("which piles the Sale Ledger still draws", () => {
+  const has =
+    (...keys: string[]) =>
+    (key: string) =>
+      keys.includes(key);
+
+  it("keeps yours, which are the only ones you can sell out of", () => {
+    const { yours, history } = stillOnSaleLedger([ledger(SELF, "you")], has());
+    expect(yours).toHaveLength(1);
+    expect(history).toEqual([]);
+  });
+
+  it("drops somebody else's pile that has nothing recorded against it", () => {
+    // Every debt from here on. It is stated on the Collection Ledger, in pieces, and nowhere else:
+    // two cards claiming what one person owes is two answers.
+    const { yours, history } = stillOnSaleLedger([ledger(BRO, "Bro")], has());
+    expect([yours, history]).toEqual([[], []]);
+  });
+
+  it("keeps somebody else's pile that has rows, because they are correctable nowhere else", () => {
+    const { history } = stillOnSaleLedger([ledger(BRO, "Bro")], has("person:p-bro"));
+    expect(history.map((l) => l.holderName)).toEqual(["Bro"]);
+  });
+
+  it("never files your own pile as history, however much is recorded against it", () => {
+    const { yours, history } = stillOnSaleLedger([ledger(SELF, "you")], has("self"));
+    expect(yours).toHaveLength(1);
+    expect(history).toEqual([]);
+  });
+
+  it("splits a mixed list without losing anybody", () => {
+    const all = [ledger(SELF, "you"), ledger(BRO, "Bro"), ledger(STRANGER, "Zaddy")];
+    const { yours, history } = stillOnSaleLedger(all, has("person:p-bro"));
+    expect(yours.map((l) => l.holderName)).toEqual(["you"]);
+    expect(history.map((l) => l.holderName)).toEqual(["Bro"]);
   });
 });
