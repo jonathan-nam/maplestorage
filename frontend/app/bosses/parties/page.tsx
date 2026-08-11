@@ -5,17 +5,17 @@ import { useAuth } from "@clerk/nextjs";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { AddForWeek } from "@/components/add-for-week";
-import { ArrangementCard } from "@/components/arrangement-card";
 import { KnownCharacters } from "@/components/known-characters";
 import { PartyCard } from "@/components/party-card";
 import { ResetTimer } from "@/components/reset-timer";
+import { RosterStrip } from "@/components/roster-strip";
 import { WeekStepper } from "@/components/week-stepper";
 import { ApiError, apiAssetUrl, apiFetch } from "@/lib/api";
-import { cellState, clearOfCell, clearStateLabel, indexClears } from "@/lib/boss-clears";
+import { cellState, clearOfCell, indexClears } from "@/lib/boss-clears";
 import { bossLabel, difficultyLabel } from "@/lib/boss-difficulty";
 import { peek, put } from "@/lib/cache";
 import { buildDropLog, couponsOwedByParty, pieceStatusByParty } from "@/lib/drop-log";
-import { dropsInWeek, poolSize } from "@/lib/loot";
+import { dropsInWeek } from "@/lib/loot";
 import { closedByHolder } from "@/lib/vestige-ledger";
 import {
   byBoss,
@@ -25,7 +25,6 @@ import {
   existedInWeek,
   filterByClear,
   knownCharacterNames,
-  otherMembers,
   runningThisPeriod,
 } from "@/lib/parties";
 import { preloadBossArt } from "@/lib/preload-boss-art";
@@ -53,8 +52,8 @@ type LoadState = "loading" | "loaded" | "error";
 // The same configs, read three ways, and none of them hides anything.
 //   character   what does this character owe the week, a row per boss
 //   boss        who am I doing Kalos with tonight
-//   party       one row per ARRANGEMENT: a duo with the same person across three bosses is one
-//               line with three bosses on it, which is how you would describe it out loud
+//   party       filed by ARRANGEMENT: a duo with the same person across three bosses is one
+//               section, the roster in its banner and a row per boss under it
 type Grouping = "character" | "boss" | "party";
 
 const PARTIES_KEY = "/api/parties";
@@ -604,6 +603,42 @@ export default function PartiesPage() {
     characters.map((c) => c.id),
   );
 
+  /**
+   * One config as a row under a boss heading.
+   *
+   * Shared by the by-character and by-party lists, which ask different questions of the same rows:
+   * both file a config under a boss, so both get the clear, the pool and the panel rather than one
+   * of them getting a summary of them.
+   */
+  function bossRow(party: Party) {
+    const boss = bossByKey.get(party.bossKey);
+    return (
+      <PartyCard
+        key={party.id}
+        party={party}
+        busy={isSaving(party.id)}
+        clear={clearOf(party)}
+        couponsOwed={couponsOwed.get(party.id) ?? 0}
+        onToggleClear={history ? undefined : (cleared) => toggleClear(party, cleared)}
+        dropTable={dropTables[party.bossKey]}
+        onAddDrop={canAddDrops ? (body) => addDrop(party, body) : undefined}
+        pool={poolFor(party)}
+        onSaveRoster={history ? undefined : (members) => saveRoster(party, members)}
+        onTakeOff={history ? undefined : () => setSkipped(party, true)}
+        heading={
+          <>
+            {boss?.iconUrl && (
+              <img className="boss-portrait" src={apiAssetUrl(boss.iconUrl)} alt="" />
+            )}
+            <h3 className="party-row-name">
+              {bossLabel(boss?.name ?? party.bossKey, party.difficulty)}
+            </h3>
+          </>
+        }
+      />
+    );
+  }
+
   return (
     <main className={state === "loading" ? PAGE_WAITING : "page"}>
       {/* Beside the title, not among the tabs below: those pick what the list shows, so a link
@@ -777,113 +812,35 @@ export default function PartiesPage() {
                       {group.parties.length} {group.parties.length === 1 ? "boss" : "bosses"}
                     </span>
                   </header>
-                  <div className="party-list">
-                    {group.parties.map((party) => (
-                      <PartyCard
-                        key={party.id}
-                        party={party}
-                        busy={isSaving(party.id)}
-                        clear={clearOf(party)}
-                        couponsOwed={couponsOwed.get(party.id) ?? 0}
-                        onToggleClear={
-                          history ? undefined : (cleared) => toggleClear(party, cleared)
-                        }
-                        dropTable={dropTables[party.bossKey]}
-                        onAddDrop={canAddDrops ? (body) => addDrop(party, body) : undefined}
-                        pool={poolFor(party)}
-                        onSaveRoster={history ? undefined : (members) => saveRoster(party, members)}
-                        onTakeOff={history ? undefined : () => setSkipped(party, true)}
-                        heading={
-                          <>
-                            {bossByKey.get(party.bossKey)?.iconUrl && (
-                              <img
-                                className="boss-portrait"
-                                src={apiAssetUrl(bossByKey.get(party.bossKey)!.iconUrl!)}
-                                alt=""
-                              />
-                            )}
-                            <h3 className="party-row-name">
-                              {bossLabel(
-                                bossByKey.get(party.bossKey)?.name ?? party.bossKey,
-                                party.difficulty,
-                              )}
-                            </h3>
-                          </>
-                        }
-                      />
-                    ))}
-                  </div>
+                  <div className="party-list">{group.parties.map(bossRow)}</div>
                 </section>
               );
             })}
 
           {grouping === "party" &&
-            arrangements.map((arrangement) => {
-              const character = characterById.get(arrangement.characterId);
-              const others = otherMembers({
-                ...arrangement.parties[0]!,
-                members: arrangement.members,
-              });
-              return (
-                <ArrangementCard
-                  key={arrangement.key}
-                  sprite={character?.spriteImgUrl}
-                  name={`${character?.name ?? "Unknown character"} + ${others
-                    .map((m) => m.name)
-                    .join(" + ")}`}
-                  members={others}
-                >
-                  {/* One chip per boss this arrangement runs, each a way into that boss's own
-                      pool. The pools stay separate: a drop comes off one boss, and pooling three
-                      would be splitting what cannot be split. */}
-                  <ul className="party-bosses">
-                    {arrangement.parties.map((party) => (
-                      <li key={party.id}>
-                        <Link href={`/bosses/parties/${party.id}`}>
-                          {bossByKey.get(party.bossKey)?.iconUrl && (
-                            <img
-                              className="boss-portrait"
-                              src={apiAssetUrl(bossByKey.get(party.bossKey)!.iconUrl!)}
-                              alt=""
-                            />
-                          )}
-                          {bossLabel(
-                            bossByKey.get(party.bossKey)?.name ?? party.bossKey,
-                            party.difficulty,
-                          )}
-                          {/* Both states are said out loud. Naming only the cleared one left the
-                              other as the absence of a label, which is the one state on this page
-                              you actually need to spot. Null stays silent: it is not a third answer
-                              here, it is no answer. */}
-                          {clearOf(party).cleared !== null && (
-                            <span
-                              className={`party-clear is-${
-                                clearOf(party).cleared ? "cleared" : "pending"
-                              }`}
-                            >
-                              {clearStateLabel(clearOf(party).cleared)}
-                            </span>
-                          )}
-                          {/* Every drop, not just the outstanding ones: this is the way in to
-                              the pool, and it disappeared entirely once everything was paid. */}
-                          {poolSize(party) > 0 && (
-                            <span
-                              className={
-                                party.pendingLoot + party.awaitingPayout > 0
-                                  ? "party-loot-summary"
-                                  : "party-loot-summary is-done"
-                              }
-                            >
-                              {poolSize(party)}
-                            </span>
-                          )}
-                        </Link>
-                      </li>
-                    ))}
-                  </ul>
-                </ArrangementCard>
-              );
-            })}
+            arrangements.map((arrangement) => (
+              // The by-character list's shape, with the party as its subject: a banner for whose
+              // runs these are, then a row per boss. The rows used to be chips summarising a clear
+              // and a pool count, which meant leaving the list to answer for either.
+              <section className="party-group" key={arrangement.key}>
+                <header className="party-banner is-roster">
+                  {/* Every seat, your own character among them, unlike the strip inside a row: the
+                      roster is what this grouping files by, so it is what the banner names. */}
+                  <RosterStrip members={arrangement.members} />
+                  {/* The tiles carry the names, so a visible heading would be the same names a
+                      second time. It is still a heading, for the outline the sections make. */}
+                  <h2 className="party-group-name visually-hidden">
+                    {arrangement.members.map((m) => m.name).join(" + ")}
+                  </h2>
+                  {/* Of the rows below, as the character banner's count is. */}
+                  <span className="party-banner-count">
+                    {arrangement.parties.length}{" "}
+                    {arrangement.parties.length === 1 ? "boss" : "bosses"}
+                  </span>
+                </header>
+                <div className="party-list">{arrangement.parties.map(bossRow)}</div>
+              </section>
+            ))}
 
           {grouping === "boss" &&
             bossGroups.map((group) => (

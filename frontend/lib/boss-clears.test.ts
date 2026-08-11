@@ -130,18 +130,25 @@ describe("clearStateLabel", () => {
 // because they are the only thing that says which of three states a tick is in.
 describe("the views name clear states through one place", () => {
   const source = (...parts: string[]) => readFileSync(join(__dirname, "..", ...parts), "utf8");
-  const files = [
+  // These draw a state themselves, so they must take the words from boss-clears.
+  const namers = [
     ["components", "party-card.tsx"],
     ["components", "boss-matrix.tsx"],
     ["components", "planner-dock.tsx"],
-    ["app", "bosses", "parties", "page.tsx"],
   ];
+  // Party View draws none of its own: every state on it is a row's, through PartyCard. What it may
+  // still not do is spell one by hand, which is what the second assertion is for.
+  const files = [...namers, ["app", "bosses", "parties", "page.tsx"]];
+
+  for (const parts of namers) {
+    it(`${parts.at(-1)} labels states from boss-clears`, () => {
+      expect(source(...parts)).toMatch(/\b(clearStateLabel|cellStateLabel)\(/);
+    });
+  }
 
   for (const parts of files) {
-    it(`${parts.at(-1)} labels states from boss-clears`, () => {
-      const text = source(...parts);
-      expect(text).toMatch(/\b(clearStateLabel|cellStateLabel)\(/);
-      expect(text).not.toMatch(/still to do|not yet cleared/);
+    it(`${parts.at(-1)} does not spell a state by hand`, () => {
+      expect(source(...parts)).not.toMatch(/still to do|not yet cleared/);
     });
   }
 });

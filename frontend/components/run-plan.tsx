@@ -226,9 +226,9 @@ export function RunPlan({
                             {`${planned.run.assumed ? "~" : ""}${formatDuration(planned.run.minutes)}`}
                           </span>
                         )}
-                        {/* What the pool holds, as the bare count the arrangement view's boss chips
-                            carry. Party View's wording ("1 in the pool") is a line of its own
-                            there and wrapped the boss name onto a second line here. It counts the
+                        {/* What the pool holds, as a bare count. Party View's wording ("1 in the
+                            pool") is a line of its own there and wrapped the boss name onto a
+                            second line here. It counts the
                             whole pool rather than tonight: a pool is not per night, and a badge
                             that emptied at reset would be a number about the week dressed as a
                             number about the run. */}

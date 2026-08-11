@@ -62,7 +62,6 @@
 .party-banner,
 .party-card,
 .party-editor,
-.boss-run,
 .config-row,
 .stat-tile,
 .run-draft,
@@ -1647,7 +1646,7 @@ img.user-avatar-img {
 }
 
 /* The only app card whose header is a real title BAR: it carries its own padding and the card
-   clips it, so it spans edge to edge. The others (.party-card-head, .boss-run-head and friends)
+   clips it, so it spans edge to edge. The others (.party-card-head and friends)
    are inline rows sitting inside their card's padding, and a gradient on those paints a floating
    strip rather than a bar. Giving them one means moving the padding off the card and onto its
    body, per component, which is a bigger change than this. */
@@ -3117,6 +3116,20 @@ button.link:disabled {
   overflow-wrap: anywhere;
 }
 
+/* Filed by party, the banner's subject is the roster, so it is the strip's tiles rather than the
+   one sprite a character gets. Top-aligned, as the pool page's head is: a count against the middle
+   of a strip that wrapped onto two rows belongs to neither of them. */
+.party-banner.is-roster {
+  align-items: flex-start;
+  padding: 10px 14px;
+}
+
+/* Takes the width so the tiles wrap at the page edge rather than running off it. */
+.party-banner .roster-strip {
+  flex: 1;
+  min-width: 0;
+}
+
 /* Hard right, the way the clear state sits on a party row: the eye runs down one edge. */
 .party-banner-count {
   margin-left: auto;
@@ -3186,27 +3199,10 @@ button.link:disabled {
   letter-spacing: 0.04em;
 }
 
-.party-bosses {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
 .party-mvp {
   font-size: 10px;
   letter-spacing: 0.04em;
   color: var(--good);
-}
-
-.party-bosses li {
-  padding: 3px 8px;
-  border-radius: 4px;
-  background: var(--surface-2);
-  font-size: 12px;
-  color: var(--muted);
 }
 
 .party-card-actions,
@@ -3819,13 +3815,6 @@ button.link:disabled {
   height: 13px;
 }
 
-.party-bosses li {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 2px 8px 2px 3px;
-}
-
 .loot-meta {
   display: inline-flex;
   align-items: center;
@@ -4006,40 +3995,6 @@ button.link:disabled {
   text-decoration: none;
 }
 
-/* One card per (party, boss) in the by-boss view. The boss leads, because that is what is being
-   looked up: the party under it is the answer. */
-.boss-run {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 12px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: var(--surface);
-}
-
-.boss-run-head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.boss-run-name {
-  margin: 0;
-  font-size: 14px;
-  color: var(--ink-strong);
-}
-
-/* The party inside a boss card is not a card of its own: one border around the other reads as two
-   things. */
-.boss-run .party-card {
-  padding: 0;
-  border: 0;
-  background: transparent;
-  /* The edge is an inset ring, so dropping the border alone still leaves it drawn. */
-  box-shadow: none;
-}
-
 /* The two splits, as chips that can both be on. Not tabs: they are independent, and tabs would say
    you have to choose. */
 .party-splits {
@@ -4062,15 +4017,6 @@ button.link:disabled {
 .party-chip.is-on {
   border-color: var(--accent);
   color: var(--ink-strong);
-}
-
-.boss-run-character {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  margin-left: auto;
-  font-size: 12px;
-  color: var(--muted);
 }
 
 /* Editing one character's parties: a row per boss they do not solo. */
@@ -4254,27 +4200,6 @@ button.link:disabled {
   padding: 7px 10px;
 }
 
-/* The consolidated view: one card per arrangement, with a chip per boss it runs. Each chip is the
-   way into that boss's own pool, which stays separate. */
-.party-bosses a {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  color: inherit;
-  text-decoration: none;
-}
-
-.party-bosses a:hover {
-  color: var(--accent);
-}
-
-.party-bosses .party-loot-summary {
-  padding: 0 5px;
-  border-radius: 999px;
-  background: var(--surface);
-  font-size: 10px;
-}
-
 /* The clear, ticked from a party. Three states, because "nobody has said anything this period" is
    not "not cleared": the matrix has drawn that distinction since it was built, and a party that
    collapsed the two would be the page that lies about it. */
@@ -4317,14 +4242,6 @@ button.link:disabled {
 .party-clear:disabled {
   opacity: 0.5;
   cursor: default;
-}
-
-/* In the arrangement view the state rides along on the boss chip, where it is a label. It keeps
-   its fill: the chips sit in a row, and a bare word among them was the easiest state on the page
-   to miss. */
-.party-bosses .party-clear {
-  padding: 1px 6px;
-  cursor: inherit;
 }
 
 /* The party as its characters. Same tile as the clear matrix's column heads (96x112, drawn from the
@@ -4374,9 +4291,10 @@ button.link:disabled {
   color: var(--ink);
 }
 
-/* Yours. Only the pool page's strip lists your own character beside the rest, and there telling
-   your share from theirs is the question the page exists to answer. The other two strips are the
-   others only, so this never fires on them. */
+/* Yours. Two strips list your own character beside the rest: the pool page's, where telling your
+   share from theirs is the question the page exists to answer, and the by-party banner, where the
+   roster is what the section is filed under. A strip inside a row is the others only, so this
+   never fires there. */
 .roster-tile.is-mine .roster-name {
   color: var(--accent);
 }
@@ -4392,15 +4310,6 @@ button.link:disabled {
   font-size: 10px;
   letter-spacing: 0.04em;
   color: var(--accent);
-}
-
-/* The row's own header: boss on the left, state on the right, everything on one line. */
-.boss-run {
-  padding: 14px 16px;
-}
-
-.boss-run-head {
-  gap: 10px;
 }
 
 /* On the header line, hard right: the row is wide now, and a state that floats in the middle of
@@ -4939,11 +4848,9 @@ button.link:disabled {
   transition: transform 120ms ease;
 }
 
-/* Every row that folds: a config in the by-character and by-boss lists, an arrangement in the
-   by-party one, a stacking drop in the Drop Log. A chevron that does not turn reads as a button
-   that did nothing. */
+/* Every row that folds: a config in any of the three party lists, a stacking drop in the Drop
+   Log. A chevron that does not turn reads as a button that did nothing. */
 .party-row.is-open .party-row-chevron,
-.boss-run.is-open .party-row-chevron,
 .droplog-row.is-open .party-row-chevron,
 .run-table tr.is-open .party-row-chevron {
   transform: rotate(90deg);
