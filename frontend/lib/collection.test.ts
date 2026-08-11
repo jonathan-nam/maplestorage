@@ -15,10 +15,7 @@ const ledger = (holder: Holder, name: string, over: Partial<HolderLedger> = {}):
   holderName: name,
   pieces: 0,
   owedToYou: 0,
-  settledToYou: 0,
-  dueNow: 0,
   received: 0,
-  settled: false,
   kept: 0,
   ownShare: 0,
   bought: { pieces: 0, paid: 0 },
@@ -38,25 +35,8 @@ const owing = (lootId: string, bossKey: string, pieces: number, closed = false) 
   weekStart: "2026-08-06",
   looterName: "CreedBratton",
   pieces: pieces * 2,
-  kept: 0,
-  bought: null,
   closed,
-  sellable: pieces * 2,
-  covered: 0,
-  complete: false,
-  averagePrice: null,
-  transfers: [
-    {
-      fromId: "person:p-bro",
-      toId: "self",
-      from: "Bro",
-      to: "you",
-      pieces,
-      settled: 0,
-      send: null,
-      nets: null,
-    },
-  ],
+  transfers: [{ fromId: "person:p-bro", toId: "self", from: "Bro", to: "you", pieces }],
 });
 
 const line = (lootId: string, pay: number, direction: "owe" | "owed" = "owed"): WalletLine => ({
@@ -85,7 +65,6 @@ const counterparty = (key: string, name: string, lines: WalletLine[]): Counterpa
     owe,
     owed,
     net: owed - owe,
-    coupons: 0,
     lines,
   };
 };
@@ -96,7 +75,6 @@ const wallet = (counterparties: Counterparty[]): Wallet => ({
   owed: 0,
   net: 0,
   unreadable: 0,
-  coupons: 0,
   betweenOthers: 0,
   betweenMine: 0,
 });

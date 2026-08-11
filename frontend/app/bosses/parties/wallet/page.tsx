@@ -10,30 +10,19 @@ import { peek, put } from "@/lib/cache";
 import { formatMesos } from "@/lib/drop-split";
 import { formatDropped } from "@/lib/loot";
 import {
-  type CouponDebt,
   buildWallet,
   netLabel,
   settlementFor,
   transferLine,
   type Counterparty,
 } from "@/lib/wallet";
-import {
-  boughtByHolder,
-  closedByHolder,
-  holderKey,
-  holderLedgers,
-  keptByHolder,
-  outstanding,
-  receivedByHolder,
-  salesByHolder,
-  toCome,
-} from "@/lib/vestige-ledger";
+// Coupon debt is NOT read here any more. It is a count of pieces with no price, so it cannot be a
+// figure in a wallet of mesos; the Collection Ledger states it in its own unit. See lib/collection.ts.
 import { preloadBossArt } from "@/lib/preload-boss-art";
 import { useSeatSprites } from "@/lib/seat-sprites";
 import { useRowWrites } from "@/lib/use-row-writes";
 import type { Boss } from "@/types/boss";
 import type { PartyLootPool, SettleBody } from "@/types/loot";
-import type { VestigePayment, VestigeSettlement, VestigeTranche } from "@/types/vestige";
 import type { Party } from "@/types/party";
 
 // Every unpaid share across every pool, folded to one line per person.
@@ -52,14 +41,6 @@ const PARTIES_KEY = "/api/parties?solo=include&retired=include";
 const POOLS_KEY = "/api/parties/loot";
 const SETTLE_KEY = "/api/parties/loot/settle";
 const BOSSES_KEY = "/api/bosses";
-// The piece ledger's three inputs. What a holder owes in COUPON mesos is derived from all of them, and
-// a wallet that left it out was short by every debt the ledger holds. See V51.
-const TRANCHES_KEY = "/api/vestige-tranches";
-const PAYMENTS_KEY = "/api/vestige-payments";
-const SETTLEMENTS_KEY = "/api/vestige-settlements";
-
-// The stacking drop the piece ledger is for, as the Drop Log names it.
-const VESTIGE = "vestige-of-erion";
 
 export default function WalletPage() {
   // Before anything is fetched: see lib/preload-boss-art.ts.
@@ -73,9 +54,6 @@ export default function WalletPage() {
   const [parties, setParties] = useState<Party[]>(seededParties ?? []);
   const [pools, setPools] = useState<PartyLootPool[]>([]);
   const [bosses, setBosses] = useState<Boss[]>(seededBosses ?? []);
-  const [tranches, setTranches] = useState<VestigeTranche[]>([]);
-  const [payments, setPayments] = useState<VestigePayment[]>([]);
-  const [settlements, setSettlements] = useState<VestigeSettlement[]>([]);
   const [state, setState] = useState<LoadState>("loading");
   const [open, setOpen] = useState<string | null>(null);
   const [confirming, setConfirming] = useState<string | null>(null);
@@ -96,24 +74,16 @@ export default function WalletPage() {
           apiFetch<Party[]>(PARTIES_KEY, { method: "GET" }, withToken),
           apiFetch<PartyLootPool[]>(POOLS_KEY, { method: "GET" }, withToken),
           apiFetch<Boss[]>(BOSSES_KEY, { method: "GET" }, withToken),
-          apiFetch<VestigeTranche[]>(TRANCHES_KEY, { method: "GET" }, withToken),
-          apiFetch<VestigePayment[]>(PAYMENTS_KEY, { method: "GET" }, withToken),
-          apiFetch<VestigeSettlement[]>(SETTLEMENTS_KEY, { method: "GET" }, withToken),
         ]);
       })
-      .then(
-        ([partyResult, poolResult, bossResult, trancheResult, paymentResult, settlementResult]) => {
-          setParties(partyResult);
-          setPools(poolResult);
-          setBosses(bossResult);
-          setTranches(trancheResult);
-          setPayments(paymentResult);
-          setSettlements(settlementResult);
-          put(PARTIES_KEY, partyResult);
-          put(BOSSES_KEY, bossResult);
-          setState("loaded");
-        },
-      )
+      .then(([partyResult, poolResult, bossResult]) => {
+        setParties(partyResult);
+        setPools(poolResult);
+        setBosses(bossResult);
+        put(PARTIES_KEY, partyResult);
+        put(BOSSES_KEY, bossResult);
+        setState("loaded");
+      })
       // The pools are never cached, so there is nothing to fall back to: a wallet drawn from a
       // stale pool is a debt that may already be settled.
       .catch(() => setState("error"));
@@ -146,26 +116,7 @@ export default function WalletPage() {
   }
 
   const bossByKey = new Map(bosses.map((b) => [b.bossKey, b]));
-  // Coupon debt, off the piece ledger's own arithmetic rather than a second copy of it. A closed pile
-  // owes nothing and drops out; so does one already paid, because toCome is what is left to come.
-  const bossOrder = new Map(bosses.map((b, i) => [b.bossKey, i]));
-  const coupons: CouponDebt[] = holderLedgers(
-    outstanding(parties, pools, VESTIGE, bossOrder),
-    salesByHolder(tranches),
-    keptByHolder(tranches),
-    boughtByHolder(tranches),
-    receivedByHolder(payments),
-    closedByHolder(settlements),
-  )
-    .filter((ledger) => ledger.holder.kind !== "SELF" && !ledger.closed)
-    .map((ledger) => ({
-      key: holderKey(ledger.holder),
-      name: ledger.holderName,
-      // The same test the wallet's own rows use: a person you have named, or a bare character.
-      attributed: ledger.holder.kind === "PERSON",
-      amount: toCome(ledger),
-    }));
-  const wallet = buildWallet(parties, pools, coupons);
+  const wallet = buildWallet(parties, pools);
   const settled = state === "loaded" && wallet.counterparties.length === 0;
 
   return (
@@ -323,16 +274,6 @@ function WalletRow({
         </p>
       )}
 
-      {/* Coupon debt is in the net above and NOT in Settle: it has no payout row to mark, and it is
-          paid off in instalments where this button is one claim that everything moved. Said here so
-          the figure and the button cannot be read as the same thing. See Counterparty.coupons. */}
-      {person.coupons > 0 && (
-        <p className="wallet-gross">
-          {formatMesos(person.coupons, true)} of that is coupons, settled on the{" "}
-          <Link href="/bosses/drops">Drop Log</Link>.
-        </p>
-      )}
-
       {/* A settle is a claim that mesos moved, and nothing here can check it. So it says what it
           is about to mark before it marks it, and the one transfer it is standing in for. */}
       {confirming && (
@@ -342,9 +283,6 @@ function WalletRow({
             {person.lines.length === 1 ? "share" : "shares"} between you paid
             {both ? ", both directions" : ""}
             {partyCount > 1 ? `, across ${partyCount} parties` : ""}.
-            {/* The one number this button does not move. Without it the confirm named a total it
-                could not deliver. */}
-            {person.coupons > 0 && ` Not the ${formatMesos(person.coupons, true)} in coupons.`}
           </p>
           <div className="wallet-confirm-buttons">
             <button type="button" className="party-save" onClick={onConfirm} disabled={busy}>

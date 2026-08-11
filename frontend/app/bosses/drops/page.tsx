@@ -14,7 +14,7 @@ import { ApiError, apiAssetUrl, apiFetch } from "@/lib/api";
 import { peek, put } from "@/lib/cache";
 import { buildCollection, stillOnSaleLedger } from "@/lib/collection";
 import { buildWallet } from "@/lib/wallet";
-import { type DropSectionKey, dropSections, shownSection } from "@/lib/drop-sections";
+import { type DropSectionKey, dropSections, saleCards, shownSection } from "@/lib/drop-sections";
 import {
   buildDropLog,
   byCharacter,
@@ -387,15 +387,16 @@ export default function DropLogPage() {
   // What fell, and what it was sold for, one at a time. Both halves are entered into rather than
   // read, so they stay on one page: a drop and the sale that prices it are the same evening's work.
   // See lib/drop-sections.ts for why the chosen tab is not drawn straight from state.
-  const sections = dropSections(
-    {
+  const sections = dropSections();
+  const shown = shownSection(section, sections);
+  // Whether either ledger has anything on it, which is what decides between its cards and one line
+  // saying there are none. All three tabs are always offered. See lib/drop-sections.ts.
+  const hasSales =
+    saleCards({
       unanswered: open.length,
       holders: yours.length + history.length,
       lots: money ? lots.length : 0,
-    },
-    collection.length,
-  );
-  const shown = shownSection(section, sections);
+    }) > 0;
 
   return (
     <main className={state === "loading" ? PAGE_WAITING : "page"}>
@@ -540,6 +541,7 @@ export default function DropLogPage() {
 
           {shown === "sales" && (
             <>
+              {!hasSales && <p className="party-hint">No sales to record.</p>}
               {/* One heading over every card that takes a sale, which is the lot boxes AND the coupon
                   piles: both are "sold N for X". Titling only one of them said the other was a
                   statement rather than an entry. No rule under it either, because what follows is
@@ -563,7 +565,6 @@ export default function DropLogPage() {
                   <PieceLedger
                     ledgers={yours}
                     tranches={tranchesByHolder}
-                    payments={paymentsByHolder}
                     bossByKey={bossByKey}
                     partyById={partyById}
                     iconUrl={vestigeIcon}
@@ -590,25 +591,8 @@ export default function DropLogPage() {
                         body: JSON.stringify({ holder, pieces, amount, disposition: "BOUGHT" }),
                       })
                     }
-                    // The fact nothing else can know: the mesos arrived. See V51.
-                    onAddPayment={(holder: Holder, amount) =>
-                      paymentWrite(PAYMENTS_KEY, {
-                        method: "POST",
-                        body: JSON.stringify({ holder, amount }),
-                      })
-                    }
-                    // Closing the books, which no arithmetic is entitled to do. See V52.
-                    onSettle={(holder: Holder, lootIds, unpaid) =>
-                      settlementWrite(SETTLEMENTS_KEY, {
-                        method: "POST",
-                        body: JSON.stringify({ holder, lootIds, unpaid }),
-                      })
-                    }
                     onRemoveSale={(trancheId) =>
                       saleWrite(`${TRANCHES_KEY}/${trancheId}`, { method: "DELETE" })
-                    }
-                    onRemovePayment={(paymentId) =>
-                      paymentWrite(`${PAYMENTS_KEY}/${paymentId}`, { method: "DELETE" })
                     }
                   />
 
@@ -650,6 +634,7 @@ export default function DropLogPage() {
           {shown === "collection" && (
             <section className="loot-pool">
               <h2 className="loot-pool-title">Collection Ledger</h2>
+              {collection.length === 0 && <p className="party-hint">No collections to record.</p>}
               <CollectionLedger
                 rows={collection}
                 bossByKey={bossByKey}

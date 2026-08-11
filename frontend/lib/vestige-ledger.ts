@@ -22,16 +22,10 @@
 
 import {
   type LedgerDrop,
-  type PieceSale,
-  allocate,
   balances,
   entitlements,
   heldOf,
   ownShareOf,
-  salesAfter,
-  sellableOf,
-  spreadBought,
-  spreadKept,
   transfersOf,
 } from "./piece-ledger";
 import type { PieceTransfer } from "./piece-ledger";
@@ -82,34 +76,14 @@ export type HolderLedger = {
    */
   owedToYou: number;
   /**
-   * Of those, how many their sales have already reached, so that much of the debt cannot move.
+   * Mesos that have arrived from them. See V51.
    *
-   * The figure the card leads with, because it is the one that answers "how far through is this" in
-   * the units you are owed. Read off the transfers, like `owedToYou` and `dueNow`, so all three are
-   * the same answer counted once.
-   */
-  settledToYou: number;
-  /** Mesos they owe you NOW, for the pieces of yours that have already sold. Pro rata. */
-  dueNow: number;
-  /**
-   * Mesos that have actually arrived, less what the closed drops were owed. See V51.
-   *
-   * The fact nothing else can know. Every other figure on this card follows from what happened to the
-   * coupons, and a pile whose every piece was sold and priced still owes until this covers it: priced
-   * and paid are different, and without the second the bill could never be retired.
-   *
-   * Net of the closed drops because those are what the money went to. Counted raw against an open
-   * drop's debt, a holder who has paid billions over months would read as having already paid every
-   * new one. Any surplus does carry: it is a meso that arrived and has not been spent.
+   * The fact nothing else can know, and now the ONLY money on this type. What a piece debt is worth
+   * is not derivable: coupons are single-trade, so only the holder can sell them, and the two sides
+   * come off different nights at different prices. So the pieces are stated as a count and this is
+   * whatever they have actually sent against it.
    */
   received: number;
-  /**
-   * Nothing left to enter and nothing left to collect, so the card can stop asking.
-   *
-   * Every sellable piece accounted for AND the money arrived. Both, because either alone is a pile
-   * halfway through: sold but unpaid is a bill, and paid but unsold is somebody who ran ahead.
-   */
-  settled: boolean;
   /**
    * Pieces of the pile they are redeeming rather than selling, as entered.
    *
@@ -153,19 +127,8 @@ export type HolderLedger = {
     /** Which of this holder's characters looted it. */
     looterName: string;
     pieces: number;
-    /** Of those, how many are being redeemed. Taken off the newest end of the queue. */
-    kept: number;
-    /** Of those, how many they bought off you, and for what. Off the newest end as well. */
-    bought: { pieces: number; paid: number } | null;
-    /** Its books are closed, so it is history rather than something the card is waiting on. See V52. */
+    /** Its books are closed, so it is history rather than something anybody is waiting on. See V52. */
     closed: boolean;
-    /** Pieces of it actually for sale, which is what `covered` counts towards. */
-    sellable: number;
-    covered: number;
-    /** Every sellable piece has sold, so its debts are final. */
-    complete: boolean;
-    /** What one piece of THIS boss fetched, or null until it is covered. */
-    averagePrice: number | null;
     transfers: PieceTransfer[];
   }[];
 };
@@ -681,7 +644,8 @@ export function alsoHeldByYou(
  */
 export function holderLedgers(
   drops: OutstandingDrop[],
-  salesByHolder: Map<string, PieceSale[]>,
+  /** Pieces each holder has sold. A count: no debt is priced off a sale any more. */
+  salesByHolder: Map<string, number>,
   /**
    * Pieces each holder is redeeming rather than selling. Absent is none, which is every pile before
    * V46 and still most of them.
@@ -713,159 +677,53 @@ export function holderLedgers(
   const ledgers: HolderLedger[] = [];
   for (const [key, mine] of byHolder) {
     const kept = keptByHolder.get(key) ?? 0;
-    // Which bosses the redeemed pieces came off, before anything is priced: coverage and every
-    // transfer are measured against the sellable pile, so this has to be decided first. Keyed by
-    // the holder so their own share of each drop is redeemed before anything they owe.
-    //
-    // One lootId appears at most once per holder, so keying by it inside this pile is safe. Across
-    // piles it does not hold, which is why this runs per holder rather than over the whole list.
-    // Redemptions before purchases, because they come off different halves of the pile and the
-    // purchase is capped by what the redemption left sellable. Reversed, a redemption bounded by
-    // their own share could find that share already spent.
     const bought = boughtByHolder.get(key) ?? { pieces: 0, paid: 0 };
-    const sales = salesByHolder.get(key) ?? [];
+    const soldPieces = salesByHolder.get(key) ?? 0;
 
-    // A CLOSED drop is priced against the closed drops alone, and an open one against what those
-    // left. Two passes rather than one over the whole pile, because Mark settled closes every drop
-    // open at that moment: the closed set is exactly the pile as it stood then, so a pass over it
-    // reproduces the figures that were on screen when somebody was paid them.
-    //
-    // One pass could not. Redemptions spread newest-first, so a drop logged later takes redemption
-    // off the newest end, which changes what every drop behind it has left to sell and re-prices
-    // debts that were settled and paid. Logging one boss did that to two of them on a real account.
-    const isClosed = (d: OutstandingDrop) => closures.closed.has(closureKey(d.holder, d.lootId));
-    const settle = (
-      queue: OutstandingDrop[],
-      room: { kept: number; bought: number; paid: number },
-      tranches: PieceSale[],
-    ) => {
-      const piles = spreadBought(
-        spreadKept(
-          queue.map((d) => d.drop),
-          room.kept,
-          key,
-        ),
-        room.bought,
-        room.paid,
-        key,
-      );
-      const cover = allocate(piles, tranches);
-      const spent = {
-        kept: piles.reduce((sum, d) => sum + (d.kept ?? 0), 0),
-        bought: piles.reduce((sum, d) => sum + (d.bought?.pieces ?? 0), 0),
-        paid: piles.reduce((sum, d) => sum + (d.bought?.paid ?? 0), 0),
-        covered: piles.reduce((sum, d) => sum + (cover.get(d.id)?.covered ?? 0), 0),
-      };
-      return { piles, cover, spent };
-    };
-
-    const shut = settle(
-      mine.filter(isClosed),
-      { kept, bought: bought.pieces, paid: bought.paid },
-      sales,
-    );
-    const still = settle(
-      mine.filter((d) => !isClosed(d)),
-      {
-        kept: kept - shut.spent.kept,
-        bought: bought.pieces - shut.spent.bought,
-        paid: bought.paid - shut.spent.paid,
-      },
-      salesAfter(sales, shut.spent.covered),
-    );
-
-    const spread = new Map([...shut.piles, ...still.piles].map((d) => [d.id, d]));
-    const coverage = new Map([...shut.cover, ...still.cover]);
-    const pileOf = (d: OutstandingDrop) => spread.get(d.drop.id) ?? d.drop;
-    const soldPieces = sales.reduce((sum, s) => sum + s.pieces, 0);
-    // The queue's own order, so the card reads the way the pieces are being spent.
+    // Oldest boss first, so the rows read in the order the nights happened.
     const ordered = [...mine].sort(
       (a, b) =>
         a.drop.weekStart.localeCompare(b.drop.weekStart) ||
         a.drop.order - b.drop.order ||
         a.drop.id.localeCompare(b.drop.id),
     );
-    // Every outstanding drop, including any that owes nothing, because its pieces are in this pile
-    // and the tranches are spent across all of it. Listing only some would leave the header
-    // counting pieces the rows below it do not account for.
-    const drops = ordered.map((d) => {
-      const pile = pileOf(d);
-      const cover = coverage.get(pile.id);
-      return {
-        lootId: d.lootId,
-        partyId: d.partyId,
-        bossKey: d.bossKey,
-        weekStart: d.drop.weekStart,
-        looterName: d.looterName,
-        // What is in THIS pile, which is what their own sales can cover. The whole drop would
-        // count somebody else's stacks as unsold pieces of theirs.
-        pieces: heldOf(pile),
-        kept: pile.kept ?? 0,
-        bought: pile.bought ?? null,
-        closed: closures.closed.has(closureKey(d.holder, d.lootId)),
-        sellable: cover?.sellable ?? sellableOf(pile),
-        covered: cover?.covered ?? 0,
-        complete: cover?.complete ?? false,
-        averagePrice: cover?.averagePrice ?? null,
-        // Only what THIS holder owes. A split drop has a row in each pile it sits in, and every one
-        // of them would otherwise repeat the whole drop's debts, counting each of them once per
-        // pile.
-        transfers: transfersOf(pile, cover, key),
-      };
-    });
-    // Every figure below counts the OPEN drops only. A closed drop keeps its own row, because that is
-    // where a mistyped tranche is corrected, but it is done: counting it again puts a debt somebody
-    // has already paid back into the total they are being asked for. Settling four bosses and then
-    // entering a fifth read "Bro owes you 275 pieces" when 195 of them were paid the day before.
-    //
-    // The pile is asked for the same way. "390 of 550 accounted for" was the closed 390 on both
-    // sides of a subtraction, which cancelled to the right gap out of two wrong numbers.
-    const live = drops.filter((d) => !d.closed);
-    const shutRows = drops.filter((d) => d.closed);
-    // Your side of this pile, read off the transfers rather than recomputed: whatever they are
-    // told to send you is what you are owed, and two sums of that would be two answers.
-    const yours = live.flatMap((d) => d.transfers).filter((t) => t.toId === SELF_KEY);
+    const drops = ordered.map((d) => ({
+      lootId: d.lootId,
+      partyId: d.partyId,
+      bossKey: d.bossKey,
+      weekStart: d.drop.weekStart,
+      looterName: d.looterName,
+      // What is in THIS pile. The whole drop would count somebody else's stacks as theirs.
+      pieces: heldOf(d.drop),
+      closed: closures.closed.has(closureKey(d.holder, d.lootId)),
+      // Only what THIS holder owes. A split drop has a row in each pile it sits in, and every one of
+      // them would otherwise repeat the whole drop's debts, counting each once per pile.
+      transfers: transfersOf(d.drop, key),
+    }));
 
-    const dueNow = yours.reduce((sum, t) => sum + (t.send ?? 0), 0);
-    // What the closed drops were owed is frozen with them, so mesos already in cover that first and
-    // only the surplus counts against what is still open. Without this a holder who has paid 4.86b
-    // over months reads as having paid every new debt the moment it appears.
-    const dueOnShut = shutRows
+    // Pieces of YOURS they are sitting on, from the drops still open. A closed one has been settled,
+    // so counting it again asks for a debt somebody has already paid.
+    const owedToYou = drops
+      .filter((d) => !d.closed)
       .flatMap((d) => d.transfers)
       .filter((t) => t.toId === SELF_KEY)
-      .reduce((sum, t) => sum + (t.send ?? 0), 0);
-    const received = Math.max(0, (receivedByHolder.get(key) ?? 0) - dueOnShut);
-    const owedToYou = yours.reduce((sum, t) => sum + t.pieces, 0);
-    const settledToYou = yours.reduce((sum, t) => sum + t.settled, 0);
-
-    // What the closed pass spent, so the open pile is asked only for what is left. Taken off the
-    // tranche totals rather than summed off the open rows: a holder who entered more than the pile
-    // holds is over, and a sum of what the rows could absorb would cap that surplus away silently.
-    const shutFor = shut.spent.covered + shut.spent.kept + shut.spent.bought;
-    const openBought = {
-      pieces: bought.pieces - shut.spent.bought,
-      paid: bought.paid - shut.spent.paid,
-    };
+      .reduce((sum, t) => sum + t.pieces, 0);
 
     ledgers.push({
       holder: mine[0]!.holder,
       holderName: mine[0]!.holderName,
-      pieces: live.reduce((sum, d) => sum + d.pieces, 0),
+      // Every drop, closed ones included, and the same is true of `accounted`. This pair is the Sale
+      // Ledger's instruction to YOU and the two sides have to be drawn from the same set: a coupon
+      // already sold still dropped, and taking it off one side alone would reopen the gap every time
+      // a boss was closed. Closing is about a DEBT, and your own pile owes you nothing.
+      pieces: drops.reduce((sum, d) => sum + d.pieces, 0),
       owedToYou,
-      settledToYou,
-      dueNow,
-      received,
-      // Every piece of yours accounted for, and the money here. A pile you owe nothing on is settled
-      // the moment it is priced, which is what makes your OWN card read as done rather than as a debt
-      // of zero waiting on a payment of zero.
-      settled: settledToYou === owedToYou && received >= dueNow,
-      kept: kept - shut.spent.kept,
-      ownShare: mine
-        .filter((d) => !isClosed(d))
-        .reduce((sum, d) => sum + ownShareOf(pileOf(d), key), 0),
-      bought: openBought,
-      soldPieces: soldPieces - shut.spent.covered,
-      accounted: soldPieces + kept + bought.pieces - shutFor,
+      received: receivedByHolder.get(key) ?? 0,
+      kept,
+      ownShare: mine.reduce((sum, d) => sum + ownShareOf(d.drop, key), 0),
+      bought,
+      soldPieces,
+      accounted: soldPieces + kept + bought.pieces,
       // Every drop closed, so there is nothing here anybody is waiting on. A pile with no drops at all
       // cannot be closed: there would be nothing to have decided about.
       closed: drops.length > 0 && drops.every((d) => d.closed),
@@ -873,14 +731,10 @@ export function holderLedgers(
       drops,
     });
   }
-  // Settled piles last, then by name. Still listed, because the tranches and receipts that made them
-  // settled are corrected from this card and nowhere else, so dropping it would put a mistyped row
-  // beyond reach. Out of the way is not the same as gone.
+  // Closed piles last, then by name. Still listed, because the rows recorded against one are
+  // corrected from its card and nowhere else. Out of the way is not the same as gone.
   return ledgers.sort(
-    (a, b) =>
-      Number(a.closed) - Number(b.closed) ||
-      Number(a.settled) - Number(b.settled) ||
-      a.holderName.localeCompare(b.holderName),
+    (a, b) => Number(a.closed) - Number(b.closed) || a.holderName.localeCompare(b.holderName),
   );
 }
 
@@ -905,29 +759,26 @@ function isBought(row: TrancheRow): boolean {
 }
 
 /**
- * The sales one holder has entered, keyed the way holderLedgers wants them.
+ * How many pieces each holder has SOLD, keyed the way holderLedgers wants them.
  *
- * Rows with money in them, minus the purchases. A KEPT row is pieces redeemed rather than sold, so it
- * has no price to spend on the queue; what those pieces do instead is come out of the sellable pile,
- * which is `keptByHolder` below. A BOUGHT row has a price and is still not a sale: the money is one
- * creditor's in full rather than the pile's to divide, so spending it on the queue would hand a slice
- * of it to everybody else.
+ * Rows with money in them, minus the purchases. A KEPT row is pieces redeemed rather than sold, and
+ * a BOUGHT row is the creditor's pieces taken at an agreed price; each is counted by its own function
+ * below, because the three are different fates and only their sum is what the pile has been told.
+ *
+ * A COUNT, not the prices. The tranche's amount is still stored and still shown on its own row, but
+ * nothing derives a per-piece figure from it any more: that existed to apportion the money over the
+ * bosses in the queue, and no debt is priced that way now.
  *
  * The AMOUNT is what separates a sale from a redemption, which V50 keeps equivalent by check
  * constraint. Only the purchase needs the disposition, and `isBought` says why that direction is the
  * safe one to test.
  */
-export function salesByHolder(rows: TrancheRow[]): Map<string, PieceSale[]> {
-  const out = new Map<string, PieceSale[]>();
+export function salesByHolder(rows: TrancheRow[]): Map<string, number> {
+  const out = new Map<string, number>();
   for (const row of rows) {
     if (row.amount === null || isBought(row)) continue;
-    // The tally stores a TOTAL, because that is what a partner reports ("1.2b for the 60"). The
-    // per-piece figure the split needs is derived, never typed.
-    const sale: PieceSale = { pieces: row.pieces, priceEach: row.amount / row.pieces };
     const key = holderKey(row.holder);
-    const seen = out.get(key);
-    if (seen) seen.push(sale);
-    else out.set(key, [sale]);
+    out.set(key, (out.get(key) ?? 0) + row.pieces);
   }
   return out;
 }
@@ -1026,16 +877,6 @@ export function receivedByHolder(rows: { holder: Holder; amount: number }[]): Ma
 }
 
 /**
- * Mesos still to come from a holder, floored at zero. Overpayment is said, not folded away.
- *
- * Floored because a negative "to come" reads as the holder being owed, which they are not: too much
- * arriving is a miscount on one side or the other, and the card names it rather than netting it off.
- */
-export function toCome(ledger: HolderLedger): number {
-  return Math.max(0, ledger.dueNow - ledger.received);
-}
-
-/**
  * Pieces of the pile nobody has said the fate of yet. Floored, so a miscount does not read negative.
  *
  * The card's one instruction while there are any: this many pieces are in somebody's inventory and
@@ -1044,20 +885,6 @@ export function toCome(ledger: HolderLedger): number {
  */
 export function unaccounted(ledger: HolderLedger): number {
   return Math.max(0, ledger.pieces - ledger.accounted);
-}
-
-/**
- * Pieces still to sell across a holder's whole pile. What the card's header counts down.
- *
- * Against the SELLABLE part of each pile, so a redeemed piece is not something still to be entered.
- * Counted against the whole pile it never reached zero for a holder redeeming any of theirs, and the
- * card could not tell a pile that had stalled for good from one still waiting on a sale.
- *
- * Open drops only, like every other figure on the card: a closed drop sold or was written off when
- * its books were closed, so counting it here is asking for a sale that already happened.
- */
-export function unsold(ledger: HolderLedger): number {
-  return ledger.drops.reduce((sum, d) => (d.closed ? sum : sum + (d.sellable - d.covered)), 0);
 }
 
 /**
