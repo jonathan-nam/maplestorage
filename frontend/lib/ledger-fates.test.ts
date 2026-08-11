@@ -1,7 +1,15 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { FATES, asksAnything, coversThePile, owes, roomFor } from "./ledger-fates";
+import {
+  FATES,
+  asksAnything,
+  coversThePile,
+  owes,
+  roomFor,
+  settledOf,
+  worthDrawing,
+} from "./ledger-fates";
 import {
   type Holder,
   alsoHeldByYou,
@@ -9,6 +17,7 @@ import {
   keptByHolder,
   outstanding,
   boughtByHolder,
+  salesByHolder,
   unaccounted,
 } from "./vestige-ledger";
 import type { Loot, PartyLootPool } from "@/types/loot";
@@ -231,12 +240,53 @@ describe("whether the card has anything to ask", () => {
     expect(asksAnything(mine)).toBe(true);
   });
 
-  it("keeps asking a debt already answered, so the rows stay correctable", () => {
-    // Every piece entered, and the debt is still 30: the count going quiet here would take the
-    // tranche rows' own heading with it.
-    const done = yourPile(30, { pieces: 30, paid: 750 * M });
-    expect(unaccounted(done)).toBe(0);
-    expect(asksAnything(done)).toBe(true);
+  it("stops once the debt is bought out, whatever is left unentered", () => {
+    // The 30 owed are answered. The other 30 are your own and nobody is waiting on them, so the
+    // card has nothing left to ask even though half the pile has no row against it.
+    const done = yourPile(0, { pieces: 30, paid: 750 * M });
+    expect([owes(done), settledOf(done)]).toEqual([30, 30]);
+    expect(unaccounted(done)).toBe(30);
+    expect(asksAnything(done)).toBe(false);
+  });
+
+  it("counts the debt, not the pile, so 1150 of your own do not join the question", () => {
+    // The complaint this exists for: a 10-piece debt read "0 of 1160 pieces accounted for".
+    const mine = yourPile();
+    expect(mine.pieces).toBe(60);
+    expect(owes(mine)).toBe(30);
+    expect(settledOf(mine)).toBe(0);
+  });
+
+  it("does not let a redemption answer a debt, since it is the holder's own share", () => {
+    const kept = yourPile(30);
+    expect(settledOf(kept)).toBe(0);
+    expect(asksAnything(kept)).toBe(true);
+  });
+
+  it("does not let a SALE answer one either, which is the trap", () => {
+    // Coupons are single-trade, so selling the creditor's pieces does not hand them back, and since
+    // #354 nothing says which of a mixed pile went out. Counting a sale here would report a debt
+    // discharged that nobody was paid for.
+    const sold = holderLedgers(
+      outstanding(
+        [
+          party(
+            [
+              seat("m1", "Husky", { mine: true }),
+              seat("m2", "BroChar", { person: ["p-bro", "Bro"] }),
+            ],
+            "m1",
+          ),
+        ],
+        [pool([coupon(60)])],
+        VESTIGE,
+        ORDER,
+      ),
+      salesByHolder([{ holder: SELF, pieces: 60, amount: 1_500 * M }]),
+    )[0]!;
+    expect(sold.soldPieces).toBe(60);
+    expect(settledOf(sold)).toBe(0);
+    expect(asksAnything(sold)).toBe(true);
   });
 
   it("speaks up when more was entered than the pile holds, owed or not", () => {
@@ -263,6 +313,58 @@ describe("whether the card has anything to ask", () => {
     expect([over.pieces, over.accounted]).toEqual([30, 40]);
     expect(owes(over)).toBe(0);
     expect(asksAnything(over)).toBe(true);
+  });
+});
+
+// A pile that owes nobody is not a card. It is still a place a sale MAY be recorded, so it is held
+// back rather than dropped: dropping it would re-break what alsoHeldByYou exists for.
+describe("which of your own piles the ledger draws", () => {
+  const none = () => false;
+
+  it("holds back a pile with no debt and no rows", () => {
+    const { drawn, quiet } = worthDrawing([squarePile()], none);
+    expect(drawn).toHaveLength(0);
+    expect(quiet).toHaveLength(1);
+  });
+
+  it("draws one that owes somebody", () => {
+    const { drawn, quiet } = worthDrawing([yourPile()], none);
+    expect(drawn).toHaveLength(1);
+    expect(quiet).toHaveLength(0);
+  });
+
+  it("draws a settled one that has rows, so a mistyped tranche stays reachable", () => {
+    // The debt is bought out, so it asks nothing. It is still a card, because the rows that made it
+    // settled are corrected here and nowhere else.
+    const done = yourPile(0, { pieces: 30, paid: 750 * M });
+    expect(asksAnything(done)).toBe(false);
+    expect(worthDrawing([done], () => true).drawn).toHaveLength(1);
+    // And without them there would be nothing on it to correct.
+    expect(worthDrawing([done], none).quiet).toHaveLength(1);
+  });
+
+  it("keeps a miscounted pile on screen even though it owes nothing", () => {
+    const over = holderLedgers(
+      alsoHeldByYou(
+        [
+          party(
+            [
+              seat("m1", "Husky", { mine: true }),
+              seat("m2", "BroChar", { person: ["p-bro", "Bro"] }),
+            ],
+            null,
+          ),
+        ],
+        [pool([{ ...coupon(60), bundles: 2 }])],
+        VESTIGE,
+        ORDER,
+        [],
+      ),
+      new Map(),
+      keptByHolder([{ holder: SELF, pieces: 40, amount: null }]),
+    )[0]!;
+    expect(owes(over)).toBe(0);
+    expect(worthDrawing([over], none).drawn).toHaveLength(1);
   });
 });
 
@@ -299,5 +401,28 @@ describe("the picker the card draws", () => {
     // "they took mine" on your own pile says the reverse of what it would mean.
     expect(source).toContain("I took theirs, at a price");
     expect(source).toContain("they took mine, at a price");
+  });
+});
+
+// Holding a pile back is only safe while there is a way to ask for it. Nothing in lib can see the
+// Drop Log's own wiring, and the failure is silent: the card simply never comes back, and the
+// coupons become unsellable through the app.
+const page = readFileSync(join(__dirname, "..", "app", "bosses", "drops", "page.tsx"), "utf8");
+
+describe("the way back to a pile the ledger held back", () => {
+  it("offers it, and only while it is still held back", () => {
+    expect(page).toMatch(/quiet\.length > 0 && !sellingOwn/);
+    expect(page).toContain("Record a sale");
+  });
+
+  it("draws the held-back piles once it is asked for", () => {
+    expect(page).toMatch(/sellingOwn \? \[\.\.\.drawn, \.\.\.quiet\] : drawn/);
+  });
+
+  it("gates the heading on what will draw, not on there being ledgers at all", () => {
+    // A heading over no cards is a heading over nothing, and holding a pile back is exactly what
+    // empties the section underneath it.
+    expect(page).not.toMatch(/sellableLots \|\| ledgers\.length > 0/);
+    expect(page).toMatch(/sellableLots \|\| shownYours\.length > 0 \|\| history\.length > 0/);
   });
 });

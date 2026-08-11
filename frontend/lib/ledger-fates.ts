@@ -15,7 +15,7 @@
 // apportioning, no debt is derived from these rows, so a pile that owes nobody gets the same figures
 // whatever it is told. Asking it to account for itself is work with no reader.
 
-import { unaccounted } from "./vestige-ledger";
+import { holderKey, unaccounted } from "./vestige-ledger";
 import type { HolderLedger } from "./vestige-ledger";
 
 /** Every answer a pile can be given. All three, on every card, whoever is holding it. */
@@ -70,6 +70,21 @@ export function owes(ledger: HolderLedger): number {
 }
 
 /**
+ * How much of what this pile owes has been answered, which only a purchase can do.
+ *
+ * A redemption is the holder's own share by definition, so it settles nothing they owe. A SALE does
+ * not either, and that is the one worth saying: coupons are single-trade, so selling the creditor's
+ * pieces does not hand them back, and since #354 there is no apportioning to say which of a mixed
+ * pile went out. What is left after a sale is the same debt, in pieces, waiting on an agreed figure.
+ * BOUGHT is that agreement. See V50.
+ *
+ * Capped, because a holder may have bought pieces on a night whose books were later closed.
+ */
+export function settledOf(ledger: HolderLedger): number {
+  return Math.min(owes(ledger), ledger.bought.pieces);
+}
+
+/**
  * Whether the card has a question, or is only somewhere a sale MAY be recorded.
  *
  * A night that divided the way it fell is finished when it is logged. Nothing is derived from what
@@ -77,9 +92,36 @@ export function owes(ledger: HolderLedger): number {
  * move a figure nobody reads. The count is an instruction, and an instruction with no consequence is
  * the narration this app's screens are not allowed to carry.
  *
+ * What is asked is the DEBT, not the pile: of 1160 coupons in your inventory, 1150 are your own and
+ * nobody is waiting on them. Counting the pile demanded 1160 answers for a 10-piece debt.
+ *
  * Over-entry still speaks, whoever holds the pile: more entered than the pile holds is a miscount,
  * and a card that went quiet about it would be hiding what it dropped rather than saying it short.
  */
 export function asksAnything(ledger: HolderLedger): boolean {
-  return owes(ledger) > 0 || ledger.accounted > ledger.pieces;
+  return settledOf(ledger) < owes(ledger) || ledger.accounted > ledger.pieces;
+}
+
+/**
+ * Your own piles, split by whether the Sale Ledger has a reason to draw one.
+ *
+ * A pile that owes somebody, or one with rows already recorded, is a card: there is something to
+ * answer or something to correct. A pile with neither is a place a sale MAY be recorded and nothing
+ * else, and drawn anyway it is a permanent "holding 1140" at a reader with nothing to do about it.
+ *
+ * The quiet ones are held back, not dropped. Dropping them would re-break what `alsoHeldByYou`
+ * exists for, which is that a Sale Ledger refusing to admit you hold the coupons cannot take the
+ * sale. They come back the moment the reader asks to record one.
+ */
+export function worthDrawing(
+  yours: HolderLedger[],
+  recorded: (key: string) => boolean,
+): { drawn: HolderLedger[]; quiet: HolderLedger[] } {
+  const drawn: HolderLedger[] = [];
+  const quiet: HolderLedger[] = [];
+  for (const ledger of yours) {
+    const has = asksAnything(ledger) || recorded(holderKey(ledger.holder));
+    (has ? drawn : quiet).push(ledger);
+  }
+  return { drawn, quiet };
 }
