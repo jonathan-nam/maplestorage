@@ -125,9 +125,11 @@ drops:
     icon_id: 2639253
     fungible: true
   # No icon_id: GMS v268 is the newest complete dataset the mirror has and it does not carry this
-  # item. Drawn without art until the version is bumped and this is re-validated.
+  # item. Cut instead from an in-game capture taken on black, which hid the chest outline. The five
+  # boxes above share one pixel-identical silhouette, so that mask is what gave the outline back.
   - key: eternal-armor-of-radiance-box
     name: Eternal Armor of Radiance Box
+    art: cut
     fungible: true
 
   # --- Selection and ring boxes ------------------------------------------------------
