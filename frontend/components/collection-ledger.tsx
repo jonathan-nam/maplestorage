@@ -5,7 +5,7 @@ import { useState } from "react";
 import { formatWeekStart } from "@/lib/boss-clears";
 import { bossLabel } from "@/lib/boss-difficulty";
 import { type Collection, sharesOf } from "@/lib/collection";
-import { formatMesos, parseMesos, shortMesos } from "@/lib/drop-split";
+import { formatMesos, parseMesos } from "@/lib/drop-split";
 import type { Holder } from "@/lib/vestige-ledger";
 import type { Boss } from "@/types/boss";
 import type { Party } from "@/types/party";
@@ -107,10 +107,15 @@ function CollectionCard({
 
   // Each half only when there is one. The mesos are netted, so it is one figure in one direction
   // rather than a column of both.
+  //
+  // To the MESO, not shortened. A settled 144m share moved this card from 253.86b to 254b, which at
+  // two decimals is a figure that did not appear to move at all: the parts below have always been
+  // exact, so rounding only their sum made the one number you act on the one number you cannot
+  // check. This is a debt somebody is going to be asked for, and the pieces beside it are a count.
   const summary = [
     row.pieces > 0 ? `${row.pieces} pieces` : null,
-    row.mesos > 0 ? `${shortMesos(row.mesos)} owed` : null,
-    row.owedByYou > 0 ? `you owe ${shortMesos(row.owedByYou)}` : null,
+    row.mesos > 0 ? `${formatMesos(row.mesos, true)} owed` : null,
+    row.owedByYou > 0 ? `you owe ${formatMesos(row.owedByYou, true)}` : null,
   ]
     .filter(Boolean)
     .join(" · ");
@@ -136,7 +141,9 @@ function CollectionCard({
             would say you owed them the moment they paid you for coupons you cannot value. */}
         {row.receivedOnPieces > 0 && (
           <span className="ledger-tally">
-            <span className="loot-share-nets">{shortMesos(row.receivedOnPieces)} received</span>
+            <span className="loot-share-nets">
+              {formatMesos(row.receivedOnPieces, true)} received
+            </span>
           </span>
         )}
       </header>
