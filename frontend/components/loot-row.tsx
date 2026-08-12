@@ -396,13 +396,21 @@ export function LootRow({
                       nets {formatMesos(share.nets, true)} at {(share.fee * 100).toFixed(0)}%
                       {sharesLabel(share.shares) && ` \u00b7 ${sharesLabel(share.shares)}`}
                     </span>
+                    {/* A TOGGLE, and the paid state has to look like one. It read "paid" in a green
+                        pill, which is what a status badge looks like, so undoing a share marked paid
+                        by mistake was not discoverable at all: the one click anybody found flipped
+                        it back. The x is this app's own undo mark, the same one a tranche row and an
+                        entered debt carry. */}
                     <button
                       type="button"
                       className={share.paid ? "loot-paid is-paid" : "loot-paid"}
                       onClick={() => onSetPaid(share.memberId, !share.paid)}
                       disabled={busy}
+                      aria-label={
+                        share.paid ? `Mark ${share.name} unpaid` : `Mark ${share.name} paid`
+                      }
                     >
-                      {share.paid ? "paid" : "mark paid"}
+                      {share.paid ? "paid \u00d7" : "mark paid"}
                     </button>
                   </li>
                 ))}
