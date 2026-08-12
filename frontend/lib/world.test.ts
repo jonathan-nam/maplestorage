@@ -3,7 +3,6 @@ import {
   canTrade,
   dropExistsIn,
   isPerMember,
-  offersWallet,
   otherWorld,
   showsMoney,
   worldLabel,
@@ -75,13 +74,5 @@ describe("what an account is shown", () => {
     expect(showsMoney(undefined)).toBe(true);
     expect(showsMoney(true)).toBe(true);
     expect(showsMoney(false)).toBe(false);
-  });
-
-  it("keeps the Wallet reachable while a share is still owed", () => {
-    // The rule that stops this from hiding what it dropped: toggling to Heroic must not strand
-    // money somebody was already owed behind a link that no longer exists.
-    expect(offersWallet(false, true)).toBe(true);
-    expect(offersWallet(false, false)).toBe(false);
-    expect(offersWallet(true, false)).toBe(true);
   });
 });

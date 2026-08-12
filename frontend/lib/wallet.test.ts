@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { splitOf } from "./loot";
-import { buildWallet, netLabel, settlementFor, transferLine, type Counterparty } from "./wallet";
+import { buildWallet, type Counterparty } from "./wallet";
 import type { Loot, PartyLootPool } from "@/types/loot";
 import type { Party, PartyMember } from "@/types/party";
 
@@ -208,8 +208,11 @@ describe("buildWallet", () => {
     expect(wallet.counterparties).toHaveLength(1);
     expect(wallet.counterparties[0]!.lines).toHaveLength(2);
     expect(wallet.counterparties[0]!.owe).toBe(expected.shares[0]!.pay + expected.shares[1]!.pay);
-    // Both seats are still named, because two transfers is what has to happen.
-    expect(settlementFor(wallet.counterparties[0]!)).toEqual([
+    // Both seats are still named, because two transfers is what has to happen. Read off the lines
+    // the way sharesOf() does, which is what settles them now that the Wallet page is gone.
+    expect(
+      wallet.counterparties[0]!.lines.map((l) => ({ lootId: l.lootId, memberId: l.payeeId })),
+    ).toEqual([
       { lootId: "l1", memberId: "m2" },
       { lootId: "l1", memberId: "m3" },
     ]);
@@ -419,107 +422,6 @@ describe("buildWallet", () => {
     );
 
     expect(wallet.counterparties.map((c) => c.name)).toEqual(["Rune", "Steve"]);
-  });
-});
-
-describe("settlementFor", () => {
-  // You sold in one party, they sold in the other, so the relationship runs both ways.
-  const bothWays = () => {
-    const one = party("pa", [mine("m1", "mechyfechy"), theirs("m2", "CreedBratton", chris)]);
-    const two = party("pb", [mine("m3", "mechyfechy"), theirs("m4", "CreedBratton2", chris)], {
-      bossKey: "kalos",
-    });
-    return buildWallet(
-      [one, two],
-      [
-        pool("pa", [sold({ saleAmount: 4_000_000_000 })]),
-        pool("pb", [
-          sold({
-            id: "l2",
-            saleAmount: 1_000_000_000,
-            sellerMemberId: "m4",
-            payouts: [{ memberId: "m3", paid: false, paidAt: null, shares: 1 }],
-          }),
-        ]),
-      ],
-    );
-  };
-
-  it("names the seat being PAID: theirs when you owe, yours when they owe you", () => {
-    // The whole feature turns on this. A payout row is against the seat that is owed, so settling
-    // by "their" seat would mark a row that does not exist on every line you are owed, and the
-    // debt would quietly survive a settle that reported success.
-    const wallet = bothWays();
-
-    expect(settlementFor(wallet.counterparties[0]!)).toEqual([
-      { lootId: "l1", memberId: "m2" },
-      { lootId: "l2", memberId: "m3" },
-    ]);
-  });
-
-  it("covers both directions, since one transfer of the net closes both", () => {
-    const chrisRow = bothWays().counterparties[0]!;
-
-    expect(chrisRow.owe).toBeGreaterThan(0);
-    expect(chrisRow.owed).toBeGreaterThan(0);
-    expect(settlementFor(chrisRow)).toHaveLength(chrisRow.lines.length);
-  });
-
-  it("names one row per seat when a drop owes two of the same person's characters", () => {
-    // Two seats, one person, one drop: two payout rows, and settling has to mark both.
-    const p = party("pa", [
-      mine("m1", "mechyfechy"),
-      theirs("m2", "CreedBratton", chris),
-      theirs("m3", "CreedBratton2", chris),
-    ]);
-    const wallet = buildWallet(
-      [p],
-      [
-        pool("pa", [
-          sold({
-            payouts: [
-              { memberId: "m2", paid: false, paidAt: null, shares: 1 },
-              { memberId: "m3", paid: false, paidAt: null, shares: 1 },
-            ],
-          }),
-        ]),
-      ],
-    );
-
-    expect(settlementFor(wallet.counterparties[0]!)).toEqual([
-      { lootId: "l1", memberId: "m2" },
-      { lootId: "l1", memberId: "m3" },
-    ]);
-  });
-});
-
-describe("transferLine", () => {
-  const person = (over: Partial<Counterparty>): Counterparty => ({
-    key: "person:p-chris",
-    name: "Chris",
-    attributed: true,
-    owe: 0,
-    owed: 0,
-    net: 0,
-    lines: [],
-    ...over,
-  });
-
-  it("sends the net one way or the other, and nothing when the sides cancel", () => {
-    expect(transferLine(person({ owe: 1_000, net: -1_000 }))).toBe("You send Chris 1,000.");
-    expect(transferLine(person({ owed: 1_000, net: 1_000 }))).toBe("Chris sends you 1,000.");
-    // Square, but the shares behind it are still unpaid rows that a settle has to mark.
-    expect(transferLine(person({ owe: 500, owed: 500, net: 0 }))).toBe(
-      "The two sides cancel out, so nothing needs to be sent.",
-    );
-  });
-});
-
-describe("netLabel", () => {
-  it("names each direction, and square when they cancel", () => {
-    expect(netLabel(5)).toBe("they owe you");
-    expect(netLabel(-5)).toBe("you owe them");
-    expect(netLabel(0)).toBe("square");
   });
 });
 

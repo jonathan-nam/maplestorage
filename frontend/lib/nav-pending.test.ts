@@ -22,8 +22,8 @@ describe("clicks that are a page leaving", () => {
   });
 
   it("is one for the pages reached from Party View", () => {
-    // The three that had no feedback at all before this existed.
-    for (const href of ["/bosses/parties/wallet", "/bosses/drops", "/bosses/parties/edit"]) {
+    // The ones that had no feedback at all before this existed.
+    for (const href of ["/bosses/parties/abc-123", "/bosses/drops", "/bosses/parties/edit"]) {
       expect(startsNavigation(click({ href: `https://sharpeyes.gg${href}` }))).toBe(true);
     }
   });

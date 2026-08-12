@@ -375,9 +375,10 @@ export default function DropLogPage() {
   for (const party of parties) {
     for (const seat of foldSeats(party.seats)) holderNames.set(seat.key, seat.name);
   }
+  const wallet = buildWallet(parties, pools);
   const collection = buildCollection(
     ledgers,
-    buildWallet(parties, pools),
+    wallet,
     debts,
     saleCredits(tranches),
     // Only what no closure has already spoken for. A payment that settled a pile is spent, and
@@ -730,6 +731,35 @@ export default function DropLogPage() {
                 }
                 onSettleShares={settleShares}
               />
+
+              {/* What the cards above do NOT cover, from the Wallet this tab replaced. A total that
+                  is short must not read as a total that is complete. */}
+              {(wallet.unreadable > 0 || wallet.betweenOthers > 0 || wallet.betweenMine > 0) && (
+                <ul className="ledger-notes">
+                  {wallet.unreadable > 0 && (
+                    <li className="loot-warn">
+                      {wallet.unreadable} sold{" "}
+                      {wallet.unreadable === 1 ? "drop names a seat" : "drops name a seat"} that has
+                      left its party, so {wallet.unreadable === 1 ? "its" : "their"} split cannot be
+                      read. Not counted above.
+                    </li>
+                  )}
+                  {wallet.betweenOthers > 0 && (
+                    <li>
+                      {wallet.betweenOthers} unpaid{" "}
+                      {wallet.betweenOthers === 1 ? "share is" : "shares are"} between two other
+                      people, not yours to settle.
+                    </li>
+                  )}
+                  {wallet.betweenMine > 0 && (
+                    <li>
+                      {wallet.betweenMine} unpaid{" "}
+                      {wallet.betweenMine === 1 ? "share is" : "shares are"} between two of your own
+                      characters, so there is nobody to settle with.
+                    </li>
+                  )}
+                </ul>
+              )}
             </section>
           )}
         </>
