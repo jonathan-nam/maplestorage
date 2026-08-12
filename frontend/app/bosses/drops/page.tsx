@@ -13,7 +13,7 @@ import { StackArrangement } from "@/components/stack-arrangement";
 import { TrancheHistory } from "@/components/tranche-history";
 import { ApiError, apiAssetUrl, apiFetch } from "@/lib/api";
 import { peek, put } from "@/lib/cache";
-import { buildCollection, stillOnSaleLedger } from "@/lib/collection";
+import { buildCollection, collectionTotals, stillOnSaleLedger } from "@/lib/collection";
 import { worthDrawing } from "@/lib/ledger-fates";
 import { buildWallet } from "@/lib/wallet";
 import { type DropSectionKey, dropSections, saleCards, shownSection } from "@/lib/drop-sections";
@@ -408,6 +408,8 @@ export default function DropLogPage() {
   );
   // Nights that did not divide and that nobody has said the arrangement for. Above the ledger,
   // because until one is answered its pieces are missing from every figure below it.
+  // The three tiles above the cards, off the cards themselves. See collectionTotals.
+  const owedTotals = collectionTotals(collection);
   const open = unanswered(parties, pools, VESTIGE);
   // Only the drops still open tilt the rotation: a debt that has been closed was compensated, so it
   // has no business suggesting against the same person forever. See V52.
@@ -722,6 +724,38 @@ export default function DropLogPage() {
           {shown === "collection" && (
             <section className="loot-pool">
               <h2 className="loot-pool-title">Record Collection</h2>
+
+              {/* The account's position, which the Wallet page carried before this tab absorbed it.
+                  Summed off the cards below rather than worked out again, so a tile cannot disagree
+                  with the list under it. Only where there is a list: three zeroes over an empty tab
+                  say nothing that the empty line does not. */}
+              {collection.length > 0 && (
+                <div className="stat-row">
+                  <div className="stat-tile">
+                    <span className="stat-label">You&apos;re owed</span>
+                    <span className="stat-value is-good">{formatMesos(owedTotals.owed, true)}</span>
+                    <span className="stat-note">
+                      {`across ${owedTotals.people} ${owedTotals.people === 1 ? "person" : "people"}`}
+                    </span>
+                  </div>
+                  <div className="stat-tile">
+                    <span className="stat-label">You owe</span>
+                    <span className="stat-value">{formatMesos(owedTotals.owe, true)}</span>
+                    <span className="stat-note">not collectable, said anyway</span>
+                  </div>
+                  <div className="stat-tile">
+                    <span className="stat-label">Net</span>
+                    <span
+                      className={owedTotals.net < 0 ? "stat-value is-warn" : "stat-value is-good"}
+                    >
+                      {formatMesos(owedTotals.net, true)}
+                    </span>
+                    <span className="stat-note">
+                      {owedTotals.net < 0 ? "you are behind overall" : "yours to collect overall"}
+                    </span>
+                  </div>
+                </div>
+              )}
               {collection.length === 0 && people.length === 0 && (
                 <p className="party-hint">No collections to record.</p>
               )}
