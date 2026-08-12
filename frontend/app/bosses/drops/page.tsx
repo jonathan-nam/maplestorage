@@ -395,7 +395,11 @@ export default function DropLogPage() {
   const seatById = new Map(
     parties.flatMap((p) => p.seats.map((s) => [s.id, { name: s.name, partyId: p.id }] as const)),
   );
-  const lootBoss = new Map(pools.flatMap((p) => p.loot.map((l) => [l.id, l.bossKey] as const)));
+  const lootById = new Map(
+    pools.flatMap((p) =>
+      p.loot.map((l) => [l.id, { name: l.name, bossKey: l.bossKey, partyId: p.partyId }] as const),
+    ),
+  );
   const collection = buildCollection(
     ledgers,
     wallet,
@@ -764,7 +768,7 @@ export default function DropLogPage() {
                 bossByKey={bossByKey}
                 partyById={partyById}
                 seatById={seatById}
-                lootBoss={lootBoss}
+                lootById={lootById}
                 busy={busy}
                 onAddPayment={(holder: Holder, amount) =>
                   paymentWrite(PAYMENTS_KEY, {

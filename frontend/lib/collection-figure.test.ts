@@ -93,6 +93,14 @@ describe("what the card says a person owes", () => {
     expect(source).toContain("party-row-chevron");
   });
 
+  it("names WHAT FELL first, not just the boss it fell off", () => {
+    // One boss drops several things and the same box drops off several bosses, so the boss alone
+    // does not say which night this was. The drop is what anybody looks for a month later.
+    expect(source).toContain("item: loot?.name");
+    expect(source).toContain("{share.item}");
+    expect(source).toContain("{share.where} · {share.who}");
+  });
+
   it("keeps a hand-entered debt a plain row, since it discharges no share", () => {
     // The chevron frame is still drawn, so a typed row lines up with a folded one.
     expect(source).toContain("shares.length > 0 ? (");
