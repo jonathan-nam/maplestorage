@@ -22,14 +22,14 @@ import type { Party } from "@/types/party";
 //
 // Nothing here computes a meso. Every number comes off lib/collection.ts.
 
-// Two tones, and they say OUTSTANDING against SETTLED. Never which direction a figure runs: the
-// sign and the wording carry that already, and a colour repeating it would spend the card's one
-// signal on something said twice.
+// COLOUR ONLY WHERE "DONE OR NOT" IS A REAL QUESTION, which is the headline and the money that has
+// arrived. Red for outstanding, green for paid, green matching .loot-paid.is-paid on a share badge
+// so one app cannot have it mean settled on one page and outstanding on the next.
 //
-// Green is PAID, matching .loot-paid.is-paid on a share badge, which has meant exactly that since
-// long before this card existed. It went the other way round here first, green for collectable, so
-// money already received and money still owed read alike and green meant the opposite of what it
-// means one page across.
+// The parts under a card are ARITHMETIC: components that sum to the headline. "Settled" cannot be
+// asked of one. Colouring them anyway put a figure like -139,548,023 in red for being unsettled
+// while it was also a credit AGAINST the debt above it, so the same number read as a problem and as
+// progress at once. The sign carries them instead, and every one of them is signed.
 
 export function CollectionLedger({
   rows,
@@ -146,6 +146,9 @@ function CollectionCard({
     })
     .join("\n");
 
+  /** A component of the net, always signed: nothing else on the row says which way it pushes. */
+  const signed = (mesos: number) => `${mesos > 0 ? "+" : ""}${formatMesos(mesos, true)}`;
+
   // What the net is made of, in the order the money moved. Only the parts that happened: a zero says
   // nothing and four of them would bury the one that matters.
   const parts = [
@@ -215,9 +218,11 @@ function CollectionCard({
                     {part.label}
                   </span>
                   <span
-                    className={`ledger-amount ${"paid" in part && part.paid ? "is-paid" : "is-open"}`}
+                    className={
+                      "paid" in part && part.paid ? "ledger-amount is-paid" : "ledger-amount"
+                    }
                   >
-                    {formatMesos(part.mesos, true)}
+                    {signed(part.mesos)}
                   </span>
                 </div>
               </li>
@@ -226,7 +231,7 @@ function CollectionCard({
               <li key={entry.id} className="ledger-drop">
                 <div className="ledger-drop-head">
                   <span className="loot-name">{entry.note ?? "entered"}</span>
-                  <span className="ledger-amount is-open">{formatMesos(entry.amount, true)}</span>
+                  <span className="ledger-amount">{signed(entry.amount)}</span>
                   <button
                     type="button"
                     className="link ledger-drop-sale"
@@ -334,8 +339,8 @@ function CollectionCard({
                       {boss ? bossLabel(boss.name, party?.difficulty ?? null) : "Unknown boss"} ·{" "}
                       {line.theirs}
                     </span>
-                    <span className="ledger-amount is-open">
-                      {formatMesos(line.direction === "owe" ? -line.nets : line.nets, true)}
+                    <span className="ledger-amount">
+                      {signed(line.direction === "owe" ? -line.nets : line.nets)}
                     </span>
                   </div>
                 </li>
@@ -387,7 +392,7 @@ function CollectionCard({
                     <span className="loot-meta">
                       {drop.looterName} · week of {formatWeekStart(drop.weekStart)}
                     </span>
-                    <span className="ledger-amount is-open">{drop.pieces}</span>
+                    <span className="ledger-amount">{drop.pieces}</span>
                   </div>
                 </li>
               );

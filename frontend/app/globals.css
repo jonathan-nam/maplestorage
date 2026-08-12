@@ -4582,23 +4582,23 @@ button.link:disabled {
   text-underline-offset: 3px;
 }
 
-/* A figure on the Collection Ledger, coloured by OUTSTANDING against SETTLED. Not by direction: the
-   sign and the wording carry that, and a colour repeating it spends the one signal on a thing said
-   twice. Everything used to be .droplog-take, which is green, so money already received and money
-   still owed read alike. */
+/* A figure on the Collection Ledger. Uncoloured by default, because most of them are ARITHMETIC:
+   components that sum to the headline, where "settled" is not a question you can ask. Colouring
+   them put -139,548,023 in red for being unsettled while it was also a credit against the debt
+   above it, so one number read as a problem and as progress at once. The sign carries them. */
 .ledger-amount {
   font-size: 14px;
   font-variant-numeric: tabular-nums;
 }
 
-/* Still to be resolved, whichever way it runs. */
-.ledger-amount.is-open,
+/* The headline, which is the one figure somebody acts on, and it is outstanding. */
 .ledger-summary.is-open {
   color: var(--bad);
 }
 
-/* Arrived. Green is paid here because green is paid on a share badge (.loot-paid.is-paid), and one
-   app cannot have it mean settled on one page and outstanding on the next. */
+/* Money that has arrived. Green is paid here because green is paid on a share badge
+   (.loot-paid.is-paid), and one app cannot have it mean settled on one page and outstanding on the
+   next. The only figure on the card that is finished. */
 .ledger-amount.is-paid {
   color: var(--good);
 }

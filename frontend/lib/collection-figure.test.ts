@@ -35,14 +35,15 @@ describe("what the card says a person owes", () => {
     expect(source).toContain("${row.pieces} pieces");
   });
 
-  it("colours a figure by outstanding against settled, and by nothing else", () => {
-    // Every figure used to be .droplog-take, which is green, so money already RECEIVED and money
-    // still owed read alike. Direction is NOT a colour: the sign and the wording carry it, and a
-    // third tone for it spends the card's one signal on something said twice.
+  it("leaves the arithmetic uncoloured, and signs every component instead", () => {
+    // The parts sum to the headline, so "settled" cannot be asked of one. Colouring them put a
+    // credit AGAINST the debt in red for being unsettled, so one number read as a problem and as
+    // progress at once.
     expect(source).not.toContain('className="droplog-take"');
-    for (const tone of ["is-open", "is-paid"]) {
-      expect(css).toContain(`.ledger-amount.${tone}`);
-    }
+    expect(source).toContain("const signed = (mesos: number) =>");
+    expect(source).toContain("{signed(part.mesos)}");
+    expect(source).toContain("{signed(entry.amount)}");
+    expect(css).not.toContain(".ledger-amount.is-open");
     expect(css).not.toContain("is-owing");
   });
 
