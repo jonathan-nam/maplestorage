@@ -53,4 +53,12 @@ describe("what the card says a person owes", () => {
     expect(source).not.toContain("already sent");
     expect(source).toContain("records ${formatMesos(owes, true)} sent to ${row.name}");
   });
+  it("puts the nights behind the shares figure on hover, and marks that it has them", () => {
+    // The same list sits under its own step further down, with two forms between the two, so the
+    // figure and the nights it came off did not read as the same thing.
+    expect(source).toContain("const behindShares = row.lines");
+    expect(source).toContain("title={part.detail || undefined}");
+    expect(source).toContain('part.detail ? "loot-name has-detail" : "loot-name"');
+    expect(css).toContain(".loot-name.has-detail");
+  });
 });

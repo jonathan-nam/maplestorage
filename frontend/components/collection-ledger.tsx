@@ -131,26 +131,51 @@ function CollectionCard({
     .filter(Boolean)
     .join(" · ");
 
+  /**
+   * The drops behind the shares figure, on hover.
+   *
+   * They are already listed further down the card, under their own step, but two forms sit between
+   * the two: the number and the nights it came off do not read as the same thing from that far
+   * apart. Signed the way the list is, so a night you owe for is told from one you are owed for.
+   */
+  const behindShares = row.lines
+    .map((line) => {
+      const boss = bossByKey.get(line.bossKey ?? "");
+      const party = partyById.get(line.partyId);
+      const where = boss ? bossLabel(boss.name, party?.difficulty ?? null) : "Unknown boss";
+      const mesos = formatMesos(line.direction === "owe" ? -line.nets : line.nets, true);
+      return `${line.name} \u00b7 ${where} \u00b7 ${line.theirs}: ${mesos}`;
+    })
+    .join("\n");
+
   // What the net is made of, in the order the money moved. Only the parts that happened: a zero says
   // nothing and four of them would bury the one that matters.
   const parts = [
-    { key: "shares", label: "shares", mesos: row.parts.shares, tone: tone(row.parts.shares) },
+    {
+      key: "shares",
+      label: "shares",
+      mesos: row.parts.shares,
+      tone: tone(row.parts.shares),
+      detail: behindShares,
+    },
     {
       key: "sold",
       label: `${row.name}'s coupons I sold`,
       mesos: row.parts.soldOfTheirs,
       tone: tone(row.parts.soldOfTheirs),
+      detail: "",
     },
     {
       key: "theirs",
       label: `my coupons ${row.name} sold`,
       mesos: row.parts.soldOfYours,
       tone: tone(row.parts.soldOfYours),
+      detail: "",
     },
     // Money that has ARRIVED. Not owing and not owed: it is the one part that is finished, so it
     // reads as neither, and a ledger where the settled money is the same colour as the outstanding
     // money is a ledger you have to read twice.
-    { key: "received", label: "received", mesos: row.parts.received, tone: "is-paid" },
+    { key: "received", label: "received", mesos: row.parts.received, tone: "is-paid", detail: "" },
   ].filter((part) => part.mesos !== 0);
 
   // Mesos this settle would declare you have ALREADY sent. Zero when every line runs towards you,
@@ -193,8 +218,13 @@ function CollectionCard({
           <ul className="ledger-queue">
             {parts.map((part) => (
               <li key={part.key} className="ledger-drop">
-                <div className="ledger-drop-head">
-                  <span className="loot-name">{part.label}</span>
+                {/* The nights behind the figure, where there are any. A title, because this is the
+                    detail of one row rather than something the card owes everybody: the same list
+                    is under its own step below, and both are the wallet's, not a third answer. */}
+                <div className="ledger-drop-head" title={part.detail || undefined}>
+                  <span className={part.detail ? "loot-name has-detail" : "loot-name"}>
+                    {part.label}
+                  </span>
                   <span className={`ledger-amount ${part.tone}`}>
                     {formatMesos(part.mesos, true)}
                   </span>

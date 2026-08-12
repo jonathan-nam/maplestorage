@@ -4574,6 +4574,14 @@ button.link:disabled {
   line-height: 1.4;
 }
 
+/* A breakdown row with the nights behind it on hover. Dotted, the way a term with a definition is
+   marked, so the hover is offered rather than left to be discovered. */
+.loot-name.has-detail {
+  cursor: help;
+  text-decoration: underline dotted var(--line);
+  text-underline-offset: 3px;
+}
+
 /* A figure on the Collection Ledger, coloured by WHAT IT IS rather than by being a number.
    Everything used to be .droplog-take, which is green, so money you owe and money already received
    both read as money coming to you. Three states, because "outstanding" and "settled" is the
