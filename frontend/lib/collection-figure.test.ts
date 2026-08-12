@@ -70,4 +70,17 @@ describe("what the card says a person owes", () => {
     expect(source).toContain('part.detail ? "loot-name has-detail" : "loot-name"');
     expect(css).toContain(".loot-name.has-detail");
   });
+  it("offers Settle only where there is something to COLLECT", () => {
+    // A card whose every share runs against you has nothing to collect, so a Settle on it can only
+    // mean "I have already paid them", the one thing nobody comes to this page to say. It was hit
+    // three times running, each time taking a debt of Jonathan's out of the netting and putting the
+    // figure back UP. A warning beside it was not enough and could not be: a button with one
+    // possible effect, and that effect wrong, is a trap however it is labelled.
+    expect(source).toContain('row.lines.some((line) => line.direction === "owed")');
+    expect(source).toContain("{collectable && (");
+  });
+
+  it("still says what a MIXED settle also does, since it clears both directions", () => {
+    expect(source).toContain("also records ${formatMesos(owes, true)} sent to ${row.name}");
+  });
 });
