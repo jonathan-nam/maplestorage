@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { buildCollection, isEmpty, sharesOf, stillOnSaleLedger } from "./collection";
+import {
+  buildCollection,
+  collectionTotals,
+  isEmpty,
+  owedByYouShares,
+  sharesOf,
+  stillOnSaleLedger,
+} from "./collection";
 import { receivedSinceClosing, saleCredits } from "./vestige-ledger";
 import type { Holder, HolderLedger } from "./vestige-ledger";
 import type { Counterparty, Wallet, WalletLine } from "./wallet";
@@ -504,6 +511,67 @@ describe("the money a sale of somebody else's coupons puts on the card", () => {
       { holder: SELF, pieces: 3, amount: 1_000, shares: [{ holder: BRO, pieces: 1 }] },
     ]);
     expect(credits.get("person:p-bro")).toEqual({ toThem: 333, toYou: 0 });
+  });
+});
+
+describe("what the account comes to, above the cards", () => {
+  it("sums the CARDS, so a tile cannot disagree with the list under it", () => {
+    // The Wallet had its own pass over the pools for this, which is how two surfaces get two
+    // answers. These are the same rows the list draws.
+    const rows = buildCollection(
+      [],
+      wallet([
+        counterparty("person:p-bro", "Bro", [line("l1", 1_000 * M)]),
+        counterparty("character:zaddy", "Zaddy", [line("l2", 400 * M, "owe")]),
+      ]),
+    );
+    expect(collectionTotals(rows)).toEqual({
+      owed: 1_000 * M,
+      owe: 400 * M,
+      net: 600 * M,
+      people: 2,
+    });
+  });
+
+  it("says you are behind overall when the net runs against you", () => {
+    const rows = buildCollection(
+      [],
+      wallet([counterparty("person:p-bro", "Bro", [line("l1", 900 * M, "owe")])]),
+    );
+    expect(collectionTotals(rows).net).toBe(-900 * M);
+  });
+
+  it("counts no pieces, since a count cannot be added to a total of mesos", () => {
+    const rows = buildCollection(
+      [ledger(BRO, "Bro", { owedToYou: 80, drops: [owing("l1", "kalos", 80)] })],
+      wallet([]),
+    );
+    expect(collectionTotals(rows)).toEqual({ owed: 0, owe: 0, net: 0, people: 1 });
+  });
+});
+
+describe("marking a share you owe as actually sent", () => {
+  it("names only the shares YOU owe, never what they owe you", () => {
+    // sharesOf is every line. On a card running both ways it would mark what they owe you paid at
+    // the same time, and say you had collected money nobody has sent.
+    const rows = buildCollection(
+      [],
+      wallet([
+        counterparty("person:p-bro", "Bro", [line("l1", 1_000 * M), line("l2", 400 * M, "owe")]),
+      ]),
+    );
+    expect(owedByYouShares(rows[0]!)).toEqual([{ lootId: "l2", memberId: "payee-l2" }]);
+    expect(sharesOf(rows[0]!)).toHaveLength(2);
+  });
+
+  it("is there for a card whose every share runs against you", () => {
+    // The gap left when Settle was pulled off such a card: Jared's read "you owe 289,382,716" with
+    // nothing to do about it, which is a ledger you cannot keep.
+    const rows = buildCollection(
+      [],
+      wallet([counterparty("person:p-jared", "Jared", [line("l3", 289 * M, "owe")])]),
+    );
+    expect(owedByYouShares(rows[0]!)).toHaveLength(1);
   });
 });
 

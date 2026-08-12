@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { formatWeekStart } from "@/lib/boss-clears";
 import { bossLabel } from "@/lib/boss-difficulty";
-import { type Collection, sharesOf } from "@/lib/collection";
+import { type Collection, owedByYouShares, sharesOf } from "@/lib/collection";
 import { formatMesos, parseMesos } from "@/lib/drop-split";
 import type { Holder } from "@/lib/vestige-ledger";
 import type { Boss } from "@/types/boss";
@@ -238,6 +238,17 @@ function CollectionCard({
    * debt of yours, and this ledger has no act for paying one.
    */
   const offsettable = owes > 0 && row.mesos > 0;
+  /**
+   * Whether there is a share of YOURS here to mark as actually paid.
+   *
+   * Distinct from Settle, which collects, and from Offset, which discharges one against a debt of
+   * theirs. This is the third thing that can happen to a share you owe: you sent them the mesos.
+   *
+   * It went missing when Settle was pulled off a card with nothing to collect, and pulling it was
+   * right; what was wrong was leaving no act in its place. Jared's card said "you owe 289,382,716"
+   * with nothing to do about it, which is a ledger you cannot keep.
+   */
+  const sendable = owes > 0;
 
   /**
    * The shares one entry discharged, named. Empty for a hand-entered debt, which names none.
@@ -443,6 +454,24 @@ function CollectionCard({
               </button>
               <span className="ledger-progress">
                 {`takes ${formatMesos(owes, true)} off what ${row.name} owes you`}
+              </span>
+            </span>
+          )}
+
+          {/* You actually sent them the mesos. Named for the direction, so it cannot be read as the
+              collecting act above it or as the offset beside it. */}
+          {sendable && (
+            <span className="ledger-settle">
+              <button
+                type="button"
+                className="party-save"
+                disabled={busy}
+                onClick={() => void write(onSettleShares(owedByYouShares(row)), null)}
+              >
+                Mark sent
+              </button>
+              <span className="ledger-progress">
+                {`records ${formatMesos(owes, true)} sent to ${row.name}`}
               </span>
             </span>
           )}

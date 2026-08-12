@@ -268,6 +268,37 @@ export function sharesOf(row: Collection): { lootId: string; memberId: string }[
   return row.lines.map((line) => ({ lootId: line.lootId, memberId: line.payeeId }));
 }
 
+/** What the whole list comes to, in the three figures the Wallet page used to carry. */
+export type CollectionTotals = { owed: number; owe: number; net: number; people: number };
+
+/**
+ * The account's position, summed off the CARDS rather than worked out again.
+ *
+ * The Wallet had its own pass over the pools for this, which is how two surfaces get two answers.
+ * These are the same rows the list below draws, so a tile that disagrees with the cards under it is
+ * arithmetically impossible rather than merely unlikely.
+ *
+ * The pieces are not in it. A count cannot be added to a total of mesos, which is the rule the whole
+ * ledger is built on.
+ */
+export function collectionTotals(rows: Collection[]): CollectionTotals {
+  const owed = rows.reduce((sum, row) => sum + row.mesos, 0);
+  const owe = rows.reduce((sum, row) => sum + row.owedByYou, 0);
+  return { owed, owe, net: owed - owe, people: rows.length };
+}
+
+/**
+ * The payout rows for the shares YOU owe, which is what "Mark sent" marks.
+ *
+ * Not sharesOf, which is every line: on a card running both ways that would mark what THEY owe you
+ * paid at the same time, and say you had collected money nobody has sent.
+ */
+export function owedByYouShares(row: Collection): { lootId: string; memberId: string }[] {
+  return row.lines
+    .filter((line) => line.direction === "owe")
+    .map((line) => ({ lootId: line.lootId, memberId: line.payeeId }));
+}
+
 /** Nothing stands between you either way. */
 export function isEmpty(row: Collection): boolean {
   return row.pieces === 0 && row.mesos === 0 && row.owedByYou === 0;
