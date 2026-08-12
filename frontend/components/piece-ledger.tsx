@@ -8,10 +8,16 @@ import { bossLabel } from "@/lib/boss-difficulty";
 import { formatMesos, parseMesos, shortMesos } from "@/lib/drop-split";
 import { FATES, type Fate, asksAnything, owes, roomFor, settledOf } from "@/lib/ledger-fates";
 import { transferKey } from "@/lib/piece-ledger";
-import { type Holder, type HolderLedger, holderKey, unaccounted } from "@/lib/vestige-ledger";
+import {
+  type Holder,
+  type HolderLedger,
+  holderKey,
+  pieceCreditors,
+  unaccounted,
+} from "@/lib/vestige-ledger";
 import type { Boss } from "@/types/boss";
 import type { Party } from "@/types/party";
-import type { VestigeTranche } from "@/types/vestige";
+import type { VestigeTranche, VestigeTrancheShare } from "@/types/vestige";
 
 // Your own pile: the coupons you are holding, the box that says what became of them, and the bosses
 // they came off.
@@ -63,7 +69,12 @@ export function PieceLedger({
   /** The coupon's own sprite, backend-relative. Null when the catalog has no art for it. */
   iconUrl: string | null;
   busy: boolean;
-  onAddSale: (holder: Holder, pieces: number, amount: number) => Promise<void>;
+  onAddSale: (
+    holder: Holder,
+    pieces: number,
+    amount: number,
+    shares: VestigeTrancheShare[],
+  ) => Promise<void>;
   onAddKept: (holder: Holder, pieces: number) => Promise<void>;
   onAddBought: (holder: Holder, pieces: number, amount: number) => Promise<void>;
   onRemoveSale: (trancheId: string) => Promise<void>;
@@ -111,7 +122,12 @@ function HolderCard({
   partyById: Map<string, Party>;
   iconUrl: string | null;
   busy: boolean;
-  onAddSale: (holder: Holder, pieces: number, amount: number) => Promise<void>;
+  onAddSale: (
+    holder: Holder,
+    pieces: number,
+    amount: number,
+    shares: VestigeTrancheShare[],
+  ) => Promise<void>;
   onAddKept: (holder: Holder, pieces: number) => Promise<void>;
   onAddBought: (holder: Holder, pieces: number, amount: number) => Promise<void>;
   onRemoveSale: (trancheId: string) => Promise<void>;
@@ -120,6 +136,17 @@ function HolderCard({
   const [amount, setAmount] = useState("");
   const [fate, setFate] = useState<Fate>("SOLD");
   const [refusal, setRefusal] = useState<string | null>(null);
+  /** Pieces of the sale that were each creditor's, as typed, keyed by holderKey. */
+  const [theirs, setTheirs] = useState<Record<string, string>>({});
+
+  // Who this pile owes coupons to. Asked only on a SALE: a redemption realized nothing to divide and
+  // a purchase is already one creditor's in full at an agreed price. See V50 and V56.
+  const creditors = pieceCreditors(ledger);
+  // For naming a share on a tranche already entered, which pieceCreditors cannot: it drops the
+  // closed drops, and a sale attributed before the boss was settled still says whose it was.
+  const creditorNames = new Map(
+    ledger.drops.flatMap((d) => d.transfers).map((t) => [t.toId, t.to]),
+  );
 
   const overEntered = Math.max(0, ledger.accounted - ledger.pieces);
   const toEnter = unaccounted(ledger);
@@ -150,6 +177,21 @@ function HolderCard({
           : null
       : null;
 
+  /**
+   * Whose pieces this sale was, as far as it has been said.
+   *
+   * Only what somebody typed. Nothing is inferred from what the pile owes: which of the coupons in
+   * one inventory went to market is not knowable from here, and guessing at it would credit the wrong
+   * person a real amount of money. Empty is the whole sale being the seller's own.
+   */
+  const attributed = creditors
+    .map((c) => ({ key: c.key, holder: c.holder, pieces: Number((theirs[c.key] ?? "").trim()) }))
+    .filter((s) => Number.isInteger(s.pieces) && s.pieces >= 1);
+  const attributedPieces = attributed.reduce((sum, s) => sum + s.pieces, 0);
+  // More of the sale given away than it held, which the server refuses too. Said rather than
+  // clamped: the reader typed both numbers, and which of them is wrong is theirs to decide.
+  const overAttributed = fate === "SOLD" && entry !== null && attributedPieces > entry.pieces;
+
   // The bosses still open under this holder, which is what the queue lists. A closed one is history
   // and is said as a count rather than dropped. See V52.
   const open = ledger.drops.filter((d) => !d.closed);
@@ -163,6 +205,7 @@ function HolderCard({
       if (clear === "entry") {
         setPieces("");
         setAmount("");
+        setTheirs({});
       }
     } catch (e) {
       setRefusal(e instanceof Error ? e.message : "That didn't save.");
@@ -229,9 +272,17 @@ function HolderCard({
             className="ledger-sale"
             onSubmit={(e) => {
               e.preventDefault();
-              if (!entry) return;
+              if (!entry || overAttributed) return;
               if (fate === "SOLD")
-                void write(onAddSale(ledger.holder, entry.pieces, entry.amount ?? 0), "entry");
+                void write(
+                  onAddSale(
+                    ledger.holder,
+                    entry.pieces,
+                    entry.amount ?? 0,
+                    attributed.map((s) => ({ holder: s.holder, pieces: s.pieces })),
+                  ),
+                  "entry",
+                );
               if (fate === "KEPT") void write(onAddKept(ledger.holder, entry.pieces), "entry");
               if (fate === "BOUGHT")
                 void write(onAddBought(ledger.holder, entry.pieces, entry.amount ?? 0), "entry");
@@ -278,10 +329,56 @@ function HolderCard({
                 />
               </label>
             )}
-            <button type="submit" className="party-save" disabled={busy || entry === null}>
+            <button
+              type="submit"
+              className="party-save"
+              disabled={busy || entry === null || overAttributed}
+            >
               Add
             </button>
           </form>
+        )}
+
+        {/* Whose pieces the sale was, one box per person this pile owes. The one place a coupon debt
+            gets a price, and it only can here: these pieces were in YOUR inventory, so the figure
+            being divided is one you just typed. What somebody else sold at is still not asked for,
+            and still could not be answered. See V56.
+
+            Nothing is prefilled. The box a sale wants is usually the whole debt, but "usually" is
+            what would quietly credit a person for coupons that are still sitting there. */}
+        {fate === "SOLD" && creditors.length > 0 && (toEnter > 0 || ledger.pieces === 0) && (
+          <div className="ledger-attribution">
+            {creditors.map((creditor) => {
+              const cut = attributed.find((s) => s.key === creditor.key)?.pieces ?? 0;
+              // Their slice of THIS sale, at this sale's own price. Exact within one tranche, which
+              // is one lot at one price. The rounding remainder stays on your side.
+              const worth =
+                entry?.amount && cut > 0 ? Math.round((cut * entry.amount) / entry.pieces) : 0;
+              return (
+                <label key={creditor.key} className="loot-share-input">
+                  of which {creditor.name}&apos;s
+                  <input
+                    className="split-input loot-count-input"
+                    value={theirs[creditor.key] ?? ""}
+                    onChange={(e) =>
+                      setTheirs((t) => ({
+                        ...t,
+                        [creditor.key]: clamp(e.target.value, creditor.pieces),
+                      }))
+                    }
+                    inputMode="numeric"
+                    aria-label={`Pieces of this sale that were ${creditor.name}'s, at most ${creditor.pieces}`}
+                  />
+                  {worth > 0 && <span className="loot-share-nets">{shortMesos(worth)}</span>}
+                </label>
+              );
+            })}
+            {overAttributed && (
+              <span className="split-error">
+                {`${attributedPieces} of a sale of ${entry?.pieces}`}
+              </span>
+            )}
+          </div>
         )}
 
         {/* The pieces step's own rows, in the order the queue spends them. Removable because a mistyped
@@ -298,6 +395,14 @@ function HolderCard({
                 : `${tranche.pieces} @ ${shortMesos(tranche.amount / tranche.pieces)}${
                     tranche.disposition === "BOUGHT" ? " taken" : ""
                   }`}
+              {/* Whose pieces it was, where it was not all the seller's. On the row rather than in
+                  a total, because this is where a mistyped one is corrected: the ledger's figure for
+                  that person moves the moment this row goes. */}
+              {(tranche.shares ?? []).map((share) => (
+                <span key={holderKey(share.holder)} className="loot-share-nets">
+                  {`${share.pieces} ${creditorNames.get(holderKey(share.holder)) ?? "theirs"}`}
+                </span>
+              ))}
               <button
                 type="button"
                 className="link ledger-drop-sale"

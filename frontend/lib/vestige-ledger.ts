@@ -157,6 +157,52 @@ export function holderKey(holder: Holder): string {
   return `character:${holder.characterName}`;
 }
 
+/**
+ * holderKey() read back.
+ *
+ * A piece transfer names its creditor by key alone, because that is what a debt is matched on. Writing
+ * a sale's attribution needs the holder itself, and rebuilding it from the key beats threading a
+ * second field through the ledger for the one caller that wants it.
+ */
+export function holderFromKey(key: string): Holder {
+  if (key === SELF_KEY) return { kind: "SELF", personId: null, characterName: null };
+  if (key.startsWith("person:")) {
+    return { kind: "PERSON", personId: key.slice("person:".length), characterName: null };
+  }
+  return { kind: "CHARACTER", personId: null, characterName: key.slice("character:".length) };
+}
+
+/** One person your pile owes coupons to: who they are, and how many of theirs you are holding. */
+export type PieceCreditor = { key: string; holder: Holder; name: string; pieces: number };
+
+/**
+ * Who a pile owes pieces to, across the drops it still has open.
+ *
+ * Off the transfers the drops already carry, so this names nobody the boss rows do not. Only OPEN
+ * drops: a closed one was settled, and offering to credit somebody out of it would pay a debt twice.
+ *
+ * Biggest debt first, so the box the ordinary sale wants is the one at the top.
+ */
+export function pieceCreditors(ledger: HolderLedger): PieceCreditor[] {
+  const out = new Map<string, PieceCreditor>();
+  for (const drop of ledger.drops) {
+    if (drop.closed) continue;
+    for (const transfer of drop.transfers) {
+      const seen = out.get(transfer.toId);
+      if (seen) seen.pieces += transfer.pieces;
+      else {
+        out.set(transfer.toId, {
+          key: transfer.toId,
+          holder: holderFromKey(transfer.toId),
+          name: transfer.to,
+          pieces: transfer.pieces,
+        });
+      }
+    }
+  }
+  return [...out.values()].sort((a, b) => b.pieces - a.pieces || a.name.localeCompare(b.name));
+}
+
 /** What to call a holder. Yours are "you", because that is who they are on your own screen. */
 export function holderName(seat: PartyMember): string {
   if (seat.personId !== null) return seat.personName ?? seat.name;
@@ -743,7 +789,14 @@ export function holderLedgers(
  *
  * Named because three readers now have to agree on it, and on what an ABSENT disposition means.
  */
-type TrancheRow = { holder: Holder; pieces: number; amount: number | null; disposition?: string };
+type TrancheRow = {
+  holder: Holder;
+  pieces: number;
+  amount: number | null;
+  disposition?: string;
+  /** Whose pieces the sale was. Absent is a row cached from before V56, which is all its own. */
+  shares?: { holder: Holder; pieces: number }[];
+};
 
 /**
  * Whether a row is a purchase of the creditor's pieces rather than a sale. See V50.
@@ -820,6 +873,53 @@ export function boughtByHolder(rows: TrancheRow[]): Map<string, { pieces: number
       seen.pieces += row.pieces;
       seen.paid += row.amount;
     } else out.set(key, { pieces: row.pieces, paid: row.amount });
+  }
+  return out;
+}
+
+/** What one sale of somebody else's pieces came to, in each direction. Mesos, and only mesos. */
+export type SaleCredit = {
+  /** Money of THEIRS you are holding, from selling pieces of theirs out of your own pile. */
+  toThem: number;
+  /** Money of YOURS they are holding, from a sale of yours entered against their pile. */
+  toYou: number;
+};
+
+/**
+ * What each counterparty is owed, or owes, out of sales of somebody else's pieces. See V56.
+ *
+ * The one place a piece debt gets a price, and it only ever does so from a sale WHOSE PRICE THE
+ * ENTERER TYPED. That is what makes it different from the pro rata #354 deleted: this divides one
+ * tranche, one lot at one price, between the people whose coupons were in it. It never spreads a
+ * holder's proceeds over a queue of bosses, and it never asks what somebody else sold at.
+ *
+ * Rounded to the meso, with the remainder left on the seller's side: the two must add up to the
+ * tranche exactly, and the person who typed the figure is the one who can check it.
+ *
+ * A row where neither side is you is left out. That debt is real and it is between two other people,
+ * the same case buildWallet counts as `betweenOthers` rather than putting in your totals.
+ */
+export function saleCredits(rows: TrancheRow[]): Map<string, SaleCredit> {
+  const out = new Map<string, SaleCredit>();
+  const add = (key: string, side: keyof SaleCredit, mesos: number) => {
+    const seen = out.get(key) ?? { toThem: 0, toYou: 0 };
+    seen[side] += mesos;
+    out.set(key, seen);
+    return seen;
+  };
+
+  for (const row of rows) {
+    // Only a sale divides. A redemption realized nothing and a purchase is already one creditor's in
+    // full, which is why the server refuses shares on either. See V50.
+    if (row.amount === null || isBought(row) || row.pieces < 1) continue;
+    const pile = holderKey(row.holder);
+    for (const share of row.shares ?? []) {
+      const creditor = holderKey(share.holder);
+      if (pile !== SELF_KEY && creditor !== SELF_KEY) continue;
+      const mesos = Math.round((share.pieces * row.amount) / row.pieces);
+      if (pile === SELF_KEY) add(creditor, "toThem", mesos);
+      else add(pile, "toYou", mesos);
+    }
   }
   return out;
 }

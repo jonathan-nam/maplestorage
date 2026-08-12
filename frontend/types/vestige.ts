@@ -16,7 +16,22 @@ export type VestigeTranche = {
   // Read rather than inferred, the same way holder.kind is: with three kinds and two of them
   // carrying money, the amount can no longer say which this is.
   disposition: VestigeDisposition;
+  // Whose pieces this sale was, where any of them were not the seller's. Empty is all their own,
+  // which is every tranche entered before V56.
+  shares: VestigeTrancheShare[];
   soldAt: string;
+};
+
+/**
+ * How many pieces of one sale were somebody else's. See V56.
+ *
+ * A COUNT. Their share of the money is `pieces * amount / tranche pieces`, derived on read, so
+ * correcting a mistyped amount moves it. The meso figure is never stored: see V40.
+ */
+export type VestigeTrancheShare = {
+  // The CREDITOR, not the pile the sale came out of.
+  holder: Holder;
+  pieces: number;
 };
 
 /**
@@ -40,6 +55,8 @@ export type AddVestigeTrancheBody = {
   // matching the check in V50.
   amount?: number;
   disposition: VestigeDisposition;
+  // Only on a SOLD row, and never more pieces than the sale held. The server refuses both.
+  shares?: VestigeTrancheShare[];
 };
 
 // One payment: mesos that actually arrived from a holder, against what their whole pile owes. No
@@ -74,4 +91,22 @@ export type AddVestigeSettlementBody = {
   holder: Holder;
   lootIds: string[];
   unpaid: number;
+};
+
+// One debt somebody owes you that no drop accounts for: a loan, a deal made in game, a split settled
+// off the books. Positive is always what THEY owe YOU. See V56.
+export type CollectionDebt = {
+  id: string;
+  holder: Holder;
+  amount: number;
+  // What it was for. Optional, and the only free text on the Collection Ledger.
+  note: string | null;
+  incurredAt: string;
+};
+
+// POST /api/collection-debts. Answers with every entry, not the one added.
+export type AddCollectionDebtBody = {
+  holder: Holder;
+  amount: number;
+  note?: string;
 };

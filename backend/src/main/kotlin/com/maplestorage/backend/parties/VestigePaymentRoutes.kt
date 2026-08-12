@@ -1,6 +1,5 @@
 package com.maplestorage.backend.parties
 
-import com.maplestorage.backend.db.Person
 import com.maplestorage.backend.db.VestigePayment
 import com.maplestorage.backend.plugins.parseUuidParam
 import com.maplestorage.backend.plugins.principalIdAndEmail
@@ -80,19 +79,8 @@ private suspend fun RoutingContext.addPaymentRoute() {
         transaction {
             ensureUser(userId, email)
             val person = holder.personId?.let { runCatching { Uuid.parse(it) }.getOrNull() }
-            if (holder.kind == "PERSON") {
-                // Scoped to the account, which the foreign key does not do. Same check the tranche
-                // write makes, and for the same reason: without it a payment could be filed against
-                // somebody else's person and read back as clearing one of theirs.
-                val theirs =
-                    person != null &&
-                        Person
-                            .selectAll()
-                            .where { (Person.id eq person) and (Person.userId eq userId) }
-                            .empty()
-                            .not()
-                if (!theirs) return@transaction null
-            }
+            // Scoped to the account, which the foreign key does not do. See ownsPerson.
+            if (holder.kind == "PERSON" && !ownsPerson(userId, person)) return@transaction null
 
             val now = Clock.System.now()
             VestigePayment.insert {

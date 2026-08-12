@@ -442,6 +442,42 @@ object VestigeTranche : Table("vestige_tranche") {
     override val primaryKey = PrimaryKey(id)
 }
 
+// How many pieces of one sale belonged to somebody else. Only the count is stored; their share of the
+// money is derived from the tranche's own amount on read, so correcting the amount moves it.
+// See V56__collection_balance.sql.
+object VestigeTrancheShare : Table("vestige_tranche_share") {
+    val id = uuid("id")
+    val trancheId = reference("tranche_id", VestigeTranche.id)
+
+    // vestige_tranche's holder shape, naming the CREDITOR rather than the pile. See V39.
+    val holderKind = text("holder_kind")
+    val personId = optReference("person_id", Person.id)
+    val characterName = text("character_name").nullable()
+
+    val pieces = integer("pieces")
+    val createdAt = timestamp("created_at")
+
+    override val primaryKey = PrimaryKey(id)
+}
+
+// Mesos somebody owes you that no drop accounts for. Rows rather than a running total, the shape
+// V51 uses and for the same reason. See V56__collection_balance.sql.
+object CollectionDebt : Table("collection_debt") {
+    val id = uuid("id")
+    val userId = reference("user_id", Users.id)
+
+    val holderKind = text("holder_kind")
+    val personId = optReference("person_id", Person.id)
+    val characterName = text("character_name").nullable()
+
+    val amount = long("amount")
+    val note = text("note").nullable()
+    val incurredAt = timestamp("incurred_at")
+    val createdAt = timestamp("created_at")
+
+    override val primaryKey = PrimaryKey(id)
+}
+
 // Mesos actually received from a holder, against what their whole pile owes. No pieces: which boss a
 // meso pays for is the queue's business, and storing it here would be storing a derived share.
 // See V51__vestige_payment.sql.
