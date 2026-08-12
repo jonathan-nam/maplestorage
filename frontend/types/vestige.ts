@@ -98,10 +98,20 @@ export type AddVestigeSettlementBody = {
 export type CollectionDebt = {
   id: string;
   holder: Holder;
+  // Signed since V57. Positive is theirs to pay, negative is a debt of yours discharged against it.
   amount: number;
   // What it was for. Optional, and the only free text on the Collection Ledger.
   note: string | null;
+  // The shares an OFFSET discharged. Empty on a hand-entered debt, which is most of them. See V58.
+  payouts: CollectionDebtPayout[];
   incurredAt: string;
+};
+
+// One share an offset discharged. The PAYOUT, since one drop owes several people and only one of
+// those shares is the one covered.
+export type CollectionDebtPayout = {
+  lootId: string;
+  memberId: string;
 };
 
 // POST /api/collection-debts. Answers with every entry, not the one added.
@@ -109,4 +119,6 @@ export type AddCollectionDebtBody = {
   holder: Holder;
   amount: number;
   note?: string;
+  // Only an offset names any. Absent is a debt somebody typed, which discharges no share.
+  payouts?: CollectionDebtPayout[];
 };

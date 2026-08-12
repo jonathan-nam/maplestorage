@@ -9,6 +9,7 @@ import { formatMesos, parseMesos } from "@/lib/drop-split";
 import type { Holder } from "@/lib/vestige-ledger";
 import type { Boss } from "@/types/boss";
 import type { Party } from "@/types/party";
+import type { CollectionDebt } from "@/types/vestige";
 
 // One card per person, in the two units something can stand between you.
 //
@@ -35,6 +36,8 @@ export function CollectionLedger({
   rows,
   bossByKey,
   partyById,
+  seatById,
+  lootBoss,
   busy,
   onAddPayment,
   onAddDebt,
@@ -46,6 +49,10 @@ export function CollectionLedger({
   rows: Collection[];
   bossByKey: Map<string, Boss>;
   partyById: Map<string, Party>;
+  /** Every seat by id, for naming the share an offset discharged. See V58. */
+  seatById: Map<string, { name: string; partyId: string }>;
+  /** Each loot row's boss key, for the same. */
+  lootBoss: Map<string, string | null>;
   busy: boolean;
   onAddPayment: (holder: Holder, amount: number) => Promise<void>;
   onAddDebt: (holder: Holder, amount: number, note: string) => Promise<void>;
@@ -69,6 +76,8 @@ export function CollectionLedger({
           row={row}
           bossByKey={bossByKey}
           partyById={partyById}
+          seatById={seatById}
+          lootBoss={lootBoss}
           busy={busy}
           onAddPayment={onAddPayment}
           onAddDebt={onAddDebt}
@@ -86,6 +95,8 @@ function CollectionCard({
   row,
   bossByKey,
   partyById,
+  seatById,
+  lootBoss,
   busy,
   onAddPayment,
   onAddDebt,
@@ -97,6 +108,10 @@ function CollectionCard({
   row: Collection;
   bossByKey: Map<string, Boss>;
   partyById: Map<string, Party>;
+  /** Every seat by id, for naming the share an offset discharged. See V58. */
+  seatById: Map<string, { name: string; partyId: string }>;
+  /** Each loot row's boss key, for the same. */
+  lootBoss: Map<string, string | null>;
   busy: boolean;
   onAddPayment: (holder: Holder, amount: number) => Promise<void>;
   onAddDebt: (holder: Holder, amount: number, note: string) => Promise<void>;
@@ -224,6 +239,25 @@ function CollectionCard({
    */
   const offsettable = owes > 0 && row.mesos > 0;
 
+  /**
+   * The shares one entry discharged, named. Empty for a hand-entered debt, which names none.
+   *
+   * Off the pools rather than the wallet's lines: the settle that made this offset marked those
+   * shares PAID, so they have left the wallet by the time this row is drawn. That is the whole
+   * reason V58 stores them.
+   */
+  const sharesBehind = (entry: CollectionDebt) =>
+    entry.payouts.map((share) => {
+      const seat = seatById.get(share.memberId);
+      const boss = bossByKey.get(lootBoss.get(share.lootId) ?? "");
+      const party = seat ? partyById.get(seat.partyId) : undefined;
+      return {
+        key: `${share.lootId}:${share.memberId}`,
+        where: boss ? bossLabel(boss.name, party?.difficulty ?? null) : "Unknown boss",
+        who: seat?.name ?? "a seat that has left",
+      };
+    });
+
   return (
     <section className="ledger-card">
       <header className="ledger-head">
@@ -272,21 +306,15 @@ function CollectionCard({
               </li>
             ))}
             {row.entries.map((entry) => (
-              <li key={entry.id} className="ledger-drop">
-                <div className="ledger-drop-head">
-                  <span className="loot-name">{entry.note ?? "entered"}</span>
-                  <span className="ledger-amount">{signed(entry.amount)}</span>
-                  <button
-                    type="button"
-                    className="link ledger-drop-sale"
-                    disabled={busy}
-                    onClick={() => void write(onRemoveDebt(entry.id), null)}
-                    aria-label={`Remove ${formatMesos(entry.amount, true)} owed by ${row.name}`}
-                  >
-                    ×
-                  </button>
-                </div>
-              </li>
+              <EnteredRow
+                key={entry.id}
+                entry={entry}
+                name={row.name}
+                shares={sharesBehind(entry)}
+                busy={busy}
+                signed={signed}
+                onRemove={() => void write(onRemoveDebt(entry.id), null)}
+              />
             ))}
           </ul>
         )}
@@ -491,5 +519,82 @@ function CollectionCard({
 
       {refusal && <span className="split-error">{refusal}</span>}
     </section>
+  );
+}
+
+/**
+ * One entered adjustment, opening onto the shares it discharged.
+ *
+ * A hand-typed debt names none and draws as a plain row. An OFFSET names as many as it covered, and
+ * folds: the flat list then grows by one row per offset however many nights went into it, which is
+ * what keeps a card with hundreds of them readable.
+ */
+function EnteredRow({
+  entry,
+  name,
+  shares,
+  busy,
+  signed,
+  onRemove,
+}: {
+  entry: CollectionDebt;
+  name: string;
+  shares: { key: string; where: string; who: string }[];
+  busy: boolean;
+  signed: (mesos: number) => string;
+  onRemove: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const panelId = `entry-${entry.id}`;
+  const label = entry.note ?? "entered";
+  const count = `${shares.length} ${shares.length === 1 ? "share" : "shares"}`;
+
+  return (
+    <li className="ledger-drop">
+      <div className="ledger-drop-head">
+        {shares.length > 0 ? (
+          <button
+            type="button"
+            className="party-row-toggle"
+            aria-expanded={open}
+            aria-controls={panelId}
+            onClick={() => setOpen((o) => !o)}
+          >
+            <span className="party-row-chevron" aria-hidden="true" />
+            <span className="visually-hidden">
+              {open ? `Hide the ${count} behind ${label}` : `Show the ${count} behind ${label}`}
+            </span>
+          </button>
+        ) : (
+          // The frame is kept so a typed row lines up with a folded one, as a drop row does.
+          <span className="party-row-toggle is-empty" aria-hidden="true" />
+        )}
+        <span className="loot-name">
+          {label}
+          {shares.length > 0 && <span className="loot-meta"> · {count}</span>}
+        </span>
+        <span className="ledger-amount">{signed(entry.amount)}</span>
+        <button
+          type="button"
+          className="link ledger-drop-sale"
+          disabled={busy}
+          onClick={onRemove}
+          aria-label={`Remove ${formatMesos(entry.amount, true)} against ${name}`}
+        >
+          ×
+        </button>
+      </div>
+
+      {open && (
+        <ul className="loot-shares" id={panelId}>
+          {shares.map((share) => (
+            <li key={share.key}>
+              <span className="loot-share-name">{share.where}</span>
+              <span className="loot-share-nets">{share.who}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </li>
   );
 }

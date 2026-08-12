@@ -1,6 +1,7 @@
 package com.maplestorage.backend.parties
 
 import com.maplestorage.backend.db.CollectionDebt
+import com.maplestorage.backend.db.CollectionDebtPayout
 import com.maplestorage.backend.plugins.parseUuidParam
 import com.maplestorage.backend.plugins.principalIdAndEmail
 import com.maplestorage.backend.users.ensureUser
@@ -17,6 +18,7 @@ import kotlinx.serialization.Serializable
 import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.core.inList
 import org.jetbrains.exposed.v1.jdbc.deleteWhere
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
@@ -43,12 +45,21 @@ private const val MAX_AMOUNT = 1_000_000_000_000L
 /** As long as a note may be, matching the check in V56. Room for what it was for, not for a story. */
 private const val MAX_NOTE = 120
 
+/** One share an offset discharged. The PAYOUT, since one drop owes several people. See V58. */
+@Serializable
+data class CollectionDebtPayoutRow(
+    val lootId: String,
+    val memberId: String,
+)
+
 @Serializable
 data class CollectionDebtResponse(
     val id: String,
     val holder: VestigeHolder,
     val amount: Long,
     val note: String? = null,
+    /** The shares this discharged. Empty on a hand-entered debt, which is most of them. See V58. */
+    val payouts: List<CollectionDebtPayoutRow> = emptyList(),
     val incurredAt: String,
 )
 
@@ -57,6 +68,8 @@ data class AddCollectionDebtRequest(
     val holder: VestigeHolder,
     val amount: Long,
     val note: String? = null,
+    /** Only an offset names any. Absent is a debt somebody typed, which discharges no share. */
+    val payouts: List<CollectionDebtPayoutRow> = emptyList(),
 )
 
 fun Route.collectionDebtRoutes() {
@@ -84,6 +97,12 @@ private suspend fun RoutingContext.addDebtRoute() {
     val refusal = debtRefusal(holder, request.amount, note)
     if (refusal != null) return call.respond(HttpStatusCode.BadRequest, refusal)
 
+    val payouts =
+        request.payouts.map { Uuid.parseOrNull(it.lootId) to Uuid.parseOrNull(it.memberId) }
+    if (payouts.any { (loot, member) -> loot == null || member == null }) {
+        return call.respond(HttpStatusCode.BadRequest, "malformed lootId or memberId")
+    }
+
     val result =
         transaction {
             ensureUser(userId, email)
@@ -92,8 +111,9 @@ private suspend fun RoutingContext.addDebtRoute() {
             if (holder.kind == "PERSON" && !ownsPerson(userId, person)) return@transaction null
 
             val now = Clock.System.now()
+            val newDebtId = Uuid.random()
             CollectionDebt.insert {
-                it[id] = Uuid.random()
+                it[id] = newDebtId
                 it[CollectionDebt.userId] = userId
                 it[holderKind] = holder.kind
                 it[personId] = person
@@ -102,6 +122,16 @@ private suspend fun RoutingContext.addDebtRoute() {
                 it[CollectionDebt.note] = note
                 it[incurredAt] = now
                 it[createdAt] = now
+            }
+            // Whatever the offset discharged. Not checked against the payout rows themselves: the
+            // settle that marked them paid ran first and is the one that had to prove they exist, and
+            // a second check here would refuse a row that write had already accepted.
+            for (share in payouts.map { it.first!! to it.second!! }) {
+                CollectionDebtPayout.insert {
+                    it[debtId] = newDebtId
+                    it[lootId] = share.first
+                    it[memberId] = share.second
+                }
             }
             debtsFor(userId)
         }
@@ -166,25 +196,44 @@ internal fun debtRefusal(
  *
  * Must run inside a transaction.
  */
-internal fun debtsFor(userId: String): List<CollectionDebtResponse> =
-    CollectionDebt
-        .selectAll()
-        .where { CollectionDebt.userId eq userId }
-        .orderBy(
-            CollectionDebt.incurredAt to SortOrder.ASC,
-            CollectionDebt.createdAt to SortOrder.ASC,
-        ).map {
-            val holder =
-                VestigeHolder(
-                    kind = it[CollectionDebt.holderKind],
-                    personId = it[CollectionDebt.personId]?.toString(),
-                    characterName = it[CollectionDebt.characterName],
+internal fun debtsFor(userId: String): List<CollectionDebtResponse> {
+    val rows =
+        CollectionDebt
+            .selectAll()
+            .where { CollectionDebt.userId eq userId }
+            .orderBy(
+                CollectionDebt.incurredAt to SortOrder.ASC,
+                CollectionDebt.createdAt to SortOrder.ASC,
+            ).toList()
+    if (rows.isEmpty()) return emptyList()
+
+    // One query for every debt's shares rather than one per debt. Most carry none, so the join is
+    // short and it is the round trips that would add up.
+    val shares =
+        CollectionDebtPayout
+            .selectAll()
+            .where { CollectionDebtPayout.debtId inList rows.map { it[CollectionDebt.id] } }
+            .groupBy({ it[CollectionDebtPayout.debtId] }) {
+                CollectionDebtPayoutRow(
+                    lootId = it[CollectionDebtPayout.lootId].toString(),
+                    memberId = it[CollectionDebtPayout.memberId].toString(),
                 )
-            CollectionDebtResponse(
-                id = it[CollectionDebt.id].toString(),
-                holder = holder,
-                amount = it[CollectionDebt.amount],
-                note = it[CollectionDebt.note],
-                incurredAt = it[CollectionDebt.incurredAt].toString(),
+            }
+
+    return rows.map {
+        val holder =
+            VestigeHolder(
+                kind = it[CollectionDebt.holderKind],
+                personId = it[CollectionDebt.personId]?.toString(),
+                characterName = it[CollectionDebt.characterName],
             )
-        }
+        CollectionDebtResponse(
+            id = it[CollectionDebt.id].toString(),
+            holder = holder,
+            amount = it[CollectionDebt.amount],
+            note = it[CollectionDebt.note],
+            payouts = shares[it[CollectionDebt.id]] ?: emptyList(),
+            incurredAt = it[CollectionDebt.incurredAt].toString(),
+        )
+    }
+}
