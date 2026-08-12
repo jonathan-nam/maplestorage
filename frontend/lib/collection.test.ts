@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { buildCollection, isEmpty, sharesOf, stillOnSaleLedger } from "./collection";
+import { saleCredits } from "./vestige-ledger";
 import type { Holder, HolderLedger } from "./vestige-ledger";
 import type { Counterparty, Wallet, WalletLine } from "./wallet";
+import type { CollectionDebt } from "@/types/vestige";
 
 const M = 1_000_000;
 
@@ -144,12 +146,15 @@ describe("who belongs on the list at all", () => {
     expect(rows[0]!.drops.map((d) => d.lootId)).toEqual(["l2"]);
   });
 
-  it("leaves out a share you owe THEM, which runs the other way", () => {
+  it("keeps a share you owe THEM, said as what you owe rather than as something to collect", () => {
+    // It used to be dropped, which was right while every figure here ran one way. It is not now:
+    // the ordinary end of looting a boss single-handed is a debt of YOURS, and a card that showed
+    // only the collectable direction would not mention the money of theirs in your hands.
     const rows = buildCollection(
       [],
       wallet([counterparty("person:p-bro", "Bro", [line("l2", 900 * M, "owe")])]),
     );
-    expect(rows).toEqual([]);
+    expect([rows[0]!.mesos, rows[0]!.owedByYou]).toEqual([0, 900 * M]);
   });
 });
 
@@ -167,16 +172,16 @@ describe("netting, which is mesos against mesos and never pieces", () => {
     expect(rows[0]!.owedByYou).toBe(0);
   });
 
-  it("drops them off the list when the netting leaves YOU behind", () => {
-    // Jonathan's case: they record a sale owing you 1b, you already owed them 1.5b, so you owe 500m.
-    // That is not something to collect, so it is not on the ledger for collecting.
+  it("says which way it runs when the netting leaves YOU behind", () => {
+    // They record a sale owing you 1b, you already owed them 1.5b, so you owe 500m. Not collectable,
+    // and still the one thing outstanding between you.
     const rows = buildCollection(
       [],
       wallet([
         counterparty("person:p-bro", "Bro", [line("l1", 1_000 * M), line("l2", 1_500 * M, "owe")]),
       ]),
     );
-    expect(rows).toEqual([]);
+    expect([rows[0]!.mesos, rows[0]!.owedByYou]).toEqual([0, 500 * M]);
   });
 
   it("says what you owe when their PIECES put them on the list anyway", () => {
@@ -273,13 +278,165 @@ describe("what a settle would touch", () => {
     expect(rows[0]!.holder).toEqual(BRO);
   });
 
-  it("has no holder for somebody who owes only shares, since there is no pile", () => {
+  it("rebuilds the holder for somebody with no pile, so an entry can still be filed against them", () => {
+    // It used to be null, which was fine while the only thing a card wrote was against a pile. An
+    // entered debt is filed against the PERSON, and somebody who has never held a coupon can owe you.
     const rows = buildCollection(
       [],
       wallet([counterparty("person:p-jared", "Jared", [line("l9", 400 * M)])]),
     );
-    expect(rows[0]!.holder).toBeNull();
+    expect(rows[0]!.holder).toEqual({
+      kind: "PERSON",
+      personId: "p-jared",
+      characterName: null,
+    });
     expect(isEmpty(rows[0]!)).toBe(false);
+  });
+});
+
+describe("the money a sale of somebody else's coupons puts on the card", () => {
+  const debt = (holder: Holder, amount: number, note: string | null = null): CollectionDebt => ({
+    id: `d-${amount}`,
+    holder,
+    amount,
+    note,
+    incurredAt: "2026-08-10T00:00:00Z",
+  });
+
+  it("owes them what their half of the lot fetched, the night you looted all of it", () => {
+    // The case this was built for. 160 fell, 80 were theirs, you picked up the lot and sold it. Their
+    // 80 came out of YOUR inventory at a price you typed, so their money is in your hands.
+    const rows = buildCollection(
+      [],
+      wallet([]),
+      [],
+      saleCredits([
+        { holder: SELF, pieces: 160, amount: 4_000 * M, shares: [{ holder: BRO, pieces: 80 }] },
+      ]),
+      new Map(),
+      new Map([["person:p-bro", "Bro"]]),
+    );
+    expect([rows[0]!.name, rows[0]!.mesos, rows[0]!.owedByYou]).toEqual(["Bro", 0, 2_000 * M]);
+  });
+
+  it("deducts that sale from what they already owed you, which is one net to settle", () => {
+    // Jonathan's ask in one line: an amount entered for a person, and item sales coming off it.
+    const rows = buildCollection(
+      [],
+      wallet([]),
+      [debt(BRO, 3_000 * M, "Ludi loan")],
+      saleCredits([
+        { holder: SELF, pieces: 160, amount: 4_000 * M, shares: [{ holder: BRO, pieces: 80 }] },
+      ]),
+    );
+    expect(rows[0]!.mesos).toBe(1_000 * M);
+    expect([rows[0]!.parts.entered, rows[0]!.parts.soldOfTheirs]).toEqual([3_000 * M, -2_000 * M]);
+  });
+
+  it("prices only the pieces that were said to be theirs, never the whole sale", () => {
+    // A partial sale: 100 of the 160 went, and 80 of those were theirs because somebody typed 80.
+    // Nothing infers which coupons in one inventory went to market.
+    const rows = buildCollection(
+      [],
+      wallet([]),
+      [],
+      saleCredits([
+        { holder: SELF, pieces: 100, amount: 2_500 * M, shares: [{ holder: BRO, pieces: 80 }] },
+      ]),
+    );
+    expect(rows[0]!.owedByYou).toBe(2_000 * M);
+  });
+
+  it("credits nobody for a sale that named no shares, which is every row before V56", () => {
+    const rows = buildCollection(
+      [],
+      wallet([]),
+      [],
+      saleCredits([{ holder: SELF, pieces: 160, amount: 4_000 * M }]),
+    );
+    expect(rows).toEqual([]);
+  });
+
+  it("divides no redemption and no purchase, since neither has proceeds to share", () => {
+    // A KEPT row realized nothing and a BOUGHT row is already one creditor's in full. The server
+    // refuses shares on both; this is the reader agreeing with it.
+    const credits = saleCredits([
+      { holder: SELF, pieces: 80, amount: null, shares: [{ holder: BRO, pieces: 80 }] },
+      {
+        holder: SELF,
+        pieces: 80,
+        amount: 2_000 * M,
+        disposition: "BOUGHT",
+        shares: [{ holder: BRO, pieces: 80 }],
+      },
+    ]);
+    expect(credits.size).toBe(0);
+  });
+
+  it("leaves a sale between two other people alone, since settling it is not yours", () => {
+    // The same treatment buildWallet gives betweenOthers. Real, and not a debt of yours either way.
+    const credits = saleCredits([
+      { holder: BRO, pieces: 80, amount: 2_000 * M, shares: [{ holder: STRANGER, pieces: 80 }] },
+    ]);
+    expect(credits.size).toBe(0);
+  });
+
+  it("takes a payment off what they owe, whether or not they ever held a coupon", () => {
+    // Received used to be read off the HolderLedger, so a person with no open drop had none at all.
+    const rows = buildCollection(
+      [],
+      wallet([]),
+      [debt(BRO, 1_000 * M)],
+      new Map(),
+      new Map([["person:p-bro", 400 * M]]),
+    );
+    expect([rows[0]!.mesos, rows[0]!.parts.received]).toEqual([600 * M, -400 * M]);
+  });
+
+  it("never turns a payment into a debt of YOURS, when the pieces it paid for have no price", () => {
+    // They hold 80 of yours and send 400m for them. Netting that would read "you owe them 400m",
+    // which is the plausible confident wrong number: the pieces have no price for it to come off.
+    const rows = buildCollection(
+      [ledger(BRO, "Bro", { owedToYou: 80, drops: [owing("l1", "kalos", 80)] })],
+      wallet([]),
+      [],
+      new Map(),
+      new Map([["person:p-bro", 400 * M]]),
+    );
+    expect([rows[0]!.mesos, rows[0]!.owedByYou]).toEqual([0, 0]);
+    expect([rows[0]!.parts.received, rows[0]!.receivedOnPieces]).toEqual([0, 400 * M]);
+  });
+
+  it("spends a payment on the priced debt first, and says what is left over", () => {
+    const rows = buildCollection(
+      [ledger(BRO, "Bro", { owedToYou: 80, drops: [owing("l1", "kalos", 80)] })],
+      wallet([]),
+      [debt(BRO, 500 * M)],
+      new Map(),
+      new Map([["person:p-bro", 900 * M]]),
+    );
+    expect(rows[0]!.mesos).toBe(0);
+    expect([rows[0]!.parts.received, rows[0]!.receivedOnPieces]).toEqual([-500 * M, 400 * M]);
+  });
+
+  it("keeps the pieces out of the net, however much money is on the card", () => {
+    // The rule this ledger was split for. A piece has no price until somebody names one, so it is
+    // never added to or taken off a meso figure.
+    const rows = buildCollection(
+      [ledger(BRO, "Bro", { owedToYou: 80, drops: [owing("l1", "kalos", 80)] })],
+      wallet([]),
+      [debt(BRO, 1_000 * M)],
+    );
+    expect([rows[0]!.pieces, rows[0]!.mesos]).toEqual([80, 1_000 * M]);
+  });
+
+  it("rounds a creditor's slice to the meso and leaves the remainder with the seller", () => {
+    // 1 of 3 pieces out of 1000 mesos. The two sides must add up to the tranche exactly, and the
+    // person who typed the figure is the one who can check it.
+    const credits = saleCredits([
+      { holder: SELF, pieces: 3, amount: 1_000, shares: [{ holder: BRO, pieces: 1 }] },
+    ]);
+    expect(credits.get("person:p-bro")).toEqual({ toThem: 333, toYou: 0 });
   });
 });
 

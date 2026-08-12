@@ -43,12 +43,14 @@ import {
   SELF_KEY,
   alsoHeldByYou,
   boughtByHolder,
+  foldSeats,
   holderKey,
   holderLedgers,
   closedByHolder,
   keptByHolder,
   outstanding,
   receivedByHolder,
+  saleCredits,
   stillOpen,
   runningBalance,
   salesByHolder,
@@ -60,7 +62,13 @@ import type { Character } from "@/types/character";
 import type { DropTables } from "@/types/drop";
 import type { Loot, LogDropBody, PartyLootPool, SettleBody } from "@/types/loot";
 import type { Party } from "@/types/party";
-import type { VestigePayment, VestigeSettlement, VestigeTranche } from "@/types/vestige";
+import type {
+  CollectionDebt,
+  VestigePayment,
+  VestigeSettlement,
+  VestigeTranche,
+  VestigeTrancheShare,
+} from "@/types/vestige";
 
 // The history of what dropped, and what it made, and where a drop is logged. Every meso is
 // lib/drop-log.ts's, which is splitOf()'s, which is splitDrop()'s. Nothing here adds anything up.
@@ -80,6 +88,7 @@ const CHARACTERS_KEY = "/api/characters";
 const TRANCHES_KEY = "/api/vestige-tranches";
 const PAYMENTS_KEY = "/api/vestige-payments";
 const SETTLEMENTS_KEY = "/api/vestige-settlements";
+const DEBTS_KEY = "/api/collection-debts";
 
 // The stacking drop the piece ledger is for. One key, because one item behaves this way: a boss
 // drops it in bundles that do not divide by looting alone. See lib/piece-ledger.ts.
@@ -101,6 +110,7 @@ export default function DropLogPage() {
   const [tranches, setTranches] = useState<VestigeTranche[]>([]);
   const [payments, setPayments] = useState<VestigePayment[]>([]);
   const [settlements, setSettlements] = useState<VestigeSettlement[]>([]);
+  const [debts, setDebts] = useState<CollectionDebt[]>([]);
 
   // A drop names the party it fell in and links to it, which draws its seats. See
   // lib/seat-sprites.ts.
@@ -118,19 +128,21 @@ export default function DropLogPage() {
 
   async function load(token?: string | null) {
     const withToken = token !== undefined ? () => Promise.resolve(token) : getToken;
-    const [partyResult, poolResult, trancheResult, paymentResult, settlementResult] =
+    const [partyResult, poolResult, trancheResult, paymentResult, settlementResult, debtResult] =
       await Promise.all([
         apiFetch<Party[]>(PARTIES_KEY, { method: "GET" }, withToken),
         apiFetch<PartyLootPool[]>(POOLS_KEY, { method: "GET" }, withToken),
         apiFetch<VestigeTranche[]>(TRANCHES_KEY, { method: "GET" }, withToken),
         apiFetch<VestigePayment[]>(PAYMENTS_KEY, { method: "GET" }, withToken),
         apiFetch<VestigeSettlement[]>(SETTLEMENTS_KEY, { method: "GET" }, withToken),
+        apiFetch<CollectionDebt[]>(DEBTS_KEY, { method: "GET" }, withToken),
       ]);
     setParties(partyResult);
     setPools(poolResult);
     setTranches(trancheResult);
     setPayments(paymentResult);
     setSettlements(settlementResult);
+    setDebts(debtResult);
     put(PARTIES_KEY, partyResult);
   }
 
@@ -244,6 +256,18 @@ export default function DropLogPage() {
     }
   }
 
+  /** The same, for an entered debt. Its own state, because it touches no drop at all. See V56. */
+  async function debtWrite(path: string, options: RequestInit) {
+    setBusy(true);
+    try {
+      setDebts(await apiFetch<CollectionDebt[]>(path, options, getToken));
+    } catch (e) {
+      throw new Error(e instanceof ApiError ? e.body : "That didn't save.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   /** The same, for a receipt. Its own state, because a payment changes no piece. See V51. */
   async function paymentWrite(path: string, options: RequestInit) {
     setBusy(true);
@@ -344,7 +368,20 @@ export default function DropLogPage() {
   // What other people owe you, in both units it can be owed in: pieces of yours they are holding,
   // and shares of a sale they made. Off the same two aggregations the ledger and the wallet already
   // run, so there is no third answer to keep in step.
-  const collection = buildCollection(ledgers, buildWallet(parties, pools));
+  // Somebody a debt can name but no open drop does. Off the seats of every party, folded to their
+  // people, which is the same fold every figure on this page is measured against.
+  const holderNames = new Map<string, string>();
+  for (const party of parties) {
+    for (const seat of foldSeats(party.seats)) holderNames.set(seat.key, seat.name);
+  }
+  const collection = buildCollection(
+    ledgers,
+    buildWallet(parties, pools),
+    debts,
+    saleCredits(tranches),
+    receivedByHolder(payments),
+    holderNames,
+  );
   // Nights that did not divide and that nobody has said the arrangement for. Above the ledger,
   // because until one is answered its pieces are missing from every figure below it.
   const open = unanswered(parties, pools, VESTIGE);
@@ -577,10 +614,19 @@ export default function DropLogPage() {
                     partyById={partyById}
                     iconUrl={vestigeIcon}
                     busy={busy}
-                    onAddSale={(holder: Holder, pieces, amount) =>
+                    // `shares` says how many of the pieces were somebody else's, so their part of
+                    // what this lot fetched lands on the Collection Ledger. Empty is the whole sale
+                    // being your own, which is every tranche entered before V56. See saleCredits.
+                    onAddSale={(holder: Holder, pieces, amount, shares: VestigeTrancheShare[]) =>
                       saleWrite(TRANCHES_KEY, {
                         method: "POST",
-                        body: JSON.stringify({ holder, pieces, amount, disposition: "SOLD" }),
+                        body: JSON.stringify({
+                          holder,
+                          pieces,
+                          amount,
+                          disposition: "SOLD",
+                          shares,
+                        }),
                       })
                     }
                     // No amount: a redemption realized nothing, where a sale for zero would price those
@@ -664,6 +710,13 @@ export default function DropLogPage() {
                     body: JSON.stringify({ holder, amount }),
                   })
                 }
+                onAddDebt={(holder: Holder, amount, note) =>
+                  debtWrite(DEBTS_KEY, {
+                    method: "POST",
+                    body: JSON.stringify({ holder, amount, note: note || undefined }),
+                  })
+                }
+                onRemoveDebt={(debtId) => debtWrite(`${DEBTS_KEY}/${debtId}`, { method: "DELETE" })}
                 onSettlePieces={(holder: Holder, lootIds) =>
                   settlementWrite(SETTLEMENTS_KEY, {
                     method: "POST",

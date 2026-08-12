@@ -5541,6 +5541,21 @@ button.link:disabled {
   padding: 6px 8px;
 }
 
+/* Whose pieces a sale was, indented under the sale it belongs to: it is a second question about the
+   same row, not a second row. One box per person the pile owes, wrapping on a narrow screen. */
+.ledger-attribution {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding-left: 12px;
+  border-left: 1px solid var(--line-soft);
+}
+
+.ledger-attribution .split-input {
+  width: 72px;
+}
+
 .ledger-tranches {
   display: flex;
   flex-wrap: wrap;

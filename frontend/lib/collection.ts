@@ -1,22 +1,28 @@
-// What other people owe YOU, in one place.
+// What stands between you and each other person, in one place.
 //
-// Two kinds of debt land here and they are not the same kind of thing.
+// Money and pieces, and they are not the same kind of thing.
 //
-// A SHARE of a sale somebody else made is a known figure in mesos: they sold it, the split says what
-// your part is, and it is either paid or not.
+// The MONEY is one net figure, because one transfer of the difference is how a pair actually settles
+// and it saves a hop's Auction House fee on the value that no longer crosses. Four things go into it,
+// and every one of them is a figure somebody typed or a split of one:
 //
-// PIECES are not. Coupons are single-trade, so somebody holding your share cannot hand them back,
-// and nothing you can see says what they are worth: the price is whatever they got, or whatever the
-// two of you agree. So this states how many pieces of yours they are holding and stops there. It
-// used to derive a meso figure by tracking their sales tranche by tranche, which is what made the
-// Sale Ledger ask you to enter somebody else's prices.
+//   - shares of a sale, either direction (lib/wallet.ts)
+//   - what you sold of THEIR coupons out of your own pile (V56)
+//   - what they owe you from anywhere else, entered by hand (V56)
+//   - what has actually been paid (V51)
 //
-// Neither total is computed here. The shares are lib/wallet.ts's and the pieces are
-// lib/vestige-ledger.ts's, and a second copy of either would be a second answer.
+// PIECES are not in it and cannot be. Coupons are single-trade, so pieces of yours in somebody else's
+// inventory can only be sold by them, and nothing you can see says what they fetched. Those stay a
+// count. The one case that DOES have a price is the mirror of it: when you looted the lot, the pieces
+// you owe are in your own inventory, so the sale that prices them is one you entered. See V56.
+//
+// No total is computed here. The shares are lib/wallet.ts's, the pieces and the sale splits are
+// lib/vestige-ledger.ts's, and a second copy of any of them would be a second answer.
 
-import { SELF_KEY, holderKey } from "./vestige-ledger";
-import type { Holder, HolderLedger } from "./vestige-ledger";
+import { SELF_KEY, holderFromKey, holderKey } from "./vestige-ledger";
+import type { Holder, HolderLedger, SaleCredit } from "./vestige-ledger";
 import type { Wallet, WalletLine } from "./wallet";
+import type { CollectionDebt } from "@/types/vestige";
 
 /** One night's pieces of yours, sitting in somebody else's inventory. */
 export type HeldOfYours = {
@@ -40,14 +46,17 @@ export type Collection = {
    */
   attributed: boolean;
   /**
-   * Whose pile, for the payment and the closure this card writes. Null when they owe only shares:
-   * those settle against payout rows and need no holder.
+   * Whose pile, for the payment, the entry and the closure this card writes.
+   *
+   * Rebuilt from the key rather than carried, because a row can now reach this list from four
+   * different sources and only some of them have a holder to hand. The two round-trip: see
+   * holderFromKey.
    */
-  holder: Holder | null;
-  /** Pieces of yours they hold. Deliberately unpriced. */
+  holder: Holder;
+  /** Pieces of yours they hold. Deliberately unpriced: only they can sell them. */
   pieces: number;
   /**
-   * Mesos they owe you once both directions are netted off. A real figure, unlike the pieces.
+   * Mesos they owe you once every direction is netted off. A real figure, unlike the pieces.
    *
    * NET, because one transfer of the difference is how this is actually settled and it saves a hop's
    * Auction House fee on the value that no longer crosses. Zero when the two sides cancel or you are
@@ -57,25 +66,56 @@ export type Collection = {
   /**
    * Mesos YOU owe them, when the netting comes out that way. Never collectable, said anyway.
    *
-   * A row only reaches the list on its pieces once this is set, and it is there so those pieces are
-   * not chased off somebody you are behind with. Settling it is not this ledger's act.
+   * The ordinary end of looting a boss single-handed: their coupons went out of your inventory, so
+   * their half of what the lot fetched is money of theirs you are holding. Settling it is not this
+   * ledger's act, but a card that showed only the collectable direction would not mention it at all.
    */
   owedByYou: number;
-  /** Mesos that have arrived from them, against the pieces. */
-  received: number;
+  /** What the net is made of, in the order the card says them. Every one is signed towards you. */
+  parts: {
+    /** Unpaid shares, netted. Positive is theirs to send. lib/wallet.ts's figure, untouched. */
+    shares: number;
+    /** Entered by hand: what they owe you that no drop accounts for. Never negative. See V56. */
+    entered: number;
+    /** Their coupons you sold out of your own pile, so their money is in your hands. Negative. */
+    soldOfTheirs: number;
+    /** Your coupons sold out of a pile filed as theirs. Positive, and rare: see saleCredits. */
+    soldOfYours: number;
+    /**
+     * Mesos that have arrived from them, as far as there was a priced debt to put them against.
+     *
+     * Negative: a payment is a debt going away. Never more than the parts above come to, because a
+     * payment cannot make you the debtor. Anything past that is `receivedOnPieces`. See V51.
+     */
+    received: number;
+  };
+  /**
+   * Mesos received beyond anything priced, which is a payment for the PIECES they are holding.
+   *
+   * Outside the net and deliberately so. A piece debt has no price, so there is nothing for this to
+   * count down; netting it anyway would read as "you owe them 400m" the moment somebody paid you for
+   * coupons you cannot value. Stated on its own, which is where it was before V56.
+   */
+  receivedOnPieces: number;
+  /** The entered rows themselves, so a mistyped one can be taken back off the card. */
+  entries: CollectionDebt[];
   drops: HeldOfYours[];
   lines: WalletLine[];
 };
 
-const blank = (key: string, name: string, attributed: boolean): Collection => ({
+const blank = (key: string, name: string): Collection => ({
   key,
   name,
-  attributed,
-  holder: null,
+  // A PERSON key is somebody who has been named. A CHARACTER key is one nobody has claimed yet, and
+  // the same human may be behind two of them, which is said rather than guessed at.
+  attributed: key.startsWith("person:"),
+  holder: holderFromKey(key),
   pieces: 0,
   mesos: 0,
   owedByYou: 0,
-  received: 0,
+  parts: { shares: 0, entered: 0, soldOfTheirs: 0, soldOfYours: 0, received: 0 },
+  receivedOnPieces: 0,
+  entries: [],
   drops: [],
   lines: [],
 });
@@ -86,8 +126,29 @@ const blank = (key: string, name: string, attributed: boolean): Collection => ({
  * Keyed the way both sides already key a counterparty (`person:<id>` or `character:<name>`), so a
  * person who owes you pieces AND a share is one row rather than two.
  */
-export function buildCollection(ledgers: HolderLedger[], wallet: Wallet): Collection[] {
+export function buildCollection(
+  ledgers: HolderLedger[],
+  wallet: Wallet,
+  /** Entered by hand, from V56. Rows rather than a total, so one can be taken back off. */
+  debts: CollectionDebt[] = [],
+  /** What sales of somebody else's coupons came to, per counterparty. See saleCredits. */
+  credits: Map<string, SaleCredit> = new Map(),
+  /**
+   * Mesos received from each holder, keyed by holderKey.
+   *
+   * Passed in rather than read off the HolderLedger, which is where it used to come from: a person
+   * with no open drop has no ledger at all, so a payment from them was silently worth nothing.
+   */
+  received: Map<string, number> = new Map(),
+  /** What to call a key nothing else on this list can name. Party seats, folded to their people. */
+  names: Map<string, string> = new Map(),
+): Collection[] {
   const out = new Map<string, Collection>();
+  const rowFor = (key: string, name?: string) => {
+    const row = out.get(key) ?? blank(key, name ?? names.get(key) ?? key);
+    out.set(key, row);
+    return row;
+  };
 
   // The pieces. Your own pile is not a debt to you, and a closed one is finished.
   for (const ledger of ledgers) {
@@ -109,13 +170,9 @@ export function buildCollection(ledgers: HolderLedger[], wallet: Wallet): Collec
       .filter((d) => d.pieces > 0);
     if (drops.length === 0) continue;
 
-    const key = holderKey(ledger.holder);
-    const row = out.get(key) ?? blank(key, ledger.holderName, ledger.holder.kind === "PERSON");
-    row.holder = ledger.holder;
+    const row = rowFor(holderKey(ledger.holder), ledger.holderName);
     row.pieces = ledger.owedToYou;
-    row.received = ledger.received;
     row.drops = drops;
-    out.set(key, row);
   }
 
   // The shares, NETTED: what they owe you less what you owe them, per person. One transfer of the
@@ -126,27 +183,71 @@ export function buildCollection(ledgers: HolderLedger[], wallet: Wallet): Collec
   // 50 pieces owed against 25 owed "25 pieces" states a figure that matches neither side.
   for (const person of wallet.counterparties) {
     if (person.lines.length === 0) continue;
-    const net = person.owed - person.owe;
-    const row = out.get(person.key) ?? blank(person.key, person.name, person.attributed);
+    const row = rowFor(person.key, person.name);
+    row.parts.shares = person.owed - person.owe;
 
-    if (net > 0) {
-      // Every line, both directions, because settling the net marks BOTH sides paid. Two sides that
-      // cancel still have shares behind them, and the wallet's own settle names all of them.
-      row.lines = person.lines;
-      row.mesos = net;
-    } else {
-      // Nothing to collect. The shares belong to the act that settles what YOU owe, not this one, so
-      // no line is carried and Mark paid cannot reach them from here.
-      row.owedByYou = -net;
-    }
-    out.set(person.key, row);
+    // Every line, both directions, because settling the net marks BOTH sides paid. Two sides that
+    // cancel still have shares behind them, and the wallet's own settle names all of them.
+    //
+    // Gated on the SHARE net alone, never on the net below it. Mark paid marks payout rows, and
+    // whether those were paid has nothing to do with whose coupons you sold last week: letting the
+    // coupon money decide would hide the button on a person whose shares really are outstanding.
+    if (row.parts.shares > 0) row.lines = person.lines;
+  }
+
+  // Entered by hand, and the only figure on this page nothing else could have known. See V56.
+  for (const debt of debts) {
+    const row = rowFor(holderKey(debt.holder));
+    row.parts.entered += debt.amount;
+    row.entries.push(debt);
+  }
+
+  // Coupons of somebody else's, sold at a price that was typed. The half of a piece debt that CAN be
+  // priced, and the reason `soldOfTheirs` is negative: those pieces left your inventory, so their
+  // share of what the lot fetched is money of theirs in your hands.
+  for (const [key, credit] of credits) {
+    const row = rowFor(key);
+    row.parts.soldOfTheirs -= credit.toThem;
+    row.parts.soldOfYours += credit.toYou;
+  }
+
+  for (const [key, paid] of received) {
+    if (key === SELF_KEY || paid === 0) continue;
+    rowFor(key).receivedOnPieces += paid;
+  }
+
+  for (const row of out.values()) {
+    // Everything with a price, before the money that has arrived against it.
+    const priced = Object.values(row.parts).reduce((sum, part) => sum + part, 0);
+    // A payment pays down what they owe you and stops there. Past that it is not a debt of yours: it
+    // is money against the PIECES, which have no price for it to count down. See receivedOnPieces.
+    const applied = Math.min(row.receivedOnPieces, Math.max(0, priced));
+    // Not `-applied`, which is -0 when nothing was applied and formats as "-0" on the row.
+    row.parts.received = applied > 0 ? -applied : 0;
+    row.receivedOnPieces -= applied;
+
+    const net = priced - applied;
+    row.mesos = Math.max(0, net);
+    row.owedByYou = Math.max(0, -net);
   }
 
   // Mesos first, because that is the half with a figure on it and the half you can act on today.
   // Pieces break the tie, then the name, so the list never reorders itself between two reads.
+  //
+  // A row you are BEHIND on is kept. It used to be dropped unless pieces held it here, which is
+  // exactly the night this ledger now exists to price: you looted the lot, you sold their half, and
+  // the only thing outstanding is money of theirs you are sitting on.
   return [...out.values()]
-    .filter((row) => row.mesos > 0 || row.pieces > 0)
-    .sort((a, b) => b.mesos - a.mesos || b.pieces - a.pieces || a.name.localeCompare(b.name));
+    .filter(
+      (row) => row.mesos > 0 || row.owedByYou > 0 || row.pieces > 0 || row.receivedOnPieces > 0,
+    )
+    .sort(
+      (a, b) =>
+        b.mesos - a.mesos ||
+        b.owedByYou - a.owedByYou ||
+        b.pieces - a.pieces ||
+        a.name.localeCompare(b.name),
+    );
 }
 
 /**
@@ -160,9 +261,9 @@ export function sharesOf(row: Collection): { lootId: string; memberId: string }[
   return row.lines.map((line) => ({ lootId: line.lootId, memberId: line.payeeId }));
 }
 
-/** Nothing of yours is left with them. */
+/** Nothing stands between you either way. */
 export function isEmpty(row: Collection): boolean {
-  return row.pieces === 0 && row.mesos === 0;
+  return row.pieces === 0 && row.mesos === 0 && row.owedByYou === 0;
 }
 
 /**

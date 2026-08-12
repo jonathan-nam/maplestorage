@@ -10,15 +10,17 @@ import type { Holder } from "@/lib/vestige-ledger";
 import type { Boss } from "@/types/boss";
 import type { Party } from "@/types/party";
 
-// One card per person who owes you something, in the two units a debt can be in.
+// One card per person, in the two units something can stand between you.
 //
-// The two halves are not symmetric and the card does not pretend they are. A SHARE is a figure: they
-// sold it, the split says your part, and marking it paid is the whole transaction. PIECES have no
-// figure, because coupons are single-trade and only they can sell them, so all this can do is say how
-// many of yours they hold and take whatever they send.
+// MONEY is one net figure, made of every part that has a price: shares of a sale, coupons of theirs
+// you sold out of your own pile, what they owe you from elsewhere, and what has been paid. The parts
+// are listed because a net nobody can take apart is a net nobody can check.
 //
-// Nothing here computes a meso. Every number comes off lib/collection.ts, which is lib/wallet.ts's
-// and lib/vestige-ledger.ts's.
+// PIECES are the other unit and stay a count. Coupons are single-trade, so pieces of yours in
+// somebody else's inventory can only be sold by them, and what they fetched is not something this can
+// see. The mirror case, where you looted the lot, is priced by the sale you entered: see V56.
+//
+// Nothing here computes a meso. Every number comes off lib/collection.ts.
 
 export function CollectionLedger({
   rows,
@@ -26,6 +28,8 @@ export function CollectionLedger({
   partyById,
   busy,
   onAddPayment,
+  onAddDebt,
+  onRemoveDebt,
   onSettlePieces,
   onSettleShares,
 }: {
@@ -34,6 +38,8 @@ export function CollectionLedger({
   partyById: Map<string, Party>;
   busy: boolean;
   onAddPayment: (holder: Holder, amount: number) => Promise<void>;
+  onAddDebt: (holder: Holder, amount: number, note: string) => Promise<void>;
+  onRemoveDebt: (debtId: string) => Promise<void>;
   onSettlePieces: (holder: Holder, lootIds: string[]) => Promise<void>;
   onSettleShares: (payouts: { lootId: string; memberId: string }[]) => Promise<void>;
 }) {
@@ -48,6 +54,8 @@ export function CollectionLedger({
           partyById={partyById}
           busy={busy}
           onAddPayment={onAddPayment}
+          onAddDebt={onAddDebt}
+          onRemoveDebt={onRemoveDebt}
           onSettlePieces={onSettlePieces}
           onSettleShares={onSettleShares}
         />
@@ -62,6 +70,8 @@ function CollectionCard({
   partyById,
   busy,
   onAddPayment,
+  onAddDebt,
+  onRemoveDebt,
   onSettlePieces,
   onSettleShares,
 }: {
@@ -70,35 +80,49 @@ function CollectionCard({
   partyById: Map<string, Party>;
   busy: boolean;
   onAddPayment: (holder: Holder, amount: number) => Promise<void>;
+  onAddDebt: (holder: Holder, amount: number, note: string) => Promise<void>;
+  onRemoveDebt: (debtId: string) => Promise<void>;
   onSettlePieces: (holder: Holder, lootIds: string[]) => Promise<void>;
   onSettleShares: (payouts: { lootId: string; memberId: string }[]) => Promise<void>;
 }) {
   const [got, setGot] = useState("");
+  const [owed, setOwed] = useState("");
+  const [note, setNote] = useState("");
   const [refusal, setRefusal] = useState<string | null>(null);
 
   const payment = parseMesos(got);
   const paid = payment !== null && payment >= 1 ? payment : null;
+  const entered = parseMesos(owed);
+  const owing = entered !== null && entered >= 1 ? entered : null;
 
-  async function write(action: Promise<void>, clear: boolean) {
+  async function write(action: Promise<void>, clear: null | (() => void)) {
     setRefusal(null);
     try {
       await action;
-      if (clear) setGot("");
+      clear?.();
     } catch (e) {
       setRefusal(e instanceof Error ? e.message : "That didn't save.");
     }
   }
 
-  // Each half only when there is one. The mesos are already netted, so "in shares" is one figure
-  // rather than two directions. `owedByYou` is on a row that got here on its pieces alone, and it is
-  // said so those are not chased off somebody you are behind with.
+  // Each half only when there is one. The mesos are netted, so it is one figure in one direction
+  // rather than a column of both.
   const summary = [
     row.pieces > 0 ? `${row.pieces} pieces` : null,
-    row.mesos > 0 ? `${shortMesos(row.mesos)} in shares` : null,
+    row.mesos > 0 ? `${shortMesos(row.mesos)} owed` : null,
     row.owedByYou > 0 ? `you owe ${shortMesos(row.owedByYou)}` : null,
   ]
     .filter(Boolean)
     .join(" · ");
+
+  // What the net is made of, in the order the money moved. Only the parts that happened: a zero says
+  // nothing and four of them would bury the one that matters.
+  const parts = [
+    { key: "shares", label: "shares", mesos: row.parts.shares },
+    { key: "sold", label: `${row.name}'s coupons I sold`, mesos: row.parts.soldOfTheirs },
+    { key: "theirs", label: `my coupons ${row.name} sold`, mesos: row.parts.soldOfYours },
+    { key: "received", label: "received", mesos: row.parts.received },
+  ].filter((part) => part.mesos !== 0);
 
   return (
     <section className="ledger-card">
@@ -107,15 +131,114 @@ function CollectionCard({
           <span className="loot-name">{row.name}</span>
           <span className="loot-meta">{summary}</span>
         </span>
-        {row.received > 0 && (
+        {/* Money they sent beyond anything priced, which is a payment for the pieces. Out here rather
+            than in the net below: a piece debt has no price for it to count down, and netting it
+            would say you owed them the moment they paid you for coupons you cannot value. */}
+        {row.receivedOnPieces > 0 && (
           <span className="ledger-tally">
-            <span className="loot-share-nets">{shortMesos(row.received)} received</span>
+            <span className="loot-share-nets">{shortMesos(row.receivedOnPieces)} received</span>
           </span>
         )}
       </header>
 
-      {/* The shares: a figure, and one button that marks every one of them paid. Same act the
-          Wallet performs, against the same payout rows, so the two cannot disagree. */}
+      {/* The money, and what it is made of. Every entered row is removable and nothing else is: the
+          others are corrected where they were recorded, which is the sale or the split itself. */}
+      <div className="ledger-entry">
+        <span className="ledger-step">owed</span>
+        <ul className="ledger-queue">
+          {parts.map((part) => (
+            <li key={part.key} className="ledger-drop">
+              <div className="ledger-drop-head">
+                <span className="loot-name">{part.label}</span>
+                <span className="droplog-take">{formatMesos(part.mesos, true)}</span>
+              </div>
+            </li>
+          ))}
+          {row.entries.map((entry) => (
+            <li key={entry.id} className="ledger-drop">
+              <div className="ledger-drop-head">
+                <span className="loot-name">{entry.note ?? "entered"}</span>
+                <span className="droplog-take">{formatMesos(entry.amount, true)}</span>
+                <button
+                  type="button"
+                  className="link ledger-drop-sale"
+                  disabled={busy}
+                  onClick={() => void write(onRemoveDebt(entry.id), null)}
+                  aria-label={`Remove ${formatMesos(entry.amount, true)} owed by ${row.name}`}
+                >
+                  ×
+                </button>
+              </div>
+            </li>
+          ))}
+        </ul>
+
+        {/* The one figure on this page nothing else could have known. See V56. */}
+        <form
+          className="ledger-sale"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (owing) {
+              void write(onAddDebt(row.holder, owing, note.trim()), () => {
+                setOwed("");
+                setNote("");
+              });
+            }
+          }}
+        >
+          <label className="loot-share-input">
+            owes me
+            <input
+              className="split-input"
+              value={owed}
+              onChange={(e) => setOwed(e.target.value)}
+              inputMode="decimal"
+              aria-label={`What ${row.name} owes you`}
+            />
+          </label>
+          <label className="loot-share-input">
+            for
+            <input
+              className="split-input"
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              maxLength={120}
+              aria-label="What it was for"
+            />
+          </label>
+          <button type="submit" className="party-save" disabled={busy || owing === null}>
+            Add
+          </button>
+        </form>
+
+        {/* Mesos arriving, against everything above at once. A payment is against the person, not
+            against a particular boss or a particular coupon. See V51. */}
+        <form
+          className="ledger-sale"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (paid) void write(onAddPayment(row.holder, paid), () => setGot(""));
+          }}
+        >
+          <label className="loot-share-input">
+            paid me
+            <input
+              className="split-input"
+              value={got}
+              onChange={(e) => setGot(e.target.value)}
+              inputMode="decimal"
+              aria-label={`What ${row.name} has paid you`}
+            />
+          </label>
+          <button type="submit" className="party-save" disabled={busy || paid === null}>
+            Add
+          </button>
+        </form>
+      </div>
+
+      {/* The shares behind the figure above, and the one button that marks every one of them paid.
+          The same act the Wallet performs, against the same payout rows, so the two cannot
+          disagree. */}
       {row.lines.length > 0 && (
         <div className="ledger-entry">
           <span className="ledger-step">shares</span>
@@ -143,16 +266,17 @@ function CollectionCard({
             type="button"
             className="party-save"
             disabled={busy}
-            onClick={() => void write(onSettleShares(sharesOf(row)), false)}
+            onClick={() => void write(onSettleShares(sharesOf(row)), null)}
           >
             Mark paid
           </button>
         </div>
       )}
 
-      {/* The pieces: a count, whatever has arrived against it, and the act that closes it. No price,
-          because coupons are single-trade and what they fetched is not something this can see. */}
-      {row.pieces > 0 && row.holder !== null && (
+      {/* The pieces: a count, and the act that closes it. Still no price, because these are in THEIR
+          inventory and only they can sell them. The pieces you owe are priced instead by the sale you
+          entered, which is above as one of the parts. */}
+      {row.pieces > 0 && (
         <div className="ledger-entry">
           <span className="ledger-step">pieces</span>
           <ul className="ledger-queue">
@@ -175,41 +299,18 @@ function CollectionCard({
             })}
           </ul>
 
-          <form
-            className="ledger-sale"
-            onSubmit={(e) => {
-              e.preventDefault();
-              if (paid && row.holder) void write(onAddPayment(row.holder, paid), true);
-            }}
-          >
-            <label className="loot-share-input">
-              paid me
-              <input
-                className="split-input"
-                value={got}
-                onChange={(e) => setGot(e.target.value)}
-                inputMode="decimal"
-                aria-label={`What ${row.name} has paid you`}
-              />
-            </label>
-            <button type="submit" className="party-save" disabled={busy || paid === null}>
-              Add
-            </button>
-          </form>
-
           <span className="ledger-settle">
             <button
               type="button"
               className="party-save"
               disabled={busy}
               onClick={() =>
-                row.holder &&
                 void write(
                   onSettlePieces(
                     row.holder,
                     row.drops.map((d) => d.lootId),
                   ),
-                  false,
+                  null,
                 )
               }
             >
