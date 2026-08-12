@@ -186,6 +186,7 @@ internal fun peopleFor(userId: String): List<PersonResponse> {
             id = it[Person.id].toString(),
             name = it[Person.name],
             characters = charactersByPerson[it[Person.id]].orEmpty(),
+            pinned = it[Person.pinned],
         )
     }
 }

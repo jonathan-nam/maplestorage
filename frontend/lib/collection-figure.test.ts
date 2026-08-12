@@ -129,12 +129,13 @@ describe("what the card says a person owes", () => {
     expect(source).toContain("shares.length > 0 ? (");
     expect(source).toContain('<span className="party-row-toggle is-empty"');
   });
-  it("says where you stand with each person, not only the three totals", () => {
-    // A net of zero across two people who owe each other billions is the same TILE as two people who
-    // owe nothing. The cards say it, and they are tall enough that three people is past a screen.
-    expect(summary).toContain("net: row.mesos - row.owedByYou");
-    expect(summary).toContain("collection-strip");
+  it("keeps the summary to totals, since the cards are the per-person list", () => {
+    // A line per person went here and came straight back out: the cards below say the same thing, at
+    // more length and with something to do about it, so it was a second list of the same names half
+    // a screen above the first.
     expect(page).toContain("<CollectionSummary rows={collection} totals={owedTotals} />");
+    expect(summary).not.toContain("collection-strip");
+    expect(css).not.toContain(".collection-strip");
   });
 
   it("sums the strip off the same rows the cards draw", () => {
@@ -149,8 +150,20 @@ describe("what the card says a person owes", () => {
   it("lets a figure be copied, since it gets pasted into the game", () => {
     // Retiring the Wallet took the only place on this account where an amount could be copied, and
     // CopyAmount sends the RAW digits: a pasted "3,284,739,285" is not a price the game accepts.
-    expect(summary).toContain("<CopyAmount");
     expect(source).toContain("<CopyAmount");
+  });
+
+  it("keeps a pinned person's card drawn with nothing on it", () => {
+    // The one case a blank card is wanted: it is where next week's entry goes. Without it the place
+    // you record what somebody owes is somewhere you have to make appear first.
+    expect(source).toContain("row.pinned ?");
+    expect(page).toContain("people.filter((p) => p.pinned)");
+  });
+
+  it("offers the pin only on a PERSON, never on an unclaimed character", () => {
+    // A character nobody has claimed is somebody the account cannot name yet, and pinning one would
+    // keep a card for a human it may turn out to already have.
+    expect(source).toContain("{row.attributed && (");
   });
 
   it("does not offer to copy a COUNT of pieces, which is not a price", () => {

@@ -437,6 +437,7 @@ export default function DropLogPage() {
     // counting it again takes it off the next thing entered against that person. See #350.
     receivedSinceClosing(payments, settlements),
     holderNames,
+    new Set(people.filter((p) => p.pinned).map((p) => `person:${p.id}`)),
   );
   // Nights that did not divide and that nobody has said the arrangement for. Above the ledger,
   // because until one is answered its pieces are missing from every figure below it.
@@ -787,6 +788,25 @@ export default function DropLogPage() {
                   })
                 }
                 onSettleShares={settleShares}
+                // Answers with the whole people list, like every other write on this page, so the
+                // pins redraw from what the server actually stored.
+                onPin={async (row, pinned) => {
+                  if (row.holder.personId === null) return;
+                  setBusy(true);
+                  try {
+                    const next = await apiFetch<Person[]>(
+                      `${PEOPLE_KEY}/${row.holder.personId}/pinned`,
+                      { method: "PUT", body: JSON.stringify({ pinned }) },
+                      getToken,
+                    );
+                    setPeople(next);
+                    put(PEOPLE_KEY, next);
+                  } catch (e) {
+                    throw new Error(e instanceof ApiError ? e.body : "That didn't save.");
+                  } finally {
+                    setBusy(false);
+                  }
+                }}
                 // Two writes, and the ORDER matters. Settling first leaves the figure 139m too high
                 // if the offset then fails, which is visible and fixable with the box on the card.
                 // The other way round nets the same share twice, which is not visible at all.

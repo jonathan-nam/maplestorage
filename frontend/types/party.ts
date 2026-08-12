@@ -87,6 +87,8 @@ export type Person = {
   id: string;
   name: string;
   characters: string[];
+  // Their Collection Ledger card is drawn with nothing outstanding. Set by hand. See V59.
+  pinned: boolean;
 };
 
 // What POST /api/parties and PUT /api/parties/{id} take. `members` is the OTHER characters: the

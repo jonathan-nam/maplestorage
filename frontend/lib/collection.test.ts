@@ -575,6 +575,41 @@ describe("marking a share you owe as actually sent", () => {
   });
 });
 
+describe("a person whose card is kept", () => {
+  it("draws a card with nothing on it, which is where next week's entry goes", () => {
+    const rows = buildCollection(
+      [],
+      wallet([]),
+      [],
+      new Map(),
+      new Map(),
+      new Map([["person:p-bro", "Bro"]]),
+      new Set(["person:p-bro"]),
+    );
+    expect(rows).toHaveLength(1);
+    expect([rows[0]!.name, rows[0]!.pinned, rows[0]!.mesos]).toEqual(["Bro", true, 0]);
+  });
+
+  it("still leaves off somebody nobody pinned and nothing is owed to", () => {
+    const rows = buildCollection([], wallet([]), [], new Map(), new Map(), new Map(), new Set());
+    expect(rows).toEqual([]);
+  });
+
+  it("marks a pinned person who DOES owe you, rather than drawing them twice", () => {
+    const rows = buildCollection(
+      [],
+      wallet([counterparty("person:p-bro", "Bro", [line("l1", 900 * M)])]),
+      [],
+      new Map(),
+      new Map(),
+      new Map(),
+      new Set(["person:p-bro"]),
+    );
+    expect(rows).toHaveLength(1);
+    expect([rows[0]!.pinned, rows[0]!.mesos]).toEqual([true, 900 * M]);
+  });
+});
+
 describe("which piles the Sale Ledger still draws", () => {
   const has =
     (...keys: string[]) =>

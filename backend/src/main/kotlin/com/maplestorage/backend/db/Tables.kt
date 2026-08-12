@@ -261,6 +261,10 @@ object Person : Table("person") {
     val id = uuid("id")
     val userId = reference("user_id", Users.id)
     val name = text("name")
+
+    // Keep their Collection Ledger card drawn with nothing outstanding. Set by hand, derived from
+    // nothing. See V59__person_pinned.sql.
+    val pinned = bool("pinned")
     val createdAt = timestamp("created_at")
     val updatedAt = timestamp("updated_at")
 
