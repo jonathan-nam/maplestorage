@@ -186,13 +186,15 @@ export function buildCollection(
     const row = rowFor(person.key, person.name);
     row.parts.shares = person.owed - person.owe;
 
-    // Every line, both directions, because settling the net marks BOTH sides paid. Two sides that
-    // cancel still have shares behind them, and the wallet's own settle names all of them.
+    // Every line, both directions, and in EVERY direction the net runs.
     //
-    // Gated on the SHARE net alone, never on the net below it. Mark paid marks payout rows, and
-    // whether those were paid has nothing to do with whose coupons you sold last week: letting the
-    // coupon money decide would hide the button on a person whose shares really are outstanding.
-    if (row.parts.shares > 0) row.lines = person.lines;
+    // It used to be carried only when the net ran towards you, on the reasoning that settling what
+    // YOU owe is a different act and did not belong on a card about collecting. That reasoning went
+    // when this card started netting both ways, and deleting the Wallet took the only other place it
+    // could be done: four shares Jonathan owed had no settle anywhere in the app. A relationship is
+    // settled by ONE transfer of the difference, which marks both sides paid at once, so the lines
+    // that transfer covers are all of them.
+    row.lines = person.lines;
   }
 
   // Entered by hand, and the only figure on this page nothing else could have known. See V56.

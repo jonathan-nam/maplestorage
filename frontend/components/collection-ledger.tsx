@@ -247,8 +247,10 @@ function CollectionCard({
       </div>
 
       {/* The shares behind the figure above, and the one button that marks every one of them paid.
-          The same act the Wallet performs, against the same payout rows, so the two cannot
-          disagree. */}
+          The act the Wallet used to perform, against the same payout rows. BOTH directions are
+          listed and one button covers them, because a relationship is settled by one transfer of
+          the difference and that marks every share behind it paid at once. Each line is signed, so
+          a list holding both ways round says which is which without a word. */}
       {row.lines.length > 0 && (
         <div className="ledger-entry">
           <span className="ledger-step">shares</span>
@@ -266,20 +268,30 @@ function CollectionCard({
                       {boss ? bossLabel(boss.name, party?.difficulty ?? null) : "Unknown boss"} ·{" "}
                       {line.theirs}
                     </span>
-                    <span className="droplog-take">{formatMesos(line.nets, true)}</span>
+                    <span className="droplog-take">
+                      {formatMesos(line.direction === "owe" ? -line.nets : line.nets, true)}
+                    </span>
                   </div>
                 </li>
               );
             })}
           </ul>
-          <button
-            type="button"
-            className="party-save"
-            disabled={busy}
-            onClick={() => void write(onSettleShares(sharesOf(row)), null)}
-          >
-            Mark paid
-          </button>
+          {/* What it will do, beside the button that does it, the way Mark settled names the bosses
+              it closes. One act now covers shares in both directions, so the count is the thing
+              worth saying before it runs. Reversible from the party page, share by share. */}
+          <span className="ledger-settle">
+            <button
+              type="button"
+              className="party-save"
+              disabled={busy}
+              onClick={() => void write(onSettleShares(sharesOf(row)), null)}
+            >
+              Settle
+            </button>
+            <span className="ledger-progress">
+              {`marks ${row.lines.length} ${row.lines.length === 1 ? "share" : "shares"} paid`}
+            </span>
+          </span>
         </div>
       )}
 
