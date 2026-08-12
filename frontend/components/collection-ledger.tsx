@@ -145,35 +145,43 @@ function CollectionCard({
           others are corrected where they were recorded, which is the sale or the split itself. */}
       <div className="ledger-entry">
         <span className="ledger-step">owed</span>
-        <ul className="ledger-queue">
-          {parts.map((part) => (
-            <li key={part.key} className="ledger-drop">
-              <div className="ledger-drop-head">
-                <span className="loot-name">{part.label}</span>
-                <span className="droplog-take">{formatMesos(part.mesos, true)}</span>
-              </div>
-            </li>
-          ))}
-          {row.entries.map((entry) => (
-            <li key={entry.id} className="ledger-drop">
-              <div className="ledger-drop-head">
-                <span className="loot-name">{entry.note ?? "entered"}</span>
-                <span className="droplog-take">{formatMesos(entry.amount, true)}</span>
-                <button
-                  type="button"
-                  className="link ledger-drop-sale"
-                  disabled={busy}
-                  onClick={() => void write(onRemoveDebt(entry.id), null)}
-                  aria-label={`Remove ${formatMesos(entry.amount, true)} owed by ${row.name}`}
-                >
-                  ×
-                </button>
-              </div>
-            </li>
-          ))}
-        </ul>
+        {/* Nothing priced yet means no list at all, rather than the word "OWED" over a gap. */}
+        {(parts.length > 0 || row.entries.length > 0) && (
+          <ul className="ledger-queue">
+            {parts.map((part) => (
+              <li key={part.key} className="ledger-drop">
+                <div className="ledger-drop-head">
+                  <span className="loot-name">{part.label}</span>
+                  <span className="droplog-take">{formatMesos(part.mesos, true)}</span>
+                </div>
+              </li>
+            ))}
+            {row.entries.map((entry) => (
+              <li key={entry.id} className="ledger-drop">
+                <div className="ledger-drop-head">
+                  <span className="loot-name">{entry.note ?? "entered"}</span>
+                  <span className="droplog-take">{formatMesos(entry.amount, true)}</span>
+                  <button
+                    type="button"
+                    className="link ledger-drop-sale"
+                    disabled={busy}
+                    onClick={() => void write(onRemoveDebt(entry.id), null)}
+                    aria-label={`Remove ${formatMesos(entry.amount, true)} owed by ${row.name}`}
+                  >
+                    ×
+                  </button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
 
-        {/* The one figure on this page nothing else could have known. See V56. */}
+        {/* The one figure on this page nothing else could have known. See V56.
+
+            Both boxes NAME the person, and both show the shape of the answer. "owes me ___ for ___"
+            was a sentence fragment two boxes long: no subject (the title is a list away), no unit,
+            and nothing saying what "for" wanted. The placeholder also teaches the b/m suffix, which
+            is the one thing about parseMesos nobody can guess. */}
         <form
           className="ledger-sale"
           onSubmit={(e) => {
@@ -187,25 +195,26 @@ function CollectionCard({
           }}
         >
           <label className="loot-share-input">
-            owes me
+            {row.name} owes me
             <input
               className="split-input"
               value={owed}
               onChange={(e) => setOwed(e.target.value)}
+              placeholder="1.5b"
               inputMode="decimal"
               aria-label={`What ${row.name} owes you`}
             />
           </label>
-          <label className="loot-share-input">
-            for
-            <input
-              className="split-input"
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-              maxLength={120}
-              aria-label="What it was for"
-            />
-          </label>
+          {/* No label of its own: the placeholder says what it wants in the words it wants them
+              in, and "for [ ]" said neither. Optional, and the button does not wait on it. */}
+          <input
+            className="split-input"
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            placeholder="what for"
+            maxLength={120}
+            aria-label="What it was for, optional"
+          />
           <button type="submit" className="party-save" disabled={busy || owing === null}>
             Add
           </button>
@@ -221,11 +230,12 @@ function CollectionCard({
           }}
         >
           <label className="loot-share-input">
-            paid me
+            {row.name} paid me
             <input
               className="split-input"
               value={got}
               onChange={(e) => setGot(e.target.value)}
+              placeholder="1.5b"
               inputMode="decimal"
               aria-label={`What ${row.name} has paid you`}
             />

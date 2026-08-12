@@ -50,6 +50,7 @@ import {
   keptByHolder,
   outstanding,
   receivedByHolder,
+  receivedSinceClosing,
   saleCredits,
   stillOpen,
   runningBalance,
@@ -379,7 +380,9 @@ export default function DropLogPage() {
     buildWallet(parties, pools),
     debts,
     saleCredits(tranches),
-    receivedByHolder(payments),
+    // Only what no closure has already spoken for. A payment that settled a pile is spent, and
+    // counting it again takes it off the next thing entered against that person. See #350.
+    receivedSinceClosing(payments, settlements),
     holderNames,
   );
   // Nights that did not divide and that nobody has said the arrangement for. Above the ledger,
