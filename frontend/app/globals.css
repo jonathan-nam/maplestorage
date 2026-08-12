@@ -4582,6 +4582,31 @@ button.link:disabled {
   text-underline-offset: 3px;
 }
 
+/* One line per person above the cards: who, and where the two of you stand. The cards say all of
+   this and more, and they are tall enough that three people is past a screen, so "what do I owe and
+   what am I owed" was a question you had to scroll to answer. */
+.collection-strip {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.collection-strip > li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 0;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+/* The figure sits hard right, so a column of them lines up whatever the names are. */
+.collection-strip .copy-amount {
+  margin-left: auto;
+}
+
 /* A figure on the Collection Ledger. Uncoloured by default, because most of them are ARITHMETIC:
    components that sum to the headline, where "settled" is not a question you can ask. Colouring
    them put -139,548,023 in red for being unsettled while it was also a credit against the debt
