@@ -98,6 +98,14 @@ data class PersonResponse(
     val id: String,
     val name: String,
     val characters: List<String>,
+    /** Their Collection Ledger card stays drawn with nothing outstanding. See V59. */
+    val pinned: Boolean = false,
+)
+
+/** PUT /api/people/{personId}/pinned. One flag, so a pin cannot rewrite the people list. */
+@Serializable
+data class PinPersonRequest(
+    val pinned: Boolean,
 )
 
 /**

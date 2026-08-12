@@ -1,5 +1,7 @@
 package com.maplestorage.backend.parties
 
+import com.maplestorage.backend.db.Person
+import com.maplestorage.backend.plugins.parseUuidParam
 import com.maplestorage.backend.plugins.principalIdAndEmail
 import com.maplestorage.backend.users.ensureUser
 import io.ktor.http.HttpStatusCode
@@ -10,7 +12,10 @@ import io.ktor.server.routing.Route
 import io.ktor.server.routing.RoutingContext
 import io.ktor.server.routing.get
 import io.ktor.server.routing.put
+import org.jetbrains.exposed.v1.core.and
+import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
+import org.jetbrains.exposed.v1.jdbc.update
 import kotlin.time.Clock
 
 // Who plays which character. Separate from the configs on purpose: a config names characters, and
@@ -19,6 +24,7 @@ import kotlin.time.Clock
 fun Route.peopleRoutes() {
     get { listPeople() }
     put { savePeopleRoute() }
+    put("/{personId}/pinned") { pinPersonRoute() }
 }
 
 private suspend fun RoutingContext.listPeople() {
@@ -73,4 +79,28 @@ internal fun validatePeople(request: SavePeopleRequest): String? {
         characters.distinct().size != characters.size -> "two people claim the same character"
         else -> null
     }
+}
+
+/**
+ * Pins or unpins one person, so their Collection Ledger card stays drawn. See V59.
+ *
+ * Its own path rather than a field on the bulk save: that rewrites the whole people list, and a pin
+ * toggled from a card would have to send back every person and every character to set one boolean.
+ */
+private suspend fun RoutingContext.pinPersonRoute() {
+    val (userId, email) = call.principalIdAndEmail()
+    val personId = call.parseUuidParam("personId") ?: return
+    val request = call.receive<PinPersonRequest>()
+
+    val people =
+        transaction {
+            ensureUser(userId, email)
+            val changed =
+                Person.update({ (Person.id eq personId) and (Person.userId eq userId) }) {
+                    it[pinned] = request.pinned
+                    it[updatedAt] = Clock.System.now()
+                } > 0
+            if (changed) peopleFor(userId) else null
+        }
+    if (people == null) call.respond(HttpStatusCode.NotFound) else call.respond(people)
 }

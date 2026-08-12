@@ -102,6 +102,8 @@ export type Collection = {
    * coupons you cannot value. Stated on its own, which is where it was before V56.
    */
   receivedOnPieces: number;
+  /** Drawn whatever it says, because somebody said to keep it. See V59. */
+  pinned: boolean;
   /** The entered rows themselves, so a mistyped one can be taken back off the card. */
   entries: CollectionDebt[];
   drops: HeldOfYours[];
@@ -120,6 +122,7 @@ const blank = (key: string, name: string): Collection => ({
   owedByYou: 0,
   parts: { shares: 0, entered: 0, soldOfTheirs: 0, soldOfYours: 0, received: 0 },
   receivedOnPieces: 0,
+  pinned: false,
   entries: [],
   drops: [],
   lines: [],
@@ -147,6 +150,14 @@ export function buildCollection(
   received: Map<string, number> = new Map(),
   /** What to call a key nothing else on this list can name. Party seats, folded to their people. */
   names: Map<string, string> = new Map(),
+  /**
+   * People whose card is drawn whatever it says. See V59.
+   *
+   * A card appearing only when something is outstanding is right for a debt settled once, and wrong
+   * for the three people you run every boss with: the place you enter what they owe is somewhere you
+   * would have to make appear first.
+   */
+  pinned: Set<string> = new Set(),
 ): Collection[] {
   const out = new Map<string, Collection>();
   const rowFor = (key: string, name?: string) => {
@@ -244,9 +255,18 @@ export function buildCollection(
   // A row you are BEHIND on is kept. It used to be dropped unless pieces held it here, which is
   // exactly the night this ledger now exists to price: you looted the lot, you sold their half, and
   // the only thing outstanding is money of theirs you are sitting on.
+  // A pinned person gets a row even with nothing on it, which is the one case a blank card is
+  // wanted: it is where next week's entry goes.
+  for (const key of pinned) rowFor(key).pinned = true;
+
   return [...out.values()]
     .filter(
-      (row) => row.mesos > 0 || row.owedByYou > 0 || row.pieces > 0 || row.receivedOnPieces > 0,
+      (row) =>
+        row.pinned ||
+        row.mesos > 0 ||
+        row.owedByYou > 0 ||
+        row.pieces > 0 ||
+        row.receivedOnPieces > 0,
     )
     .sort(
       (a, b) =>

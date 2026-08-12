@@ -51,6 +51,7 @@ export function CollectionLedger({
   onRemoveDebt,
   onSettlePieces,
   onSettleShares,
+  onPin,
   onOffsetShares,
 }: {
   rows: Collection[];
@@ -64,6 +65,8 @@ export function CollectionLedger({
   onRemoveDebt: (debtId: string) => Promise<void>;
   onSettlePieces: (holder: Holder, lootIds: string[]) => Promise<void>;
   onSettleShares: (payouts: { lootId: string; memberId: string }[]) => Promise<void>;
+  /** Keeps this person's card drawn with nothing outstanding, or stops. See V59. */
+  onPin: (row: Collection, pinned: boolean) => Promise<void>;
   /** Marks the shares paid AND records the offset, so the net does not move. See V57. */
   onOffsetShares: (
     holder: Holder,
@@ -88,6 +91,7 @@ export function CollectionLedger({
           onRemoveDebt={onRemoveDebt}
           onSettlePieces={onSettlePieces}
           onSettleShares={onSettleShares}
+          onPin={onPin}
           onOffsetShares={onOffsetShares}
         />
       ))}
@@ -106,6 +110,7 @@ function CollectionCard({
   onRemoveDebt,
   onSettlePieces,
   onSettleShares,
+  onPin,
   onOffsetShares,
 }: {
   row: Collection;
@@ -119,6 +124,8 @@ function CollectionCard({
   onRemoveDebt: (debtId: string) => Promise<void>;
   onSettlePieces: (holder: Holder, lootIds: string[]) => Promise<void>;
   onSettleShares: (payouts: { lootId: string; memberId: string }[]) => Promise<void>;
+  /** Keeps this person's card drawn with nothing outstanding, or stops. See V59. */
+  onPin: (row: Collection, pinned: boolean) => Promise<void>;
   /** Marks the shares paid AND records the offset, so the net does not move. See V57. */
   onOffsetShares: (
     holder: Holder,
@@ -274,6 +281,21 @@ function CollectionCard({
   return (
     <section className="ledger-card">
       <header className="ledger-head">
+        {/* Kept whatever it says. Only a PERSON can be pinned: a character nobody has claimed is
+            somebody the account cannot name yet, and pinning one would keep a card for a human it
+            may turn out to already have. */}
+        {row.attributed && (
+          <button
+            type="button"
+            className={row.pinned ? "ledger-pin is-pinned" : "ledger-pin"}
+            disabled={busy}
+            onClick={() => void write(onPin(row, !row.pinned), null)}
+            aria-label={row.pinned ? `Stop keeping ${row.name}'s card` : `Keep ${row.name}'s card`}
+            title={row.pinned ? "Kept. Click to stop." : "Keep this card when nothing is owed"}
+          >
+            {row.pinned ? "★" : "☆"}
+          </button>
+        )}
         <span className="loot-title">
           <span className="loot-name">{row.name}</span>
           {/* The direction the whole card runs, coloured as the parts below it are, so the headline

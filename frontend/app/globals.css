@@ -4582,29 +4582,26 @@ button.link:disabled {
   text-underline-offset: 3px;
 }
 
-/* One line per person above the cards: who, and where the two of you stand. The cards say all of
-   this and more, and they are tall enough that three people is past a screen, so "what do I owe and
-   what am I owed" was a question you had to scroll to answer. */
-.collection-strip {
-  list-style: none;
-  margin: 12px 0 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
+/* Keep this card. A star, because that is what this app already uses for the same idea on a
+   character row, and it is the one control on the card that changes nothing about the money. */
+.ledger-pin {
+  font: inherit;
+  font-size: 15px;
+  line-height: 1;
+  padding: 2px 4px;
+  border: 0;
+  background: none;
+  color: var(--muted-2);
+  cursor: pointer;
 }
 
-.collection-strip > li {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 4px 0;
-  border-bottom: 1px solid var(--line-soft);
+.ledger-pin.is-pinned {
+  color: var(--warn);
 }
 
-/* The figure sits hard right, so a column of them lines up whatever the names are. */
-.collection-strip .copy-amount {
-  margin-left: auto;
+.ledger-pin:disabled {
+  opacity: 0.5;
+  cursor: default;
 }
 
 /* A figure on the Collection Ledger. Uncoloured by default, because most of them are ARITHMETIC:
