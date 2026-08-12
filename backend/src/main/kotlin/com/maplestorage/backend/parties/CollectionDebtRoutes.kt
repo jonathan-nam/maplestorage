@@ -31,8 +31,11 @@ import kotlin.uuid.Uuid
 // on it that nothing else can know.
 //
 // Rows, not a running total, the shape V51 uses: only the sum matters, and a mistyped one has to come
-// back off. Positive is always what THEY owe YOU. The other direction is not entered, it arrives when
-// the sales and the receipts net past it, and it is said on the card.
+// back off.
+//
+// SIGNED since V57. Positive is what they owe you. Negative is a debt of YOURS discharged against it,
+// which is how a share you owe is settled when the two of you agree it comes off the larger sum
+// rather than money crossing. See V57 for why marking the share paid alone could not say that.
 
 /** The most one entry can be. A typo guard, matching MAX_AMOUNT on a payment. */
 private const val MAX_AMOUNT = 1_000_000_000_000L
@@ -146,7 +149,11 @@ internal fun debtRefusal(
             "a CHARACTER holder needs a characterName, and nothing else does"
         holder.personId != null && runCatching { Uuid.parse(holder.personId) }.isFailure ->
             "personId is not an id"
-        amount < 1 || amount > MAX_AMOUNT -> "amount must be between 1 and $MAX_AMOUNT"
+        // SIGNED since V57. Positive is theirs to pay, negative is a debt of yours discharged
+        // against it. Zero is refused: an adjustment of nothing is the absence of one.
+        amount == 0L -> "amount cannot be zero"
+        amount < -MAX_AMOUNT || amount > MAX_AMOUNT ->
+            "amount must be between -$MAX_AMOUNT and $MAX_AMOUNT"
         note != null && note.length > MAX_NOTE -> "note must be at most $MAX_NOTE characters"
         else -> null
     }

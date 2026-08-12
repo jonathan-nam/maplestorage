@@ -459,6 +459,31 @@ describe("the money a sale of somebody else's coupons puts on the card", () => {
     expect(receivedSinceClosing(paid, closed)).toEqual(new Map([["character:zaddy", 900 * M]]));
   });
 
+  it("leaves the net where it was when a share you owe is OFFSET against theirs", () => {
+    // The settlement two people actually make when the sums are lopsided: rather than send 139m and
+    // have 254b come back, it comes off the larger figure. Marking the share paid ALONE said the
+    // money had moved, so it left the netting and put what they owe you back UP. See V57.
+    const share = counterparty("person:p-bro", "Bro", [line("l9", 139_548_023, "owe")]);
+
+    // Outstanding: netted, and this is the figure somebody is looking at.
+    const before = buildCollection([], wallet([share]), [debt(BRO, 254_512_697_574)]);
+    expect(before[0]!.mesos).toBe(254_512_697_574 - 139_548_023);
+
+    // Offset: the share is paid AND a negative adjustment records what discharged it. Same figure.
+    const after = buildCollection([], wallet([]), [
+      debt(BRO, 254_512_697_574),
+      debt(BRO, -139_548_023, "offset against Bro"),
+    ]);
+    expect(after[0]!.mesos).toBe(254_512_697_574 - 139_548_023);
+  });
+
+  it("says you owe when an offset is the only thing on the card", () => {
+    // A negative with nothing to come off is not an offset, it is a debt of yours, and it is said
+    // rather than hidden. The card offers no offset in that state; this is only the arithmetic.
+    const rows = buildCollection([], wallet([]), [debt(BRO, -139_548_023, "offset against Bro")]);
+    expect([rows[0]!.mesos, rows[0]!.owedByYou]).toEqual([0, 139_548_023]);
+  });
+
   it("keeps the pieces out of the net, however much money is on the card", () => {
     // The rule this ledger was split for. A piece has no price until somebody names one, so it is
     // never added to or taken off a meso figure.
