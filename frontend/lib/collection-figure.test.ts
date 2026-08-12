@@ -35,15 +35,23 @@ describe("what the card says a person owes", () => {
     expect(source).toContain("${row.pieces} pieces");
   });
 
-  it("colours a figure by what it IS, in three states", () => {
-    // Every figure used to be .droplog-take, which is green, so money you OWE and money already
-    // RECEIVED both read as money coming to you. Outstanding versus settled is the question
-    // somebody actually asks a ledger.
-    expect(source).toContain('"is-owed" | "is-owing" | "is-paid"');
+  it("colours a figure by outstanding against settled, and by nothing else", () => {
+    // Every figure used to be .droplog-take, which is green, so money already RECEIVED and money
+    // still owed read alike. Direction is NOT a colour: the sign and the wording carry it, and a
+    // third tone for it spends the card's one signal on something said twice.
     expect(source).not.toContain('className="droplog-take"');
-    for (const tone of ["is-owed", "is-owing", "is-paid"]) {
+    for (const tone of ["is-open", "is-paid"]) {
       expect(css).toContain(`.ledger-amount.${tone}`);
     }
+    expect(css).not.toContain("is-owing");
+  });
+
+  it("keeps green meaning PAID, the way a share badge already uses it", () => {
+    // .loot-paid.is-paid is --good for a share that has been paid, and one app cannot have green
+    // mean settled on one page and outstanding on the next. This went the wrong way round first.
+    expect(css).toMatch(/\.ledger-amount\.is-paid\s*\{\s*color: var\(--good\)/);
+    expect(css).toMatch(/\.ledger-summary\.is-open\s*\{\s*color: var\(--bad\)/);
+    expect(css).toMatch(/\.loot-paid\.is-paid\s*\{[^}]*var\(--good\)/);
   });
 
   it("says what settling will RECORD, never what you have already done", () => {

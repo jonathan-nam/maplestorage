@@ -22,16 +22,14 @@ import type { Party } from "@/types/party";
 //
 // Nothing here computes a meso. Every number comes off lib/collection.ts.
 
-/**
- * What a figure IS, which is what decides its colour.
- *
- * Three states, not two, because "outstanding" and "settled" are the question somebody actually
- * asks a ledger. Every number used to be .droplog-take, which is green: money you OWE and money
- * already RECEIVED both read as money coming to you.
- */
-function tone(mesos: number): "is-owed" | "is-owing" | "is-paid" {
-  return mesos >= 0 ? "is-owed" : "is-owing";
-}
+// Two tones, and they say OUTSTANDING against SETTLED. Never which direction a figure runs: the
+// sign and the wording carry that already, and a colour repeating it would spend the card's one
+// signal on something said twice.
+//
+// Green is PAID, matching .loot-paid.is-paid on a share badge, which has meant exactly that since
+// long before this card existed. It went the other way round here first, green for collectable, so
+// money already received and money still owed read alike and green meant the opposite of what it
+// means one page across.
 
 export function CollectionLedger({
   rows,
@@ -155,27 +153,22 @@ function CollectionCard({
       key: "shares",
       label: "shares",
       mesos: row.parts.shares,
-      tone: tone(row.parts.shares),
       detail: behindShares,
     },
     {
       key: "sold",
       label: `${row.name}'s coupons I sold`,
       mesos: row.parts.soldOfTheirs,
-      tone: tone(row.parts.soldOfTheirs),
-      detail: "",
     },
     {
       key: "theirs",
       label: `my coupons ${row.name} sold`,
       mesos: row.parts.soldOfYours,
-      tone: tone(row.parts.soldOfYours),
-      detail: "",
     },
     // Money that has ARRIVED. Not owing and not owed: it is the one part that is finished, so it
     // reads as neither, and a ledger where the settled money is the same colour as the outstanding
     // money is a ledger you have to read twice.
-    { key: "received", label: "received", mesos: row.parts.received, tone: "is-paid", detail: "" },
+    { key: "received", label: "received", mesos: row.parts.received, paid: true },
   ].filter((part) => part.mesos !== 0);
 
   // Mesos this settle would declare you have ALREADY sent. Zero when every line runs towards you,
@@ -191,11 +184,7 @@ function CollectionCard({
           <span className="loot-name">{row.name}</span>
           {/* The direction the whole card runs, coloured as the parts below it are, so the headline
               and its own arithmetic never read as two different kinds of thing. */}
-          <span
-            className={`loot-meta ledger-summary ${row.owedByYou > 0 ? "is-owing" : "is-owed"}`}
-          >
-            {summary}
-          </span>
+          <span className={"loot-meta ledger-summary is-open"}>{summary}</span>
         </span>
         {/* Money they sent beyond anything priced, which is a payment for the pieces. Out here rather
             than in the net below: a piece debt has no price for it to count down, and netting it
@@ -225,7 +214,9 @@ function CollectionCard({
                   <span className={part.detail ? "loot-name has-detail" : "loot-name"}>
                     {part.label}
                   </span>
-                  <span className={`ledger-amount ${part.tone}`}>
+                  <span
+                    className={`ledger-amount ${"paid" in part && part.paid ? "is-paid" : "is-open"}`}
+                  >
                     {formatMesos(part.mesos, true)}
                   </span>
                 </div>
@@ -235,7 +226,7 @@ function CollectionCard({
               <li key={entry.id} className="ledger-drop">
                 <div className="ledger-drop-head">
                   <span className="loot-name">{entry.note ?? "entered"}</span>
-                  <span className="ledger-amount is-owed">{formatMesos(entry.amount, true)}</span>
+                  <span className="ledger-amount is-open">{formatMesos(entry.amount, true)}</span>
                   <button
                     type="button"
                     className="link ledger-drop-sale"
@@ -343,7 +334,7 @@ function CollectionCard({
                       {boss ? bossLabel(boss.name, party?.difficulty ?? null) : "Unknown boss"} ·{" "}
                       {line.theirs}
                     </span>
-                    <span className={`ledger-amount ${tone(line.direction === "owe" ? -1 : 1)}`}>
+                    <span className="ledger-amount is-open">
                       {formatMesos(line.direction === "owe" ? -line.nets : line.nets, true)}
                     </span>
                   </div>
@@ -396,7 +387,7 @@ function CollectionCard({
                     <span className="loot-meta">
                       {drop.looterName} · week of {formatWeekStart(drop.weekStart)}
                     </span>
-                    <span className="ledger-amount is-owed">{drop.pieces}</span>
+                    <span className="ledger-amount is-open">{drop.pieces}</span>
                   </div>
                 </li>
               );
