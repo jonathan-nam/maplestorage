@@ -713,7 +713,7 @@ export default function DropLogPage() {
 
           {shown === "collection" && (
             <section className="loot-pool">
-              <h2 className="loot-pool-title">Collection Ledger</h2>
+              <h2 className="loot-pool-title">Record Collection</h2>
               {collection.length === 0 && <p className="party-hint">No collections to record.</p>}
               <CollectionLedger
                 rows={collection}
