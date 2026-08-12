@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildCollection, isEmpty, sharesOf, stillOnSaleLedger } from "./collection";
-import { saleCredits } from "./vestige-ledger";
+import { receivedSinceClosing, saleCredits } from "./vestige-ledger";
 import type { Holder, HolderLedger } from "./vestige-ledger";
 import type { Counterparty, Wallet, WalletLine } from "./wallet";
 import type { CollectionDebt } from "@/types/vestige";
@@ -417,6 +417,44 @@ describe("the money a sale of somebody else's coupons puts on the card", () => {
     );
     expect(rows[0]!.mesos).toBe(0);
     expect([rows[0]!.parts.received, rows[0]!.receivedOnPieces]).toEqual([-500 * M, 400 * M]);
+  });
+
+  it("spends a payment that already closed a pile, so it cannot pay for the next debt", () => {
+    // Jonathan's live data, 2026-08-12. Bro sold 195 coupons for 4.856b, sent 4.86b, and the pile
+    // was settled twenty minutes later. Counted raw, that finished payment came straight off the
+    // 254b entered against him today. #350's rule, one ledger further along: a closed thing counts
+    // towards no current total.
+    const paid = [
+      { holder: BRO, amount: 4_860 * M, receivedAt: "2026-08-10T22:01:46Z" },
+      { holder: BRO, amount: 500 * M, receivedAt: "2026-08-11T09:00:00Z" },
+    ];
+    const closed = [{ holder: BRO, settledAt: "2026-08-10T22:21:53Z" }];
+
+    // Only the one that arrived after the books closed.
+    expect(receivedSinceClosing(paid, closed)).toEqual(new Map([["person:p-bro", 500 * M]]));
+
+    const rows = buildCollection(
+      [],
+      wallet([]),
+      [debt(BRO, 254_000 * M)],
+      new Map(),
+      receivedSinceClosing(paid, closed),
+    );
+    expect(rows[0]!.mesos).toBe(253_500 * M);
+  });
+
+  it("counts every payment when no pile has ever been closed", () => {
+    const paid = [{ holder: BRO, amount: 400 * M, receivedAt: "2026-08-10T22:01:46Z" }];
+    expect(receivedSinceClosing(paid, [])).toEqual(new Map([["person:p-bro", 400 * M]]));
+  });
+
+  it("closes one person's books without spending another's payments", () => {
+    const paid = [
+      { holder: BRO, amount: 400 * M, receivedAt: "2026-08-10T22:01:46Z" },
+      { holder: STRANGER, amount: 900 * M, receivedAt: "2026-08-10T22:01:46Z" },
+    ];
+    const closed = [{ holder: BRO, settledAt: "2026-08-10T23:00:00Z" }];
+    expect(receivedSinceClosing(paid, closed)).toEqual(new Map([["character:zaddy", 900 * M]]));
   });
 
   it("keeps the pieces out of the net, however much money is on the card", () => {

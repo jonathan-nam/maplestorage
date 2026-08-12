@@ -977,6 +977,41 @@ export function receivedByHolder(rows: { holder: Holder; amount: number }[]): Ma
 }
 
 /**
+ * Mesos received that no closure has already spoken for, per holder.
+ *
+ * Mark settled says the books are closed, so the money that arrived before it is what closed them:
+ * it is spent, and it cannot pay for anything entered afterwards. Bro sold 195 coupons for 4.856b,
+ * sent 4.86b, and the pile was settled twenty minutes later. Counted raw, that finished 4.86b came
+ * straight off the next debt entered against him, which is #350's rule ("a closed thing counts
+ * towards no current total") being broken one ledger further along.
+ *
+ * By TIME rather than by amount, because a settlement records no figure to match against: it names
+ * the drops it closes and what was written off, and a payment is against the holder's whole debt
+ * rather than any drop. The last closure is the line, so a payment arriving after one counts.
+ */
+export function receivedSinceClosing(
+  payments: { holder: Holder; amount: number; receivedAt: string }[],
+  settlements: { holder: Holder; settledAt: string }[],
+): Map<string, number> {
+  const closedAt = new Map<string, string>();
+  for (const row of settlements) {
+    const key = holderKey(row.holder);
+    const seen = closedAt.get(key);
+    if (seen === undefined || row.settledAt > seen) closedAt.set(key, row.settledAt);
+  }
+
+  const out = new Map<string, number>();
+  for (const row of payments) {
+    const key = holderKey(row.holder);
+    const closed = closedAt.get(key);
+    // ISO 8601 as the server writes it, so lexical order is chronological and no date is parsed.
+    if (closed !== undefined && row.receivedAt <= closed) continue;
+    out.set(key, (out.get(key) ?? 0) + row.amount);
+  }
+  return out;
+}
+
+/**
  * Pieces of the pile nobody has said the fate of yet. Floored, so a miscount does not read negative.
  *
  * The card's one instruction while there are any: this many pieces are in somebody's inventory and
