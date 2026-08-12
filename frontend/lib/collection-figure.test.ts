@@ -83,4 +83,19 @@ describe("what the card says a person owes", () => {
   it("still says what a MIXED settle also does, since it clears both directions", () => {
     expect(source).toContain("also records ${formatMesos(owes, true)} sent to ${row.name}");
   });
+  it("names the shares an offset discharged, and folds them behind one row", () => {
+    // Without V58 the link is gone: the settle marks those shares PAID, so they leave the wallet,
+    // and the adjustment is left saying only "-139,548,023, offset against Bro". Folding is what
+    // keeps the list one row per offset however many nights went into it.
+    expect(source).toContain("const sharesBehind = (entry: CollectionDebt)");
+    expect(source).toContain("entry.payouts.map((share)");
+    expect(source).toContain("function EnteredRow(");
+    expect(source).toContain("party-row-chevron");
+  });
+
+  it("keeps a hand-entered debt a plain row, since it discharges no share", () => {
+    // The chevron frame is still drawn, so a typed row lines up with a folded one.
+    expect(source).toContain("shares.length > 0 ? (");
+    expect(source).toContain('<span className="party-row-toggle is-empty"');
+  });
 });

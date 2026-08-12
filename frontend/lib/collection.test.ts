@@ -302,6 +302,8 @@ describe("the money a sale of somebody else's coupons puts on the card", () => {
     holder,
     amount,
     note,
+    // A hand-entered debt discharges no share. Only an offset names any. See V58.
+    payouts: [],
     incurredAt: "2026-08-10T00:00:00Z",
   });
 

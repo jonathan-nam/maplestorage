@@ -389,6 +389,13 @@ export default function DropLogPage() {
     for (const seat of foldSeats(party.seats)) holderNames.set(seat.key, seat.name);
   }
   const wallet = buildWallet(parties, pools);
+  // Every seat, and which boss each loot row came off. Only the Collection Ledger wants them, and
+  // only to NAME the shares an offset discharged: those are marked paid, so they have left the
+  // wallet by the time the row is drawn. See V58.
+  const seatById = new Map(
+    parties.flatMap((p) => p.seats.map((s) => [s.id, { name: s.name, partyId: p.id }] as const)),
+  );
+  const lootBoss = new Map(pools.flatMap((p) => p.loot.map((l) => [l.id, l.bossKey] as const)));
   const collection = buildCollection(
     ledgers,
     wallet,
@@ -722,6 +729,8 @@ export default function DropLogPage() {
                 rows={collection}
                 bossByKey={bossByKey}
                 partyById={partyById}
+                seatById={seatById}
+                lootBoss={lootBoss}
                 busy={busy}
                 onAddPayment={(holder: Holder, amount) =>
                   paymentWrite(PAYMENTS_KEY, {
@@ -756,6 +765,9 @@ export default function DropLogPage() {
                       holder,
                       amount: -amount,
                       note: `offset against ${name}`,
+                      // The very rows the settle above just marked paid, so the adjustment can name
+                      // what discharged it a month later. See V58.
+                      payouts,
                     }),
                   });
                 }}

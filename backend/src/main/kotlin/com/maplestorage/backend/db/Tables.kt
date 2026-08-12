@@ -461,7 +461,7 @@ object VestigeTrancheShare : Table("vestige_tranche_share") {
 }
 
 // Mesos somebody owes you that no drop accounts for. Rows rather than a running total, the shape
-// V51 uses and for the same reason. See V56__collection_balance.sql.
+// V51 uses and for the same reason. Signed since V57. See V56__collection_balance.sql.
 object CollectionDebt : Table("collection_debt") {
     val id = uuid("id")
     val userId = reference("user_id", Users.id)
@@ -476,6 +476,16 @@ object CollectionDebt : Table("collection_debt") {
     val createdAt = timestamp("created_at")
 
     override val primaryKey = PrimaryKey(id)
+}
+
+// The shares an offset discharged, as (loot, member) pairs. Empty on a hand-entered debt: somebody
+// typing "he owes me 1.5b" is naming no shares. See V58__collection_debt_payout.sql.
+object CollectionDebtPayout : Table("collection_debt_payout") {
+    val debtId = reference("debt_id", CollectionDebt.id)
+    val lootId = reference("loot_id", PartyLoot.id)
+    val memberId = reference("member_id", PartyMember.id)
+
+    override val primaryKey = PrimaryKey(debtId, lootId, memberId)
 }
 
 // Mesos actually received from a holder, against what their whole pile owes. No pieces: which boss a
