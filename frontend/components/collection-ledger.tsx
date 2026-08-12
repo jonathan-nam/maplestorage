@@ -129,6 +129,12 @@ function CollectionCard({
     { key: "received", label: "received", mesos: row.parts.received },
   ].filter((part) => part.mesos !== 0);
 
+  // Mesos this settle would declare you have ALREADY sent. Zero when every line runs towards you,
+  // which is the ordinary case and the one the button reads naturally for.
+  const owes = row.lines
+    .filter((line) => line.direction === "owe")
+    .reduce((sum, line) => sum + line.pay, 0);
+
   return (
     <section className="ledger-card">
       <header className="ledger-head">
@@ -285,7 +291,12 @@ function CollectionCard({
           </ul>
           {/* What it will do, beside the button that does it, the way Mark settled names the bosses
               it closes. One act now covers shares in both directions, so the count is the thing
-              worth saying before it runs. Reversible from the party page, share by share. */}
+              worth saying before it runs. Reversible from the party page, share by share.
+
+              A share you OWE says so instead of counting. Settling one declares the money has
+              already gone, which takes it OUT of the netting above and puts what they owe you back
+              UP: Jonathan settled a 139m share expecting it to come off a 254b debt and watched the
+              figure rise. Leaving it unsettled is what nets it, and one transfer settles the lot. */}
           <span className="ledger-settle">
             <button
               type="button"
@@ -296,7 +307,9 @@ function CollectionCard({
               Settle
             </button>
             <span className="ledger-progress">
-              {`marks ${row.lines.length} ${row.lines.length === 1 ? "share" : "shares"} paid`}
+              {owes
+                ? `says you have already sent ${formatMesos(owes, true)}`
+                : `marks ${row.lines.length} ${row.lines.length === 1 ? "share" : "shares"} paid`}
             </span>
           </span>
         </div>

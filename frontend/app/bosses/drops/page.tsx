@@ -62,7 +62,7 @@ import type { Boss } from "@/types/boss";
 import type { Character } from "@/types/character";
 import type { DropTables } from "@/types/drop";
 import type { Loot, LogDropBody, PartyLootPool, SettleBody } from "@/types/loot";
-import type { Party } from "@/types/party";
+import type { Party, Person } from "@/types/party";
 import type {
   CollectionDebt,
   VestigePayment,
@@ -90,6 +90,7 @@ const TRANCHES_KEY = "/api/vestige-tranches";
 const PAYMENTS_KEY = "/api/vestige-payments";
 const SETTLEMENTS_KEY = "/api/vestige-settlements";
 const DEBTS_KEY = "/api/collection-debts";
+const PEOPLE_KEY = "/api/people";
 
 // The stacking drop the piece ledger is for. One key, because one item behaves this way: a boss
 // drops it in bundles that do not divide by looting alone. See lib/piece-ledger.ts.
@@ -112,6 +113,7 @@ export default function DropLogPage() {
   const [payments, setPayments] = useState<VestigePayment[]>([]);
   const [settlements, setSettlements] = useState<VestigeSettlement[]>([]);
   const [debts, setDebts] = useState<CollectionDebt[]>([]);
+  const [people, setPeople] = useState<Person[]>(peek<Person[]>(PEOPLE_KEY) ?? []);
 
   // A drop names the party it fell in and links to it, which draws its seats. See
   // lib/seat-sprites.ts.
@@ -159,12 +161,19 @@ export default function DropLogPage() {
           // the picker needs whichever boss is chosen next.
           apiFetch<DropTables>(DROPS_KEY, { method: "GET" }, withToken),
           apiFetch<Character[]>(CHARACTERS_KEY, { method: "GET" }, withToken),
+          // Only to NAME a card. A person owed something whose seat has since left every party is
+          // still owed it, and without this their card is titled with their id.
+          apiFetch<Person[]>(PEOPLE_KEY, { method: "GET" }, withToken).catch(() => null),
         ]);
       })
-      .then(([, bossResult, dropResult, characterResult]) => {
+      .then(([, bossResult, dropResult, characterResult, peopleResult]) => {
         setBosses(bossResult);
         setDropTables(dropResult);
         setCharacters(characterResult);
+        if (peopleResult) {
+          setPeople(peopleResult);
+          put(PEOPLE_KEY, peopleResult);
+        }
         put(BOSSES_KEY, bossResult);
         put(DROPS_KEY, dropResult);
         put(CHARACTERS_KEY, characterResult);
@@ -372,6 +381,9 @@ export default function DropLogPage() {
   // Somebody a debt can name but no open drop does. Off the seats of every party, folded to their
   // people, which is the same fold every figure on this page is measured against.
   const holderNames = new Map<string, string>();
+  // The people list first, so somebody who is owed something is named even after their seat has
+  // left every party. Seats then win, because a seat carries the name as this account spells it.
+  for (const person of people) holderNames.set(`person:${person.id}`, person.name);
   for (const party of parties) {
     for (const seat of foldSeats(party.seats)) holderNames.set(seat.key, seat.name);
   }
