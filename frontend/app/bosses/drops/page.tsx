@@ -4,6 +4,7 @@ import { PAGE_WAITING } from "@/components/route-loading";
 import { useAuth } from "@clerk/nextjs";
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { AddCollection } from "@/components/add-collection";
 import { CollectionLedger } from "@/components/collection-ledger";
 import { LogDrop } from "@/components/log-drop";
 import { LotSale } from "@/components/lot-sale";
@@ -714,7 +715,9 @@ export default function DropLogPage() {
           {shown === "collection" && (
             <section className="loot-pool">
               <h2 className="loot-pool-title">Record Collection</h2>
-              {collection.length === 0 && <p className="party-hint">No collections to record.</p>}
+              {collection.length === 0 && people.length === 0 && (
+                <p className="party-hint">No collections to record.</p>
+              )}
               <CollectionLedger
                 rows={collection}
                 bossByKey={bossByKey}
@@ -742,6 +745,21 @@ export default function DropLogPage() {
                   })
                 }
                 onSettleShares={settleShares}
+              />
+
+              {/* The way in for somebody with no card yet. A card is drawn for a person who already
+                  owes you something, so the first debt of a relationship had nowhere to go. After
+                  the cards, not above them: it is the way to one more of the same, the way Record a
+                  sale is on the other tab. */}
+              <AddCollection
+                people={people}
+                busy={busy}
+                onAdd={(holder: Holder, amount, note) =>
+                  debtWrite(DEBTS_KEY, {
+                    method: "POST",
+                    body: JSON.stringify({ holder, amount, note: note || undefined }),
+                  })
+                }
               />
 
               {/* What the cards above do NOT cover, from the Wallet this tab replaced. A total that
