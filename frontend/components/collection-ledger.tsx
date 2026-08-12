@@ -174,11 +174,26 @@ function CollectionCard({
     { key: "received", label: "received", mesos: row.parts.received, paid: true },
   ].filter((part) => part.mesos !== 0);
 
-  // Mesos this settle would declare you have ALREADY sent. Zero when every line runs towards you,
-  // which is the ordinary case and the one the button reads naturally for.
+  // Mesos a settle would declare you have ALREADY sent. Zero when every line runs towards you.
   const owes = row.lines
     .filter((line) => line.direction === "owe")
     .reduce((sum, line) => sum + line.pay, 0);
+  /**
+   * Whether there is anything here to COLLECT, which is what decides the button exists.
+   *
+   * A card whose every share runs against you has nothing to collect, so a Settle on it can only
+   * ever mean "I have already paid them", which is the one thing nobody comes to this page to say.
+   * Jonathan clicked it three times expecting the opposite and each time it took his own debt out of
+   * the netting and put the figure back UP. A warning beside it was not enough, and could not be: a
+   * button with one possible effect, and that effect wrong, is a trap however it is labelled.
+   *
+   * Where any line DOES run towards you the button stays, and it still settles both directions at
+   * once, because a relationship is settled by one transfer of the difference.
+   *
+   * Nothing is stranded by this. A share you owe is marked paid on the party page, share by share,
+   * next to the drop it came off.
+   */
+  const collectable = row.lines.some((line) => line.direction === "owed");
 
   return (
     <section className="ledger-card">
@@ -355,21 +370,23 @@ function CollectionCard({
               already gone, which takes it OUT of the netting above and puts what they owe you back
               UP: Jonathan settled a 139m share expecting it to come off a 254b debt and watched the
               figure rise. Leaving it unsettled is what nets it, and one transfer settles the lot. */}
-          <span className="ledger-settle">
-            <button
-              type="button"
-              className="party-save"
-              disabled={busy}
-              onClick={() => void write(onSettleShares(sharesOf(row)), null)}
-            >
-              Settle
-            </button>
-            <span className="ledger-progress">
-              {owes
-                ? `records ${formatMesos(owes, true)} sent to ${row.name}`
-                : `marks ${row.lines.length} ${row.lines.length === 1 ? "share" : "shares"} paid`}
+          {collectable && (
+            <span className="ledger-settle">
+              <button
+                type="button"
+                className="party-save"
+                disabled={busy}
+                onClick={() => void write(onSettleShares(sharesOf(row)), null)}
+              >
+                Settle
+              </button>
+              <span className="ledger-progress">
+                {owes
+                  ? `also records ${formatMesos(owes, true)} sent to ${row.name}`
+                  : `marks ${row.lines.length} ${row.lines.length === 1 ? "share" : "shares"} paid`}
+              </span>
             </span>
-          </span>
+          )}
         </div>
       )}
 
