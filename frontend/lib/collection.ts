@@ -274,10 +274,14 @@ export function isEmpty(row: Collection): boolean {
  * filtering them away would put a mistyped figure beyond reach. What they owe is not stated there,
  * on the Collection Ledger's side of the split, so the two cannot give two answers.
  *
- * A holder with nothing recorded never gets a card, which is every debt from here on: the list dies
- * out as each old pile is cleared.
+ * A SETTLED pile drops off. A correction affordance is for a transaction somebody may still argue
+ * about, and closing the books is the statement that nobody will: what was left was a bare 4.86b on
+ * the sale page for a debt paid in full a day earlier, which reads as money outstanding. This is
+ * also what makes the section temporary rather than permanent, as it was always meant to be.
+ *
+ * A holder with nothing recorded never gets a card either, which is every debt from here on.
  */
-export function stillOnSaleLedger<T extends { holder: Holder }>(
+export function stillOnSaleLedger<T extends { holder: Holder; closed: boolean }>(
   ledgers: T[],
   recorded: (key: string) => boolean,
 ): { yours: T[]; history: T[] } {
@@ -285,7 +289,7 @@ export function stillOnSaleLedger<T extends { holder: Holder }>(
   const history: T[] = [];
   for (const ledger of ledgers) {
     if (ledger.holder.kind === "SELF") yours.push(ledger);
-    else if (recorded(holderKey(ledger.holder))) history.push(ledger);
+    else if (!ledger.closed && recorded(holderKey(ledger.holder))) history.push(ledger);
   }
   return { yours, history };
 }

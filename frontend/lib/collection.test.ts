@@ -502,6 +502,16 @@ describe("which piles the Sale Ledger still draws", () => {
     expect(history.map((l) => l.holderName)).toEqual(["Bro"]);
   });
 
+  it("drops a SETTLED pile, whose rows nobody is going to argue about", () => {
+    // Bro's 4.86b sat on the sale page for a debt paid in full and closed the day before, reading
+    // as money outstanding. Closing the books is the statement that the transaction is over.
+    const { history } = stillOnSaleLedger(
+      [ledger(BRO, "Bro", { closed: true })],
+      has("person:p-bro"),
+    );
+    expect(history).toEqual([]);
+  });
+
   it("never files your own pile as history, however much is recorded against it", () => {
     const { yours, history } = stillOnSaleLedger([ledger(SELF, "you")], has("self"));
     expect(yours).toHaveLength(1);

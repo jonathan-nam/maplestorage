@@ -94,7 +94,9 @@ describe("every wait wears the class", () => {
   // so this asserts against the tree rather than trusting the copy.
   const boundaries = globSync("app/**/loading.tsx", { cwd: root });
 
-  it("found the boundaries", () => expect(boundaries.length).toBeGreaterThanOrEqual(12));
+  // A floor, not a count: it exists so a glob that matches nothing passes silently. It moves when
+  // a route is added or retired, which is what deleting the Wallet did.
+  it("found the boundaries", () => expect(boundaries.length).toBeGreaterThanOrEqual(11));
 
   it.each(boundaries)("%s renders RouteLoading, not a bare main", (file) => {
     expect(read(file)).toContain("RouteLoading");
@@ -108,7 +110,7 @@ describe("every wait wears the class", () => {
     read(f).includes('state === "loading"'),
   );
 
-  it("found the pages that wait", () => expect(pages.length).toBeGreaterThanOrEqual(10));
+  it("found the pages that wait", () => expect(pages.length).toBeGreaterThanOrEqual(9));
 
   it.each(pages)("%s marks its main while it waits", (file) => {
     expect(read(file)).toContain("PAGE_WAITING");

@@ -70,17 +70,6 @@ export function showsMoney(trades: boolean | undefined): boolean {
 }
 
 /**
- * Whether to offer the Wallet.
- *
- * Nothing in a Heroic world can create a debt, so the page has nothing to answer. It is still
- * offered while a share is outstanding: money somebody is owed does not stop existing because a
- * world changed, and taking the link away over the top of it would hide what it dropped.
- */
-export function offersWallet(trades: boolean | undefined, owed: boolean): boolean {
-  return showsMoney(trades) || owed;
-}
-
-/**
  * Whether every member receives their own copy, so there is no one pot to divide.
  *
  * ALWAYS means everywhere. HEROIC means the party gets one in Interactive worlds and one each in

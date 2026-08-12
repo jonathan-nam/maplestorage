@@ -29,9 +29,8 @@ describe("which section a path belongs to", () => {
   });
 
   it("lights Party View for the pages that hang off it", () => {
-    // The Wallet is not listed in the menu. It still belongs to Party View, and living under its
-    // path is what makes it read that way with no entry of its own.
-    expect(labelFor("/bosses/parties/wallet")).toBe("Party View");
+    // Neither is listed in the menu. They still belong to Party View, and living under its path is
+    // what makes them read that way with no entry of their own.
     expect(labelFor("/bosses/parties/edit")).toBe("Party View");
     expect(labelFor("/bosses/parties/abc-123")).toBe("Party View");
   });
@@ -58,7 +57,7 @@ describe("which section a path belongs to", () => {
 
 describe("what the menu lists", () => {
   it("leaves the pages reached from Party View off the list", () => {
-    expect(MENU_HREFS).not.toContain("/bosses/parties/wallet");
+    expect(MENU_HREFS).not.toContain("/bosses/parties/edit");
     expect(MENU_HREFS).not.toContain("/bosses/people");
   });
 

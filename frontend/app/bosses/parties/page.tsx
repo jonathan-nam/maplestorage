@@ -35,7 +35,6 @@ import { useDropIcons } from "@/lib/drop-icons";
 import { useSeatSprites } from "@/lib/seat-sprites";
 import { useAccountSettings } from "@/lib/use-account-settings";
 import { useRowWrites } from "@/lib/use-row-writes";
-import { offersWallet } from "@/lib/world";
 import type { Boss, BossClearsView } from "@/types/boss";
 import type { Character } from "@/types/character";
 import type { DropTables } from "@/types/drop";
@@ -131,14 +130,6 @@ export default function PartiesPage() {
   // Why the last write to a pool did not land, and whose. Carried with the party's id so the row
   // that failed is the row that says so, rather than every open panel on the page.
   const [poolError, setPoolError] = useState<{ partyId: string; message: string } | null>(null);
-  // Whether anything, in any week, still owes somebody. Held apart from `parties` because that
-  // list is now scoped to the week on screen: a share owed on a drop from three weeks ago is still
-  // a share owed, and stepping back must not retire the link to where it is settled. Written on
-  // the live view only, which is the one that carries every outstanding drop forward.
-  const [owedAnywhere, setOwedAnywhere] = useState(() =>
-    (seededParties ?? []).some((p) => p.awaitingPayout > 0),
-  );
-
   // The seats are drawn on the party page, which is a click from here. See lib/seat-sprites.ts.
   useSeatSprites(parties);
   // The drop icons are drawn by the picker in a row's panel, a chevron from here. Same idea, and
@@ -177,9 +168,6 @@ export default function PartiesPage() {
 
     setParties(partyList);
     if (target === null) {
-      // The live view is the one that carries every outstanding drop forward, so it is the only
-      // answer to "is any money owed at all". See owedAnywhere.
-      setOwedAnywhere(partyList.some((p) => p.awaitingPayout > 0));
       put(PARTIES_KEY, partyList);
     }
     if (!clears) return false;
@@ -698,8 +686,6 @@ export default function PartiesPage() {
     { value: "cleared", label: "Cleared", count: clearedCount },
   ];
 
-  const showWallet = offersWallet(settings?.trades, owedAnywhere);
-
   const characterGroups = byCharacter(
     visible,
     characters.map((c) => c.id),
@@ -755,13 +741,9 @@ export default function PartiesPage() {
         <h1 className="page-title">Party View</h1>
         {state === "loaded" && (
           <span className="page-head-links">
-            {showWallet && (
-              <Link className="party-cancel" href="/bosses/parties/wallet">
-                Wallet
-              </Link>
-            )}
-            {/* Kept beside the Wallet even though the Drop Log is on the menu now: it is one
-                click from the parties whose drops it holds, and that is where it is wanted. */}
+            {/* Kept even though the Drop Log is on the menu now: it is one click from the parties
+                whose drops it holds, and that is where it is wanted. It also absorbed the Wallet,
+                so what a person owes you is one page away rather than two pages apart. */}
             <Link className="party-cancel" href="/bosses/drops">
               Drop Log
             </Link>
