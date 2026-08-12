@@ -41,6 +41,7 @@ export function CollectionLedger({
   onRemoveDebt,
   onSettlePieces,
   onSettleShares,
+  onOffsetShares,
 }: {
   rows: Collection[];
   bossByKey: Map<string, Boss>;
@@ -51,6 +52,13 @@ export function CollectionLedger({
   onRemoveDebt: (debtId: string) => Promise<void>;
   onSettlePieces: (holder: Holder, lootIds: string[]) => Promise<void>;
   onSettleShares: (payouts: { lootId: string; memberId: string }[]) => Promise<void>;
+  /** Marks the shares paid AND records the offset, so the net does not move. See V57. */
+  onOffsetShares: (
+    holder: Holder,
+    amount: number,
+    name: string,
+    payouts: { lootId: string; memberId: string }[],
+  ) => Promise<void>;
 }) {
   if (rows.length === 0) return null;
   return (
@@ -67,6 +75,7 @@ export function CollectionLedger({
           onRemoveDebt={onRemoveDebt}
           onSettlePieces={onSettlePieces}
           onSettleShares={onSettleShares}
+          onOffsetShares={onOffsetShares}
         />
       ))}
     </>
@@ -83,6 +92,7 @@ function CollectionCard({
   onRemoveDebt,
   onSettlePieces,
   onSettleShares,
+  onOffsetShares,
 }: {
   row: Collection;
   bossByKey: Map<string, Boss>;
@@ -93,6 +103,13 @@ function CollectionCard({
   onRemoveDebt: (debtId: string) => Promise<void>;
   onSettlePieces: (holder: Holder, lootIds: string[]) => Promise<void>;
   onSettleShares: (payouts: { lootId: string; memberId: string }[]) => Promise<void>;
+  /** Marks the shares paid AND records the offset, so the net does not move. See V57. */
+  onOffsetShares: (
+    holder: Holder,
+    amount: number,
+    name: string,
+    payouts: { lootId: string; memberId: string }[],
+  ) => Promise<void>;
 }) {
   const [got, setGot] = useState("");
   const [owed, setOwed] = useState("");
@@ -194,6 +211,18 @@ function CollectionCard({
    * next to the drop it came off.
    */
   const collectable = row.lines.some((line) => line.direction === "owed");
+  /**
+   * Whether a share you owe can be discharged by taking it OFF what they owe you.
+   *
+   * The settlement two people actually make when the sums are lopsided: rather than send somebody
+   * 139,548,023 and have them send 254b back, it comes off the larger figure. Marking the share paid
+   * alone said the money had moved, which took it out of the netting and put what they owe you back
+   * UP, and that is the opposite of what happened. See V57.
+   *
+   * Needs a debt of theirs to come off. Offsetting against nothing is not an offset, it is just a
+   * debt of yours, and this ledger has no act for paying one.
+   */
+  const offsettable = owes > 0 && row.mesos > 0;
 
   return (
     <section className="ledger-card">
@@ -370,6 +399,26 @@ function CollectionCard({
               already gone, which takes it OUT of the netting above and puts what they owe you back
               UP: Jonathan settled a 139m share expecting it to come off a 254b debt and watched the
               figure rise. Leaving it unsettled is what nets it, and one transfer settles the lot. */}
+          {/* Discharged against what they owe you, rather than by money crossing. One act, so the
+              share stops being outstanding and the figure it was netting against does not move. */}
+          {offsettable && (
+            <span className="ledger-settle">
+              <button
+                type="button"
+                className="party-save"
+                disabled={busy}
+                onClick={() =>
+                  void write(onOffsetShares(row.holder, owes, row.name, sharesOf(row)), null)
+                }
+              >
+                Offset
+              </button>
+              <span className="ledger-progress">
+                {`takes ${formatMesos(owes, true)} off what ${row.name} owes you`}
+              </span>
+            </span>
+          )}
+
           {collectable && (
             <span className="ledger-settle">
               <button

@@ -92,8 +92,11 @@ class CollectionBalanceTest {
         // a PILE, and one of the piles is yours; this is about two people.
         assertTrue(debtRefusal(self, 1, null)!!.contains("kind"))
 
-        assertTrue(debtRefusal(bro, 0, null)!!.contains("between 1"))
-        assertTrue(debtRefusal(bro, 1_000_000_000_001, null)!!.contains("between 1"))
+        // Signed since V57: a debt of yours discharged against theirs is a negative adjustment.
+        assertNull(debtRefusal(bro, -139_548_023, "armor box share"))
+        assertTrue(debtRefusal(bro, 0, null)!!.contains("zero"))
+        assertTrue(debtRefusal(bro, 1_000_000_000_001, null)!!.contains("between"))
+        assertTrue(debtRefusal(bro, -1_000_000_000_001, null)!!.contains("between"))
         assertTrue(debtRefusal(bro, 1, "x".repeat(121))!!.contains("120"))
         assertNull(debtRefusal(bro, 1, "x".repeat(120)))
     }

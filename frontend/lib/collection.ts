@@ -75,7 +75,12 @@ export type Collection = {
   parts: {
     /** Unpaid shares, netted. Positive is theirs to send. lib/wallet.ts's figure, untouched. */
     shares: number;
-    /** Entered by hand: what they owe you that no drop accounts for. Never negative. See V56. */
+    /**
+     * Entered by hand. Positive is what they owe you that no drop accounts for.
+     *
+     * SIGNED since V57: a negative is a share of YOURS discharged against theirs, which is how a
+     * lopsided pair actually settles. Marking that share paid alone said the money had moved.
+     */
     entered: number;
     /** Their coupons you sold out of your own pile, so their money is in your hands. Negative. */
     soldOfTheirs: number;

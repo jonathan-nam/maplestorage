@@ -745,6 +745,20 @@ export default function DropLogPage() {
                   })
                 }
                 onSettleShares={settleShares}
+                // Two writes, and the ORDER matters. Settling first leaves the figure 139m too high
+                // if the offset then fails, which is visible and fixable with the box on the card.
+                // The other way round nets the same share twice, which is not visible at all.
+                onOffsetShares={async (holder: Holder, amount, name, payouts) => {
+                  await settleShares(payouts);
+                  await debtWrite(DEBTS_KEY, {
+                    method: "POST",
+                    body: JSON.stringify({
+                      holder,
+                      amount: -amount,
+                      note: `offset against ${name}`,
+                    }),
+                  });
+                }}
               />
 
               {/* The way in for somebody with no card yet. A card is drawn for a person who already
