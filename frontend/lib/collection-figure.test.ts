@@ -15,6 +15,7 @@ import { describe, expect, it } from "vitest";
 // the shorter one because it fits better.
 
 const source = readFileSync(join(__dirname, "..", "components", "collection-ledger.tsx"), "utf8");
+const css = readFileSync(join(__dirname, "..", "app", "globals.css"), "utf8");
 
 describe("what the card says a person owes", () => {
   it("states it to the meso, never shortened", () => {
@@ -32,5 +33,24 @@ describe("what the card says a person owes", () => {
     // A piece debt has no price. Putting it through a meso formatter would be the first step back
     // towards pricing it, which is what #354 deleted.
     expect(source).toContain("${row.pieces} pieces");
+  });
+
+  it("colours a figure by what it IS, in three states", () => {
+    // Every figure used to be .droplog-take, which is green, so money you OWE and money already
+    // RECEIVED both read as money coming to you. Outstanding versus settled is the question
+    // somebody actually asks a ledger.
+    expect(source).toContain('"is-owed" | "is-owing" | "is-paid"');
+    expect(source).not.toContain('className="droplog-take"');
+    for (const tone of ["is-owed", "is-owing", "is-paid"]) {
+      expect(css).toContain(`.ledger-amount.${tone}`);
+    }
+  });
+
+  it("says what settling will RECORD, never what you have already done", () => {
+    // "says you have already sent 139,548,023" beside an enabled button reads as a statement of
+    // fact rather than as the act the button performs. Same subject-less fragment as the entry box
+    // it replaced.
+    expect(source).not.toContain("already sent");
+    expect(source).toContain("records ${formatMesos(owes, true)} sent to ${row.name}");
   });
 });

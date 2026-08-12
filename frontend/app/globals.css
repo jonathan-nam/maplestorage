@@ -4574,6 +4574,34 @@ button.link:disabled {
   line-height: 1.4;
 }
 
+/* A figure on the Collection Ledger, coloured by WHAT IT IS rather than by being a number.
+   Everything used to be .droplog-take, which is green, so money you owe and money already received
+   both read as money coming to you. Three states, because "outstanding" and "settled" is the
+   question somebody actually asks a ledger. */
+.ledger-amount {
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Owed to you, and collectable. The colour every figure on this card used to be. */
+.ledger-amount.is-owed,
+.ledger-summary.is-owed {
+  color: var(--good);
+}
+
+/* Owed BY you. Not an error, so not --bad: a debt of yours is an ordinary state of a ledger and the
+   card exists to say so. */
+.ledger-amount.is-owing,
+.ledger-summary.is-owing {
+  color: var(--warn);
+}
+
+/* Money that has arrived. Finished, so it recedes: it is the one figure on the card nobody has to
+   act on. */
+.ledger-amount.is-paid {
+  color: var(--muted);
+}
+
 /* What the Collection Ledger's cards do NOT cover: unreadable splits, and shares that are real but
    not yours to settle. Inherited from the Wallet page this tab replaced. */
 .ledger-notes {
