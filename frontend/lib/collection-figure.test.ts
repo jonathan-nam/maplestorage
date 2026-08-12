@@ -16,6 +16,7 @@ import { describe, expect, it } from "vitest";
 
 const source = readFileSync(join(__dirname, "..", "components", "collection-ledger.tsx"), "utf8");
 const page = readFileSync(join(__dirname, "..", "app", "bosses", "drops", "page.tsx"), "utf8");
+const summary = readFileSync(join(__dirname, "..", "components", "collection-summary.tsx"), "utf8");
 const css = readFileSync(join(__dirname, "..", "app", "globals.css"), "utf8");
 
 describe("what the card says a person owes", () => {
@@ -127,5 +128,33 @@ describe("what the card says a person owes", () => {
     // The chevron frame is still drawn, so a typed row lines up with a folded one.
     expect(source).toContain("shares.length > 0 ? (");
     expect(source).toContain('<span className="party-row-toggle is-empty"');
+  });
+  it("says where you stand with each person, not only the three totals", () => {
+    // A net of zero across two people who owe each other billions is the same TILE as two people who
+    // owe nothing. The cards say it, and they are tall enough that three people is past a screen.
+    expect(summary).toContain("net: row.mesos - row.owedByYou");
+    expect(summary).toContain("collection-strip");
+    expect(page).toContain("<CollectionSummary rows={collection} totals={owedTotals} />");
+  });
+
+  it("sums the strip off the same rows the cards draw", () => {
+    // The Wallet had its own pass over the pools, which is how two surfaces come to give two
+    // answers. A strip disagreeing with the list under it is the same bug with a shorter walk.
+    // Asserted on the IMPORTS, not on the prose: the comment above it has to be free to name the
+    // pools in order to say why it does not read them.
+    expect(summary).toContain("rows: Collection[]");
+    expect(summary).not.toMatch(/^import .*(wallet|types\/loot)/m);
+  });
+
+  it("lets a figure be copied, since it gets pasted into the game", () => {
+    // Retiring the Wallet took the only place on this account where an amount could be copied, and
+    // CopyAmount sends the RAW digits: a pasted "3,284,739,285" is not a price the game accepts.
+    expect(summary).toContain("<CopyAmount");
+    expect(source).toContain("<CopyAmount");
+  });
+
+  it("does not offer to copy a COUNT of pieces, which is not a price", () => {
+    expect(source).toContain("{`${row.pieces} pieces`}");
+    expect(source).toContain("const toCopy = row.mesos > 0 ? row.mesos");
   });
 });

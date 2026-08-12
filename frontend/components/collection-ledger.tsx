@@ -11,6 +11,7 @@ import {
   shareKey,
   sharesOf,
 } from "@/lib/collection";
+import { CopyAmount } from "@/components/copy-amount";
 import { formatMesos, parseMesos } from "@/lib/drop-split";
 import { formatDropped } from "@/lib/loot";
 import type { Holder } from "@/lib/vestige-ledger";
@@ -153,13 +154,9 @@ function CollectionCard({
   // two decimals is a figure that did not appear to move at all: the parts below have always been
   // exact, so rounding only their sum made the one number you act on the one number you cannot
   // check. This is a debt somebody is going to be asked for, and the pieces beside it are a count.
-  const summary = [
-    row.pieces > 0 ? `${row.pieces} pieces` : null,
-    row.mesos > 0 ? `${formatMesos(row.mesos, true)} owed` : null,
-    row.owedByYou > 0 ? `you owe ${formatMesos(row.owedByYou, true)}` : null,
-  ]
-    .filter(Boolean)
-    .join(" · ");
+  // The one figure on the card anybody pastes anywhere, whichever way it runs. Null when the two
+  // sides cancel and only the pieces hold the card here.
+  const toCopy = row.mesos > 0 ? row.mesos : row.owedByYou > 0 ? row.owedByYou : null;
 
   /**
    * The drops behind the shares figure, on hover.
@@ -280,8 +277,24 @@ function CollectionCard({
         <span className="loot-title">
           <span className="loot-name">{row.name}</span>
           {/* The direction the whole card runs, coloured as the parts below it are, so the headline
-              and its own arithmetic never read as two different kinds of thing. */}
-          <span className={"loot-meta ledger-summary is-open"}>{summary}</span>
+              and its own arithmetic never read as two different kinds of thing.
+
+              The money is copyable: it is the figure that gets pasted into the game's trade box, and
+              retiring the Wallet took the only place on this account where that was possible. The
+              pieces are not, being a count of coupons rather than a price. */}
+          <span className={"loot-meta ledger-summary is-open"}>
+            {row.pieces > 0 && <span>{`${row.pieces} pieces`}</span>}
+            {toCopy !== null && (
+              <CopyAmount
+                value={toCopy}
+                display={
+                  row.mesos > 0
+                    ? `${formatMesos(row.mesos, true)} owed`
+                    : `you owe ${formatMesos(row.owedByYou, true)}`
+                }
+              />
+            )}
+          </span>
         </span>
         {/* Money they sent beyond anything priced, which is a payment for the pieces. Out here rather
             than in the net below: a piece debt has no price for it to count down, and netting it
