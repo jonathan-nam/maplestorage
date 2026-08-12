@@ -12,8 +12,15 @@ import { PieceLedger } from "@/components/piece-ledger";
 import { StackArrangement } from "@/components/stack-arrangement";
 import { TrancheHistory } from "@/components/tranche-history";
 import { ApiError, apiAssetUrl, apiFetch } from "@/lib/api";
+import { bossLabel } from "@/lib/boss-difficulty";
 import { peek, put } from "@/lib/cache";
-import { buildCollection, collectionTotals, stillOnSaleLedger } from "@/lib/collection";
+import {
+  type OffsetShare,
+  buildCollection,
+  collectionTotals,
+  shareKey,
+  stillOnSaleLedger,
+} from "@/lib/collection";
 import { worthDrawing } from "@/lib/ledger-fates";
 import { buildWallet } from "@/lib/wallet";
 import { type DropSectionKey, dropSections, saleCards, shownSection } from "@/lib/drop-sections";
@@ -34,7 +41,7 @@ import {
   type Grouping,
 } from "@/lib/drop-log";
 import { formatMesos } from "@/lib/drop-split";
-import { formatDropped } from "@/lib/loot";
+import { formatDropped, splitOf } from "@/lib/loot";
 import { type LotSaleBody, fungibleDropKeys, lotDrops } from "@/lib/lot-sale";
 import { useDropIcons } from "@/lib/drop-icons";
 import { useSeatSprites } from "@/lib/seat-sprites";
@@ -389,17 +396,37 @@ export default function DropLogPage() {
     for (const seat of foldSeats(party.seats)) holderNames.set(seat.key, seat.name);
   }
   const wallet = buildWallet(parties, pools);
-  // Every seat, and which boss each loot row came off. Only the Collection Ledger wants them, and
-  // only to NAME the shares an offset discharged: those are marked paid, so they have left the
-  // wallet by the time the row is drawn. See V58.
-  const seatById = new Map(
-    parties.flatMap((p) => p.seats.map((s) => [s.id, { name: s.name, partyId: p.id }] as const)),
-  );
-  const lootById = new Map(
-    pools.flatMap((p) =>
-      p.loot.map((l) => [l.id, { name: l.name, bossKey: l.bossKey, partyId: p.partyId }] as const),
-    ),
-  );
+  // The shares an offset discharged, resolved. Only the drops an offset actually names, because
+  // splitting every loot row in every pool to answer for a handful would be a pass over the whole
+  // account on every render.
+  //
+  // Off the pools, since an offset marks its shares PAID and they leave the wallet. See V58.
+  const offsetShares = new Map<string, OffsetShare>();
+  const wanted = new Set(debts.flatMap((d) => d.payouts.map((s) => s.lootId)));
+  if (wanted.size > 0) {
+    for (const pool of pools) {
+      const party = partyById.get(pool.partyId);
+      if (!party) continue;
+      for (const loot of pool.loot) {
+        if (!wanted.has(loot.id)) continue;
+        const split = splitOf(loot, party.seats);
+        if (split === null) continue;
+        const boss = bossByKey.get(loot.bossKey ?? "");
+        for (const share of split.shares) {
+          offsetShares.set(shareKey(loot.id, share.memberId), {
+            key: shareKey(loot.id, share.memberId),
+            item: loot.name,
+            boss: boss ? bossLabel(boss.name, party.difficulty) : "Unknown boss",
+            who: share.name,
+            on: loot.droppedOn,
+            share: share.pay,
+            sale: loot.saleAmount,
+            partyId: pool.partyId,
+          });
+        }
+      }
+    }
+  }
   const collection = buildCollection(
     ledgers,
     wallet,
@@ -767,8 +794,7 @@ export default function DropLogPage() {
                 rows={collection}
                 bossByKey={bossByKey}
                 partyById={partyById}
-                seatById={seatById}
-                lootById={lootById}
+                offsetShares={offsetShares}
                 busy={busy}
                 onAddPayment={(holder: Holder, amount) =>
                   paymentWrite(PAYMENTS_KEY, {
