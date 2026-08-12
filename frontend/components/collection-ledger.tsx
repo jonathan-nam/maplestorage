@@ -4,8 +4,15 @@ import Link from "next/link";
 import { useState } from "react";
 import { formatWeekStart } from "@/lib/boss-clears";
 import { bossLabel } from "@/lib/boss-difficulty";
-import { type Collection, owedByYouShares, sharesOf } from "@/lib/collection";
+import {
+  type Collection,
+  type OffsetShare,
+  owedByYouShares,
+  shareKey,
+  sharesOf,
+} from "@/lib/collection";
 import { formatMesos, parseMesos } from "@/lib/drop-split";
+import { formatDropped } from "@/lib/loot";
 import type { Holder } from "@/lib/vestige-ledger";
 import type { Boss } from "@/types/boss";
 import type { Party } from "@/types/party";
@@ -36,8 +43,7 @@ export function CollectionLedger({
   rows,
   bossByKey,
   partyById,
-  seatById,
-  lootById,
+  offsetShares,
   busy,
   onAddPayment,
   onAddDebt,
@@ -49,10 +55,8 @@ export function CollectionLedger({
   rows: Collection[];
   bossByKey: Map<string, Boss>;
   partyById: Map<string, Party>;
-  /** Every seat by id, for naming the share an offset discharged. See V58. */
-  seatById: Map<string, { name: string; partyId: string }>;
-  /** Each loot row by id: what fell, off which boss, in which party. For the same. */
-  lootById: Map<string, { name: string; bossKey: string | null; partyId: string }>;
+  /** The shares an offset discharged, resolved, keyed by shareKey(). See V58. */
+  offsetShares: Map<string, OffsetShare>;
   busy: boolean;
   onAddPayment: (holder: Holder, amount: number) => Promise<void>;
   onAddDebt: (holder: Holder, amount: number, note: string) => Promise<void>;
@@ -76,8 +80,7 @@ export function CollectionLedger({
           row={row}
           bossByKey={bossByKey}
           partyById={partyById}
-          seatById={seatById}
-          lootById={lootById}
+          offsetShares={offsetShares}
           busy={busy}
           onAddPayment={onAddPayment}
           onAddDebt={onAddDebt}
@@ -95,8 +98,7 @@ function CollectionCard({
   row,
   bossByKey,
   partyById,
-  seatById,
-  lootById,
+  offsetShares,
   busy,
   onAddPayment,
   onAddDebt,
@@ -108,10 +110,8 @@ function CollectionCard({
   row: Collection;
   bossByKey: Map<string, Boss>;
   partyById: Map<string, Party>;
-  /** Every seat by id, for naming the share an offset discharged. See V58. */
-  seatById: Map<string, { name: string; partyId: string }>;
-  /** Each loot row by id: what fell, off which boss, in which party. For the same. */
-  lootById: Map<string, { name: string; bossKey: string | null; partyId: string }>;
+  /** The shares an offset discharged, resolved, keyed by shareKey(). See V58. */
+  offsetShares: Map<string, OffsetShare>;
   busy: boolean;
   onAddPayment: (holder: Holder, amount: number) => Promise<void>;
   onAddDebt: (holder: Holder, amount: number, note: string) => Promise<void>;
@@ -258,22 +258,21 @@ function CollectionCard({
    * reason V58 stores them.
    */
   const sharesBehind = (entry: CollectionDebt) =>
-    entry.payouts.map((share) => {
-      const loot = lootById.get(share.lootId);
-      const seat = seatById.get(share.memberId);
-      const boss = bossByKey.get(loot?.bossKey ?? "");
-      const party = partyById.get(loot?.partyId ?? seat?.partyId ?? "");
-      return {
-        key: `${share.lootId}:${share.memberId}`,
-        // WHAT FELL leads, because that is what anybody is looking for a month later. The boss
-        // alone does not say it: one boss drops several things, and the same box drops off several
-        // bosses. The row is the drop, and the boss and the seat tell one night from another.
-        item: loot?.name ?? "A drop that has been deleted",
-        where: boss ? bossLabel(boss.name, party?.difficulty ?? null) : "Unknown boss",
-        who: seat?.name ?? "a seat that has left",
-        partyId: loot?.partyId ?? seat?.partyId ?? null,
-      };
-    });
+    entry.payouts.map(
+      (share) =>
+        offsetShares.get(shareKey(share.lootId, share.memberId)) ?? {
+          // The drop has been deleted since. Said rather than left out: a row that quietly drops one
+          // of the nights behind a figure is a figure that no longer adds up.
+          key: shareKey(share.lootId, share.memberId),
+          item: "A drop that has been deleted",
+          boss: "",
+          who: "",
+          on: "",
+          share: 0,
+          sale: null,
+          partyId: "",
+        },
+    );
 
   return (
     <section className="ledger-card">
@@ -574,13 +573,7 @@ function EnteredRow({
 }: {
   entry: CollectionDebt;
   name: string;
-  shares: {
-    key: string;
-    item: string;
-    where: string;
-    who: string;
-    partyId: string | null;
-  }[];
+  shares: OffsetShare[];
   busy: boolean;
   signed: (mesos: number) => string;
   onRemove: () => void;
@@ -629,19 +622,33 @@ function EnteredRow({
       {open && (
         <ul className="loot-shares" id={panelId}>
           {shares.map((share) => (
-            <li key={share.key}>
-              {/* The same shape a share line has above: what fell, then which night it was. Linked
-                  to its party, because "which one was that" ends at the drop's own row. */}
-              {share.partyId ? (
-                <Link href={`/bosses/parties/${share.partyId}`} className="loot-share-name">
-                  {share.item}
-                </Link>
-              ) : (
-                <span className="loot-share-name">{share.item}</span>
-              )}
-              <span className="loot-share-nets">
-                {share.where} · {share.who}
-              </span>
+            <li key={share.key} className="ledger-drop">
+              <div className="ledger-drop-head">
+                {/* The same shape a share line has above: what fell, then which night it was. Linked
+                    to its party, because "which one was that" ends at the drop's own row. */}
+                {share.partyId ? (
+                  <Link href={`/bosses/parties/${share.partyId}`} className="loot-name">
+                    {share.item}
+                  </Link>
+                ) : (
+                  <span className="loot-name">{share.item}</span>
+                )}
+                <span className="loot-meta">
+                  {[
+                    share.boss,
+                    share.who,
+                    share.on && formatDropped(share.on),
+                    // The lot it came out of, so the share can be checked against it rather than
+                    // taken on trust. Absent on a drop that never sold, which owes nobody anything.
+                    share.sale !== null && `sold for ${formatMesos(share.sale, true)}`,
+                  ]
+                    .filter(Boolean)
+                    .join(" · ")}
+                </span>
+                {/* This seat's own share, which is the money the offset discharged. The rows sum to
+                    the figure on the fold above them. */}
+                <span className="ledger-amount">{signed(-share.share)}</span>
+              </div>
             </li>
           ))}
         </ul>

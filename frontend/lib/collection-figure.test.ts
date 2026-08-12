@@ -15,6 +15,7 @@ import { describe, expect, it } from "vitest";
 // the shorter one because it fits better.
 
 const source = readFileSync(join(__dirname, "..", "components", "collection-ledger.tsx"), "utf8");
+const page = readFileSync(join(__dirname, "..", "app", "bosses", "drops", "page.tsx"), "utf8");
 const css = readFileSync(join(__dirname, "..", "app", "globals.css"), "utf8");
 
 describe("what the card says a person owes", () => {
@@ -88,17 +89,38 @@ describe("what the card says a person owes", () => {
     // and the adjustment is left saying only "-139,548,023, offset against Bro". Folding is what
     // keeps the list one row per offset however many nights went into it.
     expect(source).toContain("const sharesBehind = (entry: CollectionDebt)");
-    expect(source).toContain("entry.payouts.map((share)");
+    expect(source).toContain("offsetShares.get(shareKey(share.lootId, share.memberId))");
     expect(source).toContain("function EnteredRow(");
     expect(source).toContain("party-row-chevron");
   });
 
-  it("names WHAT FELL first, not just the boss it fell off", () => {
+  it("names WHAT FELL first, then when and what the lot made", () => {
     // One boss drops several things and the same box drops off several bosses, so the boss alone
-    // does not say which night this was. The drop is what anybody looks for a month later.
-    expect(source).toContain("item: loot?.name");
+    // says which night without ever saying which thing. The date tells two nights on one boss
+    // apart, and the lot is what the share can be checked against rather than taken on trust.
     expect(source).toContain("{share.item}");
-    expect(source).toContain("{share.where} · {share.who}");
+    expect(source).toContain("formatDropped(share.on)");
+    expect(source).toContain("sold for ${formatMesos(share.sale, true)}");
+    expect(source).toContain("{signed(-share.share)}");
+  });
+
+  it("resolves a share off the POOLS, since an offset's shares are paid and gone from the wallet", () => {
+    expect(page).toContain("const offsetShares = new Map<string, OffsetShare>()");
+    expect(page).toContain("item: loot.name");
+    expect(page).toContain("on: loot.droppedOn");
+    expect(page).toContain("sale: loot.saleAmount");
+  });
+
+  it("splits only the drops an offset actually names", () => {
+    // Splitting every loot row in every pool to answer for a handful would be a pass over the whole
+    // account on every render.
+    expect(page).toContain("const wanted = new Set(debts.flatMap");
+    expect(page).toContain("if (!wanted.has(loot.id)) continue;");
+  });
+
+  it("says so when a drop behind an offset has been deleted", () => {
+    // A row that quietly drops one of the nights behind a figure is a figure that no longer adds up.
+    expect(source).toContain('item: "A drop that has been deleted"');
   });
 
   it("keeps a hand-entered debt a plain row, since it discharges no share", () => {

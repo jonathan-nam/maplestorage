@@ -268,6 +268,32 @@ export function sharesOf(row: Collection): { lootId: string; memberId: string }[
   return row.lines.map((line) => ({ lootId: line.lootId, memberId: line.payeeId }));
 }
 
+/**
+ * One share an offset discharged, resolved for the card.
+ *
+ * Built from the pools rather than looked up on the card, because a share that has been offset is
+ * PAID and has left the wallet: that is the whole reason V58 stores which ones they were.
+ */
+export type OffsetShare = {
+  key: string;
+  /** What fell. Leads the row: the boss alone says which night, never which thing. */
+  item: string;
+  boss: string;
+  who: string;
+  /** The day it dropped, so two nights on one boss are told apart. */
+  on: string;
+  /** This seat's share, which is the money the offset actually discharged. */
+  share: number;
+  /** What the whole lot sold for, so the share can be checked against it. Null if never sold. */
+  sale: number | null;
+  partyId: string;
+};
+
+/** How a resolved share is keyed. One drop owes several people, so both halves are needed. */
+export function shareKey(lootId: string, memberId: string): string {
+  return `${lootId}:${memberId}`;
+}
+
 /** What the whole list comes to, in the three figures the Wallet page used to carry. */
 export type CollectionTotals = { owed: number; owe: number; net: number; people: number };
 
