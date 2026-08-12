@@ -37,7 +37,7 @@ export function CollectionLedger({
   bossByKey,
   partyById,
   seatById,
-  lootBoss,
+  lootById,
   busy,
   onAddPayment,
   onAddDebt,
@@ -51,8 +51,8 @@ export function CollectionLedger({
   partyById: Map<string, Party>;
   /** Every seat by id, for naming the share an offset discharged. See V58. */
   seatById: Map<string, { name: string; partyId: string }>;
-  /** Each loot row's boss key, for the same. */
-  lootBoss: Map<string, string | null>;
+  /** Each loot row by id: what fell, off which boss, in which party. For the same. */
+  lootById: Map<string, { name: string; bossKey: string | null; partyId: string }>;
   busy: boolean;
   onAddPayment: (holder: Holder, amount: number) => Promise<void>;
   onAddDebt: (holder: Holder, amount: number, note: string) => Promise<void>;
@@ -77,7 +77,7 @@ export function CollectionLedger({
           bossByKey={bossByKey}
           partyById={partyById}
           seatById={seatById}
-          lootBoss={lootBoss}
+          lootById={lootById}
           busy={busy}
           onAddPayment={onAddPayment}
           onAddDebt={onAddDebt}
@@ -96,7 +96,7 @@ function CollectionCard({
   bossByKey,
   partyById,
   seatById,
-  lootBoss,
+  lootById,
   busy,
   onAddPayment,
   onAddDebt,
@@ -110,8 +110,8 @@ function CollectionCard({
   partyById: Map<string, Party>;
   /** Every seat by id, for naming the share an offset discharged. See V58. */
   seatById: Map<string, { name: string; partyId: string }>;
-  /** Each loot row's boss key, for the same. */
-  lootBoss: Map<string, string | null>;
+  /** Each loot row by id: what fell, off which boss, in which party. For the same. */
+  lootById: Map<string, { name: string; bossKey: string | null; partyId: string }>;
   busy: boolean;
   onAddPayment: (holder: Holder, amount: number) => Promise<void>;
   onAddDebt: (holder: Holder, amount: number, note: string) => Promise<void>;
@@ -259,13 +259,19 @@ function CollectionCard({
    */
   const sharesBehind = (entry: CollectionDebt) =>
     entry.payouts.map((share) => {
+      const loot = lootById.get(share.lootId);
       const seat = seatById.get(share.memberId);
-      const boss = bossByKey.get(lootBoss.get(share.lootId) ?? "");
-      const party = seat ? partyById.get(seat.partyId) : undefined;
+      const boss = bossByKey.get(loot?.bossKey ?? "");
+      const party = partyById.get(loot?.partyId ?? seat?.partyId ?? "");
       return {
         key: `${share.lootId}:${share.memberId}`,
+        // WHAT FELL leads, because that is what anybody is looking for a month later. The boss
+        // alone does not say it: one boss drops several things, and the same box drops off several
+        // bosses. The row is the drop, and the boss and the seat tell one night from another.
+        item: loot?.name ?? "A drop that has been deleted",
         where: boss ? bossLabel(boss.name, party?.difficulty ?? null) : "Unknown boss",
         who: seat?.name ?? "a seat that has left",
+        partyId: loot?.partyId ?? seat?.partyId ?? null,
       };
     });
 
@@ -568,7 +574,13 @@ function EnteredRow({
 }: {
   entry: CollectionDebt;
   name: string;
-  shares: { key: string; where: string; who: string }[];
+  shares: {
+    key: string;
+    item: string;
+    where: string;
+    who: string;
+    partyId: string | null;
+  }[];
   busy: boolean;
   signed: (mesos: number) => string;
   onRemove: () => void;
@@ -618,8 +630,18 @@ function EnteredRow({
         <ul className="loot-shares" id={panelId}>
           {shares.map((share) => (
             <li key={share.key}>
-              <span className="loot-share-name">{share.where}</span>
-              <span className="loot-share-nets">{share.who}</span>
+              {/* The same shape a share line has above: what fell, then which night it was. Linked
+                  to its party, because "which one was that" ends at the drop's own row. */}
+              {share.partyId ? (
+                <Link href={`/bosses/parties/${share.partyId}`} className="loot-share-name">
+                  {share.item}
+                </Link>
+              ) : (
+                <span className="loot-share-name">{share.item}</span>
+              )}
+              <span className="loot-share-nets">
+                {share.where} · {share.who}
+              </span>
             </li>
           ))}
         </ul>
