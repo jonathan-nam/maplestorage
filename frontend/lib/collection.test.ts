@@ -195,14 +195,16 @@ describe("netting, which is mesos against mesos and never pieces", () => {
     expect([rows[0]!.pieces, rows[0]!.mesos, rows[0]!.owedByYou]).toEqual([80, 0, 500 * M]);
   });
 
-  it("carries no share line once the netting runs against you, so Mark paid cannot reach one", () => {
-    // Settling what YOU owe is a different act. A button here that marked those rows paid would
-    // clear a debt of yours off a card about collecting.
+  it("carries the share lines even when the netting runs against you, so they can be settled", () => {
+    // These used to be dropped, on the reasoning that settling what YOU owe did not belong on a
+    // card about collecting. Retiring the Wallet took the only other place it could be done, and
+    // Jonathan was left with four shares he owed and no settle anywhere in the app.
     const rows = buildCollection(
       [ledger(BRO, "Bro", { owedToYou: 80, drops: [owing("l3", "first-adversary", 80)] })],
       wallet([counterparty("person:p-bro", "Bro", [line("l2", 1_500 * M, "owe")])]),
     );
-    expect(sharesOf(rows[0]!)).toEqual([]);
+    expect(rows[0]!.owedByYou).toBe(1_500 * M);
+    expect(sharesOf(rows[0]!)).toEqual([{ lootId: "l2", memberId: "payee-l2" }]);
   });
 
   it("settles BOTH directions when the net runs to you, since one transfer covers them", () => {
