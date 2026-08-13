@@ -774,6 +774,76 @@ describe("a piece drop counts YOUR share, not what fell", () => {
     expect(pieceStatusByParty(log.entries).has("pa")).toBe(false);
   });
 
+  // The night's own arrangement, against a party that also names a looter. Two seats on 60 in 3
+  // stacks: 30 each, 20 to a stack. The same shape as an Extreme Kalos duo, in this table's numbers.
+  const pair = (over: Partial<Party> = {}) =>
+    party("pa", [mine("m1", "Huskyxkenshi"), theirs("m2", "CreedBratton")], {
+      difficulty: "HARD",
+      looterMemberId: "m2",
+      ...over,
+    });
+  const arranged = (mineStacks: number, theirStacks: number): Loot =>
+    coupons({
+      bundles: 3,
+      bundlesBy: [
+        ...(mineStacks > 0 ? [{ memberId: "m1", bundles: mineStacks }] : []),
+        ...(theirStacks > 0 ? [{ memberId: "m2", bundles: theirStacks }] : []),
+      ],
+    });
+
+  it("owes you nothing on a night you walked away with more than your share", () => {
+    // The report this fixes: Extreme Kalos read "90 coupons owed" over a night whose arrangement had
+    // you holding 120 of the 180. The looter was named and the arrangement was ignored, so the badge
+    // reported your whole share, and pointed it the wrong way: you owed 30 of it back.
+    const log = buildDropLog([pair()], [pool("pa", [arranged(2, 1)])], tables);
+    const entry = log.entries[0]!;
+
+    expect(entry.yours).toBe(30);
+    expect(entry.owedToYou).toBe(0);
+    expect(entry.owedBy).toBeNull();
+    expect(log.totals.piecesOwed).toBe(0);
+    expect(couponsOwedByParty(log.entries).has("pa")).toBe(false);
+    // Yours, because you are holding them. What you owe THEM is not this figure. See owedOfDrop.
+    expect(dropStatusLabel(entry)).toBe("Yours");
+  });
+
+  it("owes you the gap, not your whole share, when they took more than theirs", () => {
+    // One stack to you and two to them: 20 of the 30 you are entitled to, so 10 is the debt.
+    const log = buildDropLog([pair()], [pool("pa", [arranged(1, 2)])], tables);
+
+    expect(log.entries[0]!.yours).toBe(30);
+    expect(log.entries[0]!.owedToYou).toBe(10);
+    expect(log.entries[0]!.owedBy).toBe("CreedBratton");
+    expect(log.totals.piecesOwed).toBe(10);
+    expect(couponsOwedByParty(log.entries).get("pa")).toBe(10);
+    expect(dropStatusLabel(log.entries[0]!)).toBe("Owed");
+  });
+
+  it("still owes you all of it where they picked up every stack", () => {
+    // The arrangement and the looter agree here, so the fix must not have quietly zeroed the case
+    // the old rule got right.
+    const log = buildDropLog([pair()], [pool("pa", [arranged(0, 3)])], tables);
+
+    expect(log.entries[0]!.owedToYou).toBe(30);
+    expect(couponsOwedByParty(log.entries).get("pa")).toBe(30);
+  });
+
+  it("closes an arranged night through the holder the arrangement names", () => {
+    // The closure is keyed by whoever is holding it, which the looter no longer decides. A party
+    // whose looter is not the holder would otherwise be unclosable: the books close against a key
+    // nothing counts.
+    const pools = [pool("pa", [arranged(1, 2)])];
+    const closed = closedByHolder([
+      { holder: holderOf(pair().members[1]!), lootIds: ["l1"], unpaid: 0 },
+    ]).closed;
+
+    const log = buildDropLog([pair()], pools, tables, closed);
+
+    expect(log.entries[0]!.closed).toBe(true);
+    expect(log.totals.piecesOwed).toBe(0);
+    expect(dropStatusLabel(log.entries[0]!)).toBe("Settled");
+  });
+
   it("gives each party its own coupons-owed figure for the row badge", () => {
     // Off the same entries the Drop Log counts, so a party row and the log cannot disagree about
     // what is owed. A party holding its own coupons is absent rather than zero.

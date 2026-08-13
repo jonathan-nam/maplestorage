@@ -371,6 +371,43 @@ function heldByHolder(loot: Loot, party: Party, holders: FoldedSeat[]): Map<stri
 type Pile = { pieces: number; by: string };
 
 /**
+ * The part of your share of one night that somebody ELSE is holding, and who is holding it.
+ *
+ * The GAP, never your whole share. A night where you picked up four stacks of six and are entitled
+ * to three owes you nothing, and one where you picked up none of it owes you all of it: both are the
+ * same subtraction, and only the subtraction is a debt. The Drop Log read the named looter instead
+ * and reported your full share whenever the party had one, so Extreme Kalos said "90 coupons owed"
+ * over a night whose own arrangement had you holding 120 of the 180. Wrong figure, and pointing the
+ * wrong way: you owed 30 of it back. Same class as #289, one screen along.
+ *
+ * Through heldByHolder, so the order of authority is that function's: the night's own arrangement,
+ * then a named looter, then an even division. Null where it returns null, because nobody has said
+ * who took the odd stack and a guess names the wrong person half the time. That night is not silent
+ * on screen: it is what unanswered() lists and what the stack boxes ask for.
+ *
+ * Null on a pool with one seat too. Nobody is holding your share when the only seat is yours.
+ */
+export function owedOfDrop(
+  loot: Loot,
+  party: Party,
+): { pieces: number; by: string; holder: string } | null {
+  const ran = ranSeats(loot, party);
+  if (ran.length < 2) return null;
+  const holders = foldSeats(ran);
+  const held = heldByHolder(loot, party, holders);
+  if (held === null) return null;
+  const short = yourShare(loot.quantity, ran) - (held.get(SELF_KEY)?.pieces ?? 0);
+  if (short <= 0) return null;
+  // Whoever is furthest over their own share is the one holding it. Named, because which of them to
+  // ask is the whole use of the figure, and a pile of two characters names both (see Pile.by).
+  const others = [...held.entries()]
+    .filter(([key]) => key !== SELF_KEY)
+    .sort(([, a], [, b]) => b.pieces - a.pieces);
+  const holding = others[0];
+  return holding ? { pieces: short, by: holding[1].by, holder: holding[0] } : null;
+}
+
+/**
  * How many stacks a drop fell in, with a row that predates the field reading as uncounted.
  *
  * The cache in lib/cache.ts holds whatever shape the API had when the page last fetched, typed as
@@ -974,7 +1011,12 @@ export function saleCredits(rows: TrancheRow[]): Map<string, SaleCredit> {
  * says nothing about anybody else's.
  */
 export function closureKey(holder: Holder, lootId: string): string {
-  return `${holderKey(holder)}|${lootId}`;
+  return closureKeyOf(holderKey(holder), lootId);
+}
+
+/** The same key for a caller holding the holder's KEY already, so the format lives in one place. */
+export function closureKeyOf(holder: string, lootId: string): string {
+  return `${holder}|${lootId}`;
 }
 
 /** Every (holder, drop) whose books are closed, and what each act wrote off. See V52. */
