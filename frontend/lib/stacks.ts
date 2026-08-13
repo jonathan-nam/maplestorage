@@ -103,6 +103,25 @@ export function evenStacks(bundles: number, seats: number): number[] {
   });
 }
 
+/**
+ * A set of typed entitlements as one comparable string, for telling edited from saved.
+ *
+ * Every box, unlike sharesKey, which dropped the ones reading "1": a blank ratio meant one share, so
+ * omitting it changed nothing. A STACK count has no neutral value, and every box has to add up, so
+ * dropping any of them would call an edited deal unedited.
+ */
+export function stacksKey(stacks: Record<string, string>): string {
+  return Object.entries(stacks)
+    .map(([name, value]) => `${name}=${value.trim()}`)
+    .sort()
+    .join(",");
+}
+
+/** The typed entitlements added up, in halves, with anything unreadable counting as nothing. */
+export function sumOfStacks(halves: (number | null)[]): number {
+  return halves.reduce<number>((sum, n) => sum + (n ?? 0), 0);
+}
+
 /** What a stack entitlement comes to in coupons, for the count beside the box. */
 export function couponsOf(halves: number, total: number, bundles: number): number {
   return (total * halves) / (bundles * 2);

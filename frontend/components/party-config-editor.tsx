@@ -7,38 +7,23 @@ import { RosterInputs } from "@/components/roster-inputs";
 import { apiAssetUrl } from "@/lib/api";
 import { MAX_MINUTES, parseMinutes } from "@/lib/boss-minutes";
 import { bossesWithoutConfig, standingMembers, standingParties } from "@/lib/parties";
-import { parseShares, sharesKey } from "@/lib/shares";
-import { suggestArrangement } from "@/lib/vestige-ledger";
+import {
+  couponsOf,
+  evenStacks,
+  formatStacks,
+  parseStacks,
+  sharesFromStacks,
+  stacksAddUp,
+  stacksFromShares,
+  stacksKey,
+  sumOfStacks,
+} from "@/lib/stacks";
 import type { Boss } from "@/types/boss";
 import type { BossDrop, DropTables } from "@/types/drop";
 import type { Party, PartyMember, SavePartyBody } from "@/types/party";
 
 /** The one drop a party has to decide how to divide. See catalog/drops.yaml. */
 const VESTIGE = "vestige-of-erion";
-
-/** What one seat's share comes to in stacks. A seat left out of the deal takes none, not one. */
-function stackLabel(stacks: Map<string, number>, name: string): string {
-  const count = stacks.get(name) ?? 0;
-  return `${count} ${count === 1 ? "stack" : "stacks"}`;
-}
-
-/**
- * A seat that exists only to be weighed, for a roster still being typed.
- *
- * suggestArrangement reads a seat's id, shares and holder. Names being edited have no seat rows
- * yet, so these stand in with the name as the id. Never persisted, and never a holder that folds:
- * the preview is per NAME, which is what the boxes are keyed by.
- */
-const EMPTY_SEAT: PartyMember = {
-  id: "",
-  name: "",
-  personId: null,
-  personName: null,
-  characterId: null,
-  spriteImgUrl: null,
-  guest: false,
-  shares: 1,
-};
 
 // One character's parties: a row per boss they do not solo, and who they run it with.
 //
@@ -295,40 +280,65 @@ function ConfigRow({
   const [looter, setLooter] = useState(savedLooter);
   // What each seat takes, by name, as typed. Keyed by name for the same reason the looter is: it
   // is what the save sends, and it survives a seat being renamed in this same edit.
-  const savedShares = Object.fromEntries(
-    party.seats.filter((s) => !s.guest && s.shares !== 1).map((s) => [s.name, String(s.shares)]),
-  );
-  const [shares, setShares] = useState<Record<string, string>>(savedShares);
-  const [uneven, setUneven] = useState(Object.keys(savedShares).length > 0);
+  // What each seat is entitled to, in STACKS, as typed. Keyed by name for the same reason the looter
+  // is: it is what the save sends, and it survives a seat being renamed in this same edit.
+  //
+  // A ratio is what gets STORED, and it cannot say "four stacks and two" on its own: those stacks
+  // depend on how many fell. So the boxes are filled from the ratio and the boss's stack count
+  // together, and an unanswered config opens on the even split rather than on blanks. See lib/stacks.
+  const savedBundles =
+    party.difficulty === null
+      ? undefined
+      : drops.find((d) => d.dropKey === VESTIGE)?.bundles?.[party.difficulty];
+  const savedStacks = (bundleCount: number | undefined): Record<string, string> => {
+    const seats = party.seats.filter((s) => !s.guest);
+    if (bundleCount === undefined || seats.length === 0) return {};
+    const halves =
+      stacksFromShares(
+        seats.map((s) => s.shares),
+        bundleCount,
+      ) ?? evenStacks(bundleCount, seats.length);
+    return Object.fromEntries(seats.map((s, i) => [s.name, formatStacks(halves[i] ?? 0)]));
+  };
+  const [entitled, setEntitled] = useState<Record<string, string>>(savedStacks(savedBundles));
   const parsed = parseMinutes(minutes);
   const dirty =
     members.join(" ") !== saved.join(" ") ||
     difficulty !== savedDifficulty ||
     minutes !== savedMinutes ||
     looter !== savedLooter ||
-    sharesKey(shares) !== sharesKey(savedShares);
+    stacksKey(entitled) !== stacksKey(savedStacks(savedBundles));
   // The roster as it is being edited, not as it was saved, so somebody added in this same edit can
   // be picked and a renamed seat keeps whatever it was designated for.
   const rosterNames = [ownName, ...members.map((m) => m.trim())].filter((name) => name !== "");
   const attributed = standingMembers(party).filter((m) => m.personName);
-  const badShares = rosterNames.some((name) => parseShares(shares[name] ?? "") === null);
 
   /**
-   * What this party's shares come to in the coupons the boss actually drops.
+   * What the boss drops and in how many stacks, which is what the boxes are measured against.
    *
-   * Null until there is something exact to say. The stacks are per (boss, difficulty), so a config
-   * with no difficulty chosen, a boss that drops no coupons, or a difficulty nobody has counted the
-   * stacks for all get nothing rather than a number standing in for one.
-   *
-   * Through suggestArrangement, the same function the Drop Log fills its chips with, so what this
-   * promises and what that offers cannot drift apart.
+   * Both absent until there is something exact to say: the figures are per (boss, difficulty), so a
+   * config with no mode chosen, a boss that drops no coupons, or a mode nobody has counted the stacks
+   * for get nothing rather than a number standing in for one. No stack count, no boxes.
    */
   const vestige = drops.find((d) => d.dropKey === VESTIGE);
   // Optional all the way down, not just on `vestige`. lib/cache.ts hands back whatever shape the
   // API had when this page last fetched, so a tab open across a deploy that adds a field gets a
   // drop with no `bundles` at all, and `vestige?.bundles[difficulty]` throws on the read.
-  const bundles = difficulty === "" ? undefined : vestige?.bundles?.[difficulty];
+  const bundlesForEdit = difficulty === "" ? undefined : vestige?.bundles?.[difficulty];
   const total = difficulty === "" ? undefined : vestige?.pieces?.[difficulty];
+  /** The typed entitlements, in halves, in roster order. Null anywhere one is not an answer. */
+  const halves = rosterNames.map((name) => parseStacks(entitled[name] ?? ""));
+  const badStacks = halves.some((n) => n === null);
+  /**
+   * Whether the boxes come to the stacks that fell.
+   *
+   * The refusal this replaced a ratio for. Two stacks each on a boss that drops three is a deal that
+   * cannot happen, and a ratio could not say it: it went in as 1:1 and entitled everybody to 1.5.
+   * Unchecked where the stack count is unknown, which is a config with no mode written down.
+   */
+  const addsUp =
+    bundlesForEdit === undefined || (!badStacks && stacksAddUp(halves as number[], bundlesForEdit));
+
   /**
    * Whether there are any coupons here to argue over.
    *
@@ -341,19 +351,6 @@ function ConfigRow({
    */
   const dropsVestige =
     vestige !== undefined && (difficulty === "" || vestige.pieces?.[difficulty] !== undefined);
-  const stacks =
-    bundles && total && !badShares
-      ? suggestArrangement(
-          bundles,
-          rosterNames.map((name) => ({
-            ...EMPTY_SEAT,
-            id: name,
-            name,
-            shares: parseShares(shares[name] ?? "") ?? 1,
-          })),
-          new Map(),
-        )
-      : null;
 
   return (
     <article className="config-row">
@@ -391,82 +388,55 @@ function ConfigRow({
 
       <RosterInputs members={members} onChange={setMembers} />
 
-      {/* How this party handles a drop, as ONE question.
+      {/* What each seat is entitled to, in STACKS.
 
-          The arrangements a party actually makes are three, and they were three separate selects
-          reading as three settings for one thing. Two of them turned out to be the same setting:
-          everyone looting their own IS the alternating case, because a boss whose stacks divide
-          needs nothing and one whose stacks do not alternates on its own, worked out from the stack
-          count rather than asked for here.
+          One input each, and nothing else. It used to be a select of the three arrangements a party
+          makes, with share boxes behind the third: "one member always takes more" said the shape of a
+          deal without saying the deal, and a ratio could not say "four and two" at all, so a party on
+          4:2 went in as even and was quietly entitled to three each.
 
-          Named from the roster being edited, not the saved seats, so choosing somebody added in
-          this same edit works and a renamed seat keeps the designation.
+          Halves are allowed because three stacks between two people is 1.5 each, which is the
+          commonest night there is. What is stored is still a ratio: see lib/stacks.
 
-          Absent entirely on a boss that drops no coupons, which is most of them. */}
-      {dropsVestige && (
-        <div className="config-looter">
-          {/* Named, because "the pieces" alone does not say which. The one drop this is for is
-            vestige-of-erion in catalog/drops.yaml: it is the only one that arrives in a stack big
-            enough that a party has to decide who picks it up. */}
-          <span className="config-looter-label">Vestige of Erion</span>
-          <select
-            className="split-input"
-            value={looter !== "" ? `loots:${looter}` : uneven ? "uneven" : "own"}
-            onChange={(e) => {
-              const picked = e.target.value;
-              setUneven(picked === "uneven");
-              setLooter(picked.startsWith("loots:") ? picked.slice("loots:".length) : "");
-              // Anything but the uneven split is one apiece, so the boxes do not sit there holding
-              // numbers that no longer apply.
-              if (picked !== "uneven") setShares({});
-            }}
-            aria-label="How this party handles the Vestige of Erion pieces"
-            disabled={busy}
-          >
-            <option value="own">everyone loots their own, even split</option>
-            {rosterNames.map((name) => (
-              <option key={name} value={`loots:${name}`}>
-                {name} loots everything and pays out
-              </option>
+          Named from the roster being edited, not the saved seats, so somebody added in this same edit
+          gets a box.
+
+          Absent on a boss that drops no coupons, and on one whose mode nobody has written down: the
+          stacks that fell are what these numbers have to add up to. */}
+      {dropsVestige && bundlesForEdit !== undefined && total !== undefined && (
+        <div className="config-vestige">
+          <span className="config-share-drop">
+            {`${total} in ${bundlesForEdit} stacks of ${total / bundlesForEdit}`}
+          </span>
+          <div className="config-shares">
+            {rosterNames.map((name, i) => (
+              <label className="config-share" key={name}>
+                {name}
+                <input
+                  className="split-input"
+                  value={entitled[name] ?? ""}
+                  onChange={(e) => setEntitled({ ...entitled, [name]: e.target.value })}
+                  placeholder="1"
+                  inputMode="decimal"
+                  aria-label={`Stacks ${name} is entitled to each week`}
+                  disabled={busy}
+                />
+                {/* What the stacks come to in coupons, which is the number the ledger states debts
+                    in. Only where the box reads: half a typed answer is not a count. */}
+                {halves[i] !== null && (
+                  <span className="config-share-stacks">
+                    {`${couponsOf(halves[i]!, total, bundlesForEdit)} coupons`}
+                  </span>
+                )}
+              </label>
             ))}
-            <option value="uneven">one member always takes more</option>
-          </select>
-
-          {/* Type the stacks you agreed. Four and two on Extreme Kalos is 6 x 4/6 and 6 x 2/6, which
-            is four stacks and two, so the numbers people say to each other go straight in. Two and
-            one is the same split said shorter. */}
-          {/* What there is to divide, ahead of the boxes rather than after them. Trailing the row it
-            read as the last seat's figure. */}
-          {uneven && bundles && total && (
-            <span className="config-share-drop">
-              {total} in {bundles} stacks of {total / bundles}
-            </span>
-          )}
-
-          {/* Their own line, so a party of four does not break across the select above them. */}
-          {uneven && (
-            <div className="config-shares">
-              {rosterNames.map((name) => (
-                <label className="config-share" key={name}>
-                  {name}
-                  <input
-                    className="split-input"
-                    value={shares[name] ?? ""}
-                    onChange={(e) => setShares({ ...shares, [name]: e.target.value })}
-                    placeholder="1"
-                    inputMode="numeric"
-                    aria-label={`What ${name} takes of a split`}
-                    disabled={busy}
-                  />
-                  {/* Stacks, not coupons: the stack size is on the row already, and this is the
-                    number a ratio hides. Two against one on a six-stack boss is four stacks, which
-                    nobody should have to work out from the box. */}
-                  {stacks && (
-                    <span className="config-share-stacks">{stackLabel(stacks, name)}</span>
-                  )}
-                </label>
-              ))}
-            </div>
+          </div>
+          {/* Said, not silently corrected. A deal that does not come to what fell leaves stacks
+              nobody is entitled to, and the ledger cannot say who owes them. */}
+          {!addsUp && (
+            <p className="split-error">{`These come to ${
+              badStacks ? "an unreadable number" : sumOfStacks(halves) / 2
+            } of ${bundlesForEdit} stacks.`}</p>
           )}
         </div>
       )}
@@ -484,10 +454,11 @@ function ConfigRow({
           <button
             type="button"
             className="party-save"
-            disabled={busy || !parsed.ok || badShares}
+            disabled={busy || !parsed.ok || badStacks}
             onClick={() =>
               parsed.ok &&
-              !badShares &&
+              !badStacks &&
+              addsUp &&
               onSave(
                 members.map((m) => m.trim()).filter((m) => m !== ""),
                 difficulty === "" ? null : difficulty,
@@ -496,8 +467,14 @@ function ConfigRow({
                 // ALWAYS sent, never omitted. writeMembers reads a missing name as one share, so a
                 // save that left this out would quietly reset every seat the party had agreed
                 // otherwise for. Whole roster every time, the way the members list is.
+                // Stacks in, RATIO out: what is stored weights the money split too, so it goes in
+                // lowest terms. Lossless while the boxes add up, which is the only state that saves:
+                // the stacks come back as bundles * shares / total. See lib/stacks.
                 Object.fromEntries(
-                  rosterNames.map((name) => [name, parseShares(shares[name] ?? "") ?? 1]),
+                  rosterNames.map((name, i) => [
+                    name,
+                    sharesFromStacks(halves.map((n) => n ?? 0))[i] ?? 1,
+                  ]),
                 ),
               )
             }
@@ -511,8 +488,7 @@ function ConfigRow({
             onClick={() => {
               setMembers(saved.length > 0 ? saved : [""]);
               setLooter(savedLooter);
-              setShares(savedShares);
-              setUneven(Object.keys(savedShares).length > 0);
+              setEntitled(savedStacks(savedBundles));
               setDifficulty(savedDifficulty);
               setMinutes(savedMinutes);
             }}
