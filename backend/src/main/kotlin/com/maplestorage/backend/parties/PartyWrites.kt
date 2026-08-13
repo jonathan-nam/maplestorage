@@ -141,7 +141,8 @@ internal fun setPartyClear(
         row[capturedAt] = now
         row[sourceScreenshotId] = null
     }
-    // What the clear guarantees, or taking it back. See LootFromClear.kt.
+    // What the clear guarantees on a boss run alone, or taking it back. Nothing for a party, whose
+    // coupons are typed: the gate is lootFromClear's. See LootFromClear.kt.
     val own = Uuid.parse(party.characterId)
     val today = todayIn(now)
     if (cleared) {

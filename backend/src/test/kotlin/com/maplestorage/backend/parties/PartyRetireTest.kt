@@ -158,17 +158,15 @@ class PartyRetireTest {
         }.firstOrNull()
 
     @Test
-    fun `deleting a config takes back the tick it was ticked through, and what that tick filed`() {
+    fun `deleting a config takes back the tick it was ticked through`() {
         transaction {
             val party = hardTrio()
             val partyId = Uuid.parse(party.id)
             val boss = bossIdForKey("limbo")!!
             val now = Clock.System.now()
-            // Hard Limbo's 60 coupons are guaranteed, so the tick files them itself.
             setPartyClear(party, boss, bossResetOf(boss)!!, cleared = true, now = now)
-            assertTrue(lootFor(partyId).isNotEmpty(), "the clear filed its coupons")
 
-            // Deleted, not retired: the only row pointing at the config was one the app wrote.
+            // Deleted, not retired: a tick is not a drop, so nothing points at the config.
             assertEquals(Removal.DELETED, retireOrDeleteParty(partyId, userId, now))
 
             assertNull(findParty(partyId, userId))
@@ -248,7 +246,7 @@ class PartyRetireTest {
 
             assertEquals(Removal.RETIRED, retireOrDeleteParty(partyId, userId, now))
 
-            // What a human entered is the record the retire exists for. What the tick filed is not.
+            // What a human entered is the record the retire exists for. The tick is not.
             assertEquals(listOf(lootId.toString()), lootFor(partyId).map { it.id })
             assertNull(clearRow(party, periodStartFor(bossResetOf(boss)!!, now)))
         }

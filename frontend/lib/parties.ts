@@ -238,8 +238,8 @@ export function bossesWithoutConfig(parties: Party[], bosses: Boss[], characterI
  * The drop this boss gives for certain at the mode a party runs, or null.
  *
  * Read off the boss's own table, so it is a fact about the boss rather than about anything that has
- * happened: vestige coupons drop on every clear, and the amount is per (boss, difficulty). Null when
- * nobody has said which difficulty, since a boss that drops them at Extreme drops none at Chaos.
+ * happened: vestige coupons drop every time it dies, and the amount is per (boss, difficulty). Null
+ * when nobody has said which difficulty, since a boss that drops them at Extreme drops none at Chaos.
  */
 export function guaranteedDrop(
   table: BossDrop[] | undefined,
@@ -252,9 +252,10 @@ export function guaranteedDrop(
 /**
  * Whether a clear on this boss can say anything about what fell, at any mode.
  *
- * What decides whether the mode is worth asking for. A clear files what the catalog guarantees, so
- * on a boss with no amount at any of its modes there is nothing for a mode to unlock and a select
- * beside it would be a control that does nothing. Eight bosses of the catalog have one.
+ * What decides whether the mode is worth asking for. A clear on a boss run ALONE files what the
+ * catalog guarantees, and a party's mode fills the count when the drop is typed, so on a boss with no
+ * amount at any of its modes there is nothing for a mode to unlock and a select beside it would be a
+ * control that does nothing. Eight bosses of the catalog have one.
  */
 export function hasGuaranteedDrop(table: BossDrop[] | undefined): boolean {
   return (table ?? []).some((drop) => Object.keys(drop.pieces ?? {}).length > 0);

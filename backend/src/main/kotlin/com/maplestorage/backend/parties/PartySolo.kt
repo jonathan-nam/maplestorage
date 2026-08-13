@@ -94,8 +94,8 @@ internal fun poolFor(
  * Records which mode this character runs a boss at alone, opening the pool if it has none yet.
  *
  * The one thing a clear cannot say for itself. Coupons are per (boss, difficulty) and no boss drops
- * them at every mode it has, so "Kalos cleared" on its own is 180 coupons or none, and a party gets
- * this off the config it already has. See lootFromClear.
+ * them at every mode it has, so "Kalos cleared" on its own is 180 coupons or none. This is where a
+ * boss run alone says which, the way a party says it on its config.
  *
  * The pool is opened by naming a mode, before anything has fallen in it. It is the same row logging
  * a drop would have opened, and it holds nothing until a clear or a human puts something there.

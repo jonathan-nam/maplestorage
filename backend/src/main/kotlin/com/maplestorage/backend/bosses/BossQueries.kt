@@ -232,7 +232,7 @@ internal fun upsertBossClears(
             r[BossClear.capturedAt] = capturedAt
             r[sourceScreenshotId] = screenshotId
         }
-        // A capture files what the clear guarantees too, or takes it back on a boss it reads as
+        // A capture files what a solo clear guarantees too, or takes it back on a boss it reads as
         // pending. Skipping it here would make a ticked clear and a captured one disagree about
         // whether the pieces exist, silently. See LootFromClear.kt.
         val day = capturedAt.toLocalDateTime(TimeZone.UTC).date

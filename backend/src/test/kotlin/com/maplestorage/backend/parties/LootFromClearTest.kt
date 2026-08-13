@@ -26,12 +26,12 @@ import kotlin.time.Instant
 import kotlin.uuid.Uuid
 
 /**
- * The drops a clear implies, against a real Postgres.
+ * The drops a clear implies on a boss run alone, against a real Postgres.
  *
- * Vestige coupons are guaranteed and the catalog knows the amount, so clearing the boss already says
- * they landed. What is worth a database to check is everything this must NOT do: file twice for one
- * period, file at a difficulty that drops none, file where nobody has said which difficulty, or take
- * back a row somebody has already sold.
+ * Vestige coupons are guaranteed and the catalog knows the amount, so clearing the boss alone already
+ * says they landed. What is worth a database to check is everything this must NOT do: file for a
+ * PARTY, file twice for one period, file at a difficulty that drops none, file where nobody has said
+ * which difficulty, or take back a row somebody has already sold.
  */
 class LootFromClearTest {
     private val userId = "user_test_from_clear_1"
@@ -84,6 +84,23 @@ class LootFromClearTest {
         return mine
     }
 
+    /** A pool this character runs ALONE, on Extreme Kalos unless [difficulty] or [boss] says otherwise. */
+    private fun alone(
+        difficulty: String? = "EXTREME",
+        boss: String = "kalos-the-guardian",
+    ): Pair<Uuid, Uuid> {
+        val mine = character()
+        val bossId = bossIdForKey(boss)!!
+        val now = Clock.System.now()
+        val partyId =
+            if (difficulty == null) {
+                poolFor(userId, mine, bossId, now)
+            } else {
+                setSoloDifficulty(userId, mine, bossId, bossResetOf(bossId)!!, difficulty, now)!!
+            }
+        return mine to partyId
+    }
+
     /** A party on Extreme Kalos, which drops 180 coupons, unless [difficulty] says otherwise. */
     private fun party(
         difficulty: String? = "EXTREME",
@@ -108,48 +125,43 @@ class LootFromClearTest {
     private fun pool(partyId: Uuid) = lootFor(partyId)
 
     @Test
-    fun `clearing a boss files what it guarantees, off the catalog's own count`() {
+    fun `clearing a boss run alone files what it guarantees, off the catalog's own count`() {
         transaction {
-            val (characterId, partyId) = party()
+            val (characterId, partyId) = alone()
             val bossId = bossIdForKey("kalos-the-guardian")!!
 
             lootFromClear(characterId, bossId, "WEEKLY", today, Clock.System.now())
 
             val row = pool(partyId).single()
             assertEquals("Vestige of Erion Coupon", row.name)
-            // What FELL, which is what Extreme Kalos gives. Who gets how much of it is worked out
-            // on every read, from the party as it stands. See V40.
+            // 180, not a share of 180. There is one seat, so those are the same number here, and the
+            // row is WHAT FELL either way. See V40.
             assertEquals(180, row.quantity)
             assertEquals("kalos-the-guardian", row.bossKey)
+            assertTrue(findParty(partyId, userId)!!.solo)
         }
     }
 
     @Test
-    fun `the row is what fell, whoever ran and however many of them there were`() {
+    fun `a party's coupons are nobody's to file, however plainly the catalog states them`() {
         transaction {
-            // Hard Limbo drops 60. The row said 20 here once, this character's share of a trio,
-            // and it kept saying 20 after the trio became a duo. A stored share does not follow the
-            // party it was worked out from, so nothing stores one now: 60 fell, and 60 is the row.
+            // Hard Limbo's 60 are as guaranteed here as anywhere. What a party does with them is not:
+            // three stacks between two people is a night somebody has to remember agreeing to, and a
+            // row that appeared on its own is one nobody entered. It is typed, with the count filled
+            // in from this config's own mode.
             val (characterId, partyId) = party(difficulty = "HARD", boss = "limbo", others = listOf("Steve", "Bob"))
+
             lootFromClear(characterId, bossIdForKey("limbo")!!, "WEEKLY", today, Clock.System.now())
-            assertEquals(60, pool(partyId).single().quantity)
+
+            assertTrue(pool(partyId).isEmpty())
         }
     }
 
     @Test
-    fun `a duo files the same row as a trio, because the drop is the same drop`() {
+    fun `a designated looter does not make the coupons the app's to file either`() {
         transaction {
-            val (characterId, partyId) = party(difficulty = "HARD", boss = "limbo", others = listOf("Steve"))
-            lootFromClear(characterId, bossIdForKey("limbo")!!, "WEEKLY", today, Clock.System.now())
-            assertEquals(60, pool(partyId).single().quantity)
-        }
-    }
-
-    @Test
-    fun `a designated looter changes nothing about the row either`() {
-        transaction {
-            // The Husky arrangement: the partner loots and sells everything. That decides who OWES
-            // whom, which the ledger reads off the config, and not what the boss dropped.
+            // The Husky arrangement: the partner loots and sells everything. Naming a looter says who
+            // will be holding the pieces, not that anybody has been.
             val (characterId, partyId) =
                 party(
                     difficulty = "HARD",
@@ -158,14 +170,37 @@ class LootFromClearTest {
                     looterName = "Steve",
                 )
             lootFromClear(characterId, bossIdForKey("limbo")!!, "WEEKLY", today, Clock.System.now())
-            assertEquals(60, pool(partyId).single().quantity)
+            assertTrue(pool(partyId).isEmpty())
+        }
+    }
+
+    @Test
+    fun `a pool adopted into a party stops collecting from the tick`() {
+        transaction {
+            // The seat that was alone is spelled out onto the weeks that already hold a drop, and from
+            // here on the pool is a party: what falls is somebody's to enter. Without this, a party
+            // built out of a solo pool kept filing itself while the roster argued over the split.
+            val (characterId, partyId) = alone(difficulty = "HARD", boss = "limbo")
+            val bossId = bossIdForKey("limbo")!!
+            val now = Clock.System.now()
+            adoptSoloParty(
+                userId,
+                partyId,
+                SavePartyRequest(characterId.toString(), "limbo", listOf("Steve"), difficulty = "HARD"),
+                now,
+            )
+
+            lootFromClear(characterId, bossId, "WEEKLY", today, now)
+
+            assertTrue(pool(partyId).isEmpty())
+            assertTrue(!findParty(partyId, userId)!!.solo)
         }
     }
 
     @Test
     fun `re-ticking the same clear does not stack up a second row`() {
         transaction {
-            val (characterId, partyId) = party()
+            val (characterId, partyId) = alone()
             val bossId = bossIdForKey("kalos-the-guardian")!!
             val now = Clock.System.now()
 
@@ -182,7 +217,7 @@ class LootFromClearTest {
     fun `says nothing where the amount is unknown`() {
         transaction {
             // Chaos Kalos drops none, and the catalog carries no row for it rather than a zero.
-            val (chaosCharacter, chaosParty) = party(difficulty = "CHAOS")
+            val (chaosCharacter, chaosParty) = alone(difficulty = "CHAOS")
             lootFromClear(
                 chaosCharacter,
                 bossIdForKey("kalos-the-guardian")!!,
@@ -194,8 +229,10 @@ class LootFromClearTest {
         }
         cleanUp()
         transaction {
-            // And a config where nobody has said which difficulty cannot know which amount applies.
-            val (quietCharacter, quietParty) = party(difficulty = null)
+            // And a pool where nobody has said which difficulty cannot know which amount applies.
+            // The reason the mode is asked for at all: Extreme Kalos gives 180 and Chaos none, and a
+            // clear does not say which was killed. Guessing is the wrong count wearing a real name.
+            val (quietCharacter, quietParty) = alone(difficulty = null)
             lootFromClear(
                 quietCharacter,
                 bossIdForKey("kalos-the-guardian")!!,
@@ -208,40 +245,9 @@ class LootFromClearTest {
     }
 
     @Test
-    fun `a boss run alone files the whole drop, because one seat took all of it`() {
-        transaction {
-            val characterId = character()
-            val bossId = bossIdForKey("kalos-the-guardian")!!
-            val partyId = setSoloDifficulty(userId, characterId, bossId, "WEEKLY", "EXTREME", Clock.System.now())!!
-
-            lootFromClear(characterId, bossId, "WEEKLY", today, Clock.System.now())
-
-            // 180, not a share of 180. There is one seat, so those are the same number here, and the
-            // row is WHAT FELL either way. See V40.
-            assertEquals(180, pool(partyId).single().quantity)
-            assertTrue(findParty(partyId, userId)!!.solo)
-        }
-    }
-
-    @Test
-    fun `a boss run alone at no stated mode files nothing`() {
-        transaction {
-            // The reason this is asked for at all: Extreme Kalos gives 180 and Chaos Kalos none, and
-            // a clear does not say which was killed. Guessing is the wrong count wearing a real name.
-            val characterId = character()
-            val bossId = bossIdForKey("kalos-the-guardian")!!
-            val partyId = poolFor(userId, characterId, bossId, Clock.System.now())
-
-            lootFromClear(characterId, bossId, "WEEKLY", today, Clock.System.now())
-
-            assertTrue(pool(partyId).isEmpty())
-        }
-    }
-
-    @Test
     fun `un-ticking takes back what the clear added, and leaves a sale alone`() {
         transaction {
-            val (characterId, partyId) = party()
+            val (characterId, partyId) = alone()
             val bossId = bossIdForKey("kalos-the-guardian")!!
             val now = Clock.System.now()
 
@@ -269,7 +275,7 @@ class LootFromClearTest {
     @Test
     fun `un-ticking leaves a pile whose books have been closed`() {
         transaction {
-            val (characterId, partyId) = party()
+            val (characterId, partyId) = alone()
             val bossId = bossIdForKey("kalos-the-guardian")!!
             val now = Clock.System.now()
             lootFromClear(characterId, bossId, "WEEKLY", today, now)
@@ -306,9 +312,9 @@ class LootFromClearTest {
     }
 
     @Test
-    fun `a retired config collects nothing more, and a clear does not bring it back`() {
+    fun `a retired pool collects nothing more, and a clear does not bring it back`() {
         transaction {
-            val (characterId, partyId) = party()
+            val (characterId, partyId) = alone()
             val bossId = bossIdForKey("kalos-the-guardian")!!
             val now = Clock.System.now()
 
@@ -324,22 +330,20 @@ class LootFromClearTest {
             lootFromClear(characterId, bossId, "WEEKLY", LocalDate.parse("2026-08-15"), now)
 
             // addLoot revives whatever it inserts into, which is right for a drop somebody logged
-            // and wrong for a clear: ticking the boss would un-delete the party as a side effect,
-            // and its coupons would be split with a guest nobody said was there.
+            // and wrong for a clear: ticking the boss would un-delete the pool as a side effect.
             assertEquals(
                 listOf(logged.toString()),
                 pool(partyId).map { it.id },
-                "a config you deleted does not keep collecting",
+                "a pool you deleted does not keep collecting",
             )
             assertTrue(findParty(partyId, userId)!!.retired)
-            assertTrue(partiesFor(userId).none { it.id == partyId.toString() })
         }
     }
 
     @Test
     fun `a row filed into an earlier period is still the clear's to take back`() {
         transaction {
-            val (characterId, partyId) = party()
+            val (characterId, partyId) = alone()
             val bossId = bossIdForKey("kalos-the-guardian")!!
             val now = Clock.System.now()
             // A period that is over, which is the one deleting the config does not reach into.
@@ -348,7 +352,7 @@ class LootFromClearTest {
             lootFromClear(characterId, bossId, "WEEKLY", backThen, now)
             retireOrDeleteParty(partyId, userId, now)
 
-            // Rows filed into a config before it was retired stay removable by the tick that put
+            // Rows filed into a pool before it was retired stay removable by the tick that put
             // them there, which is the only thing that may take them.
             assertEquals(1, pool(partyId).size)
             unlootFromClear(characterId, bossId, "WEEKLY", backThen)
@@ -359,7 +363,7 @@ class LootFromClearTest {
     @Test
     fun `a row a human logged is never taken back by a clear`() {
         transaction {
-            val (characterId, partyId) = party()
+            val (characterId, partyId) = alone()
             val bossId = bossIdForKey("kalos-the-guardian")!!
             val now = Clock.System.now()
             // Typed, not filed from a clear: they saw it fall, so the clear does not answer for it.

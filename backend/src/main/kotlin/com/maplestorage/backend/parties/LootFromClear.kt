@@ -21,12 +21,18 @@ import org.jetbrains.exposed.v1.jdbc.selectAll
 import kotlin.time.Instant
 import kotlin.uuid.Uuid
 
-// The drops a clear implies, and taking them back when the clear goes away.
+// The drops a clear implies on a boss run ALONE, and taking them back when the clear goes away.
 //
 // The inverse of clearFromDrop, which has read the pair the other way round since V18: something
 // fell, so the boss died. This is the other end. Some drops are GUARANTEED and their amount is in
-// the catalog, so clearing Extreme Kalos already says 180 vestige coupons landed and typing that in
-// is busywork. See V37__loot_from_clear.sql.
+// the catalog, so clearing Extreme Kalos alone already says 180 vestige coupons landed and typing
+// that in is busywork. See V37__loot_from_clear.sql.
+//
+// SOLO ONLY. A party's coupons are typed, with the count filled in from the config (see
+// defaultQuantity in the frontend). What fell is only half of what a party needs to know: the stacks
+// have to be handed out, and a row that appeared on its own is one nobody remembers agreeing to, so
+// a tick corrected the next day moved money. One seat has nothing to hand out and nobody to answer
+// to, which is what makes the same row a fact there rather than a guess.
 //
 // Only drops the catalog has an amount for. That is what makes this a fact rather than a guess: a
 // drop with no amount for this boss and difficulty may or may not have fallen, and the pool would be
@@ -35,16 +41,14 @@ import kotlin.uuid.Uuid
 // Inside a transaction, like the rest.
 
 /**
- * Files what this clear guarantees, if anything.
- *
- * Solo pools file too. One seat means the whole drop is yours, which is the same row a party gets
- * and a share of one nobody has to work out.
+ * Files what this clear guarantees on a solo pool, if anything.
  *
  * Silent about everything it cannot be sure of, and each of these is a reason a pool sees nothing
  * appear rather than a wrong row:
  *
  *  - no config for the pair, so there is no pool to file into
- *  - a RETIRED config, whose pool is history rather than a party still running
+ *  - a PARTY config, whose drops are entered by the person who was there
+ *  - a RETIRED config, whose pool is history rather than a boss still being run
  *  - no difficulty recorded, so which amount applies is unknown
  *  - no amount for that boss and difficulty, which is most of them
  *  - a row already there for this period, so re-ticking a clear does not stack up three of them
@@ -67,12 +71,14 @@ internal fun lootFromClear(
                 .firstOrNull()
         }
     val difficulty = config?.get(Party.difficulty)
-    // Deleting a config that has drops retires it and keeps the pool, so the history survives (see
-    // retireOrDeleteParty). History is not a party still running, and filing into one put 120
-    // coupons in a deleted party's pool nine days after it went, split with a guest who was not
-    // there. Nothing says where it came from either: the config is off Party View by then.
-    val standing = config?.get(Party.standing) == true
-    if (partyId == null || difficulty == null || !standing) return
+    // A pool this may file into at all: one seat, and still being run.
+    //
+    // One seat, because a party's stacks have to be handed out by whoever was there. Still being run,
+    // because deleting a config that has drops retires it and keeps the pool (see
+    // retireOrDeleteParty): history is not a boss still being run, and filing into one put 120 coupons
+    // in a deleted pool nine days after it went, with nothing to say where they came from.
+    val fileable = config != null && config[Party.solo] && config[Party.standing]
+    if (partyId == null || difficulty == null || !fileable) return
 
     val period = periodOf(reset, on)
     val nextPeriod = periodAfter(reset, period)
@@ -80,10 +86,8 @@ internal fun lootFromClear(
     // rather than this one. Today when the period is the one today falls in, which is the ordinary
     // case and the date a human would have typed.
     val droppedOn = if (on >= period && on < nextPeriod) on else period
-    // WHAT FELL, always, never a share of it. A share depends on who ran and whether one of them
-    // loots, both of which are edited long after the clear was ticked, and a stored share does not
-    // follow: one Limbo row read 60 for months after its party became an even three-way split. The
-    // share is worked out on every read now, from the party as it stands. See V40.
+    // WHAT FELL, always, never a share of it. One seat makes those the same number here, and the row
+    // has to keep reading as what fell if the pool is ever adopted into a party. See V40.
     guaranteedDrops(bossCatalogId, difficulty)
         .filter { (dropId, pieces) -> pieces >= 1 && !alreadyFiled(partyId, dropId, period, nextPeriod) }
         .forEach { (dropId, pieces) ->
@@ -122,8 +126,11 @@ private fun alreadyFiled(
  * been sold is money somebody is owed, and un-ticking a clear is not a statement about that. A row a
  * human logged is left alone whatever the clear says, because they saw it fall.
  *
- * A retired config is NOT skipped here, unlike lootFromClear: rows filed into one before that rule
- * existed still have to be removable by the tick that put them there.
+ * Not gated on the pool being solo, unlike lootFromClear. A pool adopted into a party still holds
+ * the rows it filed while it was one seat, and the tick that put them there is what may take them.
+ *
+ * A retired config is NOT skipped either: rows filed into one before that rule existed still have to
+ * be removable by the tick that put them there.
  */
 internal fun unlootFromClear(
     characterId: Uuid,
