@@ -1,11 +1,14 @@
 import type { ReactNode } from "react";
 
 /**
- * The class a <main> wears while what it will show has not arrived.
+ * The class a loading.tsx's <main> wears, where the whole <main> IS the placeholder.
  *
- * One name for one rule, because the router's wait and the page's own fetch look identical on
- * screen and differ only in which component happens to be mounted. What it does is in globals.css
- * under .page-waiting: nothing is drawn for the first 150ms, the same delay the bar keeps.
+ * Nothing is drawn for the first 150ms, the same delay the bar keeps. See globals.css.
+ *
+ * A PAGE must not wear this. Its <main> carries the title, which is known immediately and is not a
+ * placeholder for anything, and the router unmounts the outgoing page as soon as the route commits:
+ * hiding the incoming <main> for 150ms is 150ms of blank screen, not 150ms of the page you came
+ * from. A page hands its placeholder to PageSwap, which wears the class instead.
  */
 export const PAGE_WAITING = "page page-waiting";
 

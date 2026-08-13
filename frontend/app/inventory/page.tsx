@@ -1,7 +1,6 @@
 "use client";
 
 import { PageSwap } from "@/components/page-swap";
-import { PAGE_WAITING } from "@/components/route-loading";
 import { useAuth } from "@clerk/nextjs";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
@@ -180,7 +179,7 @@ export default function CharactersPage() {
   }));
 
   return (
-    <main className={state === "loading" ? PAGE_WAITING : "page"}>
+    <main className="page">
       <h1 className="page-title">Inventory</h1>
 
       {/* Outside the load states on purpose. The dock is the first thing on the page now, so

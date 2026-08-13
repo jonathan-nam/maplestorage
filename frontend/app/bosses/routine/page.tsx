@@ -1,7 +1,6 @@
 "use client";
 
 import { PageSwap } from "@/components/page-swap";
-import { PAGE_WAITING } from "@/components/route-loading";
 import { useAuth } from "@clerk/nextjs";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
@@ -174,7 +173,7 @@ export default function BossRoutinePage() {
   );
 
   return (
-    <main className={state === "loading" ? PAGE_WAITING : "page"}>
+    <main className="page">
       <p className="loot-back">
         <Link href="/bosses">&larr; Individual View</Link>
       </p>

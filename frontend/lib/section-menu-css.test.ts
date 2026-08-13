@@ -155,11 +155,20 @@ describe("every wait wears the class", () => {
 
   it("found the pages that wait", () => expect(pages.length).toBeGreaterThanOrEqual(10));
 
-  it.each(pages)("%s marks its main while it waits", (file) => {
-    expect(read(file)).toContain("PAGE_WAITING");
-    expect(read(file), "a bare main opts out of the delay").not.toContain(
-      '<main className="page">',
+  // The reverse of what this asserted first, and the trace of a real click is why. The router
+  // unmounts the outgoing page when the route commits (14ms), so a page that hides its own <main>
+  // for the 150ms delay shows a blank screen, not the page you came from: four states with nothing
+  // in the middle one. The title is known immediately and is not a placeholder for anything.
+  it.each(pages)("%s does not hide its own main, title and all", (file) => {
+    expect(read(file), "the delay belongs on the placeholder, not the page").not.toContain(
+      "PAGE_WAITING",
     );
+  });
+
+  // It still has to be somewhere, or a load that finishes inside 150ms flashes a placeholder it
+  // never needed. PageSwap puts it on the placeholder; Run Order has no PageSwap and spells it out.
+  it.each(pages)("%s still delays its placeholder", (file) => {
+    expect(read(file)).toMatch(/PageSwap|page-waiting/);
   });
 
   // Run Order alone. Its page is not one block that arrives: the roster, the clock and the plan

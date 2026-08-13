@@ -59,10 +59,15 @@ export function PageSwap({
   return (
     <div className="page-swap">
       {holding && (
-        // Out of flow on the way out, not stacked in a grid: a grid container does not collapse
-        // margins with its children, which added 20px above the first panel for the length of the
-        // fade and then took it away again. That is the shift this exists to remove.
-        <div className={waiting ? undefined : "page-swap-out"} aria-hidden={!waiting}>
+        // While waiting it is the placeholder, and wears the delay that decides whether it is drawn
+        // at all: a load that finishes inside 150ms should never show one. That class is on this
+        // element rather than on the page's <main> because the router unmounts the outgoing page the
+        // moment the route commits, so hiding <main> hid everything, title included.
+        //
+        // On the way out it goes out of flow, not stacked in a grid: a grid container does not
+        // collapse margins with its children, which added 20px above the first panel for the length
+        // of the fade and then took it away again. That is the shift this exists to remove.
+        <div className={waiting ? "page-waiting" : "page-swap-out"} aria-hidden={!waiting}>
           {placeholder}
         </div>
       )}

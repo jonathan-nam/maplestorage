@@ -1,7 +1,6 @@
 "use client";
 
 import { PageSwap } from "@/components/page-swap";
-import { PAGE_WAITING } from "@/components/route-loading";
 import { useAuth } from "@clerk/nextjs";
 import Link from "next/link";
 import { useEffect, useState } from "react";
@@ -83,7 +82,7 @@ export default function PeoplePage() {
   const dirty = JSON.stringify(draft) !== JSON.stringify(toDraft(people));
 
   return (
-    <main className={state === "loading" ? PAGE_WAITING : "page"}>
+    <main className="page">
       <p className="loot-back">
         <Link href="/bosses/parties/edit">&larr; Edit parties</Link>
       </p>
