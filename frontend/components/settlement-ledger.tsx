@@ -317,11 +317,17 @@ function SettlementCard({
               retiring the Wallet took the only place on this account where that was possible. The
               pieces are not, being a count of coupons rather than a price. */}
           <span className={"loot-meta ledger-summary is-open"}>
-            {row.pieces > 0 && <span>{`${row.pieces} pieces`}</span>}
-            {/* Coupons of THEIRS in your inventory, which is the direction that pays a debt down
-                rather than adding to one. Said as what you would do with them, since a bare count
-                beside theirs would be two numbers called "pieces" pointing opposite ways. */}
-            {row.piecesYouOwe > 0 && <span>{`${row.piecesYouOwe} of theirs to hand over`}</span>}
+            {/* ONE count, netted, because one handover settles the pair: holding 90 of theirs
+                while they hold 20 of yours is 70 changing hands. Which way it runs is in the words,
+                since "pieces" alone said nothing about direction and the card used to print both
+                sides and leave the subtraction to you. */}
+            {row.piecesNet !== 0 && (
+              <span>
+                {row.piecesNet > 0
+                  ? `${row.piecesNet} coupons to hand over`
+                  : `${-row.piecesNet} coupons owed`}
+              </span>
+            )}
             {toCopy !== null && (
               <CopyAmount
                 value={toCopy}

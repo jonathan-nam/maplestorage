@@ -159,6 +159,39 @@ describe("what one person owes you", () => {
     );
     expect(rows).toHaveLength(1);
     expect([rows[0]!.pieces, rows[0]!.piecesYouOwe]).toEqual([20, 45]);
+    // And the pair nets, because one handover settles both: 45 of theirs less 20 of yours.
+    expect(rows[0]!.piecesNet).toBe(25);
+  });
+
+  it("nets the two directions into the one count that changes hands", () => {
+    // Husky's week with Bro, in full: 90 of his in your inventory against 20 of yours in his. The
+    // card said "20 pieces / 90 to hand over" and left the subtraction to whoever read it.
+    const rows = buildSettlement(
+      [
+        ledger(SELF, "you", {
+          drops: [
+            holdingOf("l1", "kalos-the-guardian", 30),
+            holdingOf("l2", "chosen-seren", 10),
+            holdingOf("l3", "kaling", 20),
+            holdingOf("l4", "malefic-star", 30),
+          ],
+        }),
+        ledger(BRO, "Bro", { owedToYou: 20, drops: [owing("l5", "baldrix", 20)] }),
+      ],
+      wallet([]),
+    );
+    expect(rows[0]!.piecesNet).toBe(70);
+  });
+
+  it("nets the other way round when they are the ones holding more", () => {
+    const rows = buildSettlement(
+      [
+        ledger(SELF, "you", { drops: [holdingOf("l1", "kalos-the-guardian", 10)] }),
+        ledger(BRO, "Bro", { owedToYou: 30, drops: [owing("l2", "baldrix", 30)] }),
+      ],
+      wallet([]),
+    );
+    expect(rows[0]!.piecesNet).toBe(-20);
   });
 
   it("leaves a closed night out of what you are holding", () => {
