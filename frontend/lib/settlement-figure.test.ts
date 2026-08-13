@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
-// The Collection Ledger's headline figure is what somebody is going to be ASKED for, so it is stated
+// The Settlement Ledger's headline figure is what somebody is going to be ASKED for, so it is stated
 // to the meso.
 //
 // It was shortened, and that hid a real movement: settling a 144m share took a card from 253.86b to
@@ -14,9 +14,9 @@ import { describe, expect, it } from "vitest";
 // which formatter a literal in the header uses, and the way it goes wrong is somebody reaching for
 // the shorter one because it fits better.
 
-const source = readFileSync(join(__dirname, "..", "components", "collection-ledger.tsx"), "utf8");
+const source = readFileSync(join(__dirname, "..", "components", "settlement-ledger.tsx"), "utf8");
 const page = readFileSync(join(__dirname, "..", "app", "bosses", "drops", "page.tsx"), "utf8");
-const summary = readFileSync(join(__dirname, "..", "components", "collection-summary.tsx"), "utf8");
+const summary = readFileSync(join(__dirname, "..", "components", "settlement-summary.tsx"), "utf8");
 const css = readFileSync(join(__dirname, "..", "app", "globals.css"), "utf8");
 
 describe("what the card says a person owes", () => {
@@ -89,7 +89,7 @@ describe("what the card says a person owes", () => {
     // Without V58 the link is gone: the settle marks those shares PAID, so they leave the wallet,
     // and the adjustment is left saying only "-139,548,023, offset against Bro". Folding is what
     // keeps the list one row per offset however many nights went into it.
-    expect(source).toContain("const sharesBehind = (entry: CollectionDebt)");
+    expect(source).toContain("const sharesBehind = (entry: SettlementDebt)");
     expect(source).toContain("offsetShares.get(shareKey(share.lootId, share.memberId))");
     expect(source).toContain("function EnteredRow(");
     expect(source).toContain("party-row-chevron");
@@ -133,9 +133,9 @@ describe("what the card says a person owes", () => {
     // A line per person went here and came straight back out: the cards below say the same thing, at
     // more length and with something to do about it, so it was a second list of the same names half
     // a screen above the first.
-    expect(page).toContain("<CollectionSummary rows={collection} totals={owedTotals} />");
-    expect(summary).not.toContain("collection-strip");
-    expect(css).not.toContain(".collection-strip");
+    expect(page).toContain("<SettlementSummary rows={settlement} totals={owedTotals} />");
+    expect(summary).not.toContain("settlement-strip");
+    expect(css).not.toContain(".settlement-strip");
   });
 
   it("sums the strip off the same rows the cards draw", () => {
@@ -143,7 +143,7 @@ describe("what the card says a person owes", () => {
     // answers. A strip disagreeing with the list under it is the same bug with a shorter walk.
     // Asserted on the IMPORTS, not on the prose: the comment above it has to be free to name the
     // pools in order to say why it does not read them.
-    expect(summary).toContain("rows: Collection[]");
+    expect(summary).toContain("rows: Settlement[]");
     expect(summary).not.toMatch(/^import .*(wallet|types\/loot)/m);
   });
 

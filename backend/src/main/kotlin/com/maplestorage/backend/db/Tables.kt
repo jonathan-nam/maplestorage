@@ -262,7 +262,7 @@ object Person : Table("person") {
     val userId = reference("user_id", Users.id)
     val name = text("name")
 
-    // Keep their Collection Ledger card drawn with nothing outstanding. Set by hand, derived from
+    // Keep their Settlement Ledger card drawn with nothing outstanding. Set by hand, derived from
     // nothing. See V59__person_pinned.sql.
     val pinned = bool("pinned")
     val createdAt = timestamp("created_at")
@@ -465,8 +465,9 @@ object VestigeTrancheShare : Table("vestige_tranche_share") {
 }
 
 // Mesos somebody owes you that no drop accounts for. Rows rather than a running total, the shape
-// V51 uses and for the same reason. Signed since V57. See V56__collection_balance.sql.
-object CollectionDebt : Table("collection_debt") {
+// V51 uses and for the same reason. Signed since V57. Created as collection_debt by
+// V56__collection_balance.sql and renamed by V60.
+object SettlementDebt : Table("settlement_debt") {
     val id = uuid("id")
     val userId = reference("user_id", Users.id)
 
@@ -483,9 +484,10 @@ object CollectionDebt : Table("collection_debt") {
 }
 
 // The shares an offset discharged, as (loot, member) pairs. Empty on a hand-entered debt: somebody
-// typing "he owes me 1.5b" is naming no shares. See V58__collection_debt_payout.sql.
-object CollectionDebtPayout : Table("collection_debt_payout") {
-    val debtId = reference("debt_id", CollectionDebt.id)
+// typing "he owes me 1.5b" is naming no shares. Created by V58__collection_debt_payout.sql and
+// renamed by V60.
+object SettlementDebtPayout : Table("settlement_debt_payout") {
+    val debtId = reference("debt_id", SettlementDebt.id)
     val lootId = reference("loot_id", PartyLoot.id)
     val memberId = reference("member_id", PartyMember.id)
 

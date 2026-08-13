@@ -95,30 +95,30 @@ export type AddVestigeSettlementBody = {
 
 // One debt somebody owes you that no drop accounts for: a loan, a deal made in game, a split settled
 // off the books. Positive is always what THEY owe YOU. See V56.
-export type CollectionDebt = {
+export type SettlementDebt = {
   id: string;
   holder: Holder;
   // Signed since V57. Positive is theirs to pay, negative is a debt of yours discharged against it.
   amount: number;
-  // What it was for. Optional, and the only free text on the Collection Ledger.
+  // What it was for. Optional, and the only free text on the Settlement Ledger.
   note: string | null;
   // The shares an OFFSET discharged. Empty on a hand-entered debt, which is most of them. See V58.
-  payouts: CollectionDebtPayout[];
+  payouts: SettlementDebtPayout[];
   incurredAt: string;
 };
 
 // One share an offset discharged. The PAYOUT, since one drop owes several people and only one of
 // those shares is the one covered.
-export type CollectionDebtPayout = {
+export type SettlementDebtPayout = {
   lootId: string;
   memberId: string;
 };
 
-// POST /api/collection-debts. Answers with every entry, not the one added.
-export type AddCollectionDebtBody = {
+// POST /api/settlement-debts. Answers with every entry, not the one added.
+export type AddSettlementDebtBody = {
   holder: Holder;
   amount: number;
   note?: string;
   // Only an offset names any. Absent is a debt somebody typed, which discharges no share.
-  payouts?: CollectionDebtPayout[];
+  payouts?: SettlementDebtPayout[];
 };

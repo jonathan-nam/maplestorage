@@ -5,19 +5,19 @@ import { useState } from "react";
 import { formatWeekStart } from "@/lib/boss-clears";
 import { bossLabel } from "@/lib/boss-difficulty";
 import {
-  type Collection,
+  type Settlement,
   type OffsetShare,
   owedByYouShares,
   shareKey,
   sharesOf,
-} from "@/lib/collection";
+} from "@/lib/settlement";
 import { CopyAmount } from "@/components/copy-amount";
 import { formatMesos, parseMesos } from "@/lib/drop-split";
 import { formatDropped } from "@/lib/loot";
 import type { Holder } from "@/lib/vestige-ledger";
 import type { Boss } from "@/types/boss";
 import type { Party } from "@/types/party";
-import type { CollectionDebt } from "@/types/vestige";
+import type { SettlementDebt } from "@/types/vestige";
 
 // One card per person, in the two units something can stand between you.
 //
@@ -29,7 +29,7 @@ import type { CollectionDebt } from "@/types/vestige";
 // somebody else's inventory can only be sold by them, and what they fetched is not something this can
 // see. The mirror case, where you looted the lot, is priced by the sale you entered: see V56.
 //
-// Nothing here computes a meso. Every number comes off lib/collection.ts.
+// Nothing here computes a meso. Every number comes off lib/settlement.ts.
 
 // COLOUR ONLY WHERE "DONE OR NOT" IS A REAL QUESTION, which is the headline and the money that has
 // arrived. Red for outstanding, green for paid, green matching .loot-paid.is-paid on a share badge
@@ -40,7 +40,7 @@ import type { CollectionDebt } from "@/types/vestige";
 // while it was also a credit AGAINST the debt above it, so the same number read as a problem and as
 // progress at once. The sign carries them instead, and every one of them is signed.
 
-export function CollectionLedger({
+export function SettlementLedger({
   rows,
   bossByKey,
   partyById,
@@ -54,7 +54,7 @@ export function CollectionLedger({
   onPin,
   onOffsetShares,
 }: {
-  rows: Collection[];
+  rows: Settlement[];
   bossByKey: Map<string, Boss>;
   partyById: Map<string, Party>;
   /** The shares an offset discharged, resolved, keyed by shareKey(). See V58. */
@@ -66,7 +66,7 @@ export function CollectionLedger({
   onSettlePieces: (holder: Holder, lootIds: string[]) => Promise<void>;
   onSettleShares: (payouts: { lootId: string; memberId: string }[]) => Promise<void>;
   /** Keeps this person's card drawn with nothing outstanding, or stops. See V59. */
-  onPin: (row: Collection, pinned: boolean) => Promise<void>;
+  onPin: (row: Settlement, pinned: boolean) => Promise<void>;
   /** Marks the shares paid AND records the offset, so the net does not move. See V57. */
   onOffsetShares: (
     holder: Holder,
@@ -79,7 +79,7 @@ export function CollectionLedger({
   return (
     <>
       {rows.map((row) => (
-        <CollectionCard
+        <SettlementCard
           key={row.key}
           row={row}
           bossByKey={bossByKey}
@@ -99,7 +99,7 @@ export function CollectionLedger({
   );
 }
 
-function CollectionCard({
+function SettlementCard({
   row,
   bossByKey,
   partyById,
@@ -113,7 +113,7 @@ function CollectionCard({
   onPin,
   onOffsetShares,
 }: {
-  row: Collection;
+  row: Settlement;
   bossByKey: Map<string, Boss>;
   partyById: Map<string, Party>;
   /** The shares an offset discharged, resolved, keyed by shareKey(). See V58. */
@@ -125,7 +125,7 @@ function CollectionCard({
   onSettlePieces: (holder: Holder, lootIds: string[]) => Promise<void>;
   onSettleShares: (payouts: { lootId: string; memberId: string }[]) => Promise<void>;
   /** Keeps this person's card drawn with nothing outstanding, or stops. See V59. */
-  onPin: (row: Collection, pinned: boolean) => Promise<void>;
+  onPin: (row: Settlement, pinned: boolean) => Promise<void>;
   /** Marks the shares paid AND records the offset, so the net does not move. See V57. */
   onOffsetShares: (
     holder: Holder,
@@ -261,7 +261,7 @@ function CollectionCard({
    * shares PAID, so they have left the wallet by the time this row is drawn. That is the whole
    * reason V58 stores them.
    */
-  const sharesBehind = (entry: CollectionDebt) =>
+  const sharesBehind = (entry: SettlementDebt) =>
     entry.payouts.map(
       (share) =>
         offsetShares.get(shareKey(share.lootId, share.memberId)) ?? {
@@ -606,7 +606,7 @@ function EnteredRow({
   signed,
   onRemove,
 }: {
-  entry: CollectionDebt;
+  entry: SettlementDebt;
   name: string;
   shares: OffsetShare[];
   busy: boolean;

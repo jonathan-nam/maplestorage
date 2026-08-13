@@ -1,8 +1,8 @@
 package com.maplestorage.backend.parties
 
 import com.maplestorage.backend.config.Env
-import com.maplestorage.backend.db.CollectionDebt
 import com.maplestorage.backend.db.Person
+import com.maplestorage.backend.db.SettlementDebt
 import com.maplestorage.backend.db.Users
 import com.maplestorage.backend.db.VestigeTranche
 import com.maplestorage.backend.db.VestigeTrancheShare
@@ -32,9 +32,9 @@ import kotlin.uuid.Uuid
  * is the cascade: a share of a sale that no longer exists would go on being counted. And that an
  * entered debt is scoped to the account, since it is read without naming a party.
  */
-class CollectionBalanceDbTest {
-    private val userId = "user_test_collection_1"
-    private val strangerId = "user_test_collection_2"
+class SettlementBalanceDbTest {
+    private val userId = "user_test_settlement_1"
+    private val strangerId = "user_test_settlement_2"
 
     @BeforeTest
     fun migrate() {
@@ -58,7 +58,7 @@ class CollectionBalanceDbTest {
         transaction {
             // The shares go with their tranches, which is the cascade one of these tests is about.
             VestigeTranche.deleteWhere { VestigeTranche.userId inList owners }
-            CollectionDebt.deleteWhere { CollectionDebt.userId inList owners }
+            SettlementDebt.deleteWhere { SettlementDebt.userId inList owners }
             Person.deleteWhere { Person.userId inList owners }
             Users.deleteWhere { Users.id inList owners }
         }
@@ -117,7 +117,7 @@ class CollectionBalanceDbTest {
     @Test
     fun `a sale comes back carrying whose pieces it was`() {
         transaction {
-            ensureUser(userId, "collection@example.com")
+            ensureUser(userId, "settlement@example.com")
             val bro = person(userId, "Bro")
             // The night this exists for: 160 fell, 80 were theirs, you looted the lot and sold it.
             soldWithShare(userId, bro, pieces = 160, amount = 4_000_000_000, theirs = 80)
@@ -139,7 +139,7 @@ class CollectionBalanceDbTest {
     @Test
     fun `removing a mistyped sale takes its attribution with it`() {
         transaction {
-            ensureUser(userId, "collection@example.com")
+            ensureUser(userId, "settlement@example.com")
             val bro = person(userId, "Bro")
             val trancheId = soldWithShare(userId, bro, 160, 4_000_000_000, 80)
 
@@ -158,7 +158,7 @@ class CollectionBalanceDbTest {
     @Test
     fun `one account never sees another's entered debts`() {
         transaction {
-            ensureUser(userId, "collection@example.com")
+            ensureUser(userId, "settlement@example.com")
             ensureUser(strangerId, "stranger@example.com")
             val mine = person(userId, "Bro")
             val theirs = person(strangerId, "Someone")
@@ -171,13 +171,13 @@ class CollectionBalanceDbTest {
                 Triple(strangerId, theirs, 9_000_000_000L),
             )
             ) {
-                CollectionDebt.insert {
+                SettlementDebt.insert {
                     it[id] = Uuid.random()
                     it[userId] = owner
                     it[holderKind] = "PERSON"
                     it[personId] = who
                     it[characterName] = null
-                    it[CollectionDebt.amount] = amount
+                    it[SettlementDebt.amount] = amount
                     it[note] = "Ludi loan"
                     it[incurredAt] = now
                     it[createdAt] = now

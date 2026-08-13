@@ -56,7 +56,7 @@ export type WalletLine = {
 // Coupon debt is NOT here, and no longer has a meso figure anywhere. It is a count of pieces:
 // coupons are single-trade, so only the holder can sell them and what they fetched is not knowable
 // from this side. A count cannot be added to a wallet of mesos, so it is stated in its own unit on
-// the Collection Ledger. See lib/collection.ts.
+// the Settlement Ledger. See lib/settlement.ts.
 
 export type Counterparty = {
   key: string;

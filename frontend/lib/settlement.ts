@@ -22,7 +22,7 @@
 import { SELF_KEY, holderFromKey, holderKey } from "./vestige-ledger";
 import type { Holder, HolderLedger, SaleCredit } from "./vestige-ledger";
 import type { Wallet, WalletLine } from "./wallet";
-import type { CollectionDebt } from "@/types/vestige";
+import type { SettlementDebt } from "@/types/vestige";
 
 /** One night's pieces of yours, sitting in somebody else's inventory. */
 export type HeldOfYours = {
@@ -37,7 +37,7 @@ export type HeldOfYours = {
 };
 
 /** One person, and everything of yours they have not handed over yet. */
-export type Collection = {
+export type Settlement = {
   key: string;
   name: string;
   /**
@@ -105,12 +105,12 @@ export type Collection = {
   /** Drawn whatever it says, because somebody said to keep it. See V59. */
   pinned: boolean;
   /** The entered rows themselves, so a mistyped one can be taken back off the card. */
-  entries: CollectionDebt[];
+  entries: SettlementDebt[];
   drops: HeldOfYours[];
   lines: WalletLine[];
 };
 
-const blank = (key: string, name: string): Collection => ({
+const blank = (key: string, name: string): Settlement => ({
   key,
   name,
   // A PERSON key is somebody who has been named. A CHARACTER key is one nobody has claimed yet, and
@@ -134,11 +134,11 @@ const blank = (key: string, name: string): Collection => ({
  * Keyed the way both sides already key a counterparty (`person:<id>` or `character:<name>`), so a
  * person who owes you pieces AND a share is one row rather than two.
  */
-export function buildCollection(
+export function buildSettlement(
   ledgers: HolderLedger[],
   wallet: Wallet,
   /** Entered by hand, from V56. Rows rather than a total, so one can be taken back off. */
-  debts: CollectionDebt[] = [],
+  debts: SettlementDebt[] = [],
   /** What sales of somebody else's coupons came to, per counterparty. See saleCredits. */
   credits: Map<string, SaleCredit> = new Map(),
   /**
@@ -158,8 +158,8 @@ export function buildCollection(
    * would have to make appear first.
    */
   pinned: Set<string> = new Set(),
-): Collection[] {
-  const out = new Map<string, Collection>();
+): Settlement[] {
+  const out = new Map<string, Settlement>();
   const rowFor = (key: string, name?: string) => {
     const row = out.get(key) ?? blank(key, name ?? names.get(key) ?? key);
     out.set(key, row);
@@ -284,7 +284,7 @@ export function buildCollection(
  * nothing while looking as though it had. That is why coupon debt was kept out of the wallet's own
  * lines, and the same trap is one function away here.
  */
-export function sharesOf(row: Collection): { lootId: string; memberId: string }[] {
+export function sharesOf(row: Settlement): { lootId: string; memberId: string }[] {
   return row.lines.map((line) => ({ lootId: line.lootId, memberId: line.payeeId }));
 }
 
@@ -315,7 +315,7 @@ export function shareKey(lootId: string, memberId: string): string {
 }
 
 /** What the whole list comes to, in the three figures the Wallet page used to carry. */
-export type CollectionTotals = { owed: number; owe: number; net: number; people: number };
+export type SettlementTotals = { owed: number; owe: number; net: number; people: number };
 
 /**
  * The account's position, summed off the CARDS rather than worked out again.
@@ -327,7 +327,7 @@ export type CollectionTotals = { owed: number; owe: number; net: number; people:
  * The pieces are not in it. A count cannot be added to a total of mesos, which is the rule the whole
  * ledger is built on.
  */
-export function collectionTotals(rows: Collection[]): CollectionTotals {
+export function settlementTotals(rows: Settlement[]): SettlementTotals {
   const owed = rows.reduce((sum, row) => sum + row.mesos, 0);
   const owe = rows.reduce((sum, row) => sum + row.owedByYou, 0);
   return { owed, owe, net: owed - owe, people: rows.length };
@@ -339,14 +339,14 @@ export function collectionTotals(rows: Collection[]): CollectionTotals {
  * Not sharesOf, which is every line: on a card running both ways that would mark what THEY owe you
  * paid at the same time, and say you had collected money nobody has sent.
  */
-export function owedByYouShares(row: Collection): { lootId: string; memberId: string }[] {
+export function owedByYouShares(row: Settlement): { lootId: string; memberId: string }[] {
   return row.lines
     .filter((line) => line.direction === "owe")
     .map((line) => ({ lootId: line.lootId, memberId: line.payeeId }));
 }
 
 /** Nothing stands between you either way. */
-export function isEmpty(row: Collection): boolean {
+export function isEmpty(row: Settlement): boolean {
   return row.pieces === 0 && row.mesos === 0 && row.owedByYou === 0;
 }
 
@@ -356,7 +356,7 @@ export function isEmpty(row: Collection): boolean {
  * Yours because they are the only ones you can sell out of. Somebody else's ONLY as history: their
  * sales used to be entered tranche by tranche and those rows can be corrected nowhere else, so
  * filtering them away would put a mistyped figure beyond reach. What they owe is not stated there,
- * on the Collection Ledger's side of the split, so the two cannot give two answers.
+ * on the Settlement Ledger's side of the split, so the two cannot give two answers.
  *
  * A SETTLED pile drops off. A correction affordance is for a transaction somebody may still argue
  * about, and closing the books is the statement that nobody will: what was left was a bare 4.86b on

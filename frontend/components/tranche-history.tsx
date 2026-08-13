@@ -8,11 +8,11 @@ import type { VestigePayment, VestigeTranche } from "@/types/vestige";
 // The rows already recorded against somebody else's pile, and nothing else.
 //
 // Their sales used to be entered here, tranche by tranche, so a meso figure could be derived pro
-// rata. That is gone: a piece debt is stated in pieces on the Collection Ledger and settled by one
+// rata. That is gone: a piece debt is stated in pieces on the Settlement Ledger and settled by one
 // payment, because coupons are single-trade and only the holder can sell them.
 //
 // The rows entered under the old shape still exist, and this card is the only place they can be
-// corrected. It states no debt and no total, so it cannot disagree with the Collection Ledger about
+// corrected. It states no debt and no total, so it cannot disagree with the Settlement Ledger about
 // what anybody owes: it is a list of what was typed, with a way to untype it.
 //
 // It draws only for a holder who HAS such rows, so it dies out on its own as each old pile is

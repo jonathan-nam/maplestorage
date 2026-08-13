@@ -6,7 +6,7 @@ import kotlin.test.assertTrue
 
 // The two halves of V56: whose pieces a sale was, and what somebody owes you that no drop accounts
 // for. See V56__collection_balance.sql.
-class CollectionBalanceTest {
+class SettlementBalanceTest {
     private val self = VestigeHolder(kind = "SELF")
     private val bro = VestigeHolder(kind = "PERSON", personId = "6f1a8f6e-0000-4000-8000-000000000001")
     private val jared = VestigeHolder(kind = "PERSON", personId = "6f1a8f6e-0000-4000-8000-000000000002")

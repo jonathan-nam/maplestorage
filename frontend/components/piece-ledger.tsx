@@ -23,7 +23,7 @@ import type { VestigeTranche, VestigeTrancheShare } from "@/types/vestige";
 // they came off.
 //
 // Only piles you can sell out of reach this card. What somebody ELSE holds is a debt rather than a
-// sale, and it is the Collection Ledger's, stated in pieces: see lib/collection.ts.
+// sale, and it is the Settlement Ledger's, stated in pieces: see lib/settlement.ts.
 //
 // A person, not a character. One human running three characters has one pile and one box, and each
 // boss row names which of their characters looted it, so the fold hides nothing.
