@@ -1,6 +1,5 @@
 package com.maplestorage.backend.parties
 
-import com.maplestorage.backend.bosses.bossClearedOn
 import com.maplestorage.backend.bosses.weekOf
 import com.maplestorage.backend.db.Party
 import com.maplestorage.backend.db.PartyLoot
@@ -93,17 +92,12 @@ internal fun poolFor(
 /**
  * Records which mode this character runs a boss at alone, opening the pool if it has none yet.
  *
- * The one thing a clear cannot say for itself. Coupons are per (boss, difficulty) and no boss drops
- * them at every mode it has, so "Kalos cleared" on its own is 180 coupons or none, and a party gets
- * this off the config it already has. See lootFromClear.
+ * The mode is what makes a count fillable: coupons are per (boss, difficulty) and no boss drops them
+ * at every mode it has, so "Kalos" alone is 180 or none. A party carries this on its config, and this
+ * is the same answer for a boss run alone.
  *
  * The pool is opened by naming a mode, before anything has fallen in it. It is the same row logging
- * a drop would have opened, and it holds nothing until a clear or a human puts something there.
- *
- * Re-files the period this instant falls in, both ways round: it takes back only the rows it filed
- * itself and puts back what the mode it has NOW guarantees. So a mode named after the clear was
- * ticked does not leave this week's coupons missing until the reset, and Chaos corrected to Extreme
- * leaves one row of 180 rather than two.
+ * a drop would have opened, and it holds nothing until a human puts something there.
  *
  * Null when the pair is held by a party. That config carries the mode already, beside the roster and
  * the split it is read with, and writing one here would edit a party through a door that sees
@@ -113,7 +107,6 @@ internal fun setSoloDifficulty(
     userId: String,
     characterId: Uuid,
     bossCatalogId: Uuid,
-    reset: String,
     difficulty: String?,
     now: Instant,
 ): Uuid? {
@@ -123,11 +116,6 @@ internal fun setSoloDifficulty(
     Party.update({ Party.id eq partyId }) {
         it[Party.difficulty] = difficulty
         it[updatedAt] = now
-    }
-    val today = todayIn(now)
-    unlootFromClear(characterId, bossCatalogId, reset, today)
-    if (bossClearedOn(characterId, bossCatalogId, reset, today)) {
-        lootFromClear(characterId, bossCatalogId, reset, today, now)
     }
     return partyId
 }

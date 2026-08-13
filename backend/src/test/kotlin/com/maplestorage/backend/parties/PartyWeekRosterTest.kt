@@ -650,14 +650,13 @@ class PartyWeekRosterTest {
     }
 
     @Test
-    fun `the coupons a clear files itself do not pin the split they fell under`() {
+    fun `a clear on its own leaves the split to the deal that is standing`() {
         transaction {
             val party = trio(difficulty = "HARD")
             val partyId = Uuid.parse(party.id)
             val boss = bossIdForKey("limbo")!!
-            // Hard Limbo's 60 coupons are guaranteed, so the tick files them on its own and the week
-            // is written before anybody has been asked what the split is. A party made and cleared
-            // in the same sitting could then never be given one. See lootFromClear.
+            // A tick says the party ran, and nothing else. Nothing fell as far as the pool is
+            // concerned, so a party cleared and then given a split has no week to have pinned.
             setPartyClear(party, boss, bossResetOf(boss)!!, cleared = true, now = Clock.System.now())
 
             saveParty(
@@ -674,9 +673,8 @@ class PartyWeekRosterTest {
             )
 
             val steve = findParty(partyId, userId)!!.members.first { it.name == "Steve" }
-            val coupons = lootFor(partyId).first { it.dropKey == "vestige-of-erion" }
             assertEquals(3, steve.shares)
-            assertNull(coupons.sharesThatWeek[steve.id], "the standing deal")
+            assertTrue(lootFor(partyId).isEmpty())
         }
     }
 

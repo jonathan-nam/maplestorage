@@ -411,9 +411,9 @@ export function groupDrops(entries: DropEntry[], grouping: Grouping): DropGroup[
 /**
  * One line of the log: an ordinary drop, or every row of one stacking drop folded together.
  *
- * A boss that guarantees coupons files a row per boss, so a week of bossing is the same drop listed
- * five times and the only number anybody wants is the total. Folded here rather than in the page,
- * because the count is the point and a component adding it up would be a second answer to it.
+ * Coupons come off a boss apiece and each pool holds its own row, so a week of bossing is the same
+ * drop listed five times and the only number anybody wants is the total. Folded here rather than in
+ * the page, because the count is the point and a component adding it up would be a second answer.
  */
 export type DropLine = {
   /** The drop key when this is a fold, the loot id when it stands for one row. */

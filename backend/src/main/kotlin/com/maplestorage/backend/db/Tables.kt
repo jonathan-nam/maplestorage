@@ -390,9 +390,9 @@ object PartyLoot : Table("party_loot") {
     // with the count on it. See V34__loot_quantity_and_shares.sql.
     val quantity = integer("quantity")
 
-    // The app added this row from a clear rather than a human logging it, so un-ticking that clear
-    // may take it back. See V37__loot_from_clear.sql.
-    val fromClear = bool("from_clear")
+    // True on the rows a clear tick filed by itself, back when ticking one did that (V37). Nothing
+    // writes it any more, and it is kept only so those rows can still be told from typed ones.
+    val fromClear = bool("from_clear").default(false)
 
     // The sale, all six columns or none of them (party_loot_sale_complete).
     val soldAt = timestamp("sold_at").nullable()

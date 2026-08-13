@@ -1,9 +1,6 @@
 package com.maplestorage.backend.parties
 
 import com.maplestorage.backend.bosses.periodAfter
-import com.maplestorage.backend.bosses.periodOf
-import com.maplestorage.backend.bosses.periodStartFor
-import com.maplestorage.backend.db.BossClear
 import com.maplestorage.backend.db.CharacterBossSkip
 import com.maplestorage.backend.db.Party
 import com.maplestorage.backend.db.PartyLoot
@@ -22,7 +19,6 @@ import org.jetbrains.exposed.v1.jdbc.deleteWhere
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.update
-import org.jetbrains.exposed.v1.jdbc.upsert
 import kotlin.time.Instant
 import kotlin.uuid.Uuid
 
@@ -116,87 +112,8 @@ internal fun saveParty(
     setLooter(partyId, request.looterName)
 }
 
-/**
- * Marks this config's boss cleared, or not, for the period it is currently in.
- *
- * Writes boss_clear, which is what makes the two pages agree: the clear matrix reads this row and
- * a planner capture overwrites it. There is one answer to "is Kalos done this week", and ticking
- * it here is another way of saying it rather than a second place to keep it.
- *
- * source_screenshot_id is left null on purpose. It is what tells a hand-tick from a capture later,
- * and the next capture will replace this row with one that has a screenshot behind it.
- */
-internal fun setPartyClear(
-    party: PartyResponse,
-    bossCatalogId: Uuid,
-    reset: String,
-    cleared: Boolean,
-    now: Instant,
-) {
-    BossClear.upsert(BossClear.characterId, BossClear.bossCatalogId, BossClear.periodStart) { row ->
-        row[characterId] = Uuid.parse(party.characterId)
-        row[BossClear.bossCatalogId] = bossCatalogId
-        row[periodStart] = periodStartFor(reset, now)
-        row[BossClear.cleared] = cleared
-        row[capturedAt] = now
-        row[sourceScreenshotId] = null
-    }
-    // What the clear guarantees, or taking it back. See LootFromClear.kt.
-    val own = Uuid.parse(party.characterId)
-    val today = todayIn(now)
-    if (cleared) {
-        lootFromClear(own, bossCatalogId, reset, today, now)
-    } else {
-        unlootFromClear(own, bossCatalogId, reset, today)
-    }
-}
-
 /** Today, as the clock the periods are measured on sees it. */
 internal fun todayIn(now: Instant): LocalDate = now.toLocalDateTime(TimeZone.UTC).date
-
-/**
- * The clear a drop implies: something fell, so the boss died.
- *
- * Only ever writes true, and only over silence or a "not cleared". A clear already recorded is
- * left alone rather than rewritten, which is what keeps the screenshot behind a captured one and
- * stops it being relabelled as a hand tick.
- *
- * The period is the DROP'S, not today's. A drop carries the date it fell on, so filing the clear
- * against the day the request arrived would tick this week for a kill in the last one. That also
- * makes this the one clear a past period can gain: unlike a tick, a drop says which period it
- * belongs to.
- *
- * Nothing here goes the other way. Deleting the drop does not un-clear the boss, since removing
- * the record of what fell says nothing about whether it died.
- */
-internal fun clearFromDrop(
-    characterId: Uuid,
-    bossCatalogId: Uuid,
-    reset: String,
-    droppedOn: LocalDate,
-    now: Instant,
-) {
-    val period = periodOf(reset, droppedOn)
-    val already =
-        BossClear
-            .selectAll()
-            .where {
-                (BossClear.characterId eq characterId) and
-                    (BossClear.bossCatalogId eq bossCatalogId) and
-                    (BossClear.periodStart eq period)
-            }.firstOrNull()
-            ?.get(BossClear.cleared) == true
-    if (already) return
-
-    BossClear.upsert(BossClear.characterId, BossClear.bossCatalogId, BossClear.periodStart) { row ->
-        row[BossClear.characterId] = characterId
-        row[BossClear.bossCatalogId] = bossCatalogId
-        row[periodStart] = period
-        row[cleared] = true
-        row[capturedAt] = now
-        row[sourceScreenshotId] = null
-    }
-}
 
 /** What taking a config off Party View did to it. */
 internal enum class Removal {
@@ -217,9 +134,7 @@ internal enum class Removal {
  *
  * All time, not the shown week. A settled drop from months ago is exactly the record this keeps.
  *
- * The tick this period goes first, so what is left is what somebody actually entered. See
- * withdrawClear: a config whose only drop was one a clear filed for it is a config nothing points
- * at, and is deleted rather than retired over a row the app wrote itself.
+ * The tick this period is withdrawn with it, since it was made through this row. See withdrawClear.
  */
 internal fun retireOrDeleteParty(
     partyId: Uuid,

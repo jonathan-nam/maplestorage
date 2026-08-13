@@ -386,7 +386,6 @@ class PartyPeriodSkipTest {
                 bossIdForKey("limbo"),
                 todayUtc(),
                 Clock.System.now(),
-                fromClear = true,
             )
 
             // The failure this guards: Delete takes the row off Party View and leaves the coupons

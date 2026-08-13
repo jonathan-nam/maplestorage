@@ -42,14 +42,11 @@ internal suspend fun RoutingContext.setSoloDifficultyRoute() {
                 bossId == null -> "unknown bossKey"
                 else ->
                     validateDifficulty(bossId, request.difficulty) ?: run {
-                        // Non-null by the catalog row the boss id came out of.
-                        val reset = bossResetOf(bossId)!!
                         val partyId =
                             setSoloDifficulty(
                                 userId,
                                 characterId,
                                 bossId,
-                                reset,
                                 request.difficulty,
                                 Clock.System.now(),
                             )
