@@ -468,7 +468,10 @@ export default function DropLogPage() {
   // may be recorded and nothing else, so it waits behind the control that offers exactly that rather
   // than standing on screen saying "holding 1140" at somebody with nothing to do about it.
   const { drawn, quiet } = worthDrawing(yours, recorded);
-  const shownYours = sellingOwn ? [...drawn, ...quiet] : drawn;
+  // A held-back pile, once asked for. Drawn where the control that asked for it stood, not folded in
+  // above with the rest: appended there, a click at the foot of the page made a card appear further
+  // up it and took away the thing that was clicked, and nothing on screen tied the two together.
+  const revealed = sellingOwn ? quiet : [];
   const historyHolders = history.map((l) => ({
     key: holderKey(l.holder),
     holder: l.holder,
@@ -492,12 +495,49 @@ export default function DropLogPage() {
   // See lib/drop-sections.ts for why the chosen tab is not drawn straight from state.
   const sections = dropSections();
   const shown = shownSection(section, sections);
+  /**
+   * Everything a pile card takes but the piles themselves.
+   *
+   * Two lists draw from it: the piles worth drawing, and a held-back one the reader asked for. Same
+   * card either way, in a different place on the page, so the wiring cannot drift between them.
+   */
+  const pileCard = {
+    tranches: tranchesByHolder,
+    bossByKey,
+    partyById,
+    iconUrl: vestigeIcon,
+    busy,
+    // `shares` says how many of the pieces were somebody else's, so their part of what this lot
+    // fetched lands on the Settlement Ledger. Empty is the whole sale being your own, which is every
+    // tranche entered before V56. See saleCredits.
+    onAddSale: (holder: Holder, pieces: number, amount: number, shares: VestigeTrancheShare[]) =>
+      saleWrite(TRANCHES_KEY, {
+        method: "POST",
+        body: JSON.stringify({ holder, pieces, amount, disposition: "SOLD", shares }),
+      }),
+    // No amount: a redemption realized nothing, where a sale for zero would price those pieces at
+    // nothing. The server refuses the two disagreeing. See V46.
+    onAddKept: (holder: Holder, pieces: number) =>
+      saleWrite(TRANCHES_KEY, {
+        method: "POST",
+        body: JSON.stringify({ holder, pieces, disposition: "KEPT" }),
+      }),
+    // Pieces of yours they took instead of selling, at a price somebody agreed. An amount like a
+    // sale, and off the pile like a redemption. See V50.
+    onAddBought: (holder: Holder, pieces: number, amount: number) =>
+      saleWrite(TRANCHES_KEY, {
+        method: "POST",
+        body: JSON.stringify({ holder, pieces, amount, disposition: "BOUGHT" }),
+      }),
+    onRemoveSale: (trancheId: string) =>
+      saleWrite(`${TRANCHES_KEY}/${trancheId}`, { method: "DELETE" }),
+  };
   // Whether either ledger has anything on it, which is what decides between its cards and one line
   // saying there are none. All three tabs are always offered. See lib/drop-sections.ts.
   const hasSales =
     saleCards({
       unanswered: open.length,
-      holders: shownYours.length + history.length,
+      holders: drawn.length + revealed.length + history.length,
       lots: money ? lots.length : 0,
     }) > 0;
 
@@ -655,7 +695,7 @@ export default function DropLogPage() {
                   more of the same thing and there is nothing there to divide. */}
                 {/* Gated on what will actually draw, not on there being ledgers at all: a pile held
                   back for owing nobody leaves the heading standing over nothing. */}
-                {(sellableLots || shownYours.length > 0 || history.length > 0) && (
+                {(sellableLots || drawn.length > 0 || history.length > 0) && (
                   <section className="loot-pool">
                     <h2 className="loot-pool-title">Record Sale</h2>
 
@@ -671,48 +711,7 @@ export default function DropLogPage() {
                       />
                     )}
 
-                    <PieceLedger
-                      ledgers={shownYours}
-                      tranches={tranchesByHolder}
-                      bossByKey={bossByKey}
-                      partyById={partyById}
-                      iconUrl={vestigeIcon}
-                      busy={busy}
-                      // `shares` says how many of the pieces were somebody else's, so their part of
-                      // what this lot fetched lands on the Settlement Ledger. Empty is the whole sale
-                      // being your own, which is every tranche entered before V56. See saleCredits.
-                      onAddSale={(holder: Holder, pieces, amount, shares: VestigeTrancheShare[]) =>
-                        saleWrite(TRANCHES_KEY, {
-                          method: "POST",
-                          body: JSON.stringify({
-                            holder,
-                            pieces,
-                            amount,
-                            disposition: "SOLD",
-                            shares,
-                          }),
-                        })
-                      }
-                      // No amount: a redemption realized nothing, where a sale for zero would price those
-                      // pieces at nothing. The server refuses the two disagreeing. See V46.
-                      onAddKept={(holder: Holder, pieces) =>
-                        saleWrite(TRANCHES_KEY, {
-                          method: "POST",
-                          body: JSON.stringify({ holder, pieces, disposition: "KEPT" }),
-                        })
-                      }
-                      // Pieces of yours they took instead of selling, at a price somebody agreed. An
-                      // amount like a sale, and off the pile like a redemption. See V50.
-                      onAddBought={(holder: Holder, pieces, amount) =>
-                        saleWrite(TRANCHES_KEY, {
-                          method: "POST",
-                          body: JSON.stringify({ holder, pieces, amount, disposition: "BOUGHT" }),
-                        })
-                      }
-                      onRemoveSale={(trancheId) =>
-                        saleWrite(`${TRANCHES_KEY}/${trancheId}`, { method: "DELETE" })
-                      }
-                    />
+                    <PieceLedger ledgers={drawn} {...pileCard} />
 
                     {/* Somebody else's rows, from when their sales were entered here. No debt and no
                       total: what they owe is the Settlement Ledger's to say. Here so a mistyped one
@@ -732,15 +731,27 @@ export default function DropLogPage() {
                   </section>
                 )}
 
-                {/* The way back to a pile that owes nobody. Holding coupons is not a task, so it is not
-                  a card until it is asked for, but they are still yours to sell and a ledger that
-                  will not admit you hold them cannot take the sale. After the cards rather than
-                  above them: it is the way to one more of the same, not a heading over them. */}
-                {quiet.length > 0 && !sellingOwn && (
-                  <button type="button" className="party-save" onClick={() => setSellingOwn(true)}>
-                    Record a sale
-                  </button>
-                )}
+                {/* The way back to a pile that owes nobody, and then the pile itself, in the one slot.
+                  Holding coupons is not a task, so it is not a card until it is asked for, but they
+                  are still yours to sell and a ledger that will not admit you hold them cannot take
+                  the sale. After the cards rather than above them: it is the way to one more of the
+                  same, not a heading over them.
+
+                  The card replaces the control that asked for it. Somewhere else on the page it was
+                  a pile of coupons appearing for no stated reason, which is how a reader ends up
+                  asking what they just recorded. It focuses its own count box for the same reason. */}
+                {quiet.length > 0 &&
+                  (sellingOwn ? (
+                    <PieceLedger ledgers={revealed} {...pileCard} focusEntry />
+                  ) : (
+                    <button
+                      type="button"
+                      className="party-save"
+                      onClick={() => setSellingOwn(true)}
+                    >
+                      Record a sale
+                    </button>
+                  ))}
 
                 {/* Last, and the one real boundary on this tab: every card above takes a sale, and this
                   one cannot be acted on for money at all. It names the nights whose arrangement

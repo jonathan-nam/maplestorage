@@ -411,18 +411,37 @@ const page = readFileSync(join(__dirname, "..", "app", "bosses", "drops", "page.
 
 describe("the way back to a pile the ledger held back", () => {
   it("offers it, and only while it is still held back", () => {
-    expect(page).toMatch(/quiet\.length > 0 && !sellingOwn/);
+    expect(page).toMatch(/quiet\.length > 0 &&\s*\(sellingOwn \?/);
     expect(page).toContain("Record a sale");
   });
 
   it("draws the held-back piles once it is asked for", () => {
-    expect(page).toMatch(/sellingOwn \? \[\.\.\.drawn, \.\.\.quiet\] : drawn/);
+    expect(page).toMatch(/const revealed = sellingOwn \? quiet : \[\]/);
+    expect(page).toMatch(/<PieceLedger ledgers=\{revealed\}/);
+  });
+
+  // The card the click produces has to arrive where the click was. Appended to the drawn list it
+  // rendered above the button, so clicking at the foot of the page made a pile of coupons appear
+  // higher up it and removed the control that was clicked, with nothing tying the two together.
+  it("puts the revealed card in the slot the control occupied, not up with the drawn ones", () => {
+    expect(page).toMatch(/<PieceLedger ledgers=\{drawn\}/);
+    const slot = page.slice(page.indexOf("quiet.length > 0 &&"));
+    expect(slot).toMatch(/<PieceLedger ledgers=\{revealed\}[\s\S]*?Record a sale/);
+  });
+
+  it("puts the cursor in the revealed card, since a click with no visible effect is the bug", () => {
+    expect(page).toMatch(/ledgers=\{revealed\}[^/]*focusEntry/);
   });
 
   it("gates the heading on what will draw, not on there being ledgers at all", () => {
     // A heading over no cards is a heading over nothing, and holding a pile back is exactly what
-    // empties the section underneath it.
+    // empties the section underneath it. The revealed card is outside the section, so it is `drawn`
+    // that decides, not the piles on screen.
     expect(page).not.toMatch(/sellableLots \|\| ledgers\.length > 0/);
-    expect(page).toMatch(/sellableLots \|\| shownYours\.length > 0 \|\| history\.length > 0/);
+    expect(page).toMatch(/sellableLots \|\| drawn\.length > 0 \|\| history\.length > 0/);
+  });
+
+  it("counts the revealed card, so the empty line does not sit above one", () => {
+    expect(page).toMatch(/holders: drawn\.length \+ revealed\.length \+ history\.length/);
   });
 });

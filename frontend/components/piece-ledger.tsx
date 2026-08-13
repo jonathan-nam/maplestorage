@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { apiAssetUrl } from "@/lib/api";
 import { formatWeekStart } from "@/lib/boss-clears";
 import { bossLabel } from "@/lib/boss-difficulty";
@@ -60,6 +60,7 @@ export function PieceLedger({
   onAddKept,
   onAddBought,
   onRemoveSale,
+  focusEntry = false,
 }: {
   ledgers: HolderLedger[];
   /** Every holder's tranches, keyed by holderKey(), oldest first as the server returns them. */
@@ -78,6 +79,14 @@ export function PieceLedger({
   onAddKept: (holder: Holder, pieces: number) => Promise<void>;
   onAddBought: (holder: Holder, pieces: number, amount: number) => Promise<void>;
   onRemoveSale: (trancheId: string) => Promise<void>;
+  /**
+   * Puts the cursor in the first card's count box.
+   *
+   * Set where a card is drawn by a click rather than by having something to answer: the cursor is
+   * what says the click produced this. Off everywhere else, since stealing focus on load moves the
+   * page under a reader who did not ask for it.
+   */
+  focusEntry?: boolean;
 }) {
   if (ledgers.length === 0) return null;
   // Every card, settled ones included. These bosses drop vestiges on every clear, so a holder's card is
@@ -85,10 +94,11 @@ export function PieceLedger({
   // that says "fully settled" answers the question a missing card leaves open.
   return (
     <>
-      {ledgers.map((ledger) => (
+      {ledgers.map((ledger, i) => (
         <HolderCard
           key={holderKey(ledger.holder)}
           ledger={ledger}
+          focusEntry={focusEntry && i === 0}
           tranches={tranches.get(holderKey(ledger.holder)) ?? []}
           bossByKey={bossByKey}
           partyById={partyById}
@@ -115,6 +125,7 @@ function HolderCard({
   onAddKept,
   onAddBought,
   onRemoveSale,
+  focusEntry,
 }: {
   ledger: HolderLedger;
   tranches: VestigeTranche[];
@@ -131,6 +142,7 @@ function HolderCard({
   onAddKept: (holder: Holder, pieces: number) => Promise<void>;
   onAddBought: (holder: Holder, pieces: number, amount: number) => Promise<void>;
   onRemoveSale: (trancheId: string) => Promise<void>;
+  focusEntry: boolean;
 }) {
   const [pieces, setPieces] = useState("");
   const [amount, setAmount] = useState("");
@@ -138,6 +150,13 @@ function HolderCard({
   const [refusal, setRefusal] = useState<string | null>(null);
   /** Pieces of the sale that were each creditor's, as typed, keyed by holderKey. */
   const [theirs, setTheirs] = useState<Record<string, string>>({});
+  const entryRef = useRef<HTMLInputElement>(null);
+
+  // On mount only, which is the click that drew this card: focus is what ties the two together, and
+  // taking it back later would move the cursor out from under somebody mid-type.
+  useEffect(() => {
+    if (focusEntry) entryRef.current?.focus();
+  }, [focusEntry]);
 
   // Who this pile owes coupons to. Asked only on a SALE: a redemption realized nothing to divide and
   // a purchase is already one creditor's in full at an agreed price. See V50 and V56.
@@ -289,6 +308,7 @@ function HolderCard({
             }}
           >
             <input
+              ref={entryRef}
               className="split-input loot-count-input"
               value={pieces}
               onChange={(e) => setPieces(clamp(e.target.value, room))}
