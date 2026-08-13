@@ -16,17 +16,15 @@ import type { Party } from "@/types/party";
 
 /** How this party splits the coupons, and the write that changes it. */
 export type StackAssignment = {
-  /**
-   * What to head the group with while these boxes are under it.
-   *
-   * Passed in rather than built from the rows: the catalog calls the drop a "Vestige of Erion
-   * Coupon", and a heading made of that plus a word would read Coupon Config. The page that knows
-   * which drop this is names it, and this stays a group of piece rows.
-   */
-  title: string;
   /** What the boss drops and who is splitting it. Off the catalog, not off a logged drop. */
   config: ShareConfig;
-  /** Heads the split itself, which is the standing deal rather than any one night. */
+  /**
+   * Heads the split, which is the standing deal rather than any one night.
+   *
+   * The block's only heading. It used to sit under a second one naming the coupon and the fact that
+   * this is a config, with the week's own stack of coupons inside the same frame: a drop that had
+   * fallen, filed under a heading about settings. What fell belongs to the drops above.
+   */
   entitledTitle: string;
   /** The new ratio, by seat id. */
   onSave: (shares: Map<string, number>) => Promise<void>;
@@ -106,10 +104,16 @@ export function LootList({
   const sellable = loot.filter((item) => !isPieceDrop(item, party, dropTables));
   // Headed only when both kinds are present. A pool of one kind is just the pool.
   const headed = sellable.length > 0 && coupons.length > 0;
-  // The coupons are headed by their own NAME when the boxes are under them, because then the group
-  // is a block of controls rather than a row: what it is called is the one thing tying the count,
-  // the boxes and the Save together. "Coupons" over one row said nothing the row did not.
-  const couponTitle = stacks ? stacks.title : headed ? "Coupons" : null;
+  // A stack of coupons is a DROP, so it is headed like one. It used to take the config's heading
+  // whenever the boxes were on screen, which read as though the week's coupons were a setting: the
+  // deal has its own block below now, and this says what the rows are.
+  //
+  // Null where the pool is the page and holds one kind, which is the pool's own title's job. Only a
+  // panel, whose neighbours are headed too, needs the word.
+  const couponTitle = headed ? "Coupons" : stacks ? "Drops" : null;
+  // Whichever kind is on its own carries the same word, so a week of one hammer and a week of one
+  // stack of coupons are headed alike.
+  const sellableTitle = headed || stacks ? "Drops" : null;
 
   return (
     <>
@@ -118,7 +122,7 @@ export function LootList({
           stack of coupons divides by COUNT and is priced on the Drop Log, in tranches. */}
       <LootGroup
         rows={sellable}
-        title={headed ? "Drops" : null}
+        title={sellableTitle}
         party={party}
         bossByKey={bossByKey}
         isSaving={isSaving}
@@ -146,6 +150,22 @@ export function LootList({
         onSetPaid={onSetPaid}
         onDelete={onDelete}
       />
+      {/* The standing deal, under everything that fell rather than around it. Framed on its own, so
+          what the party agreed and what the week dropped are two blocks and not one.
+
+          Drawn whether or not anything fell: what the boss gives is a fact about the boss, so the
+          split can be agreed in a week nobody has run it yet. */}
+      {stacks && (
+        <div className="loot-config-card">
+          <h3 className="loot-group-title is-config">{stacks.entitledTitle}</h3>
+          <StackAssign
+            config={stacks.config}
+            editing={editing ?? false}
+            busy={busy ?? false}
+            onSave={stacks.onSave}
+          />
+        </div>
+      )}
     </>
   );
 }
@@ -198,23 +218,16 @@ function LootGroup({
   onSetPaid: (lootId: string, memberId: string, paid: boolean) => void;
   onDelete: (lootId: string) => void;
 }) {
-  // Nothing to draw, unless there is a split to show: what a boss drops is a fact about the boss,
-  // so the config stands in a week nobody has run it yet and in one they did not run at all.
-  if (rows.length === 0 && !stacks) return null;
-  // The config is ONE object: a heading, what fell, and the boxes that hand it out. Framed like a
-  // pile on the Sale Ledger rather than left as three things stacked loose in the panel, which is
-  // what it looked like beside the picker and the roster. Only when the boxes are there: the other
-  // groups are lists to scan, and a border round a list of bordered rows is a box in a box.
-  const Frame = stacks ? "div" : Fragment;
-  const frameProps = stacks ? { className: "loot-config-card" } : {};
+  // A list of what fell, so an empty one draws nothing. The split it is read against is the party's
+  // and stands in a week nobody ran, which is why that block is LootList's and not this group's.
+  if (rows.length === 0) return null;
   return (
-    <Frame {...frameProps}>
-      {/* Lighter when it heads the boxes, and not a link: it names the block under it rather than
-          pointing somewhere, and an underline said it went to the Drop Log. See .is-config. */}
+    <>
       {title && (
-        <h3 className={stacks ? "loot-group-title is-config" : "loot-group-title"}>
+        <h3 className="loot-group-title">
           {/* The coupon heading links to where they are priced, rather than a sentence saying so. The
-              row has no sale of its own, and one word already on screen can carry that. */}
+              row has no sale of its own, and one word already on screen can carry that. Not in a
+              panel, where the row underneath is one press from the same page. */}
           {pieces && !stacks ? <Link href="/bosses/drops">{title}</Link> : title}
         </h3>
       )}
@@ -241,8 +254,8 @@ function LootGroup({
               />
               {night && stacks && (
                 <>
-                  {/* The two blocks under a coupon row are different facts, so each is named:
-                      what the party agreed, and what the night actually went like. */}
+                  {/* Named, because it is a different fact from the row above it and from the deal
+                      below: this is what the night actually went like. */}
                   <h4 className="loot-group-title is-config">{stacks.pickup.title}</h4>
                   <div className="config-vestige">
                     <StackPickup
@@ -260,19 +273,6 @@ function LootGroup({
           );
         })}
       </div>
-      {/* Once for the group, under the rows it is about: the split is the PARTY's, and a week that
-          dropped twice would otherwise draw the same boxes twice. */}
-      {stacks && (
-        <>
-          <h4 className="loot-group-title is-config">{stacks.entitledTitle}</h4>
-          <StackAssign
-            config={stacks.config}
-            editing={editing ?? false}
-            busy={busy ?? false}
-            onSave={stacks.onSave}
-          />
-        </>
-      )}
-    </Frame>
+    </>
   );
 }
