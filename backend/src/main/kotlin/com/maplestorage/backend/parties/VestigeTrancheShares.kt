@@ -2,9 +2,9 @@ package com.maplestorage.backend.parties
 
 import kotlin.uuid.Uuid
 
-// Whose pieces a sale was: the one place a coupon debt gets a price. See V56.
+// Whose pieces a priced tranche was: the one place a coupon debt gets a price. See V56.
 //
-// It only ever prices a sale WHOSE PRICE THE ENTERER TYPED. When you loot the lot, the pieces you
+// It only ever prices a tranche WHOSE PRICE THE ENTERER TYPED. When you loot the lot, the pieces you
 // owe are in your own inventory, so the figure being divided is one you know. What somebody else
 // sold at is still not asked for, and still could not be answered: that is the pro rata #354 deleted.
 
@@ -21,10 +21,10 @@ private fun VestigeHolder.key(): String =
     }
 
 /**
- * Why this sale's attribution cannot be recorded, or null. See V56.
+ * Why this tranche's attribution cannot be recorded, or null. See V56.
  *
  * The ceiling is here rather than on the table because a check constraint cannot read the parent
- * row. Attributing more pieces than the sale held would credit somebody money the sale never made.
+ * row. Attributing more pieces than the tranche held would credit somebody money it never made.
  */
 internal fun shareRefusal(
     holder: VestigeHolder,
@@ -35,9 +35,10 @@ internal fun shareRefusal(
     if (shares.isEmpty()) return null
     val bad = shares.firstOrNull { it.holder.kind !in setOf(PERSON, SELF, CHARACTER) }
     return when {
-        // A sale is the only fate with proceeds to divide. A redemption realized nothing, and a
-        // purchase is already one creditor's in full at a price somebody agreed. See V50.
-        disposition != SOLD -> "only a $SOLD tranche can name whose pieces it was"
+        // A redemption realized nothing, so there is no money in it to be anybody's. The other two
+        // both carry a price the enterer typed, and a purchase is the one act that takes somebody
+        // else's coupons without selling them: it has to be able to say whose. See V50.
+        disposition !in PRICED -> "only a priced tranche can name whose pieces it was"
         bad != null -> "shares[].holder.kind must be one of $PERSON, $SELF, $CHARACTER"
         shares.any { (it.holder.kind == PERSON) != (it.holder.personId != null) } ->
             "a $PERSON holder needs a personId, and nothing else does"
@@ -47,14 +48,14 @@ internal fun shareRefusal(
             it.holder.personId != null && runCatching { Uuid.parse(it.holder.personId) }.isFailure
         } -> "personId is not an id"
         shares.any { it.pieces < 1 } -> "shares[].pieces must be at least 1"
-        // The seller cannot owe themselves any of their own sale, and a creditor named twice would
+        // The holder cannot owe themselves any of their own pile, and a creditor named twice would
         // be counted twice rather than added up.
         shares.any { it.holder.key() == holder.key() } ->
-            "a sale cannot owe its own pile"
+            "a tranche cannot owe its own pile"
         shares.map { it.holder.key() }.toSet().size != shares.size ->
-            "each creditor may be named once on a sale"
+            "each creditor may be named once on a tranche"
         shares.sumOf { it.pieces } > pieces ->
-            "shares name more pieces than the sale held"
+            "shares name more pieces than the tranche held"
         else -> null
     }
 }

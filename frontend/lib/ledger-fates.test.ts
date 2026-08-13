@@ -13,6 +13,7 @@ import {
 import {
   type Holder,
   alsoHeldByYou,
+  answeredByHolder,
   holderLedgers,
   keptByHolder,
   outstanding,
@@ -101,9 +102,34 @@ const BRO: Holder = { kind: "PERSON", personId: "p-bro", characterName: null };
  *
  * Your own pile holding somebody else's pieces, which is the shape the fate list used to have no
  * answer for. A duo rather than a solo, because a solo owes nobody and the surplus never appears.
+ *
+ * Every aggregation comes off ONE list of tranche rows, the way the page builds them, so a rule that
+ * counts a row twice cannot pass here by being handed two disagreeing maps.
  */
-const yourPile = (kept = 0, bought = { pieces: 0, paid: 0 }) =>
-  holderLedgers(
+const yourPile = (
+  kept = 0,
+  bought = { pieces: 0, paid: 0 },
+  /** A sale, and how many of its pieces it named as Bro's. See V56. */
+  sold: { pieces: number; amount: number; theirs?: number } | null = null,
+) => {
+  const rows = [
+    ...(kept > 0 ? [{ holder: SELF, pieces: kept, amount: null }] : []),
+    ...(bought.pieces > 0
+      ? [{ holder: SELF, pieces: bought.pieces, amount: bought.paid, disposition: "BOUGHT" }]
+      : []),
+    ...(sold
+      ? [
+          {
+            holder: SELF,
+            pieces: sold.pieces,
+            amount: sold.amount,
+            disposition: "SOLD",
+            shares: sold.theirs ? [{ holder: BRO, pieces: sold.theirs }] : [],
+          },
+        ]
+      : []),
+  ];
+  return holderLedgers(
     outstanding(
       [
         party(
@@ -118,14 +144,14 @@ const yourPile = (kept = 0, bought = { pieces: 0, paid: 0 }) =>
       VESTIGE,
       ORDER,
     ),
-    new Map(),
-    keptByHolder(kept > 0 ? [{ holder: SELF, pieces: kept, amount: null }] : []),
-    boughtByHolder(
-      bought.pieces > 0
-        ? [{ holder: SELF, pieces: bought.pieces, amount: bought.paid, disposition: "BOUGHT" }]
-        : [],
-    ),
+    salesByHolder(rows),
+    keptByHolder(rows),
+    boughtByHolder(rows),
+    undefined,
+    undefined,
+    answeredByHolder(rows),
   )[0]!;
+};
 
 /**
  * A night that divided the way it fell: a duo, 60 in 2 stacks, one each.
@@ -263,30 +289,40 @@ describe("whether the card has anything to ask", () => {
     expect(asksAnything(kept)).toBe(true);
   });
 
-  it("does not let a SALE answer one either, which is the trap", () => {
-    // Coupons are single-trade, so selling the creditor's pieces does not hand them back, and since
-    // #354 nothing says which of a mixed pile went out. Counting a sale here would report a debt
-    // discharged that nobody was paid for.
-    const sold = holderLedgers(
-      outstanding(
-        [
-          party(
-            [
-              seat("m1", "Husky", { mine: true }),
-              seat("m2", "BroChar", { person: ["p-bro", "Bro"] }),
-            ],
-            "m1",
-          ),
-        ],
-        [pool([coupon(60)])],
-        VESTIGE,
-        ORDER,
-      ),
-      salesByHolder([{ holder: SELF, pieces: 60, amount: 1_500 * M }]),
-    )[0]!;
+  it("does not let a sale that named nobody answer one, which is the trap", () => {
+    // A sale of a mixed pile that says nothing about whose coupons went out has not paid anybody.
+    // Counting it would report a debt discharged with no figure on the other person's card.
+    const sold = yourPile(0, { pieces: 0, paid: 0 }, { pieces: 60, amount: 1_500 * M });
     expect(sold.soldPieces).toBe(60);
     expect(settledOf(sold)).toBe(0);
     expect(asksAnything(sold)).toBe(true);
+  });
+
+  it("lets a sale that NAMED the creditor answer one, since their money is on their card", () => {
+    // #362 gave a sale out of your own pile the box that says whose pieces were in it, and V56 turns
+    // that into mesos on their Settlement card. The debt is answered, in the other unit.
+    const sold = yourPile(0, { pieces: 0, paid: 0 }, { pieces: 60, amount: 1_500 * M, theirs: 30 });
+    expect([owes(sold), settledOf(sold)]).toEqual([30, 30]);
+    expect(asksAnything(sold)).toBe(false);
+  });
+
+  it("answers only for the pieces a sale actually named", () => {
+    // Half of what was owed, so the card still asks for the rest rather than reading as done.
+    const part = yourPile(0, { pieces: 0, paid: 0 }, { pieces: 60, amount: 1_500 * M, theirs: 15 });
+    expect([owes(part), settledOf(part)]).toEqual([30, 15]);
+    expect(asksAnything(part)).toBe(true);
+  });
+
+  it("counts a purchase and a sale of somebody else's together, never one twice", () => {
+    // The double-count this arithmetic invites: 20 taken at a price and 10 sold as theirs is 30, not
+    // 50. Both routes are counted in answeredByHolder, which is why there is only one term.
+    const both = yourPile(
+      0,
+      { pieces: 20, paid: 500 * M },
+      { pieces: 40, amount: 1_000 * M, theirs: 10 },
+    );
+    expect([owes(both), settledOf(both)]).toEqual([30, 30]);
+    expect(asksAnything(both)).toBe(false);
   });
 
   it("speaks up when more was entered than the pile holds, owed or not", () => {

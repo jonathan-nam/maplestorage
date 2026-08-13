@@ -103,6 +103,13 @@ export type HolderLedger = {
   /** Pieces entered as sold, whatever the queue has managed to spend them on. */
   soldPieces: number;
   /**
+   * Pieces of this pile that have been answered with money rather than with coupons. See V56.
+   *
+   * The creditor has a figure on their Settlement card instead of their coupons, so the pile is not
+   * still waiting to be told what became of them. See answeredByHolder for the two ways in.
+   */
+  answered: number;
+  /**
    * Every drop under this holder has had its books closed, so the card is done. See V52.
    *
    * Not derived from the money, and it cannot be: a drop is queued on `entitled - looted`, fixed when
@@ -712,6 +719,8 @@ export function holderLedgers(
     closed: new Set(),
     writtenOff: new Map(),
   },
+  /** Pieces each pile has answered for with money rather than coupons. Absent is none. See V56. */
+  answeredByHolder: Map<string, number> = new Map(),
 ): HolderLedger[] {
   const byHolder = new Map<string, OutstandingDrop[]>();
   for (const d of drops) {
@@ -769,6 +778,9 @@ export function holderLedgers(
       ownShare: mine.reduce((sum, d) => sum + ownShareOf(d.drop, key), 0),
       bought,
       soldPieces,
+      // Not in `accounted`, which counts what became of the PILE: these pieces were sold or taken and
+      // are already in one of those counts. This says which of them answered somebody's debt.
+      answered: answeredByHolder.get(key) ?? 0,
       accounted: soldPieces + kept + bought.pieces,
       // Every drop closed, so there is nothing here anybody is waiting on. A pile with no drops at all
       // cannot be closed: there would be nothing to have decided about.
@@ -877,21 +889,52 @@ export function boughtByHolder(rows: TrancheRow[]): Map<string, { pieces: number
   return out;
 }
 
-/** What one sale of somebody else's pieces came to, in each direction. Mesos, and only mesos. */
+/**
+ * Pieces of each pile that have been answered with money rather than with coupons. See V56.
+ *
+ * Pieces, not mesos: what the money came to is saleCredits' answer, and this is the count that stops
+ * the pile asking about them. Two ways in, and the whole rule is here rather than split between here
+ * and settledOf, because the two must not count the same pieces twice:
+ *
+ *  - pieces a priced tranche NAMED as somebody else's, sale or purchase alike.
+ *  - pieces on a purchase that named nobody, which is every purchase entered before this. A purchase
+ *    is one creditor's in full by definition (V50), so its count stands on its own.
+ */
+export function answeredByHolder(rows: TrancheRow[]): Map<string, number> {
+  const out = new Map<string, number>();
+  for (const row of rows) {
+    if (row.amount === null) continue;
+    const key = holderKey(row.holder);
+    const named = (row.shares ?? [])
+      .filter((s) => holderKey(s.holder) !== key)
+      .reduce((sum, s) => sum + s.pieces, 0);
+    // Capped at the tranche, which the server enforces too. A cached row from a build that did not
+    // would otherwise answer for more pieces than it held.
+    const answered = named > 0 ? Math.min(named, row.pieces) : isBought(row) ? row.pieces : 0;
+    if (answered > 0) out.set(key, (out.get(key) ?? 0) + answered);
+  }
+  return out;
+}
+
+/** What one priced tranche of somebody else's pieces came to, in each direction. Mesos only. */
 export type SaleCredit = {
-  /** Money of THEIRS you are holding, from selling pieces of theirs out of your own pile. */
+  /** Money of THEIRS you are holding, from selling or taking pieces of theirs out of your own pile. */
   toThem: number;
   /** Money of YOURS they are holding, from a sale of yours entered against their pile. */
   toYou: number;
 };
 
 /**
- * What each counterparty is owed, or owes, out of sales of somebody else's pieces. See V56.
+ * What each counterparty is owed, or owes, out of priced tranches of somebody else's pieces. See V56.
  *
- * The one place a piece debt gets a price, and it only ever does so from a sale WHOSE PRICE THE
+ * The one place a piece debt gets a price, and it only ever does so from a tranche WHOSE PRICE THE
  * ENTERER TYPED. That is what makes it different from the pro rata #354 deleted: this divides one
  * tranche, one lot at one price, between the people whose coupons were in it. It never spreads a
  * holder's proceeds over a queue of bosses, and it never asks what somebody else sold at.
+ *
+ * A PURCHASE counts, at the price it names. "I took theirs, at a price" is the whole act of keeping
+ * somebody's coupons instead of handing them back, so leaving it out meant the pieces left the pile
+ * settled and the money for them was stated nowhere.
  *
  * Rounded to the meso, with the remainder left on the seller's side: the two must add up to the
  * tranche exactly, and the person who typed the figure is the one who can check it.
@@ -909,9 +952,9 @@ export function saleCredits(rows: TrancheRow[]): Map<string, SaleCredit> {
   };
 
   for (const row of rows) {
-    // Only a sale divides. A redemption realized nothing and a purchase is already one creditor's in
-    // full, which is why the server refuses shares on either. See V50.
-    if (row.amount === null || isBought(row) || row.pieces < 1) continue;
+    // A price to divide, and pieces to divide it over. A redemption has neither: it realized nothing,
+    // which is why the server still refuses shares on one. See V50.
+    if (row.amount === null || row.pieces < 1) continue;
     const pile = holderKey(row.holder);
     for (const share of row.shares ?? []) {
       const creditor = holderKey(share.holder);

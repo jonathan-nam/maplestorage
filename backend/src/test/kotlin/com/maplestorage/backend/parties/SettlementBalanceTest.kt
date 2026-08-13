@@ -40,11 +40,20 @@ class SettlementBalanceTest {
     }
 
     @Test
-    fun `only a sale divides, since the other two fates have nothing to divide`() {
-        // A redemption realized nothing, and a purchase is already one creditor's in full at an
-        // agreed price. Folding either into this would price those pieces off an average.
-        assertTrue(shareRefusal(self, 80, "KEPT", listOf(share(bro, 80)))!!.contains("SOLD"))
-        assertTrue(shareRefusal(self, 80, "BOUGHT", listOf(share(bro, 80)))!!.contains("SOLD"))
+    fun `a redemption divides nothing, having realized nothing`() {
+        assertTrue(shareRefusal(self, 80, "KEPT", listOf(share(bro, 80)))!!.contains("priced"))
+    }
+
+    @Test
+    fun `a purchase divides, at the price it names`() {
+        // "I took theirs, at a price" is the whole act of keeping somebody's coupons against what they
+        // owe you. Refusing the attribution left the pieces settled and the money for them stated
+        // nowhere, so the debt it was meant to discharge did not move.
+        assertNull(shareRefusal(self, 80, "BOUGHT", listOf(share(bro, 80))))
+        // And the same ceiling as a sale, since the price is divided the same way.
+        assertTrue(
+            shareRefusal(self, 80, "BOUGHT", listOf(share(bro, 100)))!!.contains("more pieces"),
+        )
     }
 
     @Test

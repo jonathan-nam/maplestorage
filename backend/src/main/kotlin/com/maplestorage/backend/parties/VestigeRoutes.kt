@@ -63,8 +63,13 @@ private const val KEPT = "KEPT"
  */
 private const val BOUGHT = "BOUGHT"
 
-/** Every disposition that names a price. Only a redemption realized nothing. */
-private val PRICED = setOf(SOLD, BOUGHT)
+/**
+ * Every disposition that names a price. Only a redemption realized nothing.
+ *
+ * Internal because it is also who may name whose pieces it was: an attribution divides a figure, so
+ * it needs one to divide. See shareRefusal.
+ */
+internal val PRICED = setOf(SOLD, BOUGHT)
 
 /**
  * Whose pile a tranche is, as the three kinds V39 stores.

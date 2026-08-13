@@ -334,7 +334,7 @@ export function settlementTotals(rows: Settlement[]): SettlementTotals {
 }
 
 /**
- * The payout rows for the shares YOU owe, which is what "Mark sent" marks.
+ * The payout rows for the shares YOU owe, which is what "Mark sent" and "Offset" both act on.
  *
  * Not sharesOf, which is every line: on a card running both ways that would mark what THEY owe you
  * paid at the same time, and say you had collected money nobody has sent.
@@ -343,6 +343,51 @@ export function owedByYouShares(row: Settlement): { lootId: string; memberId: st
   return row.lines
     .filter((line) => line.direction === "owe")
     .map((line) => ({ lootId: line.lootId, memberId: line.payeeId }));
+}
+
+/** What discharging the shares you owe against what they owe you would come to. See V57. */
+export type Offset = {
+  /** Mesos of shares it discharges, which is all of them or none. */
+  amount: number;
+  /**
+   * What it has to come off: everything on their side EXCEPT the shares it discharges.
+   *
+   * `mesos` cannot answer this. It is the net, so the shares you owe are already subtracted from it,
+   * and the moment they outgrew the debt it read zero and the act was refused on the very card it was
+   * for. Adding them back gives what they owe you before the offset is applied.
+   */
+  toComeOff: number;
+  /** What their debt cannot cover, and so leaves you owing. Zero when it covers the lot. */
+  leftOwing: number;
+  /**
+   * Whether the act is offered.
+   *
+   * Needs shares of yours, and a debt of theirs to come off, but NOT one big enough to swallow the
+   * whole thing: taking a week of coupons off a smaller debt clears it and leaves you owing the rest,
+   * which is an ordinary night. Offsetting against nothing is still not an offset, it is just a debt
+   * of yours, and this ledger has no act for paying one.
+   */
+  offered: boolean;
+};
+
+/**
+ * What an offset would do to this card, in the figures the button has to say before it runs.
+ *
+ * The whole act discharges whole shares, so the amount is every share you owe or none: a payout row
+ * is paid or it is not, and there is no half of one to record. Where the debt cannot cover them the
+ * remainder stays yours in mesos, which the net was already saying and the button now says too.
+ */
+export function offsetOf(row: Settlement): Offset {
+  const amount = row.lines
+    .filter((line) => line.direction === "owe")
+    .reduce((sum, line) => sum + line.pay, 0);
+  const toComeOff = row.mesos - row.owedByYou + amount;
+  return {
+    amount,
+    toComeOff,
+    leftOwing: Math.max(0, amount - toComeOff),
+    offered: amount > 0 && toComeOff > 0,
+  };
 }
 
 /** Nothing stands between you either way. */

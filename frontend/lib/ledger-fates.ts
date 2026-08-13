@@ -70,18 +70,24 @@ export function owes(ledger: HolderLedger): number {
 }
 
 /**
- * How much of what this pile owes has been answered, which only a purchase can do.
+ * How much of what this pile owes has been answered, in pieces.
  *
- * A redemption is the holder's own share by definition, so it settles nothing they owe. A SALE does
- * not either, and that is the one worth saying: coupons are single-trade, so selling the creditor's
- * pieces does not hand them back, and since #354 there is no apportioning to say which of a mixed
- * pile went out. What is left after a sale is the same debt, in pieces, waiting on an agreed figure.
- * BOUGHT is that agreement. See V50.
+ * A redemption is the holder's own share by definition, so it settles nothing they owe. The other two
+ * both do, and by the same means: the creditor gets a FIGURE instead of their coupons, on their
+ * Settlement card. A purchase is that agreement outright (V50), and a sale is it at the price the
+ * market paid, once the sale says whose pieces were in it (V56).
+ *
+ * That last clause is what #362 changed. Before it, a sale of a mixed pile could not say which of the
+ * coupons went out, so it answered for nothing and the pile asked forever. Do not read the old rule
+ * back in: the pieces are priced, and the debt is on the other ledger in mesos.
+ *
+ * Both routes are counted in one place, answeredByHolder, so a purchase that named its creditor
+ * cannot be counted once as a purchase and again as an attribution.
  *
  * Capped, because a holder may have bought pieces on a night whose books were later closed.
  */
 export function settledOf(ledger: HolderLedger): number {
-  return Math.min(owes(ledger), ledger.bought.pieces);
+  return Math.min(owes(ledger), ledger.answered);
 }
 
 /**

@@ -3,6 +3,7 @@ import {
   buildSettlement,
   settlementTotals,
   isEmpty,
+  offsetOf,
   owedByYouShares,
   sharesOf,
   stillOnSaleLedger,
@@ -29,6 +30,7 @@ const ledger = (holder: Holder, name: string, over: Partial<HolderLedger> = {}):
   ownShare: 0,
   bought: { pieces: 0, paid: 0 },
   soldPieces: 0,
+  answered: 0,
   closed: false,
   writtenOff: 0,
   accounted: 0,
@@ -368,11 +370,18 @@ describe("the money a sale of somebody else's coupons puts on the card", () => {
     expect(rows).toEqual([]);
   });
 
-  it("divides no redemption and no purchase, since neither has proceeds to share", () => {
-    // A KEPT row realized nothing and a BOUGHT row is already one creditor's in full. The server
-    // refuses shares on both; this is the reader agreeing with it.
+  it("divides no redemption, which realized nothing to share", () => {
+    // The server refuses shares on one too; this is the reader agreeing with it.
     const credits = saleCredits([
       { holder: SELF, pieces: 80, amount: null, shares: [{ holder: BRO, pieces: 80 }] },
+    ]);
+    expect(credits.size).toBe(0);
+  });
+
+  it("divides a purchase, at the price it names", () => {
+    // "I took theirs, at a price" is the act of keeping somebody's coupons instead of handing them
+    // back. Leaving it out settled the pieces and stated the money for them nowhere.
+    const credits = saleCredits([
       {
         holder: SELF,
         pieces: 80,
@@ -381,7 +390,22 @@ describe("the money a sale of somebody else's coupons puts on the card", () => {
         shares: [{ holder: BRO, pieces: 80 }],
       },
     ]);
-    expect(credits.size).toBe(0);
+    expect(credits.get("person:p-bro")).toEqual({ toThem: 2_000 * M, toYou: 0 });
+  });
+
+  it("divides a purchase that took only part of the pile, pro rata", () => {
+    // The same arithmetic a sale gets. Half the pieces named means half the agreed price, and the
+    // rest of the tranche was the buyer's own to begin with.
+    const credits = saleCredits([
+      {
+        holder: SELF,
+        pieces: 80,
+        amount: 2_000 * M,
+        disposition: "BOUGHT",
+        shares: [{ holder: BRO, pieces: 40 }],
+      },
+    ]);
+    expect(credits.get("person:p-bro")).toEqual({ toThem: 1_000 * M, toYou: 0 });
   });
 
   it("leaves a sale between two other people alone, since settling it is not yours", () => {
@@ -572,6 +596,94 @@ describe("marking a share you owe as actually sent", () => {
       wallet([counterparty("person:p-jared", "Jared", [line("l3", 289 * M, "owe")])]),
     );
     expect(owedByYouShares(rows[0]!)).toHaveLength(1);
+  });
+});
+
+describe("discharging what you owe against what they owe you", () => {
+  /** One entered row against Bro. Negative is a debt of yours discharged against it. See V57. */
+  const debt = (amount: number): SettlementDebt => ({
+    id: `d-${amount}`,
+    holder: BRO,
+    amount,
+    note: null,
+    payouts: [],
+    incurredAt: "2026-08-10T00:00:00Z",
+  });
+
+  /** Bro owes `entered`, and you owe him `share` out of a drop you sold. */
+  const card = (entered: number, share: number) =>
+    buildSettlement(
+      [],
+      wallet([counterparty("person:p-bro", "Bro", [line("l1", share, "owe")])]),
+      entered > 0 ? [debt(entered)] : [],
+    )[0]!;
+
+  it("comes off the debt, leaving the net exactly where it was", () => {
+    const row = card(2_000 * M, 500 * M);
+    expect(row.mesos).toBe(1_500 * M);
+    const offset = offsetOf(row);
+    expect(offset).toEqual({
+      amount: 500 * M,
+      toComeOff: 2_000 * M,
+      leftOwing: 0,
+      offered: true,
+    });
+    // The act writes -amount and marks those shares paid, so the two moves cancel: the card said
+    // 1.5b before and says 1.5b after. An offset is a record of an agreement, not a movement.
+    const after = buildSettlement([], wallet([]), [debt(2_000 * M), debt(-offset.amount)])[0]!;
+    expect(after.mesos).toBe(row.mesos);
+  });
+
+  it("is offered when the shares outgrow the debt, and says what it leaves you owing", () => {
+    // The night this button was for and refused: you take a week of his coupons, they come to more
+    // than he owed, and the remainder is yours to send. `mesos` reads zero here, which is why the
+    // condition cannot be built on it.
+    const row = card(500 * M, 800 * M);
+    expect([row.mesos, row.owedByYou]).toEqual([0, 300 * M]);
+    expect(offsetOf(row)).toEqual({
+      amount: 800 * M,
+      toComeOff: 500 * M,
+      leftOwing: 300 * M,
+      offered: true,
+    });
+  });
+
+  it("keeps the net where it was on a partial one too", () => {
+    const row = card(500 * M, 800 * M);
+    const after = buildSettlement([], wallet([]), [debt(500 * M), debt(-800 * M)])[0]!;
+    expect([after.mesos, after.owedByYou]).toEqual([row.mesos, row.owedByYou]);
+  });
+
+  it("is refused when they owe you nothing, which is not an offset but a debt of yours", () => {
+    const row = card(0, 800 * M);
+    expect(offsetOf(row)).toEqual({
+      amount: 800 * M,
+      toComeOff: 0,
+      leftOwing: 800 * M,
+      offered: false,
+    });
+  });
+
+  it("is refused when no share of yours is outstanding", () => {
+    const row = buildSettlement([], wallet([]), [debt(2_000 * M)])[0]!;
+    expect(offsetOf(row).offered).toBe(false);
+  });
+
+  it("counts a coupon sale of theirs as something to come off, not only an entered debt", () => {
+    // Their pieces sold out of your pile are money of theirs in your hands, so an offset against it
+    // would be backwards. It belongs in `toComeOff` with the sign it already has.
+    const row = buildSettlement(
+      [],
+      wallet([counterparty("person:p-bro", "Bro", [line("l1", 200 * M, "owe")])]),
+      [debt(2_000 * M)],
+      saleCredits([
+        { holder: SELF, pieces: 80, amount: 800 * M, shares: [{ holder: BRO, pieces: 40 }] },
+      ]),
+    )[0]!;
+    // 2b entered, less 400m of his coupons you sold, less the 200m share: 1.4b.
+    expect(row.mesos).toBe(1_400 * M);
+    expect(offsetOf(row).toComeOff).toBe(1_600 * M);
+    expect(offsetOf(row).leftOwing).toBe(0);
   });
 });
 
