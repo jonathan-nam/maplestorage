@@ -24,21 +24,29 @@ describe("the week's coupons are drops, not configuration", () => {
     expect(list).toContain('const couponTitle = headed ? "Coupons" : stacks ? "Drops" : null');
   });
 
-  it("frames the split alone, with everything that fell outside it", () => {
-    // The frame opens immediately before the split's heading, so nothing that fell can be in it.
+  it("states the deal under the drop it is read against, once", () => {
+    // Both blocks hang off the coupon row: what the night went like, then what each was entitled to.
+    // On the LAST row only, or a week that dropped twice states the same standing deal twice.
+    expect(list).toContain("{stacks && item.id === rows[rows.length - 1]?.id && (");
+    expect(list).toContain(
+      '<h4 className="loot-group-title is-config">{stacks.entitledTitle}</h4> <StackAssign',
+    );
+  });
+
+  it("keeps the deal on screen in a week nothing fell in, and frames it there", () => {
+    // Off the catalog, so it can be agreed before the boss is ever run. There is no row to hang it
+    // under then, so it takes the frame instead of floating between the picker and the roster.
+    expect(list).toContain("{stacks && coupons.length === 0 && (");
     expect(list).toContain(
       '<div className="loot-config-card"> <h3 className="loot-group-title is-config">' +
         "{stacks.entitledTitle}</h3> <StackAssign",
     );
-    // Once only. A second one is the group of rows building a frame of its own again, which is the
-    // arrangement this replaced.
+    // Once only: the group of rows must not frame itself as config again, which is the arrangement
+    // that had a stack of 180 reading as a setting.
     expect(list.match(/loot-config-card/g)).toHaveLength(1);
     expect(source("app", "globals.css")).toContain(".loot-config-card {");
-  });
-
-  it("keeps the split on screen in a week nothing fell in", () => {
-    // Off the catalog, so it can be agreed before the boss is ever run. The group of rows returns
-    // null when empty, which is why the split is drawn by LootList and not by the group.
+    // And the group of rows still draws nothing when empty, which is what leaves that case to
+    // LootList rather than to a heading over an empty list.
     expect(list).toContain("if (rows.length === 0) return null;");
   });
 

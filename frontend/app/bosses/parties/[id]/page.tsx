@@ -13,9 +13,9 @@ import { preloadBossArt } from "@/lib/preload-boss-art";
 import { useRowWrites } from "@/lib/use-row-writes";
 import { ApiError, apiFetch } from "@/lib/api";
 import { peek, put } from "@/lib/cache";
-import { buildDropLog, couponsOwedByParty, pieceStatusByParty } from "@/lib/drop-log";
+import { buildDropLog, couponsOutstandingByParty, pieceStatusByParty } from "@/lib/drop-log";
 import { useDropIcons } from "@/lib/drop-icons";
-import { poolLabel, summarize } from "@/lib/loot";
+import { NOTHING_OUTSTANDING, poolLabel, summarize } from "@/lib/loot";
 import { closedByHolder } from "@/lib/vestige-ledger";
 import { otherMembers, partySizeLabel } from "@/lib/parties";
 import type { Boss } from "@/types/boss";
@@ -155,7 +155,7 @@ export default function PartyPage() {
       awaitingPayout: summary.awaitingPayout,
       settledLoot: summary.settled,
     },
-    party ? (couponsOwedByParty(log?.entries ?? []).get(party.id) ?? 0) : 0,
+    (party && couponsOutstandingByParty(log?.entries ?? []).get(party.id)) || NOTHING_OUTSTANDING,
   );
 
   return (

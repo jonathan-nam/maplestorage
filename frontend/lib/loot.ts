@@ -214,21 +214,39 @@ export type PoolCounts = {
  * meant paying the last share erased every trace of the pool from the list, so a party with a
  * season of drops behind it looked identical to one that had never dropped anything.
  */
+/**
+ * What a party's coupon nights left outstanding, each way round. Both zero is settled up.
+ *
+ * Declared here rather than in drop-log.ts, which is where it is COUNTED: that file already imports
+ * this one, and the type going the other way would close the circle.
+ */
+export type CouponsOutstanding = { toYou: number; byYou: number };
+
+/** A party with nothing in the wrong hands, for the callers that read a map with gaps in it. */
+export const NOTHING_OUTSTANDING: CouponsOutstanding = { toYou: 0, byYou: 0 };
+
 export function poolLabel(
   counts: PoolCounts,
   /**
-   * Coupons somebody else is holding for you, out of this party's piece drops.
+   * Coupons in the wrong hands out of this party's piece drops, each way round.
    *
    * Said in COUPONS because a count of rows cannot: one row is one hammer or 180 coupons, and the
    * row count deliberately leaves out the coupon drops that came out even. Worked out from the
    * pools by lib/drop-log.ts, never counted a second time here.
+   *
+   * BOTH directions, because a row that only ever said what was owed TO you went silent on the
+   * ordinary night: the one where you loot the lot and owe the rest of the party their share.
    */
-  couponsOwed = 0,
+  coupons: CouponsOutstanding = NOTHING_OUTSTANDING,
 ): { text: string; done: boolean } | null {
   const outstanding = [
     counts.pendingLoot > 0 ? `${counts.pendingLoot} in the pool` : null,
     counts.awaitingPayout > 0 ? `${counts.awaitingPayout} awaiting payout` : null,
-    couponsOwed > 0 ? `${couponsOwed} coupons owed` : null,
+    coupons.toYou > 0 ? `${coupons.toYou} coupons owed` : null,
+    // Which way it runs, in the words somebody would use for the act: the coupons are in your
+    // inventory and the debt ends when you pass them on. "Owed" both ways round would be one word
+    // for two opposite facts.
+    coupons.byYou > 0 ? `${coupons.byYou} to hand over` : null,
   ].filter(Boolean);
 
   if (outstanding.length > 0) return { text: outstanding.join(" \u00b7 "), done: false };

@@ -3477,14 +3477,13 @@ button.link:disabled {
   font-weight: 400;
 }
 
-/* The standing split as ONE object: its heading and the boxes that set it, inside a single frame
-   instead of stacked loose in the panel between the picker and the roster. The same frame a pile has
-   on the Sale Ledger. Its own rule rather than .ledger-card, whose bottom margin is for a column of
-   cards.
+/* The standing split when NOTHING fell, which is the only time it needs a frame of its own: there is
+   no drop to hang it under, and loose in the panel it read as a third thing between the picker and the
+   roster. A week that dropped carries it under the coupon row instead, where StackAssign's own
+   .config-vestige rule gives it the same left rule the night's pickup has.
 
-   What FELL is not in here. The week's coupons were, under a heading naming the config, which read
-   as though a drop that had already landed were a setting. They are drops, and they are headed as
-   drops above this. */
+   The same frame a pile has on the Sale Ledger. Its own rule rather than .ledger-card, whose bottom
+   margin is for a column of cards. */
 .loot-config-card {
   display: flex;
   flex-direction: column;

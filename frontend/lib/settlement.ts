@@ -56,6 +56,14 @@ export type Settlement = {
   /** Pieces of yours they hold. Deliberately unpriced: only they can sell them. */
   pieces: number;
   /**
+   * Pieces of THEIRS you hold, which is the same debt from the other end.
+   *
+   * The ordinary night: you loot the lot, so their share sits in your inventory. The card only ever
+   * counted the other direction, so a week of runs you were the holder on read as a week with nothing
+   * outstanding, and the figure you actually wanted, what comes off their debt, was on no screen.
+   */
+  piecesYouOwe: number;
+  /**
    * Mesos they owe you once every direction is netted off. A real figure, unlike the pieces.
    *
    * NET, because one transfer of the difference is how this is actually settled and it saves a hop's
@@ -118,6 +126,7 @@ const blank = (key: string, name: string): Settlement => ({
   attributed: key.startsWith("person:"),
   holder: holderFromKey(key),
   pieces: 0,
+  piecesYouOwe: 0,
   mesos: 0,
   owedByYou: 0,
   parts: { shares: 0, entered: 0, soldOfTheirs: 0, soldOfYours: 0, received: 0 },
@@ -165,6 +174,22 @@ export function buildSettlement(
     out.set(key, row);
     return row;
   };
+
+  // Pieces of theirs in YOUR pile, which is the direction that pays a debt off rather than adding to
+  // one. Off your own ledger's transfers, so it is the same subtraction the party rows draw and not a
+  // second reading of it. Kept per person, because your pile owes each of them separately.
+  for (const ledger of ledgers) {
+    if (ledger.holder.kind !== "SELF" || ledger.closed) continue;
+    for (const drop of ledger.drops) {
+      if (drop.closed) continue;
+      for (const transfer of drop.transfers) {
+        if (transfer.toId === SELF_KEY) continue;
+        // Named off the transfer, which carries it. A person you only owe coupons to reaches this
+        // list nowhere else, so without the name the card was headed `person:<uuid>`.
+        rowFor(transfer.toId, transfer.to).piecesYouOwe += transfer.pieces;
+      }
+    }
+  }
 
   // The pieces. Your own pile is not a debt to you, and a closed one is finished.
   for (const ledger of ledgers) {
@@ -266,6 +291,9 @@ export function buildSettlement(
         row.mesos > 0 ||
         row.owedByYou > 0 ||
         row.pieces > 0 ||
+        // Coupons of theirs you are holding are exactly the thing this ledger is for now: they come
+        // off what that person owes you. A card kept only for the other direction hid them.
+        row.piecesYouOwe > 0 ||
         row.receivedOnPieces > 0,
     )
     .sort(
@@ -273,6 +301,7 @@ export function buildSettlement(
         b.mesos - a.mesos ||
         b.owedByYou - a.owedByYou ||
         b.pieces - a.pieces ||
+        b.piecesYouOwe - a.piecesYouOwe ||
         a.name.localeCompare(b.name),
     );
 }
@@ -392,7 +421,7 @@ export function offsetOf(row: Settlement): Offset {
 
 /** Nothing stands between you either way. */
 export function isEmpty(row: Settlement): boolean {
-  return row.pieces === 0 && row.mesos === 0 && row.owedByYou === 0;
+  return row.pieces === 0 && row.piecesYouOwe === 0 && row.mesos === 0 && row.owedByYou === 0;
 }
 
 /**

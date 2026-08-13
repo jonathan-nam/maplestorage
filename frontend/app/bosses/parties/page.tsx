@@ -14,8 +14,8 @@ import { ApiError, apiAssetUrl, apiFetch, spriteUrl } from "@/lib/api";
 import { cellState, clearOfCell, indexClears } from "@/lib/boss-clears";
 import { bossLabel, difficultyLabel } from "@/lib/boss-difficulty";
 import { peek, put } from "@/lib/cache";
-import { buildDropLog, couponsOwedByParty, pieceStatusByParty } from "@/lib/drop-log";
-import { dropsInWeek } from "@/lib/loot";
+import { buildDropLog, couponsOutstandingByParty, pieceStatusByParty } from "@/lib/drop-log";
+import { dropsInWeek, NOTHING_OUTSTANDING } from "@/lib/loot";
 import { closedByHolder, outstanding, runningBalance, stillOpen } from "@/lib/vestige-ledger";
 import { assignableDrops } from "@/lib/vestige-pickup";
 import { shareConfig } from "@/lib/vestige-stacks";
@@ -505,7 +505,7 @@ export default function PartiesPage() {
   // Off the ledger's own notion of finished, not off the party's arrangement: `owedBy` is
   // `entitled - looted` and never moves, so without the closures this counted a debt forever. See V52.
   const log = buildDropLog(parties, pools, dropTables, closedByHolder(settlements).closed);
-  const couponsOwed = couponsOwedByParty(log.entries);
+  const couponsOut = couponsOutstandingByParty(log.entries);
   // What each COUPON row in a panel says it is, off the same entries the badge above it is counted
   // from, so the two cannot disagree about a stack of vestiges.
   const pieceStatus = pieceStatusByParty(log.entries);
@@ -709,7 +709,7 @@ export default function PartiesPage() {
         party={party}
         busy={isSaving(party.id)}
         clear={clearOf(party)}
-        couponsOwed={couponsOwed.get(party.id) ?? 0}
+        coupons={couponsOut.get(party.id) ?? NOTHING_OUTSTANDING}
         onToggleClear={history ? undefined : (cleared) => toggleClear(party, cleared)}
         dropTable={dropTables[party.bossKey]}
         onAddDrop={canAddDrops ? (body) => addDrop(party, body) : undefined}
@@ -955,7 +955,7 @@ export default function PartiesPage() {
                         party={party}
                         busy={isSaving(party.id)}
                         clear={clearOf(party)}
-                        couponsOwed={couponsOwed.get(party.id) ?? 0}
+                        coupons={couponsOut.get(party.id) ?? NOTHING_OUTSTANDING}
                         onToggleClear={
                           history ? undefined : (cleared) => toggleClear(party, cleared)
                         }

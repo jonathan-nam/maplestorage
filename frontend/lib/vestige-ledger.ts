@@ -370,6 +370,56 @@ function heldByHolder(loot: Loot, party: Party, holders: FoldedSeat[]): Map<stri
 /** One holder's pieces from one drop, and which of their characters bent down for them. */
 type Pile = { pieces: number; by: string };
 
+/** One night's coupons that ended up in the wrong hands, and whose they are. */
+export type CouponGap = {
+  /** How many are out of place. Always positive: an even night has no gap at all. */
+  pieces: number;
+  /** True when YOU are the one holding them, so they are yours to hand over. */
+  yours: boolean;
+  /** The other side of it: who is holding yours, or who you are holding for. */
+  by: string;
+  /** The holder key of whoever is holding the surplus, which is whose books close it. See V52. */
+  holder: string;
+};
+
+/**
+ * One night's coupon debt, in whichever direction it runs.
+ *
+ * The GAP, never a whole share. A night where you picked up four stacks of six and were entitled to
+ * three owes you nothing and leaves you holding one stack of theirs, which is the same subtraction
+ * read from the other end. The Drop Log used to take the named looter and report your full share, so
+ * Extreme Kalos said "90 coupons owed" over a night whose own arrangement had you holding 120 of the
+ * 180: the wrong figure, pointing the wrong way, when you owed 30 back. Same class as #289, one
+ * screen along.
+ *
+ * Through heldByHolder, so the order of authority is that function's: the night's own arrangement,
+ * then a named looter, then an even division. Null where it returns null, because nobody has said
+ * who took the odd stack and a guess names the wrong person half the time. That night is not silent
+ * on screen: it is what unanswered() lists and what the stack boxes ask for.
+ *
+ * Null on a pool with one seat too. There is nobody to owe when the only seat is yours.
+ */
+export function couponGapOf(loot: Loot, party: Party): CouponGap | null {
+  const ran = ranSeats(loot, party);
+  if (ran.length < 2) return null;
+  const holders = foldSeats(ran);
+  const held = heldByHolder(loot, party, holders);
+  if (held === null) return null;
+  const mine = held.get(SELF_KEY)?.pieces ?? 0;
+  const short = yourShare(loot.quantity, ran) - mine;
+  if (short === 0) return null;
+  // Whoever is furthest from their own share is the other side of it. Named, because which of them
+  // to ask is the whole use of the figure, and a pile of two characters names both (see Pile.by).
+  const others = [...held.entries()]
+    .filter(([key]) => key !== SELF_KEY)
+    .sort(([, a], [, b]) => b.pieces - a.pieces);
+  const them = others[0];
+  if (!them) return null;
+  return short > 0
+    ? { pieces: short, yours: false, by: them[1].by, holder: them[0] }
+    : { pieces: -short, yours: true, by: them[1].by, holder: SELF_KEY };
+}
+
 /**
  * How many stacks a drop fell in, with a row that predates the field reading as uncounted.
  *
@@ -974,7 +1024,12 @@ export function saleCredits(rows: TrancheRow[]): Map<string, SaleCredit> {
  * says nothing about anybody else's.
  */
 export function closureKey(holder: Holder, lootId: string): string {
-  return `${holderKey(holder)}|${lootId}`;
+  return closureKeyOf(holderKey(holder), lootId);
+}
+
+/** The same key for a caller holding the holder's KEY already, so the format lives in one place. */
+export function closureKeyOf(holder: string, lootId: string): string {
+  return `${holder}|${lootId}`;
 }
 
 /** Every (holder, drop) whose books are closed, and what each act wrote off. See V52. */
