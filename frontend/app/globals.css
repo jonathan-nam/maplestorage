@@ -341,16 +341,40 @@ body:has(.nav-pending) main {
   }
 }
 
-/* The other half of the wait: what arrives, easing in over what it replaces. Without it a page
-   swapped a one-line "Loading..." for its whole self between two frames, which is a flash the
-   delay above was never going to cover, since it covers only the wait.
-   On the arriving content, never on <main>: the title stood through the wait and fading it in a
-   second time makes it blink. */
-.page-ready {
-  animation: page-ready-in 280ms ease-out;
+/* The other half of the wait: what arrives, easing in over what it replaces.
+   The two overlap. Fading the content up on its own left a blank beat, because the "Loading..."
+   was already gone: traced on the production build, one frame at the full height of the loaded
+   page with only the title on it. So the placeholder is held through the fade and taken out of
+   flow, and the content comes up underneath it. See components/page-swap.tsx.
+   Never on <main>: the title stands through the wait, and fading it in a second time blinks the
+   one part of the page that never went anywhere. */
+.page-swap {
+  position: relative;
 }
 
-@keyframes page-ready-in {
+/* Out of flow, so the content below it sits where it will finally sit rather than being pushed
+   down by a placeholder that is on its way out. Left and right pinned so a placeholder that wraps
+   keeps the measure it had. */
+.page-swap-out {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  pointer-events: none;
+  animation: page-swap-out 280ms ease-out both;
+}
+
+.page-swap-in {
+  animation: page-swap-in 280ms ease-out both;
+}
+
+@keyframes page-swap-out {
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes page-swap-in {
   from {
     opacity: 0;
   }
@@ -372,7 +396,14 @@ body:has(.nav-pending) main {
       page-waiting-space 0s linear 150ms both;
   }
 
-  .page-ready {
+  /* No overlap and no fade: the content arrives at full opacity in one frame, which is what
+     reduced motion asks for and has no blank beat to cover. The placeholder is taken off rather
+     than held, or it would sit on top of the content it can no longer fade out of the way of. */
+  .page-swap-out {
+    display: none;
+  }
+
+  .page-swap-in {
     animation: none;
   }
 }
@@ -1393,8 +1424,8 @@ img.user-avatar-img {
   background: linear-gradient(90deg, transparent, rgb(255 255 255 / 60%), transparent);
 }
 
-/* The real UI fades in over the skeleton it replaces. That is .page-ready, up with .page-waiting:
-   it is the same fade on every page that waits, not a characters-page one. */
+/* The real UI crossfades in over the skeleton it replaces. That is .page-swap, up with
+   .page-waiting: it is the same handover on every page that waits, not a characters-page one. */
 
 /* A sweep that never rests reads as frozen under reduced motion; slow it rather than stop it, and
    drop the fade so nothing moves that the user asked not to. */

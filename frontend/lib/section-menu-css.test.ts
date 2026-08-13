@@ -84,18 +84,42 @@ describe("the wait for a page that has been asked for", () => {
     expect(/@keyframes page-waiting-in \{\s*from \{\s*opacity:\s*0;/.test(css)).toBe(true);
   });
 
-  // The other end of the same transition. The delay above covers the wait; nothing covered the
-  // arrival, so a page swapped one line of "Loading..." for its whole self between two frames.
-  it("eases the arriving content in rather than swapping it on", () => {
-    expect(/\.page-ready \{[^}]*animation:\s*page-ready-in\s+\d+m?s/.test(css)).toBe(true);
-    expect(/@keyframes page-ready-in \{\s*from \{\s*opacity:\s*0;/.test(css)).toBe(true);
+  // The other end of the same transition, and the half that was got wrong first. Fading the
+  // arriving content up on its own is not enough: the placeholder is gone by then, so the page
+  // reads as three beats with a blank one in the middle. Traced on the production build, that
+  // frame was the full height of the loaded page with only the title on it.
+  it("crossfades, so neither half is ever on screen alone", () => {
+    expect(/\.page-swap-out \{[^}]*animation:\s*page-swap-out\s+\d+m?s/.test(css)).toBe(true);
+    expect(/\.page-swap-in \{[^}]*animation:\s*page-swap-in\s+\d+m?s/.test(css)).toBe(true);
+    expect(/@keyframes page-swap-out \{\s*to \{\s*opacity:\s*0;/.test(css)).toBe(true);
+    expect(/@keyframes page-swap-in \{\s*from \{\s*opacity:\s*0;/.test(css)).toBe(true);
   });
 
-  // No delay, unlike the wait. This one starts the moment the content exists: a delay here is a
-  // gap with the "Loading..." already gone and nothing yet in its place.
-  it("starts the arrival immediately", () => {
-    const shorthand = /\.page-ready \{[^}]*animation:\s*([^;]+);/.exec(css)?.[1];
+  // Both halves over the same span, or one of them is alone on screen for the difference. The JS
+  // that unmounts the placeholder counts the same number: see CROSSFADE_MS.
+  it("runs both halves for the same time, and for as long as the component holds them", () => {
+    const ms = (rule: string) =>
+      /animation:\s*[a-z-]+\s+(\d+)ms/.exec(
+        new RegExp(`\\${rule} \\{[^}]*`).exec(css)?.[0] ?? "",
+      )?.[1];
+    expect(ms(".page-swap-out")).toBe(ms(".page-swap-in"));
+    const held = /CROSSFADE_MS = (\d+)/.exec(
+      readFileSync(join(__dirname, "..", "components", "page-swap.tsx"), "utf8"),
+    )?.[1];
+    expect(ms(".page-swap-out")).toBe(held);
+  });
+
+  // Starting immediately is the point. A delay here is the blank frame back again, with the
+  // placeholder already fading and nothing yet risen to replace it.
+  it("starts the handover immediately", () => {
+    const shorthand = /\.page-swap-in \{[^}]*animation:\s*([^;]+);/.exec(css)?.[1];
     expect(shorthand?.match(/\d+m?s\b/g)).toHaveLength(1);
+  });
+
+  // The placeholder must not hold the content down while it leaves, or the page settles upward
+  // when it finally goes: a shift at the end of the very transition meant to remove one.
+  it("takes the departing placeholder out of flow", () => {
+    expect(/\.page-swap-out \{[^}]*position:\s*absolute;/.test(css)).toBe(true);
   });
 });
 
@@ -145,9 +169,19 @@ describe("every wait wears the class", () => {
   const ARRIVES_IN_PIECES = ["app/bosses/order/page.tsx"];
 
   it.each(pages.filter((f) => !ARRIVES_IN_PIECES.includes(f)))(
-    "%s eases its content in when it arrives",
+    "%s hands over through PageSwap, so neither half is on screen alone",
     (file) => {
-      expect(read(file)).toContain("PAGE_READY");
+      expect(read(file)).toContain("PageSwap");
+    },
+  );
+
+  // The bug this whole thing exists to stop, in the form it would come back in: a page that keeps
+  // its own `state === "loading"` branch alongside PageSwap renders the placeholder twice, once
+  // inside the crossfade and once beside it, and only one of them fades.
+  it.each(pages.filter((f) => !ARRIVES_IN_PIECES.includes(f)))(
+    "%s draws its placeholder only inside the handover",
+    (file) => {
+      expect(read(file)).not.toMatch(/\{(state === "loading"|!loaded && !failed) && </);
     },
   );
 });

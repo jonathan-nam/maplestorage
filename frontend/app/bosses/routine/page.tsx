@@ -1,6 +1,7 @@
 "use client";
 
-import { PAGE_READY, PAGE_WAITING } from "@/components/route-loading";
+import { PageSwap } from "@/components/page-swap";
+import { PAGE_WAITING } from "@/components/route-loading";
 import { useAuth } from "@clerk/nextjs";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
@@ -180,43 +181,46 @@ export default function BossRoutinePage() {
       <h1 className="page-title">Who runs what</h1>
 
       {state === "error" && <p>Couldn&apos;t load your bosses.</p>}
-      {state === "loading" && <p className="party-hint">Loading...</p>}
-
-      {state === "loaded" && (
-        <div className={PAGE_READY}>
-          {characters.length === 0 ? (
-            <p className="finder-empty">Add a character on the Inventory page first.</p>
-          ) : (
-            <>
-              <CharacterPicker
-                characters={characters}
-                selectedId={selected}
-                onSelect={(id) => {
-                  setSelected(id);
-                  asked.current = null;
-                  setError(null);
-                }}
-              />
-
-              {error && <p className="routine-error">{error}</p>}
-
-              {character && (
-                <BossRoutineEditor
-                  characterName={character.name}
-                  bosses={bosses}
-                  dropTables={dropTables}
-                  skipped={skipped}
-                  lockedBossKeys={lockedBossKeys}
-                  soloDifficulty={soloDifficulty}
-                  isSaving={isSaving}
-                  onToggle={toggle}
-                  onDifficulty={setDifficulty}
+      <PageSwap
+        waiting={state === "loading"}
+        placeholder={<p className="party-hint">Loading...</p>}
+      >
+        {state === "loaded" && (
+          <>
+            {characters.length === 0 ? (
+              <p className="finder-empty">Add a character on the Inventory page first.</p>
+            ) : (
+              <>
+                <CharacterPicker
+                  characters={characters}
+                  selectedId={selected}
+                  onSelect={(id) => {
+                    setSelected(id);
+                    asked.current = null;
+                    setError(null);
+                  }}
                 />
-              )}
-            </>
-          )}
-        </div>
-      )}
+
+                {error && <p className="routine-error">{error}</p>}
+
+                {character && (
+                  <BossRoutineEditor
+                    characterName={character.name}
+                    bosses={bosses}
+                    dropTables={dropTables}
+                    skipped={skipped}
+                    lockedBossKeys={lockedBossKeys}
+                    soloDifficulty={soloDifficulty}
+                    isSaving={isSaving}
+                    onToggle={toggle}
+                    onDifficulty={setDifficulty}
+                  />
+                )}
+              </>
+            )}
+          </>
+        )}
+      </PageSwap>
     </main>
   );
 }

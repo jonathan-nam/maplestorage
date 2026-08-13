@@ -1,6 +1,7 @@
 "use client";
 
-import { PAGE_READY, PAGE_WAITING } from "@/components/route-loading";
+import { PageSwap } from "@/components/page-swap";
+import { PAGE_WAITING } from "@/components/route-loading";
 import { useAuth } from "@clerk/nextjs";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
@@ -207,56 +208,58 @@ export default function CharactersPage() {
 
       {/* One deliberate loading state, not the real chrome assembling itself in stages. The
           skeleton mirrors the finished layout, so when the data lands the real UI crossfades in
-          as one piece rather than an empty inventory and a lone "add character" tile filling in. */}
-      {state === "loading" && <CharactersSkeleton />}
+          as one piece rather than an empty inventory and a lone "add character" tile filling in.
+          It is a true crossfade: the skeleton is held through the fade rather than dropped at the
+          moment it ends. See components/page-swap.tsx. */}
+      <PageSwap waiting={state === "loading"} placeholder={<CharactersSkeleton />}>
+        {state === "loaded" && (
+          <>
+            <SearchBar
+              query={query}
+              onQuery={setQuery}
+              characters={characters}
+              tokensByChar={tokensByChar}
+              onSelectCharacter={setSelectedId}
+              focusSignal={searchFocusSignal}
+            />
 
-      {state === "loaded" && (
-        <div className={PAGE_READY}>
-          <SearchBar
-            query={query}
-            onQuery={setQuery}
-            characters={characters}
-            tokensByChar={tokensByChar}
-            onSelectCharacter={setSelectedId}
-            focusSignal={searchFocusSignal}
-          />
+            <CharacterCarousel
+              characters={characters}
+              selectedId={selectedId}
+              onSelect={setSelectedId}
+            />
 
-          <CharacterCarousel
-            characters={characters}
-            selectedId={selectedId}
-            onSelect={setSelectedId}
-          />
-
-          {/* The selected character's inventory sits directly under the carousel: pick a
+            {/* The selected character's inventory sits directly under the carousel: pick a
               character, see their stuff. Searching answers a question the inventory cannot, so it
               takes over this same slot while you are asking it. */}
-          {searching ? (
-            <SearchResults query={query} matches={matches} />
-          ) : selected ? (
-            <InventoryPanel
-              title={selected.name}
-              loading={!tokensReady}
-              emptyHint="No tokens here yet. Upload an inventory screenshot."
-              items={characterItems}
-              // Clicking an item searches every character for it: the query fills the bar above
-              // (bound to this same state), focus moves there so it can be edited (see SearchBar),
-              // and the results take over this slot.
-              onSelectItem={handleSelectItem}
-            />
-          ) : characters.length === 0 ? (
-            // The add control is no longer on this page, so the empty state has to say where it
-            // went. Without this the screen is a search bar over nothing.
-            <p className="finder-empty">
-              No characters yet. <Link href="/characters">Add one</Link> to start tracking.
-            </p>
-          ) : (
-            <p className="finder-empty">
-              No character selected, a screenshot dropped above will be filed by the name read from
-              it. Pick a character to see their inventory.
-            </p>
-          )}
-        </div>
-      )}
+            {searching ? (
+              <SearchResults query={query} matches={matches} />
+            ) : selected ? (
+              <InventoryPanel
+                title={selected.name}
+                loading={!tokensReady}
+                emptyHint="No tokens here yet. Upload an inventory screenshot."
+                items={characterItems}
+                // Clicking an item searches every character for it: the query fills the bar above
+                // (bound to this same state), focus moves there so it can be edited (see SearchBar),
+                // and the results take over this slot.
+                onSelectItem={handleSelectItem}
+              />
+            ) : characters.length === 0 ? (
+              // The add control is no longer on this page, so the empty state has to say where it
+              // went. Without this the screen is a search bar over nothing.
+              <p className="finder-empty">
+                No characters yet. <Link href="/characters">Add one</Link> to start tracking.
+              </p>
+            ) : (
+              <p className="finder-empty">
+                No character selected, a screenshot dropped above will be filed by the name read
+                from it. Pick a character to see their inventory.
+              </p>
+            )}
+          </>
+        )}
+      </PageSwap>
     </main>
   );
 }

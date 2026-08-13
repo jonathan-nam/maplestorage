@@ -1,6 +1,7 @@
 "use client";
 
-import { PAGE_READY, PAGE_WAITING } from "@/components/route-loading";
+import { PageSwap } from "@/components/page-swap";
+import { PAGE_WAITING } from "@/components/route-loading";
 import { useAuth } from "@clerk/nextjs";
 import Link from "next/link";
 import { useEffect, useState } from "react";
@@ -89,69 +90,74 @@ export default function PeoplePage() {
       <h1 className="page-title">People</h1>
 
       {state === "error" && <p>Couldn&apos;t load your people.</p>}
-      {state === "loading" && <p className="party-hint">Loading...</p>}
+      <PageSwap
+        waiting={state === "loading"}
+        placeholder={<p className="party-hint">Loading...</p>}
+      >
+        {state === "loaded" && (
+          <>
+            <div className="people-list">
+              {draft.map((row, index) => (
+                // A saved person keys on their id; a new row has only its slot.
+                <div className="person-row" key={row.id ?? `new-${index}`}>
+                  <input
+                    className="split-input person-name"
+                    value={row.name}
+                    onChange={(e) =>
+                      setDraft(
+                        draft.map((r, i) => (i === index ? { ...r, name: e.target.value } : r)),
+                      )
+                    }
+                    placeholder="Jared"
+                    aria-label="Person's name"
+                    maxLength={40}
+                  />
+                  <input
+                    className="split-input person-characters"
+                    value={row.characters}
+                    onChange={(e) =>
+                      setDraft(
+                        draft.map((r, i) =>
+                          i === index ? { ...r, characters: e.target.value } : r,
+                        ),
+                      )
+                    }
+                    placeholder="Premial, Lynn, Corsair"
+                    aria-label={`Characters ${row.name || "this person"} plays`}
+                  />
+                  <button
+                    type="button"
+                    className="party-delete"
+                    disabled={busy}
+                    onClick={() => setDraft(draft.filter((_, i) => i !== index))}
+                  >
+                    Remove
+                  </button>
+                </div>
+              ))}
+            </div>
 
-      {state === "loaded" && (
-        <div className={PAGE_READY}>
-          <div className="people-list">
-            {draft.map((row, index) => (
-              // A saved person keys on their id; a new row has only its slot.
-              <div className="person-row" key={row.id ?? `new-${index}`}>
-                <input
-                  className="split-input person-name"
-                  value={row.name}
-                  onChange={(e) =>
-                    setDraft(
-                      draft.map((r, i) => (i === index ? { ...r, name: e.target.value } : r)),
-                    )
-                  }
-                  placeholder="Jared"
-                  aria-label="Person's name"
-                  maxLength={40}
-                />
-                <input
-                  className="split-input person-characters"
-                  value={row.characters}
-                  onChange={(e) =>
-                    setDraft(
-                      draft.map((r, i) => (i === index ? { ...r, characters: e.target.value } : r)),
-                    )
-                  }
-                  placeholder="Premial, Lynn, Corsair"
-                  aria-label={`Characters ${row.name || "this person"} plays`}
-                />
-                <button
-                  type="button"
-                  className="party-delete"
-                  disabled={busy}
-                  onClick={() => setDraft(draft.filter((_, i) => i !== index))}
-                >
-                  Remove
-                </button>
-              </div>
-            ))}
-          </div>
+            <div className="loot-actions">
+              <button
+                type="button"
+                className="party-add-seat"
+                onClick={() => setDraft([...draft, { name: "", characters: "" }])}
+              >
+                + Person
+              </button>
+              <button type="button" className="party-save" disabled={busy || !dirty} onClick={save}>
+                {busy ? "Saving..." : "Save people"}
+              </button>
+              {error && <span className="split-error">{error}</span>}
+            </div>
 
-          <div className="loot-actions">
-            <button
-              type="button"
-              className="party-add-seat"
-              onClick={() => setDraft([...draft, { name: "", characters: "" }])}
-            >
-              + Person
-            </button>
-            <button type="button" className="party-save" disabled={busy || !dirty} onClick={save}>
-              {busy ? "Saving..." : "Save people"}
-            </button>
-            {error && <span className="split-error">{error}</span>}
-          </div>
-
-          <p className="party-hint">
-            Removing somebody leaves every party exactly as it is. It only takes back who their
-            characters belong to.
-          </p>
-        </div>
-      )}
+            <p className="party-hint">
+              Removing somebody leaves every party exactly as it is. It only takes back who their
+              characters belong to.
+            </p>
+          </>
+        )}
+      </PageSwap>
     </main>
   );
 }

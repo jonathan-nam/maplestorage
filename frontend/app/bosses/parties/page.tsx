@@ -1,6 +1,7 @@
 "use client";
 
-import { PAGE_READY, PAGE_WAITING } from "@/components/route-loading";
+import { PageSwap } from "@/components/page-swap";
+import { PAGE_WAITING } from "@/components/route-loading";
 import { useAuth } from "@clerk/nextjs";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
@@ -755,13 +756,15 @@ export default function PartiesPage() {
       </div>
 
       {state === "error" && <p>Couldn&apos;t load your parties.</p>}
-      {state === "loading" && <p className="party-hint">Loading...</p>}
-
-      {state === "loaded" && (
-        <div className={PAGE_READY}>
-          {/* Once for the page, not once per row: every roster editor points at this one id. */}
-          <KnownCharacters names={knownCharacters} />
-          {/* The same controls the Individual View carries, in the same order and the same row:
+      <PageSwap
+        waiting={state === "loading"}
+        placeholder={<p className="party-hint">Loading...</p>}
+      >
+        {state === "loaded" && (
+          <>
+            {/* Once for the page, not once per row: every roster editor points at this one id. */}
+            <KnownCharacters names={knownCharacters} />
+            {/* The same controls the Individual View carries, in the same order and the same row:
               the stepper on the left, the countdown on the right. The WeekStepper component
               itself, not a copy of its label, so the two pages cannot drift in wording, spacing
               or behaviour.
@@ -769,228 +772,231 @@ export default function PartiesPage() {
               Stepping refetches the clears and the ticks follow it, which is the only reason the
               arrows are allowed to be here: a label that moved while the ticks stayed on this
               week would be a confidently wrong screen. See clearOf(). */}
-          {view && (
-            <div className="boss-controls">
-              <WeekStepper view={view} onSelect={selectWeek} busy={stepping} />
-              <ResetTimer
-                nextResets={view.nextResets}
-                serverNow={view.now}
-                receivedAt={receivedAt}
-                onReset={pickUpReset}
-              />
-            </div>
-          )}
+            {view && (
+              <div className="boss-controls">
+                <WeekStepper view={view} onSelect={selectWeek} busy={stepping} />
+                <ResetTimer
+                  nextResets={view.nextResets}
+                  serverNow={view.now}
+                  receivedAt={receivedAt}
+                  onReset={pickUpReset}
+                />
+              </div>
+            )}
 
-          <div className="party-toolbar-tabs">
-            <div className="basis-row" role="group" aria-label="Group parties by">
-              <button
-                type="button"
-                className={grouping === "character" ? "basis-tab active" : "basis-tab"}
-                onClick={() => setGrouping("character")}
-              >
-                By character
-              </button>
-              <button
-                type="button"
-                className={grouping === "boss" ? "basis-tab active" : "basis-tab"}
-                onClick={() => setGrouping("boss")}
-              >
-                By boss
-              </button>
-              <button
-                type="button"
-                className={grouping === "party" ? "basis-tab active" : "basis-tab"}
-                onClick={() => setGrouping("party")}
-              >
-                By party
-              </button>
-            </div>
+            <div className="party-toolbar-tabs">
+              <div className="basis-row" role="group" aria-label="Group parties by">
+                <button
+                  type="button"
+                  className={grouping === "character" ? "basis-tab active" : "basis-tab"}
+                  onClick={() => setGrouping("character")}
+                >
+                  By character
+                </button>
+                <button
+                  type="button"
+                  className={grouping === "boss" ? "basis-tab active" : "basis-tab"}
+                  onClick={() => setGrouping("boss")}
+                >
+                  By boss
+                </button>
+                <button
+                  type="button"
+                  className={grouping === "party" ? "basis-tab active" : "basis-tab"}
+                  onClick={() => setGrouping("party")}
+                >
+                  By party
+                </button>
+              </div>
 
-            {/* What is left this week, without reading past what is done. "Not cleared" holds the
+              {/* What is left this week, without reading past what is done. "Not cleared" holds the
                 unreported ones too. The counts do not move when you switch tabs: they are of every
                 config being RUN in the week, which on the live view is all of them bar the ones
                 taken off and on a past week is the weekly ones. Counting past that would offer a tab
                 that lists less than it promises. */}
-            <div className="basis-row" role="group" aria-label="Filter by clear state">
-              {filterTabs.map((tab) => (
-                <button
-                  key={tab.value}
-                  type="button"
-                  className={clearFilter === tab.value ? "basis-tab active" : "basis-tab"}
-                  aria-pressed={clearFilter === tab.value}
-                  title={tab.title}
-                  onClick={() => setClearFilter(tab.value)}
-                >
-                  {tab.label}
-                  <span className="tab-count">{tab.count}</span>
-                </button>
-              ))}
+              <div className="basis-row" role="group" aria-label="Filter by clear state">
+                {filterTabs.map((tab) => (
+                  <button
+                    key={tab.value}
+                    type="button"
+                    className={clearFilter === tab.value ? "basis-tab active" : "basis-tab"}
+                    aria-pressed={clearFilter === tab.value}
+                    title={tab.title}
+                    onClick={() => setClearFilter(tab.value)}
+                  >
+                    {tab.label}
+                    <span className="tab-count">{tab.count}</span>
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
 
-          {/* Above every line about the list, the way the Drop Log's Add Drop is: the form is one
+            {/* Above every line about the list, the way the Drop Log's Add Drop is: the form is one
               thing and what the list is or is not showing is another.
 
               Live view only. The server writes a one-off into the period its own clock is in, so
               offering this under a past week's label would file the night in a week the screen is
               not showing. Same rule as the drop picker. */}
-          {!history && characters.length > 0 && (
-            <AddForWeek
-              characters={characters}
-              bosses={bosses}
-              parties={parties}
-              busy={isSaving(ADD_FOR_WEEK)}
-              error={addError}
-              onAdd={addOneOff}
-            />
-          )}
+            {!history && characters.length > 0 && (
+              <AddForWeek
+                characters={characters}
+                bosses={bosses}
+                parties={parties}
+                busy={isSaving(ADD_FOR_WEEK)}
+                error={addError}
+                onAdd={addOneOff}
+              />
+            )}
 
-          {parties.length === 0 && (
-            <p className="finder-empty">
-              No parties yet. <Link href="/bosses/parties/edit">Set them up</Link>: pick a
-              character, then say who they run each boss with.
-            </p>
-          )}
+            {parties.length === 0 && (
+              <p className="finder-empty">
+                No parties yet. <Link href="/bosses/parties/edit">Set them up</Link>: pick a
+                character, then say who they run each boss with.
+              </p>
+            )}
 
-          {/* Not "nothing cleared": that week's clears are real and the Individual View has them.
+            {/* Not "nothing cleared": that week's clears are real and the Individual View has them.
               These parties just were not around for it. */}
-          {parties.length > 0 && shown.length === 0 && (
-            <p className="finder-empty">No parties in this week. {emptyWeekReason}</p>
-          )}
+            {parties.length > 0 && shown.length === 0 && (
+              <p className="finder-empty">No parties in this week. {emptyWeekReason}</p>
+            )}
 
-          {shown.length > 0 && running.length === 0 && (
-            <p className="finder-empty">
-              {history ? (
-                "Every boss was off that week."
-              ) : (
-                <>
-                  Every boss is off this week. <Link href="/bosses/parties/edit">Put one back</Link>
-                  .
-                </>
-              )}
-            </p>
-          )}
+            {shown.length > 0 && running.length === 0 && (
+              <p className="finder-empty">
+                {history ? (
+                  "Every boss was off that week."
+                ) : (
+                  <>
+                    Every boss is off this week.{" "}
+                    <Link href="/bosses/parties/edit">Put one back</Link>.
+                  </>
+                )}
+              </p>
+            )}
 
-          {/* An empty list under a filter is an answer, not a blank page. Kept apart from the no
+            {/* An empty list under a filter is an answer, not a blank page. Kept apart from the no
               parties at all case above, which is a different thing to say. */}
-          {running.length > 0 && visible.length === 0 && (
-            <p className="finder-empty">
-              {clearFilter === "cleared"
-                ? "Nothing cleared this week yet."
-                : "Every party is cleared this week."}
-            </p>
-          )}
+            {running.length > 0 && visible.length === 0 && (
+              <p className="finder-empty">
+                {clearFilter === "cleared"
+                  ? "Nothing cleared this week yet."
+                  : "Every party is cleared this week."}
+              </p>
+            )}
 
-          {grouping === "character" &&
-            characterGroups.map((group) => {
-              const character = characterById.get(group.key);
-              return (
-                // A row of its own for the character, then its bosses under it at full width. The
-                // sprite was tried beside the list, in a column of its own, and the list starting
-                // 128px in cost more than the sprite gained.
-                <section className="party-group" key={group.key}>
-                  <header className="party-banner">
-                    {/* The frame is drawn either way, so a roster where one lookup came back empty
+            {grouping === "character" &&
+              characterGroups.map((group) => {
+                const character = characterById.get(group.key);
+                return (
+                  // A row of its own for the character, then its bosses under it at full width. The
+                  // sprite was tried beside the list, in a column of its own, and the list starting
+                  // 128px in cost more than the sprite gained.
+                  <section className="party-group" key={group.key}>
+                    <header className="party-banner">
+                      {/* The frame is drawn either way, so a roster where one lookup came back empty
                         does not go ragged around it. */}
-                    {character?.spriteImgUrl ? (
-                      <img
-                        className="party-banner-sprite"
-                        src={spriteUrl(character.spriteImgUrl)}
-                        alt=""
-                      />
-                    ) : (
-                      <span className="party-banner-sprite is-empty" aria-hidden="true" />
-                    )}
-                    <h2 className="party-group-name">{character?.name ?? "Unknown character"}</h2>
-                    {/* Of what is listed below, not of what the character has: under a filter the
+                      {character?.spriteImgUrl ? (
+                        <img
+                          className="party-banner-sprite"
+                          src={spriteUrl(character.spriteImgUrl)}
+                          alt=""
+                        />
+                      ) : (
+                        <span className="party-banner-sprite is-empty" aria-hidden="true" />
+                      )}
+                      <h2 className="party-group-name">{character?.name ?? "Unknown character"}</h2>
+                      {/* Of what is listed below, not of what the character has: under a filter the
                         two differ, and the number that describes the rows you can see is the one
                         that cannot be read as a claim about the rows you cannot. */}
+                      <span className="party-banner-count">
+                        {group.parties.length} {group.parties.length === 1 ? "boss" : "bosses"}
+                      </span>
+                    </header>
+                    <div className="party-list">{group.parties.map(bossRow)}</div>
+                  </section>
+                );
+              })}
+
+            {grouping === "party" &&
+              arrangements.map((arrangement) => (
+                // The by-character list's shape, with the party as its subject: a banner for whose
+                // runs these are, then a row per boss. The rows used to be chips summarising a clear
+                // and a pool count, which meant leaving the list to answer for either.
+                <section className="party-group" key={arrangement.key}>
+                  <header className="party-banner is-roster">
+                    {/* Every seat, your own character among them, unlike the strip inside a row: the
+                      roster is what this grouping files by, so it is what the banner names. */}
+                    <RosterStrip members={arrangement.members} />
+                    {/* The tiles carry the names, so a visible heading would be the same names a
+                      second time. It is still a heading, for the outline the sections make. */}
+                    <h2 className="party-group-name visually-hidden">
+                      {arrangement.members.map((m) => m.name).join(" + ")}
+                    </h2>
+                    {/* Of the rows below, as the character banner's count is. */}
                     <span className="party-banner-count">
-                      {group.parties.length} {group.parties.length === 1 ? "boss" : "bosses"}
+                      {arrangement.parties.length}{" "}
+                      {arrangement.parties.length === 1 ? "boss" : "bosses"}
                     </span>
                   </header>
-                  <div className="party-list">{group.parties.map(bossRow)}</div>
+                  <div className="party-list">{arrangement.parties.map(bossRow)}</div>
                 </section>
-              );
-            })}
+              ))}
 
-          {grouping === "party" &&
-            arrangements.map((arrangement) => (
-              // The by-character list's shape, with the party as its subject: a banner for whose
-              // runs these are, then a row per boss. The rows used to be chips summarising a clear
-              // and a pool count, which meant leaving the list to answer for either.
-              <section className="party-group" key={arrangement.key}>
-                <header className="party-banner is-roster">
-                  {/* Every seat, your own character among them, unlike the strip inside a row: the
-                      roster is what this grouping files by, so it is what the banner names. */}
-                  <RosterStrip members={arrangement.members} />
-                  {/* The tiles carry the names, so a visible heading would be the same names a
-                      second time. It is still a heading, for the outline the sections make. */}
-                  <h2 className="party-group-name visually-hidden">
-                    {arrangement.members.map((m) => m.name).join(" + ")}
-                  </h2>
-                  {/* Of the rows below, as the character banner's count is. */}
-                  <span className="party-banner-count">
-                    {arrangement.parties.length}{" "}
-                    {arrangement.parties.length === 1 ? "boss" : "bosses"}
-                  </span>
-                </header>
-                <div className="party-list">{arrangement.parties.map(bossRow)}</div>
-              </section>
-            ))}
-
-          {grouping === "boss" &&
-            bossGroups.map((group) => (
-              <section className="party-group" key={group.key.bossKey}>
-                <header className="party-group-head">
-                  {group.key.iconUrl && (
-                    <img className="boss-portrait" src={apiAssetUrl(group.key.iconUrl)} alt="" />
-                  )}
-                  <h2 className="party-group-name">{group.key.name}</h2>
-                </header>
-                <div className="party-list">
-                  {group.parties.map((party) => (
-                    <PartyCard
-                      key={party.id}
-                      party={party}
-                      busy={isSaving(party.id)}
-                      clear={clearOf(party)}
-                      couponsOwed={couponsOwed.get(party.id) ?? 0}
-                      onToggleClear={history ? undefined : (cleared) => toggleClear(party, cleared)}
-                      dropTable={dropTables[party.bossKey]}
-                      onAddDrop={canAddDrops ? (body) => addDrop(party, body) : undefined}
-                      pool={poolFor(party)}
-                      stacks={stacksFor(party)}
-                      onSaveRoster={history ? undefined : (members) => saveRoster(party, members)}
-                      onTakeOff={history ? undefined : () => setSkipped(party, true)}
-                      heading={
-                        <>
-                          {characterById.get(party.characterId)?.spriteImgUrl && (
-                            <img
-                              className="seat-sprite"
-                              src={spriteUrl(characterById.get(party.characterId)!.spriteImgUrl!)}
-                              alt=""
-                            />
-                          )}
-                          <h3 className="party-row-name">
-                            {characterById.get(party.characterId)?.name ?? "Unknown character"}
-                          </h3>
-                          {/* Beside the character, not folded into the heading: filed by boss,
+            {grouping === "boss" &&
+              bossGroups.map((group) => (
+                <section className="party-group" key={group.key.bossKey}>
+                  <header className="party-group-head">
+                    {group.key.iconUrl && (
+                      <img className="boss-portrait" src={apiAssetUrl(group.key.iconUrl)} alt="" />
+                    )}
+                    <h2 className="party-group-name">{group.key.name}</h2>
+                  </header>
+                  <div className="party-list">
+                    {group.parties.map((party) => (
+                      <PartyCard
+                        key={party.id}
+                        party={party}
+                        busy={isSaving(party.id)}
+                        clear={clearOf(party)}
+                        couponsOwed={couponsOwed.get(party.id) ?? 0}
+                        onToggleClear={
+                          history ? undefined : (cleared) => toggleClear(party, cleared)
+                        }
+                        dropTable={dropTables[party.bossKey]}
+                        onAddDrop={canAddDrops ? (body) => addDrop(party, body) : undefined}
+                        pool={poolFor(party)}
+                        stacks={stacksFor(party)}
+                        onSaveRoster={history ? undefined : (members) => saveRoster(party, members)}
+                        onTakeOff={history ? undefined : () => setSkipped(party, true)}
+                        heading={
+                          <>
+                            {characterById.get(party.characterId)?.spriteImgUrl && (
+                              <img
+                                className="seat-sprite"
+                                src={spriteUrl(characterById.get(party.characterId)!.spriteImgUrl!)}
+                                alt=""
+                              />
+                            )}
+                            <h3 className="party-row-name">
+                              {characterById.get(party.characterId)?.name ?? "Unknown character"}
+                            </h3>
+                            {/* Beside the character, not folded into the heading: filed by boss,
                               two of your characters can run the same boss at different modes. */}
-                          {party.difficulty && (
-                            <span className="party-difficulty">
-                              {difficultyLabel(party.difficulty)}
-                            </span>
-                          )}
-                        </>
-                      }
-                    />
-                  ))}
-                </div>
-              </section>
-            ))}
-        </div>
-      )}
+                            {party.difficulty && (
+                              <span className="party-difficulty">
+                                {difficultyLabel(party.difficulty)}
+                              </span>
+                            )}
+                          </>
+                        }
+                      />
+                    ))}
+                  </div>
+                </section>
+              ))}
+          </>
+        )}
+      </PageSwap>
     </main>
   );
 }
