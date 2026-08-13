@@ -3477,10 +3477,14 @@ button.link:disabled {
   font-weight: 400;
 }
 
-/* The coupon config as ONE object: the heading, what fell, and the boxes that hand it out, inside a
-   single frame instead of stacked loose in the panel between the picker and the roster. The same
-   frame a pile has on the Sale Ledger, which is what this is: one drop, and what is still to say
-   about it. Its own rule rather than .ledger-card, whose bottom margin is for a column of cards. */
+/* The standing split as ONE object: its heading and the boxes that set it, inside a single frame
+   instead of stacked loose in the panel between the picker and the roster. The same frame a pile has
+   on the Sale Ledger. Its own rule rather than .ledger-card, whose bottom margin is for a column of
+   cards.
+
+   What FELL is not in here. The week's coupons were, under a heading naming the config, which read
+   as though a drop that had already landed were a setting. They are drops, and they are headed as
+   drops above this. */
 .loot-config-card {
   display: flex;
   flex-direction: column;

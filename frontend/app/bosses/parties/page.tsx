@@ -544,11 +544,9 @@ export default function PartiesPage() {
     const config = shareConfig(dropTables[party.bossKey], party.difficulty, VESTIGE, party.members);
     if (!config) return undefined;
     return {
-      // Named for the item rather than for the catalog row, which calls it a "Vestige of Erion
-      // Coupon": the heading would then read Coupon Config, and the row underneath already says
-      // Coupon.
-      title: "Vestige of Erion Config",
-      // The deal, which is a standing fact about the party and not about any one night.
+      // The deal, which is a standing fact about the party and not about any one night. The block's
+      // only heading now: it used to sit under "Vestige of Erion Config", which headed the week's
+      // coupons as well and read as though a drop that had fallen were a setting.
       entitledTitle: "Entitled each week",
       config,
       onSave: (shares: Map<string, number>) => saveShares(party, shares),
