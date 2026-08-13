@@ -33,8 +33,10 @@ describe("what the card says a person owes", () => {
 
   it("counts the pieces rather than formatting them, since they are not money", () => {
     // A piece debt has no price. Putting it through a meso formatter would be the first step back
-    // towards pricing it, which is what #354 deleted.
-    expect(source).toContain("${row.pieces} pieces");
+    // towards pricing it, which is what #354 deleted. Netted into ONE count now, and the direction is
+    // in the words: netting a count of the same coupon between the same two people values nothing.
+    expect(source).toContain("${row.piecesNet} coupons to hand over");
+    expect(source).toContain("${-row.piecesNet} coupons owed");
   });
 
   it("leaves the arithmetic uncoloured, and signs every component instead", () => {
@@ -167,7 +169,7 @@ describe("what the card says a person owes", () => {
   });
 
   it("does not offer to copy a COUNT of pieces, which is not a price", () => {
-    expect(source).toContain("{`${row.pieces} pieces`}");
+    expect(source).toContain("row.piecesNet > 0");
     expect(source).toContain("const toCopy = row.mesos > 0 ? row.mesos");
   });
 });

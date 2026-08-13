@@ -22,7 +22,7 @@ import {
   shareKey,
   yourPiles,
 } from "@/lib/settlement";
-import { worthDrawing } from "@/lib/ledger-fates";
+import { heldOfYoursBy, worthDrawing } from "@/lib/ledger-fates";
 import { buildWallet } from "@/lib/wallet";
 import { type DropSectionKey, dropSections, saleCards, shownSection } from "@/lib/drop-sections";
 import {
@@ -464,10 +464,13 @@ export default function DropLogPage() {
   const recorded = (key: string) =>
     (tranchesByHolder.get(key)?.length ?? 0) > 0 || (paymentsByHolder.get(key)?.length ?? 0) > 0;
   const yours = yourPiles(ledgers);
+  // What the OTHER piles are holding of yours, so your own pile's debt reads as what changes hands:
+  // owing Bro 90 while he holds 20 of yours is 70. Netted per creditor, never across people. See owes.
+  const heldOfYours = heldOfYoursBy(ledgers);
   // Of your own piles, the ones with something to answer. A pile that owes nobody is somewhere a sale
   // may be recorded and nothing else, so it waits behind the control that offers exactly that rather
   // than standing on screen with a count and no question.
-  const { drawn, quiet } = worthDrawing(yours, recorded);
+  const { drawn, quiet } = worthDrawing(yours, recorded, heldOfYours);
   // A held-back pile, once asked for. Drawn where the control that asked for it stood, not folded in
   // above with the rest: appended there, a click at the foot of the page made a card appear further
   // up it and took away the thing that was clicked, and nothing on screen tied the two together.
@@ -497,6 +500,7 @@ export default function DropLogPage() {
    * card either way, in a different place on the page, so the wiring cannot drift between them.
    */
   const pileCard = {
+    heldOfYours,
     tranches: tranchesByHolder,
     bossByKey,
     partyById,

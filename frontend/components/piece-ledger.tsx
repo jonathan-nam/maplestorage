@@ -6,7 +6,16 @@ import { apiAssetUrl } from "@/lib/api";
 import { formatWeekStart } from "@/lib/boss-clears";
 import { bossLabel } from "@/lib/boss-difficulty";
 import { formatMesos, parseMesos, shortMesos } from "@/lib/drop-split";
-import { FATES, type Fate, outstandingOf, queueOf, roomFor } from "@/lib/ledger-fates";
+import {
+  FATES,
+  type Fate,
+  type HeldOfYours,
+  outstandingOf,
+  owedByCreditor,
+  settledOf,
+  queueOf,
+  roomFor,
+} from "@/lib/ledger-fates";
 import { transferKey } from "@/lib/piece-ledger";
 import {
   type Holder,
@@ -51,6 +60,7 @@ const LABELS: Record<Fate, { theirs: string; yours: string }> = {
 
 export function PieceLedger({
   ledgers,
+  heldOfYours,
   tranches,
   bossByKey,
   partyById,
@@ -63,6 +73,8 @@ export function PieceLedger({
   focusEntry = false,
 }: {
   ledgers: HolderLedger[];
+  /** Pieces of yours the other piles hold, netted into each pile's debt. See HolderCard. */
+  heldOfYours: HeldOfYours;
   /** Every holder's tranches, keyed by holderKey(), oldest first as the server returns them. */
   tranches: Map<string, VestigeTranche[]>;
   bossByKey: Map<string, Boss>;
@@ -103,6 +115,7 @@ export function PieceLedger({
         <HolderCard
           key={holderKey(ledger.holder)}
           ledger={ledger}
+          heldOfYours={heldOfYours}
           focusEntry={focusEntry && i === 0}
           tranches={tranches.get(holderKey(ledger.holder)) ?? []}
           bossByKey={bossByKey}
@@ -121,6 +134,7 @@ export function PieceLedger({
 
 function HolderCard({
   ledger,
+  heldOfYours,
   tranches,
   bossByKey,
   partyById,
@@ -133,6 +147,13 @@ function HolderCard({
   focusEntry,
 }: {
   ledger: HolderLedger;
+  /**
+   * Pieces of yours each OTHER pile is holding, so this pile's debt reads as what changes hands.
+   *
+   * Netted per creditor by `owes`: owing Bro 90 while he holds 20 of yours is 70. Passed down rather
+   * than derived here, because only the page has every pile to read it off.
+   */
+  heldOfYours: HeldOfYours;
   tranches: VestigeTranche[];
   bossByKey: Map<string, Boss>;
   partyById: Map<string, Party>;
@@ -182,7 +203,12 @@ function HolderCard({
   const toEnter = unaccounted(ledger);
 
   const room = roomFor(ledger, fate);
-  const outstanding = outstandingOf(ledger);
+  const outstanding = outstandingOf(ledger, heldOfYours);
+  const owed = owedByCreditor(ledger, heldOfYours);
+  // Answered pieces are a figure for the PILE, not per creditor, so once some are answered no
+  // per-creditor number can be backed: the names are said and the total stays the pile's own. Naming
+  // them with numbers that add up to more than the total would be the plausible wrong number.
+  const answered = settledOf(ledger, heldOfYours);
   /** What the count box is usually waiting for: the debt where there is one, the room where there is not. */
   const suggested = Math.min(outstanding > 0 ? outstanding : room, room);
 
@@ -267,7 +293,17 @@ function HolderCard({
           </span>
           {/* The DEBT, not the pile. See outstandingOf. Nothing where there is none: a card drawn to
               correct a row it already holds has no figure outstanding to state. */}
-          {outstanding > 0 && <span className="loot-meta">{`owes ${outstanding} pieces`}</span>}
+          {/* NAMED, because a count on its own does not say who is waiting for it: "owes 90 pieces"
+              on a pile whose whole debt was one person's left no way to tell which person. Every
+              creditor listed, since a pile can owe two, and the number beside each is already net of
+              the coupons of yours THEY are holding. */}
+          {outstanding > 0 && (
+            <span className="loot-meta">
+              {answered > 0
+                ? `owes ${outstanding} pieces to ${owed.map((c) => c.name).join(", ")}`
+                : `owes ${owed.map((c) => `${c.pieces} to ${c.name}`).join(" \u00b7 ")}`}
+            </span>
+          )}
         </span>
         <span className="ledger-tally">
           {ledger.closed && (

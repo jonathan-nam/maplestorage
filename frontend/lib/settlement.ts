@@ -64,6 +64,18 @@ export type Settlement = {
    */
   piecesYouOwe: number;
   /**
+   * The two above, netted: positive is coupons of theirs you hold, negative is yours they hold.
+   *
+   * One figure, because one handover settles the pair. Holding 90 of Bro's while he holds 20 of yours
+   * is 70 changing hands, not two errands, and the card said "20 pieces · 90 to hand over" and left
+   * the subtraction to whoever read it.
+   *
+   * Netting a COUNT is safe in a way netting a price is not: it is the same coupon on both sides and
+   * the same person, so nothing is being valued. That is why the money net and this one are different
+   * rules rather than one.
+   */
+  piecesNet: number;
+  /**
    * Mesos they owe you once every direction is netted off. A real figure, unlike the pieces.
    *
    * NET, because one transfer of the difference is how this is actually settled and it saves a hop's
@@ -127,6 +139,7 @@ const blank = (key: string, name: string): Settlement => ({
   holder: holderFromKey(key),
   pieces: 0,
   piecesYouOwe: 0,
+  piecesNet: 0,
   mesos: 0,
   owedByYou: 0,
   parts: { shares: 0, entered: 0, soldOfTheirs: 0, soldOfYours: 0, received: 0 },
@@ -283,6 +296,9 @@ export function buildSettlement(
   // A pinned person gets a row even with nothing on it, which is the one case a blank card is
   // wanted: it is where next week's entry goes.
   for (const key of pinned) rowFor(key).pinned = true;
+
+  // Both directions are in by now, so the pair becomes the one figure that changes hands.
+  for (const row of out.values()) row.piecesNet = row.piecesYouOwe - row.pieces;
 
   return [...out.values()]
     .filter(
