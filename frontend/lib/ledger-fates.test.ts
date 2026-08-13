@@ -5,6 +5,7 @@ import {
   FATES,
   asksAnything,
   coversThePile,
+  distributeSale,
   outstandingOf,
   owes,
   queueOf,
@@ -600,5 +601,44 @@ describe("the way back to a pile the ledger held back", () => {
 
   it("counts the revealed card, so the empty line does not sit above one", () => {
     expect(page).toMatch(/holders: drawn\.length \+ revealed\.length/);
+  });
+});
+
+// A sale is two numbers again: how many went and for how much. Who gets what comes off the debts the
+// ledger already knows, which is what #362's per-creditor box asked the reader to work out.
+describe("distributing a sale over the people it owes", () => {
+  const bro = { key: "person:p-bro", name: "Bro", pieces: 70 };
+  const jared = { key: "person:p-jared", name: "Jared", pieces: 20 };
+
+  it("pays the debts off first, biggest first, and leaves the rest yours", () => {
+    // 100 sold against 90 of debt: both settled, and 10 of the money is your own.
+    const out = distributeSale(100, [jared, bro]);
+    expect(out.map((s) => [s.creditor.name, s.pieces])).toEqual([
+      ["Bro", 70],
+      ["Jared", 20],
+    ]);
+  });
+
+  it("stops at the sale, so a part-sale credits nobody for coupons still sitting there", () => {
+    // 50 sold against 90 owed. The biggest debt takes it, and Jared's is untouched: crediting him a
+    // slice of a sale that did not cover Bro would state money for pieces that never went.
+    expect(distributeSale(50, [bro, jared])).toEqual([{ creditor: bro, pieces: 50 }]);
+  });
+
+  it("never credits a creditor past their own debt", () => {
+    expect(distributeSale(500, [bro])).toEqual([{ creditor: bro, pieces: 70 }]);
+  });
+
+  it("gives the same answer whatever order the debts arrive in", () => {
+    // The order is arbitrary between two creditors and has to be, so it is fixed rather than
+    // incidental: nothing about the coupons themselves says whose went to market.
+    expect(distributeSale(80, [bro, jared])).toEqual(distributeSale(80, [jared, bro]));
+  });
+
+  it("has nothing to say about a sale of nothing, or a pile that owes nobody", () => {
+    expect(distributeSale(0, [bro])).toEqual([]);
+    expect(distributeSale(50, [])).toEqual([]);
+    // A creditor already square drops out rather than taking a zero share.
+    expect(distributeSale(50, [{ ...bro, pieces: 0 }])).toEqual([]);
   });
 });

@@ -10,6 +10,7 @@ import {
   FATES,
   type Fate,
   type HeldOfYours,
+  distributeSale,
   outstandingOf,
   owedByCreditor,
   settledOf,
@@ -20,8 +21,8 @@ import { transferKey } from "@/lib/piece-ledger";
 import {
   type Holder,
   type HolderLedger,
+  holderFromKey,
   holderKey,
-  pieceCreditors,
   unaccounted,
 } from "@/lib/vestige-ledger";
 import type { Boss } from "@/types/boss";
@@ -179,8 +180,6 @@ function HolderCard({
   const [amount, setAmount] = useState("");
   const [fate, setFate] = useState<Fate>("SOLD");
   const [refusal, setRefusal] = useState<string | null>(null);
-  /** Pieces of the tranche that were each creditor's, as typed, keyed by holderKey. */
-  const [theirs, setTheirs] = useState<Record<string, string>>({});
   const entryRef = useRef<HTMLInputElement>(null);
 
   // On mount only, which is the click that drew this card: focus is what ties the two together, and
@@ -189,12 +188,8 @@ function HolderCard({
     if (focusEntry) entryRef.current?.focus();
   }, [focusEntry]);
 
-  // Who this pile owes coupons to. Asked on either PRICED fate: a sale divides what the market paid
-  // and a purchase divides what was agreed, and both hand the creditor money instead of their
-  // coupons. Not on a redemption, which realized nothing to divide. See V50 and V56.
-  const creditors = pieceCreditors(ledger);
-  // For naming a share on a tranche already entered, which pieceCreditors cannot: it drops the
-  // closed drops, and a sale attributed before the boss was settled still says whose it was.
+  // For naming a share on a tranche already entered, which the debts cannot: those drop the closed
+  // drops, and a sale attributed before the boss was settled still says whose it was.
   const creditorNames = new Map(
     ledger.drops.flatMap((d) => d.transfers).map((t) => [t.toId, t.to]),
   );
@@ -237,23 +232,26 @@ function HolderCard({
       : null;
 
   /**
-   * Whose pieces this tranche was, as far as it has been said.
+   * Whose pieces this tranche was, worked out rather than asked for.
    *
-   * Only what somebody typed. Nothing is inferred from what the pile owes: which of the coupons in
-   * one inventory went to market is not knowable from here, and guessing at it would credit the wrong
-   * person a real amount of money. Empty is the whole tranche being the holder's own.
+   * What you owe goes out first, biggest debt first, capped at each person's netted debt, and the rest
+   * is your own: see distributeSale. A box per creditor asked the reader to do that arithmetic and
+   * gave no hint what to type, which is how it was reported.
+   *
+   * Still not a claim about WHICH coupons went to market. It says this much of the money is theirs,
+   * which is the thing the debt was always in.
    */
-  const attributed = creditors
-    .map((c) => ({ key: c.key, holder: c.holder, pieces: Number((theirs[c.key] ?? "").trim()) }))
-    .filter((s) => Number.isInteger(s.pieces) && s.pieces >= 1);
+  const attributed = distributeSale(entry?.pieces ?? 0, owed).map(({ creditor, pieces: cut }) => ({
+    key: creditor.key,
+    holder: holderFromKey(creditor.key),
+    name: creditor.name,
+    pieces: cut,
+  }));
   const attributedPieces = attributed.reduce((sum, s) => sum + s.pieces, 0);
   /** Whether this fate has a price for the boxes below to divide. Only a redemption does not. */
   const priced = fate !== "KEPT";
   /** What to call the tranche being entered, in the two places a message names it. */
   const noun = fate === "BOUGHT" ? "purchase" : "sale";
-  // More of the tranche given away than it held, which the server refuses too. Said rather than
-  // clamped: the reader typed both numbers, and which of them is wrong is theirs to decide.
-  const overAttributed = priced && entry !== null && attributedPieces > entry.pieces;
 
   // The nights with a debt on them, and the two kinds the queue counts instead. See queueOf.
   const { owing, clean: cleanCount, closed: closedCount } = queueOf(ledger);
@@ -266,7 +264,6 @@ function HolderCard({
       if (clear === "entry") {
         setPieces("");
         setAmount("");
-        setTheirs({});
       }
     } catch (e) {
       setRefusal(e instanceof Error ? e.message : "That didn't save.");
@@ -340,7 +337,7 @@ function HolderCard({
             className="ledger-sale"
             onSubmit={(e) => {
               e.preventDefault();
-              if (!entry || overAttributed) return;
+              if (!entry) return;
               if (fate === "SOLD")
                 void write(
                   onAddSale(
@@ -407,58 +404,40 @@ function HolderCard({
                 />
               </label>
             )}
-            <button
-              type="submit"
-              className="party-save"
-              disabled={busy || entry === null || overAttributed}
-            >
+            <button type="submit" className="party-save" disabled={busy || entry === null}>
               Add
             </button>
           </form>
         )}
-
-        {/* Whose pieces the tranche was, one box per person this pile owes. The one place a coupon
-            debt gets a price, and it only can here: these pieces were in YOUR inventory, so the figure
-            being divided is one you just typed. What somebody else sold at is still not asked for,
-            and still could not be answered. See V56.
+        {/* What the sale pays out, worked out rather than asked for. The one place a coupon debt gets
+            a price, and it only can here: these pieces were in YOUR inventory, so the figure being
+            divided is one you just typed. What somebody else sold at is still not asked for, and
+            still could not be answered. See V56.
 
             On a purchase as well as a sale, and that is the whole of taking somebody's coupons against
-            what they owe you: the price settles the pieces and lands on their card. Without it here,
-            "I took theirs, at a price" cleared the pile and the money for them was stated nowhere.
+            what they owe you: the price settles the pieces and lands on their card.
 
-            Nothing is prefilled. The box is usually the whole debt, but "usually" is what would
-            quietly credit a person for coupons that are still sitting there. */}
-        {priced && creditors.length > 0 && (toEnter > 0 || ledger.pieces === 0) && (
+            Stated before it is saved, and listed on the row after, because a distribution nobody can
+            see is one nobody can correct. */}
+        {priced && attributed.length > 0 && (
           <div className="ledger-attribution">
-            {creditors.map((creditor) => {
-              const cut = attributed.find((s) => s.key === creditor.key)?.pieces ?? 0;
+            {attributed.map((share) => {
               // Their slice of THIS tranche, at its own price. Exact within one, which is one lot at
               // one price. The rounding remainder stays on your side.
               const worth =
-                entry?.amount && cut > 0 ? Math.round((cut * entry.amount) / entry.pieces) : 0;
+                entry?.amount && entry.pieces > 0
+                  ? Math.round((share.pieces * entry.amount) / entry.pieces)
+                  : 0;
               return (
-                <label key={creditor.key} className="loot-share-input">
-                  of which {creditor.name}&apos;s
-                  <input
-                    className="split-input loot-count-input"
-                    value={theirs[creditor.key] ?? ""}
-                    onChange={(e) =>
-                      setTheirs((t) => ({
-                        ...t,
-                        [creditor.key]: clamp(e.target.value, creditor.pieces),
-                      }))
-                    }
-                    inputMode="numeric"
-                    aria-label={`Pieces of this ${noun} that were ${creditor.name}'s, at most ${creditor.pieces}`}
-                  />
+                <span key={share.key} className="loot-share-input">
+                  {`${share.pieces} to ${share.name}`}
                   {worth > 0 && <span className="loot-share-nets">{shortMesos(worth)}</span>}
-                </label>
+                </span>
               );
             })}
-            {overAttributed && (
-              <span className="split-error">
-                {`${attributedPieces} of a ${noun} of ${entry?.pieces}`}
-              </span>
+            {/* What is left is yours, said so the two halves of the sale add up on screen. */}
+            {entry !== null && entry.pieces > attributedPieces && (
+              <span className="loot-share-input">{`${entry.pieces - attributedPieces} yours`}</span>
             )}
           </div>
         )}
