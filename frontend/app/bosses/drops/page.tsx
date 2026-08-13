@@ -1,7 +1,6 @@
 "use client";
 
 import { PageSwap } from "@/components/page-swap";
-import { PAGE_WAITING } from "@/components/route-loading";
 import { useAuth } from "@clerk/nextjs";
 import Link from "next/link";
 import { useEffect, useState } from "react";
@@ -542,7 +541,7 @@ export default function DropLogPage() {
     }) > 0;
 
   return (
-    <main className={state === "loading" ? PAGE_WAITING : "page"}>
+    <main className="page">
       <h1 className="page-title">Drop Log</h1>
 
       {state === "error" && <p>Couldn&apos;t load your drops.</p>}

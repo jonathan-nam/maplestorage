@@ -298,12 +298,17 @@ body:has(.nav-pending) main {
   }
 }
 
-/* A page that is still waiting, whether for the route or for its own fetch. Same delay as the bar
-   above, and for the same reason: a wait that ends inside it should draw nothing.
+/* The PLACEHOLDER, not the page. Same delay as the bar above, and for the same reason: a wait that
+   ends inside it should draw nothing.
    Measured on the production build, clicking through to /bosses committed 12ms after the click and
    painted its 980px matrix skeleton for a single frame between the outgoing 174px page and the
    incoming 147px one. That is the flicker. It is not the bar's wait, it lands just after it, which
    is why the bar's own delay never covered it.
+   It went on <main> first, which was wrong, and the trace of a real click says why: the router
+   unmounts the outgoing page as soon as the route commits (14ms), so hiding the incoming <main>
+   for 150ms is 150ms of blank page rather than 150ms of the page you came from. Four states, one
+   of them nothing. On the placeholder it is three, and the title never leaves the screen.
+   Still on <main> in a loading.tsx, where the whole <main> IS the placeholder.
    `both` rather than an opacity:0 base: the backwards fill is what holds it hidden through the
    delay, so the hidden state and the visible one stay in the one keyframe pair. */
 .page-waiting {

@@ -1,6 +1,5 @@
 "use client";
 
-import { PAGE_WAITING } from "@/components/route-loading";
 import { useAuth } from "@clerk/nextjs";
 import { useDeferredValue, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 
@@ -439,7 +438,7 @@ export default function RunOrderPage() {
   ).length;
 
   return (
-    <main className={state === "loading" ? PAGE_WAITING : "page"}>
+    <main className="page">
       <h1 className="page-title">Run Order</h1>
 
       <div className="basis-row" role="group" aria-label="Where the runs come from">
@@ -464,7 +463,11 @@ export default function RunOrderPage() {
         ))}
       </div>
 
-      {fromAccount && state === "loading" && <p className="party-hint">Loading your parties...</p>}
+      {/* The class is on the hint, not the <main>: this page draws most of itself without waiting
+          for anything, and hiding all of it to cover one line would blank the controls too. */}
+      {fromAccount && state === "loading" && (
+        <p className="party-hint page-waiting">Loading your parties...</p>
+      )}
 
       {fromAccount && state === "error" && (
         <p className="finder-empty">

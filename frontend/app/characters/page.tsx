@@ -5,7 +5,6 @@ import { useEffect, useState } from "react";
 import { AddCharacter } from "@/components/add-character";
 import { CharacterRow } from "@/components/character-row";
 import { PageSwap } from "@/components/page-swap";
-import { PAGE_WAITING } from "@/components/route-loading";
 import { ApiError, apiFetch } from "@/lib/api";
 import { invalidate, peek, put } from "@/lib/cache";
 import { groupByWorld } from "@/lib/character-groups";
@@ -177,7 +176,7 @@ export default function CharactersPage() {
   return (
     // Waiting is `!loaded && !failed`, not `!loaded`: a page that failed has its answer and is
     // done waiting, and holding the class would fade the error in a second time.
-    <main className={!loaded && !failed ? PAGE_WAITING : "page"}>
+    <main className="page">
       <div className="settings-section-head">
         <h1 className="page-title">Characters</h1>
         {/* Only while there is something to look up, so it takes itself off the page. Every
