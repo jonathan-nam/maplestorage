@@ -306,6 +306,10 @@ function SettlementCard({
               pieces are not, being a count of coupons rather than a price. */}
           <span className={"loot-meta ledger-summary is-open"}>
             {row.pieces > 0 && <span>{`${row.pieces} pieces`}</span>}
+            {/* Coupons of THEIRS in your inventory, which is the direction that pays a debt down
+                rather than adding to one. Said as what you would do with them, since a bare count
+                beside theirs would be two numbers called "pieces" pointing opposite ways. */}
+            {row.piecesYouOwe > 0 && <span>{`${row.piecesYouOwe} of theirs to hand over`}</span>}
             {toCopy !== null && (
               <CopyAmount
                 value={toCopy}

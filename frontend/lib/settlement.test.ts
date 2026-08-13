@@ -50,6 +50,18 @@ const owing = (lootId: string, bossKey: string, pieces: number, closed = false) 
   transfers: [{ fromId: "person:p-bro", toId: "self", from: "Bro", to: "you", pieces }],
 });
 
+/** One boss row under YOUR OWN pile, where `pieces` of theirs are in your inventory. */
+const holdingOf = (lootId: string, bossKey: string, pieces: number, closed = false) => ({
+  lootId,
+  partyId: `pa-${lootId}`,
+  bossKey,
+  weekStart: "2026-08-13",
+  looterName: "HuskyxKenshi",
+  pieces: pieces * 4,
+  closed,
+  transfers: [{ fromId: "self", toId: "person:p-bro", from: "you", to: "Bro", pieces }],
+});
+
 const line = (lootId: string, pay: number, direction: "owe" | "owed" = "owed"): WalletLine => ({
   partyId: `pa-${lootId}`,
   lootId,
@@ -119,6 +131,44 @@ describe("what one person owes you", () => {
       wallet([]),
     );
     expect(rows[0]!.drops[0]!.pieces).toBe(80);
+  });
+
+  it("says what of THEIRS you are holding, which is the half that pays a debt down", () => {
+    // The ordinary night: you looted the lot, so their share is in your inventory. The card only
+    // counted the other direction, so the figure the arrangement was made for was on no screen: the
+    // whole point is that these coupons come off what they owe you.
+    const rows = buildSettlement(
+      [ledger(SELF, "you", { drops: [holdingOf("l1", "kalos-the-guardian", 30)] })],
+      wallet([]),
+    );
+    expect([rows[0]!.name, rows[0]!.pieces, rows[0]!.piecesYouOwe]).toEqual(["Bro", 0, 30]);
+  });
+
+  it("keeps the two directions apart, and counts every night of each", () => {
+    // Husky's week: 30 of Bro's off Kalos and 15 off Seren in your inventory, 20 of yours off
+    // Baldrix in his. Two figures on one card, because a debt in coupons is settled by handing the
+    // coupons over and the two piles are in different inventories.
+    const rows = buildSettlement(
+      [
+        ledger(SELF, "you", {
+          drops: [holdingOf("l1", "kalos-the-guardian", 30), holdingOf("l2", "chosen-seren", 15)],
+        }),
+        ledger(BRO, "Bro", { owedToYou: 20, drops: [owing("l3", "baldrix", 20)] }),
+      ],
+      wallet([]),
+    );
+    expect(rows).toHaveLength(1);
+    expect([rows[0]!.pieces, rows[0]!.piecesYouOwe]).toEqual([20, 45]);
+  });
+
+  it("leaves a closed night out of what you are holding", () => {
+    // Closed is settled, and counting it again would take it off a debt somebody already answered
+    // for. The same rule the other direction has had since V52.
+    const rows = buildSettlement(
+      [ledger(SELF, "you", { drops: [holdingOf("l1", "kalos-the-guardian", 30, true)] })],
+      wallet([]),
+    );
+    expect(rows).toHaveLength(0);
   });
 });
 
