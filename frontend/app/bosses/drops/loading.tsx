@@ -1,12 +1,13 @@
 import { RouteLoading } from "@/components/route-loading";
+import { DropLogSkeleton } from "@/components/drop-log-skeleton";
 
-// See app/inventory/loading.tsx for why these boundaries exist. Nothing to seed from here: the
-// pools are never cached, so the page's own loading state takes over the moment it mounts.
+// See app/inventory/loading.tsx for why these boundaries exist. The same skeleton the page shows for
+// its own fetch, so handing over to it is invisible.
 export default function Loading() {
   return (
     <RouteLoading>
       <h1 className="page-title">Drop Log</h1>
-      <p className="party-hint">Loading...</p>
+      <DropLogSkeleton />
     </RouteLoading>
   );
 }
