@@ -9,16 +9,9 @@ import type { ReactNode } from "react";
  */
 export const PAGE_WAITING = "page page-waiting";
 
-/**
- * The class the content that was being waited for wears when it arrives.
- *
- * The pair of PAGE_WAITING, and the same argument: the wait and the arrival are one transition, so
- * both ends of it are named in one place. What it does is in globals.css under .page-ready.
- *
- * It goes on the content, not on the <main>. The title is drawn through the wait as well, so
- * fading the whole page in blinks the one part of it that never went anywhere.
- */
-export const PAGE_READY = "page-ready";
+// The other end of the wait is components/page-swap.tsx, not a class a page spells out. Fading the
+// arriving content in on its own left a blank beat, because the placeholder was already gone, so
+// the two have to be held together by something that outlives the handover.
 
 /**
  * The <main> every route's loading.tsx renders.

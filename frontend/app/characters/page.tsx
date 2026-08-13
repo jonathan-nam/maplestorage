@@ -4,7 +4,8 @@ import { useAuth } from "@clerk/nextjs";
 import { useEffect, useState } from "react";
 import { AddCharacter } from "@/components/add-character";
 import { CharacterRow } from "@/components/character-row";
-import { PAGE_READY, PAGE_WAITING } from "@/components/route-loading";
+import { PageSwap } from "@/components/page-swap";
+import { PAGE_WAITING } from "@/components/route-loading";
 import { ApiError, apiFetch } from "@/lib/api";
 import { invalidate, peek, put } from "@/lib/cache";
 import { groupByWorld } from "@/lib/character-groups";
@@ -189,54 +190,54 @@ export default function CharactersPage() {
       </div>
 
       {failed && !loaded && <p>Couldn&apos;t load your characters.</p>}
-      {!loaded && !failed && <p className="party-hint">Loading...</p>}
+      <PageSwap waiting={!loaded && !failed} placeholder={<p className="party-hint">Loading...</p>}>
+        {loaded && (
+          <>
+            {groups.map((group) => (
+              <section className="character-group" key={group.world ?? "unplaced"}>
+                <h2 className="character-world">{group.world ?? "World not looked up"}</h2>
+                <ul className="character-list">
+                  {group.characters.map((character) => {
+                    // Against the group, not the page: an arrow at a group's edge has nowhere to go,
+                    // because the character on the other side of it plays somewhere else.
+                    const within = group.characters.indexOf(character);
+                    const index = characters.indexOf(character);
+                    const neighbour = (step: -1 | 1) =>
+                      characters.indexOf(group.characters[within + step]!);
+                    return (
+                      <CharacterRow
+                        key={character.id}
+                        character={character}
+                        onUpdated={updated}
+                        onDeleted={deleted}
+                        onMove={(direction) => move(index, neighbour(direction))}
+                        canMoveUp={within > 0}
+                        canMoveDown={within < group.characters.length - 1}
+                      />
+                    );
+                  })}
+                </ul>
+              </section>
+            ))}
 
-      {loaded && (
-        <div className={PAGE_READY}>
-          {groups.map((group) => (
-            <section className="character-group" key={group.world ?? "unplaced"}>
-              <h2 className="character-world">{group.world ?? "World not looked up"}</h2>
-              <ul className="character-list">
-                {group.characters.map((character) => {
-                  // Against the group, not the page: an arrow at a group's edge has nowhere to go,
-                  // because the character on the other side of it plays somewhere else.
-                  const within = group.characters.indexOf(character);
-                  const index = characters.indexOf(character);
-                  const neighbour = (step: -1 | 1) =>
-                    characters.indexOf(group.characters[within + step]!);
-                  return (
-                    <CharacterRow
-                      key={character.id}
-                      character={character}
-                      onUpdated={updated}
-                      onDeleted={deleted}
-                      onMove={(direction) => move(index, neighbour(direction))}
-                      canMoveUp={within > 0}
-                      canMoveDown={within < group.characters.length - 1}
-                    />
-                  );
-                })}
-              </ul>
-            </section>
-          ))}
+            <AddCharacter onAdded={added} />
 
-          <AddCharacter onAdded={added} />
+            {error && <p className="routine-error">{error}</p>}
 
-          {error && <p className="routine-error">{error}</p>}
+            {elsewhere && <p className="party-hint">{elsewhere}</p>}
 
-          {elsewhere && <p className="party-hint">{elsewhere}</p>}
-
-          {/* The list is one world's. This is the rest of the account, and it is said because an
+            {/* The list is one world's. This is the rest of the account, and it is said because an
               empty page in the wrong world looks exactly like an account with no characters. */}
-          {settings && settings.otherWorldCharacters > 0 && (
-            <p className="party-hint">
-              {settings.otherWorldCharacters}{" "}
-              {settings.otherWorldCharacters === 1 ? "character" : "characters"} in{" "}
-              {worldLabel(otherWorld(settings.worldType))}.
-            </p>
-          )}
-        </div>
-      )}
+            {settings && settings.otherWorldCharacters > 0 && (
+              <p className="party-hint">
+                {settings.otherWorldCharacters}{" "}
+                {settings.otherWorldCharacters === 1 ? "character" : "characters"} in{" "}
+                {worldLabel(otherWorld(settings.worldType))}.
+              </p>
+            )}
+          </>
+        )}
+      </PageSwap>
     </main>
   );
 }

@@ -1,6 +1,7 @@
 "use client";
 
-import { PAGE_READY, PAGE_WAITING } from "@/components/route-loading";
+import { PageSwap } from "@/components/page-swap";
+import { PAGE_WAITING } from "@/components/route-loading";
 import { useAuth } from "@clerk/nextjs";
 import Link from "next/link";
 import { useEffect, useState } from "react";
@@ -505,374 +506,381 @@ export default function DropLogPage() {
       <h1 className="page-title">Drop Log</h1>
 
       {state === "error" && <p>Couldn&apos;t load your drops.</p>}
-      {state === "loading" && <p className="party-hint">Loading...</p>}
+      <PageSwap
+        waiting={state === "loading"}
+        placeholder={<p className="party-hint">Loading...</p>}
+      >
+        {state === "loaded" && (
+          <>
+            {sections.length > 1 && (
+              <div className="basis-row droplog-sections" role="group" aria-label="Section">
+                {sections.map((s) => (
+                  <button
+                    key={s.key}
+                    type="button"
+                    className={shown === s.key ? "basis-tab active" : "basis-tab"}
+                    aria-pressed={shown === s.key}
+                    onClick={() => setSection(s.key)}
+                  >
+                    {s.label}
+                  </button>
+                ))}
+              </div>
+            )}
 
-      {state === "loaded" && (
-        <div className={PAGE_READY}>
-          {sections.length > 1 && (
-            <div className="basis-row droplog-sections" role="group" aria-label="Section">
-              {sections.map((s) => (
-                <button
-                  key={s.key}
-                  type="button"
-                  className={shown === s.key ? "basis-tab active" : "basis-tab"}
-                  aria-pressed={shown === s.key}
-                  onClick={() => setSection(s.key)}
-                >
-                  {s.label}
-                </button>
-              ))}
-            </div>
-          )}
-
-          {shown === "drops" && (
-            <>
-              {/* Above the totals it changes. Nothing to log against with no roster, and a picker of
+            {shown === "drops" && (
+              <>
+                {/* Above the totals it changes. Nothing to log against with no roster, and a picker of
                   nobody is not worth holding the space for. */}
-              {characters.length > 0 && (
-                <LogDrop
-                  characters={characters}
-                  bosses={bosses}
-                  dropTables={dropTables}
-                  busy={busy}
-                  onLog={logDrop}
-                />
-              )}
-              {error && <p className="split-error">{error}</p>}
+                {characters.length > 0 && (
+                  <LogDrop
+                    characters={characters}
+                    bosses={bosses}
+                    dropTables={dropTables}
+                    busy={busy}
+                    onLog={logDrop}
+                  />
+                )}
+                {error && <p className="split-error">{error}</p>}
 
-              <div className="stat-row">
-                <div className="stat-tile">
-                  <span className="stat-label">Drops</span>
-                  <span className="stat-value">{totals.drops}</span>
-                  <span className="stat-note">
-                    {/* Whichever happened. A Heroic account never sells one and an Interactive
+                <div className="stat-row">
+                  <div className="stat-tile">
+                    <span className="stat-label">Drops</span>
+                    <span className="stat-value">{totals.drops}</span>
+                    <span className="stat-note">
+                      {/* Whichever happened. A Heroic account never sells one and an Interactive
                         one never takes one, so in practice this is a single figure either way. */}
-                    {[
-                      totals.sold > 0 || totals.taken === 0 ? `${totals.sold} sold` : null,
-                      totals.taken > 0 ? `${totals.taken} taken` : null,
-                    ]
-                      .filter(Boolean)
-                      .join(", ")}
-                    {totals.pending > 0 && `, ${totals.pending} in the pool`}
-                    {/* The pieces behind the count, because one row is one hammer or 180
+                      {[
+                        totals.sold > 0 || totals.taken === 0 ? `${totals.sold} sold` : null,
+                        totals.taken > 0 ? `${totals.taken} taken` : null,
+                      ]
+                        .filter(Boolean)
+                        .join(", ")}
+                      {totals.pending > 0 && `, ${totals.pending} in the pool`}
+                      {/* The pieces behind the count, because one row is one hammer or 180
                         coupons and a number of rows does not say which. Only when somebody is
                         holding some. */}
-                    {totals.piecesOwed > 0 && `, ${totals.piecesOwed} coupons owed you`}
-                  </span>
-                </div>
-                {money && (
-                  <>
-                    <div className="stat-tile">
-                      <span className="stat-label">Sold for</span>
-                      <span className="stat-value is-good">{formatMesos(totals.pooled, true)}</span>
-                      {/* Labelled precisely, because the obvious reading of "total sales" is a
+                      {totals.piecesOwed > 0 && `, ${totals.piecesOwed} coupons owed you`}
+                    </span>
+                  </div>
+                  {money && (
+                    <>
+                      <div className="stat-tile">
+                        <span className="stat-label">Sold for</span>
+                        <span className="stat-value is-good">
+                          {formatMesos(totals.pooled, true)}
+                        </span>
+                        {/* Labelled precisely, because the obvious reading of "total sales" is a
                           number that cannot be computed. See the header of lib/drop-log.ts. */}
-                      <span className="stat-note">what there was to split</span>
-                    </div>
-                    <div className="stat-tile">
-                      <span className="stat-label">Your take</span>
-                      <span className="stat-value is-good">
-                        {formatMesos(totals.yourTake, true)}
-                      </span>
-                      <span className="stat-note">your share of the above</span>
-                    </div>
-                  </>
-                )}
-              </div>
+                        <span className="stat-note">what there was to split</span>
+                      </div>
+                      <div className="stat-tile">
+                        <span className="stat-label">Your take</span>
+                        <span className="stat-value is-good">
+                          {formatMesos(totals.yourTake, true)}
+                        </span>
+                        <span className="stat-note">your share of the above</span>
+                      </div>
+                    </>
+                  )}
+                </div>
 
-              {whole.totals.drops > 0 && (
-                <div className="party-toolbar">
-                  {withDrops.length > 1 && (
+                {whole.totals.drops > 0 && (
+                  <div className="party-toolbar">
+                    {withDrops.length > 1 && (
+                      <label className="droplog-filter">
+                        <span className="stat-label">Character</span>
+                        <select
+                          className="split-input"
+                          value={character ?? ""}
+                          onChange={(e) => setCharacter(e.target.value || null)}
+                        >
+                          <option value="">All characters</option>
+                          {withDrops.map((c) => (
+                            <option key={c.id} value={c.id}>
+                              {c.name}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    )}
+
                     <label className="droplog-filter">
-                      <span className="stat-label">Character</span>
+                      <span className="stat-label">Group</span>
                       <select
                         className="split-input"
-                        value={character ?? ""}
-                        onChange={(e) => setCharacter(e.target.value || null)}
+                        value={grouping}
+                        onChange={(e) => setGrouping(e.target.value as Grouping)}
                       >
-                        <option value="">All characters</option>
-                        {withDrops.map((c) => (
-                          <option key={c.id} value={c.id}>
-                            {c.name}
-                          </option>
-                        ))}
+                        <option value="month">Month</option>
+                        <option value="week">Week</option>
                       </select>
                     </label>
-                  )}
+                  </div>
+                )}
 
-                  <label className="droplog-filter">
-                    <span className="stat-label">Group</span>
-                    <select
-                      className="split-input"
-                      value={grouping}
-                      onChange={(e) => setGrouping(e.target.value as Grouping)}
-                    >
-                      <option value="month">Month</option>
-                      <option value="week">Week</option>
-                    </select>
-                  </label>
-                </div>
-              )}
+                {/* The form to fix it is directly above, so this says what is here and nothing else. */}
+                {totals.drops === 0 && <p className="finder-empty">No drops logged yet.</p>}
 
-              {/* The form to fix it is directly above, so this says what is here and nothing else. */}
-              {totals.drops === 0 && <p className="finder-empty">No drops logged yet.</p>}
+                {groups.map((group) => (
+                  <GroupSection
+                    key={group.key}
+                    group={group}
+                    bossByKey={bossByKey}
+                    characterById={characterById}
+                    characterOrder={characterOrder}
+                    showCharacter={character === null}
+                    money={money}
+                  />
+                ))}
 
-              {groups.map((group) => (
-                <GroupSection
-                  key={group.key}
-                  group={group}
-                  bossByKey={bossByKey}
-                  characterById={characterById}
-                  characterOrder={characterOrder}
-                  showCharacter={character === null}
-                  money={money}
-                />
-              ))}
+                {totals.unreadable > 0 && (
+                  <p className="loot-warn droplog-note">
+                    {totals.unreadable} sold {totals.unreadable === 1 ? "drop names" : "drops name"}{" "}
+                    a seat that has left its party, so {totals.unreadable === 1 ? "its" : "their"}{" "}
+                    split cannot be read. {totals.unreadable === 1 ? "It is" : "They are"} listed
+                    below with no figures, and {totals.unreadable === 1 ? "its" : "their"} money is
+                    in neither total above.
+                  </p>
+                )}
+              </>
+            )}
 
-              {totals.unreadable > 0 && (
-                <p className="loot-warn droplog-note">
-                  {totals.unreadable} sold {totals.unreadable === 1 ? "drop names" : "drops name"} a
-                  seat that has left its party, so {totals.unreadable === 1 ? "its" : "their"} split
-                  cannot be read. {totals.unreadable === 1 ? "It is" : "They are"} listed below with
-                  no figures, and {totals.unreadable === 1 ? "its" : "their"} money is in neither
-                  total above.
-                </p>
-              )}
-            </>
-          )}
-
-          {shown === "sales" && (
-            <>
-              {!hasSales && <p className="party-hint">No sales to record.</p>}
-              {/* One heading over every card that takes a sale, which is the lot boxes AND the coupon
+            {shown === "sales" && (
+              <>
+                {!hasSales && <p className="party-hint">No sales to record.</p>}
+                {/* One heading over every card that takes a sale, which is the lot boxes AND the coupon
                   piles: both are "sold N for X". Titling only one of them said the other was a
                   statement rather than an entry. No rule under it either, because what follows is
                   more of the same thing and there is nothing there to divide. */}
-              {/* Gated on what will actually draw, not on there being ledgers at all: a pile held
+                {/* Gated on what will actually draw, not on there being ledgers at all: a pile held
                   back for owing nobody leaves the heading standing over nothing. */}
-              {(sellableLots || shownYours.length > 0 || history.length > 0) && (
-                <section className="loot-pool">
-                  <h2 className="loot-pool-title">Record Sale</h2>
+                {(sellableLots || shownYours.length > 0 || history.length > 0) && (
+                  <section className="loot-pool">
+                    <h2 className="loot-pool-title">Record Sale</h2>
 
-                  {/* Only where there is money to talk about. A Heroic-only account trades nothing,
+                    {/* Only where there is money to talk about. A Heroic-only account trades nothing,
                       and lotDrops leaves those pools out anyway. */}
-                  {money && (
-                    <LotSale
-                      drops={lots}
+                    {money && (
+                      <LotSale
+                        drops={lots}
+                        bossByKey={bossByKey}
+                        partyById={partyById}
+                        busy={busy}
+                        onSell={lotSale}
+                      />
+                    )}
+
+                    <PieceLedger
+                      ledgers={shownYours}
+                      tranches={tranchesByHolder}
                       bossByKey={bossByKey}
                       partyById={partyById}
+                      iconUrl={vestigeIcon}
                       busy={busy}
-                      onSell={lotSale}
+                      // `shares` says how many of the pieces were somebody else's, so their part of
+                      // what this lot fetched lands on the Settlement Ledger. Empty is the whole sale
+                      // being your own, which is every tranche entered before V56. See saleCredits.
+                      onAddSale={(holder: Holder, pieces, amount, shares: VestigeTrancheShare[]) =>
+                        saleWrite(TRANCHES_KEY, {
+                          method: "POST",
+                          body: JSON.stringify({
+                            holder,
+                            pieces,
+                            amount,
+                            disposition: "SOLD",
+                            shares,
+                          }),
+                        })
+                      }
+                      // No amount: a redemption realized nothing, where a sale for zero would price those
+                      // pieces at nothing. The server refuses the two disagreeing. See V46.
+                      onAddKept={(holder: Holder, pieces) =>
+                        saleWrite(TRANCHES_KEY, {
+                          method: "POST",
+                          body: JSON.stringify({ holder, pieces, disposition: "KEPT" }),
+                        })
+                      }
+                      // Pieces of yours they took instead of selling, at a price somebody agreed. An
+                      // amount like a sale, and off the pile like a redemption. See V50.
+                      onAddBought={(holder: Holder, pieces, amount) =>
+                        saleWrite(TRANCHES_KEY, {
+                          method: "POST",
+                          body: JSON.stringify({ holder, pieces, amount, disposition: "BOUGHT" }),
+                        })
+                      }
+                      onRemoveSale={(trancheId) =>
+                        saleWrite(`${TRANCHES_KEY}/${trancheId}`, { method: "DELETE" })
+                      }
                     />
-                  )}
 
-                  <PieceLedger
-                    ledgers={shownYours}
-                    tranches={tranchesByHolder}
-                    bossByKey={bossByKey}
-                    partyById={partyById}
-                    iconUrl={vestigeIcon}
-                    busy={busy}
-                    // `shares` says how many of the pieces were somebody else's, so their part of
-                    // what this lot fetched lands on the Settlement Ledger. Empty is the whole sale
-                    // being your own, which is every tranche entered before V56. See saleCredits.
-                    onAddSale={(holder: Holder, pieces, amount, shares: VestigeTrancheShare[]) =>
-                      saleWrite(TRANCHES_KEY, {
-                        method: "POST",
-                        body: JSON.stringify({
-                          holder,
-                          pieces,
-                          amount,
-                          disposition: "SOLD",
-                          shares,
-                        }),
-                      })
-                    }
-                    // No amount: a redemption realized nothing, where a sale for zero would price those
-                    // pieces at nothing. The server refuses the two disagreeing. See V46.
-                    onAddKept={(holder: Holder, pieces) =>
-                      saleWrite(TRANCHES_KEY, {
-                        method: "POST",
-                        body: JSON.stringify({ holder, pieces, disposition: "KEPT" }),
-                      })
-                    }
-                    // Pieces of yours they took instead of selling, at a price somebody agreed. An
-                    // amount like a sale, and off the pile like a redemption. See V50.
-                    onAddBought={(holder: Holder, pieces, amount) =>
-                      saleWrite(TRANCHES_KEY, {
-                        method: "POST",
-                        body: JSON.stringify({ holder, pieces, amount, disposition: "BOUGHT" }),
-                      })
-                    }
-                    onRemoveSale={(trancheId) =>
-                      saleWrite(`${TRANCHES_KEY}/${trancheId}`, { method: "DELETE" })
-                    }
-                  />
-
-                  {/* Somebody else's rows, from when their sales were entered here. No debt and no
+                    {/* Somebody else's rows, from when their sales were entered here. No debt and no
                       total: what they owe is the Settlement Ledger's to say. Here so a mistyped one
                       can still be taken back, and gone once there are none left. */}
-                  <TrancheHistory
-                    holders={historyHolders}
-                    tranches={tranchesByHolder}
-                    payments={paymentsByHolder}
-                    busy={busy}
-                    onRemoveSale={(trancheId) =>
-                      saleWrite(`${TRANCHES_KEY}/${trancheId}`, { method: "DELETE" })
-                    }
-                    onRemovePayment={(paymentId) =>
-                      paymentWrite(`${PAYMENTS_KEY}/${paymentId}`, { method: "DELETE" })
-                    }
-                  />
-                </section>
-              )}
+                    <TrancheHistory
+                      holders={historyHolders}
+                      tranches={tranchesByHolder}
+                      payments={paymentsByHolder}
+                      busy={busy}
+                      onRemoveSale={(trancheId) =>
+                        saleWrite(`${TRANCHES_KEY}/${trancheId}`, { method: "DELETE" })
+                      }
+                      onRemovePayment={(paymentId) =>
+                        paymentWrite(`${PAYMENTS_KEY}/${paymentId}`, { method: "DELETE" })
+                      }
+                    />
+                  </section>
+                )}
 
-              {/* The way back to a pile that owes nobody. Holding coupons is not a task, so it is not
+                {/* The way back to a pile that owes nobody. Holding coupons is not a task, so it is not
                   a card until it is asked for, but they are still yours to sell and a ledger that
                   will not admit you hold them cannot take the sale. After the cards rather than
                   above them: it is the way to one more of the same, not a heading over them. */}
-              {quiet.length > 0 && !sellingOwn && (
-                <button type="button" className="party-save" onClick={() => setSellingOwn(true)}>
-                  Record a sale
-                </button>
-              )}
+                {quiet.length > 0 && !sellingOwn && (
+                  <button type="button" className="party-save" onClick={() => setSellingOwn(true)}>
+                    Record a sale
+                  </button>
+                )}
 
-              {/* Last, and the one real boundary on this tab: every card above takes a sale, and this
+                {/* Last, and the one real boundary on this tab: every card above takes a sale, and this
                   one cannot be acted on for money at all. It names the nights whose arrangement
                   nobody has said, and nothing about them can be priced until somebody does. Still on
                   screen, because a drop that owes somebody and cannot say who is exactly what must
                   not be quietly dropped. */}
-              <StackArrangement
-                drops={open}
-                partyById={partyById}
-                bossByKey={bossByKey}
-                behind={behind}
-                iconUrl={vestigeIcon}
-                busy={busy}
-                onSave={bundlesWrite}
-              />
-            </>
-          )}
+                <StackArrangement
+                  drops={open}
+                  partyById={partyById}
+                  bossByKey={bossByKey}
+                  behind={behind}
+                  iconUrl={vestigeIcon}
+                  busy={busy}
+                  onSave={bundlesWrite}
+                />
+              </>
+            )}
 
-          {shown === "settlement" && (
-            <section className="loot-pool">
-              <h2 className="loot-pool-title">Record Settlement</h2>
+            {shown === "settlement" && (
+              <section className="loot-pool">
+                <h2 className="loot-pool-title">Record Settlement</h2>
 
-              <SettlementSummary rows={settlement} totals={owedTotals} />
+                <SettlementSummary rows={settlement} totals={owedTotals} />
 
-              <SettlementLedger
-                rows={settlement}
-                bossByKey={bossByKey}
-                partyById={partyById}
-                offsetShares={offsetShares}
-                busy={busy}
-                onAddPayment={(holder: Holder, amount) =>
-                  paymentWrite(PAYMENTS_KEY, {
-                    method: "POST",
-                    body: JSON.stringify({ holder, amount }),
-                  })
-                }
-                onAddDebt={(holder: Holder, amount, note) =>
-                  debtWrite(DEBTS_KEY, {
-                    method: "POST",
-                    body: JSON.stringify({ holder, amount, note: note || undefined }),
-                  })
-                }
-                onRemoveDebt={(debtId) => debtWrite(`${DEBTS_KEY}/${debtId}`, { method: "DELETE" })}
-                onSettlePieces={(holder: Holder, lootIds) =>
-                  settlementWrite(SETTLEMENTS_KEY, {
-                    method: "POST",
-                    // Nothing written off: a piece debt was never priced, so there is no shortfall
-                    // to record. What they sent is on the receipts.
-                    body: JSON.stringify({ holder, lootIds, unpaid: 0 }),
-                  })
-                }
-                onSettleShares={settleShares}
-                // Answers with the whole people list, like every other write on this page, so the
-                // pins redraw from what the server actually stored.
-                onPin={async (row, pinned) => {
-                  if (row.holder.personId === null) return;
-                  setBusy(true);
-                  try {
-                    const next = await apiFetch<Person[]>(
-                      `${PEOPLE_KEY}/${row.holder.personId}/pinned`,
-                      { method: "PUT", body: JSON.stringify({ pinned }) },
-                      getToken,
-                    );
-                    setPeople(next);
-                    put(PEOPLE_KEY, next);
-                  } catch (e) {
-                    throw new Error(e instanceof ApiError ? e.body : "That didn't save.");
-                  } finally {
-                    setBusy(false);
+                <SettlementLedger
+                  rows={settlement}
+                  bossByKey={bossByKey}
+                  partyById={partyById}
+                  offsetShares={offsetShares}
+                  busy={busy}
+                  onAddPayment={(holder: Holder, amount) =>
+                    paymentWrite(PAYMENTS_KEY, {
+                      method: "POST",
+                      body: JSON.stringify({ holder, amount }),
+                    })
                   }
-                }}
-                // Two writes, and the ORDER matters. Settling first leaves the figure 139m too high
-                // if the offset then fails, which is visible and fixable with the box on the card.
-                // The other way round nets the same share twice, which is not visible at all.
-                onOffsetShares={async (holder: Holder, amount, name, payouts) => {
-                  await settleShares(payouts);
-                  await debtWrite(DEBTS_KEY, {
-                    method: "POST",
-                    body: JSON.stringify({
-                      holder,
-                      amount: -amount,
-                      note: `offset against ${name}`,
-                      // The very rows the settle above just marked paid, so the adjustment can name
-                      // what discharged it a month later. See V58.
-                      payouts,
-                    }),
-                  });
-                }}
-              />
+                  onAddDebt={(holder: Holder, amount, note) =>
+                    debtWrite(DEBTS_KEY, {
+                      method: "POST",
+                      body: JSON.stringify({ holder, amount, note: note || undefined }),
+                    })
+                  }
+                  onRemoveDebt={(debtId) =>
+                    debtWrite(`${DEBTS_KEY}/${debtId}`, { method: "DELETE" })
+                  }
+                  onSettlePieces={(holder: Holder, lootIds) =>
+                    settlementWrite(SETTLEMENTS_KEY, {
+                      method: "POST",
+                      // Nothing written off: a piece debt was never priced, so there is no shortfall
+                      // to record. What they sent is on the receipts.
+                      body: JSON.stringify({ holder, lootIds, unpaid: 0 }),
+                    })
+                  }
+                  onSettleShares={settleShares}
+                  // Answers with the whole people list, like every other write on this page, so the
+                  // pins redraw from what the server actually stored.
+                  onPin={async (row, pinned) => {
+                    if (row.holder.personId === null) return;
+                    setBusy(true);
+                    try {
+                      const next = await apiFetch<Person[]>(
+                        `${PEOPLE_KEY}/${row.holder.personId}/pinned`,
+                        { method: "PUT", body: JSON.stringify({ pinned }) },
+                        getToken,
+                      );
+                      setPeople(next);
+                      put(PEOPLE_KEY, next);
+                    } catch (e) {
+                      throw new Error(e instanceof ApiError ? e.body : "That didn't save.");
+                    } finally {
+                      setBusy(false);
+                    }
+                  }}
+                  // Two writes, and the ORDER matters. Settling first leaves the figure 139m too high
+                  // if the offset then fails, which is visible and fixable with the box on the card.
+                  // The other way round nets the same share twice, which is not visible at all.
+                  onOffsetShares={async (holder: Holder, amount, name, payouts) => {
+                    await settleShares(payouts);
+                    await debtWrite(DEBTS_KEY, {
+                      method: "POST",
+                      body: JSON.stringify({
+                        holder,
+                        amount: -amount,
+                        note: `offset against ${name}`,
+                        // The very rows the settle above just marked paid, so the adjustment can name
+                        // what discharged it a month later. See V58.
+                        payouts,
+                      }),
+                    });
+                  }}
+                />
 
-              {/* The way in for somebody with no card yet. A card is drawn for a person who already
+                {/* The way in for somebody with no card yet. A card is drawn for a person who already
                   owes you something, so the first debt of a relationship had nowhere to go. After
                   the cards, not above them: it is the way to one more of the same, the way Record a
                   sale is on the other tab. */}
-              <AddSettlement
-                people={people}
-                busy={busy}
-                onAdd={(holder: Holder, amount, note) =>
-                  debtWrite(DEBTS_KEY, {
-                    method: "POST",
-                    body: JSON.stringify({ holder, amount, note: note || undefined }),
-                  })
-                }
-              />
+                <AddSettlement
+                  people={people}
+                  busy={busy}
+                  onAdd={(holder: Holder, amount, note) =>
+                    debtWrite(DEBTS_KEY, {
+                      method: "POST",
+                      body: JSON.stringify({ holder, amount, note: note || undefined }),
+                    })
+                  }
+                />
 
-              {/* What the cards above do NOT cover, from the Wallet this tab replaced. A total that
+                {/* What the cards above do NOT cover, from the Wallet this tab replaced. A total that
                   is short must not read as a total that is complete. */}
-              {(wallet.unreadable > 0 || wallet.betweenOthers > 0 || wallet.betweenMine > 0) && (
-                <ul className="ledger-notes">
-                  {wallet.unreadable > 0 && (
-                    <li className="loot-warn">
-                      {wallet.unreadable} sold{" "}
-                      {wallet.unreadable === 1 ? "drop names a seat" : "drops name a seat"} that has
-                      left its party, so {wallet.unreadable === 1 ? "its" : "their"} split cannot be
-                      read. Not counted above.
-                    </li>
-                  )}
-                  {wallet.betweenOthers > 0 && (
-                    <li>
-                      {wallet.betweenOthers} unpaid{" "}
-                      {wallet.betweenOthers === 1 ? "share is" : "shares are"} between two other
-                      people, not yours to settle.
-                    </li>
-                  )}
-                  {wallet.betweenMine > 0 && (
-                    <li>
-                      {wallet.betweenMine} unpaid{" "}
-                      {wallet.betweenMine === 1 ? "share is" : "shares are"} between two of your own
-                      characters, so there is nobody to settle with.
-                    </li>
-                  )}
-                </ul>
-              )}
-            </section>
-          )}
-        </div>
-      )}
+                {(wallet.unreadable > 0 || wallet.betweenOthers > 0 || wallet.betweenMine > 0) && (
+                  <ul className="ledger-notes">
+                    {wallet.unreadable > 0 && (
+                      <li className="loot-warn">
+                        {wallet.unreadable} sold{" "}
+                        {wallet.unreadable === 1 ? "drop names a seat" : "drops name a seat"} that
+                        has left its party, so {wallet.unreadable === 1 ? "its" : "their"} split
+                        cannot be read. Not counted above.
+                      </li>
+                    )}
+                    {wallet.betweenOthers > 0 && (
+                      <li>
+                        {wallet.betweenOthers} unpaid{" "}
+                        {wallet.betweenOthers === 1 ? "share is" : "shares are"} between two other
+                        people, not yours to settle.
+                      </li>
+                    )}
+                    {wallet.betweenMine > 0 && (
+                      <li>
+                        {wallet.betweenMine} unpaid{" "}
+                        {wallet.betweenMine === 1 ? "share is" : "shares are"} between two of your
+                        own characters, so there is nobody to settle with.
+                      </li>
+                    )}
+                  </ul>
+                )}
+              </section>
+            )}
+          </>
+        )}
+      </PageSwap>
     </main>
   );
 }
