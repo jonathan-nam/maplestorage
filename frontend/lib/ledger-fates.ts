@@ -136,6 +136,43 @@ export function heldOfYoursBy(ledgers: HolderLedger[]): HeldOfYours {
 }
 
 /**
+ * How a sale out of your own pile lands on the people it owes, without being asked.
+ *
+ * The pieces you owe go out first, biggest debt first, each capped at what that person is owed, and
+ * whatever is left over is your own. So a sale is two numbers again: how many went, and for how much.
+ *
+ * This reverses #362's "ask me, per sale", and the reason it can is that the arrangement is recorded
+ * per night now. What the box was guarding against was crediting real money off a guess at a mixed
+ * pile; the answer it wanted is the one thing the ledger already knows exactly, which is who is short
+ * and by how much. What it still is not is a claim about WHICH physical coupons went to market: it is
+ * a statement that this much of the money is theirs, which is what the debt was in.
+ *
+ * Feed it the NETTED debts (owedByCreditor), never pieceCreditors: that one sums transfers gross, so a
+ * creditor holding coupons of yours would be credited for pieces they are already sitting on.
+ *
+ * Biggest first is arbitrary between two creditors and has to be: no order can be read off the
+ * coupons. It is deterministic, capped, and the row says what it did, which is what makes it
+ * correctable rather than a guess nobody can see.
+ */
+export function distributeSale<T extends { key: string; pieces: number }>(
+  pieces: number,
+  creditors: T[],
+): { creditor: T; pieces: number }[] {
+  let left = Math.max(0, Math.floor(pieces));
+  const out: { creditor: T; pieces: number }[] = [];
+  for (const creditor of [...creditors].sort(
+    (a, b) => b.pieces - a.pieces || a.key.localeCompare(b.key),
+  )) {
+    if (left <= 0) break;
+    const cut = Math.min(left, creditor.pieces);
+    if (cut <= 0) continue;
+    out.push({ creditor, pieces: cut });
+    left -= cut;
+  }
+  return out;
+}
+
+/**
  * How much of what this pile owes has been answered, in pieces.
  *
  * A redemption is the holder's own share by definition, so it settles nothing they owe. The other two
