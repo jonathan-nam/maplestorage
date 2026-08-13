@@ -1,6 +1,6 @@
 "use client";
 
-import { PAGE_WAITING } from "@/components/route-loading";
+import { PAGE_READY, PAGE_WAITING } from "@/components/route-loading";
 import { useAuth } from "@clerk/nextjs";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
@@ -758,7 +758,7 @@ export default function PartiesPage() {
       {state === "loading" && <p className="party-hint">Loading...</p>}
 
       {state === "loaded" && (
-        <>
+        <div className={PAGE_READY}>
           {/* Once for the page, not once per row: every roster editor points at this one id. */}
           <KnownCharacters names={knownCharacters} />
           {/* The same controls the Individual View carries, in the same order and the same row:
@@ -989,7 +989,7 @@ export default function PartiesPage() {
                 </div>
               </section>
             ))}
-        </>
+        </div>
       )}
     </main>
   );

@@ -1,6 +1,6 @@
 "use client";
 
-import { PAGE_WAITING } from "@/components/route-loading";
+import { PAGE_READY, PAGE_WAITING } from "@/components/route-loading";
 import { useAuth } from "@clerk/nextjs";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
@@ -206,45 +206,48 @@ export default function BossesPage() {
         <BossMatrix loading bosses={bosses} characters={characters} clearsByCharacter={{}} />
       )}
 
-      {state === "loaded" &&
-        (characters.length === 0 ? (
-          <p className="finder-empty">
-            Add a character on the Inventory page to start tracking clears.
-          </p>
-        ) : (
-          <>
-            {view && (
-              <div className="boss-controls">
-                <WeekStepper view={view} onSelect={selectWeek} busy={stepping} />
-                <ResetTimer
-                  nextResets={view.nextResets}
-                  serverNow={view.now}
-                  receivedAt={receivedAt}
-                  onReset={pickUpReset}
-                />
-                {/* Which bosses a character runs is set one character at a time, on its own page:
+      {state === "loaded" && (
+        <div className={PAGE_READY}>
+          {characters.length === 0 ? (
+            <p className="finder-empty">
+              Add a character on the Inventory page to start tracking clears.
+            </p>
+          ) : (
+            <>
+              {view && (
+                <div className="boss-controls">
+                  <WeekStepper view={view} onSelect={selectWeek} busy={stepping} />
+                  <ResetTimer
+                    nextResets={view.nextResets}
+                    serverNow={view.now}
+                    receivedAt={receivedAt}
+                    onReset={pickUpReset}
+                  />
+                  {/* Which bosses a character runs is set one character at a time, on its own page:
                     the whole set is the thing being answered, and a grid of cells cannot show one
                     character's set without you reading down a column. */}
-                <Link className="boss-routine-link" href="/bosses/routine">
-                  Who runs what
-                </Link>
-              </div>
-            )}
+                  <Link className="boss-routine-link" href="/bosses/routine">
+                    Who runs what
+                  </Link>
+                </div>
+              )}
 
-            {/* Editable on the live view only, for the reason the dock below is only offered
+              {/* Editable on the live view only, for the reason the dock below is only offered
                 there: a past week carries weekly rows alone, so a tick on it would have no one
                 period to land in. */}
-            <BossMatrix
-              bosses={bosses}
-              characters={characters}
-              clearsByCharacter={view?.clearsByCharacter ?? {}}
-              skipsByCharacter={view?.skipsByCharacter ?? {}}
-              historyWeek={view?.weekStart ?? null}
-              onToggle={week === null ? toggleClear : undefined}
-              busy={ticking || stepping}
-            />
-          </>
-        ))}
+              <BossMatrix
+                bosses={bosses}
+                characters={characters}
+                clearsByCharacter={view?.clearsByCharacter ?? {}}
+                skipsByCharacter={view?.skipsByCharacter ?? {}}
+                historyWeek={view?.weekStart ?? null}
+                onToggle={week === null ? toggleClear : undefined}
+                busy={ticking || stepping}
+              />
+            </>
+          )}
+        </div>
+      )}
     </main>
   );
 }

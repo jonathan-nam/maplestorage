@@ -1,6 +1,6 @@
 "use client";
 
-import { PAGE_WAITING } from "@/components/route-loading";
+import { PAGE_READY, PAGE_WAITING } from "@/components/route-loading";
 import { useAuth } from "@clerk/nextjs";
 import Link from "next/link";
 import { useEffect, useState } from "react";
@@ -92,7 +92,7 @@ export default function PeoplePage() {
       {state === "loading" && <p className="party-hint">Loading...</p>}
 
       {state === "loaded" && (
-        <>
+        <div className={PAGE_READY}>
           <div className="people-list">
             {draft.map((row, index) => (
               // A saved person keys on their id; a new row has only its slot.
@@ -150,7 +150,7 @@ export default function PeoplePage() {
             Removing somebody leaves every party exactly as it is. It only takes back who their
             characters belong to.
           </p>
-        </>
+        </div>
       )}
     </main>
   );
