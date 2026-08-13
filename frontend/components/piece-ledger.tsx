@@ -6,7 +6,14 @@ import { apiAssetUrl } from "@/lib/api";
 import { formatWeekStart } from "@/lib/boss-clears";
 import { bossLabel } from "@/lib/boss-difficulty";
 import { formatMesos, parseMesos, shortMesos } from "@/lib/drop-split";
-import { FATES, type Fate, outstandingOf, queueOf, roomFor } from "@/lib/ledger-fates";
+import {
+  FATES,
+  type Fate,
+  type HeldOfYours,
+  outstandingOf,
+  queueOf,
+  roomFor,
+} from "@/lib/ledger-fates";
 import { transferKey } from "@/lib/piece-ledger";
 import {
   type Holder,
@@ -51,6 +58,7 @@ const LABELS: Record<Fate, { theirs: string; yours: string }> = {
 
 export function PieceLedger({
   ledgers,
+  heldOfYours,
   tranches,
   bossByKey,
   partyById,
@@ -63,6 +71,8 @@ export function PieceLedger({
   focusEntry = false,
 }: {
   ledgers: HolderLedger[];
+  /** Pieces of yours the other piles hold, netted into each pile's debt. See HolderCard. */
+  heldOfYours: HeldOfYours;
   /** Every holder's tranches, keyed by holderKey(), oldest first as the server returns them. */
   tranches: Map<string, VestigeTranche[]>;
   bossByKey: Map<string, Boss>;
@@ -103,6 +113,7 @@ export function PieceLedger({
         <HolderCard
           key={holderKey(ledger.holder)}
           ledger={ledger}
+          heldOfYours={heldOfYours}
           focusEntry={focusEntry && i === 0}
           tranches={tranches.get(holderKey(ledger.holder)) ?? []}
           bossByKey={bossByKey}
@@ -121,6 +132,7 @@ export function PieceLedger({
 
 function HolderCard({
   ledger,
+  heldOfYours,
   tranches,
   bossByKey,
   partyById,
@@ -133,6 +145,13 @@ function HolderCard({
   focusEntry,
 }: {
   ledger: HolderLedger;
+  /**
+   * Pieces of yours each OTHER pile is holding, so this pile's debt reads as what changes hands.
+   *
+   * Netted per creditor by `owes`: owing Bro 90 while he holds 20 of yours is 70. Passed down rather
+   * than derived here, because only the page has every pile to read it off.
+   */
+  heldOfYours: HeldOfYours;
   tranches: VestigeTranche[];
   bossByKey: Map<string, Boss>;
   partyById: Map<string, Party>;
@@ -182,7 +201,7 @@ function HolderCard({
   const toEnter = unaccounted(ledger);
 
   const room = roomFor(ledger, fate);
-  const outstanding = outstandingOf(ledger);
+  const outstanding = outstandingOf(ledger, heldOfYours);
   /** What the count box is usually waiting for: the debt where there is one, the room where there is not. */
   const suggested = Math.min(outstanding > 0 ? outstanding : room, room);
 

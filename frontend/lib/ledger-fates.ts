@@ -63,10 +63,43 @@ export function coversThePile(ledger: HolderLedger): boolean {
  * Off the transfers, which are already filtered to what THIS holder owes, so a pile you are merely
  * the creditor of counts zero: what they are holding of yours is the Settlement Ledger's to say.
  */
-export function owes(ledger: HolderLedger): number {
-  return ledger.drops
-    .filter((d) => !d.closed)
-    .reduce((sum, d) => sum + d.transfers.reduce((n, t) => n + t.pieces, 0), 0);
+export function owes(ledger: HolderLedger, heldOfYours: HeldOfYours = new Map()): number {
+  const byCreditor = new Map<string, number>();
+  for (const drop of ledger.drops) {
+    if (drop.closed) continue;
+    for (const transfer of drop.transfers) {
+      byCreditor.set(transfer.toId, (byCreditor.get(transfer.toId) ?? 0) + transfer.pieces);
+    }
+  }
+  let total = 0;
+  for (const [creditor, pieces] of byCreditor) {
+    // PER CREDITOR, and floored there. Owing Bro 90 while Bro holds 20 of yours is 70 changing
+    // hands, but owing Bro 90 while JARED holds 20 of yours is still 90: netting across two people
+    // would ask one of them to settle the other's debt, which is the cross-person netting this app
+    // refuses. Floored, because a creditor holding more of yours than you owe them is a debt the
+    // other way and belongs on their own card.
+    total += Math.max(0, pieces - (heldOfYours.get(creditor) ?? 0));
+  }
+  return total;
+}
+
+/** Pieces of THIS pile's holder that each other pile is sitting on, keyed by the pile holding them. */
+export type HeldOfYours = Map<string, number>;
+
+/**
+ * That map, off the other piles' own figures rather than recomputed.
+ *
+ * `owedToYou` is already "pieces of yours this pile holds, open drops only", so this is a re-keying
+ * and not a second reading of the transfers. Your own pile is skipped: it cannot hold your pieces
+ * against you.
+ */
+export function heldOfYoursBy(ledgers: HolderLedger[]): HeldOfYours {
+  const out: HeldOfYours = new Map();
+  for (const ledger of ledgers) {
+    if (ledger.holder.kind === "SELF" || ledger.closed) continue;
+    if (ledger.owedToYou > 0) out.set(holderKey(ledger.holder), ledger.owedToYou);
+  }
+  return out;
 }
 
 /**
@@ -86,8 +119,8 @@ export function owes(ledger: HolderLedger): number {
  *
  * Capped, because a holder may have bought pieces on a night whose books were later closed.
  */
-export function settledOf(ledger: HolderLedger): number {
-  return Math.min(owes(ledger), ledger.answered);
+export function settledOf(ledger: HolderLedger, heldOfYours: HeldOfYours = new Map()): number {
+  return Math.min(owes(ledger, heldOfYours), ledger.answered);
 }
 
 /**
@@ -104,8 +137,10 @@ export function settledOf(ledger: HolderLedger): number {
  * Over-entry still speaks, whoever holds the pile: more entered than the pile holds is a miscount,
  * and a card that went quiet about it would be hiding what it dropped rather than saying it short.
  */
-export function asksAnything(ledger: HolderLedger): boolean {
-  return settledOf(ledger) < owes(ledger) || ledger.accounted > ledger.pieces;
+export function asksAnything(ledger: HolderLedger, heldOfYours: HeldOfYours = new Map()): boolean {
+  return (
+    settledOf(ledger, heldOfYours) < owes(ledger, heldOfYours) || ledger.accounted > ledger.pieces
+  );
 }
 
 /** One night under a pile, as the queue reads it. */
@@ -134,8 +169,8 @@ export function queueOf(ledger: HolderLedger): { owing: Night[]; clean: number; 
  * The header's one figure, and it moves as the debt is answered, so no second line restates it.
  * `holding 1495` stood there before and was a number nobody could act on.
  */
-export function outstandingOf(ledger: HolderLedger): number {
-  return owes(ledger) - settledOf(ledger);
+export function outstandingOf(ledger: HolderLedger, heldOfYours: HeldOfYours = new Map()): number {
+  return owes(ledger, heldOfYours) - settledOf(ledger, heldOfYours);
 }
 
 /**
@@ -152,11 +187,12 @@ export function outstandingOf(ledger: HolderLedger): number {
 export function worthDrawing(
   yours: HolderLedger[],
   recorded: (key: string) => boolean,
+  heldOfYours: HeldOfYours = new Map(),
 ): { drawn: HolderLedger[]; quiet: HolderLedger[] } {
   const drawn: HolderLedger[] = [];
   const quiet: HolderLedger[] = [];
   for (const ledger of yours) {
-    const has = asksAnything(ledger) || recorded(holderKey(ledger.holder));
+    const has = asksAnything(ledger, heldOfYours) || recorded(holderKey(ledger.holder));
     (has ? drawn : quiet).push(ledger);
   }
   return { drawn, quiet };

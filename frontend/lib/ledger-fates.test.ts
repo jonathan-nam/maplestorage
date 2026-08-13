@@ -269,6 +269,21 @@ describe("whether the card has anything to ask", () => {
     expect(asksAnything(mine)).toBe(true);
   });
 
+  it("nets a creditor's own pieces off what you owe them, and nobody else's", () => {
+    // The Sale Ledger's headline read 90 on a week where 70 changes hands: it summed what your pile
+    // owes and never saw the 20 of yours the creditor is holding, which sits on THEIR pile.
+    const mine = yourPile();
+    const creditor = mine.drops[0]!.transfers[0]!.toId;
+
+    expect(owes(mine, new Map([[creditor, 10]]))).toBe(20);
+    // Per creditor: a stranger holding your coupons cannot pay down what you owe somebody else.
+    expect(owes(mine, new Map([["person:p-nobody", 30]]))).toBe(30);
+    // And floored there. A creditor holding MORE of yours than you owe them is a debt the other way
+    // round, which is their own card's to say, not a credit against your other creditors.
+    expect(owes(mine, new Map([[creditor, 200]]))).toBe(0);
+    expect(asksAnything(mine, new Map([[creditor, 200]]))).toBe(false);
+  });
+
   it("stops once the debt is bought out, whatever is left unentered", () => {
     // The 30 owed are answered. The other 30 are your own and nobody is waiting on them, so the
     // card has nothing left to ask even though half the pile has no row against it.
