@@ -6,7 +6,7 @@ import { apiAssetUrl } from "@/lib/api";
 import { formatWeekStart } from "@/lib/boss-clears";
 import { bossLabel } from "@/lib/boss-difficulty";
 import { formatMesos, parseMesos, shortMesos } from "@/lib/drop-split";
-import { FATES, type Fate, asksAnything, owes, roomFor, settledOf } from "@/lib/ledger-fates";
+import { FATES, type Fate, outstandingOf, queueOf, roomFor } from "@/lib/ledger-fates";
 import { transferKey } from "@/lib/piece-ledger";
 import {
   type Holder,
@@ -19,8 +19,8 @@ import type { Boss } from "@/types/boss";
 import type { Party } from "@/types/party";
 import type { VestigeTranche, VestigeTrancheShare } from "@/types/vestige";
 
-// Your own pile: the coupons you are holding, the box that says what became of them, and the bosses
-// they came off.
+// Your own pile: what it still owes, the box that says what became of the coupons, and the nights
+// with a debt on them.
 //
 // Only piles you can sell out of reach this card. What somebody ELSE holds is a debt rather than a
 // sale, and it is the Settlement Ledger's, stated in pieces: see lib/settlement.ts.
@@ -182,6 +182,9 @@ function HolderCard({
   const toEnter = unaccounted(ledger);
 
   const room = roomFor(ledger, fate);
+  const outstanding = outstandingOf(ledger);
+  /** What the count box is usually waiting for: the debt where there is one, the room where there is not. */
+  const suggested = Math.min(outstanding > 0 ? outstanding : room, room);
 
   /** Caps as it is typed, so a number over the room never reaches the button. */
   const clamp = (typed: string, cap: number) => {
@@ -226,10 +229,8 @@ function HolderCard({
   // clamped: the reader typed both numbers, and which of them is wrong is theirs to decide.
   const overAttributed = priced && entry !== null && attributedPieces > entry.pieces;
 
-  // The bosses still open under this holder, which is what the queue lists. A closed one is history
-  // and is said as a count rather than dropped. See V52.
-  const open = ledger.drops.filter((d) => !d.closed);
-  const closedCount = ledger.drops.length - open.length;
+  // The nights with a debt on them, and the two kinds the queue counts instead. See queueOf.
+  const { owing, clean: cleanCount, closed: closedCount } = queueOf(ledger);
 
   /** Keeps what was typed when the server refuses it, so a rejected sale can be corrected. */
   async function write(action: Promise<void>, clear: "entry" | "paid" | null) {
@@ -264,7 +265,9 @@ function HolderCard({
           <span className="loot-name">
             {ledger.holder.kind === "SELF" ? "You" : ledger.holderName}
           </span>
-          <span className="loot-meta">{`holding ${ledger.pieces}`}</span>
+          {/* The DEBT, not the pile. See outstandingOf. Nothing where there is none: a card drawn to
+              correct a row it already holds has no figure outstanding to state. */}
+          {outstanding > 0 && <span className="loot-meta">{`owes ${outstanding} pieces`}</span>}
         </span>
         <span className="ledger-tally">
           {ledger.closed && (
@@ -283,18 +286,13 @@ function HolderCard({
             the same kind of thing when one is what became of the coupons and the other is what came
             back for them. See V50 and V51. */}
         <span className="ledger-step">pieces</span>
-        {/* The card's one instruction, and it is a COUNT rather than a sentence. No prose explains the
-            boxes; the picker's options carry the vocabulary, the way the looter select does on a party
-            config.
-
-            The count is the DEBT, not the pile. Of 1160 coupons in your inventory 1150 were your own,
-            and counting those demanded 1160 answers for a 10-piece debt. The form stays either way:
-            recording a sale is offered, it is just never demanded. See asksAnything. */}
-        {asksAnything(ledger) && (
+        {/* Only the miscount. What is still owed is the header's, and it moves as the debt is
+            answered, so "0 of 40 pieces accounted for" under "owes 40 pieces" was the same fact
+            twice. More entered than the pile holds is a different fact and still speaks: a card that
+            went quiet about it would be hiding what it dropped rather than saying it short. */}
+        {overEntered > 0 && (
           <span className="ledger-progress">
-            {settledOf(ledger) < owes(ledger)
-              ? `${settledOf(ledger)} of ${owes(ledger)} pieces accounted for`
-              : `all ${ledger.pieces} accounted for, ${overEntered} over`}
+            {`all ${ledger.pieces} accounted for, ${overEntered} over`}
           </span>
         )}
 
@@ -336,8 +334,9 @@ function HolderCard({
               value={pieces}
               onChange={(e) => setPieces(clamp(e.target.value, room))}
               // The number it is waiting for, so the ordinary case is one keystroke away rather than
-              // something to work out from the counts.
-              placeholder={String(room > 0 ? room : ledger.pieces)}
+              // something to work out from the counts. The debt, where there is one: a box offering
+              // 1495 asked about the pile when the question was about 40.
+              placeholder={String(suggested > 0 ? suggested : ledger.pieces)}
               inputMode="numeric"
               aria-label={`Pieces, at most ${room}`}
             />
@@ -478,7 +477,13 @@ function HolderCard({
             {`${closedCount} settled${ledger.writtenOff > 0 ? `, ${shortMesos(ledger.writtenOff)} written off` : ""}`}
           </li>
         )}
-        {open.map((drop) => {
+        {/* The nights that owed nobody, in a count. See queueOf. */}
+        {cleanCount > 0 && (
+          <li className="ledger-progress">
+            {`${cleanCount} night${cleanCount === 1 ? "" : "s"} split clean`}
+          </li>
+        )}
+        {owing.map((drop) => {
           const boss = bossByKey.get(drop.bossKey ?? "");
           const party = partyById.get(drop.partyId);
           return (

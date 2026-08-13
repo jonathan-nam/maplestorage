@@ -12,7 +12,6 @@ import { LogDrop } from "@/components/log-drop";
 import { LotSale } from "@/components/lot-sale";
 import { PieceLedger } from "@/components/piece-ledger";
 import { StackArrangement } from "@/components/stack-arrangement";
-import { TrancheHistory } from "@/components/tranche-history";
 import { ApiError, apiAssetUrl, apiFetch } from "@/lib/api";
 import { bossLabel } from "@/lib/boss-difficulty";
 import { peek, put } from "@/lib/cache";
@@ -21,7 +20,7 @@ import {
   buildSettlement,
   settlementTotals,
   shareKey,
-  stillOnSaleLedger,
+  yourPiles,
 } from "@/lib/settlement";
 import { worthDrawing } from "@/lib/ledger-fates";
 import { buildWallet } from "@/lib/wallet";
@@ -460,25 +459,19 @@ export default function DropLogPage() {
     const key = holderKey(paid.holder);
     paymentsByHolder.set(key, [...(paymentsByHolder.get(key) ?? []), paid]);
   }
-  // The Sale Ledger is piles you can sell out of, which is yours. Somebody else's stays only while
-  // it has rows recorded under the old shape, as history: those are correctable nowhere else. What
-  // they OWE is the Settlement Ledger's to say, and only its, so the two never give two answers.
+  // The Sale Ledger is piles you can sell out of, which is yours. What somebody else owes is the
+  // Settlement Ledger's to say, and only its, so the two never give two answers.
   const recorded = (key: string) =>
     (tranchesByHolder.get(key)?.length ?? 0) > 0 || (paymentsByHolder.get(key)?.length ?? 0) > 0;
-  const { yours, history } = stillOnSaleLedger(ledgers, recorded);
+  const yours = yourPiles(ledgers);
   // Of your own piles, the ones with something to answer. A pile that owes nobody is somewhere a sale
   // may be recorded and nothing else, so it waits behind the control that offers exactly that rather
-  // than standing on screen saying "holding 1140" at somebody with nothing to do about it.
+  // than standing on screen with a count and no question.
   const { drawn, quiet } = worthDrawing(yours, recorded);
   // A held-back pile, once asked for. Drawn where the control that asked for it stood, not folded in
   // above with the rest: appended there, a click at the foot of the page made a card appear further
   // up it and took away the thing that was clicked, and nothing on screen tied the two together.
   const revealed = sellingOwn ? quiet : [];
-  const historyHolders = history.map((l) => ({
-    key: holderKey(l.holder),
-    holder: l.holder,
-    name: l.holderName,
-  }));
   // The piles of interchangeable drops waiting to be priced. Yours: a lot is filed against the seat
   // that sold it, and only your own seats are ones you can name as seller. A partner's pile stays on
   // its rows, where each names its own seller.
@@ -542,7 +535,7 @@ export default function DropLogPage() {
   const hasSales =
     saleCards({
       unanswered: open.length,
-      holders: drawn.length + revealed.length + history.length,
+      holders: drawn.length + revealed.length,
       lots: money ? lots.length : 0,
     }) > 0;
 
@@ -698,7 +691,7 @@ export default function DropLogPage() {
                   more of the same thing and there is nothing there to divide. */}
                 {/* Gated on what will actually draw, not on there being ledgers at all: a pile held
                   back for owing nobody leaves the heading standing over nothing. */}
-                {(sellableLots || drawn.length > 0 || history.length > 0) && (
+                {(sellableLots || drawn.length > 0) && (
                   <section className="loot-pool">
                     <h2 className="loot-pool-title">Record Sale</h2>
 
@@ -715,22 +708,6 @@ export default function DropLogPage() {
                     )}
 
                     <PieceLedger ledgers={drawn} {...pileCard} />
-
-                    {/* Somebody else's rows, from when their sales were entered here. No debt and no
-                      total: what they owe is the Settlement Ledger's to say. Here so a mistyped one
-                      can still be taken back, and gone once there are none left. */}
-                    <TrancheHistory
-                      holders={historyHolders}
-                      tranches={tranchesByHolder}
-                      payments={paymentsByHolder}
-                      busy={busy}
-                      onRemoveSale={(trancheId) =>
-                        saleWrite(`${TRANCHES_KEY}/${trancheId}`, { method: "DELETE" })
-                      }
-                      onRemovePayment={(paymentId) =>
-                        paymentWrite(`${PAYMENTS_KEY}/${paymentId}`, { method: "DELETE" })
-                      }
-                    />
                   </section>
                 )}
 
@@ -785,11 +762,17 @@ export default function DropLogPage() {
                   partyById={partyById}
                   offsetShares={offsetShares}
                   busy={busy}
+                  // Every payment, not only the ones counted since closing: these are the rows as
+                  // typed, and one entered against a closed boss is still one somebody may need back.
+                  payments={paymentsByHolder}
                   onAddPayment={(holder: Holder, amount) =>
                     paymentWrite(PAYMENTS_KEY, {
                       method: "POST",
                       body: JSON.stringify({ holder, amount }),
                     })
+                  }
+                  onRemovePayment={(paymentId) =>
+                    paymentWrite(`${PAYMENTS_KEY}/${paymentId}`, { method: "DELETE" })
                   }
                   onAddDebt={(holder: Holder, amount, note) =>
                     debtWrite(DEBTS_KEY, {

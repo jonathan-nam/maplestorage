@@ -18,7 +18,7 @@ import { formatDropped } from "@/lib/loot";
 import type { Holder } from "@/lib/vestige-ledger";
 import type { Boss } from "@/types/boss";
 import type { Party } from "@/types/party";
-import type { SettlementDebt } from "@/types/vestige";
+import type { SettlementDebt, VestigePayment } from "@/types/vestige";
 
 // One card per person, in the two units something can stand between you.
 //
@@ -47,7 +47,9 @@ export function SettlementLedger({
   partyById,
   offsetShares,
   busy,
+  payments,
   onAddPayment,
+  onRemovePayment,
   onAddDebt,
   onRemoveDebt,
   onSettlePieces,
@@ -61,7 +63,10 @@ export function SettlementLedger({
   /** The shares an offset discharged, resolved, keyed by shareKey(). See V58. */
   offsetShares: Map<string, OffsetShare>;
   busy: boolean;
+  /** What each person has paid, keyed by holderKey(), so a mistyped one can be taken back. */
+  payments: Map<string, VestigePayment[]>;
   onAddPayment: (holder: Holder, amount: number) => Promise<void>;
+  onRemovePayment: (paymentId: string) => Promise<void>;
   onAddDebt: (holder: Holder, amount: number, note: string) => Promise<void>;
   onRemoveDebt: (debtId: string) => Promise<void>;
   onSettlePieces: (holder: Holder, lootIds: string[]) => Promise<void>;
@@ -87,7 +92,9 @@ export function SettlementLedger({
           partyById={partyById}
           offsetShares={offsetShares}
           busy={busy}
+          payments={payments.get(row.key) ?? []}
           onAddPayment={onAddPayment}
+          onRemovePayment={onRemovePayment}
           onAddDebt={onAddDebt}
           onRemoveDebt={onRemoveDebt}
           onSettlePieces={onSettlePieces}
@@ -106,7 +113,9 @@ function SettlementCard({
   partyById,
   offsetShares,
   busy,
+  payments,
   onAddPayment,
+  onRemovePayment,
   onAddDebt,
   onRemoveDebt,
   onSettlePieces,
@@ -120,7 +129,10 @@ function SettlementCard({
   /** The shares an offset discharged, resolved, keyed by shareKey(). See V58. */
   offsetShares: Map<string, OffsetShare>;
   busy: boolean;
+  /** This person's payments, so a mistyped one can be taken back. */
+  payments: VestigePayment[];
   onAddPayment: (holder: Holder, amount: number) => Promise<void>;
+  onRemovePayment: (paymentId: string) => Promise<void>;
   onAddDebt: (holder: Holder, amount: number, note: string) => Promise<void>;
   onRemoveDebt: (debtId: string) => Promise<void>;
   onSettlePieces: (holder: Holder, lootIds: string[]) => Promise<void>;
@@ -438,6 +450,28 @@ function SettlementCard({
             Add
           </button>
         </form>
+
+        {/* Every entered row is removable, and this is the only place a payment is entered. It used
+            to be taken back on the Sale Ledger, on a card that held the old per-holder tranches; that
+            card is gone and this is where the act happened anyway. */}
+        {payments.length > 0 && (
+          <span className="ledger-tranches">
+            {payments.map((got) => (
+              <span key={got.id} className="ledger-tranche">
+                {`${formatMesos(got.amount, true)} paid`}
+                <button
+                  type="button"
+                  className="link ledger-drop-sale"
+                  disabled={busy}
+                  onClick={() => void write(onRemovePayment(got.id), null)}
+                  aria-label={`Remove the ${formatMesos(got.amount, true)} payment`}
+                >
+                  ×
+                </button>
+              </span>
+            ))}
+          </span>
+        )}
       </div>
 
       {/* The shares behind the figure above, and the one button that marks every one of them paid.

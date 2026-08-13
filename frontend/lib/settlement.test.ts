@@ -6,7 +6,7 @@ import {
   offsetOf,
   owedByYouShares,
   sharesOf,
-  stillOnSaleLedger,
+  yourPiles,
 } from "./settlement";
 import { receivedSinceClosing, saleCredits } from "./vestige-ledger";
 import type { Holder, HolderLedger } from "./vestige-ledger";
@@ -722,50 +722,20 @@ describe("a person whose card is kept", () => {
   });
 });
 
-describe("which piles the Sale Ledger still draws", () => {
-  const has =
-    (...keys: string[]) =>
-    (key: string) =>
-      keys.includes(key);
-
+describe("which piles the Sale Ledger draws", () => {
   it("keeps yours, which are the only ones you can sell out of", () => {
-    const { yours, history } = stillOnSaleLedger([ledger(SELF, "you")], has());
-    expect(yours).toHaveLength(1);
-    expect(history).toEqual([]);
+    expect(yourPiles([ledger(SELF, "you")])).toHaveLength(1);
   });
 
-  it("drops somebody else's pile that has nothing recorded against it", () => {
-    // Every debt from here on. It is stated on the Settlement Ledger, in pieces, and nowhere else:
-    // two cards claiming what one person owes is two answers.
-    const { yours, history } = stillOnSaleLedger([ledger(BRO, "Bro")], has());
-    expect([yours, history]).toEqual([[], []]);
+  it("drops somebody else's pile", () => {
+    // Every debt is stated on the Settlement Ledger, in pieces, and nowhere else: two cards claiming
+    // what one person owes is two answers. Their rows were kept here while the old entry shape's
+    // tranches still existed and could be corrected nowhere else. Both are gone.
+    expect(yourPiles([ledger(BRO, "Bro")])).toEqual([]);
   });
 
-  it("keeps somebody else's pile that has rows, because they are correctable nowhere else", () => {
-    const { history } = stillOnSaleLedger([ledger(BRO, "Bro")], has("person:p-bro"));
-    expect(history.map((l) => l.holderName)).toEqual(["Bro"]);
-  });
-
-  it("drops a SETTLED pile, whose rows nobody is going to argue about", () => {
-    // Bro's 4.86b sat on the sale page for a debt paid in full and closed the day before, reading
-    // as money outstanding. Closing the books is the statement that the transaction is over.
-    const { history } = stillOnSaleLedger(
-      [ledger(BRO, "Bro", { closed: true })],
-      has("person:p-bro"),
-    );
-    expect(history).toEqual([]);
-  });
-
-  it("never files your own pile as history, however much is recorded against it", () => {
-    const { yours, history } = stillOnSaleLedger([ledger(SELF, "you")], has("self"));
-    expect(yours).toHaveLength(1);
-    expect(history).toEqual([]);
-  });
-
-  it("splits a mixed list without losing anybody", () => {
+  it("keeps only yours out of a mixed list", () => {
     const all = [ledger(SELF, "you"), ledger(BRO, "Bro"), ledger(STRANGER, "Zaddy")];
-    const { yours, history } = stillOnSaleLedger(all, has("person:p-bro"));
-    expect(yours.map((l) => l.holderName)).toEqual(["you"]);
-    expect(history.map((l) => l.holderName)).toEqual(["Bro"]);
+    expect(yourPiles(all).map((l) => l.holderName)).toEqual(["you"]);
   });
 });

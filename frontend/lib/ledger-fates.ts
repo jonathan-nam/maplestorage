@@ -108,6 +108,36 @@ export function asksAnything(ledger: HolderLedger): boolean {
   return settledOf(ledger) < owes(ledger) || ledger.accounted > ledger.pieces;
 }
 
+/** One night under a pile, as the queue reads it. */
+type Night = HolderLedger["drops"][number];
+
+/**
+ * What the card's queue lists, and what it says as a count instead.
+ *
+ * Only the nights that owe somebody get a row. A night that divided the way it fell is finished when
+ * it is logged: nothing is derived from what became of those coupons, so its row carried a boss, a
+ * looter, a week and no question. Those are the majority of any pile, so drawn they WERE the queue,
+ * and the handful of rows with a debt under them were lost in it.
+ *
+ * Neither absence is silent. A count that changed still gets said, so both go on screen as counts,
+ * the way a closed boss already did. See V52 and CLAUDE.md.
+ */
+export function queueOf(ledger: HolderLedger): { owing: Night[]; clean: number; closed: number } {
+  const open = ledger.drops.filter((d) => !d.closed);
+  const owing = open.filter((d) => d.transfers.length > 0);
+  return { owing, clean: open.length - owing.length, closed: ledger.drops.length - open.length };
+}
+
+/**
+ * What this pile still owes, which is the whole of what the card is for.
+ *
+ * The header's one figure, and it moves as the debt is answered, so no second line restates it.
+ * `holding 1495` stood there before and was a number nobody could act on.
+ */
+export function outstandingOf(ledger: HolderLedger): number {
+  return owes(ledger) - settledOf(ledger);
+}
+
 /**
  * Your own piles, split by whether the Sale Ledger has a reason to draw one.
  *
