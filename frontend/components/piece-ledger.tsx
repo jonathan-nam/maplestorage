@@ -11,6 +11,8 @@ import {
   type Fate,
   type HeldOfYours,
   outstandingOf,
+  owedByCreditor,
+  settledOf,
   queueOf,
   roomFor,
 } from "@/lib/ledger-fates";
@@ -202,6 +204,11 @@ function HolderCard({
 
   const room = roomFor(ledger, fate);
   const outstanding = outstandingOf(ledger, heldOfYours);
+  const owed = owedByCreditor(ledger, heldOfYours);
+  // Answered pieces are a figure for the PILE, not per creditor, so once some are answered no
+  // per-creditor number can be backed: the names are said and the total stays the pile's own. Naming
+  // them with numbers that add up to more than the total would be the plausible wrong number.
+  const answered = settledOf(ledger, heldOfYours);
   /** What the count box is usually waiting for: the debt where there is one, the room where there is not. */
   const suggested = Math.min(outstanding > 0 ? outstanding : room, room);
 
@@ -286,7 +293,17 @@ function HolderCard({
           </span>
           {/* The DEBT, not the pile. See outstandingOf. Nothing where there is none: a card drawn to
               correct a row it already holds has no figure outstanding to state. */}
-          {outstanding > 0 && <span className="loot-meta">{`owes ${outstanding} pieces`}</span>}
+          {/* NAMED, because a count on its own does not say who is waiting for it: "owes 90 pieces"
+              on a pile whose whole debt was one person's left no way to tell which person. Every
+              creditor listed, since a pile can owe two, and the number beside each is already net of
+              the coupons of yours THEY are holding. */}
+          {outstanding > 0 && (
+            <span className="loot-meta">
+              {answered > 0
+                ? `owes ${outstanding} pieces to ${owed.map((c) => c.name).join(", ")}`
+                : `owes ${owed.map((c) => `${c.pieces} to ${c.name}`).join(" \u00b7 ")}`}
+            </span>
+          )}
         </span>
         <span className="ledger-tally">
           {ledger.closed && (

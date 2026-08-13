@@ -87,6 +87,39 @@ export function owes(ledger: HolderLedger, heldOfYours: HeldOfYours = new Map())
 export type HeldOfYours = Map<string, number>;
 
 /**
+ * Who this pile owes, and how many each, after their own coupons come off.
+ *
+ * The same per-creditor subtraction `owes` totals, kept apart so the card can name them. A count with
+ * nobody's name on it is the state this was reported in: "owes 90 pieces" over a pile whose whole debt
+ * was one person's, and no way to tell from the card which person.
+ *
+ * Biggest first, and a creditor who nets to nothing drops out: they are square, and the pile has
+ * nothing to say to them.
+ */
+export function owedByCreditor(
+  ledger: HolderLedger,
+  heldOfYours: HeldOfYours = new Map(),
+): { key: string; name: string; pieces: number }[] {
+  const byCreditor = new Map<string, { name: string; pieces: number }>();
+  for (const drop of ledger.drops) {
+    if (drop.closed) continue;
+    for (const transfer of drop.transfers) {
+      const seen = byCreditor.get(transfer.toId);
+      if (seen) seen.pieces += transfer.pieces;
+      else byCreditor.set(transfer.toId, { name: transfer.to, pieces: transfer.pieces });
+    }
+  }
+  return [...byCreditor.entries()]
+    .map(([key, { name, pieces }]) => ({
+      key,
+      name,
+      pieces: Math.max(0, pieces - (heldOfYours.get(key) ?? 0)),
+    }))
+    .filter((row) => row.pieces > 0)
+    .sort((a, b) => b.pieces - a.pieces || a.name.localeCompare(b.name));
+}
+
+/**
  * That map, off the other piles' own figures rather than recomputed.
  *
  * `owedToYou` is already "pieces of yours this pile holds, open drops only", so this is a re-keying
