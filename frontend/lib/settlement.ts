@@ -396,29 +396,13 @@ export function isEmpty(row: Settlement): boolean {
 }
 
 /**
- * The piles the Sale Ledger still draws: yours, and anyone else's that has rows already recorded.
+ * The piles the Sale Ledger draws, which is yours: the only ones you can sell out of.
  *
- * Yours because they are the only ones you can sell out of. Somebody else's ONLY as history: their
- * sales used to be entered tranche by tranche and those rows can be corrected nowhere else, so
- * filtering them away would put a mistyped figure beyond reach. What they owe is not stated there,
- * on the Settlement Ledger's side of the split, so the two cannot give two answers.
- *
- * A SETTLED pile drops off. A correction affordance is for a transaction somebody may still argue
- * about, and closing the books is the statement that nobody will: what was left was a bare 4.86b on
- * the sale page for a debt paid in full a day earlier, which reads as money outstanding. This is
- * also what makes the section temporary rather than permanent, as it was always meant to be.
- *
- * A holder with nothing recorded never gets a card either, which is every debt from here on.
+ * Somebody else's used to stay as history, because their sales were once entered here tranche by
+ * tranche and those rows could be corrected nowhere else. That entry shape is gone and so are the
+ * rows, so the card that held them is gone too. What they owe is the Settlement Ledger's to say, and
+ * only its, so the two cannot give two answers.
  */
-export function stillOnSaleLedger<T extends { holder: Holder; closed: boolean }>(
-  ledgers: T[],
-  recorded: (key: string) => boolean,
-): { yours: T[]; history: T[] } {
-  const yours: T[] = [];
-  const history: T[] = [];
-  for (const ledger of ledgers) {
-    if (ledger.holder.kind === "SELF") yours.push(ledger);
-    else if (!ledger.closed && recorded(holderKey(ledger.holder))) history.push(ledger);
-  }
-  return { yours, history };
+export function yourPiles<T extends { holder: Holder }>(ledgers: T[]): T[] {
+  return ledgers.filter((ledger) => ledger.holder.kind === "SELF");
 }

@@ -5,13 +5,16 @@ import {
   FATES,
   asksAnything,
   coversThePile,
+  outstandingOf,
   owes,
+  queueOf,
   roomFor,
   settledOf,
   worthDrawing,
 } from "./ledger-fates";
 import {
   type Holder,
+  type HolderLedger,
   alsoHeldByYou,
   answeredByHolder,
   holderLedgers,
@@ -352,6 +355,91 @@ describe("whether the card has anything to ask", () => {
   });
 });
 
+// What the queue lists, which is the debts, and what it counts instead. The complaint that produced
+// this: a pile of 1495 pieces off 30-odd nights, of which two owed anybody, drew 30-odd rows.
+describe("the nights the card's queue lists", () => {
+  /** One night under a pile: `to` is who it owes, or nobody. */
+  const night = (
+    lootId: string,
+    { to = null as string | null, closed = false, pieces = 60 } = {},
+  ) => ({
+    lootId,
+    partyId: `pa-${lootId}`,
+    bossKey: "limbo",
+    weekStart: "2026-08-06",
+    looterName: "Husky",
+    pieces,
+    closed,
+    transfers: to ? [{ fromId: "self", toId: "person:p-bro", from: "you", to, pieces: 30 }] : [],
+  });
+
+  const pileOf = (drops: ReturnType<typeof night>[]): HolderLedger => ({
+    holder: SELF,
+    holderName: "you",
+    pieces: drops.reduce((sum, d) => sum + d.pieces, 0),
+    owedToYou: 0,
+    received: 0,
+    kept: 0,
+    ownShare: 0,
+    bought: { pieces: 0, paid: 0 },
+    soldPieces: 0,
+    answered: 0,
+    closed: false,
+    writtenOff: 0,
+    accounted: 0,
+    drops,
+  });
+
+  it("lists a night that owes somebody", () => {
+    const { owing } = queueOf(pileOf([night("l1", { to: "Bro" })]));
+    expect(owing.map((d) => d.lootId)).toEqual(["l1"]);
+  });
+
+  it("leaves out a night that divided the way it fell, which is most of them", () => {
+    // The whole complaint. Nothing is derived from what became of those coupons, so the row carried
+    // a boss, a looter, a week and no question, and there were thirty of them.
+    const { owing } = queueOf(pileOf([night("l1"), night("l2"), night("l3", { to: "Bro" })]));
+    expect(owing.map((d) => d.lootId)).toEqual(["l3"]);
+  });
+
+  it("counts what it left out rather than going quiet about it", () => {
+    // A missing item beats a wrong count, and a count that changed still gets said. See CLAUDE.md.
+    const { clean } = queueOf(pileOf([night("l1"), night("l2"), night("l3", { to: "Bro" })]));
+    expect(clean).toBe(2);
+  });
+
+  it("counts a closed night as settled, not as one that split clean", () => {
+    // They are different facts. A closed night's books were shut with a debt on them; a clean one
+    // never had one. Folding them into one count would say the debt never existed.
+    const { owing, clean, closed } = queueOf(
+      pileOf([night("l1", { to: "Bro", closed: true }), night("l2")]),
+    );
+    expect([owing.length, clean, closed]).toEqual([0, 1, 1]);
+  });
+
+  it("has nothing to list for a pile that owes nobody at all", () => {
+    const { owing, clean } = queueOf(pileOf([night("l1"), night("l2")]));
+    expect([owing.length, clean]).toEqual([0, 2]);
+  });
+});
+
+describe("the figure the card's header states", () => {
+  it("states the debt, not the pile", () => {
+    // `holding 1495` stood here and was a number nobody could act on: the pile is mostly nights that
+    // divided the way they fell, and the question was about 40 pieces.
+    expect(outstandingOf(yourPile())).toBe(30);
+  });
+
+  it("comes down as the debt is answered, so it is the progress as well as the total", () => {
+    // Which is what lets the second line saying "0 of 30 accounted for" go.
+    expect(outstandingOf(yourPile(0, { pieces: 30, paid: 900 * M }))).toBe(0);
+  });
+
+  it("is zero for a pile that owes nobody, so the header says nothing", () => {
+    expect(outstandingOf(squarePile())).toBe(0);
+  });
+});
+
 // A pile that owes nobody is not a card. It is still a place a sale MAY be recorded, so it is held
 // back rather than dropped: dropping it would re-break what alsoHeldByYou exists for.
 describe("which of your own piles the ledger draws", () => {
@@ -423,8 +511,9 @@ describe("the picker the card draws", () => {
 
   it("puts the count behind the question, so a square pile is not asked", () => {
     // The gate is the whole fix. Ungated, the count returns and every square night demands a
-    // pile's worth of typing again.
-    expect(source).toMatch(/asksAnything\(ledger\) && \(\s*<span className="ledger-progress">/);
+    // pile's worth of typing again. It is now the miscount alone: what is outstanding moves in the
+    // header, so a second line restating it would be the same fact twice.
+    expect(source).toMatch(/overEntered > 0 && \(\s*<span className="ledger-progress">/);
   });
 
   it("leaves the form ungated, so a sale is offered where it is no longer demanded", () => {
@@ -474,10 +563,27 @@ describe("the way back to a pile the ledger held back", () => {
     // empties the section underneath it. The revealed card is outside the section, so it is `drawn`
     // that decides, not the piles on screen.
     expect(page).not.toMatch(/sellableLots \|\| ledgers\.length > 0/);
-    expect(page).toMatch(/sellableLots \|\| drawn\.length > 0 \|\| history\.length > 0/);
+    expect(page).toMatch(/sellableLots \|\| drawn\.length > 0/);
+  });
+
+  it("draws no card for somebody else's pile, whose debt is the Settlement Ledger's to state", () => {
+    // The old per-holder history card. It survived only to un-type rows entered under an entry shape
+    // that is gone, and stated no debt at all, so it read as a blank pane with a name on it.
+    expect(page).not.toContain("TrancheHistory");
+  });
+
+  it("keeps a payment removable where it is entered, which is the Settlement Ledger", () => {
+    // The history card was the one place a payment could be taken back. Deleting it without this
+    // would leave a mistyped payment on the books with no way to reach it.
+    const settlement = readFileSync(
+      join(__dirname, "..", "components", "settlement-ledger.tsx"),
+      "utf8",
+    );
+    expect(settlement).toContain("onRemovePayment");
+    expect(page).toMatch(/onRemovePayment=\{\(paymentId\) =>/);
   });
 
   it("counts the revealed card, so the empty line does not sit above one", () => {
-    expect(page).toMatch(/holders: drawn\.length \+ revealed\.length \+ history\.length/);
+    expect(page).toMatch(/holders: drawn\.length \+ revealed\.length/);
   });
 });
