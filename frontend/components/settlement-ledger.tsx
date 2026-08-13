@@ -7,6 +7,7 @@ import { bossLabel } from "@/lib/boss-difficulty";
 import {
   type Settlement,
   type OffsetShare,
+  offsetOf,
   owedByYouShares,
   shareKey,
   sharesOf,
@@ -196,7 +197,10 @@ function SettlementCard({
     },
     {
       key: "sold",
-      label: `${row.name}'s coupons I sold`,
+      // "or took", because a purchase out of your own pile now prices their coupons the way a sale
+      // does. One row for both: it is one figure of theirs in your hands either way, and which
+      // tranche it came off is on the Sale Ledger rather than said twice here.
+      label: `${row.name}'s coupons I sold or took`,
       mesos: row.parts.soldOfTheirs,
     },
     {
@@ -210,10 +214,18 @@ function SettlementCard({
     { key: "received", label: "received", mesos: row.parts.received, paid: true },
   ].filter((part) => part.mesos !== 0);
 
-  // Mesos a settle would declare you have ALREADY sent. Zero when every line runs towards you.
-  const owes = row.lines
-    .filter((line) => line.direction === "owe")
-    .reduce((sum, line) => sum + line.pay, 0);
+  /**
+   * Discharging what you owe against what they owe you, and what that leaves. See offsetOf.
+   *
+   * The settlement two people actually make when the sums are lopsided: rather than send somebody
+   * 139,548,023 and have them send 254b back, it comes off the larger figure. Marking the share paid
+   * alone said the money had moved, which took it out of the netting and put what they owe you back
+   * UP, and that is the opposite of what happened. See V57.
+   */
+  const offset = offsetOf(row);
+  // Mesos a settle would declare you have ALREADY sent. Off the offset, rather than summed again
+  // here: two spellings of one figure is how the button and its label come to disagree.
+  const owes = offset.amount;
   /**
    * Whether there is anything here to COLLECT, which is what decides the button exists.
    *
@@ -230,18 +242,6 @@ function SettlementCard({
    * next to the drop it came off.
    */
   const collectable = row.lines.some((line) => line.direction === "owed");
-  /**
-   * Whether a share you owe can be discharged by taking it OFF what they owe you.
-   *
-   * The settlement two people actually make when the sums are lopsided: rather than send somebody
-   * 139,548,023 and have them send 254b back, it comes off the larger figure. Marking the share paid
-   * alone said the money had moved, which took it out of the netting and put what they owe you back
-   * UP, and that is the opposite of what happened. See V57.
-   *
-   * Needs a debt of theirs to come off. Offsetting against nothing is not an offset, it is just a
-   * debt of yours, and this ledger has no act for paying one.
-   */
-  const offsettable = owes > 0 && row.mesos > 0;
   /**
    * Whether there is a share of YOURS here to mark as actually paid.
    *
@@ -479,21 +479,33 @@ function SettlementCard({
               UP: Jonathan settled a 139m share expecting it to come off a 254b debt and watched the
               figure rise. Leaving it unsettled is what nets it, and one transfer settles the lot. */}
           {/* Discharged against what they owe you, rather than by money crossing. One act, so the
-              share stops being outstanding and the figure it was netting against does not move. */}
-          {offsettable && (
+              share stops being outstanding and the figure it was netting against does not move.
+
+              The shares YOU owe, and only those. Handed every line it also marked their shares to you
+              paid, so the offset quietly collected money nobody had sent: the net fell by whatever
+              they owed. Settle is the act that covers both directions, because there a transfer of the
+              difference really did happen. */}
+          {offset.offered && (
             <span className="ledger-settle">
               <button
                 type="button"
                 className="party-save"
                 disabled={busy}
                 onClick={() =>
-                  void write(onOffsetShares(row.holder, owes, row.name, sharesOf(row)), null)
+                  void write(
+                    onOffsetShares(row.holder, offset.amount, row.name, owedByYouShares(row)),
+                    null,
+                  )
                 }
               >
                 Offset
               </button>
+              {/* What it leaves behind, where their debt cannot cover the lot. Said, because the
+                  alternative is a button promising to take 800m off a 500m debt. */}
               <span className="ledger-progress">
-                {`takes ${formatMesos(owes, true)} off what ${row.name} owes you`}
+                {offset.leftOwing > 0
+                  ? `clears what ${row.name} owes you, leaving you owing ${formatMesos(offset.leftOwing, true)}`
+                  : `takes ${formatMesos(offset.amount, true)} off what ${row.name} owes you`}
               </span>
             </span>
           )}

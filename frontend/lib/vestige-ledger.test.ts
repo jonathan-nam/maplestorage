@@ -3,6 +3,7 @@ import {
   type Holder,
   SELF_KEY,
   alsoHeldByYou,
+  answeredByHolder,
   boughtByHolder,
   closedByHolder,
   closureKey,
@@ -628,6 +629,67 @@ describe("what the card is still waiting to be told", () => {
     expect(over.accounted).toBe(400);
     expect(unaccounted(over)).toBe(0);
     expect(over.accounted - over.pieces).toBe(10);
+  });
+});
+
+describe("pieces answered with money rather than with coupons", () => {
+  const SELF: Holder = { kind: "SELF", personId: null, characterName: null };
+
+  it("counts what a sale named as somebody else's, and not the rest of the lot", () => {
+    const answered = answeredByHolder([
+      { holder: SELF, pieces: 60, amount: 1_500 * M, shares: [{ holder: BRO, pieces: 30 }] },
+    ]);
+    expect(answered.get("self")).toBe(30);
+  });
+
+  it("counts a purchase in full when it named nobody, which is every one entered so far", () => {
+    // V50's own rule: a purchase is one creditor's in full. Dropping this would reopen every pile
+    // that reached all-accounted-for through the box that says "I took theirs, at a price".
+    const answered = answeredByHolder([
+      { holder: SELF, pieces: 25, amount: 600 * M, disposition: "BOUGHT" },
+    ]);
+    expect(answered.get("self")).toBe(25);
+  });
+
+  it("counts a purchase that DID name somebody once, not twice", () => {
+    const answered = answeredByHolder([
+      {
+        holder: SELF,
+        pieces: 25,
+        amount: 600 * M,
+        disposition: "BOUGHT",
+        shares: [{ holder: BRO, pieces: 25 }],
+      },
+    ]);
+    expect(answered.get("self")).toBe(25);
+  });
+
+  it("counts a redemption not at all, having realized nothing to hand anybody", () => {
+    const answered = answeredByHolder([{ holder: SELF, pieces: 50, amount: null }]);
+    expect(answered.size).toBe(0);
+  });
+
+  it("ignores a share naming the pile's own holder, which owes itself nothing", () => {
+    const answered = answeredByHolder([
+      { holder: SELF, pieces: 60, amount: 1_500 * M, shares: [{ holder: SELF, pieces: 60 }] },
+    ]);
+    expect(answered.size).toBe(0);
+  });
+
+  it("caps at the tranche, so a bad cached row cannot answer for more than it held", () => {
+    const answered = answeredByHolder([
+      { holder: SELF, pieces: 30, amount: 1_500 * M, shares: [{ holder: BRO, pieces: 400 }] },
+    ]);
+    expect(answered.get("self")).toBe(30);
+  });
+
+  it("adds up across tranches, per pile", () => {
+    const answered = answeredByHolder([
+      { holder: SELF, pieces: 40, amount: 1_000 * M, shares: [{ holder: BRO, pieces: 10 }] },
+      { holder: SELF, pieces: 20, amount: 500 * M, disposition: "BOUGHT" },
+      { holder: BRO, pieces: 80, amount: 2_000 * M, shares: [{ holder: SELF, pieces: 40 }] },
+    ]);
+    expect([answered.get("self"), answered.get("person:p-bro")]).toEqual([30, 40]);
   });
 });
 

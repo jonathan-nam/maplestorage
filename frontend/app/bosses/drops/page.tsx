@@ -52,6 +52,7 @@ import {
   type Holder,
   SELF_KEY,
   alsoHeldByYou,
+  answeredByHolder,
   boughtByHolder,
   foldSeats,
   holderKey,
@@ -384,6 +385,7 @@ export default function DropLogPage() {
     boughtByHolder(tranches),
     receivedByHolder(payments),
     closures,
+    answeredByHolder(tranches),
   );
   // What other people owe you, in both units it can be owed in: pieces of yours they are holding,
   // and shares of a sale they made. Off the same two aggregations the ledger and the wallet already
@@ -524,10 +526,13 @@ export default function DropLogPage() {
       }),
     // Pieces of yours they took instead of selling, at a price somebody agreed. An amount like a
     // sale, and off the pile like a redemption. See V50.
-    onAddBought: (holder: Holder, pieces: number, amount: number) =>
+    //
+    // Shares like a sale too: whose coupons were taken is what puts the agreed price on their card,
+    // and without it the pieces left the pile owing nobody. See V56.
+    onAddBought: (holder: Holder, pieces: number, amount: number, shares: VestigeTrancheShare[]) =>
       saleWrite(TRANCHES_KEY, {
         method: "POST",
-        body: JSON.stringify({ holder, pieces, amount, disposition: "BOUGHT" }),
+        body: JSON.stringify({ holder, pieces, amount, disposition: "BOUGHT", shares }),
       }),
     onRemoveSale: (trancheId: string) =>
       saleWrite(`${TRANCHES_KEY}/${trancheId}`, { method: "DELETE" }),
