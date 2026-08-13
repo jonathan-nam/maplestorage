@@ -10,6 +10,17 @@ import type { ReactNode } from "react";
 export const PAGE_WAITING = "page page-waiting";
 
 /**
+ * The class the content that was being waited for wears when it arrives.
+ *
+ * The pair of PAGE_WAITING, and the same argument: the wait and the arrival are one transition, so
+ * both ends of it are named in one place. What it does is in globals.css under .page-ready.
+ *
+ * It goes on the content, not on the <main>. The title is drawn through the wait as well, so
+ * fading the whole page in blinks the one part of it that never went anywhere.
+ */
+export const PAGE_READY = "page-ready";
+
+/**
  * The <main> every route's loading.tsx renders.
  *
  * A component rather than a class each boundary spells out: twelve of these exist across four

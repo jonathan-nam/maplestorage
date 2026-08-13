@@ -341,6 +341,21 @@ body:has(.nav-pending) main {
   }
 }
 
+/* The other half of the wait: what arrives, easing in over what it replaces. Without it a page
+   swapped a one-line "Loading..." for its whole self between two frames, which is a flash the
+   delay above was never going to cover, since it covers only the wait.
+   On the arriving content, never on <main>: the title stood through the wait and fading it in a
+   second time makes it blink. */
+.page-ready {
+  animation: page-ready-in 280ms ease-out;
+}
+
+@keyframes page-ready-in {
+  from {
+    opacity: 0;
+  }
+}
+
 /* The bar stays, it just stops sweeping. Full width, because a stationary 40% stub at the left
    edge reads as a progress bar stuck at 40% rather than as a page on its way. */
 @media (prefers-reduced-motion: reduce) {
@@ -355,6 +370,10 @@ body:has(.nav-pending) main {
     animation:
       page-waiting-in 0s linear 150ms both,
       page-waiting-space 0s linear 150ms both;
+  }
+
+  .page-ready {
+    animation: none;
   }
 }
 
@@ -1374,16 +1393,8 @@ img.user-avatar-img {
   background: linear-gradient(90deg, transparent, rgb(255 255 255 / 60%), transparent);
 }
 
-/* The real UI fades in over the skeleton it replaces. */
-.chars-ready {
-  animation: chars-fade-in 0.28s ease-out;
-}
-
-@keyframes chars-fade-in {
-  from {
-    opacity: 0;
-  }
-}
+/* The real UI fades in over the skeleton it replaces. That is .page-ready, up with .page-waiting:
+   it is the same fade on every page that waits, not a characters-page one. */
 
 /* A sweep that never rests reads as frozen under reduced motion; slow it rather than stop it, and
    drop the fade so nothing moves that the user asked not to. */
@@ -1392,10 +1403,6 @@ img.user-avatar-img {
   .sk-slot::after,
   .sk-inv-line::after {
     animation-duration: 2.6s;
-  }
-
-  .chars-ready {
-    animation: none;
   }
 
   /* Held at all three dots this is just an ordinary ellipsis, so stopping it costs no meaning. */

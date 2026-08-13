@@ -1,6 +1,6 @@
 "use client";
 
-import { PAGE_WAITING } from "@/components/route-loading";
+import { PAGE_READY, PAGE_WAITING } from "@/components/route-loading";
 import { useAuth } from "@clerk/nextjs";
 import Link from "next/link";
 import { useEffect, useState } from "react";
@@ -174,38 +174,41 @@ export default function EditPartiesPage() {
       {state === "error" && <p>Couldn&apos;t load your parties.</p>}
       {state === "loading" && <p className="party-hint">Loading...</p>}
 
-      {state === "loaded" &&
-        (characters.length === 0 ? (
-          <p className="finder-empty">Add a character on the Inventory page first.</p>
-        ) : (
-          <>
-            <CharacterPicker
-              characters={characters}
-              selectedId={selected}
-              onSelect={(id) => {
-                setSelected(id);
-                setError(null);
-              }}
-            />
-
-            {character && (
-              <PartyConfigEditor
-                characterId={character.id}
-                characterName={character.name}
-                parties={parties.filter((p) => p.characterId === character.id)}
-                bosses={bosses}
-                dropTables={dropTables}
-                knownCharacters={knownCharacters}
-                isSaving={isSaving}
-                adding={isSaving(ADD_PARTY)}
-                error={error}
-                onSave={save}
-                onDelete={remove}
-                onPutBack={putBack}
+      {state === "loaded" && (
+        <div className={PAGE_READY}>
+          {characters.length === 0 ? (
+            <p className="finder-empty">Add a character on the Inventory page first.</p>
+          ) : (
+            <>
+              <CharacterPicker
+                characters={characters}
+                selectedId={selected}
+                onSelect={(id) => {
+                  setSelected(id);
+                  setError(null);
+                }}
               />
-            )}
-          </>
-        ))}
+
+              {character && (
+                <PartyConfigEditor
+                  characterId={character.id}
+                  characterName={character.name}
+                  parties={parties.filter((p) => p.characterId === character.id)}
+                  bosses={bosses}
+                  dropTables={dropTables}
+                  knownCharacters={knownCharacters}
+                  isSaving={isSaving}
+                  adding={isSaving(ADD_PARTY)}
+                  error={error}
+                  onSave={save}
+                  onDelete={remove}
+                  onPutBack={putBack}
+                />
+              )}
+            </>
+          )}
+        </div>
+      )}
     </main>
   );
 }

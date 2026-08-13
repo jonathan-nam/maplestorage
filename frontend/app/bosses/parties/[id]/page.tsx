@@ -1,6 +1,6 @@
 "use client";
 
-import { PAGE_WAITING } from "@/components/route-loading";
+import { PAGE_READY, PAGE_WAITING } from "@/components/route-loading";
 import { useAuth } from "@clerk/nextjs";
 import Link from "next/link";
 import { useParams } from "next/navigation";
@@ -174,7 +174,7 @@ export default function PartyPage() {
       {state === "loading" && <p className="party-hint">Loading...</p>}
 
       {state === "loaded" && party && (
-        <>
+        <div className={PAGE_READY}>
           {/* The boss and the roster ARE the title: there is nothing else it could be called. A
               solo pool has no roster to name, and "with" trailing off into nothing was what the
               same line drew for it. */}
@@ -224,7 +224,7 @@ export default function PartyPage() {
             onSetPaid={setPaid}
             onDelete={remove}
           />
-        </>
+        </div>
       )}
     </main>
   );

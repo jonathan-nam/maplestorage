@@ -83,6 +83,20 @@ describe("the wait for a page that has been asked for", () => {
     expect(/\.page-waiting \{[^}]*animation:[^;]*\bboth\b/.test(css)).toBe(true);
     expect(/@keyframes page-waiting-in \{\s*from \{\s*opacity:\s*0;/.test(css)).toBe(true);
   });
+
+  // The other end of the same transition. The delay above covers the wait; nothing covered the
+  // arrival, so a page swapped one line of "Loading..." for its whole self between two frames.
+  it("eases the arriving content in rather than swapping it on", () => {
+    expect(/\.page-ready \{[^}]*animation:\s*page-ready-in\s+\d+m?s/.test(css)).toBe(true);
+    expect(/@keyframes page-ready-in \{\s*from \{\s*opacity:\s*0;/.test(css)).toBe(true);
+  });
+
+  // No delay, unlike the wait. This one starts the moment the content exists: a delay here is a
+  // gap with the "Loading..." already gone and nothing yet in its place.
+  it("starts the arrival immediately", () => {
+    const shorthand = /\.page-ready \{[^}]*animation:\s*([^;]+);/.exec(css)?.[1];
+    expect(shorthand?.match(/\d+m?s\b/g)).toHaveLength(1);
+  });
 });
 
 describe("every wait wears the class", () => {
@@ -106,11 +120,16 @@ describe("every wait wears the class", () => {
   // A page that fetches its own data does the waiting itself, and that is where the measured
   // flash actually came from: the boundary never renders at all for a route whose payload was
   // already prefetched.
+  //
+  // Matched on the wait itself, not on the class: a page that forgot the class is exactly what
+  // this is for. Characters spells its wait `!loaded` rather than with a LoadState, which is how
+  // it sat on a bare `<main className="page">` for as long as this test only looked for the one
+  // spelling.
   const pages = globSync("app/**/page.tsx", { cwd: root }).filter((f) =>
-    read(f).includes('state === "loading"'),
+    /state === "loading"|!loaded && !failed/.test(read(f)),
   );
 
-  it("found the pages that wait", () => expect(pages.length).toBeGreaterThanOrEqual(9));
+  it("found the pages that wait", () => expect(pages.length).toBeGreaterThanOrEqual(10));
 
   it.each(pages)("%s marks its main while it waits", (file) => {
     expect(read(file)).toContain("PAGE_WAITING");
@@ -118,4 +137,17 @@ describe("every wait wears the class", () => {
       '<main className="page">',
     );
   });
+
+  // Run Order alone. Its page is not one block that arrives: the roster, the clock and the plan
+  // are drawn off derived state and come and go as the source is toggled, so a fade on them would
+  // fire on a click rather than on the load. What its own load state gates is an empty-list line
+  // and a checkbox.
+  const ARRIVES_IN_PIECES = ["app/bosses/order/page.tsx"];
+
+  it.each(pages.filter((f) => !ARRIVES_IN_PIECES.includes(f)))(
+    "%s eases its content in when it arrives",
+    (file) => {
+      expect(read(file)).toContain("PAGE_READY");
+    },
+  );
 });

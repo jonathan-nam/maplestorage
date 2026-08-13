@@ -1,6 +1,6 @@
 "use client";
 
-import { PAGE_WAITING } from "@/components/route-loading";
+import { PAGE_READY, PAGE_WAITING } from "@/components/route-loading";
 import { useAuth } from "@clerk/nextjs";
 import Link from "next/link";
 import { useEffect, useState } from "react";
@@ -508,7 +508,7 @@ export default function DropLogPage() {
       {state === "loading" && <p className="party-hint">Loading...</p>}
 
       {state === "loaded" && (
-        <>
+        <div className={PAGE_READY}>
           {sections.length > 1 && (
             <div className="basis-row droplog-sections" role="group" aria-label="Section">
               {sections.map((s) => (
@@ -871,7 +871,7 @@ export default function DropLogPage() {
               )}
             </section>
           )}
-        </>
+        </div>
       )}
     </main>
   );

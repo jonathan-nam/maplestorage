@@ -1,6 +1,6 @@
 "use client";
 
-import { PAGE_WAITING } from "@/components/route-loading";
+import { PAGE_READY, PAGE_WAITING } from "@/components/route-loading";
 import { useAuth } from "@clerk/nextjs";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
@@ -211,7 +211,7 @@ export default function CharactersPage() {
       {state === "loading" && <CharactersSkeleton />}
 
       {state === "loaded" && (
-        <div className="chars-ready">
+        <div className={PAGE_READY}>
           <SearchBar
             query={query}
             onQuery={setQuery}
