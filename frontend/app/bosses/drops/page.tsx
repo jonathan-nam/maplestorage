@@ -1,5 +1,6 @@
 "use client";
 
+import { DropLogSkeleton } from "@/components/drop-log-skeleton";
 import { PageSwap } from "@/components/page-swap";
 import { useAuth } from "@clerk/nextjs";
 import Link from "next/link";
@@ -545,10 +546,8 @@ export default function DropLogPage() {
       <h1 className="page-title">Drop Log</h1>
 
       {state === "error" && <p>Couldn&apos;t load your drops.</p>}
-      <PageSwap
-        waiting={state === "loading"}
-        placeholder={<p className="party-hint">Loading...</p>}
-      >
+      {/* The page's own shape, not a line of text where a page will be. See DropLogSkeleton. */}
+      <PageSwap waiting={state === "loading"} placeholder={<DropLogSkeleton />}>
         {state === "loaded" && (
           <>
             {sections.length > 1 && (
