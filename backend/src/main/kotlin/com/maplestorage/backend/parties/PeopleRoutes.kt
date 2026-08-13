@@ -82,7 +82,7 @@ internal fun validatePeople(request: SavePeopleRequest): String? {
 }
 
 /**
- * Pins or unpins one person, so their Collection Ledger card stays drawn. See V59.
+ * Pins or unpins one person, so their Settlement Ledger card stays drawn. See V59.
  *
  * Its own path rather than a field on the bulk save: that rewrites the whole people list, and a pin
  * toggled from a card would have to send back every person and every character to set one boolean.

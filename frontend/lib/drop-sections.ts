@@ -5,7 +5,7 @@
 // silently moving them somewhere else, and a ledger nobody had ever had anything on was invisible,
 // so there was no way to learn it existed. An empty one says so instead.
 
-export type DropSectionKey = "drops" | "sales" | "collection";
+export type DropSectionKey = "drops" | "sales" | "settlement";
 
 export type DropSection = { key: DropSectionKey; label: string };
 
@@ -28,7 +28,7 @@ export function dropSections(): DropSection[] {
   return [
     { key: "drops", label: "Drop Ledger" },
     { key: "sales", label: "Sale Ledger" },
-    { key: "collection", label: "Collection Ledger" },
+    { key: "settlement", label: "Settlement Ledger" },
   ];
 }
 

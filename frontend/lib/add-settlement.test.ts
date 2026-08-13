@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
-// The Collection Ledger draws a card per person who already owes you something, which cannot open
+// The Settlement Ledger draws a card per person who already owes you something, which cannot open
 // the FIRST debt of a relationship: a loan to somebody you have never split a drop with had nowhere
 // to be entered at all.
 //
@@ -11,18 +11,18 @@ import { describe, expect, it } from "vitest";
 // what disappears with it is the only way to record a whole kind of debt.
 
 const root = join(__dirname, "..");
-const component = readFileSync(join(root, "components", "add-collection.tsx"), "utf8");
+const component = readFileSync(join(root, "components", "add-settlement.tsx"), "utf8");
 const page = readFileSync(join(root, "app", "bosses", "drops", "page.tsx"), "utf8");
 
 describe("the way in for somebody with no card", () => {
-  it("is drawn on the collection tab", () => {
-    expect(page).toContain("<AddCollection");
+  it("is drawn on the settlement tab", () => {
+    expect(page).toContain("<AddSettlement");
   });
 
   it("writes to the same endpoint a card's own box writes to", () => {
     // Two ways to enter a debt is fine. Two SHAPES of debt row is not: they have to be one thing so
     // a mistyped one is removable from the card it lands on.
-    const wiring = page.slice(page.indexOf("<AddCollection"));
+    const wiring = page.slice(page.indexOf("<AddSettlement"));
     expect(wiring.slice(0, 400)).toContain("debtWrite(DEBTS_KEY");
   });
 

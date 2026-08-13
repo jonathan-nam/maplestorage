@@ -1,6 +1,6 @@
 "use client";
 
-import type { Collection, CollectionTotals } from "@/lib/collection";
+import type { Settlement, SettlementTotals } from "@/lib/settlement";
 import { formatMesos } from "@/lib/drop-split";
 
 // The account's position, above the cards.
@@ -12,12 +12,12 @@ import { formatMesos } from "@/lib/drop-split";
 // Every figure is summed off the CARDS. The Wallet had its own pass over the pools, which is how two
 // surfaces come to give two answers.
 
-export function CollectionSummary({
+export function SettlementSummary({
   rows,
   totals,
 }: {
-  rows: Collection[];
-  totals: CollectionTotals;
+  rows: Settlement[];
+  totals: SettlementTotals;
 }) {
   if (rows.length === 0) return null;
 

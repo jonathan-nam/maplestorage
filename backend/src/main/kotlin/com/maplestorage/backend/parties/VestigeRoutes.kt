@@ -143,7 +143,7 @@ fun Route.vestigeLedgerRoutes() {
     route("/api/vestige-tranches") { vestigeRoutes() }
     route("/api/vestige-payments") { vestigePaymentRoutes() }
     route("/api/vestige-settlements") { vestigeSettlementRoutes() }
-    route("/api/collection-debts") { collectionDebtRoutes() }
+    route("/api/settlement-debts") { settlementDebtRoutes() }
 }
 
 fun Route.vestigeRoutes() {

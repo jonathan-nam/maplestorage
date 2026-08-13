@@ -4,9 +4,9 @@ import { PAGE_READY, PAGE_WAITING } from "@/components/route-loading";
 import { useAuth } from "@clerk/nextjs";
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { AddCollection } from "@/components/add-collection";
-import { CollectionLedger } from "@/components/collection-ledger";
-import { CollectionSummary } from "@/components/collection-summary";
+import { AddSettlement } from "@/components/add-settlement";
+import { SettlementLedger } from "@/components/settlement-ledger";
+import { SettlementSummary } from "@/components/settlement-summary";
 import { LogDrop } from "@/components/log-drop";
 import { LotSale } from "@/components/lot-sale";
 import { PieceLedger } from "@/components/piece-ledger";
@@ -17,11 +17,11 @@ import { bossLabel } from "@/lib/boss-difficulty";
 import { peek, put } from "@/lib/cache";
 import {
   type OffsetShare,
-  buildCollection,
-  collectionTotals,
+  buildSettlement,
+  settlementTotals,
   shareKey,
   stillOnSaleLedger,
-} from "@/lib/collection";
+} from "@/lib/settlement";
 import { worthDrawing } from "@/lib/ledger-fates";
 import { buildWallet } from "@/lib/wallet";
 import { type DropSectionKey, dropSections, saleCards, shownSection } from "@/lib/drop-sections";
@@ -73,7 +73,7 @@ import type { DropTables } from "@/types/drop";
 import type { Loot, LogDropBody, PartyLootPool, SettleBody } from "@/types/loot";
 import type { Party, Person } from "@/types/party";
 import type {
-  CollectionDebt,
+  SettlementDebt,
   VestigePayment,
   VestigeSettlement,
   VestigeTranche,
@@ -98,7 +98,7 @@ const CHARACTERS_KEY = "/api/characters";
 const TRANCHES_KEY = "/api/vestige-tranches";
 const PAYMENTS_KEY = "/api/vestige-payments";
 const SETTLEMENTS_KEY = "/api/vestige-settlements";
-const DEBTS_KEY = "/api/collection-debts";
+const DEBTS_KEY = "/api/settlement-debts";
 const PEOPLE_KEY = "/api/people";
 
 // The stacking drop the piece ledger is for. One key, because one item behaves this way: a boss
@@ -121,7 +121,7 @@ export default function DropLogPage() {
   const [tranches, setTranches] = useState<VestigeTranche[]>([]);
   const [payments, setPayments] = useState<VestigePayment[]>([]);
   const [settlements, setSettlements] = useState<VestigeSettlement[]>([]);
-  const [debts, setDebts] = useState<CollectionDebt[]>([]);
+  const [debts, setDebts] = useState<SettlementDebt[]>([]);
   const [people, setPeople] = useState<Person[]>(peek<Person[]>(PEOPLE_KEY) ?? []);
 
   // A drop names the party it fell in and links to it, which draws its seats. See
@@ -147,7 +147,7 @@ export default function DropLogPage() {
         apiFetch<VestigeTranche[]>(TRANCHES_KEY, { method: "GET" }, withToken),
         apiFetch<VestigePayment[]>(PAYMENTS_KEY, { method: "GET" }, withToken),
         apiFetch<VestigeSettlement[]>(SETTLEMENTS_KEY, { method: "GET" }, withToken),
-        apiFetch<CollectionDebt[]>(DEBTS_KEY, { method: "GET" }, withToken),
+        apiFetch<SettlementDebt[]>(DEBTS_KEY, { method: "GET" }, withToken),
       ]);
     setParties(partyResult);
     setPools(poolResult);
@@ -250,7 +250,7 @@ export default function DropLogPage() {
   }
 
   /**
-   * Marks a person's unpaid SHARES paid, which is the other half of a collection.
+   * Marks a person's unpaid SHARES paid, which is the other half of a settlement.
    *
    * The Wallet's own act, against the same payout rows, rather than a second way to mark a share
    * paid: two of those would disagree the first time one of them was changed. Answers with the
@@ -279,7 +279,7 @@ export default function DropLogPage() {
   async function debtWrite(path: string, options: RequestInit) {
     setBusy(true);
     try {
-      setDebts(await apiFetch<CollectionDebt[]>(path, options, getToken));
+      setDebts(await apiFetch<SettlementDebt[]>(path, options, getToken));
     } catch (e) {
       throw new Error(e instanceof ApiError ? e.body : "That didn't save.");
     } finally {
@@ -428,7 +428,7 @@ export default function DropLogPage() {
       }
     }
   }
-  const collection = buildCollection(
+  const settlement = buildSettlement(
     ledgers,
     wallet,
     debts,
@@ -441,8 +441,8 @@ export default function DropLogPage() {
   );
   // Nights that did not divide and that nobody has said the arrangement for. Above the ledger,
   // because until one is answered its pieces are missing from every figure below it.
-  // The three tiles above the cards, off the cards themselves. See collectionTotals.
-  const owedTotals = collectionTotals(collection);
+  // The three tiles above the cards, off the cards themselves. See settlementTotals.
+  const owedTotals = settlementTotals(settlement);
   const open = unanswered(parties, pools, VESTIGE);
   // Only the drops still open tilt the rotation: a debt that has been closed was compensated, so it
   // has no business suggesting against the same person forever. See V52.
@@ -459,7 +459,7 @@ export default function DropLogPage() {
   }
   // The Sale Ledger is piles you can sell out of, which is yours. Somebody else's stays only while
   // it has rows recorded under the old shape, as history: those are correctable nowhere else. What
-  // they OWE is the Collection Ledger's to say, and only its, so the two never give two answers.
+  // they OWE is the Settlement Ledger's to say, and only its, so the two never give two answers.
   const recorded = (key: string) =>
     (tranchesByHolder.get(key)?.length ?? 0) > 0 || (paymentsByHolder.get(key)?.length ?? 0) > 0;
   const { yours, history } = stillOnSaleLedger(ledgers, recorded);
@@ -674,7 +674,7 @@ export default function DropLogPage() {
                     iconUrl={vestigeIcon}
                     busy={busy}
                     // `shares` says how many of the pieces were somebody else's, so their part of
-                    // what this lot fetched lands on the Collection Ledger. Empty is the whole sale
+                    // what this lot fetched lands on the Settlement Ledger. Empty is the whole sale
                     // being your own, which is every tranche entered before V56. See saleCredits.
                     onAddSale={(holder: Holder, pieces, amount, shares: VestigeTrancheShare[]) =>
                       saleWrite(TRANCHES_KEY, {
@@ -710,7 +710,7 @@ export default function DropLogPage() {
                   />
 
                   {/* Somebody else's rows, from when their sales were entered here. No debt and no
-                      total: what they owe is the Collection Ledger's to say. Here so a mistyped one
+                      total: what they owe is the Settlement Ledger's to say. Here so a mistyped one
                       can still be taken back, and gone once there are none left. */}
                   <TrancheHistory
                     holders={historyHolders}
@@ -754,14 +754,14 @@ export default function DropLogPage() {
             </>
           )}
 
-          {shown === "collection" && (
+          {shown === "settlement" && (
             <section className="loot-pool">
-              <h2 className="loot-pool-title">Record Collection</h2>
+              <h2 className="loot-pool-title">Record Settlement</h2>
 
-              <CollectionSummary rows={collection} totals={owedTotals} />
+              <SettlementSummary rows={settlement} totals={owedTotals} />
 
-              <CollectionLedger
-                rows={collection}
+              <SettlementLedger
+                rows={settlement}
                 bossByKey={bossByKey}
                 partyById={partyById}
                 offsetShares={offsetShares}
@@ -830,7 +830,7 @@ export default function DropLogPage() {
                   owes you something, so the first debt of a relationship had nowhere to go. After
                   the cards, not above them: it is the way to one more of the same, the way Record a
                   sale is on the other tab. */}
-              <AddCollection
+              <AddSettlement
                 people={people}
                 busy={busy}
                 onAdd={(holder: Holder, amount, note) =>

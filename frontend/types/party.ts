@@ -87,7 +87,7 @@ export type Person = {
   id: string;
   name: string;
   characters: string[];
-  // Their Collection Ledger card is drawn with nothing outstanding. Set by hand. See V59.
+  // Their Settlement Ledger card is drawn with nothing outstanding. Set by hand. See V59.
   pinned: boolean;
 };
 

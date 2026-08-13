@@ -14,7 +14,7 @@ import type { Person } from "@/types/party";
 // PEOPLE, not characters. A debt is between two humans, which is what the holder fold has meant
 // everywhere since V39, and the picker is the people list so a name cannot arrive misspelled.
 
-export function AddCollection({
+export function AddSettlement({
   people,
   busy,
   onAdd,
@@ -39,7 +39,7 @@ export function AddCollection({
   if (!open) {
     return (
       <button type="button" className="party-save" onClick={() => setOpen(true)}>
-        Add a collection
+        Add a settlement
       </button>
     );
   }

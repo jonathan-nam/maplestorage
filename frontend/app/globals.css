@@ -4611,7 +4611,7 @@ button.link:disabled {
   cursor: default;
 }
 
-/* A figure on the Collection Ledger. Uncoloured by default, because most of them are ARITHMETIC:
+/* A figure on the Settlement Ledger. Uncoloured by default, because most of them are ARITHMETIC:
    components that sum to the headline, where "settled" is not a question you can ask. Colouring
    them put -139,548,023 in red for being unsettled while it was also a credit against the debt
    above it, so one number read as a problem and as progress at once. The sign carries them. */
@@ -4632,7 +4632,7 @@ button.link:disabled {
   color: var(--good);
 }
 
-/* What the Collection Ledger's cards do NOT cover: unreadable splits, and shares that are real but
+/* What the Settlement Ledger's cards do NOT cover: unreadable splits, and shares that are real but
    not yours to settle. Inherited from the Wallet page this tab replaced. */
 .ledger-notes {
   list-style: none;

@@ -1,16 +1,16 @@
 import { describe, expect, it } from "vitest";
 import {
-  buildCollection,
-  collectionTotals,
+  buildSettlement,
+  settlementTotals,
   isEmpty,
   owedByYouShares,
   sharesOf,
   stillOnSaleLedger,
-} from "./collection";
+} from "./settlement";
 import { receivedSinceClosing, saleCredits } from "./vestige-ledger";
 import type { Holder, HolderLedger } from "./vestige-ledger";
 import type { Counterparty, Wallet, WalletLine } from "./wallet";
-import type { CollectionDebt } from "@/types/vestige";
+import type { SettlementDebt } from "@/types/vestige";
 
 const M = 1_000_000;
 
@@ -18,7 +18,7 @@ const SELF: Holder = { kind: "SELF", personId: null, characterName: null };
 const BRO: Holder = { kind: "PERSON", personId: "p-bro", characterName: null };
 const STRANGER: Holder = { kind: "CHARACTER", personId: null, characterName: "zaddy" };
 
-/** One holder's card, with only the fields the collection reads. */
+/** One holder's card, with only the fields the settlement reads. */
 const ledger = (holder: Holder, name: string, over: Partial<HolderLedger> = {}): HolderLedger => ({
   holder,
   holderName: name,
@@ -90,7 +90,7 @@ const wallet = (counterparties: Counterparty[]): Wallet => ({
 
 describe("what one person owes you", () => {
   it("puts pieces and shares on ONE row, since it is one person and one conversation", () => {
-    const rows = buildCollection(
+    const rows = buildSettlement(
       [ledger(BRO, "Bro", { owedToYou: 80, drops: [owing("l1", "first-adversary", 80)] })],
       wallet([counterparty("person:p-bro", "Bro", [line("l2", 900 * M)])]),
     );
@@ -101,7 +101,7 @@ describe("what one person owes you", () => {
   it("states the pieces and never a price for them", () => {
     // The whole point of the redesign: coupons are single-trade, so what they are worth is not
     // something the app can see. A meso figure here would be a guess at somebody else's sale.
-    const rows = buildCollection(
+    const rows = buildSettlement(
       [ledger(BRO, "Bro", { owedToYou: 80, drops: [owing("l1", "first-adversary", 80)] })],
       wallet([]),
     );
@@ -112,7 +112,7 @@ describe("what one person owes you", () => {
 
   it("counts only YOUR part of their pile, not everything they picked up", () => {
     // They are holding 160; 80 of those are yours. Their own half is their business.
-    const rows = buildCollection(
+    const rows = buildSettlement(
       [ledger(BRO, "Bro", { owedToYou: 80, drops: [owing("l1", "first-adversary", 80)] })],
       wallet([]),
     );
@@ -122,12 +122,12 @@ describe("what one person owes you", () => {
 
 describe("who belongs on the list at all", () => {
   it("leaves your own pile off, since you cannot owe yourself", () => {
-    const rows = buildCollection([ledger(SELF, "you", { pieces: 200 })], wallet([]));
+    const rows = buildSettlement([ledger(SELF, "you", { pieces: 200 })], wallet([]));
     expect(rows).toEqual([]);
   });
 
   it("leaves a closed pile off, because it is finished", () => {
-    const rows = buildCollection(
+    const rows = buildSettlement(
       [
         ledger(BRO, "Bro", {
           owedToYou: 80,
@@ -141,7 +141,7 @@ describe("who belongs on the list at all", () => {
   });
 
   it("leaves a closed BOSS off a pile that is still open", () => {
-    const rows = buildCollection(
+    const rows = buildSettlement(
       [
         ledger(BRO, "Bro", {
           owedToYou: 80,
@@ -157,7 +157,7 @@ describe("who belongs on the list at all", () => {
     // It used to be dropped, which was right while every figure here ran one way. It is not now:
     // the ordinary end of looting a boss single-handed is a debt of YOURS, and a card that showed
     // only the collectable direction would not mention the money of theirs in your hands.
-    const rows = buildCollection(
+    const rows = buildSettlement(
       [],
       wallet([counterparty("person:p-bro", "Bro", [line("l2", 900 * M, "owe")])]),
     );
@@ -169,7 +169,7 @@ describe("netting, which is mesos against mesos and never pieces", () => {
   it("nets the two directions to one figure", () => {
     // They owe you 1b of shares and you owe them 400m: one transfer of 600m settles both, and the
     // 400m that no longer crosses saves its 5% hop.
-    const rows = buildCollection(
+    const rows = buildSettlement(
       [],
       wallet([
         counterparty("person:p-bro", "Bro", [line("l1", 1_000 * M), line("l2", 400 * M, "owe")]),
@@ -182,7 +182,7 @@ describe("netting, which is mesos against mesos and never pieces", () => {
   it("says which way it runs when the netting leaves YOU behind", () => {
     // They record a sale owing you 1b, you already owed them 1.5b, so you owe 500m. Not collectable,
     // and still the one thing outstanding between you.
-    const rows = buildCollection(
+    const rows = buildSettlement(
       [],
       wallet([
         counterparty("person:p-bro", "Bro", [line("l1", 1_000 * M), line("l2", 1_500 * M, "owe")]),
@@ -193,7 +193,7 @@ describe("netting, which is mesos against mesos and never pieces", () => {
 
   it("says what you owe when their PIECES put them on the list anyway", () => {
     // So a pile is not chased off somebody you are 500m behind with.
-    const rows = buildCollection(
+    const rows = buildSettlement(
       [ledger(BRO, "Bro", { owedToYou: 80, drops: [owing("l3", "first-adversary", 80)] })],
       wallet([
         counterparty("person:p-bro", "Bro", [line("l1", 1_000 * M), line("l2", 1_500 * M, "owe")]),
@@ -206,7 +206,7 @@ describe("netting, which is mesos against mesos and never pieces", () => {
     // These used to be dropped, on the reasoning that settling what YOU owe did not belong on a
     // card about collecting. Retiring the Wallet took the only other place it could be done, and
     // Jonathan was left with four shares he owed and no settle anywhere in the app.
-    const rows = buildCollection(
+    const rows = buildSettlement(
       [ledger(BRO, "Bro", { owedToYou: 80, drops: [owing("l3", "first-adversary", 80)] })],
       wallet([counterparty("person:p-bro", "Bro", [line("l2", 1_500 * M, "owe")])]),
     );
@@ -215,7 +215,7 @@ describe("netting, which is mesos against mesos and never pieces", () => {
   });
 
   it("settles BOTH directions when the net runs to you, since one transfer covers them", () => {
-    const rows = buildCollection(
+    const rows = buildSettlement(
       [],
       wallet([
         counterparty("person:p-bro", "Bro", [line("l1", 1_000 * M), line("l2", 400 * M, "owe")]),
@@ -227,7 +227,7 @@ describe("netting, which is mesos against mesos and never pieces", () => {
   it("never nets a piece debt against a meso one", () => {
     // The two are not commensurable: a piece has no price until somebody names one, and the sides
     // come off different nights at different prices.
-    const rows = buildCollection(
+    const rows = buildSettlement(
       [ledger(BRO, "Bro", { owedToYou: 80, drops: [owing("l3", "first-adversary", 80)] })],
       wallet([counterparty("person:p-bro", "Bro", [line("l2", 400 * M, "owe")])]),
     );
@@ -236,7 +236,7 @@ describe("netting, which is mesos against mesos and never pieces", () => {
   });
 
   it("keeps an unattributed character as their own row, rather than guessing", () => {
-    const rows = buildCollection(
+    const rows = buildSettlement(
       [ledger(STRANGER, "Zaddy", { owedToYou: 30, drops: [owing("l1", "limbo", 30)] })],
       wallet([]),
     );
@@ -246,7 +246,7 @@ describe("netting, which is mesos against mesos and never pieces", () => {
 
 describe("the order the rows come out in", () => {
   it("leads with the mesos, which is the half you can act on today", () => {
-    const rows = buildCollection(
+    const rows = buildSettlement(
       [
         ledger(BRO, "Bro", { owedToYou: 500, drops: [owing("l1", "kalos", 500)] }),
         ledger(STRANGER, "Zaddy", { owedToYou: 10, drops: [owing("l3", "limbo", 10)] }),
@@ -257,7 +257,7 @@ describe("the order the rows come out in", () => {
   });
 
   it("breaks a tie on pieces, then the name, so two reads never disagree", () => {
-    const rows = buildCollection(
+    const rows = buildSettlement(
       [
         ledger(BRO, "Bro", { owedToYou: 10, drops: [owing("l1", "kalos", 10)] }),
         ledger(STRANGER, "Zaddy", { owedToYou: 80, drops: [owing("l2", "limbo", 80)] }),
@@ -272,7 +272,7 @@ describe("what a settle would touch", () => {
   it("names the payout rows of the shares, and nothing of the pieces", () => {
     // The trap this exists for: a piece debt has NO payout row, so naming one clears nothing while
     // looking as though it worked. That is why coupon debt was kept out of the wallet's lines.
-    const rows = buildCollection(
+    const rows = buildSettlement(
       [ledger(BRO, "Bro", { owedToYou: 80, drops: [owing("l1", "first-adversary", 80)] })],
       wallet([counterparty("person:p-bro", "Bro", [line("l2", 900 * M)])]),
     );
@@ -280,7 +280,7 @@ describe("what a settle would touch", () => {
   });
 
   it("carries the holder for the piece side, which is what a payment is filed against", () => {
-    const rows = buildCollection(
+    const rows = buildSettlement(
       [ledger(BRO, "Bro", { owedToYou: 80, drops: [owing("l1", "first-adversary", 80)] })],
       wallet([]),
     );
@@ -290,7 +290,7 @@ describe("what a settle would touch", () => {
   it("rebuilds the holder for somebody with no pile, so an entry can still be filed against them", () => {
     // It used to be null, which was fine while the only thing a card wrote was against a pile. An
     // entered debt is filed against the PERSON, and somebody who has never held a coupon can owe you.
-    const rows = buildCollection(
+    const rows = buildSettlement(
       [],
       wallet([counterparty("person:p-jared", "Jared", [line("l9", 400 * M)])]),
     );
@@ -304,7 +304,7 @@ describe("what a settle would touch", () => {
 });
 
 describe("the money a sale of somebody else's coupons puts on the card", () => {
-  const debt = (holder: Holder, amount: number, note: string | null = null): CollectionDebt => ({
+  const debt = (holder: Holder, amount: number, note: string | null = null): SettlementDebt => ({
     id: `d-${amount}`,
     holder,
     amount,
@@ -317,7 +317,7 @@ describe("the money a sale of somebody else's coupons puts on the card", () => {
   it("owes them what their half of the lot fetched, the night you looted all of it", () => {
     // The case this was built for. 160 fell, 80 were theirs, you picked up the lot and sold it. Their
     // 80 came out of YOUR inventory at a price you typed, so their money is in your hands.
-    const rows = buildCollection(
+    const rows = buildSettlement(
       [],
       wallet([]),
       [],
@@ -332,7 +332,7 @@ describe("the money a sale of somebody else's coupons puts on the card", () => {
 
   it("deducts that sale from what they already owed you, which is one net to settle", () => {
     // Jonathan's ask in one line: an amount entered for a person, and item sales coming off it.
-    const rows = buildCollection(
+    const rows = buildSettlement(
       [],
       wallet([]),
       [debt(BRO, 3_000 * M, "Ludi loan")],
@@ -347,7 +347,7 @@ describe("the money a sale of somebody else's coupons puts on the card", () => {
   it("prices only the pieces that were said to be theirs, never the whole sale", () => {
     // A partial sale: 100 of the 160 went, and 80 of those were theirs because somebody typed 80.
     // Nothing infers which coupons in one inventory went to market.
-    const rows = buildCollection(
+    const rows = buildSettlement(
       [],
       wallet([]),
       [],
@@ -359,7 +359,7 @@ describe("the money a sale of somebody else's coupons puts on the card", () => {
   });
 
   it("credits nobody for a sale that named no shares, which is every row before V56", () => {
-    const rows = buildCollection(
+    const rows = buildSettlement(
       [],
       wallet([]),
       [],
@@ -394,7 +394,7 @@ describe("the money a sale of somebody else's coupons puts on the card", () => {
 
   it("takes a payment off what they owe, whether or not they ever held a coupon", () => {
     // Received used to be read off the HolderLedger, so a person with no open drop had none at all.
-    const rows = buildCollection(
+    const rows = buildSettlement(
       [],
       wallet([]),
       [debt(BRO, 1_000 * M)],
@@ -407,7 +407,7 @@ describe("the money a sale of somebody else's coupons puts on the card", () => {
   it("never turns a payment into a debt of YOURS, when the pieces it paid for have no price", () => {
     // They hold 80 of yours and send 400m for them. Netting that would read "you owe them 400m",
     // which is the plausible confident wrong number: the pieces have no price for it to come off.
-    const rows = buildCollection(
+    const rows = buildSettlement(
       [ledger(BRO, "Bro", { owedToYou: 80, drops: [owing("l1", "kalos", 80)] })],
       wallet([]),
       [],
@@ -419,7 +419,7 @@ describe("the money a sale of somebody else's coupons puts on the card", () => {
   });
 
   it("spends a payment on the priced debt first, and says what is left over", () => {
-    const rows = buildCollection(
+    const rows = buildSettlement(
       [ledger(BRO, "Bro", { owedToYou: 80, drops: [owing("l1", "kalos", 80)] })],
       wallet([]),
       [debt(BRO, 500 * M)],
@@ -444,7 +444,7 @@ describe("the money a sale of somebody else's coupons puts on the card", () => {
     // Only the one that arrived after the books closed.
     expect(receivedSinceClosing(paid, closed)).toEqual(new Map([["person:p-bro", 500 * M]]));
 
-    const rows = buildCollection(
+    const rows = buildSettlement(
       [],
       wallet([]),
       [debt(BRO, 254_000 * M)],
@@ -475,11 +475,11 @@ describe("the money a sale of somebody else's coupons puts on the card", () => {
     const share = counterparty("person:p-bro", "Bro", [line("l9", 139_548_023, "owe")]);
 
     // Outstanding: netted, and this is the figure somebody is looking at.
-    const before = buildCollection([], wallet([share]), [debt(BRO, 254_512_697_574)]);
+    const before = buildSettlement([], wallet([share]), [debt(BRO, 254_512_697_574)]);
     expect(before[0]!.mesos).toBe(254_512_697_574 - 139_548_023);
 
     // Offset: the share is paid AND a negative adjustment records what discharged it. Same figure.
-    const after = buildCollection([], wallet([]), [
+    const after = buildSettlement([], wallet([]), [
       debt(BRO, 254_512_697_574),
       debt(BRO, -139_548_023, "offset against Bro"),
     ]);
@@ -489,14 +489,14 @@ describe("the money a sale of somebody else's coupons puts on the card", () => {
   it("says you owe when an offset is the only thing on the card", () => {
     // A negative with nothing to come off is not an offset, it is a debt of yours, and it is said
     // rather than hidden. The card offers no offset in that state; this is only the arithmetic.
-    const rows = buildCollection([], wallet([]), [debt(BRO, -139_548_023, "offset against Bro")]);
+    const rows = buildSettlement([], wallet([]), [debt(BRO, -139_548_023, "offset against Bro")]);
     expect([rows[0]!.mesos, rows[0]!.owedByYou]).toEqual([0, 139_548_023]);
   });
 
   it("keeps the pieces out of the net, however much money is on the card", () => {
     // The rule this ledger was split for. A piece has no price until somebody names one, so it is
     // never added to or taken off a meso figure.
-    const rows = buildCollection(
+    const rows = buildSettlement(
       [ledger(BRO, "Bro", { owedToYou: 80, drops: [owing("l1", "kalos", 80)] })],
       wallet([]),
       [debt(BRO, 1_000 * M)],
@@ -518,14 +518,14 @@ describe("what the account comes to, above the cards", () => {
   it("sums the CARDS, so a tile cannot disagree with the list under it", () => {
     // The Wallet had its own pass over the pools for this, which is how two surfaces get two
     // answers. These are the same rows the list draws.
-    const rows = buildCollection(
+    const rows = buildSettlement(
       [],
       wallet([
         counterparty("person:p-bro", "Bro", [line("l1", 1_000 * M)]),
         counterparty("character:zaddy", "Zaddy", [line("l2", 400 * M, "owe")]),
       ]),
     );
-    expect(collectionTotals(rows)).toEqual({
+    expect(settlementTotals(rows)).toEqual({
       owed: 1_000 * M,
       owe: 400 * M,
       net: 600 * M,
@@ -534,19 +534,19 @@ describe("what the account comes to, above the cards", () => {
   });
 
   it("says you are behind overall when the net runs against you", () => {
-    const rows = buildCollection(
+    const rows = buildSettlement(
       [],
       wallet([counterparty("person:p-bro", "Bro", [line("l1", 900 * M, "owe")])]),
     );
-    expect(collectionTotals(rows).net).toBe(-900 * M);
+    expect(settlementTotals(rows).net).toBe(-900 * M);
   });
 
   it("counts no pieces, since a count cannot be added to a total of mesos", () => {
-    const rows = buildCollection(
+    const rows = buildSettlement(
       [ledger(BRO, "Bro", { owedToYou: 80, drops: [owing("l1", "kalos", 80)] })],
       wallet([]),
     );
-    expect(collectionTotals(rows)).toEqual({ owed: 0, owe: 0, net: 0, people: 1 });
+    expect(settlementTotals(rows)).toEqual({ owed: 0, owe: 0, net: 0, people: 1 });
   });
 });
 
@@ -554,7 +554,7 @@ describe("marking a share you owe as actually sent", () => {
   it("names only the shares YOU owe, never what they owe you", () => {
     // sharesOf is every line. On a card running both ways it would mark what they owe you paid at
     // the same time, and say you had collected money nobody has sent.
-    const rows = buildCollection(
+    const rows = buildSettlement(
       [],
       wallet([
         counterparty("person:p-bro", "Bro", [line("l1", 1_000 * M), line("l2", 400 * M, "owe")]),
@@ -567,7 +567,7 @@ describe("marking a share you owe as actually sent", () => {
   it("is there for a card whose every share runs against you", () => {
     // The gap left when Settle was pulled off such a card: Jared's read "you owe 289,382,716" with
     // nothing to do about it, which is a ledger you cannot keep.
-    const rows = buildCollection(
+    const rows = buildSettlement(
       [],
       wallet([counterparty("person:p-jared", "Jared", [line("l3", 289 * M, "owe")])]),
     );
@@ -577,7 +577,7 @@ describe("marking a share you owe as actually sent", () => {
 
 describe("a person whose card is kept", () => {
   it("draws a card with nothing on it, which is where next week's entry goes", () => {
-    const rows = buildCollection(
+    const rows = buildSettlement(
       [],
       wallet([]),
       [],
@@ -591,12 +591,12 @@ describe("a person whose card is kept", () => {
   });
 
   it("still leaves off somebody nobody pinned and nothing is owed to", () => {
-    const rows = buildCollection([], wallet([]), [], new Map(), new Map(), new Map(), new Set());
+    const rows = buildSettlement([], wallet([]), [], new Map(), new Map(), new Map(), new Set());
     expect(rows).toEqual([]);
   });
 
   it("marks a pinned person who DOES owe you, rather than drawing them twice", () => {
-    const rows = buildCollection(
+    const rows = buildSettlement(
       [],
       wallet([counterparty("person:p-bro", "Bro", [line("l1", 900 * M)])]),
       [],
@@ -623,7 +623,7 @@ describe("which piles the Sale Ledger still draws", () => {
   });
 
   it("drops somebody else's pile that has nothing recorded against it", () => {
-    // Every debt from here on. It is stated on the Collection Ledger, in pieces, and nowhere else:
+    // Every debt from here on. It is stated on the Settlement Ledger, in pieces, and nowhere else:
     // two cards claiming what one person owes is two answers.
     const { yours, history } = stillOnSaleLedger([ledger(BRO, "Bro")], has());
     expect([yours, history]).toEqual([[], []]);

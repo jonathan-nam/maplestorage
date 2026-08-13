@@ -18,19 +18,19 @@ describe("which sections the page has", () => {
   it("offers all three, whatever is behind them", () => {
     // They used to come and go with their contents, which took a tab out from under the reader as
     // they recorded the last thing on it and hid a ledger nobody had ever had anything on.
-    expect(keys()).toEqual(["drops", "sales", "collection"]);
+    expect(keys()).toEqual(["drops", "sales", "settlement"]);
   });
 
   it("offers the same three when the account is empty", () => {
     expect(saleCards(none)).toBe(0);
-    expect(keys()).toEqual(["drops", "sales", "collection"]);
+    expect(keys()).toEqual(["drops", "sales", "settlement"]);
   });
 });
 
 describe("which section to draw", () => {
   it("draws the chosen one", () => {
     expect(shownSection("sales", dropSections())).toBe("sales");
-    expect(shownSection("collection", dropSections())).toBe("collection");
+    expect(shownSection("settlement", dropSections())).toBe("settlement");
   });
 
   // The guard is now against a key that is not a section at all, from a stale cached value rather

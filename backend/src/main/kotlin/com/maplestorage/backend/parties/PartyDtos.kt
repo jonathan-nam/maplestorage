@@ -98,7 +98,7 @@ data class PersonResponse(
     val id: String,
     val name: String,
     val characters: List<String>,
-    /** Their Collection Ledger card stays drawn with nothing outstanding. See V59. */
+    /** Their Settlement Ledger card stays drawn with nothing outstanding. See V59. */
     val pinned: Boolean = false,
 )
 

@@ -61,7 +61,7 @@ export function coversThePile(ledger: HolderLedger): boolean {
  * Pieces this pile owes somebody, across the drops still open.
  *
  * Off the transfers, which are already filtered to what THIS holder owes, so a pile you are merely
- * the creditor of counts zero: what they are holding of yours is the Collection Ledger's to say.
+ * the creditor of counts zero: what they are holding of yours is the Settlement Ledger's to say.
  */
 export function owes(ledger: HolderLedger): number {
   return ledger.drops
