@@ -18,7 +18,8 @@
 
 import { formatWeekStart } from "./boss-clears";
 import { splitOf, statusLabel } from "./loot";
-import { closureKeyOf, owedOfDrop, ranSeats, yourShare } from "./vestige-ledger";
+import type { CouponsOutstanding } from "./loot";
+import { closureKeyOf, couponGapOf, ranSeats, yourShare } from "./vestige-ledger";
 import type { DropTables } from "@/types/drop";
 import type { Loot, PartyLootPool } from "@/types/loot";
 import type { Party, PartyMember } from "@/types/party";
@@ -76,9 +77,16 @@ export type DropEntry = {
    * The GAP between your share and what you picked up, not the share itself. A night you looted four
    * stacks of six on owes you nothing even though a partner was there, and reading `yours` as the
    * debt said "90 coupons owed" on an Extreme Kalos whose arrangement had you holding 120 of 180.
-   * See owedOfDrop.
+   * See couponGapOf.
    */
   owedToYou: number;
+  /**
+   * The same gap the other way: coupons of theirs YOU are holding, to hand over.
+   *
+   * Only one of the two is ever non-zero. Kept as its own figure rather than a sign, because both
+   * are said on screen and a negative number would have to be flipped at every reading of it.
+   */
+  owedByYou: number;
   /**
    * Its books are closed, so what `owedBy` says is history. See V52.
    *
@@ -245,8 +253,8 @@ export function buildDropLog(
       // Only a PIECE drop divides by count. Everything else is one thing that sells for one price
       // and divides as money, and a third of an item is not a number to put on a row.
       const pieces = isPieceDrop(loot, party, dropTables);
-      // What of your share somebody else ended the night holding, off the night's own arrangement.
-      const owed = pieces ? owedOfDrop(loot, party) : null;
+      // Whose coupons ended the night in the wrong hands, off the night's own arrangement.
+      const gap = pieces ? couponGapOf(loot, party) : null;
 
       entries.push({
         lootId: loot.id,
@@ -261,11 +269,12 @@ export function buildDropLog(
         yours: pieces ? yourShare(loot.quantity, ranSeats(loot, party)) : loot.quantity,
         // Named only when somebody ELSE is holding some of it. Your own seat looting the lot is not
         // a debt to you, it is you having it already.
-        owedBy: owed?.by ?? null,
-        owedToYou: owed?.pieces ?? 0,
+        owedBy: gap !== null && !gap.yours ? gap.by : null,
+        owedToYou: gap !== null && !gap.yours ? gap.pieces : 0,
+        owedByYou: gap !== null && gap.yours ? gap.pieces : 0,
         // The holder who owes it is the one whose books close it, so the key is theirs and not the
         // party's. A drop in two piles is closed by whichever of them settled.
-        closed: owed !== null && closed.has(closureKeyOf(owed.holder, loot.id)),
+        closed: gap !== null && closed.has(closureKeyOf(gap.holder, loot.id)),
         bossKey: loot.bossKey,
         droppedOn: loot.droppedOn,
         weekStart: loot.weekStart,
@@ -342,20 +351,27 @@ function totalsOf(entries: DropEntry[]): DropLogTotals {
 }
 
 /**
- * Coupons somebody else is holding for you, per party.
+ * Coupons in the wrong hands, per party, in both directions.
  *
  * The party rows' own figure, off the same entries the Drop Log counts, so the badge and the log
- * cannot disagree about what you are owed. A party absent from the map is owed nothing, which is
- * every party whose coupons went where they belong on the night.
+ * cannot disagree about what is outstanding. A party absent from the map is square, which is every
+ * party whose coupons went where they belong on the night.
+ *
+ * Both directions in ONE map, rather than a second function beside this one. The row says which way
+ * a debt runs, and the pair has to come from a single pass: four call sites read this, and the way
+ * this feature has gone wrong before is a figure added to some of them and missed on the rest.
  */
-export function couponsOwedByParty(entries: DropEntry[]): Map<string, number> {
-  const out = new Map<string, number>();
+export function couponsOutstandingByParty(entries: DropEntry[]): Map<string, CouponsOutstanding> {
+  const out = new Map<string, CouponsOutstanding>();
   for (const entry of entries) {
-    // A closed drop is not owed. Without this the badge read the party's ARRANGEMENT rather than the
-    // ledger, so "30 coupons owed" survived every sale, payment and settlement against it.
-    if (!entry.pieces || entry.owedBy === null || entry.closed) continue;
-    // What they are holding of yours, not your whole share of the night. See owedOfDrop.
-    out.set(entry.partyId, (out.get(entry.partyId) ?? 0) + entry.owedToYou);
+    // A closed drop is not outstanding. Without this the badge read the party's ARRANGEMENT rather
+    // than the ledger, so "30 coupons owed" survived every sale, payment and settlement against it.
+    if (!entry.pieces || entry.closed) continue;
+    if (entry.owedToYou === 0 && entry.owedByYou === 0) continue;
+    const seen = out.get(entry.partyId) ?? { toYou: 0, byYou: 0 };
+    seen.toYou += entry.owedToYou;
+    seen.byYou += entry.owedByYou;
+    out.set(entry.partyId, seen);
   }
   return out;
 }

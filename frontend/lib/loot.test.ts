@@ -280,15 +280,36 @@ describe("poolLabel", () => {
   it("says the coupons in coupons, because a count of rows cannot", () => {
     // One row is one hammer or 180 coupons, and the row count leaves out the coupon drops that
     // came out even, so the two numbers are answering different questions.
-    expect(poolLabel(counts(0, 0, 0), 90)).toEqual({ text: "90 coupons owed", done: false });
-    expect(poolLabel(counts(1, 0, 0), 90)).toEqual({
+    const owed = (toYou: number) => ({ toYou, byYou: 0 });
+    expect(poolLabel(counts(0, 0, 0), owed(90))).toEqual({
+      text: "90 coupons owed",
+      done: false,
+    });
+    expect(poolLabel(counts(1, 0, 0), owed(90))).toEqual({
       text: "1 in the pool · 90 coupons owed",
       done: false,
     });
-    // None owed is silent, which is every party whose coupons went where they belong.
-    expect(poolLabel(counts(0, 0, 3), 0)).toEqual({ text: "3 settled", done: true });
+    // Nothing either way is silent, which is every party whose coupons went where they belong.
+    expect(poolLabel(counts(0, 0, 3), owed(0))).toEqual({ text: "3 settled", done: true });
     // And being owed some is work, so a settled pool does not get the quiet line.
-    expect(poolLabel(counts(0, 0, 3), 20)?.done).toBe(false);
+    expect(poolLabel(counts(0, 0, 3), owed(20))?.done).toBe(false);
+  });
+
+  it("says which way a coupon debt runs, because one word cannot say both", () => {
+    // The ordinary night: you loot the lot and owe the party their share. The row said nothing at
+    // all about it, so a week of runs you had to settle up on read as a week with nothing to do.
+    expect(poolLabel(counts(0, 0, 0), { toYou: 0, byYou: 45 })).toEqual({
+      text: "45 to hand over",
+      done: false,
+    });
+    // Both at once is a pool of several nights that went different ways. Owed first, since that is
+    // the one somebody else has to be asked for.
+    expect(poolLabel(counts(0, 0, 0), { toYou: 20, byYou: 30 })).toEqual({
+      text: "20 coupons owed · 30 to hand over",
+      done: false,
+    });
+    // Coupons of theirs in your inventory are work, so this pool is not drawn as done either.
+    expect(poolLabel(counts(0, 0, 2), { toYou: 0, byYou: 15 })?.done).toBe(false);
   });
 });
 

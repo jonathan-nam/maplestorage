@@ -9,7 +9,7 @@ import { RosterStrip } from "@/components/roster-strip";
 import { ApiError, apiAssetUrl } from "@/lib/api";
 import { clearClass, clearStateLabel, nextClear } from "@/lib/boss-clears";
 import type { PieceStatus } from "@/lib/drop-log";
-import { poolLabel } from "@/lib/loot";
+import { type CouponsOutstanding, poolLabel } from "@/lib/loot";
 import { guaranteedDrop, otherMembers, partySizeLabel } from "@/lib/parties";
 import type { Boss } from "@/types/boss";
 import type { BossDrop, DropTables } from "@/types/drop";
@@ -41,7 +41,7 @@ export function PartyCard({
   heading,
   busy,
   clear,
-  couponsOwed = 0,
+  coupons,
   onToggleClear,
   dropTable,
   onAddDrop,
@@ -55,12 +55,17 @@ export function PartyCard({
   /** THIS row's write. Fed the page's, it dimmed every row at once: the page appeared to flicker. */
   busy?: boolean;
   /**
-   * Coupons somebody else is holding for you out of this party's drops.
+   * Coupons of this party's in the wrong hands, each way round.
    *
    * Passed in rather than worked out here: it comes off the same entries the Drop Log counts, so
-   * the badge and the log cannot disagree. Zero for a party whose coupons went where they belong.
+   * the badge and the log cannot disagree. Both zero for a party whose coupons went where they
+   * belong on the night.
+   *
+   * Required, with no default. Every caller has the figure and a default of zero would let one of
+   * them quietly draw a row as square: this feature's own history is a number added to some call
+   * sites and missed on the others. See drop-log-callers.test.ts.
    */
-  couponsOwed?: number;
+  coupons: CouponsOutstanding;
   /**
    * The clear to draw, which is NOT always the config's own.
    *
@@ -147,7 +152,7 @@ export function PartyCard({
   const [saveError, setSaveError] = useState<string | null>(null);
   const [offError, setOffError] = useState<string | null>(null);
   // The badge, named as the party page names it: `pool` is the pool itself here.
-  const poolLine = poolLabel(party, couponsOwed);
+  const poolLine = poolLabel(party, coupons);
   // The coupon this boss drops for certain at the mode this party runs, or null.
   const guaranteed = guaranteedDrop(dropTable, party.difficulty);
   const panelId = `party-panel-${party.id}`;

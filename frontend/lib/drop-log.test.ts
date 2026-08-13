@@ -3,7 +3,7 @@ import {
   buildDropLog,
   byCharacter,
   consolidate,
-  couponsOwedByParty,
+  couponsOutstandingByParty,
   dropStatusLabel,
   foldNames,
   foldStatus,
@@ -802,8 +802,11 @@ describe("a piece drop counts YOUR share, not what fell", () => {
     expect(entry.owedToYou).toBe(0);
     expect(entry.owedBy).toBeNull();
     expect(log.totals.piecesOwed).toBe(0);
-    expect(couponsOwedByParty(log.entries).has("pa")).toBe(false);
-    // Yours, because you are holding them. What you owe THEM is not this figure. See owedOfDrop.
+    // Not owed TO you, and not nothing either: you are holding 40 of a 30 share, so 10 of it is
+    // theirs and the row says so the other way round.
+    expect(entry.owedByYou).toBe(10);
+    expect(couponsOutstandingByParty(log.entries).get("pa")).toEqual({ toYou: 0, byYou: 10 });
+    // Yours, because you are holding them. Which of them you owe on is the badge's to say.
     expect(dropStatusLabel(entry)).toBe("Yours");
   });
 
@@ -815,7 +818,7 @@ describe("a piece drop counts YOUR share, not what fell", () => {
     expect(log.entries[0]!.owedToYou).toBe(10);
     expect(log.entries[0]!.owedBy).toBe("CreedBratton");
     expect(log.totals.piecesOwed).toBe(10);
-    expect(couponsOwedByParty(log.entries).get("pa")).toBe(10);
+    expect(couponsOutstandingByParty(log.entries).get("pa")).toEqual({ toYou: 10, byYou: 0 });
     expect(dropStatusLabel(log.entries[0]!)).toBe("Owed");
   });
 
@@ -825,7 +828,7 @@ describe("a piece drop counts YOUR share, not what fell", () => {
     const log = buildDropLog([pair()], [pool("pa", [arranged(0, 3)])], tables);
 
     expect(log.entries[0]!.owedToYou).toBe(30);
-    expect(couponsOwedByParty(log.entries).get("pa")).toBe(30);
+    expect(couponsOutstandingByParty(log.entries).get("pa")).toEqual({ toYou: 30, byYou: 0 });
   });
 
   it("closes an arranged night through the holder the arrangement names", () => {
@@ -848,10 +851,10 @@ describe("a piece drop counts YOUR share, not what fell", () => {
     // Off the same entries the Drop Log counts, so a party row and the log cannot disagree about
     // what is owed. A party holding its own coupons is absent rather than zero.
     const owed = buildDropLog([trio({ looterMemberId: "m2" })], [pool("pa", [coupons()])], tables);
-    expect(couponsOwedByParty(owed.entries).get("pa")).toBe(20);
+    expect(couponsOutstandingByParty(owed.entries).get("pa")).toEqual({ toYou: 20, byYou: 0 });
 
     const even = buildDropLog([trio()], [pool("pa", [coupons()])], tables);
-    expect(couponsOwedByParty(even.entries).has("pa")).toBe(false);
+    expect(couponsOutstandingByParty(even.entries).has("pa")).toBe(false);
   });
 
   it("stops counting a coupon drop once its books are closed", () => {
@@ -863,7 +866,7 @@ describe("a piece drop counts YOUR share, not what fell", () => {
 
     const open = buildDropLog(parties, pools, tables);
     expect(open.totals.piecesOwed).toBe(20);
-    expect(couponsOwedByParty(open.entries).get("pa")).toBe(20);
+    expect(couponsOutstandingByParty(open.entries).get("pa")).toEqual({ toYou: 20, byYou: 0 });
     expect(dropStatusLabel(open.entries[0]!)).toBe("Owed");
 
     // Closed by the holder who owes it, which is the seat that looted the lot.
@@ -874,7 +877,7 @@ describe("a piece drop counts YOUR share, not what fell", () => {
 
     expect(done.entries[0]!.closed).toBe(true);
     expect(done.totals.piecesOwed).toBe(0);
-    expect(couponsOwedByParty(done.entries).has("pa")).toBe(false);
+    expect(couponsOutstandingByParty(done.entries).has("pa")).toBe(false);
     expect(dropStatusLabel(done.entries[0]!)).toBe("Settled");
   });
 
@@ -893,7 +896,7 @@ describe("a piece drop counts YOUR share, not what fell", () => {
 
     const log = buildDropLog(parties, pools, tables, stranger);
     expect(log.entries[0]!.closed).toBe(false);
-    expect(couponsOwedByParty(log.entries).get("pa")).toBe(20);
+    expect(couponsOutstandingByParty(log.entries).get("pa")).toEqual({ toYou: 20, byYou: 0 });
   });
 
   it("closes it through the PERSON, whichever of their characters looted it", () => {

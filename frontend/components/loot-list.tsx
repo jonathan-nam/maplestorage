@@ -150,12 +150,10 @@ export function LootList({
         onSetPaid={onSetPaid}
         onDelete={onDelete}
       />
-      {/* The standing deal, under everything that fell rather than around it. Framed on its own, so
-          what the party agreed and what the week dropped are two blocks and not one.
-
-          Drawn whether or not anything fell: what the boss gives is a fact about the boss, so the
-          split can be agreed in a week nobody has run it yet. */}
-      {stacks && (
+      {/* The standing deal, when there is no drop for it to hang under. What the boss gives is a
+          fact about the boss, so the split can be agreed in a week nobody has run it yet, and a
+          week that HAS one carries this under the row instead: see LootGroup. */}
+      {stacks && coupons.length === 0 && (
         <div className="loot-config-card">
           <h3 className="loot-group-title is-config">{stacks.entitledTitle}</h3>
           <StackAssign
@@ -267,6 +265,23 @@ function LootGroup({
                       onSave={stacks.pickup.onSave}
                     />
                   </div>
+                </>
+              )}
+              {/* The deal this night is read against, under the night it is read against. Both
+                  blocks hang off the drop they are about, which is what a listing of one coupon
+                  stack is: what fell, who picked it up, and what each was entitled to.
+
+                  On the LAST row only. The split is the PARTY's, so a week that dropped twice would
+                  otherwise state the same deal under each of them. */}
+              {stacks && item.id === rows[rows.length - 1]?.id && (
+                <>
+                  <h4 className="loot-group-title is-config">{stacks.entitledTitle}</h4>
+                  <StackAssign
+                    config={stacks.config}
+                    editing={editing ?? false}
+                    busy={busy ?? false}
+                    onSave={stacks.onSave}
+                  />
                 </>
               )}
             </Fragment>
