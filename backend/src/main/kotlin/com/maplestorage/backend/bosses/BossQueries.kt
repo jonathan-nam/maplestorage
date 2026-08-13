@@ -3,9 +3,13 @@ package com.maplestorage.backend.bosses
 import com.maplestorage.backend.db.BossCatalog
 import com.maplestorage.backend.db.BossClear
 import com.maplestorage.backend.db.Characters
+import com.maplestorage.backend.parties.lootFromClear
+import com.maplestorage.backend.parties.unlootFromClear
 import com.maplestorage.backend.services.DetectedBossClear
 import com.maplestorage.backend.users.activeWorldFor
 import kotlinx.datetime.LocalDate
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
 import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
@@ -125,6 +129,28 @@ private fun ResultRow.toBossClearResponse() =
     )
 
 /**
+ * Whether this character's boss is ticked cleared for the period [on] falls in.
+ *
+ * A missing row reads as not cleared. Absent means nothing has said anything about the boss this
+ * period, and the caller is asking so it can file what a clear guarantees, which needs the tick on
+ * record rather than merely not contradicted. See setSoloDifficulty.
+ */
+internal fun bossClearedOn(
+    characterId: Uuid,
+    bossCatalogId: Uuid,
+    reset: String,
+    on: LocalDate,
+): Boolean =
+    BossClear
+        .selectAll()
+        .where {
+            (BossClear.characterId eq characterId) and
+                (BossClear.bossCatalogId eq bossCatalogId) and
+                (BossClear.periodStart eq periodOf(reset, on))
+        }.firstOrNull()
+        ?.get(BossClear.cleared) == true
+
+/**
  * Ticks one character's boss cleared for the period it is currently in, or un-ticks it.
  *
  * The same row a capture writes and the matrix reads, so ticking a cell and uploading a planner are
@@ -159,6 +185,12 @@ internal fun setBossClearByHand(
         row[BossClear.cleared] = cleared
         row[capturedAt] = now
         row[sourceScreenshotId] = null
+    }
+    val day = now.toLocalDateTime(TimeZone.UTC).date
+    if (cleared) {
+        lootFromClear(characterId, boss[BossCatalog.id], boss[BossCatalog.reset], day, now)
+    } else {
+        unlootFromClear(characterId, boss[BossCatalog.id], boss[BossCatalog.reset], day)
     }
     return true
 }
@@ -199,6 +231,15 @@ internal fun upsertBossClears(
             r[cleared] = clear.cleared
             r[BossClear.capturedAt] = capturedAt
             r[sourceScreenshotId] = screenshotId
+        }
+        // A capture files what a solo clear guarantees too, or takes it back on a boss it reads as
+        // pending. Skipping it here would make a ticked clear and a captured one disagree about
+        // whether the pieces exist, silently. See LootFromClear.kt.
+        val day = capturedAt.toLocalDateTime(TimeZone.UTC).date
+        if (clear.cleared) {
+            lootFromClear(characterId, row[BossCatalog.id], row[BossCatalog.reset], day, capturedAt)
+        } else {
+            unlootFromClear(characterId, row[BossCatalog.id], row[BossCatalog.reset], day)
         }
     }
 }

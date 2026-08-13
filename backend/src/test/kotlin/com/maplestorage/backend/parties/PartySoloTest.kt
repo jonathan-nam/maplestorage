@@ -188,30 +188,51 @@ class PartySoloTest {
             val characterId = character()
             val bossId = bossIdForKey("limbo")!!
 
-            val partyId = setSoloDifficulty(userId, characterId, bossId, "HARD", Clock.System.now())!!
+            val partyId = setSoloDifficulty(userId, characterId, bossId, "WEEKLY", "HARD", Clock.System.now())!!
 
             val pool = findParty(partyId, userId)!!
             assertTrue(pool.solo)
             assertEquals("HARD", pool.difficulty)
-            // Empty, and stays empty until a human puts something in it. Naming the mode is not a
-            // claim that the boss has been run.
+            // Empty, and stays empty until a clear or a human puts something in it. Naming the mode
+            // is not a claim that the boss has been run.
             assertTrue(lootFor(partyId).isEmpty())
         }
     }
 
     @Test
-    fun `ticking the boss cleared puts nothing in the pool, whatever the mode guarantees`() {
+    fun `a mode named after the clear was ticked files that period's coupons`() {
+        transaction {
+            val characterId = character()
+            val now = Clock.System.now()
+            // The ordinary order: the boss is ticked, and nothing can be filed because nobody has
+            // said which mode. Without this the coupons would be missing until the next reset.
+            assertTrue(setBossClearByHand(userId, characterId, "limbo", true, now))
+
+            val partyId = setSoloDifficulty(userId, characterId, bossIdForKey("limbo")!!, "WEEKLY", "HARD", now)!!
+
+            assertEquals(60, lootFor(partyId).single().quantity)
+        }
+    }
+
+    @Test
+    fun `correcting the mode re-files rather than leaving the count the old one gave`() {
         transaction {
             val characterId = character()
             val bossId = bossIdForKey("kaling")!!
             val now = Clock.System.now()
-            // Extreme Kaling's 480 coupons are guaranteed, and the mode is on record, so this is the
-            // case the tick used to file by itself. What fell is typed, with the count filled in from
-            // the same catalog figure: nothing appears in a pool that nobody entered.
-            val partyId = setSoloDifficulty(userId, characterId, bossId, "EXTREME", now)!!
+            setBossClearByHand(userId, characterId, "kaling", true, now)
 
-            assertTrue(setBossClearByHand(userId, characterId, "kaling", true, now))
+            setSoloDifficulty(userId, characterId, bossId, "WEEKLY", "HARD", now)
+            val partyId = partyIdFor(characterId, bossId)!!
+            assertEquals(60, lootFor(partyId).single().quantity)
 
+            // Extreme Kaling gives 480. The 60 is a row the app filed itself and its premise has
+            // changed, so it goes rather than sitting beside the new one.
+            setSoloDifficulty(userId, characterId, bossId, "WEEKLY", "EXTREME", now)
+            assertEquals(480, lootFor(partyId).single().quantity)
+
+            // And a mode that drops none leaves nothing, which is what the catalog says about it.
+            setSoloDifficulty(userId, characterId, bossId, "WEEKLY", "EASY", now)
             assertTrue(lootFor(partyId).isEmpty())
         }
     }
@@ -228,7 +249,7 @@ class PartySoloTest {
 
             // Refused, not applied. The party's mode is read beside its roster and its split, and
             // this door sees neither.
-            assertNull(setSoloDifficulty(userId, characterId, bossId, "NORMAL", now))
+            assertNull(setSoloDifficulty(userId, characterId, bossId, "WEEKLY", "NORMAL", now))
             assertEquals("HARD", findParty(partyId, userId)!!.difficulty)
         }
     }

@@ -33,6 +33,8 @@ internal fun addLoot(
     bossCatalogId: Uuid?,
     droppedOn: LocalDate,
     now: Instant,
+    // True only for a row the app filed from a clear, which is the only kind it may take back.
+    fromClear: Boolean = false,
 ): Uuid {
     val lootId = Uuid.random()
     PartyLoot.insert {
@@ -42,6 +44,7 @@ internal fun addLoot(
         it[customName] = item.customName
         it[PartyLoot.bossCatalogId] = bossCatalogId
         it[quantity] = item.quantity
+        it[PartyLoot.fromClear] = fromClear
         it[PartyLoot.droppedOn] = droppedOn
         it[createdAt] = now
         it[updatedAt] = now
