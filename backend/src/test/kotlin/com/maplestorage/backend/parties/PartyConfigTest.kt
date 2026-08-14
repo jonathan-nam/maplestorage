@@ -330,6 +330,7 @@ class PartyConfigTest {
                 userOneId,
                 characterId,
                 bossIdForKey(bossKey),
+                Clock.System.now(),
             )
 
             assertEquals(
@@ -359,6 +360,7 @@ class PartyConfigTest {
                     userOneId,
                     mine,
                     kalos,
+                    Clock.System.now(),
                 ),
             )
         }
@@ -389,7 +391,7 @@ class PartyConfigTest {
             config(userOneId, mech, "limbo", listOf("CreedBratton", "iPhone69C"))
 
             fun check(members: List<String>) =
-                validateBossRoster(userOneId, limbo, exclude = null, rosterOf(warrior, members))
+                validateBossRoster(userOneId, limbo, exclude = null, rosterOf(warrior, members), Clock.System.now())
 
             // A character clears a boss once a week, so lending iPhone69C to a second Limbo party
             // states a night that cannot happen. Refused where it is written, not dropped later.
@@ -411,9 +413,11 @@ class PartyConfigTest {
             assertNull(check(listOf("Lynn", "Kaiser")))
             // Another boss is another clear.
             val lotus = bossIdForKey("lotus")!!
-            assertNull(validateBossRoster(userOneId, lotus, null, rosterOf(warrior, listOf("iPhone69C"))))
+            assertNull(
+                validateBossRoster(userOneId, lotus, null, rosterOf(warrior, listOf("iPhone69C")), Clock.System.now()),
+            )
             // And another account's configs are not competition.
-            assertNull(validateBossRoster(userTwoId, limbo, null, listOf("iPhone69C")))
+            assertNull(validateBossRoster(userTwoId, limbo, null, listOf("iPhone69C"), Clock.System.now()))
         }
     }
 
@@ -433,12 +437,14 @@ class PartyConfigTest {
 
             // So she is free to run the boss with somebody else. Counting the retired seat refused
             // this, naming a config the user could look straight at and not find her in.
-            assertNull(validateBossRoster(userOneId, kalos, null, rosterOf(mech, listOf("Freeballynn"))))
+            assertNull(
+                validateBossRoster(userOneId, kalos, null, rosterOf(mech, listOf("Freeballynn")), Clock.System.now()),
+            )
 
             // Somebody still in that roster is still competition, which is the rule's whole point.
             assertEquals(
                 "iPhone69C is already in your warrior2020 party for this boss",
-                validateBossRoster(userOneId, kalos, null, rosterOf(mech, listOf("iPhone69C"))),
+                validateBossRoster(userOneId, kalos, null, rosterOf(mech, listOf("iPhone69C")), Clock.System.now()),
             )
         }
     }
@@ -458,6 +464,7 @@ class PartyConfigTest {
                     limbo,
                     exclude = Uuid.parse(party.id),
                     rosterOf(mech, listOf("CreedBratton")),
+                    Clock.System.now(),
                 ),
             )
         }
@@ -498,6 +505,34 @@ class PartyConfigTest {
                 SeatContext(userOneId, emptyMap(), Clock.System.now()),
             )
             assertNull(check(listOf("Lynn", "CreedBratton")))
+        }
+    }
+
+    @Test
+    fun `a week the party was taken off is a week its members were free`() {
+        transaction {
+            val mech = addCharacter(userOneId, "mechyfechy")
+            val warrior = addCharacter(userOneId, "warrior2020")
+            val limbo = bossIdForKey("limbo")!!
+            val lender = config(userOneId, mech, "limbo", listOf("CreedBratton"))
+            val borrower = config(userOneId, warrior, "limbo", listOf("Lynn"))
+            val week = currentWeek()
+
+            fun check() =
+                validateWeekRoster(
+                    userOneId,
+                    limbo,
+                    exclude = Uuid.parse(borrower.id),
+                    week,
+                    rosterOf(warrior, listOf("Lynn", "CreedBratton")),
+                )
+
+            assertEquals("CreedBratton already ran this boss with your mechyfechy party this week", check())
+
+            // The party did not run this week at all, so nothing in it ran the boss and Creed's
+            // clear is free. The config is untouched and holds him again next week.
+            setRunsInPeriod(Uuid.parse(lender.id), oneOff = false, week, runs = false, now = Clock.System.now())
+            assertNull(check())
         }
     }
 
