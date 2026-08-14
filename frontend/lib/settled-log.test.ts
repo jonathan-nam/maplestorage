@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { buildDropLog } from "./drop-log";
 import { buildSettledLog, consolidateSettled, orphansOf, settledTotals } from "./settled-log";
@@ -337,5 +339,29 @@ describe("folding the nights one act closed", () => {
     const two = [act({ lootIds: ["n1", "n2"] })];
     const rows = buildSettledLog(logOf([drop(), night(), night({ id: "n2" })], two), two, NAMES);
     expect(consolidateSettled(rows).flatMap((l) => l.records)).toHaveLength(rows.length);
+  });
+});
+
+// Settled is the last stage of a pipeline that runs one way, and nothing draws that as a rule: it is
+// the absence of a control. Asserted against the source because there is no React render harness
+// here, the same way the ledger's other JSX invariants are.
+describe("Settled cannot be reopened", () => {
+  const view = readFileSync(join(__dirname, "..", "components", "settled-view.tsx"), "utf8");
+  const page = readFileSync(join(__dirname, "..", "app", "bosses", "drops", "page.tsx"), "utf8");
+
+  it("offers no control on a settled row", () => {
+    expect(view).not.toMatch(/Reopen/);
+    expect(view).not.toMatch(/onUndo/);
+  });
+
+  /**
+   * The one that matters. Closing a coupon pair writes one settlement PER PILE, so deleting a single
+   * one leaves the night shut in their inventory and open in yours: Jonathan hit Reopen by accident
+   * and 60 coupons came back onto the Sale Ledger with the other side still closed. There is no
+   * half-undo because there is no undo.
+   */
+  it("sends no DELETE to the settlements endpoint", () => {
+    const deletes = page.match(/SETTLEMENTS_KEY[^;]*method:\s*"DELETE"/g) ?? [];
+    expect(deletes).toEqual([]);
   });
 });
