@@ -13,7 +13,7 @@ import {
 import { answeredKey, receivedSinceClosing, saleCredits } from "./vestige-ledger";
 import type { Holder, HolderLedger } from "./vestige-ledger";
 import type { Counterparty, Wallet, WalletLine } from "./wallet";
-import type { SettlementDebt } from "@/types/vestige";
+import type { ProceedsDisposal, SettlementDebt } from "@/types/vestige";
 
 const M = 1_000_000;
 
@@ -401,6 +401,15 @@ describe("the money a sale of somebody else's coupons puts on the card", () => {
     incurredAt: "2026-08-10T00:00:00Z",
   });
 
+  /** One decision about their money in your hands. See V61. */
+  const disposal = (holder: Holder, amount: number, kind: "OFFSET" | "PAID"): ProceedsDisposal => ({
+    id: `x-${kind}-${amount}`,
+    holder,
+    amount,
+    kind,
+    decidedAt: "2026-08-14T00:00:00Z",
+  });
+
   it("owes them what their half of the lot fetched, the night you looted all of it", () => {
     // The case this was built for. 160 fell, 80 were theirs, you picked up the lot and sold it. Their
     // 80 came out of YOUR inventory at a price you typed, so their money is in your hands.
@@ -414,11 +423,13 @@ describe("the money a sale of somebody else's coupons puts on the card", () => {
       new Map(),
       new Map([["person:p-bro", "Bro"]]),
     );
-    expect([rows[0]!.name, rows[0]!.mesos, rows[0]!.owedByYou]).toEqual(["Bro", 0, 2_000 * M]);
+    // HOLDING, not owed. Their money is in your hands and what becomes of it is the pair's to say.
+    expect([rows[0]!.name, rows[0]!.holding, rows[0]!.owedByYou]).toEqual(["Bro", 2_000 * M, 0]);
   });
 
-  it("deducts that sale from what they already owed you, which is one net to settle", () => {
-    // Jonathan's ask in one line: an amount entered for a person, and item sales coming off it.
+  it("does NOT deduct that sale from what they owe you until somebody says to", () => {
+    // The behaviour V61 took away. Their 3b debt stood, their 2b sat in your hands, and the card put
+    // the two together and called it 1b: an offset nobody agreed to. Bro may want the mesos.
     const rows = buildSettlement(
       [],
       wallet([]),
@@ -427,8 +438,64 @@ describe("the money a sale of somebody else's coupons puts on the card", () => {
         { holder: SELF, pieces: 160, amount: 4_000 * M, shares: [{ holder: BRO, pieces: 80 }] },
       ]),
     );
+    expect(rows[0]!.mesos).toBe(3_000 * M);
+    expect([rows[0]!.parts.entered, rows[0]!.parts.soldOfTheirs]).toEqual([3_000 * M, 0]);
+    expect(rows[0]!.holding).toBe(2_000 * M);
+  });
+
+  it("deducts it once an OFFSET is recorded, which is the same net, chosen", () => {
+    const rows = buildSettlement(
+      [],
+      wallet([]),
+      [debt(BRO, 3_000 * M, "Ludi loan")],
+      saleCredits([
+        { holder: SELF, pieces: 160, amount: 4_000 * M, shares: [{ holder: BRO, pieces: 80 }] },
+      ]),
+      new Map(),
+      new Map(),
+      new Set(),
+      new Map(),
+      [disposal(BRO, 2_000 * M, "OFFSET")],
+    );
     expect(rows[0]!.mesos).toBe(1_000 * M);
-    expect([rows[0]!.parts.entered, rows[0]!.parts.soldOfTheirs]).toEqual([3_000 * M, -2_000 * M]);
+    expect([rows[0]!.parts.soldOfTheirs, rows[0]!.holding]).toEqual([-2_000 * M, 0]);
+  });
+
+  it("leaves their debt alone when you PAID them instead", () => {
+    // The other half of the choice, and the reason it had to become one. The money left you and what
+    // Bro owes you never moved.
+    const rows = buildSettlement(
+      [],
+      wallet([]),
+      [debt(BRO, 3_000 * M, "Ludi loan")],
+      saleCredits([
+        { holder: SELF, pieces: 160, amount: 4_000 * M, shares: [{ holder: BRO, pieces: 80 }] },
+      ]),
+      new Map(),
+      new Map(),
+      new Set(),
+      new Map(),
+      [disposal(BRO, 2_000 * M, "PAID")],
+    );
+    expect(rows[0]!.mesos).toBe(3_000 * M);
+    expect([rows[0]!.parts.soldOfTheirs, rows[0]!.holding]).toEqual([0, 0]);
+  });
+
+  it("caps a decision at what you are holding, so a mistyped one cannot invent a credit", () => {
+    const rows = buildSettlement(
+      [],
+      wallet([]),
+      [debt(BRO, 3_000 * M, "Ludi loan")],
+      saleCredits([
+        { holder: SELF, pieces: 160, amount: 4_000 * M, shares: [{ holder: BRO, pieces: 80 }] },
+      ]),
+      new Map(),
+      new Map(),
+      new Set(),
+      new Map(),
+      [disposal(BRO, 9_000 * M, "OFFSET")],
+    );
+    expect([rows[0]!.parts.soldOfTheirs, rows[0]!.holding]).toEqual([-2_000 * M, 0]);
   });
 
   it("prices only the pieces that were said to be theirs, never the whole sale", () => {
@@ -442,7 +509,7 @@ describe("the money a sale of somebody else's coupons puts on the card", () => {
         { holder: SELF, pieces: 100, amount: 2_500 * M, shares: [{ holder: BRO, pieces: 80 }] },
       ]),
     );
-    expect(rows[0]!.owedByYou).toBe(2_000 * M);
+    expect(rows[0]!.holding).toBe(2_000 * M);
   });
 
   it("credits nobody for a sale that named no shares, which is every row before V56", () => {
@@ -754,21 +821,43 @@ describe("discharging what you owe against what they owe you", () => {
     expect(offsetOf(row).offered).toBe(false);
   });
 
-  it("counts a coupon sale of theirs as something to come off, not only an entered debt", () => {
+  it("counts a coupon sale of theirs as something to come off, ONCE it has been offset", () => {
     // Their pieces sold out of your pile are money of theirs in your hands, so an offset against it
-    // would be backwards. It belongs in `toComeOff` with the sign it already has.
-    const row = buildSettlement(
-      [],
-      wallet([counterparty("person:p-bro", "Bro", [line("l1", 200 * M, "owe")])]),
-      [debt(2_000 * M)],
-      saleCredits([
-        { holder: SELF, pieces: 80, amount: 800 * M, shares: [{ holder: BRO, pieces: 40 }] },
-      ]),
-    )[0]!;
-    // 2b entered, less 400m of his coupons you sold, less the 200m share: 1.4b.
-    expect(row.mesos).toBe(1_400 * M);
-    expect(offsetOf(row).toComeOff).toBe(1_600 * M);
-    expect(offsetOf(row).leftOwing).toBe(0);
+    // would be backwards. It belongs in `toComeOff` with the sign it already has, from the moment
+    // somebody says it comes off his debt rather than being sent to him. See V61.
+    const proceeds = saleCredits([
+      { holder: SELF, pieces: 80, amount: 800 * M, shares: [{ holder: BRO, pieces: 40 }] },
+    ]);
+    const card = (disposals: ProceedsDisposal[]) =>
+      buildSettlement(
+        [],
+        wallet([counterparty("person:p-bro", "Bro", [line("l1", 200 * M, "owe")])]),
+        [debt(2_000 * M)],
+        proceeds,
+        new Map(),
+        new Map(),
+        new Set(),
+        new Map(),
+        disposals,
+      )[0]!;
+
+    // Undecided, his 400m is in your hands and out of the net: 2b entered less the 200m share.
+    const undecided = card([]);
+    expect([undecided.mesos, undecided.holding]).toEqual([1_800 * M, 400 * M]);
+
+    // Offset, and it comes off: 2b entered, less 400m of his coupons you sold, less the share.
+    const offset = card([
+      {
+        id: "x1",
+        holder: BRO,
+        amount: 400 * M,
+        kind: "OFFSET",
+        decidedAt: "2026-08-14T00:00:00Z",
+      },
+    ]);
+    expect(offset.mesos).toBe(1_400 * M);
+    expect(offsetOf(offset).toComeOff).toBe(1_600 * M);
+    expect(offsetOf(offset).leftOwing).toBe(0);
   });
 });
 

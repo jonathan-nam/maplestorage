@@ -22,7 +22,7 @@
 import { SELF_KEY, answeredKey, holderFromKey, holderKey } from "./vestige-ledger";
 import type { Holder, HolderLedger, SaleCredit } from "./vestige-ledger";
 import type { Wallet, WalletLine } from "./wallet";
-import type { SettlementDebt } from "@/types/vestige";
+import type { ProceedsDisposal, SettlementDebt } from "@/types/vestige";
 
 /** One night's coupons sitting in the wrong inventory, in whichever direction it runs. */
 export type HeldOfYours = {
@@ -128,7 +128,14 @@ export type Settlement = {
      * lopsided pair actually settles. Marking that share paid alone said the money had moved.
      */
     entered: number;
-    /** Their coupons you sold out of your own pile, so their money is in your hands. Negative. */
+    /**
+     * Their coupons you sold, AS FAR AS somebody has said the money comes off what they owe. Negative.
+     *
+     * Only the OFFSET part of it. Selling Bro's coupons leaves you holding Bro's money, and whether
+     * that comes off his debt or gets sent to him is between the two of you. Netting all of it was
+     * the app choosing, and it moved a 253.19b debt to 250.78b with nothing on screen to agree to.
+     * The rest is `holding`. See V61.
+     */
     soldOfTheirs: number;
     /** Your coupons sold out of a pile filed as theirs. Positive, and rare: see saleCredits. */
     soldOfYours: number;
@@ -148,6 +155,20 @@ export type Settlement = {
    * coupons you cannot value. Stated on its own, which is where it was before V56.
    */
   receivedOnPieces: number;
+  /**
+   * Mesos of THEIRS you are holding that nobody has decided about yet. See V61.
+   *
+   * The money a sale of their coupons realized, before anybody says what happens to it. Outside the
+   * net on purpose, because the two things that can happen to it end in different places: it comes
+   * off what they owe you, or you send it and their debt does not move. The card used to do the
+   * first one silently.
+   *
+   * Not a debt of yours in `owedByYou` either. That is the netted figure, and putting this in it
+   * would be the same automatic offset wearing a different name.
+   */
+  holding: number;
+  /** What has been decided, so a wrong one can be taken back off. See V61. */
+  disposals: ProceedsDisposal[];
   /** Drawn whatever it says, because somebody said to keep it. See V59. */
   pinned: boolean;
   /** The entered rows themselves, so a mistyped one can be taken back off the card. */
@@ -180,6 +201,8 @@ const blank = (key: string, name: string): Settlement => ({
   owedByYou: 0,
   parts: { shares: 0, entered: 0, soldOfTheirs: 0, soldOfYours: 0, received: 0 },
   receivedOnPieces: 0,
+  holding: 0,
+  disposals: [],
   pinned: false,
   entries: [],
   drops: [],
@@ -225,6 +248,13 @@ export function buildSettlement(
    * somebody's coupons put its money on this card and left the coupons on it as well.
    */
   answered: Map<string, number> = new Map(),
+  /**
+   * What has been decided about the money a sale of their coupons left in your hands. See V61.
+   *
+   * Empty is "nothing decided yet", which is the honest state for every sale before somebody says.
+   * It is not the same as "offset", which is what the card assumed for as long as this was missing.
+   */
+  disposals: ProceedsDisposal[] = [],
 ): Settlement[] {
   const out = new Map<string, Settlement>();
   const rowFor = (key: string, name?: string) => {
@@ -336,12 +366,31 @@ export function buildSettlement(
   }
 
   // Coupons of somebody else's, sold at a price that was typed. The half of a piece debt that CAN be
-  // priced, and the reason `soldOfTheirs` is negative: those pieces left your inventory, so their
-  // share of what the lot fetched is money of theirs in your hands.
+  // priced: those pieces left your inventory, so their share of what the lot fetched is money of
+  // theirs in your hands.
+  //
+  // It lands in `holding` and NOT in the net. Which of the two things happens to it is the pair's
+  // decision: it comes off what they owe you, or you send it and their debt does not move. Netting it
+  // on arrival took Bro's 253.19b to 250.78b with nothing on screen to agree to. See V61.
   for (const [key, credit] of credits) {
     const row = rowFor(key);
-    row.parts.soldOfTheirs -= credit.toThem;
+    row.holding += credit.toThem;
     row.parts.soldOfYours += credit.toYou;
+  }
+
+  // What has been decided about it. An OFFSET is the netting, now chosen rather than assumed, so it
+  // moves out of `holding` and into the net. A payment out leaves both: the money went to them and
+  // their debt to you never moved.
+  //
+  // Capped at what you are holding, and the excess is said rather than absorbed: deciding about money
+  // you do not have is a miscount, and a card that quietly clamped it would hide the typo. Same rule
+  // as the pieces, and the same reason the server does not refuse it.
+  for (const disposal of disposals) {
+    const row = rowFor(holderKey(disposal.holder));
+    row.disposals.push(disposal);
+    const spent = Math.min(row.holding, disposal.amount);
+    row.holding -= spent;
+    if (disposal.kind === "OFFSET") row.parts.soldOfTheirs -= spent;
   }
 
   for (const [key, paid] of received) {
@@ -387,7 +436,11 @@ export function buildSettlement(
         // Coupons of theirs you are holding are exactly the thing this ledger is for now: they come
         // off what that person owes you. A card kept only for the other direction hid them.
         row.piecesYouOwe > 0 ||
-        row.receivedOnPieces > 0,
+        row.receivedOnPieces > 0 ||
+        // Money of theirs you are sitting on with nothing decided about it. The one thing on this
+        // card somebody still has to act on, so a card dropped for lack of a net would be the act
+        // going missing along with it.
+        row.holding > 0,
     )
     .sort(
       (a, b) =>
