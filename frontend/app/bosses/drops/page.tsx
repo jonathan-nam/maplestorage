@@ -52,6 +52,7 @@ import {
   SELF_KEY,
   alsoHeldByYou,
   answeredByHolder,
+  answeredByPair,
   boughtByHolder,
   foldSeats,
   holderKey,
@@ -440,6 +441,10 @@ export default function DropLogPage() {
     receivedSinceClosing(payments, settlements),
     holderNames,
     new Set(people.filter((p) => p.pinned).map((p) => `person:${p.id}`)),
+    // The pieces a priced tranche already spoke for, per pair. `saleCredits` above is the money the
+    // same rows came to, and passing one without the other is what had this card asking Bro for 130
+    // coupons while the Sale Ledger, subtracting the 70 he had been sold, asked for 60.
+    answeredByPair(tranches),
   );
   // Nights that did not divide and that nobody has said the arrangement for. Above the ledger,
   // because until one is answered its pieces are missing from every figure below it.

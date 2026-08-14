@@ -19,7 +19,7 @@
 // No total is computed here. The shares are lib/wallet.ts's, the pieces and the sale splits are
 // lib/vestige-ledger.ts's, and a second copy of any of them would be a second answer.
 
-import { SELF_KEY, holderFromKey, holderKey } from "./vestige-ledger";
+import { SELF_KEY, answeredKey, holderFromKey, holderKey } from "./vestige-ledger";
 import type { Holder, HolderLedger, SaleCredit } from "./vestige-ledger";
 import type { Wallet, WalletLine } from "./wallet";
 import type { SettlementDebt } from "@/types/vestige";
@@ -53,7 +53,13 @@ export type Settlement = {
    * holderFromKey.
    */
   holder: Holder;
-  /** Pieces of yours they hold. Deliberately unpriced: only they can sell them. */
+  /**
+   * Pieces of yours they hold, less any their own priced tranche has already answered for.
+   *
+   * Deliberately unpriced where it is still a count: only they can sell what is in their inventory.
+   * Where they DID sell it and said so, those pieces are money on this card instead, so leaving them
+   * here too would ask twice for one debt.
+   */
   pieces: number;
   /**
    * Pieces of THEIRS you hold, which is the same debt from the other end.
@@ -61,8 +67,20 @@ export type Settlement = {
    * The ordinary night: you loot the lot, so their share sits in your inventory. The card only ever
    * counted the other direction, so a week of runs you were the holder on read as a week with nothing
    * outstanding, and the figure you actually wanted, what comes off their debt, was on no screen.
+   *
+   * Net of what a sale of yours has already answered for, the same subtraction the Sale Ledger's own
+   * card makes. Gross, this said 130 coupons on a night the Sale Ledger said 60, the gap being exactly
+   * the 70 sold and priced into `soldOfTheirs` below: one debt, stated twice, in two units.
    */
   piecesYouOwe: number;
+  /**
+   * Pieces already answered with money, in each direction, and so NOT in the two counts above.
+   *
+   * Said rather than silently subtracted. The nights are still listed whole under `drops`, because a
+   * tranche names a person and never a boss, so there is no night to take them off. Without this the
+   * list would stop adding up to the count above it, which is a screen hiding what it dropped.
+   */
+  piecesAnswered: { yours: number; theirs: number };
   /**
    * The two above, netted: positive is coupons of theirs you hold, negative is yours they hold.
    *
@@ -139,6 +157,7 @@ const blank = (key: string, name: string): Settlement => ({
   holder: holderFromKey(key),
   pieces: 0,
   piecesYouOwe: 0,
+  piecesAnswered: { yours: 0, theirs: 0 },
   piecesNet: 0,
   mesos: 0,
   owedByYou: 0,
@@ -180,6 +199,14 @@ export function buildSettlement(
    * would have to make appear first.
    */
   pinned: Set<string> = new Set(),
+  /**
+   * Pieces each (pile, creditor) pair has already answered for with money. See answeredByPair.
+   *
+   * The other half of V56, and the half that never arrived. `credits` above brought the MESOS a
+   * priced tranche came to; this brings the PIECES it spoke for. With only the first, a sale of
+   * somebody's coupons put its money on this card and left the coupons on it as well.
+   */
+  answered: Map<string, number> = new Map(),
 ): Settlement[] {
   const out = new Map<string, Settlement>();
   const rowFor = (key: string, name?: string) => {
@@ -204,6 +231,17 @@ export function buildSettlement(
     }
   }
 
+  // Off each of those, the pieces a sale of yours already spoke for. Their money is on this card as
+  // `soldOfTheirs`, so a coupon left in the count above would be asked for in both units at once.
+  //
+  // Capped at what is owed, and per person: a tranche naming more than the nights ever owed them is
+  // one somebody mistyped, and it must not spill onto the next person's card. See V56.
+  for (const [key, row] of out) {
+    const paid = answered.get(answeredKey(SELF_KEY, key)) ?? 0;
+    row.piecesAnswered.theirs = Math.min(row.piecesYouOwe, paid);
+    row.piecesYouOwe -= row.piecesAnswered.theirs;
+  }
+
   // The pieces. Your own pile is not a debt to you, and a closed one is finished.
   for (const ledger of ledgers) {
     if (ledger.holder.kind === "SELF" || ledger.closed) continue;
@@ -225,7 +263,13 @@ export function buildSettlement(
     if (drops.length === 0) continue;
 
     const row = rowFor(holderKey(ledger.holder), ledger.holderName);
-    row.pieces = ledger.owedToYou;
+    // The mirror of the subtraction above: coupons of yours THEY sold out of their own pile and said
+    // were yours. `soldOfYours` carries what those fetched, so the count stops here too.
+    const paid = answered.get(answeredKey(holderKey(ledger.holder), SELF_KEY)) ?? 0;
+    row.piecesAnswered.yours = Math.min(ledger.owedToYou, paid);
+    row.pieces = ledger.owedToYou - row.piecesAnswered.yours;
+    // Gross, and deliberately: a tranche names a person, never a boss, so there is no night to take
+    // the answered pieces off. The count above is what is still owed and this is what it came from.
     row.drops = drops;
   }
 

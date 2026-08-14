@@ -4,6 +4,8 @@ import {
   SELF_KEY,
   alsoHeldByYou,
   answeredByHolder,
+  answeredByPair,
+  answeredKey,
   boughtByHolder,
   closedByHolder,
   closureKey,
@@ -690,6 +692,125 @@ describe("pieces answered with money rather than with coupons", () => {
       { holder: BRO, pieces: 80, amount: 2_000 * M, shares: [{ holder: SELF, pieces: 40 }] },
     ]);
     expect([answered.get("self"), answered.get("person:p-bro")]).toEqual([30, 40]);
+  });
+});
+
+describe("the same pieces, per pile AND creditor", () => {
+  const SELF: Holder = { kind: "SELF", personId: null, characterName: null };
+  const ZADDY: Holder = { kind: "CHARACTER", personId: null, characterName: "zaddy" };
+
+  it("keeps whose the pieces were, which the pile total throws away", () => {
+    const answered = answeredByPair([
+      { holder: SELF, pieces: 70, amount: 1_298 * M, shares: [{ holder: BRO, pieces: 70 }] },
+    ]);
+    expect(answered.get(answeredKey("self", "person:p-bro"))).toBe(70);
+  });
+
+  it("splits one tranche between the two people it named", () => {
+    const answered = answeredByPair([
+      {
+        holder: SELF,
+        pieces: 60,
+        amount: 1_500 * M,
+        shares: [
+          { holder: BRO, pieces: 40 },
+          { holder: ZADDY, pieces: 20 },
+        ],
+      },
+    ]);
+    expect([
+      answered.get(answeredKey("self", "person:p-bro")),
+      answered.get(answeredKey("self", "character:zaddy")),
+    ]).toEqual([40, 20]);
+  });
+
+  it("attributes a purchase that named nobody to nobody", () => {
+    // It is one creditor's in full by V50, and it does not say WHICH. The pile total still counts it,
+    // so the Sale Ledger is unmoved; naming a person here would discharge a debt against somebody who
+    // never agreed to it, which is worse than the missing subtraction.
+    expect(
+      answeredByPair([{ holder: SELF, pieces: 25, amount: 600 * M, disposition: "BOUGHT" }]),
+    ).toEqual(new Map());
+  });
+
+  it("counts a purchase that DID name somebody, at the price it named", () => {
+    const answered = answeredByPair([
+      {
+        holder: SELF,
+        pieces: 25,
+        amount: 600 * M,
+        disposition: "BOUGHT",
+        shares: [{ holder: BRO, pieces: 25 }],
+      },
+    ]);
+    expect(answered.get(answeredKey("self", "person:p-bro"))).toBe(25);
+  });
+
+  it("counts a redemption not at all, having realized nothing", () => {
+    expect(
+      answeredByPair([
+        { holder: SELF, pieces: 50, amount: null, shares: [{ holder: BRO, pieces: 50 }] },
+      ]),
+    ).toEqual(new Map());
+  });
+
+  it("ignores a share naming the pile's own holder, and spends none of the tranche on it", () => {
+    // The self share is not a debt, so the pieces after it must still have the whole tranche to draw
+    // on. Letting it eat the budget would silently under-answer the person who WAS named.
+    const answered = answeredByPair([
+      {
+        holder: SELF,
+        pieces: 60,
+        amount: 1_500 * M,
+        shares: [
+          { holder: SELF, pieces: 20 },
+          { holder: BRO, pieces: 60 },
+        ],
+      },
+    ]);
+    expect(answered.get(answeredKey("self", "character:zaddy"))).toBeUndefined();
+    expect(answered.get(answeredKey("self", "person:p-bro"))).toBe(60);
+  });
+
+  it("caps at the tranche in share order, so a bad cached row answers for what fell", () => {
+    const answered = answeredByPair([
+      {
+        holder: SELF,
+        pieces: 30,
+        amount: 1_500 * M,
+        shares: [
+          { holder: BRO, pieces: 25 },
+          { holder: ZADDY, pieces: 25 },
+        ],
+      },
+    ]);
+    expect([
+      answered.get(answeredKey("self", "person:p-bro")),
+      answered.get(answeredKey("self", "character:zaddy")),
+    ]).toEqual([25, 5]);
+  });
+
+  it("adds up across tranches, per pair", () => {
+    const answered = answeredByPair([
+      { holder: SELF, pieces: 40, amount: 1_000 * M, shares: [{ holder: BRO, pieces: 10 }] },
+      { holder: SELF, pieces: 40, amount: 1_000 * M, shares: [{ holder: BRO, pieces: 15 }] },
+      { holder: BRO, pieces: 80, amount: 2_000 * M, shares: [{ holder: SELF, pieces: 40 }] },
+    ]);
+    expect([
+      answered.get(answeredKey("self", "person:p-bro")),
+      answered.get(answeredKey("person:p-bro", "self")),
+    ]).toEqual([25, 40]);
+  });
+
+  it("never answers for more than the pile total does", () => {
+    // The two are subtracted on two different screens, so a pair total above the pile's would put the
+    // Settlement Ledger back below the Sale Ledger, which is the disagreement this pair exists to end.
+    const rows = [
+      { holder: SELF, pieces: 30, amount: 1_500 * M, shares: [{ holder: BRO, pieces: 400 }] },
+      { holder: SELF, pieces: 40, amount: 1_000 * M, shares: [{ holder: ZADDY, pieces: 10 }] },
+    ];
+    const pairs = [...answeredByPair(rows).values()].reduce((sum, n) => sum + n, 0);
+    expect(pairs).toBeLessThanOrEqual(answeredByHolder(rows).get("self")!);
   });
 });
 

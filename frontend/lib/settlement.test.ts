@@ -8,7 +8,7 @@ import {
   sharesOf,
   yourPiles,
 } from "./settlement";
-import { receivedSinceClosing, saleCredits } from "./vestige-ledger";
+import { answeredKey, receivedSinceClosing, saleCredits } from "./vestige-ledger";
 import type { Holder, HolderLedger } from "./vestige-ledger";
 import type { Counterparty, Wallet, WalletLine } from "./wallet";
 import type { SettlementDebt } from "@/types/vestige";
@@ -820,5 +820,130 @@ describe("which piles the Sale Ledger draws", () => {
   it("keeps only yours out of a mixed list", () => {
     const all = [ledger(SELF, "you"), ledger(BRO, "Bro"), ledger(STRANGER, "Zaddy")];
     expect(yourPiles(all).map((l) => l.holderName)).toEqual(["you"]);
+  });
+});
+
+describe("pieces a sale has already answered for", () => {
+  /**
+   * The night this was reported on, to the piece.
+   *
+   * Your pile held 150 of Bro's across five open nights, Bro held 20 of yours off a Hard Baldrix, and
+   * one tranche of 70 sold out of your own pile named all 70 as his. The Sale Ledger subtracted that
+   * 70 and said 60; this card did not and said 130. Same debt, two screens, two answers, the gap
+   * being exactly the coupons whose money was already on the card as `soldOfTheirs`.
+   */
+  const theNight = () => ({
+    ledgers: [
+      ledger(SELF, "you", {
+        drops: [
+          holdingOf("l1", "malefic-star", 30),
+          holdingOf("l2", "kaling", 20),
+          holdingOf("l3", "chosen-seren", 10),
+          holdingOf("l4", "kalos-the-guardian", 60),
+          holdingOf("l5", "kalos-the-guardian", 30),
+        ],
+      }),
+      ledger(BRO, "Bro", { owedToYou: 20, drops: [owing("l6", "baldrix", 20)] }),
+    ],
+    answered: new Map([[answeredKey("self", "person:p-bro"), 70]]),
+  });
+
+  /** The card, with everything between the wallet and the answered map left empty. */
+  const cardFor = (ledgers: HolderLedger[], answered: Map<string, number>) =>
+    buildSettlement(ledgers, wallet([]), [], new Map(), new Map(), new Map(), new Set(), answered);
+
+  it("takes them off what you owe, so both ledgers give one answer", () => {
+    const { ledgers, answered } = theNight();
+    const [row] = cardFor(ledgers, answered);
+    expect([row!.piecesYouOwe, row!.pieces, row!.piecesNet]).toEqual([80, 20, 60]);
+  });
+
+  it("said 130 before, which was the 70 asked for twice", () => {
+    // The regression itself, pinned. Without the answered map the card is back to counting coupons
+    // whose money it is already carrying.
+    const { ledgers } = theNight();
+    const [row] = buildSettlement(ledgers, wallet([]));
+    expect(row!.piecesNet).toBe(130);
+  });
+
+  it("says how many, on the row whose money replaced them", () => {
+    // A count that changed still gets said. It goes on `soldOfTheirs`, which is the same fact in
+    // mesos, rather than on a line of its own restating it.
+    const { ledgers, answered } = theNight();
+    const [row] = cardFor(ledgers, answered);
+    expect(row!.piecesAnswered).toEqual({ yours: 0, theirs: 70 });
+  });
+
+  it("leaves the nights whole, having no night to take them off", () => {
+    // A tranche names a person and never a boss, so there is no drop to subtract from. The list is
+    // what the count came from, not a second copy of it.
+    const { ledgers, answered } = theNight();
+    const [row] = cardFor(ledgers, answered);
+    expect(row!.drops.map((d) => d.pieces)).toEqual([20]);
+  });
+
+  it("caps at what is owed, so a mistyped tranche cannot answer for more", () => {
+    // The money is on the card as well, the way it always is: pieces are only ever answered by a
+    // tranche that named a price. Without it this card would not be drawn at all, and rightly, the
+    // whole debt having gone.
+    const [row] = buildSettlement(
+      [ledger(SELF, "you", { drops: [holdingOf("l1", "kaling", 20)] })],
+      wallet([]),
+      [],
+      new Map([["person:p-bro", { toThem: 500 * M, toYou: 0 }]]),
+      new Map(),
+      new Map(),
+      new Set(),
+      new Map([[answeredKey("self", "person:p-bro"), 500]]),
+    );
+    expect([row!.piecesYouOwe, row!.piecesAnswered.theirs]).toEqual([0, 20]);
+  });
+
+  it("drops the card when the pieces were the whole of it and money settled them", () => {
+    const rows = cardFor(
+      [ledger(SELF, "you", { drops: [holdingOf("l1", "kaling", 20)] })],
+      new Map([[answeredKey("self", "person:p-bro"), 20]]),
+    );
+    expect(rows).toEqual([]);
+  });
+
+  it("keeps one person's sold coupons off another person's card", () => {
+    // The reason this is keyed by PAIR. A pile total here would take Bro's 70 off whichever card was
+    // drawn next, which is the plausible wrong number rather than a missing one.
+    const rows = cardFor(
+      [
+        ledger(SELF, "you", {
+          drops: [
+            holdingOf("l1", "kaling", 40),
+            {
+              lootId: "l2",
+              partyId: "pa-l2",
+              bossKey: "limbo",
+              weekStart: "2026-08-13",
+              looterName: "HuskyxKenshi",
+              pieces: 120,
+              closed: false,
+              transfers: [
+                { fromId: "self", toId: "character:zaddy", from: "you", to: "Zaddy", pieces: 30 },
+              ],
+            },
+          ],
+        }),
+      ],
+      new Map([[answeredKey("self", "person:p-bro"), 40]]),
+    );
+    const byName = new Map(rows.map((r) => [r.name, r]));
+    expect(byName.get("Zaddy")!.piecesYouOwe).toBe(30);
+    expect(byName.has("Bro")).toBe(false);
+  });
+
+  it("answers the mirror direction too, where THEY sold coupons of yours", () => {
+    // Their pile, their sale, and it named you. Those pieces are `soldOfYours` in mesos now, so the
+    // count they came off stops asking as well.
+    const [row] = cardFor(
+      [ledger(BRO, "Bro", { owedToYou: 80, drops: [owing("l1", "first-adversary", 80)] })],
+      new Map([[answeredKey("person:p-bro", "self"), 50]]),
+    );
+    expect([row!.pieces, row!.piecesAnswered.yours, row!.piecesNet]).toEqual([30, 50, -30]);
   });
 });
