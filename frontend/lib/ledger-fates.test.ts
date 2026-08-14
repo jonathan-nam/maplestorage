@@ -438,6 +438,51 @@ describe("the nights the card's queue lists", () => {
     const { owing, clean } = queueOf(pileOf([night("l1"), night("l2")]));
     expect([owing.length, clean]).toEqual([0, 2]);
   });
+
+  it("counts the nights whose debt has been answered, rather than listing them", () => {
+    // Jonathan's five rows. Their coupons were sold and priced months ago, the money is on Bro's
+    // Settlement card, and the header above them already said nothing was outstanding. They were the
+    // only kind of finished night still drawn.
+    const pile = {
+      ...pileOf([night("l1", { to: "Bro" }), night("l2", { to: "Bro" })]),
+      answered: 120,
+    };
+    const { owing, answered } = queueOf(pile);
+    expect([owing.length, answered]).toEqual([0, 2]);
+  });
+
+  it("keeps every night up while ANY of it is still outstanding", () => {
+    // A tranche names a person and never a boss, so there is no saying which nights the money came
+    // off. Any one of these could be the part still owed, so folding some would be a guess about
+    // which coupons went to market.
+    // 30 each, so 60 owed against 30 answered: half of it is still somebody's.
+    const pile = {
+      ...pileOf([night("l1", { to: "Bro" }), night("l2", { to: "Bro" })]),
+      answered: 30,
+    };
+    const { owing, answered } = queueOf(pile);
+    expect([owing.length, answered]).toEqual([2, 0]);
+  });
+
+  it("counts them answered when their own coupons cover the debt, not just a sale", () => {
+    // The other way a pile comes to owe nothing: the creditor is holding as much of yours as you
+    // are of theirs. `owes` nets per creditor, so the queue has to read the same figure the header
+    // does or the two disagree about whether anything is left.
+    const pile = pileOf([night("l1", { to: "Bro" })]);
+    const { owing, answered } = queueOf(pile, new Map([["person:p-bro", 60]]));
+    expect([owing.length, answered]).toEqual([0, 1]);
+  });
+
+  it("still counts a closed night separately from an answered one", () => {
+    // Different facts: a closed night's books were shut by somebody deciding, an answered one's debt
+    // was paid in money. Folding them together would lose which happened.
+    const pile = {
+      ...pileOf([night("l1", { to: "Bro", closed: true }), night("l2", { to: "Bro" })]),
+      answered: 60,
+    };
+    const { closed, answered, owing } = queueOf(pile);
+    expect([owing.length, closed, answered]).toEqual([0, 1, 1]);
+  });
 });
 
 describe("the figure the card's header states", () => {

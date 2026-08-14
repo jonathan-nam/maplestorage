@@ -224,13 +224,32 @@ type Night = HolderLedger["drops"][number];
  * looter, a week and no question. Those are the majority of any pile, so drawn they WERE the queue,
  * and the handful of rows with a debt under them were lost in it.
  *
- * Neither absence is silent. A count that changed still gets said, so both go on screen as counts,
+ * A night whose debt has been ANSWERED is counted too. Its coupons were sold and priced, the money
+ * is on somebody's Settlement card, and there is nothing left here to act on or to read: five rows
+ * of those sat under a header already saying nothing was outstanding. Same "already dealt with" as
+ * a closed boss, and they were the only kind still drawn.
+ *
+ * ALL of them or none. A tranche names a person and never a boss, so there is no way to say which
+ * nights the money came off, and picking some would be a guess about which coupons went to market.
+ * The gate is therefore the pile owing nothing at all: while any of it is outstanding every night
+ * stays up, because any one of them could be the part still owed.
+ *
+ * No absence is silent. A count that changed still gets said, so all three go on screen as counts,
  * the way a closed boss already did. See V52 and CLAUDE.md.
  */
-export function queueOf(ledger: HolderLedger): { owing: Night[]; clean: number; closed: number } {
+export function queueOf(
+  ledger: HolderLedger,
+  heldOfYours: HeldOfYours = new Map(),
+): { owing: Night[]; clean: number; closed: number; answered: number } {
   const open = ledger.drops.filter((d) => !d.closed);
   const owing = open.filter((d) => d.transfers.length > 0);
-  return { owing, clean: open.length - owing.length, closed: ledger.drops.length - open.length };
+  const done = outstandingOf(ledger, heldOfYours) === 0;
+  return {
+    owing: done ? [] : owing,
+    clean: open.length - owing.length,
+    closed: ledger.drops.length - open.length,
+    answered: done ? owing.length : 0,
+  };
 }
 
 /**

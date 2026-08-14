@@ -272,7 +272,12 @@ function HolderCard({
   const noun = fate === "BOUGHT" ? "purchase" : "sale";
 
   // The nights with a debt on them, and the two kinds the queue counts instead. See queueOf.
-  const { owing, clean: cleanCount, closed: closedCount } = queueOf(ledger);
+  const {
+    owing,
+    clean: cleanCount,
+    closed: closedCount,
+    answered: answeredCount,
+  } = queueOf(ledger, heldOfYours);
 
   /** Keeps what was typed when the server refuses it, so a rejected sale can be corrected. */
   async function write(action: Promise<void>, clear: "entry" | "paid" | null) {
@@ -551,6 +556,13 @@ function HolderCard({
         {cleanCount > 0 && (
           <li className="ledger-progress">
             {`${cleanCount} night${cleanCount === 1 ? "" : "s"} split clean`}
+          </li>
+        )}
+        {/* The nights whose debt has been answered with money. A count for the same reason the two
+            above are: nothing on them is outstanding, so there is nothing to act on. See queueOf. */}
+        {answeredCount > 0 && (
+          <li className="ledger-progress">
+            {`${answeredCount} night${answeredCount === 1 ? "" : "s"} answered`}
           </li>
         )}
         {owing.map((drop) => {
