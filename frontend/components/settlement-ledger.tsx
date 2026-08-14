@@ -20,7 +20,7 @@ import { formatDropped } from "@/lib/loot";
 import type { Holder } from "@/lib/vestige-ledger";
 import type { Boss } from "@/types/boss";
 import type { Party } from "@/types/party";
-import type { SettlementDebt, VestigePayment } from "@/types/vestige";
+import type { SettlementDebt, VestigePayment, VestigeTranche } from "@/types/vestige";
 
 // One card per person, in the two units something can stand between you.
 //
@@ -54,6 +54,9 @@ export function SettlementLedger({
   onRemovePayment,
   onAddDebt,
   onRemoveDebt,
+  keptRows,
+  onKeepPieces,
+  onRemoveKeep,
   onSettlePair,
   onSettleShares,
   onPin,
@@ -71,6 +74,17 @@ export function SettlementLedger({
   onRemovePayment: (paymentId: string) => Promise<void>;
   onAddDebt: (holder: Holder, amount: number, note: string) => Promise<void>;
   onRemoveDebt: (debtId: string) => Promise<void>;
+  /** Purchases each person's pile has recorded against your coupons. See keptOfYours. */
+  keptRows: Map<string, VestigeTranche[]>;
+  /**
+   * Records that they are keeping the coupons of yours they hold, at a price the two of you agreed.
+   *
+   * A purchase against THEIR pile naming you, which is V50's act read from the other end. The one
+   * offset the netting is not entitled to make on its own.
+   */
+  onKeepPieces: (holder: Holder, pieces: number, amount: number) => Promise<void>;
+  /** Taking one of those back off, which nothing else on any screen can do. */
+  onRemoveKeep: (trancheId: string) => Promise<void>;
   /** Closes the coupon books with this person, BOTH sides at once. See settleThePair. */
   onSettlePair: (holder: Holder, theirs: string[], yours: string[]) => Promise<void>;
   onSettleShares: (payouts: { lootId: string; memberId: string }[]) => Promise<void>;
@@ -100,6 +114,9 @@ export function SettlementLedger({
           onRemovePayment={onRemovePayment}
           onAddDebt={onAddDebt}
           onRemoveDebt={onRemoveDebt}
+          keptRows={keptRows.get(row.key) ?? []}
+          onKeepPieces={onKeepPieces}
+          onRemoveKeep={onRemoveKeep}
           onSettlePair={onSettlePair}
           onSettleShares={onSettleShares}
           onPin={onPin}
@@ -121,6 +138,9 @@ function SettlementCard({
   onRemovePayment,
   onAddDebt,
   onRemoveDebt,
+  keptRows,
+  onKeepPieces,
+  onRemoveKeep,
   onSettlePair,
   onSettleShares,
   onPin,
@@ -138,6 +158,17 @@ function SettlementCard({
   onRemovePayment: (paymentId: string) => Promise<void>;
   onAddDebt: (holder: Holder, amount: number, note: string) => Promise<void>;
   onRemoveDebt: (debtId: string) => Promise<void>;
+  /** This person's pile's purchases of your coupons, so a mistyped one can be taken back. */
+  keptRows: VestigeTranche[];
+  /**
+   * Records that they are keeping the coupons of yours they hold, at a price the two of you agreed.
+   *
+   * A purchase against THEIR pile naming you, which is V50's act read from the other end. The one
+   * offset the netting is not entitled to make on its own.
+   */
+  onKeepPieces: (holder: Holder, pieces: number, amount: number) => Promise<void>;
+  /** Taking one of those back off, which nothing else on any screen can do. */
+  onRemoveKeep: (trancheId: string) => Promise<void>;
   /** Closes the coupon books with this person, BOTH sides at once. See settleThePair. */
   onSettlePair: (holder: Holder, theirs: string[], yours: string[]) => Promise<void>;
   onSettleShares: (payouts: { lootId: string; memberId: string }[]) => Promise<void>;
@@ -153,6 +184,7 @@ function SettlementCard({
 }) {
   const [got, setGot] = useState("");
   const [owed, setOwed] = useState("");
+  const [kept, setKept] = useState("");
   const [note, setNote] = useState("");
   const [refusal, setRefusal] = useState<string | null>(null);
 
@@ -160,6 +192,10 @@ function SettlementCard({
   const paid = payment !== null && payment >= 1 ? payment : null;
   const entered = parseMesos(owed);
   const owing = entered !== null && entered >= 1 ? entered : null;
+  // What they are paying to keep the coupons of yours they hold. Above zero, matching the server: a
+  // stack handed over for nothing is not a purchase at a price of nought, it is a handover.
+  const keeping = parseMesos(kept);
+  const keeps = keeping !== null && keeping >= 1 ? keeping : null;
 
   /**
    * A part's label, led by the pieces it answered for where it answered for any.
@@ -631,12 +667,65 @@ function SettlementCard({
             <>
               <span className="ledger-step">{`${row.name} is holding`}</span>
               <PieceNights drops={row.drops} bossByKey={bossByKey} partyById={partyById} />
+              <Covered pieces={row.piecesAnswered.yours} />
+              {/* The one thing the netting cannot decide for the two of you. Their coupons come off
+                  what you owe them ONLY if they agree to that; they may want the mesos and to give
+                  the coupons back. So it is an act with a price on it, never an assumption, and
+                  until somebody records one the pieces stay a count. Same act as the purchase on the
+                  Sale Ledger, from the other end: see V50 and V56. */}
+              {/* What has been agreed already, and the only place it can be taken back: the Sale
+                  Ledger draws your own piles alone, so a tranche against theirs has a pill nowhere
+                  else. A mistyped one re-prices this card. */}
+              {keptRows.length > 0 && (
+                <span className="ledger-tranches">
+                  {keptRows.map((tranche) => (
+                    <span key={tranche.id} className="ledger-tranche">
+                      {`${tranche.pieces} kept for ${formatMesos(tranche.amount ?? 0, true)}`}
+                      <button
+                        type="button"
+                        className="link ledger-drop-sale"
+                        disabled={busy}
+                        onClick={() => void write(onRemoveKeep(tranche.id), null)}
+                        aria-label={`Remove ${tranche.pieces} coupons ${row.name} kept`}
+                      >
+                        ×
+                      </button>
+                    </span>
+                  ))}
+                </span>
+              )}
+              {row.pieces > 0 && (
+                <form
+                  className="ledger-sale"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    if (keeps)
+                      void write(onKeepPieces(row.holder, row.pieces, keeps), () => setKept(""));
+                  }}
+                >
+                  <label className="loot-share-input">
+                    {`${row.name} keeps ${row.pieces} for`}
+                    <input
+                      className="split-input"
+                      value={kept}
+                      onChange={(e) => setKept(e.target.value)}
+                      placeholder="400m"
+                      inputMode="decimal"
+                      aria-label={`What ${row.name} pays to keep the ${row.pieces} coupons of yours`}
+                    />
+                  </label>
+                  <button type="submit" className="party-save" disabled={busy || keeps === null}>
+                    Add
+                  </button>
+                </form>
+              )}
             </>
           )}
           {row.owedDrops.length > 0 && (
             <>
               <span className="ledger-step">I am holding</span>
               <PieceNights drops={row.owedDrops} bossByKey={bossByKey} partyById={partyById} />
+              <Covered pieces={row.piecesAnswered.theirs} />
             </>
           )}
 
@@ -667,6 +756,22 @@ function SettlementCard({
       {refusal && <span className="split-error">{refusal}</span>}
     </section>
   );
+}
+
+/**
+ * How many of the nights above are already paid for, where any are.
+ *
+ * The list is GROSS and has to be: a tranche names a person and never a boss, so there is no night to
+ * take the sold pieces off and no honest way to shorten it. Without this line a card with 150 listed
+ * and 20 outstanding showed the 150 and said nothing, which is the same debt read twice: once as
+ * coupons here and once as mesos in the money above.
+ *
+ * The subtraction, not the conclusion. What is left is the header's, and saying it here as well would
+ * be the third place one figure lives.
+ */
+function Covered({ pieces }: { pieces: number }) {
+  if (pieces <= 0) return null;
+  return <span className="ledger-progress">{`${pieces} sold, priced above`}</span>;
 }
 
 /**

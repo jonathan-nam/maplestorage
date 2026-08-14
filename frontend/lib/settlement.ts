@@ -399,6 +399,30 @@ export function buildSettlement(
     );
 }
 
+/**
+ * The purchases somebody else's pile has recorded against YOUR coupons, per holder.
+ *
+ * Entered on their card and correctable only there. The Sale Ledger draws your own piles alone, so a
+ * tranche written against theirs has a pill on no screen otherwise, and a mistyped one re-prices the
+ * card it is on with no way to take it off. That is the state the pieces themselves were in.
+ *
+ * Keyed by holderKey, the way the card looks everything else up.
+ */
+export function keptOfYours<T extends { holder: Holder; shares?: { holder: Holder }[] }>(
+  tranches: T[],
+): Map<string, T[]> {
+  const out = new Map<string, T[]>();
+  for (const tranche of tranches) {
+    const pile = holderKey(tranche.holder);
+    if (pile === SELF_KEY) continue;
+    if (!(tranche.shares ?? []).some((s) => holderKey(s.holder) === SELF_KEY)) continue;
+    const seen = out.get(pile);
+    if (seen) seen.push(tranche);
+    else out.set(pile, [tranche]);
+  }
+  return out;
+}
+
 /** What closing the coupon books with one person would cover, in nights. See settleThePair. */
 export type PairSettlement = {
   /** Nights in their pile it closes: coupons of yours they were holding. */

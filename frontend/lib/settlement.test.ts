@@ -3,6 +3,7 @@ import {
   buildSettlement,
   settlementTotals,
   isEmpty,
+  keptOfYours,
   offsetOf,
   owedByYouShares,
   settleThePair,
@@ -824,6 +825,49 @@ describe("which piles the Sale Ledger draws", () => {
   });
 });
 
+describe("them keeping coupons of yours, at a price", () => {
+  const tranche = (id: string, holder: Holder, shares?: { holder: Holder }[]) => ({
+    id,
+    holder,
+    shares,
+  });
+
+  it("finds the ones entered against somebody else's pile, keyed by whose", () => {
+    const out = keptOfYours([tranche("t1", BRO, [{ holder: SELF }])]);
+    expect(out.get("person:p-bro")?.map((t) => t.id)).toEqual(["t1"]);
+  });
+
+  it("leaves your own pile's rows alone, the Sale Ledger drawing those", () => {
+    // Two cards offering to remove one row is two answers about one act.
+    expect(keptOfYours([tranche("t1", SELF, [{ holder: BRO }])])).toEqual(new Map());
+  });
+
+  it("leaves out a row of theirs that never named you", () => {
+    // Their pile selling their own coupons is their business and reaches your card nowhere.
+    expect(keptOfYours([tranche("t1", BRO), tranche("t2", BRO, [{ holder: STRANGER }])])).toEqual(
+      new Map(),
+    );
+  });
+
+  it("takes the pieces off the count and puts the money on the card", () => {
+    // The whole act: Bro keeps the 20 he is holding, at 400m. They stop being a coupon claim, and
+    // 400m comes off what you owe him. Netting them instead would have decided that for him.
+    const [row] = buildSettlement(
+      [ledger(BRO, "Bro", { owedToYou: 20, drops: [owing("l1", "baldrix", 20)] })],
+      wallet([]),
+      [],
+      new Map([["person:p-bro", { toThem: 0, toYou: 400 * M }]]),
+      new Map(),
+      new Map(),
+      new Set(),
+      new Map([[answeredKey("person:p-bro", "self"), 20]]),
+    );
+    expect([row!.pieces, row!.piecesAnswered.yours]).toEqual([0, 20]);
+    expect(row!.parts.soldOfYours).toBe(400 * M);
+    expect(row!.mesos).toBe(400 * M);
+  });
+});
+
 describe("closing the coupon books with one person", () => {
   /** A night of your own owing two people, which no closure can settle for one of them. */
   const owingTwo = (lootId: string, bossKey: string) => ({
@@ -977,6 +1021,28 @@ describe("pieces a sale has already answered for", () => {
     const { ledgers, answered } = theNight();
     const [row] = cardFor(ledgers, answered);
     expect(row!.drops.map((d) => d.pieces)).toEqual([20]);
+  });
+
+  it("leaves the listed nights adding up, once the answered count is taken off them", () => {
+    // The invariant the card draws: a gross list, the pieces it has been paid for, and the count
+    // that is left. Without the middle figure the list showed 150 against an outstanding 20 and
+    // said nothing about the gap, which is one debt read twice, in two units, on one card.
+    const { ledgers, answered } = theNight();
+    const [row] = cardFor(ledgers, answered);
+    const listed = row!.owedDrops.reduce((sum, d) => sum + d.pieces, 0);
+    expect(listed).toBe(150);
+    expect(listed - row!.piecesAnswered.theirs).toBe(row!.piecesYouOwe);
+  });
+
+  it("squares to nothing once every coupon has been sold or netted", () => {
+    // Two sales of 70 and 60 against 150 owed, and Bro holding the last 20. Nothing changes hands in
+    // coupons, and the 130 is on the card in mesos instead.
+    const { ledgers } = theNight();
+    const [row] = cardFor(ledgers, new Map([[answeredKey("self", "person:p-bro"), 130]]));
+    expect([row!.piecesYouOwe, row!.pieces, row!.piecesNet]).toEqual([20, 20, 0]);
+    expect(row!.piecesAnswered.theirs).toBe(130);
+    // Still a card, and still six nights to close: the coupons are square, the books are not.
+    expect(settleThePair(row!).bosses).toBe(6);
   });
 
   it("caps at what is owed, so a mistyped tranche cannot answer for more", () => {
