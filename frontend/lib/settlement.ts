@@ -22,7 +22,7 @@
 import { SELF_KEY, answeredKey, holderFromKey, holderKey } from "./vestige-ledger";
 import type { Holder, HolderLedger, SaleCredit } from "./vestige-ledger";
 import type { Wallet, WalletLine } from "./wallet";
-import type { ProceedsDisposal, SettlementDebt } from "@/types/vestige";
+import type { ProceedsDisposal, SettlementDebt, SettlementDebtPayout } from "@/types/vestige";
 
 /** One night's coupons sitting in the wrong inventory, in whichever direction it runs. */
 export type HeldOfYours = {
@@ -474,6 +474,87 @@ export function keptOfYours<T extends { holder: Holder; shares?: { holder: Holde
     else out.set(pile, [tranche]);
   }
   return out;
+}
+
+/** One act that has already come off what they owe you. See V57, V58 and V61. */
+export type Discharge = {
+  id: string;
+  /**
+   * Which ledger it lives in, because taking it back goes to a different place.
+   *
+   * DEBT is an entry with a negative amount: the shares offset writes one, and so does anybody
+   * typing a credit by hand. PROCEEDS is a decision about their money you were holding.
+   */
+  source: "DEBT" | "PROCEEDS";
+  /** Mesos it took off. POSITIVE, so a list of them adds up to what has come off. */
+  amount: number;
+  label: string;
+  at: string;
+  /** The shares it discharged, where it names any. Empty on a typed credit and on a disposal. */
+  payouts: SettlementDebtPayout[];
+};
+
+/**
+ * The money rows split by what they ARE: what builds the debt, and what has come off it.
+ *
+ * One list mixed the two, so an offset read as a debt and only a chevron told them apart, and every
+ * press of Offset added a row that never left. Three acts against one person were three lines saying
+ * the same kind of thing, interleaved with the one line that said what he actually owed.
+ *
+ * They are different questions. What is owed is a standing fact; what came off it is a history of
+ * acts, each with a date and each removable. So the card asks them separately and folds the history,
+ * which is the half that grows without bound.
+ *
+ * A DISCHARGE is anything with a negative sign or a share behind it. Classifying on the sign as well
+ * as on the payouts catches a credit typed by hand, which V57 allows and which would otherwise sit in
+ * the owed list reading as a debt of minus a billion.
+ */
+export function moneyRows(row: Settlement): {
+  /** Debts somebody typed, in the order they were entered. */
+  typed: SettlementDebt[];
+  /** Every act that came off, newest first: the half worth folding is the half that grows. */
+  discharges: Discharge[];
+  /** What those acts come to. Positive. */
+  discharged: number;
+} {
+  const typed: SettlementDebt[] = [];
+  const discharges: Discharge[] = [];
+
+  for (const entry of row.entries) {
+    if (entry.payouts.length === 0 && entry.amount >= 0) {
+      typed.push(entry);
+      continue;
+    }
+    discharges.push({
+      id: entry.id,
+      source: "DEBT",
+      amount: Math.abs(entry.amount),
+      label: entry.note ?? "offset",
+      at: entry.incurredAt,
+      payouts: entry.payouts,
+    });
+  }
+
+  // Only the decisions that took something off. Paying them out discharged money of THEIRS in your
+  // hands and left what they owe you exactly where it was, so it belongs where that money is said.
+  for (const disposal of row.disposals) {
+    if (disposal.kind !== "OFFSET") continue;
+    discharges.push({
+      id: disposal.id,
+      source: "PROCEEDS",
+      amount: disposal.amount,
+      label: "coupon sale",
+      at: disposal.decidedAt,
+      payouts: [],
+    });
+  }
+
+  discharges.sort((a, b) => b.at.localeCompare(a.at) || a.id.localeCompare(b.id));
+  return {
+    typed,
+    discharges,
+    discharged: discharges.reduce((sum, d) => sum + d.amount, 0),
+  };
 }
 
 /** What closing the coupon books with one person would cover, in nights. See settleThePair. */
