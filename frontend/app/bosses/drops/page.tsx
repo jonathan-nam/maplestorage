@@ -12,6 +12,8 @@ import { LogDrop } from "@/components/log-drop";
 import { LotSale } from "@/components/lot-sale";
 import { PieceLedger } from "@/components/piece-ledger";
 import { StackArrangement } from "@/components/stack-arrangement";
+import { SettledView } from "@/components/settled-view";
+import { buildSettledLog, orphansOf, settledTotals } from "@/lib/settled-log";
 import {
   ApiError,
   SAVED_BUT_STALE,
@@ -499,6 +501,11 @@ export default function DropLogPage() {
   // because until one is answered its pieces are missing from every figure below it.
   // The three tiles above the cards, off the cards themselves. See settlementTotals.
   const owedTotals = settlementTotals(settlement);
+  // What is finished. Off the WHOLE log rather than the filtered one, for the reason the ledgers
+  // above are: this is the account's record, and a month's slice of it is not one.
+  const settledRows = buildSettledLog(whole.entries, settlements, holderNames);
+  const settledCounts = settledTotals(settledRows);
+  const settledOrphans = orphansOf(whole.entries, settlements);
   const open = unanswered(parties, pools, VESTIGE);
   // Only the drops still open tilt the rotation: a debt that has been closed was compensated, so it
   // has no business suggesting against the same person forever. See V52.
@@ -981,6 +988,23 @@ export default function DropLogPage() {
                   </ul>
                 )}
               </section>
+            )}
+
+            {/* The end of the pipeline. Nothing here is waiting on anybody, so nothing here is asked
+              for: the one control undoes the act that filed the row, which is how a settlement
+              entered against the wrong night is taken back. */}
+            {shown === "settled" && (
+              <SettledView
+                rows={settledRows}
+                totals={settledCounts}
+                orphans={settledOrphans}
+                bossByKey={bossByKey}
+                partyById={partyById}
+                busy={busy}
+                onUndo={(settlementId) =>
+                  settlementWrite(`${SETTLEMENTS_KEY}/${settlementId}`, { method: "DELETE" })
+                }
+              />
             )}
           </>
         )}

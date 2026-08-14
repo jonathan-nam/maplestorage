@@ -103,9 +103,13 @@ export type DropEntry = {
   /** ALWAYS / HEROIC when everyone gets their own copy, so the sale is one person's, not a pool's. */
   perMember: string | null;
   status: string;
+  /** When it sold, which is the day a money drop was finished. Null while it is still in the pool. */
+  soldAt: string | null;
   saleAmount: number | null;
   amountBasis: string | null;
   splitMethod: string | null;
+  /** Who took it, where a world cannot sell. Null everywhere else, and on a seat that has left. */
+  takenByName: string | null;
   /** Who sold it, or who bought it on a BOUGHT basis. Null while it is still in the pool. */
   sellerName: string | null;
   /**
@@ -280,9 +284,13 @@ export function buildDropLog(
         weekStart: loot.weekStart,
         perMember: loot.perMember,
         status: loot.status,
+        soldAt: loot.soldAt,
         saleAmount: loot.saleAmount,
         amountBasis: loot.amountBasis,
         splitMethod: loot.splitMethod,
+        // Off `seats` and never `members`: a seat that has since left the party still took the item,
+        // and resolving it through this week's roster would lose the name the week after they left.
+        takenByName: party.seats.find((s) => s.id === loot.takenByMemberId)?.name ?? null,
         sellerName: split?.seller.name ?? null,
         pooled: split?.split.sellerReceives ?? null,
         yourTake: split ? takeFor(loot, party.seats) : null,

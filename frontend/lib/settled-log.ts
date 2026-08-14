@@ -1,0 +1,238 @@
+// What is finished, and how it got that way.
+//
+// The last stage of one pipeline: a drop is logged, its pieces are sold or its item is priced, what
+// that leaves owed is settled, and then it is done. The first three stages are worklists and this
+// one is a record, which is the whole difference: nothing here is waiting on anybody, so nothing
+// here is asked for. It exists so the earlier stages can stop carrying finished rows, and so what
+// they stopped carrying is still somewhere.
+//
+// NOT a second reader. Every field comes off buildDropLog's entries, which is splitOf()'s money and
+// couponGapOf()'s pieces. The one thing this file adds is which ACT finished a row, and that is read
+// off the settlements rather than worked out: whether a debt is done is a decision, and this file has
+// no more way to reach one than drop-log.ts does.
+//
+// A row can be finished twice over and honestly. One night's coupons sit in as many piles as there
+// were people bending down, and closing the books with Bro says nothing about Jared, so a night
+// settled with both is TWO records. Folding them would name one person and quietly drop the other.
+
+import type { DropEntry } from "./drop-log";
+import { holderKey } from "./vestige-ledger";
+import type { VestigeSettlement } from "@/types/vestige";
+
+/** One finished thing: what it was, what it came to, and the act that ended it. */
+export type SettledRecord = {
+  /** One act on one drop. Stable, so a row keeps its place when the list is redrawn. */
+  key: string;
+  lootId: string;
+  partyId: string;
+  /** Whose config it fell on, so the view reads one character at a time like the log does. */
+  characterId: string;
+  name: string;
+  iconUrl: string | null;
+  bossKey: string | null;
+  droppedOn: string;
+  weekStart: string;
+  /** What FELL, as V40 files it. */
+  quantity: number;
+  /**
+   * Which pipeline it came down.
+   *
+   * MONEY is one item that sold for one price and divided as money. PIECES is a stack the party
+   * divides by count, whose debt is in coupons and is closed by somebody deciding. The two are not
+   * comparable and are never added: see the totals below.
+   */
+  kind: "MONEY" | "PIECES";
+  /**
+   * The day it was finished, as the act recorded it. Null on a drop that was taken rather than sold,
+   * where nothing was owed and so nothing was ever settled.
+   */
+  settledOn: string | null;
+  /** What it sold for and what that left to divide. Null on a coupon night, which has no one price. */
+  sale: {
+    amount: number;
+    /** LISTED, RECEIVED or BOUGHT. What the amount MEANS, which is why it is never dropped. */
+    basis: string | null;
+    /** What there was to split, fee already off. Null when the split names a seat that has left. */
+    pooled: number | null;
+    /** Your side of it. Null for the same reason. */
+    yourTake: number | null;
+    seller: string | null;
+  } | null;
+  /** Who took it, on a drop that cannot be sold. Null everywhere else. */
+  takenBy: string | null;
+  /** Who the books were closed with. Null on a money drop, which is settled with the whole party. */
+  holderName: string | null;
+  /** Pieces of the night that were in that holder's hands. Zero on a money drop. */
+  pieces: number;
+  /**
+   * Mesos the act wrote off, spread over the drops it closed.
+   *
+   * A settlement records ONE figure for the whole act, so a row's share of it is that figure divided
+   * by the drops closed with it. Said rather than left off, because a write-off is a decision, and
+   * shown per row rather than once because a row is what the reader is looking at. The remainder goes
+   * to the first row so the shares add back up to what was written off.
+   */
+  writtenOff: number;
+  /** The act, so it can be taken back off. Null on a money drop, which has no act to undo. */
+  settlementId: string | null;
+};
+
+/**
+ * A settlement's write-off, spread over the drops it closed.
+ *
+ * Whole mesos that add up to exactly the figure entered, the remainder on the first row. The same
+ * property largestRemainder gives the pieces, for the same reason: a total that does not add back up
+ * is a wrong number wherever the reader happens to sum it.
+ */
+function shareOfWriteOff(unpaid: number, drops: number, index: number): number {
+  if (drops < 1 || unpaid < 1) return 0;
+  const each = Math.floor(unpaid / drops);
+  return index === 0 ? each + (unpaid - each * drops) : each;
+}
+
+/**
+ * Everything finished, newest first.
+ *
+ * Both kinds in one list, because "what happened to this drop" is one question however the drop
+ * divided. They are kept apart by `kind` rather than by being two views: a reader looking for a
+ * night knows the boss and the week, not which pipeline the app filed it under.
+ */
+export function buildSettledLog(
+  entries: DropEntry[],
+  /** The acts that closed the coupon nights. See V52. */
+  settlements: VestigeSettlement[] = [],
+  /** What to call a holder, keyed the way holderKey() spells them. */
+  names: Map<string, string> = new Map(),
+): SettledRecord[] {
+  const byLoot = new Map(entries.map((e) => [e.lootId, e]));
+  const out: SettledRecord[] = [];
+
+  for (const entry of entries) {
+    // A piece drop is settled through the tranche ledger and never through a sale on its own row, so
+    // its status stays PENDING for ever. Reading the status here would file every coupon night the
+    // account has ever had as unfinished.
+    if (entry.pieces) continue;
+    if (entry.status !== "PAID_OUT" && entry.status !== "TAKEN") continue;
+
+    const taken = entry.status === "TAKEN";
+    out.push({
+      key: `loot:${entry.lootId}`,
+      lootId: entry.lootId,
+      partyId: entry.partyId,
+      characterId: entry.characterId,
+      name: entry.name,
+      iconUrl: entry.iconUrl,
+      bossKey: entry.bossKey,
+      droppedOn: entry.droppedOn,
+      weekStart: entry.weekStart,
+      quantity: entry.quantity,
+      kind: "MONEY",
+      settledOn: taken ? null : entry.soldAt,
+      sale:
+        taken || entry.saleAmount === null
+          ? null
+          : {
+              amount: entry.saleAmount,
+              basis: entry.amountBasis,
+              pooled: entry.pooled,
+              yourTake: entry.yourTake,
+              seller: entry.sellerName,
+            },
+      takenBy: taken ? entry.takenByName : null,
+      holderName: null,
+      pieces: 0,
+      writtenOff: 0,
+      settlementId: null,
+    });
+  }
+
+  for (const act of settlements) {
+    const key = holderKey(act.holder);
+    const name = names.get(key) ?? key;
+    // Ordered, so which row carries the odd meso of a write-off does not depend on the order the
+    // ids came back in.
+    const closed = [...act.lootIds].sort();
+    closed.forEach((lootId, i) => {
+      const entry = byLoot.get(lootId);
+      // A settlement whose drop is not in the log is not silently dropped: it is a row the pool no
+      // longer has, which the caller says out loud. See `orphansOf`.
+      if (!entry) return;
+      out.push({
+        key: `settlement:${act.id}:${lootId}`,
+        lootId,
+        partyId: entry.partyId,
+        characterId: entry.characterId,
+        name: entry.name,
+        iconUrl: entry.iconUrl,
+        bossKey: entry.bossKey,
+        droppedOn: entry.droppedOn,
+        weekStart: entry.weekStart,
+        quantity: entry.quantity,
+        kind: "PIECES",
+        settledOn: act.settledAt,
+        sale: null,
+        takenBy: null,
+        holderName: name,
+        // What that holder was holding of it. The gap, never the whole night: a night you looted four
+        // stacks of six on owes nothing even though a partner was there.
+        pieces: entry.owedToYou > 0 ? entry.owedToYou : entry.owedByYou,
+        writtenOff: shareOfWriteOff(act.unpaid, closed.length, i),
+        settlementId: act.id,
+      });
+    });
+  }
+
+  // Newest first, like the log. Ties on the drop's own day, then the id, so two acts on one day keep
+  // one order however the rows arrived.
+  return out.sort(
+    (a, b) =>
+      (b.settledOn ?? b.droppedOn).localeCompare(a.settledOn ?? a.droppedOn) ||
+      b.droppedOn.localeCompare(a.droppedOn) ||
+      a.key.localeCompare(b.key),
+  );
+}
+
+/**
+ * Settlements naming a drop the pool no longer has.
+ *
+ * Counted rather than skipped. A settlement is only ever deleted along with its drop, so this is
+ * zero on any account nobody has been editing the database of, and a count that changed still gets
+ * said. See CLAUDE.md.
+ */
+export function orphansOf(entries: DropEntry[], settlements: VestigeSettlement[]): number {
+  const known = new Set(entries.map((e) => e.lootId));
+  return settlements.reduce(
+    (sum, act) => sum + act.lootIds.filter((id) => !known.has(id)).length,
+    0,
+  );
+}
+
+/** What the view says above the rows. The two kinds counted apart, because they do not add. */
+export type SettledTotals = {
+  /** Coupon nights whose books were closed. */
+  nights: number;
+  /** Drops that sold and paid out. */
+  sales: number;
+  /** Drops taken rather than sold, where nothing was owed. */
+  taken: number;
+  /**
+   * What there was to split across the sales, never the sum of what they sold for.
+   *
+   * A drop entered as "listed for 10b" and one entered as "received 9.5b" are different quantities,
+   * one before the Auction House cut and one after, and adding them is the confident wrong number
+   * this repo exists to prevent. Same total, same reason, as the Drop Log's. See drop-log.ts.
+   */
+  pooled: number;
+  /** Mesos written off closing the nights. A decision, so it is said rather than absorbed. */
+  writtenOff: number;
+};
+
+export function settledTotals(rows: SettledRecord[]): SettledTotals {
+  return {
+    nights: rows.filter((r) => r.kind === "PIECES").length,
+    sales: rows.filter((r) => r.kind === "MONEY" && r.takenBy === null).length,
+    taken: rows.filter((r) => r.takenBy !== null).length,
+    pooled: rows.reduce((sum, r) => sum + (r.sale?.pooled ?? 0), 0),
+    writtenOff: rows.reduce((sum, r) => sum + r.writtenOff, 0),
+  };
+}

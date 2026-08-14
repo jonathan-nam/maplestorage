@@ -280,20 +280,22 @@ function foldAnswered(ledger: HolderLedger, owing: Night[], heldOfYours: HeldOfY
  *
  * Answered NIGHT BY NIGHT, oldest first. See foldAnswered for why, and for the order.
  *
- * No absence is silent. A count that changed still gets said, so all three go on screen as counts,
- * the way a closed boss already did. See V52 and CLAUDE.md.
+ * No absence is silent. A count that changed still gets said, so both go on screen as counts.
+ *
+ * A CLOSED night is not among them any more, and that is the one absence with somewhere else to be:
+ * the Settled View names the act that closed it, who with, and what it wrote off, which is more than
+ * the count here ever said. Two places saying it is two places to disagree. See lib/settled-log.ts.
  */
 export function queueOf(
   ledger: HolderLedger,
   heldOfYours: HeldOfYours = new Map(),
-): { owing: Night[]; clean: number; closed: number; answered: number } {
+): { owing: Night[]; clean: number; answered: number } {
   const open = ledger.drops.filter((d) => !d.closed);
   const owing = open.filter((d) => d.transfers.length > 0);
   const folded = foldAnswered(ledger, owing, heldOfYours);
   return {
     owing: owing.filter((d) => !folded.has(d.lootId)),
     clean: open.length - owing.length,
-    closed: ledger.drops.length - open.length,
     answered: folded.size,
   };
 }
@@ -318,6 +320,11 @@ export function outstandingOf(ledger: HolderLedger, heldOfYours: HeldOfYours = n
  * The quiet ones are held back, not dropped. Dropping them would re-break what `alsoHeldByYou`
  * exists for, which is that a Sale Ledger refusing to admit you hold the coupons cannot take the
  * sale. They come back the moment the reader asks to record one.
+ *
+ * A pile whose every night is CLOSED is quiet whatever it has recorded. It is finished, so it is the
+ * Settled View's, and a worklist that keeps drawing finished work is not a worklist. Held back rather
+ * than dropped for the reason the others are, and one more: a mistyped tranche re-prices what a
+ * settlement was agreed on, and this card is still the only place one can be taken back off.
  */
 export function worthDrawing(
   yours: HolderLedger[],
@@ -327,7 +334,8 @@ export function worthDrawing(
   const drawn: HolderLedger[] = [];
   const quiet: HolderLedger[] = [];
   for (const ledger of yours) {
-    const has = asksAnything(ledger, heldOfYours) || recorded(holderKey(ledger.holder));
+    const has =
+      !ledger.closed && (asksAnything(ledger, heldOfYours) || recorded(holderKey(ledger.holder)));
     (has ? drawn : quiet).push(ledger);
   }
   return { drawn, quiet };

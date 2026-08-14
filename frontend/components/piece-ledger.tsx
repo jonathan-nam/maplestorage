@@ -104,9 +104,10 @@ export function PieceLedger({
   forEntry?: boolean;
 }) {
   if (ledgers.length === 0) return null;
-  // Every card, settled ones included. These bosses drop vestiges on every clear, so a holder's card is
-  // a fixture rather than a task: hiding a settled one only means it reappears next week, and a card
-  // that says "fully settled" answers the question a missing card leaves open.
+  // A settled pile does not reach here: worthDrawing holds it back, because it is finished and
+  // finished work is the Settled View's. These bosses drop vestiges on every clear, so a card kept
+  // for being settled would be a fixture rather than a task, and it reappears next week anyway the
+  // moment the boss is run again.
   return (
     <>
       {ledgers.map((ledger, i) => (
@@ -272,12 +273,7 @@ function HolderCard({
   const noun = fate === "BOUGHT" ? "purchase" : "sale";
 
   // The nights with a debt on them, and the two kinds the queue counts instead. See queueOf.
-  const {
-    owing,
-    clean: cleanCount,
-    closed: closedCount,
-    answered: answeredCount,
-  } = queueOf(ledger, heldOfYours);
+  const { owing, clean: cleanCount, answered: answeredCount } = queueOf(ledger, heldOfYours);
 
   /** Keeps what was typed when the server refuses it, so a rejected sale can be corrected. */
   async function write(action: Promise<void>, clear: "entry" | "paid" | null) {
@@ -325,15 +321,10 @@ function HolderCard({
             </span>
           )}
         </span>
-        <span className="ledger-tally">
-          {ledger.closed && (
-            <span className="ledger-done">
-              {ledger.writtenOff > 0
-                ? `fully settled, ${shortMesos(ledger.writtenOff)} written off`
-                : "fully settled"}
-            </span>
-          )}
-        </span>
+        {/* A finished pile is the Settled View's, which names the act, who with, and what it wrote
+            off. This card only reaches the screen again when the reader asks to record a sale into
+            it, and by then "fully settled" is the answer to a question nobody asked. */}
+        <span className="ledger-tally" />
       </header>
 
       <div className="ledger-entry">
@@ -545,13 +536,9 @@ function HolderCard({
       </div>
 
       <ul className="ledger-queue">
-        {/* A closed boss is history, not something the card is waiting on, so it is off the list and
-            said as a count rather than dropped. It comes back with the settlement it belongs to. */}
-        {closedCount > 0 && (
-          <li className="ledger-progress">
-            {`${closedCount} settled${ledger.writtenOff > 0 ? `, ${shortMesos(ledger.writtenOff)} written off` : ""}`}
-          </li>
-        )}
+        {/* A closed boss used to be counted here. It is the Settled View's now, one row per act, with
+            who it was closed with and what it wrote off: strictly more than this line said, and said
+            in one place instead of two. See lib/settled-log.ts. */}
         {/* The nights that owed nobody, in a count. See queueOf. */}
         {cleanCount > 0 && (
           <li className="ledger-progress">

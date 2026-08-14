@@ -4845,6 +4845,26 @@ button.link:disabled {
   margin-top: 16px;
 }
 
+/* The counts over the Settled list. One line, because the three are one glance and each is a count
+   of a different kind of finished thing rather than a figure to compare. */
+.settled-counts {
+  margin: 0 0 12px;
+}
+
+/* The only control on the Settled tab. Muted until hovered, like the tranche's own remove: it is
+   there to be found when a settlement was wrong, not offered on every row that is right. */
+button.settled-reopen {
+  margin-left: 10px;
+  color: var(--muted);
+  font-size: 13px;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+button.settled-reopen:hover:not(:disabled) {
+  color: var(--warn);
+}
+
 /* A party row opens to show who is in it. Closed is the default: the heading, the size and the
    clear state are what the list is scanned for, and a dozen bosses was a dozen rows of sprites to
    scroll past. */

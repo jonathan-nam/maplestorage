@@ -1,0 +1,280 @@
+import { describe, expect, it } from "vitest";
+import { buildDropLog } from "./drop-log";
+import { buildSettledLog, orphansOf, settledTotals } from "./settled-log";
+import { closedByHolder } from "./vestige-ledger";
+import type { Holder } from "./vestige-ledger";
+import type { DropTables } from "@/types/drop";
+import type { Loot, PartyLootPool } from "@/types/loot";
+import type { Party, PartyMember } from "@/types/party";
+import type { VestigeSettlement } from "@/types/vestige";
+
+const M = 1_000_000;
+const VESTIGE = "vestige-of-erion";
+const BRO: Holder = { kind: "PERSON", personId: "p-bro", characterName: null };
+const NAMES = new Map([["person:p-bro", "Bro"]]);
+
+/** The coupon table for the boss the fixtures run, which is what makes a row a PIECE drop. */
+const TABLES: DropTables = {
+  limbo: [
+    {
+      dropKey: VESTIGE,
+      name: "Vestige of Erion Coupon",
+      iconUrl: null,
+      perMember: null,
+      worlds: null,
+      quantity: 1,
+      fungible: false,
+      pieces: { HARD: 60 },
+      bundles: { HARD: 3 },
+    },
+  ],
+};
+
+const mine = (id: string, name: string): PartyMember => ({
+  id,
+  name,
+  personId: null,
+  personName: null,
+  characterId: `char-${id}`,
+  spriteImgUrl: null,
+  guest: false,
+  shares: 1,
+});
+
+const theirs = (id: string, name: string): PartyMember => ({
+  id,
+  name,
+  personId: "p-bro",
+  personName: "Bro",
+  characterId: null,
+  spriteImgUrl: null,
+  guest: false,
+  shares: 1,
+});
+
+const party = (over: Partial<Party> = {}): Party => ({
+  id: "pa",
+  characterId: "char-m1",
+  solo: false,
+  retired: false,
+  worldType: "INTERACTIVE",
+  bossKey: "limbo",
+  difficulty: "HARD",
+  minutes: null,
+  members: [mine("m1", "mechyfechy"), theirs("m2", "CreedBratton")],
+  seats: [mine("m1", "mechyfechy"), theirs("m2", "CreedBratton")],
+  looterMemberId: null,
+  usualRoster: true,
+  skippedThisPeriod: false,
+  oneOff: false,
+  pendingLoot: 0,
+  awaitingPayout: 0,
+  settledLoot: 0,
+  cleared: null,
+  clearedByHand: false,
+  createdAt: "2026-07-01T00:00:00Z",
+  updatedAt: "2026-07-01T00:00:00Z",
+  ...over,
+});
+
+const drop = (over: Partial<Loot> = {}): Loot => ({
+  id: "l1",
+  dropKey: "grindstone-of-faith",
+  customName: null,
+  name: "Grindstone of Faith",
+  iconUrl: null,
+  perMember: null,
+  bossKey: "limbo",
+  quantity: 1,
+  droppedOn: "2026-08-06",
+  weekStart: "2026-08-06",
+  status: "PAID_OUT",
+  saleAmount: 10_000 * M,
+  amountBasis: "LISTED",
+  splitMethod: "FAIR",
+  sellerShares: 1,
+  sellerMemberId: "m1",
+  takenByMemberId: null,
+  soldAt: "2026-08-07T10:00:00Z",
+  payouts: [{ memberId: "m2", paid: true, paidAt: "2026-08-07T11:00:00Z", shares: 1 }],
+  ranThatWeek: ["m1", "m2"],
+  bundles: null,
+  bundlesBy: [],
+  ...over,
+});
+
+/** A coupon night the partner looted the lot of: 60 pieces, 30 of them yours. */
+const night = (over: Partial<Loot> = {}): Loot =>
+  drop({
+    id: "n1",
+    dropKey: VESTIGE,
+    name: "Vestige of Erion Coupon",
+    quantity: 60,
+    bundles: 3,
+    // Bro bent down for all three stacks, so 30 of the 60 in his inventory are yours.
+    bundlesBy: [{ memberId: "m2", bundles: 3 }],
+    status: "PENDING",
+    soldAt: null,
+    saleAmount: null,
+    amountBasis: null,
+    splitMethod: null,
+    sellerMemberId: null,
+    payouts: [],
+    ...over,
+  });
+
+const pool = (loot: Loot[]): PartyLootPool => ({ partyId: "pa", loot });
+
+const act = (over: Partial<VestigeSettlement> = {}): VestigeSettlement => ({
+  id: "s1",
+  holder: BRO,
+  lootIds: ["n1"],
+  unpaid: 0,
+  settledAt: "2026-08-10T22:00:00Z",
+  ...over,
+});
+
+/** The log the view is built on, exactly as the page builds it. */
+const logOf = (loot: Loot[], settlements: VestigeSettlement[] = [], over: Partial<Party> = {}) =>
+  buildDropLog(
+    [party(over)],
+    [pool(loot)],
+    TABLES,
+    closedByHolder(settlements.map((s) => ({ ...s, lootIds: s.lootIds }))).closed,
+  ).entries;
+
+describe("what the Settled View records", () => {
+  it("records a drop that sold and paid out", () => {
+    const rows = buildSettledLog(logOf([drop()]));
+    expect(rows).toHaveLength(1);
+    expect([rows[0]!.kind, rows[0]!.name, rows[0]!.settledOn]).toEqual([
+      "MONEY",
+      "Grindstone of Faith",
+      "2026-08-07T10:00:00Z",
+    ]);
+  });
+
+  it("keeps what the amount MEANS, not just the amount", () => {
+    // A listed price and a received price are different quantities, one before the Auction House cut
+    // and one after. A row showing the figure without its basis is two different facts drawn the
+    // same way. See drop-log.ts.
+    const rows = buildSettledLog(logOf([drop({ amountBasis: "RECEIVED" })]));
+    expect([rows[0]!.sale?.amount, rows[0]!.sale?.basis]).toEqual([10_000 * M, "RECEIVED"]);
+  });
+
+  it("leaves out a drop still in the pool, and one sold but not paid out", () => {
+    const rows = buildSettledLog(
+      logOf([drop({ id: "l1", status: "PENDING" }), drop({ id: "l2", status: "SOLD" })]),
+    );
+    expect(rows).toEqual([]);
+  });
+
+  it("records a drop that was taken, with no sale and no settlement date", () => {
+    // Terminal the way a payout is: somebody has the item and nothing further is owed. There is no
+    // act to date, because nothing was ever owed to settle.
+    const taken = drop({ status: "TAKEN", takenByMemberId: "m2", soldAt: null, saleAmount: null });
+    const rows = buildSettledLog(logOf([taken]));
+    expect([rows[0]!.takenBy, rows[0]!.sale, rows[0]!.settledOn]).toEqual([
+      "CreedBratton",
+      null,
+      null,
+    ]);
+  });
+
+  it("names a taker who has since left the party", () => {
+    // Off `seats` and never `members`. A seat that left still took the item.
+    const gone = { ...theirs("m3", "Freeballynn"), guest: true };
+    const taken = drop({ status: "TAKEN", takenByMemberId: "m3", soldAt: null, saleAmount: null });
+    const rows = buildSettledLog(
+      logOf([taken], [], { seats: [mine("m1", "mechyfechy"), theirs("m2", "CreedBratton"), gone] }),
+    );
+    expect(rows[0]!.takenBy).toBe("Freeballynn");
+  });
+
+  it("records a coupon night by the act that closed it, not by its status", () => {
+    // A piece drop is settled through the tranche ledger and never through a sale on its own row, so
+    // its status stays PENDING for ever. Reading the status would file every coupon night the
+    // account has ever had as unfinished.
+    const rows = buildSettledLog(logOf([night()], [act()]), [act()], NAMES);
+    expect(rows).toHaveLength(1);
+    expect([rows[0]!.kind, rows[0]!.holderName, rows[0]!.pieces]).toEqual(["PIECES", "Bro", 30]);
+  });
+
+  it("leaves a coupon night out until somebody closes it", () => {
+    expect(buildSettledLog(logOf([night()]), [], NAMES)).toEqual([]);
+  });
+
+  it("records a night closed with two people as two acts", () => {
+    // One night's coupons sit in as many piles as there were people bending down, and closing the
+    // books with Bro says nothing about Jared. Folding them would name one and drop the other.
+    const jared: Holder = { kind: "PERSON", personId: "p-jared", characterName: null };
+    const two = [act(), act({ id: "s2", holder: jared, settledAt: "2026-08-11T00:00:00Z" })];
+    const rows = buildSettledLog(
+      logOf([night()], two),
+      two,
+      new Map([...NAMES, ["person:p-jared", "Jared"]]),
+    );
+    expect(rows.map((r) => r.holderName)).toEqual(["Jared", "Bro"]);
+    expect(new Set(rows.map((r) => r.lootId))).toEqual(new Set(["n1"]));
+  });
+
+  it("says what was written off, spread over the drops the act closed", () => {
+    // A write-off is a decision, so it is said rather than absorbed. Per row, because a row is what
+    // the reader is looking at.
+    const two = [act({ lootIds: ["n1", "n2"], unpaid: 900 })];
+    const rows = buildSettledLog(logOf([night(), night({ id: "n2" })], two), two, NAMES);
+    expect(rows.map((r) => r.writtenOff)).toEqual([450, 450]);
+  });
+
+  it("adds a write-off back up to exactly what was entered", () => {
+    // The odd meso goes to the first row rather than being lost. A total that does not add back up
+    // is a wrong number wherever the reader happens to sum it.
+    const three = [act({ lootIds: ["n1", "n2", "n3"], unpaid: 100 })];
+    const rows = buildSettledLog(
+      logOf([night(), night({ id: "n2" }), night({ id: "n3" })], three),
+      three,
+      NAMES,
+    );
+    expect(rows.reduce((sum, r) => sum + r.writtenOff, 0)).toBe(100);
+  });
+
+  it("carries the act's id, so a settlement can be taken back off", () => {
+    const rows = buildSettledLog(logOf([night()], [act()]), [act()], NAMES);
+    expect(rows[0]!.settlementId).toBe("s1");
+  });
+
+  it("puts both kinds in one list, newest finished first", () => {
+    const rows = buildSettledLog(logOf([drop(), night()], [act()]), [act()], NAMES);
+    expect(rows.map((r) => r.kind)).toEqual(["PIECES", "MONEY"]);
+  });
+
+  it("counts a settlement naming a drop the pool no longer has, rather than going quiet", () => {
+    // A count that changed still gets said. See CLAUDE.md.
+    const stale = [act({ lootIds: ["n1", "gone"] })];
+    const entries = logOf([night()], stale);
+    expect(buildSettledLog(entries, stale, NAMES)).toHaveLength(1);
+    expect(orphansOf(entries, stale)).toBe(1);
+  });
+});
+
+describe("the totals over what is finished", () => {
+  it("counts the two kinds apart, because they do not add", () => {
+    const taken = drop({ id: "l2", status: "TAKEN", takenByMemberId: "m2", soldAt: null });
+    const rows = buildSettledLog(logOf([drop(), taken, night()], [act()]), [act()], NAMES);
+    const totals = settledTotals(rows);
+    expect([totals.nights, totals.sales, totals.taken]).toEqual([1, 1, 1]);
+  });
+
+  it("totals what there was to split, never the amounts as entered", () => {
+    // 10b listed less the seller's 5% is 9.5b landed, which is the only cross-basis sum that means
+    // one thing. Same total and same reason as the Drop Log's.
+    const rows = buildSettledLog(logOf([drop()]));
+    expect(settledTotals(rows).pooled).toBe(9_500 * M);
+  });
+
+  it("says what was written off across every act", () => {
+    const two = [act({ lootIds: ["n1", "n2"], unpaid: 900 })];
+    const rows = buildSettledLog(logOf([night(), night({ id: "n2" })], two), two, NAMES);
+    expect(settledTotals(rows).writtenOff).toBe(900);
+  });
+});
