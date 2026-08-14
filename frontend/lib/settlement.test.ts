@@ -3,6 +3,7 @@ import {
   buildSettlement,
   settlementTotals,
   isEmpty,
+  keptOfYours,
   offsetOf,
   owedByYouShares,
   settleThePair,
@@ -821,6 +822,49 @@ describe("which piles the Sale Ledger draws", () => {
   it("keeps only yours out of a mixed list", () => {
     const all = [ledger(SELF, "you"), ledger(BRO, "Bro"), ledger(STRANGER, "Zaddy")];
     expect(yourPiles(all).map((l) => l.holderName)).toEqual(["you"]);
+  });
+});
+
+describe("them keeping coupons of yours, at a price", () => {
+  const tranche = (id: string, holder: Holder, shares?: { holder: Holder }[]) => ({
+    id,
+    holder,
+    shares,
+  });
+
+  it("finds the ones entered against somebody else's pile, keyed by whose", () => {
+    const out = keptOfYours([tranche("t1", BRO, [{ holder: SELF }])]);
+    expect(out.get("person:p-bro")?.map((t) => t.id)).toEqual(["t1"]);
+  });
+
+  it("leaves your own pile's rows alone, the Sale Ledger drawing those", () => {
+    // Two cards offering to remove one row is two answers about one act.
+    expect(keptOfYours([tranche("t1", SELF, [{ holder: BRO }])])).toEqual(new Map());
+  });
+
+  it("leaves out a row of theirs that never named you", () => {
+    // Their pile selling their own coupons is their business and reaches your card nowhere.
+    expect(keptOfYours([tranche("t1", BRO), tranche("t2", BRO, [{ holder: STRANGER }])])).toEqual(
+      new Map(),
+    );
+  });
+
+  it("takes the pieces off the count and puts the money on the card", () => {
+    // The whole act: Bro keeps the 20 he is holding, at 400m. They stop being a coupon claim, and
+    // 400m comes off what you owe him. Netting them instead would have decided that for him.
+    const [row] = buildSettlement(
+      [ledger(BRO, "Bro", { owedToYou: 20, drops: [owing("l1", "baldrix", 20)] })],
+      wallet([]),
+      [],
+      new Map([["person:p-bro", { toThem: 0, toYou: 400 * M }]]),
+      new Map(),
+      new Map(),
+      new Set(),
+      new Map([[answeredKey("person:p-bro", "self"), 20]]),
+    );
+    expect([row!.pieces, row!.piecesAnswered.yours]).toEqual([0, 20]);
+    expect(row!.parts.soldOfYours).toBe(400 * M);
+    expect(row!.mesos).toBe(400 * M);
   });
 });
 

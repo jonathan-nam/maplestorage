@@ -18,6 +18,7 @@ import { peek, put } from "@/lib/cache";
 import {
   type OffsetShare,
   buildSettlement,
+  keptOfYours,
   settlementTotals,
   shareKey,
   yourPiles,
@@ -792,6 +793,29 @@ export default function DropLogPage() {
                   }
                   onRemoveDebt={(debtId) =>
                     debtWrite(`${DEBTS_KEY}/${debtId}`, { method: "DELETE" })
+                  }
+                  // Their pile, their purchase: they are keeping coupons that were yours and paying
+                  // for them. V50's act with the sides swapped, which is why it needs no new shape.
+                  // The tranche prices the pieces (they stop being a count) and puts the money on
+                  // this card as `soldOfYours`, which comes off what you owe them.
+                  //
+                  // An ACT and never a netting. Their coupons only come off your debt if they agree
+                  // to that, and they may want the mesos instead.
+                  keptRows={keptOfYours(tranches)}
+                  onKeepPieces={(holder: Holder, pieces, amount) =>
+                    saleWrite(TRANCHES_KEY, {
+                      method: "POST",
+                      body: JSON.stringify({
+                        holder,
+                        pieces,
+                        amount,
+                        disposition: "BOUGHT",
+                        shares: [{ holder: SELF_HOLDER, pieces }],
+                      }),
+                    })
+                  }
+                  onRemoveKeep={(trancheId) =>
+                    saleWrite(`${TRANCHES_KEY}/${trancheId}`, { method: "DELETE" })
                   }
                   // Two acts, because a closure is one PILE's decision and the pair has two piles:
                   // their nights close against them, yours against you. One button, since one
