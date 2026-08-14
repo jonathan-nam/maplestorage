@@ -11,7 +11,7 @@ import { apiAssetUrl } from "@/lib/api";
 import { bossLabel } from "@/lib/boss-difficulty";
 import { preloadBossArt } from "@/lib/preload-boss-art";
 import { useRowWrites } from "@/lib/use-row-writes";
-import { ApiError, apiFetch } from "@/lib/api";
+import { ApiError, SAVED_BUT_STALE, StaleAfterWrite, apiFetch, readBack } from "@/lib/api";
 import { peek, put } from "@/lib/cache";
 import { buildDropLog, couponsOutstandingByParty, pieceStatusByParty } from "@/lib/drop-log";
 import { useDropIcons } from "@/lib/drop-icons";
@@ -104,10 +104,13 @@ export default function PartyPage() {
     try {
       await write(key, async () => {
         await apiFetch<unknown>(path, options, getToken);
-        await loadLoot();
+        // Past the write, so a refetch that fails leaves the screen behind and not the write undone.
+        // Saying "That didn't save." about one is what got a drop logged twice. See StaleAfterWrite.
+        await readBack(loadLoot);
       });
     } catch (e) {
-      setError(e instanceof ApiError ? e.body : "That didn't save.");
+      if (e instanceof StaleAfterWrite) setError(SAVED_BUT_STALE);
+      else setError(e instanceof ApiError ? e.body : "That didn't save.");
     }
   }
 

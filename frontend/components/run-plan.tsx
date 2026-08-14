@@ -3,7 +3,7 @@
 import { Fragment, useEffect, useState } from "react";
 
 import { DropPicker } from "@/components/drop-picker";
-import { apiAssetUrl } from "@/lib/api";
+import { SAVED_BUT_STALE, StaleAfterWrite, apiAssetUrl } from "@/lib/api";
 import { BOSS_ART_2X } from "@/lib/boss-art";
 import { clearStateLabel, nextClear } from "@/lib/boss-clears";
 import { bossLabel } from "@/lib/boss-difficulty";
@@ -324,6 +324,12 @@ export function RunPlan({
                           try {
                             await onAddDrop(party, body);
                           } catch (e) {
+                            // Landed, and only the plan behind it is stale. Re-arming the picker
+                            // over one is what logged a drop twice. See StaleAfterWrite.
+                            if (e instanceof StaleAfterWrite) {
+                              setAddError(SAVED_BUT_STALE);
+                              return;
+                            }
                             setAddError("That didn't save.");
                             // Rethrown so the picker keeps what was chosen, ready to try again.
                             throw e;

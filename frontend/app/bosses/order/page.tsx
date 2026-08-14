@@ -5,7 +5,7 @@ import { useDeferredValue, useEffect, useMemo, useState, useSyncExternalStore } 
 
 import { RunDraftEditor } from "@/components/run-draft-editor";
 import { CopyPlan, type RunLog, RunPlan } from "@/components/run-plan";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, readBack } from "@/lib/api";
 import { progressLabel } from "@/lib/boss-clears";
 import { bossLabel } from "@/lib/boss-difficulty";
 import { DEFAULT_MINUTES } from "@/lib/boss-minutes";
@@ -311,7 +311,8 @@ export default function RunOrderPage() {
         { method: "POST", body: JSON.stringify(body) },
         getToken,
       );
-      await refetchParties();
+      // The drop is in from here, so a failed refetch is the plan going stale. See StaleAfterWrite.
+      await readBack(refetchParties);
     });
   }
 

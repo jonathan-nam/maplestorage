@@ -14,7 +14,14 @@ import { PieceLedger } from "@/components/piece-ledger";
 import { StackArrangement } from "@/components/stack-arrangement";
 import { SettledView } from "@/components/settled-view";
 import { buildSettledLog, orphansOf, settledTotals } from "@/lib/settled-log";
-import { ApiError, apiAssetUrl, apiFetch } from "@/lib/api";
+import {
+  ApiError,
+  SAVED_BUT_STALE,
+  StaleAfterWrite,
+  apiAssetUrl,
+  apiFetch,
+  readBack,
+} from "@/lib/api";
 import { bossLabel } from "@/lib/boss-difficulty";
 import { peek, put } from "@/lib/cache";
 import {
@@ -226,8 +233,15 @@ export default function DropLogPage() {
         { method: "POST", body: JSON.stringify(body) },
         getToken,
       );
-      await load();
+      // Past the POST the drop is in, whatever the read-back does. See StaleAfterWrite.
+      await readBack(load);
     } catch (e) {
+      // Not rethrown when the write landed: the throw is what keeps the picker loaded, and a picker
+      // still loaded under the word "didn't save" is how the same drop was logged twice.
+      if (e instanceof StaleAfterWrite) {
+        setError(SAVED_BUT_STALE);
+        return;
+      }
       setError(e instanceof ApiError ? e.body : "That didn't save.");
       throw e;
     } finally {
