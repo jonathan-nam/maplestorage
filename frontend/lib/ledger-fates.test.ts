@@ -6,6 +6,7 @@ import {
   asksAnything,
   coversThePile,
   distributeSale,
+  foldTranches,
   outstandingOf,
   owes,
   queueOf,
@@ -664,5 +665,49 @@ describe("distributing a sale over the people it owes", () => {
     expect(distributeSale(50, [])).toEqual([]);
     // A creditor already square drops out rather than taking a zero share.
     expect(distributeSale(50, [{ ...bro, pieces: 0 }])).toEqual([]);
+  });
+});
+
+describe("which recorded tranches the card still draws a pill for", () => {
+  const SELF: Holder = { kind: "SELF", personId: null, characterName: null };
+  const BRO: Holder = { kind: "PERSON", personId: "p-bro", characterName: null };
+
+  const tranche = (id: string, shares?: { holder: Holder }[]) => ({ id, holder: SELF, shares });
+
+  it("folds one that said whose pieces it held, that debt being answered elsewhere", () => {
+    const { shown, folded } = foldTranches([tranche("t1", [{ holder: BRO }])]);
+    expect([shown, folded.map((t) => t.id)]).toEqual([[], ["t1"]]);
+  });
+
+  it("keeps one that named nobody, which no other screen carries", () => {
+    // A plain sale of your own coupons, and a purchase from before shares existed. Nothing on a
+    // Settlement card knows about either, so folding them would be a row nobody could find again.
+    const { shown, folded } = foldTranches([tranche("t1"), tranche("t2", [])]);
+    expect([shown.map((t) => t.id), folded]).toEqual([["t1", "t2"], []]);
+  });
+
+  it("keeps one whose only share is the pile's own holder, who is owed nothing", () => {
+    // The same rule answeredByPair applies. If the two disagreed, a tranche could vanish from the
+    // card while still asking on it, which is the one state neither screen can be corrected from.
+    const { shown } = foldTranches([tranche("t1", [{ holder: SELF }])]);
+    expect(shown.map((t) => t.id)).toEqual(["t1"]);
+  });
+
+  it("splits a mixed list without reordering either half", () => {
+    const { shown, folded } = foldTranches([
+      tranche("t1"),
+      tranche("t2", [{ holder: BRO }]),
+      tranche("t3"),
+      tranche("t4", [{ holder: BRO }]),
+    ]);
+    expect(shown.map((t) => t.id)).toEqual(["t1", "t3"]);
+    expect(folded.map((t) => t.id)).toEqual(["t2", "t4"]);
+  });
+
+  it("loses none of them, so the count can bring every one back", () => {
+    // The pill is the only place a mistyped tranche is taken off. Folded has to mean folded.
+    const all = [tranche("t1"), tranche("t2", [{ holder: BRO }])];
+    const { shown, folded } = foldTranches(all);
+    expect(shown.length + folded.length).toBe(all.length);
   });
 });

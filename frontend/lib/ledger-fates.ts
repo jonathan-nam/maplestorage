@@ -16,7 +16,7 @@
 // whatever it is told. Asking it to account for itself is work with no reader.
 
 import { holderKey, unaccounted } from "./vestige-ledger";
-import type { HolderLedger } from "./vestige-ledger";
+import type { Holder, HolderLedger } from "./vestige-ledger";
 
 /** Every answer a pile can be given. All three, on every card, whoever is holding it. */
 export const FATES = ["SOLD", "KEPT", "BOUGHT"] as const;
@@ -266,4 +266,33 @@ export function worthDrawing(
     (has ? drawn : quiet).push(ledger);
   }
   return { drawn, quiet };
+}
+
+/**
+ * A pile's recorded tranches, split by whether the row still has anything to say.
+ *
+ * A tranche that NAMED whose pieces were in it is answered somewhere else, and better: its money is
+ * on that person's Settlement card and its pieces have come off what this pile owes them. The pill
+ * here is then the record of a finished act, and a card that keeps every one grows a row per sale
+ * for as long as the account runs.
+ *
+ * FOLDED, never dropped, and the count says how many. A mistyped tranche re-prices every boss behind
+ * it and this pill is the only place one can be taken back off, so a card that simply forgot them
+ * would be a ledger you cannot correct. Same shape as `worthDrawing` above.
+ *
+ * A share naming the pile's own holder does not count as naming anybody: a pile owes itself nothing.
+ * Same rule as `answeredByPair`, and it has to be, or a tranche the two disagree about would vanish
+ * from the card while still asking on it.
+ */
+export function foldTranches<T extends { holder: Holder; shares?: { holder: Holder }[] }>(
+  tranches: T[],
+): { shown: T[]; folded: T[] } {
+  const shown: T[] = [];
+  const folded: T[] = [];
+  for (const tranche of tranches) {
+    const pile = holderKey(tranche.holder);
+    const named = (tranche.shares ?? []).some((s) => holderKey(s.holder) !== pile);
+    (named ? folded : shown).push(tranche);
+  }
+  return { shown, folded };
 }
