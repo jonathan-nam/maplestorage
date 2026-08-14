@@ -10,7 +10,15 @@ import { PartyCard } from "@/components/party-card";
 import { ResetTimer } from "@/components/reset-timer";
 import { RosterStrip } from "@/components/roster-strip";
 import { WeekStepper } from "@/components/week-stepper";
-import { ApiError, apiAssetUrl, apiFetch, spriteUrl } from "@/lib/api";
+import {
+  ApiError,
+  SAVED_BUT_STALE,
+  StaleAfterWrite,
+  apiAssetUrl,
+  apiFetch,
+  readBack,
+  spriteUrl,
+} from "@/lib/api";
 import { cellState, clearOfCell, indexClears } from "@/lib/boss-clears";
 import { bossLabel, difficultyLabel } from "@/lib/boss-difficulty";
 import { peek, put } from "@/lib/cache";
@@ -459,7 +467,8 @@ export default function PartiesPage() {
    * The pool it lands in is the party page's, the same POST that page makes, so a drop added here
    * and one added there are the same row.
    *
-   * Throws on failure, which is what makes the row say so.
+   * Throws on failure, which is what makes the row say so. The drop is in from the moment the POST
+   * answers, so the refetch after it fails as a StaleAfterWrite and never as a failed add.
    */
   async function addDrop(party: Party, body: AddLootBody) {
     await write(party.id, async () => {
@@ -468,7 +477,7 @@ export default function PartiesPage() {
         { method: "POST", body: JSON.stringify(body) },
         getToken,
       );
-      await refreshPools();
+      await readBack(refreshPools);
     });
   }
 
@@ -487,13 +496,20 @@ export default function PartiesPage() {
           options,
           getToken,
         );
-        await refreshPools();
+        // Past the write, so the same reading the party's own page makes: a refetch that fails is
+        // a stale panel, not a sale that did not save. See StaleAfterWrite.
+        await readBack(refreshPools);
       });
     } catch (e) {
       // The server's own reason. It is the only part of a refusal you can act on.
       setPoolError({
         partyId: party.id,
-        message: e instanceof ApiError ? e.body : "That didn't save.",
+        message:
+          e instanceof StaleAfterWrite
+            ? SAVED_BUT_STALE
+            : e instanceof ApiError
+              ? e.body
+              : "That didn't save.",
       });
     }
   }
