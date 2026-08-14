@@ -990,9 +990,16 @@ export default function DropLogPage() {
               </section>
             )}
 
-            {/* The end of the pipeline. Nothing here is waiting on anybody, so nothing here is asked
-              for: the one control undoes the act that filed the row, which is how a settlement
-              entered against the wrong night is taken back. */}
+            {/* The end of the pipeline, and it only runs one way: nothing here is waiting on
+              anybody, and nothing here can be taken back.
+
+              A Reopen used to sit on every row and it undid HALF of a settlement. Closing a coupon
+              pair is ONE act that writes one row per inventory (see onSettlePair), so deleting one of
+              them left a night shut in their pile and open in yours: Jonathan hit it by accident and
+              60 coupons reappeared on the Sale Ledger with the other side still closed. A button
+              whose one effect is to half-undo a paired act is a trap however it is labelled, the same
+              reason Settle came off a card with nothing to collect. A settlement filed against the
+              wrong night is corrected against the database. */}
             {shown === "settled" && (
               <SettledView
                 rows={settledRows}
@@ -1000,10 +1007,6 @@ export default function DropLogPage() {
                 orphans={settledOrphans}
                 bossByKey={bossByKey}
                 partyById={partyById}
-                busy={busy}
-                onUndo={(settlementId) =>
-                  settlementWrite(`${SETTLEMENTS_KEY}/${settlementId}`, { method: "DELETE" })
-                }
               />
             )}
           </>

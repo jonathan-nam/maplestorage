@@ -76,14 +76,10 @@ function SettledRow({
   line,
   bossByKey,
   partyById,
-  busy,
-  onUndo,
 }: {
   line: SettledLine;
   bossByKey: Map<string, Boss>;
   partyById: Map<string, Party>;
-  busy: boolean;
-  onUndo: (settlementId: string) => Promise<void>;
 }) {
   const [open, setOpen] = useState(false);
   const row = line.records[0]!;
@@ -164,25 +160,10 @@ function SettledRow({
             <span className="loot-share-nets">nothing owed</span>
           )}
         </span>
-
-        {/* The only act on this tab, and it is the act that put the row here, taken back off. A
-            settled row is corrected by reopening it, which returns the night to the Settlement
-            Ledger where every other correction already lives. */}
-        {row.settlementId !== null && (
-          <button
-            type="button"
-            className="link settled-reopen"
-            disabled={busy}
-            onClick={() => void onUndo(row.settlementId!)}
-            aria-label={`Reopen ${row.name} settled with ${row.holderName}`}
-          >
-            Reopen
-          </button>
-        )}
       </div>
 
-      {/* One act closed all of these, so Reopen above takes back all of them. The nights are here to
-          be read, not acted on one at a time. */}
+      {/* One act closed all of these. The nights are here to be read: nothing on this tab is acted
+          on, one at a time or otherwise. */}
       {line.folded && open && (
         <SettledNights
           records={line.records}
@@ -201,8 +182,6 @@ export function SettledView({
   orphans,
   bossByKey,
   partyById,
-  busy,
-  onUndo,
 }: {
   rows: SettledRecord[];
   totals: SettledTotals;
@@ -210,8 +189,6 @@ export function SettledView({
   orphans: number;
   bossByKey: Map<string, Boss>;
   partyById: Map<string, Party>;
-  busy: boolean;
-  onUndo: (settlementId: string) => Promise<void>;
 }) {
   if (rows.length === 0) {
     return <p className="party-hint">Nothing settled yet.</p>;
@@ -242,14 +219,7 @@ export function SettledView({
 
       <ul className="droplog-list">
         {consolidateSettled(rows).map((line) => (
-          <SettledRow
-            key={line.key}
-            line={line}
-            bossByKey={bossByKey}
-            partyById={partyById}
-            busy={busy}
-            onUndo={onUndo}
-          />
+          <SettledRow key={line.key} line={line} bossByKey={bossByKey} partyById={partyById} />
         ))}
       </ul>
 
