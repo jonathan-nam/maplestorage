@@ -5,7 +5,9 @@ import { holderKey, holderOf } from "@/lib/vestige-ledger";
 import {
   type StackDrop,
   assignedStacks,
+  draftUnanswered,
   openingCounts,
+  parseWholeStacks,
   pieceTallies,
   stacksToSave,
 } from "@/lib/vestige-pickup";
@@ -154,10 +156,70 @@ function PickupBoxes({
   );
 }
 
-/** A box's value as whole stacks, or null. Blank is none: somebody who did not bend down. */
-function parseWholeStacks(value: string): number | null {
-  const text = value.trim();
-  if (text === "") return 0;
-  if (!/^\d+$/.test(text)) return null;
-  return Number(text);
+/**
+ * The same boxes for a night that has NOT been logged yet, inside the form that is about to log it.
+ *
+ * Controlled, and with no Save of its own: there is no drop to save against, and the counts go out
+ * with the POST that creates one. State lives in the picker for that reason, so what is submitted
+ * and what is on screen are one value rather than two that have to be kept level.
+ *
+ * The arithmetic hint is the recorded boxes' own, word for word. It is the same rule (every stack
+ * has to be placed) and the server enforces it either way, so saying it differently here would be
+ * two wordings for one refusal.
+ */
+export function StackPickupDraft({
+  drop,
+  boxes,
+  busy,
+  onChange,
+}: {
+  drop: StackDrop;
+  boxes: Record<string, string>;
+  busy: boolean;
+  onChange: (boxes: Record<string, string>) => void;
+}) {
+  const parsed = Object.fromEntries(
+    drop.seats.map((s) => [s.id, parseWholeStacks(boxes[s.id] ?? "")]),
+  );
+  const readable = drop.seats.every((s) => parsed[s.id] !== null);
+  const whole = Object.fromEntries(drop.seats.map((s) => [s.id, parsed[s.id] ?? 0]));
+  const assigned = assignedStacks(whole);
+  const adds = readable && assigned === drop.bundles;
+  const tallies = adds ? pieceTallies(drop, whole) : null;
+  // Cleared boxes are how you decline to answer, so they are not a shortfall to complain about.
+  const unanswered = draftUnanswered(drop, boxes);
+
+  return (
+    <div className="config-vestige">
+      <div className="config-shares">
+        {drop.seats.map((seat) => {
+          const tally = tallies?.get(holderKey(holderOf(seat))) ?? null;
+          return (
+            <label className="config-share" key={seat.id}>
+              {seat.name}
+              <input
+                className="split-input"
+                value={boxes[seat.id] ?? ""}
+                onChange={(e) => onChange({ ...boxes, [seat.id]: e.target.value })}
+                placeholder="0"
+                inputMode="numeric"
+                aria-label={`Stacks ${seat.name} picked up`}
+                disabled={busy}
+              />
+              <span className="config-share-stacks">
+                {tally ? `${tally.took} took, ${tally.due} due` : ""}
+              </span>
+            </label>
+          );
+        })}
+      </div>
+
+      {readable && !adds && !unanswered && (
+        <span className="split-error">
+          {assigned} of {drop.bundles} stacks placed
+        </span>
+      )}
+      {!readable && <span className="split-error">whole stacks only</span>}
+    </div>
+  );
 }

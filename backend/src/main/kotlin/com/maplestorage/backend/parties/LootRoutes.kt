@@ -53,32 +53,39 @@ private suspend fun RoutingContext.addLootRoute() {
     val droppedOn = parseDroppedOn(request.droppedOn) ?: return
     val customName = request.customName?.trim()?.ifBlank { null }
 
+    // Caught OUTSIDE the transaction, which is what rolls the insert back with the refusal: an
+    // arrangement sent with a drop is part of the same act, so neither lands or both do.
     val outcome =
-        transaction {
-            ensureUser(userId, email)
-            val dropId = request.dropKey?.let { dropIdForKey(it) }
-            val bossId = request.bossKey?.let { bossIdForKey(it) }
-            when {
-                !ownsParty(partyId, userId) -> null
-                // Exactly one name. Both would leave two answers to "what is this?", neither
-                // would leave a blank row.
-                (request.dropKey == null) == (customName == null) ->
-                    "send exactly one of dropKey or customName"
-                request.dropKey != null && dropId == null -> "unknown dropKey"
-                request.bossKey != null && bossId == null -> "unknown bossKey"
-                quantityRefusal(request.quantity) != null -> quantityRefusal(request.quantity)
-                else -> {
-                    val lootId =
-                        addLoot(
-                            partyId,
-                            LootedDrop(dropId, customName, request.quantity),
-                            bossId,
-                            droppedOn,
-                            Clock.System.now(),
-                        )
-                    findLoot(lootId, partyId)!!
+        try {
+            transaction {
+                ensureUser(userId, email)
+                val dropId = request.dropKey?.let { dropIdForKey(it) }
+                val bossId = request.bossKey?.let { bossIdForKey(it) }
+                when {
+                    !ownsParty(partyId, userId) -> null
+                    // Exactly one name. Both would leave two answers to "what is this?", neither
+                    // would leave a blank row.
+                    (request.dropKey == null) == (customName == null) ->
+                        "send exactly one of dropKey or customName"
+                    request.dropKey != null && dropId == null -> "unknown dropKey"
+                    request.bossKey != null && bossId == null -> "unknown bossKey"
+                    quantityRefusal(request.quantity) != null -> quantityRefusal(request.quantity)
+                    else -> {
+                        val lootId =
+                            addLoot(
+                                partyId,
+                                LootedDrop(dropId, customName, request.quantity),
+                                bossId,
+                                droppedOn,
+                                Clock.System.now(),
+                            )
+                        addedBundles(lootId, partyId, request.bundles)
+                        findLoot(lootId, partyId)!!
+                    }
                 }
             }
+        } catch (refused: BundlesRefused) {
+            refused.reason
         }
     respondToLoot(outcome, HttpStatusCode.Created)
 }

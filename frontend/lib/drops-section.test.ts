@@ -25,9 +25,14 @@ describe("the week's coupons are drops, not configuration", () => {
   });
 
   it("states the deal under the drop it is read against, once", () => {
-    // Both blocks hang off the coupon row: what the night went like, then what each was entitled to.
+    // Both blocks are IN the coupon row: what the night went like, then what each was entitled to.
     // On the LAST row only, or a week that dropped twice states the same standing deal twice.
-    expect(list).toContain("{stacks && item.id === rows[rows.length - 1]?.id && (");
+    //
+    // And not while the Add Drop form is drawing an editable copy of it, which is the other way the
+    // same deal ends up on screen twice. See splitElsewhere.
+    expect(list).toContain(
+      "{stacks && !splitElsewhere && item.id === rows[rows.length - 1]?.id && (",
+    );
     expect(list).toContain(
       '<h4 className="loot-group-title is-config">{stacks.entitledTitle}</h4> <StackAssign',
     );
@@ -36,7 +41,7 @@ describe("the week's coupons are drops, not configuration", () => {
   it("keeps the deal on screen in a week nothing fell in, and frames it there", () => {
     // Off the catalog, so it can be agreed before the boss is ever run. There is no row to hang it
     // under then, so it takes the frame instead of floating between the picker and the roster.
-    expect(list).toContain("{stacks && coupons.length === 0 && (");
+    expect(list).toContain("{stacks && !splitElsewhere && coupons.length === 0 && (");
     expect(list).toContain(
       '<div className="loot-config-card"> <h3 className="loot-group-title is-config">' +
         "{stacks.entitledTitle}</h3> <StackAssign",

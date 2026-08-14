@@ -147,6 +147,9 @@ export function PartyCard({
 }) {
   const [open, setOpen] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
+  // What the Add Drop form has picked, so the split is drawn once: there while it is being typed
+  // into, in the pool the rest of the time. See LootList's splitElsewhere.
+  const [picked, setPicked] = useState("");
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<string[]>([]);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -382,6 +385,18 @@ export function PartyCard({
                 table={dropTable}
                 difficulty={party.difficulty}
                 busy={busy ?? false}
+                draft={
+                  stacks && {
+                    dropKey: stacks.dropKey,
+                    config: stacks.config,
+                    party,
+                    behind: stacks.pickup.behind,
+                    pickupTitle: stacks.pickup.title,
+                    entitledTitle: stacks.entitledTitle,
+                    onSaveShares: stacks.onSave,
+                  }
+                }
+                onPick={setPicked}
                 onAdd={async (body) => {
                   setAddError(null);
                   try {
@@ -415,6 +430,7 @@ export function PartyCard({
               bossByKey={pool.bossByKey}
               pieceStatus={pool.pieceStatus}
               stacks={stacks}
+              splitElsewhere={Boolean(stacks) && picked === stacks?.dropKey}
               // The stack is what the config under it is about, so removing it from here would take
               // the split and the week's pickup with it. The pool's own page still corrects one.
               couponRemovable={false}
