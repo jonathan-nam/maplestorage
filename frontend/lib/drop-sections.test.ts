@@ -15,15 +15,21 @@ describe("how many cards the Sale Ledger holds", () => {
 });
 
 describe("which sections the page has", () => {
-  it("offers all three, whatever is behind them", () => {
+  it("offers all four, whatever is behind them", () => {
     // They used to come and go with their contents, which took a tab out from under the reader as
     // they recorded the last thing on it and hid a ledger nobody had ever had anything on.
-    expect(keys()).toEqual(["drops", "sales", "settlement"]);
+    expect(keys()).toEqual(["drops", "sales", "settlement", "settled"]);
   });
 
-  it("offers the same three when the account is empty", () => {
+  it("offers the same four when the account is empty", () => {
     expect(saleCards(none)).toBe(0);
-    expect(keys()).toEqual(["drops", "sales", "settlement"]);
+    expect(keys()).toEqual(["drops", "sales", "settlement", "settled"]);
+  });
+
+  it("puts them in pipeline order, which is the order a drop moves through them", () => {
+    // The tabs ARE the stages, so reading them left to right is reading what happens to a drop.
+    // Settled last because nothing leaves it.
+    expect(keys().indexOf("settled")).toBe(keys().length - 1);
   });
 });
 
@@ -31,6 +37,7 @@ describe("which section to draw", () => {
   it("draws the chosen one", () => {
     expect(shownSection("sales", dropSections())).toBe("sales");
     expect(shownSection("settlement", dropSections())).toBe("settlement");
+    expect(shownSection("settled", dropSections())).toBe("settled");
   });
 
   // The guard is now against a key that is not a section at all, from a stale cached value rather
