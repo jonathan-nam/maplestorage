@@ -4962,6 +4962,14 @@ button.link:disabled {
   cursor: pointer;
 }
 
+/* Half a pill lit is a state nobody has: whether somebody is on is the name's answer, and the
+   chevron end is the same chip. Same three values as `.night-person.is-on`. */
+.night-chip-set.is-on {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, var(--surface));
+  color: var(--ink-strong);
+}
+
 .night-chip-set:hover:not(:disabled),
 .night-chip-set.is-open {
   border-color: var(--accent);
@@ -4970,8 +4978,13 @@ button.link:disabled {
 }
 
 .night-chip-set:disabled {
-  opacity: 0.45;
   cursor: default;
+}
+
+/* Only the arrow goes: fading the button faded its border and fill too, which took the lit half of
+   an on chip with it. */
+.night-chip-set:disabled > span {
+  opacity: 0.45;
 }
 
 /* A window the chip is carrying. Coloured, because the difference between a person who is on and a

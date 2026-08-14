@@ -604,7 +604,13 @@ export default function RunOrderPage() {
                   </button>
                   <button
                     type="button"
-                    className={opened === person.id ? "night-chip-set is-open" : "night-chip-set"}
+                    className={[
+                      "night-chip-set",
+                      on ? "is-on" : "",
+                      opened === person.id ? "is-open" : "",
+                    ]
+                      .filter(Boolean)
+                      .join(" ")}
                     aria-expanded={opened === person.id}
                     aria-label={`When ${person.name} is free`}
                     disabled={!timed}
