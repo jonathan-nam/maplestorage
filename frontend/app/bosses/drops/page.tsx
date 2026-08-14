@@ -726,7 +726,7 @@ export default function DropLogPage() {
                   asking what they just recorded. It focuses its own count box for the same reason. */}
                 {quiet.length > 0 &&
                   (sellingOwn ? (
-                    <PieceLedger ledgers={revealed} {...pileCard} focusEntry />
+                    <PieceLedger ledgers={revealed} {...pileCard} forEntry />
                   ) : (
                     <button
                       type="button"

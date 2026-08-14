@@ -18,13 +18,7 @@ import {
   roomFor,
 } from "@/lib/ledger-fates";
 import { transferKey } from "@/lib/piece-ledger";
-import {
-  type Holder,
-  type HolderLedger,
-  holderFromKey,
-  holderKey,
-  unaccounted,
-} from "@/lib/vestige-ledger";
+import { type Holder, type HolderLedger, holderFromKey, holderKey } from "@/lib/vestige-ledger";
 import type { Boss } from "@/types/boss";
 import type { Party } from "@/types/party";
 import type { VestigeTranche, VestigeTrancheShare } from "@/types/vestige";
@@ -71,7 +65,7 @@ export function PieceLedger({
   onAddKept,
   onAddBought,
   onRemoveSale,
-  focusEntry = false,
+  forEntry = false,
 }: {
   ledgers: HolderLedger[];
   /** Pieces of yours the other piles hold, netted into each pile's debt. See HolderCard. */
@@ -98,13 +92,15 @@ export function PieceLedger({
   ) => Promise<void>;
   onRemoveSale: (trancheId: string) => Promise<void>;
   /**
-   * Puts the cursor in the first card's count box.
+   * These cards were drawn by a click asking to record a sale, so they open with the box out and the
+   * cursor in the first one.
    *
-   * Set where a card is drawn by a click rather than by having something to answer: the cursor is
-   * what says the click produced this. Off everywhere else, since stealing focus on load moves the
-   * page under a reader who did not ask for it.
+   * Both halves of that, because they are one fact. A pile that owes nobody has no box until it is
+   * asked for (see the gate below), so focusing one without opening it focuses nothing, and opening
+   * one without the cursor leaves a click with no visible effect. Off everywhere else: stealing focus
+   * on load moves the page under a reader who did not ask for it.
    */
-  focusEntry?: boolean;
+  forEntry?: boolean;
 }) {
   if (ledgers.length === 0) return null;
   // Every card, settled ones included. These bosses drop vestiges on every clear, so a holder's card is
@@ -117,7 +113,8 @@ export function PieceLedger({
           key={holderKey(ledger.holder)}
           ledger={ledger}
           heldOfYours={heldOfYours}
-          focusEntry={focusEntry && i === 0}
+          forEntry={forEntry}
+          focusEntry={forEntry && i === 0}
           tranches={tranches.get(holderKey(ledger.holder)) ?? []}
           bossByKey={bossByKey}
           partyById={partyById}
@@ -145,6 +142,7 @@ function HolderCard({
   onAddKept,
   onAddBought,
   onRemoveSale,
+  forEntry,
   focusEntry,
 }: {
   ledger: HolderLedger;
@@ -174,12 +172,16 @@ function HolderCard({
     shares: VestigeTrancheShare[],
   ) => Promise<void>;
   onRemoveSale: (trancheId: string) => Promise<void>;
+  forEntry: boolean;
   focusEntry: boolean;
 }) {
   const [pieces, setPieces] = useState("");
   const [amount, setAmount] = useState("");
   const [fate, setFate] = useState<Fate>("SOLD");
   const [refusal, setRefusal] = useState<string | null>(null);
+  // Asked for on a pile that owes nobody. The card is still the only place its rows can be corrected,
+  // so it stays drawn either way, and this is only whether the boxes are out.
+  const [entering, setEntering] = useState(forEntry);
   const entryRef = useRef<HTMLInputElement>(null);
 
   // On mount only, which is the click that drew this card: focus is what ties the two together, and
@@ -195,7 +197,6 @@ function HolderCard({
   );
 
   const overEntered = Math.max(0, ledger.accounted - ledger.pieces);
-  const toEnter = unaccounted(ledger);
 
   const room = roomFor(ledger, fate);
   const outstanding = outstandingOf(ledger, heldOfYours);
@@ -204,8 +205,15 @@ function HolderCard({
   // per-creditor number can be backed: the names are said and the total stays the pile's own. Naming
   // them with numbers that add up to more than the total would be the plausible wrong number.
   const answered = settledOf(ledger, heldOfYours);
-  /** What the count box is usually waiting for: the debt where there is one, the room where there is not. */
-  const suggested = Math.min(outstanding > 0 ? outstanding : room, room);
+  /**
+   * What the count box is waiting for, which is the DEBT and never the pile.
+   *
+   * It fell back to the room when the debt was answered, and the room is the whole unaccounted pile:
+   * settling a 70-piece debt out of 1495 coupons left the box offering 1425. That is the same wrong
+   * question `outstanding` was put here to stop asking, arriving one sale later. Nothing outstanding
+   * means nothing to suggest, and the gate below means the box is not on screen to suggest it.
+   */
+  const suggested = Math.min(outstanding, room);
 
   /** Caps as it is typed, so a number over the room never reaches the button. */
   const clamp = (typed: string, cap: number) => {
@@ -331,8 +339,17 @@ function HolderCard({
 
         {/* ONE form, because all three are one tranche row: a count, which of the three things happened
             to it, and a price for the two that have one. Three separate boxes asked four questions at
-            once and permanently, when at any moment there is only ever this one. */}
-        {(toEnter > 0 || ledger.pieces === 0) && (
+            once and permanently, when at any moment there is only ever this one.
+
+            On screen while the pile owes somebody, and otherwise only when asked for. A pile that owes
+            nobody gets the same figures whatever it is told (see asksAnything), so its boxes are a
+            question with no consequence, standing over a card that is only still drawn so its rows can
+            be corrected.
+
+            Never gated on the COUNT, which is what it looks like from here and is not the same thing.
+            That would re-break what alsoHeldByYou exists for: a Sale Ledger that will not admit you
+            hold the coupons cannot take the sale. The way in is below, and it opens in place. */}
+        {outstanding > 0 || entering ? (
           <form
             className="ledger-sale"
             onSubmit={(e) => {
@@ -368,8 +385,9 @@ function HolderCard({
               onChange={(e) => setPieces(clamp(e.target.value, room))}
               // The number it is waiting for, so the ordinary case is one keystroke away rather than
               // something to work out from the counts. The debt, where there is one: a box offering
-              // 1495 asked about the pile when the question was about 40.
-              placeholder={String(suggested > 0 ? suggested : ledger.pieces)}
+              // 1495 asked about the pile when the question was about 40. Where there is none the box
+              // is open because somebody asked for it, and it names itself rather than guessing.
+              placeholder={suggested > 0 ? String(suggested) : "pieces"}
               inputMode="numeric"
               aria-label={`Pieces, at most ${room}`}
             />
@@ -408,6 +426,24 @@ function HolderCard({
               Add
             </button>
           </form>
+        ) : (
+          <span className="ledger-progress ledger-none">
+            No vestiges outstanding
+            {/* The coupons are still yours to sell, so the door stays on the card. In place, because a
+                control that made the boxes appear somewhere else would be the click with no visible
+                effect this one is here to avoid. */}
+            <button
+              type="button"
+              className="link"
+              onClick={() => {
+                setEntering(true);
+                // After the paint that draws it. Focused in the same tick the box does not exist yet.
+                requestAnimationFrame(() => entryRef.current?.focus());
+              }}
+            >
+              Record a sale
+            </button>
+          </span>
         )}
         {/* What the sale pays out, worked out rather than asked for. The one place a coupon debt gets
             a price, and it only can here: these pieces were in YOUR inventory, so the figure being
