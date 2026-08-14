@@ -43,6 +43,41 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * The write landed, and only the read-back after it failed.
+ *
+ * Its own type because the two cannot be reported the same way. Every write here refetches the list
+ * rather than patching it, so the pair reads as one action, and a rejected refetch was shown as
+ * "That didn't save." over a row that was already in the database. The picker then kept what was
+ * chosen "ready to try again", which is how one Hard Kaling night was logged twice at 60 coupons
+ * each: POST 201, both refetches 401 on a stale token, no new row on screen, so it was added again.
+ *
+ * What failed is the SCREEN. So a caller must say the write landed, and must not re-arm the control
+ * that would repeat it.
+ */
+export class StaleAfterWrite extends Error {
+  constructor(readonly reason: unknown) {
+    super("saved, but the list could not be read back");
+  }
+}
+
+/** What every screen says when a write landed and its read-back did not. One wording, one meaning. */
+export const SAVED_BUT_STALE = "Saved. Reload to see it.";
+
+/**
+ * Reads the list back after a write that has already landed, marking a failure as the screen's.
+ *
+ * Wrap the refetch, never the write: putting the write inside this would report a POST that never
+ * happened as saved, which is the same lie the other way round.
+ */
+export async function readBack(refetch: () => Promise<unknown>): Promise<void> {
+  try {
+    await refetch();
+  } catch (reason) {
+    throw new StaleAfterWrite(reason);
+  }
+}
+
 // Wraps the fetch + Authorization: Bearer pattern so it is not copy-pasted per
 // call site. Takes getToken
 // as a plain function argument (from useAuth()) rather than calling the
