@@ -24,14 +24,22 @@ import {
   spanBetween,
   stillToRun,
 } from "@/lib/boss-night";
-import { type Availability, planNight, screenRuns, tradeOffs } from "@/lib/boss-run-plan";
+import {
+  type Availability,
+  type EligibleRun,
+  planNight,
+  screenRuns,
+  tradeOffs,
+} from "@/lib/boss-run-plan";
 import { peek, put } from "@/lib/cache";
 import { runningThisPeriod } from "@/lib/parties";
 import { preloadRunArt } from "@/lib/preload-boss-art";
+import { controlsKey } from "@/lib/run-order-submit";
 import { useDropIcons } from "@/lib/drop-icons";
 import { useSeatSprites } from "@/lib/seat-sprites";
 import { useRowWrites } from "@/lib/use-row-writes";
 import { useShowTimes } from "@/lib/show-times";
+import { useWhoIsOn } from "@/lib/who-is-on";
 import type { Boss } from "@/types/boss";
 import type { DropTables } from "@/types/drop";
 import type { AddLootBody } from "@/types/loot";
@@ -48,6 +56,7 @@ const DRAFT_KEY = "sharpeyes.run-order.drafts";
 const PRESETS = [60, 90, 120, 180, 240];
 
 const NO_DRAFTS: DraftRun[] = [];
+const NO_RUNS: EligibleRun[] = [];
 
 type Source = "parties" | "byHand";
 type LoadState = "loading" | "loaded" | "error";
@@ -170,7 +179,10 @@ export default function RunOrderPage() {
   const [source, setSource] = useState<Source>("parties");
   const [duration, setDuration] = useState(120);
   const [openOnly, setOpenOnly] = useState(true);
-  const [away, setAway] = useState<string[]>([]);
+  // Who is off, kept across visits. The same handful of people are away most weeks, and unticking
+  // them again every visit is the sort of setup that gets skipped, which plans a night around
+  // somebody who is not there. See lib/who-is-on.ts.
+  const [away, setAway] = useWhoIsOn();
   const [chosen, setChosen] = useState<number | null>(null);
   const [edited, setEdited] = useState<DraftRun[] | null>(null);
 
@@ -205,7 +217,6 @@ export default function RunOrderPage() {
 
   function changeDrafts(next: DraftRun[]) {
     setEdited(next);
-    setChosen(null);
     try {
       window.localStorage.setItem(DRAFT_KEY, JSON.stringify(next));
     } catch {
@@ -306,67 +317,108 @@ export default function RunOrderPage() {
 
   const fromAccount = source === "parties";
 
-  // A CONTROL answers on the tick you click it. Everything a control describes is derived from
-  // `shown`, one deferred snapshot of all five of them, so the page it describes changes in a
-  // single commit.
-  //
-  // Deferring only the plan's inputs is what made the filter feel like it loaded in twice: the
-  // roster and the run count came from live state and landed immediately, while the headline, the
-  // plan tabs and the grid came from a deferred one and landed a render later.
-  // Two commits, so the top of the page moved and the rest followed it. It also meant that for the
-  // length of the gap the page disagreed with itself, and `unscheduled` below already carried a
-  // comment about the one place that had been noticed and patched.
-  //
-  // Snapshot the INPUTS rather than each derived value: derived values are computed at different
-  // depths of the chain, and deferring them one by one is what allowed them to disagree. Server
-  // data (parties, bosses) is deliberately not in here, so a load still paints the moment it lands.
-  const inputs = useMemo(
-    () => ({ source, budget, openOnly, away, drafts, startAt, windows, timed }),
-    [source, budget, openOnly, away, drafts, startAt, windows, timed],
-  );
-  const shown = useDeferredValue(inputs);
-  const stale = shown !== inputs;
-
-  // Memoised down the chain, and the chain is why. planNight is a beam search: run unmemoised it
-  // would re-order the whole night on every keystroke in the draft form.
-  const showingAccount = shown.source === "parties";
-
   // A boss taken off this period is out of the night whatever the toggle says. "Only bosses not
   // cleared" is a narrowing you can turn off to see the rest; "we are not running it" is not one of
   // those, and a plan that scheduled it anyway would be a night built around a boss Party View has
   // already dropped.
   const running = useMemo(() => runningThisPeriod(parties), [parties]);
 
+  // --- The controls, live --------------------------------------------------------------------
+  //
+  // A CONTROL answers on the tick you click it, so the chips and the sections around them are
+  // drawn from state as it is now. Only the plan waits to be asked for.
+  //
   // `answered` is what keeps a run you have just written to on screen instead of dropping it out
   // from under the plan. See stillToRun.
   const usable = useMemo(
+    () => (openOnly ? stillToRun(running, answered) : running),
+    [running, openOnly, answered],
+  );
+
+  const roster: NightPerson[] = useMemo(
+    () => (fromAccount ? rosterFrom(usable) : rosterFromDrafts(drafts)),
+    [fromAccount, usable, drafts],
+  );
+
+  const runs = useMemo(
+    () => (fromAccount ? runsFromParties(usable, bosses) : runsFromDrafts(drafts)),
+    [fromAccount, usable, bosses, drafts],
+  );
+
+  const openedPerson = roster.find((person) => person.id === opened) ?? null;
+
+  // --- The night that was asked for ----------------------------------------------------------
+  //
+  // The plan is built from the controls as they were when the button was pressed, not as they are.
+  // Half a night is a half-typed night: a time being entered, a person about to be ticked back on,
+  // an order the group is following that must not re-sort under them while somebody adjusts a box.
+  //
+  // Snapshot the INPUTS rather than each derived value: derived values are computed at different
+  // depths of the chain, and freezing them one by one is what would let them disagree. Server data
+  // (parties, bosses) is deliberately not in here, so a write during the night still lands.
+  const inputs = useMemo(
+    () => ({ source, budget, openOnly, away, drafts, startAt, windows, timed }),
+    [source, budget, openOnly, away, drafts, startAt, windows, timed],
+  );
+
+  // What the button compares against. See lib/run-order-submit.ts for why it is a key.
+  const key = useMemo(
+    () =>
+      controlsKey({ source, openOnly, timed, away, windows, drafts, startText, endText, duration }),
+    [source, openOnly, timed, away, windows, drafts, startText, endText, duration],
+  );
+
+  const [asked, setAsked] = useState<{ inputs: typeof inputs; key: string } | null>(null);
+  // Deferred so the press itself lands on the tick it is made. planNight is a beam search, and a
+  // night of a dozen bosses is long enough to be felt between the click and the button answering.
+  //
+  // Taking the plan AWAY is not deferred, though: a deferred null draws the old plan one more
+  // time, which is the parties plan flashing under the by-hand tab that just replaced it.
+  const deferredAsk = useDeferredValue(asked);
+  const shownAsk = asked === null ? null : deferredAsk;
+  const stale = shownAsk !== asked;
+  const shown = shownAsk?.inputs ?? inputs;
+  const planning = shownAsk !== null;
+  // The controls have moved since. Said by the button, which is the only thing that can act on it.
+  const outdated = asked !== null && asked.key !== key;
+
+  function showOrder() {
+    setAsked({ inputs, key });
+    setChosen(null);
+  }
+
+  const showingAccount = shown.source === "parties";
+
+  // The same two lists again, from the night that was asked for. Not shared with the live ones
+  // above: those describe the controls, and these are what the plan is, so a filter ticked after
+  // the plan was drawn must move one and not the other.
+  const plannedParties = useMemo(
     () => (shown.openOnly ? stillToRun(running, answered) : running),
     [running, shown.openOnly, answered],
   );
 
-  const roster: NightPerson[] = useMemo(
-    () => (showingAccount ? rosterFrom(usable) : rosterFromDrafts(shown.drafts)),
-    [showingAccount, usable, shown.drafts],
-  );
-
-  const runs = useMemo(
-    () => (showingAccount ? runsFromParties(usable, bosses) : runsFromDrafts(shown.drafts)),
-    [showingAccount, usable, bosses, shown.drafts],
+  const plannedRuns = useMemo(
+    () => (showingAccount ? runsFromParties(plannedParties, bosses) : runsFromDrafts(shown.drafts)),
+    [showingAccount, plannedParties, bosses, shown.drafts],
   );
 
   // Who is on, as people and as ids. The grid puts a column per person, so it needs the names and
   // the order, not just the set the screening asks for.
-  const onTonight = useMemo(
-    () => roster.filter((person) => !shown.away.includes(person.id)),
-    [roster, shown.away],
-  );
+  const onTonight = useMemo(() => {
+    const people = showingAccount ? rosterFrom(plannedParties) : rosterFromDrafts(shown.drafts);
+    return people.filter((person) => !shown.away.includes(person.id));
+  }, [showingAccount, plannedParties, shown.drafts, shown.away]);
   const here = useMemo(() => onTonight.map((person) => person.id), [onTonight]);
-
-  const openedPerson = roster.find((person) => person.id === opened) ?? null;
 
   // Only the eligible half is read. screenRuns still reports what it rejected, and the page no
   // longer shows it: a run nobody can staff now just does not appear.
-  const { eligible } = useMemo(() => screenRuns(runs, here), [runs, here]);
+  //
+  // Nothing until the night has been asked for, which is what keeps the search, the plan and
+  // "Left out" all empty rather than each needing its own gate.
+  const eligible = useMemo(
+    () => (planning ? screenRuns(plannedRuns, here).eligible : NO_RUNS),
+    [planning, plannedRuns, here],
+  );
 
   // Nothing on screen marks the wait. Fading the old plan through it was tried and removed: at the
   // ~64ms a normal account takes, the fade began and reversed before it finished, and a flicker
@@ -414,8 +466,10 @@ export default function RunOrderPage() {
   const assumed = plan.runs.filter((planned) => planned.run.assumed).length;
 
   // A run's id IS its config's id, which is what lets the plan be answered for at all. See
-  // runsFromParties.
-  const partyById = useMemo(() => new Map(usable.map((party) => [party.id, party])), [usable]);
+  // runsFromParties. Keyed off every config still on the period rather than the filtered set: a
+  // plan drawn before the filter moved holds runs that are no longer in it, and a run on screen
+  // that cannot find its config is a row you cannot tick.
+  const partyById = useMemo(() => new Map(running.map((party) => [party.id, party])), [running]);
   // A picker with no tables behind it lists nothing, and then explains the empty list as "no drop
   // table recorded for this boss", which is a claim about the catalog we are not in a position to
   // make from here. Same rule as Party View's.
@@ -455,7 +509,9 @@ export default function RunOrderPage() {
             aria-pressed={source === value}
             onClick={() => {
               setSource(value);
-              setChosen(null);
+              // Not just outdated: a plan built from your parties, sitting under the by-hand
+              // editor, is a run order for a night this tab is not showing.
+              setAsked(null);
             }}
           >
             {label}
@@ -493,10 +549,7 @@ export default function RunOrderPage() {
           <input
             type="checkbox"
             checked={openOnly}
-            onChange={(e) => {
-              setOpenOnly(e.target.checked);
-              setChosen(null);
-            }}
+            onChange={(e) => setOpenOnly(e.target.checked)}
           />
           <span>Only bosses not cleared this period</span>
         </label>
@@ -542,12 +595,9 @@ export default function RunOrderPage() {
                     type="button"
                     className={on ? "night-person is-on" : "night-person"}
                     aria-pressed={on}
-                    onClick={() => {
-                      setAway((current) =>
-                        on ? [...current, person.id] : current.filter((id) => id !== person.id),
-                      );
-                      setChosen(null);
-                    }}
+                    onClick={() =>
+                      setAway(on ? [...away, person.id] : away.filter((id) => id !== person.id))
+                    }
                   >
                     {person.name}
                     {pin && <span className={timed ? "night-pin" : "night-pin is-off"}>{pin}</span>}
@@ -589,7 +639,6 @@ export default function RunOrderPage() {
                       ...current,
                       [openedPerson.id]: { ...(current[openedPerson.id] ?? NO_WINDOW), from },
                     }));
-                    setChosen(null);
                   }}
                 />
               </label>
@@ -608,7 +657,6 @@ export default function RunOrderPage() {
                       ...current,
                       [openedPerson.id]: { ...(current[openedPerson.id] ?? NO_WINDOW), until },
                     }));
-                    setChosen(null);
                   }}
                 />
               </label>
@@ -623,14 +671,7 @@ export default function RunOrderPage() {
           chevron per chip vanishing moved the whole page under the cursor that ticked it. */}
       {runs.length > 0 && (
         <label className="night-toggle">
-          <input
-            type="checkbox"
-            checked={timed}
-            onChange={(e) => {
-              setTimed(e.target.checked);
-              setChosen(null);
-            }}
-          />
+          <input type="checkbox" checked={timed} onChange={(e) => setTimed(e.target.checked)} />
           <span>Show times</span>
         </label>
       )}
@@ -648,10 +689,7 @@ export default function RunOrderPage() {
                 disabled={!timed}
                 value={startText}
                 placeholder={now === null ? "" : formatOffsetShort(nextHalfHour(now))}
-                onChange={(e) => {
-                  setStartText(e.target.value);
-                  setChosen(null);
-                }}
+                onChange={(e) => setStartText(e.target.value)}
               />
             </label>
             <span className="basis-row">
@@ -665,7 +703,6 @@ export default function RunOrderPage() {
                   onClick={() => {
                     setDuration(preset);
                     setEndText(null);
-                    setChosen(null);
                   }}
                 >
                   {formatDuration(preset)}
@@ -682,10 +719,7 @@ export default function RunOrderPage() {
                 inputMode="decimal"
                 disabled={!timed}
                 value={endShown}
-                onChange={(e) => {
-                  setEndText(e.target.value);
-                  setChosen(null);
-                }}
+                onChange={(e) => setEndText(e.target.value)}
               />
             </label>
             {now !== null && (
@@ -695,6 +729,19 @@ export default function RunOrderPage() {
             )}
           </div>
         </section>
+      )}
+
+      {/* Nothing below this is drawn until it is asked for. The order is what the group is sent,
+          and one built while somebody is still ticking names is a night they are not running. */}
+      {runs.length > 0 && (
+        <button
+          type="button"
+          className="party-save night-go"
+          disabled={asked !== null && !outdated}
+          onClick={showOrder}
+        >
+          {outdated ? "Update run order" : "Show run order"}
+        </button>
       )}
 
       {plan.runs.length > 0 && (
@@ -755,7 +802,7 @@ export default function RunOrderPage() {
       {/* The second is a claim about the clock, so it is not made where there is not one. Nothing
           untimed reaches it anyway: with nothing bounding the night, a run that can be staffed
           fits. */}
-      {runs.length > 0 && plan.runs.length === 0 && (
+      {planning && plannedRuns.length > 0 && plan.runs.length === 0 && (
         <p className="finder-empty">
           {eligible.length === 0 || !shown.timed
             ? "No run can go ahead with the people who are on."
