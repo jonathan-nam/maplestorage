@@ -157,6 +157,9 @@ export function holderOf(seat: PartyMember): Holder {
 /** You, as a holder key. The one seat on any drop whose side of a debt is your own. */
 export const SELF_KEY = "self";
 
+/** You, as a holder. Written when an act is your own pile's decision, which closing a pair is. */
+export const SELF_HOLDER: Holder = { kind: "SELF", personId: null, characterName: null };
+
 /** How a holder is matched, on either side of the wire. One pile, one key, however it is spelled. */
 export function holderKey(holder: Holder): string {
   if (holder.kind === "PERSON") return `person:${holder.personId}`;
