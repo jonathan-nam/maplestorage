@@ -5630,6 +5630,29 @@ button.ledger-drop-sale:hover:not(:disabled) {
   margin-left: auto;
 }
 
+/* The day, and the discard beside the figure. Never shrunk either: a date is four characters and is
+   unreadable clipped, so the name stays the only part of the row that gives. */
+.ledger-drop-head.is-oneline .ledger-when,
+.ledger-drop-head.is-oneline button.ledger-drop-sale {
+  flex: none;
+}
+
+/* Against the name rather than out on its own, so a row reads as one thing dated. `.loot-meta` gives
+   it the register: it qualifies what the row is, and never competes with the figure. */
+.ledger-drop-head.is-oneline .ledger-when {
+  margin-left: -4px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Below this the line runs out. Measured: two folds in, at 390px, a 15-digit figure and the date
+   leave the name at nothing and still spill 6px past the card, so the row wraps instead. One line is
+   worth having where there is width for it, and never worth the figure sliding off the end. */
+@media (max-width: 560px) {
+  .ledger-drop-head.is-oneline {
+    flex-wrap: wrap;
+  }
+}
+
 /* Small, because these sit two folds in. The 46px frame is normalised for a card header, where the
    art is the subject; here it is a label on a line of text. */
 .ledger-drop-head.is-oneline .loot-icon {

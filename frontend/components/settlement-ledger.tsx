@@ -51,6 +51,7 @@ export function SettlementLedger({
   bossByKey,
   partyById,
   offsetShares,
+  iconUrl,
   busy,
   payments,
   onAddPayment,
@@ -72,6 +73,8 @@ export function SettlementLedger({
   partyById: Map<string, Party>;
   /** The shares an offset discharged, resolved, keyed by shareKey(). See V58. */
   offsetShares: Map<string, OffsetShare>;
+  /** The coupon's own sprite, for the acts whose every piece is one. See DischargeRow. */
+  iconUrl: string | null;
   busy: boolean;
   /** What each person has paid, keyed by holderKey(), so a mistyped one can be taken back. */
   payments: Map<string, VestigePayment[]>;
@@ -122,6 +125,7 @@ export function SettlementLedger({
           bossByKey={bossByKey}
           partyById={partyById}
           offsetShares={offsetShares}
+          iconUrl={iconUrl}
           busy={busy}
           payments={payments.get(row.key) ?? []}
           onAddPayment={onAddPayment}
@@ -148,6 +152,7 @@ function SettlementCard({
   bossByKey,
   partyById,
   offsetShares,
+  iconUrl,
   busy,
   payments,
   onAddPayment,
@@ -169,6 +174,8 @@ function SettlementCard({
   partyById: Map<string, Party>;
   /** The shares an offset discharged, resolved, keyed by shareKey(). See V58. */
   offsetShares: Map<string, OffsetShare>;
+  /** The coupon's own sprite, for the acts whose every piece is one. See DischargeRow. */
+  iconUrl: string | null;
   busy: boolean;
   /** This person's payments, so a mistyped one can be taken back. */
   payments: VestigePayment[];
@@ -720,6 +727,7 @@ function SettlementCard({
                       act={act}
                       name={row.name}
                       shares={nightsBehind(act.payouts)}
+                      iconUrl={iconUrl}
                       busy={busy}
                       signed={signed}
                       onRemove={() =>
@@ -932,6 +940,9 @@ function Covered({ pieces }: { pieces: number }) {
   return <span className="ledger-progress">{`${pieces} sold, priced above`}</span>;
 }
 
+/** The day part of a timestamp, this list being a history of days rather than of minutes. */
+const dayOf = (at: string) => formatDropped(at.slice(0, 10));
+
 /**
  * One act that came off, read the way every other drop row on this account is read.
  *
@@ -940,13 +951,15 @@ function Covered({ pieces }: { pieces: number }) {
  * saying nothing but "offset against Bro". Where there is one share, its drop IS the row.
  *
  * Several shares keep the fold, because then the act really is a group and no single night names it.
- * A coupon sale has no night at all: a tranche names a person, never a boss, so it says what it was
- * and when, and there is nothing to open.
+ * A coupon sale has no night, a tranche naming a person and never a boss, so it opens onto the sales
+ * instead: what was sold, for what, and when. It reached the card as the bare word "coupon sale"
+ * beside 2.41b, and nothing anywhere said that was 130 coupons over two nights.
  */
 function DischargeRow({
   act,
   name,
   shares,
+  iconUrl,
   busy,
   signed,
   onRemove,
@@ -954,20 +967,30 @@ function DischargeRow({
   act: Discharge;
   name: string;
   shares: OffsetShare[];
+  /** The coupon's own sprite, for the rows whose every piece is one. See CouponSale. */
+  iconUrl: string | null;
   busy: boolean;
   signed: (mesos: number) => string;
   onRemove: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const one = shares.length === 1 ? shares[0]! : null;
+  const oneSale = act.sales.length === 1 ? act.sales[0]! : null;
+  // What the act was made of, where it is made of coupons. The count the row was missing.
+  const pieces = act.sales.reduce((sum, sale) => sum + sale.pieces, 0);
+  // Anything the row cannot hold on one line. A single night or a single sale IS the row, so only a
+  // group of either opens.
+  const folds = shares.length > 1 || act.sales.length > 1;
+  // The drop's own art where there is one drop, and the coupon's where the act is coupons: every
+  // piece of a sale is one, so there is no other sprite it could be.
+  const art = one?.iconUrl ?? (pieces > 0 ? iconUrl : null);
 
   /**
-   * Which night it was, on hover rather than on the row.
+   * What the row cannot hold, on hover rather than on it.
    *
-   * The row carries the figure, the art and what fell, and those three are what it is scanned for.
-   * The boss, who was there, the day and what the lot made are four more things: on the line they
-   * wrapped it onto two and then three, and a history you cannot scan is a history nobody reads.
-   * A title, which is what this card already does with the nights behind the shares figure.
+   * The row carries the figure, the art, what fell and the day, and those are what it is scanned for.
+   * The boss, who was there and what the lot made are three more things: on the line they wrapped it
+   * onto two and then three, and a history you cannot scan is a history nobody reads.
    */
   const behind = (
     one
@@ -979,10 +1002,19 @@ function DischargeRow({
           // trust. Absent on a drop that never sold, which owes nobody anything.
           one.sale !== null && `sold for ${formatMesos(one.sale, true)}`,
         ]
-      : [
-          shares.length > 1 && `${shares.length} nights`,
-          act.at && formatDropped(act.at.slice(0, 10)),
-        ]
+      : oneSale
+        ? [
+            // The lot behind the share, which is the same check the drop rows offer. Where the whole
+            // lot was theirs the two figures are one, so quoting both would say it twice.
+            oneSale.pieces === oneSale.lot.pieces
+              ? "the whole lot"
+              : `${oneSale.pieces} of a ${oneSale.lot.pieces} coupon lot`,
+            `sold for ${formatMesos(oneSale.lot.amount, true)}`,
+          ]
+        : [
+            shares.length > 1 && `${shares.length} nights`,
+            act.sales.length > 1 && `${act.sales.length} sales`,
+          ]
   )
     .filter(Boolean)
     .join(" · ");
@@ -991,9 +1023,9 @@ function DischargeRow({
   return (
     <li className="ledger-drop">
       {/* ONE LINE. The row is a history entry and a history is scanned, so what it must hold is the
-          figure, the art and what fell. Everything else is the title above. */}
+          figure, the art, what fell and the day it came off. Everything else is the title above. */}
       <div className="ledger-drop-head is-oneline" title={behind || undefined}>
-        {shares.length > 1 ? (
+        {folds ? (
           <button
             type="button"
             className="party-row-toggle"
@@ -1002,8 +1034,12 @@ function DischargeRow({
             onClick={() => setOpen((o) => !o)}
           >
             <span className="party-row-chevron" aria-hidden="true" />
+            {/* Named, because a screen reader gets no chevron and no count off the row: whichever
+                list is behind this one is what opening it reads out. */}
             <span className="visually-hidden">
-              {open ? `Hide the ${shares.length} nights` : `Show the ${shares.length} nights`}
+              {`${open ? "Hide" : "Show"} the ${
+                shares.length > 1 ? `${shares.length} nights` : `${act.sales.length} sales`
+              }`}
             </span>
           </button>
         ) : (
@@ -1011,8 +1047,8 @@ function DischargeRow({
           <span className="party-row-toggle is-empty" aria-hidden="true" />
         )}
 
-        {one?.iconUrl ? (
-          <img className="loot-icon" src={apiAssetUrl(one.iconUrl)} alt="" />
+        {art ? (
+          <img className="loot-icon" src={apiAssetUrl(art)} alt="" />
         ) : (
           <span className="loot-icon" aria-hidden="true" />
         )}
@@ -1022,8 +1058,16 @@ function DischargeRow({
             {one.item}
           </Link>
         ) : (
-          <span className="loot-name has-detail">{one ? one.item : act.label}</span>
+          <span className="loot-name has-detail">
+            {one ? one.item : pieces > 0 ? `${pieces} coupons sold` : act.label}
+          </span>
         )}
+
+        {/* The day the act was recorded, on every row and meaning the same thing on every row. It is
+            what tells two offsets against one person apart, and it was in the title where nothing
+            said there was a title. NOT the day the drop fell, which is a different fact and stays
+            on hover: one column cannot mean two things down one list. */}
+        <span className="loot-meta ledger-when">{dayOf(act.at)}</span>
 
         <span className="ledger-amount">{signed(-act.amount)}</span>
         <button
@@ -1037,7 +1081,7 @@ function DischargeRow({
         </button>
       </div>
 
-      {open && shares.length > 1 && (
+      {open && folds && (
         <ul className="loot-shares" id={panelId}>
           {shares.map((share) => (
             <li key={share.key}>
@@ -1046,6 +1090,25 @@ function DischargeRow({
                 {[share.boss, share.on && formatDropped(share.on)].filter(Boolean).join(" · ")}
               </span>
               <span className="ledger-amount">{signed(-share.share)}</span>
+            </li>
+          ))}
+          {/* Keyed by position: a tranche's id is not carried this far, and it has nothing to say
+              here that its pieces and its day do not. */}
+          {act.sales.map((sale, i) => (
+            <li key={`sale-${i}`}>
+              <span className="loot-share-name">{`${sale.pieces} coupons`}</span>
+              <span className="loot-share-nets">
+                {[
+                  sale.soldAt && dayOf(sale.soldAt),
+                  // Only where the sale was not all theirs. Their share of a mixed lot is a figure
+                  // nobody can check without the lot it was divided out of.
+                  sale.pieces !== sale.lot.pieces &&
+                    `of ${sale.lot.pieces} for ${formatMesos(sale.lot.amount, true)}`,
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
+              </span>
+              <span className="ledger-amount">{signed(-sale.mesos)}</span>
             </li>
           ))}
         </ul>

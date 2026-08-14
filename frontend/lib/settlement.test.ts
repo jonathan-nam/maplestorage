@@ -12,7 +12,7 @@ import {
   yourPiles,
 } from "./settlement";
 import { answeredKey, receivedSinceClosing, saleCredits } from "./vestige-ledger";
-import type { Holder, HolderLedger } from "./vestige-ledger";
+import type { CouponSale, Holder, HolderLedger } from "./vestige-ledger";
 import type { Counterparty, Wallet, WalletLine } from "./wallet";
 import type { ProceedsDisposal, SettlementDebt } from "@/types/vestige";
 
@@ -543,7 +543,13 @@ describe("the money a sale of somebody else's coupons puts on the card", () => {
         shares: [{ holder: BRO, pieces: 80 }],
       },
     ]);
-    expect(credits.get("person:p-bro")).toEqual({ toThem: 2_000 * M, toYou: 0 });
+    expect(credits.get("person:p-bro")).toEqual({
+      toThem: 2_000 * M,
+      toYou: 0,
+      sales: [
+        { pieces: 80, mesos: 2_000 * M, lot: { pieces: 80, amount: 2_000 * M }, soldAt: null },
+      ],
+    });
   });
 
   it("divides a purchase that took only part of the pile, pro rata", () => {
@@ -558,7 +564,13 @@ describe("the money a sale of somebody else's coupons puts on the card", () => {
         shares: [{ holder: BRO, pieces: 40 }],
       },
     ]);
-    expect(credits.get("person:p-bro")).toEqual({ toThem: 1_000 * M, toYou: 0 });
+    expect(credits.get("person:p-bro")).toEqual({
+      toThem: 1_000 * M,
+      toYou: 0,
+      sales: [
+        { pieces: 40, mesos: 1_000 * M, lot: { pieces: 80, amount: 2_000 * M }, soldAt: null },
+      ],
+    });
   });
 
   it("leaves a sale between two other people alone, since settling it is not yours", () => {
@@ -687,7 +699,11 @@ describe("the money a sale of somebody else's coupons puts on the card", () => {
     const credits = saleCredits([
       { holder: SELF, pieces: 3, amount: 1_000, shares: [{ holder: BRO, pieces: 1 }] },
     ]);
-    expect(credits.get("person:p-bro")).toEqual({ toThem: 333, toYou: 0 });
+    expect(credits.get("person:p-bro")).toEqual({
+      toThem: 333,
+      toYou: 0,
+      sales: [{ pieces: 1, mesos: 333, lot: { pieces: 3, amount: 1_000 }, soldAt: null }],
+    });
   });
 });
 
@@ -928,7 +944,7 @@ describe("what builds the debt, and what has come off it", () => {
       [],
       wallet([]),
       entries,
-      new Map([["person:p-bro", { toThem: 5_000 * M, toYou: 0 }]]),
+      new Map([["person:p-bro", { toThem: 5_000 * M, toYou: 0, sales: [] }]]),
       new Map(),
       new Map([["person:p-bro", "Bro"]]),
       new Set(),
@@ -1009,6 +1025,79 @@ describe("what builds the debt, and what has come off it", () => {
   });
 });
 
+describe("the coupon sales behind a decision", () => {
+  /** One tranche that was all theirs, which is the ordinary night. */
+  const sale = (pieces: number, mesos: number, soldAt: string): CouponSale => ({
+    pieces,
+    mesos,
+    lot: { pieces, amount: mesos },
+    soldAt,
+  });
+
+  const decided = (
+    id: string,
+    amount: number,
+    kind: "OFFSET" | "PAID" = "OFFSET",
+  ): ProceedsDisposal => ({ id, holder: BRO, amount, kind, decidedAt: `2026-08-${id}` });
+
+  /** Bro's card: sales of his coupons out of your pile, and what has been decided about the money. */
+  const card = (sales: CouponSale[], disposals: ProceedsDisposal[]) =>
+    buildSettlement(
+      [],
+      wallet([]),
+      [],
+      new Map([
+        ["person:p-bro", { toThem: sales.reduce((sum, s) => sum + s.mesos, 0), toYou: 0, sales }],
+      ]),
+      new Map(),
+      new Map([["person:p-bro", "Bro"]]),
+      new Set(),
+      new Map(),
+      disposals,
+    )[0]!;
+
+  it("names them, so 2.41b off Bro's debt says it was 130 coupons", () => {
+    // Jonathan's own card. One Offset, taken on the whole undecided pile, made of two nights' sales:
+    // the row said "coupon sale" and the count was on no screen at all.
+    const rows = moneyRows(
+      card(
+        [sale(70, 1_298_888_850, "2026-08-14"), sale(60, 1_113_333_300, "2026-08-14")],
+        [decided("15", 2_412_222_150)],
+      ),
+    );
+    expect(rows.discharges[0]!.sales.map((s) => s.pieces)).toEqual([70, 60]);
+  });
+
+  it("says nothing about the parts of a decision the sales cannot account for", () => {
+    // Part of a sale cannot say which coupons it was, and "70 coupons" beside 400m of a 1.3b sale is
+    // a wrong number wearing an itemisation. The figure stands and the row makes no claim.
+    const rows = moneyRows(card([sale(70, 1_000 * M, "2026-08-14")], [decided("15", 400 * M)]));
+    expect([rows.discharges[0]!.amount, rows.discharges[0]!.sales]).toEqual([400 * M, []]);
+  });
+
+  it("does not hand a later decision the sales a payment out has already spent", () => {
+    // A payment out gets no row of its own, having taken nothing off what they owe you, but it did
+    // spend money you were holding. Shown the offsets alone this would name the first sale twice.
+    const rows = moneyRows(
+      card(
+        [sale(70, 1_000 * M, "2026-08-14"), sale(120, 2_000 * M, "2026-08-15")],
+        [decided("15", 1_000 * M, "PAID"), decided("16", 2_000 * M)],
+      ),
+    );
+    expect(rows.discharges.map((d) => d.sales.map((s) => s.pieces))).toEqual([[120]]);
+  });
+
+  it("stops at the decision the alignment goes, rather than guessing past it", () => {
+    const rows = moneyRows(
+      card(
+        [sale(70, 1_000 * M, "2026-08-14"), sale(120, 2_000 * M, "2026-08-15")],
+        [decided("15", 400 * M), decided("16", 2_600 * M)],
+      ),
+    );
+    expect(rows.discharges.map((d) => d.sales.length)).toEqual([0, 0]);
+  });
+});
+
 describe("them keeping coupons of yours, at a price", () => {
   const tranche = (id: string, holder: Holder, shares?: { holder: Holder }[]) => ({
     id,
@@ -1040,7 +1129,7 @@ describe("them keeping coupons of yours, at a price", () => {
       [ledger(BRO, "Bro", { owedToYou: 20, drops: [owing("l1", "baldrix", 20)] })],
       wallet([]),
       [],
-      new Map([["person:p-bro", { toThem: 0, toYou: 400 * M }]]),
+      new Map([["person:p-bro", { toThem: 0, toYou: 400 * M, sales: [] }]]),
       new Map(),
       new Map(),
       new Set(),
@@ -1237,7 +1326,7 @@ describe("pieces a sale has already answered for", () => {
       [ledger(SELF, "you", { drops: [holdingOf("l1", "kaling", 20)] })],
       wallet([]),
       [],
-      new Map([["person:p-bro", { toThem: 500 * M, toYou: 0 }]]),
+      new Map([["person:p-bro", { toThem: 500 * M, toYou: 0, sales: [] }]]),
       new Map(),
       new Map(),
       new Set(),
