@@ -631,12 +631,14 @@ function SettlementCard({
             <>
               <span className="ledger-step">{`${row.name} is holding`}</span>
               <PieceNights drops={row.drops} bossByKey={bossByKey} partyById={partyById} />
+              <Covered pieces={row.piecesAnswered.yours} />
             </>
           )}
           {row.owedDrops.length > 0 && (
             <>
               <span className="ledger-step">I am holding</span>
               <PieceNights drops={row.owedDrops} bossByKey={bossByKey} partyById={partyById} />
+              <Covered pieces={row.piecesAnswered.theirs} />
             </>
           )}
 
@@ -667,6 +669,22 @@ function SettlementCard({
       {refusal && <span className="split-error">{refusal}</span>}
     </section>
   );
+}
+
+/**
+ * How many of the nights above are already paid for, where any are.
+ *
+ * The list is GROSS and has to be: a tranche names a person and never a boss, so there is no night to
+ * take the sold pieces off and no honest way to shorten it. Without this line a card with 150 listed
+ * and 20 outstanding showed the 150 and said nothing, which is the same debt read twice: once as
+ * coupons here and once as mesos in the money above.
+ *
+ * The subtraction, not the conclusion. What is left is the header's, and saying it here as well would
+ * be the third place one figure lives.
+ */
+function Covered({ pieces }: { pieces: number }) {
+  if (pieces <= 0) return null;
+  return <span className="ledger-progress">{`${pieces} sold, priced above`}</span>;
 }
 
 /**

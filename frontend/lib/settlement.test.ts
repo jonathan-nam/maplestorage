@@ -979,6 +979,28 @@ describe("pieces a sale has already answered for", () => {
     expect(row!.drops.map((d) => d.pieces)).toEqual([20]);
   });
 
+  it("leaves the listed nights adding up, once the answered count is taken off them", () => {
+    // The invariant the card draws: a gross list, the pieces it has been paid for, and the count
+    // that is left. Without the middle figure the list showed 150 against an outstanding 20 and
+    // said nothing about the gap, which is one debt read twice, in two units, on one card.
+    const { ledgers, answered } = theNight();
+    const [row] = cardFor(ledgers, answered);
+    const listed = row!.owedDrops.reduce((sum, d) => sum + d.pieces, 0);
+    expect(listed).toBe(150);
+    expect(listed - row!.piecesAnswered.theirs).toBe(row!.piecesYouOwe);
+  });
+
+  it("squares to nothing once every coupon has been sold or netted", () => {
+    // Two sales of 70 and 60 against 150 owed, and Bro holding the last 20. Nothing changes hands in
+    // coupons, and the 130 is on the card in mesos instead.
+    const { ledgers } = theNight();
+    const [row] = cardFor(ledgers, new Map([[answeredKey("self", "person:p-bro"), 130]]));
+    expect([row!.piecesYouOwe, row!.pieces, row!.piecesNet]).toEqual([20, 20, 0]);
+    expect(row!.piecesAnswered.theirs).toBe(130);
+    // Still a card, and still six nights to close: the coupons are square, the books are not.
+    expect(settleThePair(row!).bosses).toBe(6);
+  });
+
   it("caps at what is owed, so a mistyped tranche cannot answer for more", () => {
     // The money is on the card as well, the way it always is: pieces are only ever answered by a
     // tranche that named a price. Without it this card would not be drawn at all, and rightly, the
