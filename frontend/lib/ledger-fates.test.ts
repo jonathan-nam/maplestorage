@@ -433,13 +433,14 @@ describe("the nights the card's queue lists", () => {
     expect(clean).toBe(2);
   });
 
-  it("counts a closed night as settled, not as one that split clean", () => {
-    // They are different facts. A closed night's books were shut with a debt on them; a clean one
-    // never had one. Folding them into one count would say the debt never existed.
-    const { owing, clean, closed } = queueOf(
+  it("leaves a closed night to the Settled View, without counting it as one that split clean", () => {
+    // They are different facts, and a closed night's is now told in full one tab along: which act
+    // closed it, who with, and what it wrote off. Counting it here as well would be two places to
+    // disagree; counting it as CLEAN would say the debt never existed.
+    const { owing, clean } = queueOf(
       pileOf([night("l1", { to: "Bro", closed: true }), night("l2")]),
     );
-    expect([owing.length, clean, closed]).toEqual([0, 1, 1]);
+    expect([owing.length, clean]).toEqual([0, 1]);
   });
 
   it("has nothing to list for a pile that owes nobody at all", () => {
@@ -538,16 +539,17 @@ describe("the nights the card's queue lists", () => {
     expect([owing.length, answered]).toEqual([0, 1]);
   });
 
-  it("still counts a closed night separately from an answered one", () => {
+  it("counts an answered night without counting the closed one beside it", () => {
     // Different facts: a closed night's books were shut by somebody deciding, an answered one's debt
-    // was paid in money. Folding them together would lose which happened.
+    // was paid in money. The closed one is the Settled View's, so only the answered one is counted
+    // here, and neither is listed.
     const pile = {
       ...pileOf([night("l1", { to: "Bro", closed: true }), night("l2", { to: "Bro" })]),
       answered: 60,
       answeredByCreditor: new Map([["person:p-bro", 60]]),
     };
-    const { closed, answered, owing } = queueOf(pile);
-    expect([owing.length, closed, answered]).toEqual([0, 1, 1]);
+    const { answered, owing } = queueOf(pile);
+    expect([owing.length, answered]).toEqual([0, 1]);
   });
 });
 
@@ -593,6 +595,15 @@ describe("which of your own piles the ledger draws", () => {
     expect(worthDrawing([done], () => true).drawn).toHaveLength(1);
     // And without them there would be nothing on it to correct.
     expect(worthDrawing([done], none).quiet).toHaveLength(1);
+  });
+
+  it("holds back a pile whose every night is closed, rows or no rows", () => {
+    // It is finished, so it is the Settled View's, and a worklist that keeps drawing finished work is
+    // not a worklist. Held back rather than dropped: a mistyped tranche re-prices what a settlement
+    // was agreed on, and this card is still the only place one can be taken off.
+    const done = { ...yourPile(), closed: true };
+    expect(worthDrawing([done], () => true).quiet).toHaveLength(1);
+    expect(worthDrawing([done], () => true).drawn).toHaveLength(0);
   });
 
   it("keeps a miscounted pile on screen even though it owes nothing", () => {
