@@ -5500,6 +5500,15 @@ button.link:disabled {
   font-variant-numeric: tabular-nums;
 }
 
+/* What stands where the boxes were, on one line with the way back to them. The sentence exists to
+   account for their absence, so the control that ends it belongs in the same line rather than under
+   it, where it would read as a second thing to do. */
+.ledger-none {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+}
+
 /* The disposition picker carries the vocabulary the three separate boxes used to, so it needs room for
    an option like "they took mine, at a price". Same treatment as the looter select on a party config. */
 .ledger-sale select.split-input {

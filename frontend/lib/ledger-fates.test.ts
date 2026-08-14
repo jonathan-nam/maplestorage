@@ -532,10 +532,30 @@ describe("the picker the card draws", () => {
     expect(source).toMatch(/overEntered > 0 && \(\s*<span className="ledger-progress">/);
   });
 
-  it("leaves the form ungated, so a sale is offered where it is no longer demanded", () => {
-    // Hiding the form with the count would re-break what alsoHeldByYou exists for: a Sale Ledger
-    // that will not admit you hold the coupons cannot take the sale.
-    expect(source).toMatch(/\{\(toEnter > 0 \|\| ledger\.pieces === 0\) && \(\s*<form/);
+  it("gates the form on the debt, so a pile that owes nobody is not asked to type", () => {
+    expect(source).toMatch(/\{outstanding > 0 \|\| entering \? \(\s*<form/);
+  });
+
+  it("never gates it on the count, which is the pile and not the question", () => {
+    // The near miss. `unaccounted` is the whole pile less what has been entered, so gating on it
+    // hides the form on a pile that owes nobody AND on one that has simply been fully accounted
+    // for, and re-breaks what alsoHeldByYou exists for: a Sale Ledger that will not admit you hold
+    // the coupons cannot take the sale.
+    expect(source).not.toContain("unaccounted(");
+  });
+
+  it("says the boxes are gone and opens them again in place", () => {
+    // Both halves. The sentence without the control is a pile of coupons you can no longer sell
+    // through the app, and the control somewhere else is a click whose effect is off screen.
+    expect(source).toContain("No vestiges outstanding");
+    expect(source).toMatch(/setEntering\(true\)/);
+  });
+
+  it("suggests the debt and never the pile, in either direction", () => {
+    // A fallback to the room is a fallback to the whole unaccounted pile: settling 70 of 1495 left
+    // the box offering 1425, which is the wrong question `outstanding` was put here to stop asking.
+    expect(source).toContain("const suggested = Math.min(outstanding, room);");
+    expect(source).not.toContain("outstanding > 0 ? outstanding : room");
   });
 
   it("words the purchase for the pile it is drawn on, since the directions are opposite claims", () => {
@@ -570,8 +590,12 @@ describe("the way back to a pile the ledger held back", () => {
     expect(slot).toMatch(/<PieceLedger ledgers=\{revealed\}[\s\S]*?Record a sale/);
   });
 
-  it("puts the cursor in the revealed card, since a click with no visible effect is the bug", () => {
-    expect(page).toMatch(/ledgers=\{revealed\}[^/]*focusEntry/);
+  it("opens the revealed card's box and puts the cursor in it, since a click with no visible effect is the bug", () => {
+    // One prop for both, because a revealed pile owes nobody by definition: its form is behind the
+    // gate, so focusing it without opening it focuses nothing at all.
+    expect(page).toMatch(/ledgers=\{revealed\}[^/]*forEntry/);
+    expect(source).toMatch(/useState\(forEntry\)/);
+    expect(source).toMatch(/if \(focusEntry\) entryRef\.current\?\.focus\(\)/);
   });
 
   it("gates the heading on what will draw, not on there being ledgers at all", () => {
