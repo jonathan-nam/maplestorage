@@ -4,6 +4,7 @@ import {
   settlementTotals,
   isEmpty,
   keptOfYours,
+  moneyRows,
   offsetOf,
   owedByYouShares,
   settleThePair,
@@ -911,6 +912,100 @@ describe("which piles the Sale Ledger draws", () => {
   it("keeps only yours out of a mixed list", () => {
     const all = [ledger(SELF, "you"), ledger(BRO, "Bro"), ledger(STRANGER, "Zaddy")];
     expect(yourPiles(all).map((l) => l.holderName)).toEqual(["you"]);
+  });
+});
+
+describe("what builds the debt, and what has come off it", () => {
+  const entry = (
+    id: string,
+    amount: number,
+    note: string | null,
+    payouts: { lootId: string; memberId: string }[] = [],
+  ): SettlementDebt => ({ id, holder: BRO, amount, note, payouts, incurredAt: `2026-08-${id}` });
+
+  const card = (entries: SettlementDebt[], disposals: ProceedsDisposal[] = []) =>
+    buildSettlement(
+      [],
+      wallet([]),
+      entries,
+      new Map([["person:p-bro", { toThem: 5_000 * M, toYou: 0 }]]),
+      new Map(),
+      new Map([["person:p-bro", "Bro"]]),
+      new Set(),
+      new Map(),
+      disposals,
+    )[0]!;
+
+  it("keeps a typed debt in the owed list and takes the offsets out", () => {
+    // The card Jonathan was reading: one line saying what Bro owed, buried under two saying what had
+    // come off, all four looking like the same kind of thing.
+    const rows = moneyRows(
+      card([
+        entry("12", 254_512 * M, "oath + secondary"),
+        entry("13", -139 * M, "offset against Bro", [{ lootId: "l1", memberId: "m1" }]),
+        entry("14", -1_180 * M, "offset against Bro", [{ lootId: "l2", memberId: "m2" }]),
+      ]),
+    );
+    expect(rows.typed.map((e) => e.note)).toEqual(["oath + secondary"]);
+    expect(rows.discharges.map((d) => d.source)).toEqual(["DEBT", "DEBT"]);
+    expect(rows.discharged).toBe(1_319 * M);
+  });
+
+  it("counts a credit typed by hand as a discharge, whatever it names", () => {
+    // V57 made the entry signed, so a negative can arrive with no share behind it. Left in the owed
+    // list it would read as a debt of minus a billion.
+    const rows = moneyRows(card([entry("12", -900 * M, "sent him too much")]));
+    expect([rows.typed.length, rows.discharged]).toEqual([0, 900 * M]);
+  });
+
+  it("folds a coupon-sale offset in with the rest, one place for one kind of fact", () => {
+    const rows = moneyRows(
+      card(
+        [entry("12", 5_000 * M, "oath")],
+        [
+          {
+            id: "x1",
+            holder: BRO,
+            amount: 2_412 * M,
+            kind: "OFFSET",
+            decidedAt: "2026-08-15",
+          },
+        ],
+      ),
+    );
+    expect(rows.discharges.map((d) => [d.source, d.amount])).toEqual([["PROCEEDS", 2_412 * M]]);
+  });
+
+  it("leaves a payment OUT to them off the list, it having taken nothing off", () => {
+    // Sending them their own money discharged what you were holding, not what they owe you. Counting
+    // it here would say their debt had fallen by money that never touched it.
+    const rows = moneyRows(
+      card(
+        [entry("12", 5_000 * M, "oath")],
+        [{ id: "x1", holder: BRO, amount: 2_412 * M, kind: "PAID", decidedAt: "2026-08-15" }],
+      ),
+    );
+    expect([rows.discharges, rows.discharged]).toEqual([[], 0]);
+  });
+
+  it("loses nothing, so the two lists always account for every entry", () => {
+    const entries = [
+      entry("12", 5_000 * M, "oath"),
+      entry("13", -139 * M, null, [{ lootId: "l1", memberId: "m1" }]),
+      entry("14", 200 * M, "a loan"),
+    ];
+    const rows = moneyRows(card(entries));
+    expect(rows.typed.length + rows.discharges.length).toBe(entries.length);
+  });
+
+  it("puts the newest act first, a history being read from the top", () => {
+    const rows = moneyRows(
+      card(
+        [entry("12", -100 * M, "older", [{ lootId: "l1", memberId: "m1" }])],
+        [{ id: "x1", holder: BRO, amount: 200 * M, kind: "OFFSET", decidedAt: "2026-08-20" }],
+      ),
+    );
+    expect(rows.discharges.map((d) => d.label)).toEqual(["coupon sale", "older"]);
   });
 });
 

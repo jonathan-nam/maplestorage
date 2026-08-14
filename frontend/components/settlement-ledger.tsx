@@ -8,6 +8,7 @@ import {
   type HeldOfYours,
   type Settlement,
   type OffsetShare,
+  moneyRows,
   offsetOf,
   owedByYouShares,
   settleThePair,
@@ -209,6 +210,8 @@ function SettlementCard({
   const [got, setGot] = useState("");
   const [owed, setOwed] = useState("");
   const [kept, setKept] = useState("");
+  // Whether the history of what has come off is open. Folded by default: it is the half that grows.
+  const [showOff, setShowOff] = useState(false);
   const [note, setNote] = useState("");
   const [refusal, setRefusal] = useState<string | null>(null);
 
@@ -312,6 +315,12 @@ function SettlementCard({
    * alone said the money had moved, which took it out of the netting and put what they owe you back
    * UP, and that is the opposite of what happened. See V57.
    */
+  // What builds the debt, and what has already come off it. Two questions, so two lists: see
+  // moneyRows for why one list could not hold both.
+  const { typed, discharges, discharged } = moneyRows(row);
+  // Money you SENT them, which took nothing off what they owe you and so is not in `discharges`.
+  const paidOut = row.disposals.filter((d) => d.kind === "PAID");
+
   // The nights one handover finishes, both sides. Offered whenever either side has one: a debt that
   // runs only one way is still a pair, with nothing on the other end.
   const pair = settleThePair(row);
@@ -439,7 +448,7 @@ function SettlementCard({
       <div className="ledger-entry">
         <span className="ledger-step">owed</span>
         {/* Nothing priced yet means no list at all, rather than the word "OWED" over a gap. */}
-        {(parts.length > 0 || row.entries.length > 0) && (
+        {(parts.length > 0 || typed.length > 0) && (
           <ul className="ledger-queue">
             {parts.map((part) => (
               <li key={part.key} className="ledger-drop">
@@ -460,7 +469,7 @@ function SettlementCard({
                 </div>
               </li>
             ))}
-            {row.entries.map((entry) => (
+            {typed.map((entry) => (
               <EnteredRow
                 key={entry.id}
                 entry={entry}
@@ -674,13 +683,88 @@ function SettlementCard({
         </div>
       )}
 
+      {/* What has already come off, folded to one line.
+
+          Its own step because it is a different question from the one above: `owed` is a standing
+          fact, this is a history of acts. Mixed into one list an offset read as a debt, told apart
+          only by a chevron, and every press of Offset added a line that never left again.
+
+          FOLDED, because this is the half that grows without bound. Three acts against one person
+          were three near-identical rows burying the one that said what he owed. The count and the
+          total are on the line, so nothing is hidden by folding it: what is inside is which act and
+          when, and that is what a reader opens it for. */}
+      {discharges.length > 0 && (
+        <div className="ledger-entry">
+          <span className="ledger-step">already off</span>
+          <ul className="ledger-queue">
+            <li className="ledger-drop">
+              <div className="ledger-drop-head">
+                <button
+                  type="button"
+                  className="party-row-toggle"
+                  aria-expanded={showOff}
+                  aria-controls={`off-${row.key}`}
+                  onClick={() => setShowOff((o) => !o)}
+                >
+                  <span className="party-row-chevron" aria-hidden="true" />
+                  <span className="visually-hidden">
+                    {showOff ? "Hide what has come off" : "Show what has come off"}
+                  </span>
+                </button>
+                <span className="loot-name">
+                  {`${discharges.length} ${discharges.length === 1 ? "offset" : "offsets"}`}
+                </span>
+                <span className="ledger-amount">{signed(-discharged)}</span>
+              </div>
+
+              {showOff && (
+                <ul className="loot-shares" id={`off-${row.key}`}>
+                  {discharges.map((act) =>
+                    // A debt entry keeps its own row, which folds again to the shares it discharged:
+                    // that list is the only place they are named, an offset having marked them paid.
+                    act.source === "DEBT" ? (
+                      <EnteredRow
+                        key={act.id}
+                        entry={row.entries.find((e) => e.id === act.id)!}
+                        name={row.name}
+                        shares={sharesBehind(row.entries.find((e) => e.id === act.id)!)}
+                        busy={busy}
+                        signed={signed}
+                        onRemove={() => void write(onRemoveDebt(act.id), null)}
+                      />
+                    ) : (
+                      <li key={act.id} className="ledger-drop">
+                        <div className="ledger-drop-head">
+                          <span className="party-row-toggle is-empty" aria-hidden="true" />
+                          <span className="loot-name">{act.label}</span>
+                          <span className="ledger-amount">{signed(-act.amount)}</span>
+                          <button
+                            type="button"
+                            className="link ledger-drop-sale"
+                            disabled={busy}
+                            onClick={() => void write(onRemoveDisposal(act.id), null)}
+                            aria-label={`Undo ${formatMesos(act.amount, true)} off what ${row.name} owes you`}
+                          >
+                            ×
+                          </button>
+                        </div>
+                      </li>
+                    ),
+                  )}
+                </ul>
+              )}
+            </li>
+          </ul>
+        </div>
+      )}
+
       {/* Their money, sitting in your hands, with nothing decided about it yet.
 
           Two things can happen to it and they end in different places, so the card asks rather than
           choosing: OFFSET takes it off what they owe you, PAID means you sent it and their debt never
           moved. Until one is recorded it is outside the net entirely, which is why this block is not
           under `owed` with the parts. See V61. */}
-      {(row.holding > 0 || row.disposals.length > 0) && (
+      {(row.holding > 0 || paidOut.length > 0) && (
         <div className="ledger-entry">
           <span className="ledger-step">{`${row.name}'s money I'm holding`}</span>
           {row.holding > 0 && (
@@ -713,19 +797,23 @@ function SettlementCard({
               </span>
             </>
           )}
-          {/* Every decision removable, and only here: nothing else on any screen records one, so a
-              wrong one would move two figures with no way back. */}
-          {row.disposals.length > 0 && (
+          {/* Only what was SENT to them. A decision to offset took something off what they owe you,
+              so it is said under `already off` with everything else that did: one place for one kind
+              of fact. Paying them out took nothing off, which is exactly why it stays here, beside
+              the money it came out of.
+
+              Removable, and only here: nothing else on any screen records one. */}
+          {paidOut.length > 0 && (
             <span className="ledger-tranches">
-              {row.disposals.map((disposal) => (
+              {paidOut.map((disposal) => (
                 <span key={disposal.id} className="ledger-tranche">
-                  {`${formatMesos(disposal.amount, true)} ${disposal.kind === "OFFSET" ? "offset" : "paid out"}`}
+                  {`${formatMesos(disposal.amount, true)} paid out`}
                   <button
                     type="button"
                     className="link ledger-drop-sale"
                     disabled={busy}
                     onClick={() => void write(onRemoveDisposal(disposal.id), null)}
-                    aria-label={`Undo ${formatMesos(disposal.amount, true)} ${disposal.kind === "OFFSET" ? "offset" : "paid out"}`}
+                    aria-label={`Undo ${formatMesos(disposal.amount, true)} paid out to ${row.name}`}
                   >
                     ×
                   </button>
