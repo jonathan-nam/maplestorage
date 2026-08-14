@@ -5056,6 +5056,13 @@ button.link:disabled {
   cursor: pointer;
 }
 
+/* What asks for the run order. Between the controls and the plan, because it is the line between
+   them: everything above is what you are asking, everything below is the answer. */
+.night-go {
+  display: block;
+  margin-top: 22px;
+}
+
 /* Off, not gone. Show times unticked leaves every time control at exactly the size it had, so
    ticking the box only resizes the plan. Opacity rather than colours: it dims a heading, a label,
    an input and a row of tabs in one rule, and none of them can drift out of step with it. */
