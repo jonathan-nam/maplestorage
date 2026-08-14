@@ -3477,6 +3477,13 @@ button.link:disabled {
   font-weight: 400;
 }
 
+/* Both stack blocks now sit INSIDE the coupon row's frame, so the row's own gap spaces them and the
+   heading's margin would double it. Specificity beats .party-row-panel .loot-group-title, which is
+   about the same headings when they were siblings of the row rather than in it. */
+.loot-row .loot-group-title.is-config {
+  margin: 0;
+}
+
 /* The standing split when NOTHING fell, which is the only time it needs a frame of its own: there is
    no drop to hang it under, and loose in the panel it read as a third thing between the picker and the
    roster. A week that dropped carries it under the coupon row instead, where StackAssign's own

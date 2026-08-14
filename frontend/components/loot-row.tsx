@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { CopyAmount } from "@/components/copy-amount";
 import { apiAssetUrl } from "@/lib/api";
 import { formatMesos, parseMesos } from "@/lib/drop-split";
@@ -29,6 +29,7 @@ export function LootRow({
   onSetTaken,
   onSetPaid,
   onDelete,
+  children,
 }: {
   loot: Loot;
   party: Party;
@@ -74,6 +75,12 @@ export function LootRow({
   onSetTaken: (memberId: string | null) => void;
   onSetPaid: (memberId: string, paid: boolean) => void;
   onDelete: () => void;
+  /**
+   * More about THIS drop, inside its own frame: the coupon row's pickup and the split it is read
+   * against. Both used to follow the row as siblings, so a stack of coupons was a card with two
+   * unframed blocks under it and the eye had nothing saying they belonged to it.
+   */
+  children?: ReactNode;
 }) {
   const [price, setPrice] = useState("");
   const [amountBasis, setAmountBasis] = useState("LISTED");
@@ -428,6 +435,9 @@ export function LootRow({
           </div>
         </>
       )}
+
+      {/* Last, under everything the row says about itself. */}
+      {children}
     </article>
   );
 }
