@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { Fragment } from "react";
 
 import { LootRow } from "@/components/loot-row";
 import { StackAssign } from "@/components/stack-assign";
@@ -16,6 +15,8 @@ import type { Party } from "@/types/party";
 
 /** How this party splits the coupons, and the write that changes it. */
 export type StackAssignment = {
+  /** The stacking drop this is all about, so a caller can tell when its own form is drawing it. */
+  dropKey: string;
   /** What the boss drops and who is splitting it. Off the catalog, not off a logged drop. */
   config: ShareConfig;
   /**
@@ -59,6 +60,7 @@ export function LootList({
   bossByKey,
   pieceStatus,
   stacks,
+  splitElsewhere,
   couponRemovable,
   editing,
   busy,
@@ -80,6 +82,14 @@ export function LootList({
    * Absent on the party's own page and on a past week, where the rows are read rather than answered.
    */
   stacks?: StackAssignment;
+  /**
+   * The standing split is being drawn somewhere else on this screen, so it is not drawn here.
+   *
+   * True while the Add Drop form has the stacking drop picked and is showing an editable copy. Two
+   * of them, each with a Save, is two answers to one question, and the one being typed into is the
+   * one to keep. The night's PICKUP is unaffected: that is about a row that already exists.
+   */
+  splitElsewhere?: boolean;
   /** Whether a coupon row offers Remove. See LootRow's couponRemovable. */
   couponRemovable?: boolean;
   /**
@@ -141,6 +151,7 @@ export function LootList({
         pieces
         couponRemovable={couponRemovable}
         stacks={stacks}
+        splitElsewhere={splitElsewhere}
         editing={editing}
         busy={busy}
         isSaving={isSaving}
@@ -153,7 +164,7 @@ export function LootList({
       {/* The standing deal, when there is no drop for it to hang under. What the boss gives is a
           fact about the boss, so the split can be agreed in a week nobody has run it yet, and a
           week that HAS one carries this under the row instead: see LootGroup. */}
-      {stacks && coupons.length === 0 && (
+      {stacks && !splitElsewhere && coupons.length === 0 && (
         <div className="loot-config-card">
           <h3 className="loot-group-title is-config">{stacks.entitledTitle}</h3>
           <StackAssign
@@ -181,6 +192,7 @@ function LootGroup({
   bossByKey,
   statusOf,
   stacks,
+  splitElsewhere,
   couponRemovable,
   editing,
   busy,
@@ -201,6 +213,8 @@ function LootGroup({
   statusOf?: PieceStatus;
   /** Who picked up which stacks, drawn under the row it is about. */
   stacks?: StackAssignment;
+  /** The split is being drawn by the Add Drop form instead. See LootList. */
+  splitElsewhere?: boolean;
   /** Whether a coupon row offers Remove. See LootRow's couponRemovable. */
   couponRemovable?: boolean;
   /** Whether those boxes take typing. See LootList. */
@@ -234,25 +248,25 @@ function LootGroup({
           // The night this row is, when it can still be said who took what.
           const night = stacks?.pickup.drops.find((d) => d.lootId === item.id);
           return (
-            <Fragment key={item.id}>
-              <LootRow
-                loot={item}
-                party={party}
-                boss={item.bossKey ? (bossByKey.get(item.bossKey) ?? null) : null}
-                status={statusOf?.get(item.id)?.status ?? null}
-                yours={statusOf?.get(item.id)?.yours ?? null}
-                pieces={pieces}
-                couponRemovable={couponRemovable}
-                busy={isSaving(item.id)}
-                onSell={(body) => onSell(item.id, body)}
-                onUnsell={() => onUnsell(item.id)}
-                onSetTaken={(memberId) => onSetTaken(item.id, memberId)}
-                onSetPaid={(memberId, paid) => onSetPaid(item.id, memberId, paid)}
-                onDelete={() => onDelete(item.id)}
-              />
+            <LootRow
+              key={item.id}
+              loot={item}
+              party={party}
+              boss={item.bossKey ? (bossByKey.get(item.bossKey) ?? null) : null}
+              status={statusOf?.get(item.id)?.status ?? null}
+              yours={statusOf?.get(item.id)?.yours ?? null}
+              pieces={pieces}
+              couponRemovable={couponRemovable}
+              busy={isSaving(item.id)}
+              onSell={(body) => onSell(item.id, body)}
+              onUnsell={() => onUnsell(item.id)}
+              onSetTaken={(memberId) => onSetTaken(item.id, memberId)}
+              onSetPaid={(memberId, paid) => onSetPaid(item.id, memberId, paid)}
+              onDelete={() => onDelete(item.id)}
+            >
               {night && stacks && (
                 <>
-                  {/* Named, because it is a different fact from the row above it and from the deal
+                  {/* Named, because it is a different fact from the row it is in and from the deal
                       below: this is what the night actually went like. */}
                   <h4 className="loot-group-title is-config">{stacks.pickup.title}</h4>
                   <div className="config-vestige">
@@ -267,13 +281,14 @@ function LootGroup({
                   </div>
                 </>
               )}
-              {/* The deal this night is read against, under the night it is read against. Both
-                  blocks hang off the drop they are about, which is what a listing of one coupon
-                  stack is: what fell, who picked it up, and what each was entitled to.
+              {/* The deal this night is read against, INSIDE the drop it is about, which is what a
+                  listing of one coupon stack is: what fell, who picked it up, and what each was
+                  entitled to. Both blocks used to follow the row as siblings, so the row's frame
+                  closed above them and they read as two loose things in the panel.
 
                   On the LAST row only. The split is the PARTY's, so a week that dropped twice would
-                  otherwise state the same deal under each of them. */}
-              {stacks && item.id === rows[rows.length - 1]?.id && (
+                  otherwise state the same deal in each of them. */}
+              {stacks && !splitElsewhere && item.id === rows[rows.length - 1]?.id && (
                 <>
                   <h4 className="loot-group-title is-config">{stacks.entitledTitle}</h4>
                   <StackAssign
@@ -284,7 +299,7 @@ function LootGroup({
                   />
                 </>
               )}
-            </Fragment>
+            </LootRow>
           );
         })}
       </div>

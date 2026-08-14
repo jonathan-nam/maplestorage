@@ -105,6 +105,12 @@ data class AddLootRequest(
     val quantity: Int = 1,
     // ISO date. Defaults to today on the server, which is the day you are almost always logging.
     val droppedOn: String? = null,
+    // Who picked up which stacks, when the form that logged it already knows. Absent is the ordinary
+    // case: a drop nobody has answered for yet, exactly as PUT /{lootId}/bundles leaves it.
+    //
+    // Carried with the drop rather than PUT after it so the pair cannot half-land. Refusing it rolls
+    // the drop back too, because one act was asked for and one answer is owed. See addedBundles.
+    val bundles: Map<String, Int>? = null,
 )
 
 /**

@@ -85,6 +85,14 @@ export type AddLootBody = {
   // How many fell. Omitted is 1, which is every drop that is one item.
   quantity?: number;
   droppedOn?: string | null;
+  /**
+   * Who picked up which stacks, by seat id, when the form logging it already knows.
+   *
+   * Sent WITH the drop rather than PUT after it, so the pair cannot half-land: the server writes
+   * both in one transaction and a refusal rolls the drop back too. Omitted is the ordinary case, a
+   * drop nobody has answered for yet.
+   */
+  bundles?: Record<string, number>;
 };
 
 // POST /api/parties/loot. A drop named by character and boss, for the Drop Log: the pool is the

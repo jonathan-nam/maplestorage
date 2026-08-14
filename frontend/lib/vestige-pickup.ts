@@ -17,6 +17,7 @@
 // What is written is party_loot_bundle (V41). Every figure anybody is owed follows from it on read.
 
 import { foldSeats, holderKey, holderOf, ranSeats, suggestArrangement } from "./vestige-ledger";
+import type { ShareConfig } from "./vestige-stacks";
 import type { Loot } from "@/types/loot";
 import type { Party, PartyMember } from "@/types/party";
 
@@ -173,4 +174,75 @@ export function pieceTallies(drop: StackDrop, counts: Record<string, number>): M
     });
   }
   return tallies;
+}
+
+/** A box's value as whole stacks, or null when it is not one. Blank is none: nobody bent down. */
+export function parseWholeStacks(value: string): number | null {
+  const text = value.trim();
+  if (text === "") return 0;
+  if (!/^\d+$/.test(text)) return null;
+  return Number(text);
+}
+
+/**
+ * The night ABOUT to be logged, as a drop the pickup boxes can open on.
+ *
+ * Not from the pool, because there is no row yet, which is the whole point of it. The stack COUNT is
+ * the catalog's for this boss and mode and does not move with the quantity typed, which is how the
+ * server derives it too, so a night entered at half the usual haul still falls in the same stacks.
+ *
+ * Null on the two grounds assignableDrops leaves a night out for: one stack cannot be shared, and a
+ * night folding to a single holder has nothing to hand over.
+ */
+export function draftDrop(config: ShareConfig, quantity: number): StackDrop | null {
+  if (config.bundles < 2 || quantity < 1) return null;
+  if (foldSeats(config.seats).length < 2) return null;
+  return {
+    lootId: "",
+    quantity,
+    bundles: config.bundles,
+    size: quantity / config.bundles,
+    seats: config.seats,
+    recorded: false,
+    counts: {},
+  };
+}
+
+/** Nothing has been said about this night, which is a drop logged exactly as it always was. */
+export function draftUnanswered(drop: StackDrop, boxes: Record<string, string>): boolean {
+  return drop.seats.every((seat) => (boxes[seat.id] ?? "").trim() === "");
+}
+
+/**
+ * What a draft's boxes come to, as the server takes it, or null while they do not add up.
+ *
+ * Empty for boxes nobody has filled in, which sends no arrangement at all and leaves the drop
+ * unanswered. That escape hatch is the point: the boxes open on a SUGGESTION, and a suggestion
+ * nobody can decline would be the stored guess this file refuses to write. Clearing them is how you
+ * say "I do not know yet", exactly as adding a drop has always left it.
+ *
+ * Null is what keeps a half-filled arrangement from being sent. The server refuses one that does not
+ * account for every stack, and a refusal there now takes the DROP down with it, so the form asks
+ * this before submitting rather than finding out afterwards.
+ */
+export function draftStacks(
+  drop: StackDrop,
+  boxes: Record<string, string>,
+): Record<string, number> | null {
+  if (draftUnanswered(drop, boxes)) return {};
+  const parsed = drop.seats.map((seat) => parseWholeStacks(boxes[seat.id] ?? ""));
+  if (parsed.some((value) => value === null)) return null;
+  const whole = Object.fromEntries(drop.seats.map((seat, i) => [seat.id, parsed[i] ?? 0]));
+  return assignedStacks(whole) === drop.bundles ? stacksToSave(whole) : null;
+}
+
+/** The boxes a draft opens on: the same suggestion the recorded boxes open on. See openingCounts. */
+export function draftBoxes(
+  drop: StackDrop,
+  party: Party,
+  behind: Map<string, number>,
+): Record<string, string> {
+  return Object.fromEntries(
+    Object.entries(openingCounts(drop, party, behind)).map(([id, n]) => [id, String(n)]),
+  );
 }

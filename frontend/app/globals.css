@@ -3477,6 +3477,29 @@ button.link:disabled {
   font-weight: 400;
 }
 
+/* Both stack blocks now sit INSIDE the coupon row's frame, so the row's own gap spaces them and the
+   heading's margin would double it. Specificity beats .party-row-panel .loot-group-title, which is
+   about the same headings when they were siblings of the row rather than in it. */
+.loot-row .loot-group-title.is-config {
+  margin: 0;
+}
+
+/* The same two blocks in the Add Drop form, for a night with no row yet. Hung off the form the way
+   .config-vestige is hung off a row: it is part of what is being filled in, not a third thing under
+   it. No frame of its own, because the form it belongs to is not framed either. */
+.loot-draft {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  /* A row of its own in the form's wrap, so the picker keeps its line and Add drop keeps the next
+     one. Without it the blocks would sit in the flex row beside the count box. */
+  flex-basis: 100%;
+}
+
+.loot-draft .loot-group-title.is-config {
+  margin: 0;
+}
+
 /* The standing split when NOTHING fell, which is the only time it needs a frame of its own: there is
    no drop to hang it under, and loose in the panel it read as a third thing between the picker and the
    roster. A week that dropped carries it under the coupon row instead, where StackAssign's own

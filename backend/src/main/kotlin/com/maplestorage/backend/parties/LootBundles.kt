@@ -33,6 +33,39 @@ internal fun bundlesFor(lootIds: List<Uuid>): Map<Uuid, List<LootBundleResponse>
         }
 
 /**
+ * A refusal raised once the drop is already inserted. Thrown so the insert rolls back with it.
+ *
+ * Returning the string instead would leave the drop stored and the caller told the add failed, which
+ * is the landed-but-reported-failed shape that logged one Hard Kaling night twice. One act was
+ * asked for, so one answer is owed: either the night is recorded whole, or not at all.
+ */
+internal class BundlesRefused(
+    val reason: String,
+) : RuntimeException(reason)
+
+/**
+ * Records the arrangement sent with a drop that has just been added, or refuses the whole add.
+ *
+ * Validated against the row as STORED rather than against the request: `ranThatWeek` and the stack
+ * count are derived server side, and checking the caller's idea of them would be checking the answer
+ * against itself.
+ *
+ * Absent is the ordinary case and writes nothing, leaving the drop unanswered exactly as a drop
+ * added without an arrangement is.
+ */
+internal fun addedBundles(
+    lootId: Uuid,
+    partyId: Uuid,
+    bundles: Map<String, Int>?,
+) {
+    if (bundles.isNullOrEmpty()) return
+    if (bundles.keys.any { Uuid.parseOrNull(it) == null }) throw BundlesRefused("malformed memberId")
+    val loot = findLoot(lootId, partyId)!!
+    bundlesRefusal(bundles, loot.ranThatWeek, loot.bundles)?.let { throw BundlesRefused(it) }
+    setLootBundles(lootId, bundles.mapKeys { Uuid.parse(it.key) })
+}
+
+/**
  * Records who picked up which stacks of a drop.
  *
  * No default is written here or anywhere else. The best guess is whoever is furthest behind, which

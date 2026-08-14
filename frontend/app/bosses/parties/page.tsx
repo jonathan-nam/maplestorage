@@ -564,6 +564,9 @@ export default function PartiesPage() {
       // only heading now: it used to sit under "Vestige of Erion Config", which headed the week's
       // coupons as well and read as though a drop that had fallen were a setting.
       entitledTitle: "Entitled each week",
+      // What the Add Drop form matches its picked drop against, so it can offer the same two blocks
+      // before the row exists and the panel can stand down while it does.
+      dropKey: VESTIGE,
       config,
       onSave: (shares: Map<string, number>) => saveShares(party, shares),
       // What actually got picked up, per night. Off the rows the panel is already showing, so the

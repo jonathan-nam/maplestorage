@@ -2,10 +2,35 @@
 
 import { useState, type ReactNode } from "react";
 import { DropSelect } from "@/components/drop-select";
+import { StackAssign } from "@/components/stack-assign";
+import { StackPickupDraft } from "@/components/stack-pickup";
 import { OTHER, addDropBody, defaultQuantity, pickableDrops } from "@/lib/drop-picker";
+import { draftBoxes, draftDrop, draftStacks } from "@/lib/vestige-pickup";
+import type { ShareConfig } from "@/lib/vestige-stacks";
 import type { WorldType } from "@/lib/world";
 import type { BossDrop } from "@/types/drop";
 import type { AddLootBody } from "@/types/loot";
+import type { Party } from "@/types/party";
+
+/**
+ * The stacking drop's own two blocks, answerable in the form that is about to log it.
+ *
+ * Only this form gets them. The Drop Log's picker resolves its pool on the server, so there is no
+ * party in hand to split anything by, and the party's own page reads its rows rather than answering
+ * for them.
+ */
+export type StackDraft = {
+  /** The drop the blocks are about. They appear only when it is the one picked. */
+  dropKey: string;
+  config: ShareConfig;
+  party: Party;
+  /** Each holder's position across what is already recorded, so the odd stack rotates. */
+  behind: Map<string, number>;
+  pickupTitle: string;
+  entitledTitle: string;
+  /** The standing split's own write, which is the party's and lands on its own button. */
+  onSaveShares: (shares: Map<string, number>) => Promise<void>;
+};
 
 // Log a drop. Carried by the party's loot pool, by a row on Party View and by the Drop Log's own
 // form, the same component in all three so no two can offer different drops for the same boss.
@@ -26,6 +51,8 @@ export function DropPicker({
   busy,
   lead,
   difficulty,
+  draft,
+  onPick,
   onAdd,
 }: {
   /** Which boss this drop is for. Empty until a caller that asks has an answer. */
@@ -43,6 +70,21 @@ export function DropPicker({
   /** Controls the caller needs answered first, inside this form so there is one submit. */
   lead?: ReactNode;
   /**
+   * The stacking drop's blocks, answerable here. Absent on every picker that has no party to split by.
+   *
+   * The pickup goes out WITH the drop, in one request, because it is keyed to a row that does not
+   * exist until this form creates one. The split is the party's own standing deal and keeps its own
+   * Save, since it outlives the night being logged.
+   */
+  draft?: StackDraft;
+  /**
+   * What is picked, for a caller that draws something of its own about it.
+   *
+   * Party View's panel needs it to stop drawing the standing split while this form is drawing an
+   * editable copy: two of them, each with a Save, is two answers to one question.
+   */
+  onPick?: (dropKey: string) => void;
+  /**
    * Rejecting keeps what was picked on screen, so a failed save can be retried without choosing
    * again. Callers that report the failure themselves reject; the loot pool handles its own and
    * does not.
@@ -52,9 +94,21 @@ export function DropPicker({
   const [dropKey, setDropKey] = useState("");
   const [customName, setCustomName] = useState("");
   const [quantity, setQuantity] = useState("");
+  // The draft's boxes live here rather than in the block drawing them, so what is on screen and what
+  // the submit sends are one value instead of two that have to be kept level.
+  const [boxes, setBoxes] = useState<Record<string, string>>({});
 
   const drops = pickableDrops(table, worldType);
   const body = addDropBody(bossKey, dropKey, customName, quantity);
+
+  // The night about to be logged, when the picked drop is the one that stacks. Rebuilt from the
+  // count as typed, so changing it re-reads the stacks against what actually fell.
+  const night =
+    draft && dropKey === draft.dropKey ? draftDrop(draft.config, body?.quantity ?? 0) : null;
+  const stacks = night ? draftStacks(night, boxes) : null;
+  // An arrangement that does not add up is not sent at all: the server refuses one, and refusing it
+  // now takes the DROP down with it, so the form holds it back rather than losing both.
+  const ready = Boolean(body) && (night === null || stacks !== null);
 
   return (
     <>
@@ -62,15 +116,21 @@ export function DropPicker({
         className="loot-add"
         onSubmit={async (e) => {
           e.preventDefault();
-          if (!body || busy) return;
+          if (!body || busy || !ready) return;
           try {
-            await onAdd(body);
+            // Empty is a night nobody has answered for, which is what a drop logged anywhere else
+            // is, so nothing is sent rather than an empty map.
+            await onAdd(
+              stacks && Object.keys(stacks).length > 0 ? { ...body, bundles: stacks } : body,
+            );
           } catch {
             return;
           }
           setDropKey("");
+          onPick?.("");
           setCustomName("");
           setQuantity("");
+          setBoxes({});
         }}
       >
         {lead}
@@ -82,15 +142,22 @@ export function DropPicker({
           label="Which drop"
           onChange={(picked) => {
             setDropKey(picked);
+            onPick?.(picked);
             // Filled from the catalog on every change of drop, including back to nothing, so the
             // count belongs to what is currently picked. Typing over it stands: nothing refills a
             // box after this, which is what makes it a default rather than a value.
-            setQuantity(
-              defaultQuantity(
-                drops.find((d) => d.dropKey === picked),
-                difficulty,
-              ),
+            const count = defaultQuantity(
+              drops.find((d) => d.dropKey === picked),
+              difficulty,
             );
+            setQuantity(count);
+            // The stack boxes open on the same suggestion the recorded ones do, and clear with any
+            // other drop. A suggestion, not an answer: emptying them logs the night unanswered.
+            const opening =
+              draft && picked === draft.dropKey
+                ? draftDrop(draft.config, Number(count) || 0)
+                : null;
+            setBoxes(opening ? draftBoxes(opening, draft!.party, draft!.behind) : {});
           }}
         />
 
@@ -117,7 +184,23 @@ export function DropPicker({
           />
         )}
 
-        <button type="submit" className="party-save" disabled={busy || !body}>
+        {/* Both blocks the coupon row carries, before there is a row to carry them. Inside the form
+            and ABOVE its button, because the pickup goes out with Add drop and a button that submits
+            what is under it reads as belonging to the line it is on instead.
+
+            The split keeps its own Save: it is the party's standing deal, it outlives this night,
+            and it is already saved that way everywhere else. */}
+        {night && draft && (
+          <div className="loot-draft">
+            <h4 className="loot-group-title is-config">{draft.pickupTitle}</h4>
+            <StackPickupDraft drop={night} boxes={boxes} busy={busy} onChange={setBoxes} />
+
+            <h4 className="loot-group-title is-config">{draft.entitledTitle}</h4>
+            <StackAssign config={draft.config} editing busy={busy} onSave={draft.onSaveShares} />
+          </div>
+        )}
+
+        <button type="submit" className="party-save" disabled={busy || !ready}>
           Add drop
         </button>
       </form>
