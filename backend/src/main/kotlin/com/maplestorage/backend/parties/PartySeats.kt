@@ -2,6 +2,7 @@ package com.maplestorage.backend.parties
 
 import com.maplestorage.backend.db.Characters
 import com.maplestorage.backend.db.PartyMember
+import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.inList
 import org.jetbrains.exposed.v1.jdbc.deleteWhere
@@ -33,6 +34,13 @@ internal fun seatNames(
     ownName: String,
     members: List<String>,
 ): List<String> = listOf(ownName) + members.map { it.trim() }.filterNot { it.equals(ownName, ignoreCase = true) }
+
+/** The names in a config's usual roster, your own character's seat among them. */
+internal fun standingRosterOf(partyId: Uuid): List<String> =
+    PartyMember
+        .selectAll()
+        .where { (PartyMember.partyId eq partyId) and (PartyMember.standing eq true) }
+        .map { it[PartyMember.name] }
 
 /** Every seat this party has ever had, retired and guest ones included, by lowercased name. */
 internal fun seatIdsByName(partyId: Uuid): Map<String, Uuid> =

@@ -63,7 +63,13 @@ internal suspend fun RoutingContext.logDropRoute() {
                         if (existing != null) {
                             null
                         } else {
-                            validateBossRoster(userId, bossId, exclude = null, rosterOf(characterId, emptyList()))
+                            validateBossRoster(
+                                userId,
+                                bossId,
+                                exclude = null,
+                                rosterOf(characterId, emptyList()),
+                                now,
+                            )
                         }
                     if (clash != null) {
                         clash

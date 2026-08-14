@@ -51,21 +51,36 @@ internal suspend fun RoutingContext.setSkipRoute() {
         transaction {
             ensureUser(userId, email)
             val now = Clock.System.now()
-            val reset = bossIdOfParty(partyId)?.let(::bossResetOf)
+            val bossId = bossIdOfParty(partyId)
+            val reset = bossId?.let(::bossResetOf)
             when {
-                !ownsParty(partyId, userId) || reset == null -> null
+                !ownsParty(partyId, userId) || bossId == null || reset == null -> null
                 // Omitted means this week, which is also the only one allowed. Taken from the
                 // server's clock rather than the payload, so a browser a day out cannot take a boss
                 // off the neighbouring week.
                 asked != null && asked != currentWeek() -> "only this week can be changed"
                 else -> {
-                    val oneOff = isOneOff(partyId)
-                    val period = periodShown(reset, week = null, now = now)
-                    setRunsInPeriod(partyId, oneOff, period, runs = !request.skipped, now = now)
-                    if (oneOff && request.skipped && retractNight(partyId, reset, period)) {
-                        Gone
+                    // A spent one-off holds nobody while it is off (see validateBossRoster), so
+                    // somebody in it may have joined another party for this boss since. Putting it
+                    // back on is the only door into that pair that does not write a config, so the
+                    // rule is kept here too rather than let two of your parties run one clear.
+                    val clash =
+                        if (request.skipped) {
+                            null
+                        } else {
+                            validateBossRoster(userId, bossId, exclude = partyId, standingRosterOf(partyId), now)
+                        }
+                    if (clash != null) {
+                        clash
                     } else {
-                        findParty(partyId, userId)
+                        val oneOff = isOneOff(partyId)
+                        val period = periodShown(reset, week = null, now = now)
+                        setRunsInPeriod(partyId, oneOff, period, runs = !request.skipped, now = now)
+                        if (oneOff && request.skipped && retractNight(partyId, reset, period)) {
+                            Gone
+                        } else {
+                            findParty(partyId, userId)
+                        }
                     }
                 }
             }

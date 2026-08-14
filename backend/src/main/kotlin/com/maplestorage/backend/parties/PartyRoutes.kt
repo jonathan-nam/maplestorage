@@ -146,7 +146,7 @@ private suspend fun RoutingContext.createPartyRoute(
                 }
             val takeOver = held?.takeIf { takesOverConfig(it, request, now) }
             if (takeOver != null) {
-                val problem = validateSavedParty(userId, takeOver, request)
+                val problem = validateSavedParty(userId, takeOver, request, now)
                 if (problem != null) {
                     problem
                 } else {
@@ -154,7 +154,7 @@ private suspend fun RoutingContext.createPartyRoute(
                     findParty(takeOver, userId)!!
                 }
             } else {
-                val problem = validateNewParty(request, userId, characterId, bossId)
+                val problem = validateNewParty(request, userId, characterId, bossId, now)
                 if (problem != null) {
                     problem
                 } else {
@@ -177,14 +177,15 @@ private suspend fun RoutingContext.savePartyRoute(
 
     val outcome =
         transaction {
+            val now = Clock.System.now()
             if (!ownsParty(partyId, userId)) {
                 null
             } else {
-                val problem = validateSavedParty(userId, partyId, request)
+                val problem = validateSavedParty(userId, partyId, request, now)
                 if (problem != null) {
                     problem
                 } else {
-                    saveParty(userId, partyId, request, Clock.System.now(), sprites)
+                    saveParty(userId, partyId, request, now, sprites)
                     findParty(partyId, userId)!!
                 }
             }

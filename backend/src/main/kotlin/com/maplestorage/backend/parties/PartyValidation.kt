@@ -1,5 +1,6 @@
 package com.maplestorage.backend.parties
 
+import com.maplestorage.backend.bosses.periodOf
 import com.maplestorage.backend.db.BossCatalog
 import com.maplestorage.backend.db.Characters
 import com.maplestorage.backend.db.Party
@@ -9,6 +10,7 @@ import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.inList
 import org.jetbrains.exposed.v1.jdbc.selectAll
+import kotlin.time.Instant
 import kotlin.uuid.Uuid
 
 // What a config has to be true of before it is written. Split from the routes only for size; the
@@ -26,6 +28,7 @@ internal fun validateNewParty(
     userId: String,
     characterId: Uuid?,
     bossCatalogId: Uuid?,
+    now: Instant,
 ): String? {
     val owned =
         characterId != null &&
@@ -56,7 +59,13 @@ internal fun validateNewParty(
                 ?: validateMembers(request.members)
                 ?: validateShares(request.shares, characterId, request.members)
                 ?: validateLooter(request.looterName, characterId, request.members)
-                ?: validateBossRoster(userId, bossCatalogId, exclude = null, rosterOf(characterId, request.members))
+                ?: validateBossRoster(
+                    userId,
+                    bossCatalogId,
+                    exclude = null,
+                    rosterOf(characterId, request.members),
+                    now,
+                )
     }
 }
 
@@ -73,6 +82,7 @@ internal fun validateSavedParty(
     userId: String,
     partyId: Uuid,
     request: SavePartyRequest,
+    now: Instant,
 ): String? {
     val bossCatalogId = bossIdOfParty(partyId)
     return bossCatalogId?.let { validateDifficulty(it, request.difficulty) }
@@ -86,6 +96,7 @@ internal fun validateSavedParty(
                 it,
                 exclude = partyId,
                 rosterOf(characterIdOfParty(partyId), request.members),
+                now,
             )
         }
 }
@@ -98,6 +109,10 @@ internal fun validateSavedParty(
  * that dropped somebody this week is not holding their clear, so lending them to another party for
  * the same boss is allowed, and only checking the standing rosters would refuse it.
  *
+ * A config that was not on in this period did not run it, so it holds nobody's clear in it. Both
+ * kinds count here, unlike validateBossRoster: the question is one week rather than the arrangement,
+ * and a week somebody took the party off is a week they were free to run it with somebody else.
+ *
  * Must run inside a transaction.
  */
 internal fun validateWeekRoster(
@@ -108,8 +123,9 @@ internal fun validateWeekRoster(
     roster: List<String>,
 ): String? {
     val wanted = roster.map { it.trim().lowercase() }.toSet()
+    val period = bossResetOf(bossCatalogId)?.let { periodOf(it, week) }
     val ownerOf =
-        if (wanted.isEmpty()) {
+        if (wanted.isEmpty() || period == null) {
             emptyMap()
         } else {
             Party
@@ -117,6 +133,7 @@ internal fun validateWeekRoster(
                 .where {
                     (Party.userId eq userId) and (Party.bossCatalogId eq bossCatalogId) and (Party.standing eq true)
                 }.filter { it[Party.id] != exclude }
+                .filter { runsInPeriod(it[Party.id], it[Party.oneOff], period) }
                 .associate { it[Party.id] to it[Party.characterId] }
         }
 
@@ -211,6 +228,13 @@ internal fun validateDifficulty(
  * not running the boss with anybody. Counting one refused a roster over somebody the party no
  * longer has, naming a config the user could look straight at and not find them in.
  *
+ * A one-off whose period has passed holds nobody either. It is a night that already happened rather
+ * than an arrangement, so nothing it names is going to run the boss again, and the pair it would
+ * refuse is one the app cannot do anything about: the config is not on the edit page to be changed.
+ * A STANDING config skipped this week still holds, which is the difference between not running once
+ * and not running again. Both ways of arming a spent one-off again come back through this rule
+ * (takeOverParty and setSkipRoute), so the two can still never be on at the same time.
+ *
  * Must run inside a transaction.
  */
 internal fun validateBossRoster(
@@ -218,6 +242,7 @@ internal fun validateBossRoster(
     bossCatalogId: Uuid,
     exclude: Uuid?,
     roster: List<String>,
+    now: Instant,
 ): String? {
     val wanted = roster.map { it.trim().lowercase() }.toSet()
 
@@ -239,7 +264,9 @@ internal fun validateBossRoster(
                         (Party.standing eq true) and
                         (PartyMember.standing eq true)
                 }.filter { exclude == null || it[Party.id] != exclude }
-                .firstOrNull { it[PartyMember.name].trim().lowercase() in wanted }
+                .filter { it[PartyMember.name].trim().lowercase() in wanted }
+                // Last, and on the matches only: it is a query per row, and there are usually none.
+                .firstOrNull { !isSpentOneOff(it[Party.id], now) }
         }
 
     return clash?.let {

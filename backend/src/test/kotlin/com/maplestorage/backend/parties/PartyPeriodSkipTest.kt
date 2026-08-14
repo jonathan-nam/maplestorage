@@ -82,7 +82,7 @@ class PartyPeriodSkipTest {
         }
     }
 
-    private fun mine(): Uuid {
+    private fun mine(named: String = "Rune"): Uuid {
         ensureUser(userId, "$userId@example.com")
         val id = Uuid.random()
         val now = Clock.System.now()
@@ -90,7 +90,7 @@ class PartyPeriodSkipTest {
         Characters.insert {
             it[Characters.id] = id
             it[Characters.userId] = owner
-            it[Characters.name] = "Rune"
+            it[Characters.name] = named
             it[Characters.worldType] = WORLD_INTERACTIVE
             it[createdAt] = now
             it[updatedAt] = now
@@ -291,6 +291,54 @@ class PartyPeriodSkipTest {
 
             val next = partiesFor(userId, thisWeek().plus(DAYS_IN_WEEK, DateTimeUnit.DAY))
             assertFalse(next.first { it.id == party.id }.skippedThisPeriod)
+        }
+    }
+
+    @Test
+    fun `a one-off whose period has passed holds nobody's seat on that boss`() {
+        transaction {
+            val tonight = mine()
+            val other = mine("Blaze")
+            val limbo = bossIdForKey("limbo")!!
+            val night = partyOn(tonight, "limbo", oneOff = true, members = listOf("Steve"))
+
+            fun check() =
+                validateBossRoster(userId, limbo, exclude = null, rosterOf(other, listOf("Steve")), Clock.System.now())
+
+            // On its own period a one-off holds its seats like anything else: two configs running
+            // Steve on Limbo this week is the clear that cannot happen twice.
+            assertEquals("Steve is already in your Rune party for this boss", check())
+
+            // The period passes, and the night stops holding him. Refusing here named a config that
+            // is not on the edit page to be changed, so there was nothing the user could do: the
+            // only way out was deleting a night that had already happened. Reported 2026-08-14.
+            takeOff(night)
+            assertNull(check())
+
+            // The pair still cannot be on at once, because arming it again comes back through the
+            // same rule with the new party in the way. Both doors: saving the config over again,
+            // and the toggle that puts a night back on without writing one (see setSkipRoute).
+            val other2 = mine("Kestrel")
+            partyOn(other2, "limbo", members = listOf("Steve"))
+            assertEquals(
+                "Steve is already in your Kestrel party for this boss",
+                validateSavedParty(
+                    userId,
+                    Uuid.parse(night.id),
+                    SavePartyRequest(tonight.toString(), "limbo", listOf("Steve"), oneOff = true),
+                    Clock.System.now(),
+                ),
+            )
+            assertEquals(
+                "Steve is already in your Kestrel party for this boss",
+                validateBossRoster(
+                    userId,
+                    limbo,
+                    exclude = Uuid.parse(night.id),
+                    standingRosterOf(Uuid.parse(night.id)),
+                    Clock.System.now(),
+                ),
+            )
         }
     }
 
