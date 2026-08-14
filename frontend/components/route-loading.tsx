@@ -15,13 +15,17 @@ export const PAGE_WAITING = "page page-waiting";
 /**
  * The same, where the placeholder is the page's own shape rather than a line of text.
  *
- * No delay: it is drawn from the frame the route commits. The delay assumes the placeholder is
- * worth hiding, and for a skeleton it is the opposite. Measured on a real click to Drop Log, the
- * outgoing page went at 9ms and the skeleton was held hidden AND at zero height until 150ms, so
- * 180ms of the title on an empty screen, then 801px of skeleton in one frame. That is the blink,
- * and it is bigger than the flash the delay was protecting against.
+ * Which is to say: no wait treatment at all. It is drawn at once, at full strength, exactly as the
+ * loaded page will be. Two measurements killed the alternatives. Held hidden for the delay, the
+ * outgoing page went at 9ms and the skeleton did not land until 208ms, so 180ms of the title on an
+ * empty screen. Faded up from zero instead, a menu click swapped 747px of page for a near-empty
+ * screen that then rose over 200ms, which is the flicker a refresh never shows because a refresh
+ * has no outgoing page to compare against.
+ *
+ * The same string as an ordinary page's <main>, on purpose: the page's own placeholder is bare too,
+ * so handing over from this boundary to the page changes nothing on screen.
  */
-export const PAGE_WAITING_SHAPED = "page page-waiting-shaped";
+export const PAGE_WAITING_SHAPED = "page";
 
 // The other end of the wait is components/page-swap.tsx, not a class a page spells out. Fading the
 // arriving content in on its own left a blank beat, because the placeholder was already gone, so

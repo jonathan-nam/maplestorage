@@ -9,7 +9,7 @@ import { DockSkeleton } from "@/components/dock-shell";
 // same shimmer table the page itself shows. Nothing to seed from here, this renders on the server.
 export default function Loading() {
   return (
-    <RouteLoading>
+    <RouteLoading shaped>
       <h1 className="page-title">Individual View</h1>
       <DockSkeleton name="planner" picker />
       <BossMatrix loading bosses={[]} characters={[]} clearsByCharacter={{}} />

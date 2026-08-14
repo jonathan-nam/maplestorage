@@ -93,11 +93,26 @@ export function PageSwap({
   }, [lingering]);
 
   const holding = waiting || lingering;
-  const wait = shaped ? "page-waiting-shaped" : "page-waiting";
 
   // Nothing in hand and nothing on the way: the page has never waited, or has finished. No wrapper,
   // so a settled page is laid out exactly as it would be without this component in the tree.
   if (!holding) return <>{children}</>;
+
+  /*
+   * A shaped placeholder is drawn at once, at full strength, and bare.
+   *
+   * It must not fade IN. On a client navigation the router replaces the outgoing page with this, so
+   * a placeholder starting at zero means the page you came from is swapped for a near-empty screen
+   * that then rises: measured on a menu click to Drop Log, 747px of page, then the skeleton at
+   * opacity 0.00 rising over 200ms. That is the flicker on a navigation, and it is invisible on a
+   * refresh, where there is no outgoing page for it to be compared against. Which is exactly the
+   * difference Jonathan reported.
+   *
+   * No wrapper either. Nothing ever overlaps here (see setLingering above), so it needs no
+   * positioning context, and this is then the same markup the route boundary renders: handing over
+   * from loading.tsx to the page changes nothing on screen.
+   */
+  if (shaped) return <>{placeholder}</>;
 
   return (
     <div className="page-swap">
@@ -113,7 +128,7 @@ export function PageSwap({
         // .page-waiting through that, so the delay is not undone on the way out: see the fade above.
         <div
           ref={leaving}
-          className={waiting ? wait : `${wait} page-swap-out`}
+          className={waiting ? "page-waiting" : "page-waiting page-swap-out"}
           aria-hidden={!waiting}
         >
           {placeholder}
