@@ -49,6 +49,7 @@ import { useSeatSprites } from "@/lib/seat-sprites";
 import { useAccountSettings } from "@/lib/use-account-settings";
 import {
   type Holder,
+  SELF_HOLDER,
   SELF_KEY,
   alsoHeldByYou,
   answeredByHolder,
@@ -792,14 +793,28 @@ export default function DropLogPage() {
                   onRemoveDebt={(debtId) =>
                     debtWrite(`${DEBTS_KEY}/${debtId}`, { method: "DELETE" })
                   }
-                  onSettlePieces={(holder: Holder, lootIds) =>
-                    settlementWrite(SETTLEMENTS_KEY, {
-                      method: "POST",
-                      // Nothing written off: a piece debt was never priced, so there is no shortfall
-                      // to record. What they sent is on the receipts.
-                      body: JSON.stringify({ holder, lootIds, unpaid: 0 }),
-                    })
-                  }
+                  // Two acts, because a closure is one PILE's decision and the pair has two piles:
+                  // their nights close against them, yours against you. One button, since one
+                  // handover finishes both and closing a single side is what put the figure UP.
+                  //
+                  // Sequential, not parallel: each answers with the whole list and the last answer
+                  // wins, so racing them would redraw the card from whichever landed second.
+                  onSettlePair={async (holder: Holder, theirs, yours) => {
+                    if (theirs.length > 0) {
+                      await settlementWrite(SETTLEMENTS_KEY, {
+                        method: "POST",
+                        // Nothing written off: a piece debt was never priced, so there is no
+                        // shortfall to record. What they sent is on the receipts.
+                        body: JSON.stringify({ holder, lootIds: theirs, unpaid: 0 }),
+                      });
+                    }
+                    if (yours.length > 0) {
+                      await settlementWrite(SETTLEMENTS_KEY, {
+                        method: "POST",
+                        body: JSON.stringify({ holder: SELF_HOLDER, lootIds: yours, unpaid: 0 }),
+                      });
+                    }
+                  }}
                   onSettleShares={settleShares}
                   // Answers with the whole people list, like every other write on this page, so the
                   // pins redraw from what the server actually stored.

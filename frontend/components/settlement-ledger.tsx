@@ -5,10 +5,12 @@ import { useState } from "react";
 import { formatWeekStart } from "@/lib/boss-clears";
 import { bossLabel } from "@/lib/boss-difficulty";
 import {
+  type HeldOfYours,
   type Settlement,
   type OffsetShare,
   offsetOf,
   owedByYouShares,
+  settleThePair,
   shareKey,
   sharesOf,
 } from "@/lib/settlement";
@@ -52,7 +54,7 @@ export function SettlementLedger({
   onRemovePayment,
   onAddDebt,
   onRemoveDebt,
-  onSettlePieces,
+  onSettlePair,
   onSettleShares,
   onPin,
   onOffsetShares,
@@ -69,7 +71,8 @@ export function SettlementLedger({
   onRemovePayment: (paymentId: string) => Promise<void>;
   onAddDebt: (holder: Holder, amount: number, note: string) => Promise<void>;
   onRemoveDebt: (debtId: string) => Promise<void>;
-  onSettlePieces: (holder: Holder, lootIds: string[]) => Promise<void>;
+  /** Closes the coupon books with this person, BOTH sides at once. See settleThePair. */
+  onSettlePair: (holder: Holder, theirs: string[], yours: string[]) => Promise<void>;
   onSettleShares: (payouts: { lootId: string; memberId: string }[]) => Promise<void>;
   /** Keeps this person's card drawn with nothing outstanding, or stops. See V59. */
   onPin: (row: Settlement, pinned: boolean) => Promise<void>;
@@ -97,7 +100,7 @@ export function SettlementLedger({
           onRemovePayment={onRemovePayment}
           onAddDebt={onAddDebt}
           onRemoveDebt={onRemoveDebt}
-          onSettlePieces={onSettlePieces}
+          onSettlePair={onSettlePair}
           onSettleShares={onSettleShares}
           onPin={onPin}
           onOffsetShares={onOffsetShares}
@@ -118,7 +121,7 @@ function SettlementCard({
   onRemovePayment,
   onAddDebt,
   onRemoveDebt,
-  onSettlePieces,
+  onSettlePair,
   onSettleShares,
   onPin,
   onOffsetShares,
@@ -135,7 +138,8 @@ function SettlementCard({
   onRemovePayment: (paymentId: string) => Promise<void>;
   onAddDebt: (holder: Holder, amount: number, note: string) => Promise<void>;
   onRemoveDebt: (debtId: string) => Promise<void>;
-  onSettlePieces: (holder: Holder, lootIds: string[]) => Promise<void>;
+  /** Closes the coupon books with this person, BOTH sides at once. See settleThePair. */
+  onSettlePair: (holder: Holder, theirs: string[], yours: string[]) => Promise<void>;
   onSettleShares: (payouts: { lootId: string; memberId: string }[]) => Promise<void>;
   /** Keeps this person's card drawn with nothing outstanding, or stops. See V59. */
   onPin: (row: Settlement, pinned: boolean) => Promise<void>;
@@ -248,6 +252,10 @@ function SettlementCard({
    * alone said the money had moved, which took it out of the netting and put what they owe you back
    * UP, and that is the opposite of what happened. See V57.
    */
+  // The nights one handover finishes, both sides. Offered whenever either side has one: a debt that
+  // runs only one way is still a pair, with nothing on the other end.
+  const pair = settleThePair(row);
+
   const offset = offsetOf(row);
   // Mesos a settle would declare you have ALREADY sent. Off the offset, rather than summed again
   // here: two spellings of one figure is how the button and its label come to disagree.
@@ -606,55 +614,51 @@ function SettlementCard({
         </div>
       )}
 
-      {/* The pieces: a count, and the act that closes it. Still no price, because these are in THEIR
-          inventory and only they can sell them. The pieces you owe are priced instead by the sale you
-          entered, which is above as one of the parts.
+      {/* The nights the coupons are still sitting on, both directions, and the act that closes them.
+          No price on either side: what a coupon fetched is only known where somebody sold it and said
+          so, and that is already money on the card above.
 
-          Headed by WHOSE they are, not by "pieces". These nights are one side of the netted count in
-          the header, already subtracted from it, and under a bare "PIECES" they read as a second
-          claim on top: a card netting to 130 listed a 20 under it, and 20 was not 20 more. */}
-      {row.pieces > 0 && (
+          Headed by WHOSE INVENTORY, not by "pieces". Each list is one side of the netted count in the
+          header and already subtracted from it, so under a bare "PIECES" they read as a claim on top:
+          a card netting to 130 listed a 20 under it, and 20 was not 20 more.
+
+          Drawn whenever there is a night, even where none of them can be closed. The button is what
+          the refusal takes away, never the list: a card that went quiet about what is outstanding
+          would be hiding exactly what it is for. */}
+      {(row.drops.length > 0 || row.owedDrops.length > 0) && (
         <div className="ledger-entry">
-          <span className="ledger-step">{`${row.name} is holding`}</span>
-          <ul className="ledger-queue">
-            {row.drops.map((drop) => {
-              const boss = bossByKey.get(drop.bossKey ?? "");
-              const party = partyById.get(drop.partyId);
-              return (
-                <li key={drop.lootId} className="ledger-drop">
-                  <div className="ledger-drop-head">
-                    <Link href={`/bosses/parties/${drop.partyId}`} className="loot-name">
-                      {boss ? bossLabel(boss.name, party?.difficulty ?? null) : "Unknown boss"}
-                    </Link>
-                    <span className="loot-meta">
-                      {drop.looterName} · week of {formatWeekStart(drop.weekStart)}
-                    </span>
-                    <span className="ledger-amount">{drop.pieces}</span>
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
+          {row.drops.length > 0 && (
+            <>
+              <span className="ledger-step">{`${row.name} is holding`}</span>
+              <PieceNights drops={row.drops} bossByKey={bossByKey} partyById={partyById} />
+            </>
+          )}
+          {row.owedDrops.length > 0 && (
+            <>
+              <span className="ledger-step">I am holding</span>
+              <PieceNights drops={row.owedDrops} bossByKey={bossByKey} partyById={partyById} />
+            </>
+          )}
 
+          {/* One act for both sides. Closing a single side is what took your own coupons out of the
+              netting and answered "60 to hand over" by asking for 80. See settleThePair. */}
           <span className="ledger-settle">
-            <button
-              type="button"
-              className="party-save"
-              disabled={busy}
-              onClick={() =>
-                void write(
-                  onSettlePieces(
-                    row.holder,
-                    row.drops.map((d) => d.lootId),
-                  ),
-                  null,
-                )
-              }
-            >
-              Mark settled
-            </button>
+            {pair.offered && (
+              <button
+                type="button"
+                className="party-save"
+                disabled={busy}
+                onClick={() => void write(onSettlePair(row.holder, pair.theirs, pair.yours), null)}
+              >
+                Mark settled
+              </button>
+            )}
             <span className="ledger-progress">
-              {`closes ${row.drops.length} ${row.drops.length === 1 ? "boss" : "bosses"}`}
+              {pair.offered && `closes ${pair.bosses} ${pair.bosses === 1 ? "boss" : "bosses"}`}
+              {/* A night owing a third person cannot be closed for one of them, so it stays open and
+                  is said. Silence here would be the count quietly going short. */}
+              {pair.shared > 0 &&
+                `${pair.offered ? ", " : ""}${pair.shared} shared with others, not closed here`}
             </span>
           </span>
         </div>
@@ -662,6 +666,48 @@ function SettlementCard({
 
       {refusal && <span className="split-error">{refusal}</span>}
     </section>
+  );
+}
+
+/**
+ * One side's nights, whichever inventory they are in.
+ *
+ * Both lists are the same row, so they are one component: two copies would be two places for the
+ * boss label and the week to drift apart, on a card whose whole point is that the two sides are the
+ * same debt read from opposite ends.
+ */
+function PieceNights({
+  drops,
+  bossByKey,
+  partyById,
+}: {
+  drops: HeldOfYours[];
+  bossByKey: Map<string, Boss>;
+  partyById: Map<string, Party>;
+}) {
+  return (
+    <ul className="ledger-queue">
+      {drops.map((drop) => {
+        const boss = bossByKey.get(drop.bossKey ?? "");
+        const party = partyById.get(drop.partyId);
+        return (
+          <li key={`${drop.lootId}:${drop.pieces}`} className="ledger-drop">
+            <div className="ledger-drop-head">
+              <Link href={`/bosses/parties/${drop.partyId}`} className="loot-name">
+                {boss ? bossLabel(boss.name, party?.difficulty ?? null) : "Unknown boss"}
+              </Link>
+              <span className="loot-meta">
+                {drop.looterName} · week of {formatWeekStart(drop.weekStart)}
+                {/* Why this one is not in the count above. Said on the row it belongs to, rather
+                    than as a second sentence under the button. */}
+                {drop.shared && " · owes somebody else too"}
+              </span>
+              <span className="ledger-amount">{drop.pieces}</span>
+            </div>
+          </li>
+        );
+      })}
+    </ul>
   );
 }
 

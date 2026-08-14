@@ -5,6 +5,7 @@ import {
   isEmpty,
   offsetOf,
   owedByYouShares,
+  settleThePair,
   sharesOf,
   yourPiles,
 } from "./settlement";
@@ -820,6 +821,102 @@ describe("which piles the Sale Ledger draws", () => {
   it("keeps only yours out of a mixed list", () => {
     const all = [ledger(SELF, "you"), ledger(BRO, "Bro"), ledger(STRANGER, "Zaddy")];
     expect(yourPiles(all).map((l) => l.holderName)).toEqual(["you"]);
+  });
+});
+
+describe("closing the coupon books with one person", () => {
+  /** A night of your own owing two people, which no closure can settle for one of them. */
+  const owingTwo = (lootId: string, bossKey: string) => ({
+    lootId,
+    partyId: `pa-${lootId}`,
+    bossKey,
+    weekStart: "2026-08-13",
+    looterName: "HuskyxKenshi",
+    pieces: 180,
+    closed: false,
+    transfers: [
+      { fromId: "self", toId: "person:p-bro", from: "you", to: "Bro", pieces: 30 },
+      { fromId: "self", toId: "character:zaddy", from: "you", to: "Zaddy", pieces: 20 },
+    ],
+  });
+
+  const card = (ledgers: HolderLedger[]) => buildSettlement(ledgers, wallet([]))[0]!;
+
+  it("names both sides, since one handover finishes both", () => {
+    // Husky's week with Bro: five nights of his in your inventory, one of yours in his. Settling is
+    // one transfer of the difference, so it closes six bosses and not one.
+    const row = card([
+      ledger(SELF, "you", {
+        drops: [holdingOf("l1", "malefic-star", 30), holdingOf("l2", "kaling", 20)],
+      }),
+      ledger(BRO, "Bro", { owedToYou: 20, drops: [owing("l3", "baldrix", 20)] }),
+    ]);
+    const pair = settleThePair(row);
+    expect([pair.theirs, pair.yours]).toEqual([["l3"], ["l1", "l2"]]);
+    expect([pair.bosses, pair.shared, pair.offered]).toEqual([3, 0, true]);
+  });
+
+  it("is offered when the debt runs only one way, which is most weeks", () => {
+    // The half that had no act at all: you looted every lot, so every night is in your own pile and
+    // the old button, which only ever named theirs, closed nothing.
+    const yoursOnly = settleThePair(
+      card([ledger(SELF, "you", { drops: [holdingOf("l1", "kaling", 20)] })]),
+    );
+    expect([yoursOnly.theirs, yoursOnly.yours, yoursOnly.offered]).toEqual([[], ["l1"], true]);
+
+    const theirsOnly = settleThePair(
+      card([ledger(BRO, "Bro", { owedToYou: 20, drops: [owing("l2", "baldrix", 20)] })]),
+    );
+    expect([theirsOnly.theirs, theirsOnly.yours, theirsOnly.offered]).toEqual([["l2"], [], true]);
+  });
+
+  it("leaves out a night that owes somebody else, and says how many", () => {
+    // A closure is keyed (pile, drop), so it cannot mean "settled with Bro alone". Closing this one
+    // would call Zaddy's 20 settled too, on no screen and with no act. Prefer the missing item.
+    const row = card([
+      ledger(SELF, "you", { drops: [holdingOf("l1", "kaling", 20), owingTwo("l2", "kalos")] }),
+    ]);
+    const pair = settleThePair(row);
+    expect(pair.yours).toEqual(["l1"]);
+    expect([pair.bosses, pair.shared]).toEqual([1, 1]);
+  });
+
+  it("is refused outright when every night is shared", () => {
+    const pair = settleThePair(card([ledger(SELF, "you", { drops: [owingTwo("l1", "kalos")] })]));
+    expect([pair.bosses, pair.shared, pair.offered]).toEqual([0, 1, false]);
+  });
+
+  it("counts one night once, however many transfers of it they are owed", () => {
+    // Two transfers to one person off one drop is one drop and one closure. Naming it twice would
+    // have the button claim to close two bosses and post a duplicate loot id.
+    const twice = {
+      ...holdingOf("l1", "kaling", 20),
+      transfers: [
+        { fromId: "self", toId: "person:p-bro", from: "you", to: "Bro", pieces: 20 },
+        { fromId: "self", toId: "person:p-bro", from: "you", to: "Bro", pieces: 10 },
+      ],
+    };
+    const pair = settleThePair(card([ledger(SELF, "you", { drops: [twice] })]));
+    expect([pair.yours, pair.bosses]).toEqual([["l1"], 1]);
+  });
+
+  it("has nothing to close on a card held open by money alone", () => {
+    // A pinned person, or one who owes mesos and no coupons. The act must not appear: there is no
+    // night to name, and the server refuses a settlement that names none.
+    const row = buildSettlement(
+      [],
+      wallet([counterparty("person:p-bro", "Bro", [line("l1", 900 * M)])]),
+    )[0]!;
+    expect(settleThePair(row).offered).toBe(false);
+  });
+
+  it("leaves a closed night alone, it having been settled already", () => {
+    const row = card([
+      ledger(SELF, "you", {
+        drops: [holdingOf("l1", "kaling", 20), holdingOf("l2", "kalos", 30, true)],
+      }),
+    ]);
+    expect(settleThePair(row).yours).toEqual(["l1"]);
   });
 });
 

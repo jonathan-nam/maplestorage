@@ -24,16 +24,24 @@ import type { Holder, HolderLedger, SaleCredit } from "./vestige-ledger";
 import type { Wallet, WalletLine } from "./wallet";
 import type { SettlementDebt } from "@/types/vestige";
 
-/** One night's pieces of yours, sitting in somebody else's inventory. */
+/** One night's coupons sitting in the wrong inventory, in whichever direction it runs. */
 export type HeldOfYours = {
   lootId: string;
   partyId: string;
   bossKey: string | null;
   weekStart: string;
-  /** Pieces of YOURS they hold, not the size of their pile. */
+  /** Pieces this person is owed off this night, never the size of the pile holding them. */
   pieces: number;
-  /** Which of their characters bent down for them. */
+  /** Which character bent down for them. */
   looterName: string;
+  /**
+   * True when the pile holding them owes somebody ELSE off the same night.
+   *
+   * A closure is per (pile, drop), so it cannot say "settled with Bro alone". Closing a shared night
+   * would discharge Jared's coupons at the same time and say nothing, which is the silent wrong count
+   * this project exists to prevent. Such a night is left open and said as a count instead.
+   */
+  shared: boolean;
 };
 
 /** One person, and everything of yours they have not handed over yet. */
@@ -144,7 +152,16 @@ export type Settlement = {
   pinned: boolean;
   /** The entered rows themselves, so a mistyped one can be taken back off the card. */
   entries: SettlementDebt[];
+  /** Nights in THEIR pile holding coupons of yours. */
   drops: HeldOfYours[];
+  /**
+   * Nights in YOUR pile holding coupons of theirs, which is the other half of the same handover.
+   *
+   * Never on the card before, and that is why closing a pair was impossible: the act only ever named
+   * their nights, so a settlement took your side out of the netting and put the figure UP. See
+   * settleThePair.
+   */
+  owedDrops: HeldOfYours[];
   lines: WalletLine[];
 };
 
@@ -166,6 +183,7 @@ const blank = (key: string, name: string): Settlement => ({
   pinned: false,
   entries: [],
   drops: [],
+  owedDrops: [],
   lines: [],
 });
 
@@ -222,11 +240,23 @@ export function buildSettlement(
     if (ledger.holder.kind !== "SELF" || ledger.closed) continue;
     for (const drop of ledger.drops) {
       if (drop.closed) continue;
-      for (const transfer of drop.transfers) {
-        if (transfer.toId === SELF_KEY) continue;
+      const owing = drop.transfers.filter((t) => t.toId !== SELF_KEY);
+      for (const transfer of owing) {
         // Named off the transfer, which carries it. A person you only owe coupons to reaches this
         // list nowhere else, so without the name the card was headed `person:<uuid>`.
-        rowFor(transfer.toId, transfer.to).piecesYouOwe += transfer.pieces;
+        const row = rowFor(transfer.toId, transfer.to);
+        row.piecesYouOwe += transfer.pieces;
+        row.owedDrops.push({
+          lootId: drop.lootId,
+          partyId: drop.partyId,
+          bossKey: drop.bossKey,
+          weekStart: drop.weekStart,
+          pieces: transfer.pieces,
+          looterName: drop.looterName,
+          // A different PERSON, not merely a second transfer: one night can owe one person twice,
+          // and that is still one drop, one closure and nobody else's coupons at stake.
+          shared: owing.some((t) => t.toId !== transfer.toId),
+        });
       }
     }
   }
@@ -258,6 +288,9 @@ export function buildSettlement(
           .filter((t) => t.toId === SELF_KEY)
           .reduce((sum, t) => sum + t.pieces, 0),
         looterName: d.looterName,
+        // Their pile owing a third person off the same night. Closing it would call that debt
+        // finished as well, and this card has no business saying anything about it.
+        shared: d.transfers.some((t) => t.toId !== SELF_KEY),
       }))
       .filter((d) => d.pieces > 0);
     if (drops.length === 0) continue;
@@ -364,6 +397,49 @@ export function buildSettlement(
         b.piecesYouOwe - a.piecesYouOwe ||
         a.name.localeCompare(b.name),
     );
+}
+
+/** What closing the coupon books with one person would cover, in nights. See settleThePair. */
+export type PairSettlement = {
+  /** Nights in their pile it closes: coupons of yours they were holding. */
+  theirs: string[];
+  /** Nights in your own pile it closes: coupons of theirs you were holding. */
+  yours: string[];
+  /** Nights left open because the same night owes somebody else. A count, said on the card. */
+  shared: number;
+  /** Bosses the act finishes, both sides together. What the button says before it runs. */
+  bosses: number;
+  offered: boolean;
+};
+
+/**
+ * The nights one handover between you and this person finishes, in BOTH directions.
+ *
+ * A coupon relationship is settled by one transfer of the difference, the same way the money is. The
+ * act only ever named their side, so it could not say that: closing their nights alone took your own
+ * coupons out of the netting and put the figure UP, and a card reading "60 to hand over" answered a
+ * click by asking for 80. That is the trap the Settle button already carries a comment about, one
+ * step along, and the fix is the same one. Close the pair or close nothing.
+ *
+ * A night that owes a THIRD person is left out and counted instead. A closure is keyed (pile, drop),
+ * so it cannot mean "settled with Bro alone", and closing one would call Jared's coupons settled
+ * without a word on any screen. Prefer a missing item over a wrong count.
+ */
+export function settleThePair(row: Settlement): PairSettlement {
+  const theirs = row.drops.filter((d) => !d.shared);
+  // One night can owe them twice, off two transfers, and it is one drop and one closure.
+  const yours = [...new Set(row.owedDrops.filter((d) => !d.shared).map((d) => d.lootId))];
+  const shared =
+    row.drops.filter((d) => d.shared).length +
+    new Set(row.owedDrops.filter((d) => d.shared).map((d) => d.lootId)).size;
+  const lootIds = theirs.map((d) => d.lootId);
+  return {
+    theirs: lootIds,
+    yours,
+    shared,
+    bosses: lootIds.length + yours.length,
+    offered: lootIds.length + yours.length > 0,
+  };
 }
 
 /**
