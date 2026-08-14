@@ -802,6 +802,7 @@ export default function DropLogPage() {
                   bossByKey={bossByKey}
                   partyById={partyById}
                   offsetShares={offsetShares}
+                  iconUrl={vestigeIcon}
                   busy={busy}
                   // Every payment, not only the ones counted since closing: these are the rows as
                   // typed, and one entered against a closed boss is still one somebody may need back.

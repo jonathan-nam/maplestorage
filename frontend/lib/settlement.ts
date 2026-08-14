@@ -20,7 +20,7 @@
 // lib/vestige-ledger.ts's, and a second copy of any of them would be a second answer.
 
 import { SELF_KEY, answeredKey, holderFromKey, holderKey } from "./vestige-ledger";
-import type { Holder, HolderLedger, SaleCredit } from "./vestige-ledger";
+import type { CouponSale, Holder, HolderLedger, SaleCredit } from "./vestige-ledger";
 import type { Wallet, WalletLine } from "./wallet";
 import type { ProceedsDisposal, SettlementDebt, SettlementDebtPayout } from "@/types/vestige";
 
@@ -167,6 +167,14 @@ export type Settlement = {
    * would be the same automatic offset wearing a different name.
    */
   holding: number;
+  /**
+   * The sales that money came out of, oldest first. See CouponSale.
+   *
+   * Carried so a decision about it can name the coupons it was made of: the figure alone said 2.41b
+   * came off Bro's debt and nothing said it was 130 coupons over two nights. No figure on the card is
+   * derived from these, the money being saleCredits' and the counts the tranches' own.
+   */
+  sales: CouponSale[];
   /** What has been decided, so a wrong one can be taken back off. See V61. */
   disposals: ProceedsDisposal[];
   /** Drawn whatever it says, because somebody said to keep it. See V59. */
@@ -202,6 +210,7 @@ const blank = (key: string, name: string): Settlement => ({
   parts: { shares: 0, entered: 0, soldOfTheirs: 0, soldOfYours: 0, received: 0 },
   receivedOnPieces: 0,
   holding: 0,
+  sales: [],
   disposals: [],
   pinned: false,
   entries: [],
@@ -375,6 +384,7 @@ export function buildSettlement(
   for (const [key, credit] of credits) {
     const row = rowFor(key);
     row.holding += credit.toThem;
+    row.sales.push(...credit.sales);
     row.parts.soldOfYours += credit.toYou;
   }
 
@@ -492,7 +502,45 @@ export type Discharge = {
   at: string;
   /** The shares it discharged, where it names any. Empty on a typed credit and on a disposal. */
   payouts: SettlementDebtPayout[];
+  /**
+   * The coupon sales it was made of. Empty on everything but a decision, and on a decision whose
+   * sales cannot be told: see couponSalesBehind.
+   */
+  sales: CouponSale[];
 };
+
+/**
+ * Which coupon sales each decision about their money was made of.
+ *
+ * A decision names no tranche. It is taken on the whole undecided pile at once, so which sales that
+ * was is worked out by spending them in the same order buildSettlement spends the money: both lists
+ * arrive oldest first, and each decision takes off the front of what is left.
+ *
+ * WHOLE SALES, and the run has to land exactly on the amount. Part of a sale cannot say which coupons
+ * it was, and a row reading "70 coupons" beside 400m of a 1.3b sale is a wrong number wearing an
+ * itemisation. Where the alignment goes, that decision and every later one get nothing, and their rows
+ * say what they said before: a figure, and no claim about its parts.
+ */
+function couponSalesBehind(
+  sales: CouponSale[],
+  disposals: ProceedsDisposal[],
+): Map<string, CouponSale[]> {
+  const out = new Map<string, CouponSale[]>();
+  let next = 0;
+  for (const disposal of disposals) {
+    const taken: CouponSale[] = [];
+    let sum = 0;
+    while (sum < disposal.amount && next < sales.length) {
+      const sale = sales[next]!;
+      sum += sale.mesos;
+      taken.push(sale);
+      next += 1;
+    }
+    if (sum !== disposal.amount) break;
+    out.set(disposal.id, taken);
+  }
+  return out;
+}
 
 /**
  * The money rows split by what they ARE: what builds the debt, and what has come off it.
@@ -532,8 +580,14 @@ export function moneyRows(row: Settlement): {
       label: entry.note ?? "offset",
       at: entry.incurredAt,
       payouts: entry.payouts,
+      sales: [],
     });
   }
+
+  // Only the decisions that took something off get a ROW, but every one of them spent money you were
+  // holding, so the matching has to see the lot. Handed the offsets alone it would give the second one
+  // the sales the first payment out had already used up.
+  const behind = couponSalesBehind(row.sales, row.disposals);
 
   // Only the decisions that took something off. Paying them out discharged money of THEIRS in your
   // hands and left what they owe you exactly where it was, so it belongs where that money is said.
@@ -546,6 +600,7 @@ export function moneyRows(row: Settlement): {
       label: "coupon sale",
       at: disposal.decidedAt,
       payouts: [],
+      sales: behind.get(disposal.id) ?? [],
     });
   }
 

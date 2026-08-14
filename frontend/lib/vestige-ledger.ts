@@ -861,6 +861,8 @@ type TrancheRow = {
   disposition?: string;
   /** Whose pieces the sale was. Absent is a row cached from before V56, which is all its own. */
   shares?: { holder: Holder; pieces: number }[];
+  /** When it was recorded. Optional for the same reason `shares` is: see lib/cache.ts. */
+  soldAt?: string;
 };
 
 /**
@@ -1010,12 +1012,36 @@ export function answeredByPair(rows: TrancheRow[]): Map<string, number> {
   return out;
 }
 
+/**
+ * One priced tranche, as far as it concerns ONE counterparty. See saleCredits.
+ *
+ * Their pieces and their share of the price, never the whole lot: 70 of Bro's out of a lot of 70 and
+ * 70 of his out of a lot of 200 put different money on his card.
+ */
+export type CouponSale = {
+  pieces: number;
+  /** Their share of what the lot fetched. saleCredits' own figure, so the two cannot disagree. */
+  mesos: number;
+  /** The lot it came out of, so the share can be checked against it rather than taken on trust. */
+  lot: { pieces: number; amount: number };
+  /** The day it was recorded. Null on a row cached from before the field was read. */
+  soldAt: string | null;
+};
+
 /** What one priced tranche of somebody else's pieces came to, in each direction. Mesos only. */
 export type SaleCredit = {
   /** Money of THEIRS you are holding, from selling or taking pieces of theirs out of your own pile. */
   toThem: number;
   /** Money of YOURS they are holding, from a sale of yours entered against their pile. */
   toYou: number;
+  /**
+   * The tranches behind `toThem`, in the order the API returned them, which is oldest first.
+   *
+   * That side alone, because it is the side with an act on it: the money sits in your hands until
+   * somebody decides about it, and a decision names no tranche, so the card can only say which sales
+   * it was made of by matching them off in this order. See moneyRows.
+   */
+  sales: CouponSale[];
 };
 
 /**
@@ -1038,8 +1064,8 @@ export type SaleCredit = {
  */
 export function saleCredits(rows: TrancheRow[]): Map<string, SaleCredit> {
   const out = new Map<string, SaleCredit>();
-  const add = (key: string, side: keyof SaleCredit, mesos: number) => {
-    const seen = out.get(key) ?? { toThem: 0, toYou: 0 };
+  const add = (key: string, side: "toThem" | "toYou", mesos: number) => {
+    const seen = out.get(key) ?? { toThem: 0, toYou: 0, sales: [] };
     seen[side] += mesos;
     out.set(key, seen);
     return seen;
@@ -1054,7 +1080,16 @@ export function saleCredits(rows: TrancheRow[]): Map<string, SaleCredit> {
       const creditor = holderKey(share.holder);
       if (pile !== SELF_KEY && creditor !== SELF_KEY) continue;
       const mesos = Math.round((share.pieces * row.amount) / row.pieces);
-      if (pile === SELF_KEY) add(creditor, "toThem", mesos);
+      // The row is listed off the same figure it is counted by, in one pass: a second walk to
+      // itemise what this one totalled is a second answer, and the rounding above is exactly the
+      // kind of step the two would come to disagree over.
+      if (pile === SELF_KEY)
+        add(creditor, "toThem", mesos).sales.push({
+          pieces: share.pieces,
+          mesos,
+          lot: { pieces: row.pieces, amount: row.amount },
+          soldAt: row.soldAt ?? null,
+        });
       else add(pile, "toYou", mesos);
     }
   }

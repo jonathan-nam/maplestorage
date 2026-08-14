@@ -100,7 +100,8 @@ describe("what the card says a person owes", () => {
     // cost a second click to reach the only fact anybody wanted: which drop that was. Where there
     // is one share, its drop IS the row, with the art the rest of the account reads drops by.
     expect(source).toContain("const one = shares.length === 1 ? shares[0]! : null;");
-    expect(source).toContain("apiAssetUrl(one.iconUrl)");
+    expect(source).toContain("const art = one?.iconUrl ?? (pieces > 0 ? iconUrl : null);");
+    expect(source).toContain("apiAssetUrl(art)");
     expect(source).toContain("{one.item}");
     expect(source).toContain(`one.members.join(", ")`);
     expect(source).toContain("formatDropped(one.on)");
@@ -108,9 +109,45 @@ describe("what the card says a person owes", () => {
   });
 
   it("keeps a fold for the offset that really is a group", () => {
-    // Several nights and no single one names the act, so the count stands and opens.
-    expect(source).toContain("shares.length > 1 ? (");
+    // Several nights, or several sales, and no single one names the act, so the count stands and
+    // opens. One of either IS the row.
+    expect(source).toContain("const folds = shares.length > 1 || act.sales.length > 1;");
+    expect(source).toContain("folds ? (");
     expect(source).toContain("party-row-chevron");
+  });
+
+  it("counts the coupons a sale offset was made of, and opens onto them", () => {
+    // The row reached Jonathan's card as the bare words "coupon sale" beside 2.41b: how many coupons
+    // that was, what each fetched and when they sold were on no screen in the app.
+    expect(source).toContain(
+      "const pieces = act.sales.reduce((sum, sale) => sum + sale.pieces, 0);",
+    );
+    expect(source).toContain("`${pieces} coupons sold`");
+    expect(source).toContain("`${sale.pieces} coupons`");
+    expect(source).toContain("sale.soldAt && dayOf(sale.soldAt)");
+    expect(source).toContain("signed(-sale.mesos)");
+  });
+
+  it("wears the coupon's own art on a sale offset, every piece of one being a coupon", () => {
+    expect(source).toContain("iconUrl: string | null;");
+    // Off the drop tables, which is where every other coupon sprite on this page comes from.
+    expect(page).toContain("iconUrl={vestigeIcon}");
+  });
+
+  it("dates every act in the history, and means the same thing by it on each", () => {
+    // A history read from the top, in which nothing said which day an act was. The day the ACT was
+    // recorded, not the day the drop fell: one column down one list cannot mean two facts, so the
+    // drop's own day stays on hover.
+    expect(source).toContain('<span className="loot-meta ledger-when">{dayOf(act.at)}</span>');
+    expect(source).toContain("const dayOf = (at: string) => formatDropped(at.slice(0, 10));");
+    // Never shrunk: a date is unreadable clipped, so the name stays the only part that gives.
+    expect(css).toContain(".ledger-drop-head.is-oneline .ledger-when");
+    // And below 560px the line runs out. Measured at 390px: a 15-digit figure and the date leave the
+    // name at nothing and still spill 6px past the card, so the row wraps rather than lose the
+    // figure off the end. One line is worth having where there is width for it, and no further.
+    expect(css).toMatch(
+      /@media \(max-width: 560px\) \{\s*\.ledger-drop-head\.is-oneline \{\s*flex-wrap: wrap;/,
+    );
   });
 
   it("holds an offset to ONE line, whatever is behind it", () => {
