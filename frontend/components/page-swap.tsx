@@ -25,11 +25,17 @@ export function PageSwap({
   waiting,
   placeholder,
   children,
+  shaped = false,
 }: {
   waiting: boolean;
   /** What stands in while the page waits, and fades out over what arrives. */
   placeholder: ReactNode;
   children: ReactNode;
+  /**
+   * The placeholder is the page's own shape, not a line of text, so it is drawn from the frame the
+   * route commits instead of waiting out the delay. See PAGE_WAITING_SHAPED in route-loading.tsx.
+   */
+  shaped?: boolean;
 }) {
   const [lingering, setLingering] = useState(false);
   const [wasWaiting, setWasWaiting] = useState(waiting);
@@ -77,6 +83,7 @@ export function PageSwap({
   }, [lingering]);
 
   const holding = waiting || lingering;
+  const wait = shaped ? "page-waiting-shaped" : "page-waiting";
 
   // Nothing in hand and nothing on the way: the page has never waited, or has finished. No wrapper,
   // so a settled page is laid out exactly as it would be without this component in the tree.
@@ -96,7 +103,7 @@ export function PageSwap({
         // .page-waiting through that, so the delay is not undone on the way out: see the fade above.
         <div
           ref={leaving}
-          className={waiting ? "page-waiting" : "page-waiting page-swap-out"}
+          className={waiting ? wait : `${wait} page-swap-out`}
           aria-hidden={!waiting}
         >
           {placeholder}
