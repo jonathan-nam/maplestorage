@@ -8,6 +8,7 @@ import {
   distributeSale,
   foldTranches,
   outstandingOf,
+  owedByCreditor,
   owes,
   queueOf,
   roomFor,
@@ -19,6 +20,7 @@ import {
   type HolderLedger,
   alsoHeldByYou,
   answeredByHolder,
+  answeredByPair,
   holderLedgers,
   keptByHolder,
   outstanding,
@@ -155,6 +157,9 @@ const yourPile = (
     undefined,
     undefined,
     answeredByHolder(rows),
+    // As the page builds it. Left off, every sale reached the card as pieces attributed to NOBODY,
+    // so the per-creditor half of the ledger was exercised by nothing in here.
+    answeredByPair(rows),
   )[0]!;
 };
 
@@ -831,5 +836,71 @@ describe("which recorded tranches the card still draws a pill for", () => {
     const all = [tranche("t1"), tranche("t2", [{ holder: BRO }])];
     const { shown, folded } = foldTranches(all);
     expect(shown.length + folded.length).toBe(all.length);
+  });
+});
+
+// The bug Jonathan reported, at its smallest: the Sale Ledger said Extreme Kalos owed Bro 60 while the
+// Settlement Ledger said 20 off the same night. The fold here was ALL-OR-NOTHING, so a night whose
+// credit could not finish it OUTRIGHT was drawn at its gross figure while the header above had already
+// counted the answer. One night, one creditor, and the card contradicting itself.
+describe("a night the answer only part covers", () => {
+  /** 30 of the 60 in your inventory are Bro's, and a sale has named 20 of them. */
+  const partly = () =>
+    yourPile(0, { pieces: 0, paid: 0 }, { pieces: 20, amount: 400 * M, theirs: 20 });
+
+  it("lists what is LEFT on the night, not what it started as", () => {
+    const { owing } = queueOf(partly());
+    expect(owing).toHaveLength(1);
+    expect(owing[0]!.transfers.map((t) => t.pieces)).toEqual([10]);
+  });
+
+  it("adds up to the header over it", () => {
+    const mine = partly();
+    const listed = queueOf(mine)
+      .owing.flatMap((n) => n.transfers)
+      .reduce((sum, t) => sum + t.pieces, 0);
+    expect(listed).toBe(outstandingOf(mine));
+    expect(outstandingOf(mine)).toBe(10);
+  });
+
+  it("names the creditor for what is left, not for what was answered", () => {
+    // The header's own words. It totalled the transfers itself and took off only their own coupons, so
+    // it went on naming a debt a sale had already priced.
+    expect(owedByCreditor(partly())).toEqual([{ key: "person:p-bro", name: "Bro", pieces: 10 }]);
+  });
+
+  it("still asks, because 10 pieces are still somebody else's", () => {
+    expect(asksAnything(partly())).toBe(true);
+    expect(settledOf(partly())).toBe(20);
+  });
+
+  it("folds the night once nothing is left on it, and counts it instead", () => {
+    const done = yourPile(0, { pieces: 0, paid: 0 }, { pieces: 30, amount: 600 * M, theirs: 30 });
+    const { owing, answered } = queueOf(done);
+    expect([owing.length, answered]).toEqual([0, 1]);
+    expect(outstandingOf(done)).toBe(0);
+  });
+
+  it("counts a creditor's own coupons in your inventory as the answer too", () => {
+    // The credit `owes` has always netted, now reaching the rows as well. Bro holding 12 of yours
+    // makes 12 of what you owe him nothing changing hands, so the night says 18 rather than 30.
+    const held = new Map([["person:p-bro", 12]]);
+    expect(queueOf(yourPile(), held).owing[0]!.transfers.map((t) => t.pieces)).toEqual([18]);
+    expect(outstandingOf(yourPile(), held)).toBe(18);
+  });
+
+  it("stops a SECOND sale attributing pieces the first already answered", () => {
+    // owedByCreditor is what feeds distributeSale, so netting the answer there is also what keeps one
+    // debt from being answered twice: 30 were Bro's, 20 are priced, and 10 are left to name.
+    expect(distributeSale(30, owedByCreditor(partly())).map((s) => s.pieces)).toEqual([10]);
+  });
+
+  it("keeps a purchase that named nobody answering the PILE, since V50 says it answers one in full", () => {
+    // It cannot come off a night or a creditor: answeredByPair refuses to guess whose pieces they
+    // were, and naming one would discharge a debt against somebody who never agreed. So the header
+    // falls and the rows do not, which is the safe direction for a worklist.
+    const bought = yourPile(0, { pieces: 30, paid: 700 * M });
+    expect(outstandingOf(bought)).toBe(0);
+    expect(queueOf(bought).owing[0]!.transfers.map((t) => t.pieces)).toEqual([30]);
   });
 });
