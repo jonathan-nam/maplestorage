@@ -15,7 +15,8 @@
 // apportioning, no debt is derived from these rows, so a pile that owes nobody gets the same figures
 // whatever it is told. Asking it to account for itself is work with no reader.
 
-import { holderKey, unaccounted } from "./vestige-ledger";
+import { spendOldestFirst } from "./piece-ledger";
+import { SELF_KEY, holderKey, unaccounted } from "./vestige-ledger";
 import type { Holder, HolderLedger } from "./vestige-ledger";
 
 /** Every answer a pile can be given. All three, on every card, whoever is holding it. */
@@ -95,26 +96,19 @@ export type HeldOfYours = Map<string, number>;
  *
  * Biggest first, and a creditor who nets to nothing drops out: they are square, and the pile has
  * nothing to say to them.
+ *
+ * Off the ONE spend, so the names over the queue count the same pieces the rows under it do. It used
+ * to total the transfers itself and subtract only the coupons of yours they hold, which left the
+ * header naming a debt a sale had already answered.
  */
 export function owedByCreditor(
   ledger: HolderLedger,
   heldOfYours: HeldOfYours = new Map(),
 ): { key: string; name: string; pieces: number }[] {
-  const byCreditor = new Map<string, { name: string; pieces: number }>();
-  for (const drop of ledger.drops) {
-    if (drop.closed) continue;
-    for (const transfer of drop.transfers) {
-      const seen = byCreditor.get(transfer.toId);
-      if (seen) seen.pieces += transfer.pieces;
-      else byCreditor.set(transfer.toId, { name: transfer.to, pieces: transfer.pieces });
-    }
-  }
-  return [...byCreditor.entries()]
-    .map(([key, { name, pieces }]) => ({
-      key,
-      name,
-      pieces: Math.max(0, pieces - (heldOfYours.get(key) ?? 0)),
-    }))
+  const { nights, left } = spendAnswered(ledger, heldOfYours);
+  const names = new Map(nights.flatMap((n) => n.transfers.map((t) => [t.toId, t.to] as const)));
+  return [...left.entries()]
+    .map(([key, pieces]) => ({ key, name: names.get(key) ?? key, pieces }))
     .filter((row) => row.pieces > 0)
     .sort((a, b) => b.pieces - a.pieces || a.name.localeCompare(b.name));
 }
@@ -130,7 +124,13 @@ export function heldOfYoursBy(ledgers: HolderLedger[]): HeldOfYours {
   const out: HeldOfYours = new Map();
   for (const ledger of ledgers) {
     if (ledger.holder.kind === "SELF" || ledger.closed) continue;
-    if (ledger.owedToYou > 0) out.set(holderKey(ledger.holder), ledger.owedToYou);
+    // Net of what a sale out of THEIR pile has already answered you for. Those pieces are money on
+    // their Settlement card, so counting them here as coupons of yours they are still holding would
+    // let one debt cancel your own a second time. The same subtraction settlement.ts makes to reach
+    // `piecesAnswered.yours`, and the reason both ledgers now reduce a night alike.
+    const answered = Math.min(ledger.owedToYou, ledger.answeredByCreditor.get(SELF_KEY) ?? 0);
+    const held = ledger.owedToYou - answered;
+    if (held > 0) out.set(holderKey(ledger.holder), held);
   }
   return out;
 }
@@ -190,7 +190,10 @@ export function distributeSale<T extends { key: string; pieces: number }>(
  * Capped, because a holder may have bought pieces on a night whose books were later closed.
  */
 export function settledOf(ledger: HolderLedger, heldOfYours: HeldOfYours = new Map()): number {
-  return Math.min(owes(ledger, heldOfYours), ledger.answered);
+  // What the spend actually consumed, rather than `ledger.answered` capped at the whole debt. That
+  // total is the PILE's, so a tranche naming Bro counted against what Jared was owed, and the header
+  // could read less outstanding than its own rows came to.
+  return owes(ledger, heldOfYours) - outstandingOf(ledger, heldOfYours);
 }
 
 /**
@@ -208,61 +211,81 @@ export function settledOf(ledger: HolderLedger, heldOfYours: HeldOfYours = new M
  * and a card that went quiet about it would be hiding what it dropped rather than saying it short.
  */
 export function asksAnything(ledger: HolderLedger, heldOfYours: HeldOfYours = new Map()): boolean {
-  return (
-    settledOf(ledger, heldOfYours) < owes(ledger, heldOfYours) || ledger.accounted > ledger.pieces
-  );
+  return outstandingOf(ledger, heldOfYours) > 0 || ledger.accounted > ledger.pieces;
 }
 
 /** One night under a pile, as the queue reads it. */
 type Night = HolderLedger["drops"][number];
 
 /**
- * Which nights a creditor's answered pieces have finished, oldest night first.
+ * ONE spend of everything that has answered this pile's debt, night by night and creditor by
+ * creditor. Every figure the card states about a debt comes off this.
  *
- * The gate used to be the whole pile: while any of it was outstanding EVERY night stayed up, on the
- * reasoning that a tranche names a person and never a boss, so picking some would be a guess about
- * which coupons went to market. The cost of that was not a guess avoided, it was five settled nights
- * coming back the moment a sixth was entered: 150 pieces answered, one new 30-piece night logged,
- * and the queue went from nothing to six rows including the five already sold. A night that has been
- * answered for is finished, and a night logged today cannot un-finish it.
+ * Three separate subtractions is how the Sale Ledger came to say a night owed Bro 60 while the
+ * Settlement Ledger said 20 off the same night, each right under its own rule: the fold here was
+ * ALL-OR-NOTHING per night, so a night its credit could not finish outright was drawn GROSS;
+ * `settledOf` pooled the answered pieces over the whole pile, so one creditor's sale could count
+ * against another's debt; and `owedByCreditor` subtracted nothing at all.
  *
- * Oldest first, by the day the night FELL. A sale cannot have come off a night that had not happened
- * yet, which is the same reckoning receivedSinceClosing applies to money (#350). Not the order the
- * rows are drawn in: that is the catalog's, so two bosses in one week never swap places, and it is
- * not the order the nights happened in.
+ * Credit is a creditor's own coupons sitting in your inventory plus what a sale has already answered
+ * for them. That is the same pair the Settlement Ledger cancels and V56 prices, and it is why a night
+ * can go quiet without anybody being paid: 20 of theirs against 20 of yours is nothing changing hands.
  *
- * PER CREDITOR, never pooled. Bro's sold coupons cannot finish a night owed to Jared, which is the
- * cross-person netting `owes` already refuses.
+ * Spent OLDEST NIGHT FIRST, partially, through the primitive the Settlement Ledger spends with. A
+ * sale cannot have come off a night that had not happened yet, the reckoning receivedSinceClosing
+ * applies to money (#350), and two surfaces reducing one night by different rules are two answers.
+ * Not the order the rows are DRAWN in: that is the catalog's, so two bosses in one week never swap
+ * places, and it is not the order the nights happened in.
  *
- * Stops at the first night its creditors cannot cover, rather than skipping on to a smaller one it
- * could. Leftover credit going unspent leaves a night on screen that is nearly finished, which is
- * the safe direction: this fold HIDES rows, so it errs towards showing one too many.
+ * Leftover credit goes unspent. A creditor holding more of yours than you owe them is a debt the
+ * other way and belongs on their own card, which is the floor `owes` already applies.
  */
-function foldAnswered(ledger: HolderLedger, owing: Night[], heldOfYours: HeldOfYours): Set<string> {
-  const credit = new Map<string, number>();
-  for (const night of owing) {
-    for (const transfer of night.transfers) {
-      if (credit.has(transfer.toId)) continue;
-      credit.set(
-        transfer.toId,
-        (heldOfYours.get(transfer.toId) ?? 0) + (ledger.answeredByCreditor.get(transfer.toId) ?? 0),
-      );
+export function spendAnswered(
+  ledger: HolderLedger,
+  heldOfYours: HeldOfYours = new Map(),
+): {
+  /** The open nights that owe somebody, each transfer reduced to what it STILL owes. */
+  nights: Night[];
+  /** Nights nothing is left on. Kept in `nights` so a caller can count them. */
+  folded: Set<string>;
+  /** What is still owed each creditor once the spend is done. */
+  left: Map<string, number>;
+} {
+  const open = ledger.drops.filter((d) => !d.closed && d.transfers.length > 0);
+  const creditors = new Set(open.flatMap((d) => d.transfers.map((t) => t.toId)));
+
+  // Keyed on the TRANSFER, not on (night, creditor): one night can owe one person twice, off two
+  // stacks, and those are two rows on the card. Identity holds because the nights are only copied
+  // once the spend is finished.
+  const remaining = new Map<Night["transfers"][number], number>();
+  const left = new Map<string, number>();
+  for (const creditor of creditors) {
+    const credit =
+      (heldOfYours.get(creditor) ?? 0) + (ledger.answeredByCreditor.get(creditor) ?? 0);
+    const owed = open.flatMap((night) =>
+      night.transfers
+        .filter((t) => t.toId === creditor)
+        .map((t) => ({ droppedOn: night.droppedOn, pieces: t.pieces, transfer: t })),
+    );
+    let over = 0;
+    for (const row of spendOldestFirst(owed, credit)) {
+      remaining.set(row.transfer, row.pieces);
+      over += row.pieces;
     }
+    left.set(creditor, over);
   }
 
-  const folded = new Set<string>();
-  const oldest = [...owing].sort((a, b) => a.droppedOn.localeCompare(b.droppedOn));
-  for (const night of oldest) {
-    const owed = new Map<string, number>();
-    for (const transfer of night.transfers) {
-      owed.set(transfer.toId, (owed.get(transfer.toId) ?? 0) + transfer.pieces);
-    }
-    // Every creditor of the night, because closing it would say all of them were answered for.
-    if (![...owed].every(([key, pieces]) => (credit.get(key) ?? 0) >= pieces)) break;
-    for (const [key, pieces] of owed) credit.set(key, (credit.get(key) ?? 0) - pieces);
-    folded.add(night.lootId);
-  }
-  return folded;
+  const nights = open.map((night) => ({
+    ...night,
+    transfers: night.transfers.map((t) => ({ ...t, pieces: remaining.get(t) ?? t.pieces })),
+  }));
+  return {
+    nights,
+    folded: new Set(
+      nights.filter((n) => n.transfers.every((t) => t.pieces === 0)).map((n) => n.lootId),
+    ),
+    left,
+  };
 }
 
 /**
@@ -291,11 +314,12 @@ export function queueOf(
   heldOfYours: HeldOfYours = new Map(),
 ): { owing: Night[]; clean: number; answered: number } {
   const open = ledger.drops.filter((d) => !d.closed);
-  const owing = open.filter((d) => d.transfers.length > 0);
-  const folded = foldAnswered(ledger, owing, heldOfYours);
+  // REDUCED, not merely filtered. A night the spend part-answered is listed at what is left on it,
+  // which is what the Settlement Ledger has always listed and what the header above counts.
+  const { nights, folded } = spendAnswered(ledger, heldOfYours);
   return {
-    owing: owing.filter((d) => !folded.has(d.lootId)),
-    clean: open.length - owing.length,
+    owing: nights.filter((n) => !folded.has(n.lootId)),
+    clean: open.length - nights.length,
     answered: folded.size,
   };
 }
@@ -307,7 +331,29 @@ export function queueOf(
  * `holding 1495` stood there before and was a number nobody could act on.
  */
 export function outstandingOf(ledger: HolderLedger, heldOfYours: HeldOfYours = new Map()): number {
-  return owes(ledger, heldOfYours) - settledOf(ledger, heldOfYours);
+  // The sum of what the rows under it say, off the same spend, so the header and its own queue cannot
+  // come to two figures. See spendAnswered.
+  let total = 0;
+  for (const pieces of spendAnswered(ledger, heldOfYours).left.values()) total += pieces;
+  return Math.max(0, total - unattributed(ledger));
+}
+
+/**
+ * Pieces a purchase answered for without saying whose they were.
+ *
+ * V50: a purchase is one creditor's in full. `answeredByPair` refuses to guess WHICH, because naming
+ * one would discharge a debt against somebody who never agreed to it, so these pieces can come off no
+ * night and no creditor. They come off the pile's total alone, which is the one question they can
+ * honestly answer: this pile owes that much less.
+ *
+ * So the header can read below what its rows come to, and only ever below: the rows keep a piece the
+ * total has let go, which is the safe direction for a list that is a worklist. Zero for every tranche
+ * entered since V56, all of which name their shares.
+ */
+function unattributed(ledger: HolderLedger): number {
+  let named = 0;
+  for (const pieces of ledger.answeredByCreditor.values()) named += pieces;
+  return Math.max(0, ledger.answered - named);
 }
 
 /**
