@@ -346,6 +346,19 @@ body:has(.nav-pending) main {
   }
 }
 
+/* A placeholder that is the page's own shape, which the delay above must not apply to.
+   The delay hides the placeholder AND takes its space, on the assumption that the page you came
+   from is still underneath. It is not: the router unmounts it as the route commits. Measured on a
+   real click through to Drop Log, the outgoing 747px page went at 9ms and the skeleton was held
+   back until 150ms, so 180ms of the title on an empty screen and then 801px of skeleton in one
+   frame. That blink is worse than the one-frame flash the delay exists to prevent.
+   So it fades up from nothing from the frame it mounts, and keeps its height throughout. A wait
+   that ends early is then a faint shape on its way out, not a full one flashing: page-swap.tsx
+   fades it from whatever it reached. */
+.page-waiting-shaped {
+  animation: page-waiting-in 200ms ease-out both;
+}
+
 /* The other half of the wait: what arrives, easing in over what it replaces.
    The two overlap. Fading the content up on its own left a blank beat, because the "Loading..."
    was already gone: traced on the production build, one frame at the full height of the loaded
@@ -396,6 +409,12 @@ body:has(.nav-pending) main {
     animation:
       page-waiting-in 0s linear 150ms both,
       page-waiting-space 0s linear 150ms both;
+  }
+
+  /* Nothing to delay and nothing to fade: a shaped placeholder is on screen from the frame it
+     mounts, which is what reduced motion asks for anyway. */
+  .page-waiting-shaped {
+    animation: none;
   }
 
   /* No overlap and no fade: the content arrives at full opacity in one frame, which is what

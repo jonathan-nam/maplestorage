@@ -586,7 +586,7 @@ export default function DropLogPage() {
 
       {state === "error" && <p>Couldn&apos;t load your drops.</p>}
       {/* The page's own shape, not a line of text where a page will be. See DropLogSkeleton. */}
-      <PageSwap waiting={state === "loading"} placeholder={<DropLogSkeleton />}>
+      <PageSwap waiting={state === "loading"} placeholder={<DropLogSkeleton />} shaped>
         {state === "loaded" && (
           <>
             {sections.length > 1 && (

@@ -5,7 +5,7 @@ import { DropLogSkeleton } from "@/components/drop-log-skeleton";
 // its own fetch, so handing over to it is invisible.
 export default function Loading() {
   return (
-    <RouteLoading>
+    <RouteLoading shaped>
       <h1 className="page-title">Drop Log</h1>
       <DropLogSkeleton />
     </RouteLoading>

@@ -84,6 +84,19 @@ describe("the wait for a page that has been asked for", () => {
     expect(/@keyframes page-waiting-in \{\s*from \{\s*opacity:\s*0;/.test(css)).toBe(true);
   });
 
+  // The delay assumes the page you came from is still underneath, and it is not: the router
+  // unmounts it as the route commits. Measured on a real click through to Drop Log, the outgoing
+  // 747px page went at 9ms and the 801px skeleton did not land until 208ms, so 180ms of the title
+  // on an empty screen. A placeholder that is the page's own shape opts out.
+  it("draws a page-shaped placeholder without waiting", () => {
+    const shorthand = /\.page-waiting-shaped \{[^}]*animation:\s*([^;]+);/.exec(css)?.[1];
+    expect(shorthand, "no .page-waiting-shaped rule").toBeDefined();
+    // One time is a duration alone. A second would be a delay, which is the blank screen back.
+    expect(shorthand?.match(/\d+m?s\b/g)).toHaveLength(1);
+    // And it must keep its space, or the page still jumps when the space opens instead.
+    expect(shorthand).not.toContain("page-waiting-space");
+  });
+
   // The other end of the same transition, and the half that was got wrong first. Fading the
   // arriving content up on its own is not enough: the placeholder is gone by then, so the page
   // reads as three beats with a blank one in the middle. Traced on the production build, that
@@ -131,14 +144,30 @@ describe("the wait for a page that has been asked for", () => {
     expect(/\.page-swap-out \{[^}]*position:\s*absolute;/.test(css)).toBe(true);
   });
 
-  // Losing either half of this puts the flash back. Dropping .page-waiting on the way out is what
+  // Both of the Drop Log's waits, or the boundary blanks and the page's own placeholder does not,
+  // or the other way round, which is the same blink arriving at a different moment.
+  //
+  // Opted into per page rather than applied to every skeleton. The criterion is how long the page
+  // takes: /bosses is the page the delay was ADDED for, because it loads fast enough that its
+  // 980px skeleton flashed for one frame. The Drop Log reads eleven endpoints and never finishes
+  // inside the delay, so for it the delay is only ever an empty screen.
+  it("draws the Drop Log's skeleton at once, at both of its waits", () => {
+    const read = (f: string) => readFileSync(join(__dirname, "..", f), "utf8");
+    expect(read("app/bosses/drops/loading.tsx")).toContain("<RouteLoading shaped>");
+    expect(read("app/bosses/drops/page.tsx"), "the page's own wait is the longer one").toMatch(
+      /\bshaped\b/,
+    );
+  });
+
+  // Losing either half of this puts the flash back. Dropping the wait class on the way out is what
   // made the read say 1 when the placeholder was at 0, and reading anything other than the live
   // opacity is the same guess by another route.
   it("fades the departing placeholder from the opacity it is actually at", () => {
     const source = readFileSync(join(__dirname, "..", "components", "page-swap.tsx"), "utf8");
-    expect(source, "the departing placeholder keeps its delay").toContain(
-      '"page-waiting page-swap-out"',
+    expect(source, "the departing placeholder keeps whichever wait it had").toContain(
+      "${wait} page-swap-out",
     );
+    expect(source).toMatch(/const wait = shaped \? "page-waiting-shaped" : "page-waiting"/);
     expect(source).toMatch(/animate\(\s*\[\{\s*opacity:\s*getComputedStyle\(el\)\.opacity\s*\}/);
   });
 });
