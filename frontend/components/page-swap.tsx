@@ -47,7 +47,17 @@ export function PageSwap({
   // one this component exists to remove.
   if (wasWaiting !== waiting) {
     setWasWaiting(waiting);
-    if (!waiting) setLingering(true);
+    // A shaped placeholder is REPLACED, not dissolved, so there is nothing to hold it on for.
+    // Crossfading it means two different layouts on screen at once, and they do not line up: the
+    // loaded Add Drop row carries a character picker and the toolbar a Character filter, neither
+    // of which a skeleton can know about. Measured at the midpoint of the fade, both rows were
+    // drawn over each other, offset, for the whole 280ms. That doubling is what reads as the page
+    // flickering away and then filling back in.
+    //
+    // Nothing is blank in its place: the placeholder goes and the content arrives in the same
+    // commit. The blank beat this component exists to remove came from fading content UP from zero
+    // once the placeholder had already gone, which is not what happens here.
+    if (!waiting) setLingering(!shaped);
   }
 
   useEffect(() => {

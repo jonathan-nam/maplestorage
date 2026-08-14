@@ -159,6 +159,19 @@ describe("the wait for a page that has been asked for", () => {
     );
   });
 
+  // A skeleton is REPLACED, not dissolved into what it stood for. Crossfading draws both layouts
+  // at once and they do not line up: measured at the midpoint of the fade on a full account, the
+  // loaded Add Drop row (which carries a character picker) sat over the skeleton's (which cannot)
+  // for the whole 280ms, and so did the Character filter over the Group one. That doubling reads
+  // as the page flickering away and filling back in.
+  //
+  // Nothing is blank in its place. The placeholder goes and the content arrives in one commit; the
+  // blank beat PageSwap exists to remove came from fading content UP once the placeholder was gone.
+  it("replaces a page-shaped placeholder rather than dissolving it", () => {
+    const source = readFileSync(join(__dirname, "..", "components", "page-swap.tsx"), "utf8");
+    expect(source).toMatch(/setLingering\(!shaped\)/);
+  });
+
   // Losing either half of this puts the flash back. Dropping the wait class on the way out is what
   // made the read say 1 when the placeholder was at 0, and reading anything other than the live
   // opacity is the same guess by another route.
