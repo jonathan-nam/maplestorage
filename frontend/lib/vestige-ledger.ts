@@ -46,6 +46,14 @@ export type OutstandingDrop = {
   lootId: string;
   partyId: string;
   bossKey: string | null;
+  /**
+   * The day it fell, which is the order a debt is answered in. See queueOf.
+   *
+   * Beside `weekStart` rather than derived from it: the queue is drawn in the catalog's order so two
+   * bosses in one week never swap places, and that order is not the order the nights happened in. A
+   * sale cannot have come off a night that fell after it, and the week alone cannot tell them apart.
+   */
+  droppedOn: string;
   /** Whose pile the pieces are in. The tranche tally is theirs, so the queue is split by it. */
   holder: Holder;
   /** What to call them on screen. */
@@ -110,6 +118,14 @@ export type HolderLedger = {
    */
   answered: number;
   /**
+   * The same pieces, split by WHO they answered. See answeredByPair.
+   *
+   * `answered` is the pile's total and cannot retire a night: which nights are finished is a question
+   * per creditor, and spending one person's sold coupons on a night owed to another is the
+   * cross-person netting `owes` already refuses. See queueOf.
+   */
+  answeredByCreditor: Map<string, number>;
+  /**
    * Every drop under this holder has had its books closed, so the card is done. See V52.
    *
    * Not derived from the money, and it cannot be: a drop is queued on `entitled - looted`, fixed when
@@ -131,6 +147,8 @@ export type HolderLedger = {
     partyId: string;
     bossKey: string | null;
     weekStart: string;
+    /** The day it fell. What a debt is answered in the order of, never what it is drawn in. */
+    droppedOn: string;
     /** Which of this holder's characters looted it. */
     looterName: string;
     pieces: number;
@@ -645,6 +663,7 @@ export function outstanding(
           lootId: loot.id,
           partyId: pool.partyId,
           bossKey: loot.bossKey,
+          droppedOn: loot.droppedOn,
           holder: holder.holder,
           holderName: holder.name,
           looterName: pile.by,
@@ -719,6 +738,7 @@ export function alsoHeldByYou(
         lootId: loot.id,
         partyId: pool.partyId,
         bossKey: loot.bossKey,
+        droppedOn: loot.droppedOn,
         holder: mine.holder,
         holderName: mine.name,
         looterName: pile.by,
@@ -774,6 +794,13 @@ export function holderLedgers(
   },
   /** Pieces each pile has answered for with money rather than coupons. Absent is none. See V56. */
   answeredByHolder: Map<string, number> = new Map(),
+  /**
+   * The same pieces per (pile, creditor), which is what retires a night. See answeredByPair.
+   *
+   * Absent leaves every night on the queue while any of the pile is outstanding, which is what this
+   * did before a night could be retired at all.
+   */
+  answeredByPair: Map<string, number> = new Map(),
 ): HolderLedger[] {
   const byHolder = new Map<string, OutstandingDrop[]>();
   for (const d of drops) {
@@ -800,6 +827,7 @@ export function holderLedgers(
       partyId: d.partyId,
       bossKey: d.bossKey,
       weekStart: d.drop.weekStart,
+      droppedOn: d.droppedOn,
       looterName: d.looterName,
       // What is in THIS pile. The whole drop would count somebody else's stacks as theirs.
       pieces: heldOf(d.drop),
@@ -834,6 +862,14 @@ export function holderLedgers(
       // Not in `accounted`, which counts what became of the PILE: these pieces were sold or taken and
       // are already in one of those counts. This says which of them answered somebody's debt.
       answered: answeredByHolder.get(key) ?? 0,
+      // Only the creditors this pile's own nights name, so a tranche naming somebody no night owes
+      // sits in the total above and retires nothing.
+      answeredByCreditor: new Map(
+        [...new Set(drops.flatMap((d) => d.transfers.map((t) => t.toId)))].map((creditor) => [
+          creditor,
+          answeredByPair.get(answeredKey(key, creditor)) ?? 0,
+        ]),
+      ),
       accounted: soldPieces + kept + bought.pieces,
       // Every drop closed, so there is nothing here anybody is waiting on. A pile with no drops at all
       // cannot be closed: there would be nothing to have decided about.

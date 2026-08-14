@@ -378,16 +378,23 @@ describe("the nights the card's queue lists", () => {
   /** One night under a pile: `to` is who it owes, or nobody. */
   const night = (
     lootId: string,
-    { to = null as string | null, closed = false, pieces = 60 } = {},
+    {
+      to = null as string | null,
+      closed = false,
+      pieces = 60,
+      owed = 30,
+      droppedOn = "2026-08-06",
+    } = {},
   ) => ({
     lootId,
     partyId: `pa-${lootId}`,
     bossKey: "limbo",
     weekStart: "2026-08-06",
+    droppedOn,
     looterName: "Husky",
     pieces,
     closed,
-    transfers: to ? [{ fromId: "self", toId: "person:p-bro", from: "you", to, pieces: 30 }] : [],
+    transfers: to ? [{ fromId: "self", toId: "person:p-bro", from: "you", to, pieces: owed }] : [],
   });
 
   const pileOf = (drops: ReturnType<typeof night>[]): HolderLedger => ({
@@ -401,6 +408,7 @@ describe("the nights the card's queue lists", () => {
     bought: { pieces: 0, paid: 0 },
     soldPieces: 0,
     answered: 0,
+    answeredByCreditor: new Map(),
     closed: false,
     writtenOff: 0,
     accounted: 0,
@@ -445,23 +453,80 @@ describe("the nights the card's queue lists", () => {
     // only kind of finished night still drawn.
     const pile = {
       ...pileOf([night("l1", { to: "Bro" }), night("l2", { to: "Bro" })]),
-      answered: 120,
+      answered: 60,
+      answeredByCreditor: new Map([["person:p-bro", 60]]),
     };
     const { owing, answered } = queueOf(pile);
     expect([owing.length, answered]).toEqual([0, 2]);
   });
 
-  it("keeps every night up while ANY of it is still outstanding", () => {
-    // A tranche names a person and never a boss, so there is no saying which nights the money came
-    // off. Any one of these could be the part still owed, so folding some would be a guess about
-    // which coupons went to market.
-    // 30 each, so 60 owed against 30 answered: half of it is still somebody's.
+  it("keeps the nights the answer did not reach, and only those", () => {
+    // 30 each, so 60 owed against 30 answered: one night's worth is still somebody's. This used to
+    // keep BOTH up, on the reasoning that a tranche names a person and never a boss so either could
+    // be the part still owed. What that cost is the test below.
     const pile = {
       ...pileOf([night("l1", { to: "Bro" }), night("l2", { to: "Bro" })]),
       answered: 30,
+      answeredByCreditor: new Map([["person:p-bro", 30]]),
     };
     const { owing, answered } = queueOf(pile);
-    expect([owing.length, answered]).toEqual([2, 0]);
+    expect([owing.map((d) => d.lootId), answered]).toEqual([["l2"], 1]);
+  });
+
+  it("does not put a night back up because a LATER one was logged", () => {
+    // Jonathan's report. Five nights owing Bro 150, all answered by two sales, so the queue was
+    // empty. One Hard Kaling entered that week owed 30 more, and all six came back including the
+    // five already sold. A night that has been answered for is finished, and a night logged today
+    // cannot un-finish it.
+    const before = {
+      ...pileOf([
+        night("l1", { to: "Bro", owed: 10 }),
+        night("l2", { to: "Bro", owed: 60 }),
+        night("l3", { to: "Bro", owed: 60 }),
+      ]),
+      answered: 130,
+      answeredByCreditor: new Map([["person:p-bro", 130]]),
+    };
+    expect(queueOf(before).owing).toEqual([]);
+
+    const after = {
+      ...before,
+      drops: [...before.drops, night("l4", { to: "Bro", owed: 30, droppedOn: "2026-08-14" })],
+    };
+    expect(queueOf(after).owing.map((d) => d.lootId)).toEqual(["l4"]);
+    expect(queueOf(after).answered).toBe(3);
+  });
+
+  it("answers the oldest night first, whatever order the rows are drawn in", () => {
+    // The queue is drawn in the catalog's order so two bosses in one week never swap places, which is
+    // not the order the nights happened in. A sale on Thursday cannot have come off a night that fell
+    // on Friday, so the fold reads the day it FELL and the newest night is the one left owing.
+    const pile = {
+      ...pileOf([
+        night("newest", { to: "Bro", owed: 30, droppedOn: "2026-08-14" }),
+        night("oldest", { to: "Bro", owed: 30, droppedOn: "2026-08-13" }),
+      ]),
+      answered: 30,
+      answeredByCreditor: new Map([["person:p-bro", 30]]),
+    };
+    expect(queueOf(pile).owing.map((d) => d.lootId)).toEqual(["newest"]);
+  });
+
+  it("never spends one creditor's answered coupons on a night owed to another", () => {
+    // The cross-person netting `owes` refuses, one screen along. Bro's sold coupons cannot finish a
+    // night Zaddy is owed, however square Bro's own side is.
+    const owedZaddy = {
+      ...night("l2", { to: "Zaddy" }),
+      transfers: [
+        { fromId: "self", toId: "character:zaddy", from: "you", to: "Zaddy", pieces: 30 },
+      ],
+    };
+    const pile = {
+      ...pileOf([night("l1", { to: "Bro" }), owedZaddy]),
+      answered: 300,
+      answeredByCreditor: new Map([["person:p-bro", 300]]),
+    };
+    expect(queueOf(pile).owing.map((d) => d.lootId)).toEqual(["l2"]);
   });
 
   it("counts them answered when their own coupons cover the debt, not just a sale", () => {
@@ -479,6 +544,7 @@ describe("the nights the card's queue lists", () => {
     const pile = {
       ...pileOf([night("l1", { to: "Bro", closed: true }), night("l2", { to: "Bro" })]),
       answered: 60,
+      answeredByCreditor: new Map([["person:p-bro", 60]]),
     };
     const { closed, answered, owing } = queueOf(pile);
     expect([owing.length, closed, answered]).toEqual([0, 1, 1]);
