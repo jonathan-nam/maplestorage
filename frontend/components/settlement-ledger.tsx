@@ -157,6 +157,15 @@ function SettlementCard({
   const entered = parseMesos(owed);
   const owing = entered !== null && entered >= 1 ? entered : null;
 
+  /**
+   * A part's label, led by the pieces it answered for where it answered for any.
+   *
+   * The count is what the headline above stopped asking for, so it belongs on the row that took it
+   * away. Absent on the rows that carry no count: a leading zero would read as a debt of nothing.
+   */
+  const countedLabel = (pieces: number, label: string) =>
+    pieces > 0 ? `${pieces} ${label}` : label;
+
   async function write(action: Promise<void>, clear: null | (() => void)) {
     setRefusal(null);
     try {
@@ -212,12 +221,17 @@ function SettlementCard({
       // "or took", because a purchase out of your own pile now prices their coupons the way a sale
       // does. One row for both: it is one figure of theirs in your hands either way, and which
       // tranche it came off is on the Sale Ledger rather than said twice here.
-      label: `${row.name}'s coupons I sold or took`,
+      //
+      // Counted, because these are the coupons the headline above no longer asks for. Said here and
+      // only here: it is one fact, that this many pieces became this much money.
+      // Worded to read with a count in front of it and without one, since the count is only there
+      // when a tranche named this person. "Bro's coupons" would not take one.
+      label: countedLabel(row.piecesAnswered.theirs, `coupons of ${row.name}'s I sold or took`),
       mesos: row.parts.soldOfTheirs,
     },
     {
       key: "theirs",
-      label: `my coupons ${row.name} sold`,
+      label: countedLabel(row.piecesAnswered.yours, `coupons of mine ${row.name} sold`),
       mesos: row.parts.soldOfYours,
     },
     // Money that has ARRIVED. Not owing and not owed: it is the one part that is finished, so it
@@ -594,10 +608,14 @@ function SettlementCard({
 
       {/* The pieces: a count, and the act that closes it. Still no price, because these are in THEIR
           inventory and only they can sell them. The pieces you owe are priced instead by the sale you
-          entered, which is above as one of the parts. */}
+          entered, which is above as one of the parts.
+
+          Headed by WHOSE they are, not by "pieces". These nights are one side of the netted count in
+          the header, already subtracted from it, and under a bare "PIECES" they read as a second
+          claim on top: a card netting to 130 listed a 20 under it, and 20 was not 20 more. */}
       {row.pieces > 0 && (
         <div className="ledger-entry">
-          <span className="ledger-step">pieces</span>
+          <span className="ledger-step">{`${row.name} is holding`}</span>
           <ul className="ledger-queue">
             {row.drops.map((drop) => {
               const boss = bossByKey.get(drop.bossKey ?? "");

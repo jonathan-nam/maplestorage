@@ -966,6 +966,47 @@ export function answeredByHolder(rows: TrancheRow[]): Map<string, number> {
   return out;
 }
 
+/** How one pile's answer to one creditor is keyed. Both halves, because a pile owes each separately. */
+export function answeredKey(pile: string, creditor: string): string {
+  return `${pile}|${creditor}`;
+}
+
+/**
+ * The same pieces, per (pile, creditor) instead of per pile. See V56.
+ *
+ * The Sale Ledger asks what a PILE still owes, so a pile total answers it. The Settlement Ledger owes
+ * each person separately, and subtracting a pile total there would take one person's sold coupons off
+ * whichever card was being drawn. That is the plausible wrong number this repo exists to prevent, so
+ * the attribution the tranche already carries is kept rather than summed away.
+ *
+ * Only the rows that NAMED a creditor. A purchase that named nobody is one creditor's in full by
+ * definition (V50) and does not say which, so it stays in answeredByHolder's total and is attributed
+ * to nobody here: naming one would discharge a debt against somebody who never agreed to it.
+ *
+ * Capped against the tranche in share order, the same cap answeredByHolder applies to the total, so a
+ * row cached from a build that did not enforce it answers for what fell and no more.
+ */
+export function answeredByPair(rows: TrancheRow[]): Map<string, number> {
+  const out = new Map<string, number>();
+  for (const row of rows) {
+    if (row.amount === null) continue;
+    const pile = holderKey(row.holder);
+    let left = row.pieces;
+    for (const share of row.shares ?? []) {
+      const creditor = holderKey(share.holder);
+      // A share naming the pile's own holder answers nothing and spends none of the budget: a pile
+      // owes itself nothing, which is the case answeredByHolder filters out before it counts.
+      if (creditor === pile) continue;
+      if (left <= 0) break;
+      const pieces = Math.min(share.pieces, left);
+      left -= pieces;
+      const key = answeredKey(pile, creditor);
+      out.set(key, (out.get(key) ?? 0) + pieces);
+    }
+  }
+  return out;
+}
+
 /** What one priced tranche of somebody else's pieces came to, in each direction. Mesos only. */
 export type SaleCredit = {
   /** Money of THEIRS you are holding, from selling or taking pieces of theirs out of your own pile. */

@@ -11,6 +11,7 @@ import {
   type Fate,
   type HeldOfYours,
   distributeSale,
+  foldTranches,
   outstandingOf,
   owedByCreditor,
   settledOf,
@@ -182,6 +183,9 @@ function HolderCard({
   // Asked for on a pile that owes nobody. The card is still the only place its rows can be corrected,
   // so it stays drawn either way, and this is only whether the boxes are out.
   const [entering, setEntering] = useState(forEntry);
+  // Whether the tranches that have already been answered are back on screen. Folded by default and
+  // never dropped: this card is the only place a mistyped one can be taken off. See foldTranches.
+  const [showAnswered, setShowAnswered] = useState(false);
   const entryRef = useRef<HTMLInputElement>(null);
 
   // On mount only, which is the click that drew this card: focus is what ties the two together, and
@@ -195,6 +199,12 @@ function HolderCard({
   const creditorNames = new Map(
     ledger.drops.flatMap((d) => d.transfers).map((t) => [t.toId, t.to]),
   );
+
+  // The rows still worth a pill, and the ones a Settlement card now carries. Folded rather than
+  // dropped, and the whole list comes back rather than one at a time: they are corrected together or
+  // not at all, and a per-row reveal would be a control per finished act.
+  const { shown, folded } = foldTranches(tranches);
+  const shownTranches = showAnswered ? tranches : shown;
 
   const overEntered = Math.max(0, ledger.accounted - ledger.pieces);
 
@@ -479,9 +489,13 @@ function HolderCard({
         )}
 
         {/* The pieces step's own rows, in the order the queue spends them. Removable because a mistyped
-            tranche re-prices every boss behind it, and there is nowhere else to correct one. */}
+            tranche re-prices every boss behind it, and there is nowhere else to correct one.
+
+            A tranche that said whose pieces it held is folded away: it has been answered on that
+            person's Settlement card, in money, and the pill outlives the act by the whole life of the
+            account. The count keeps the way back, since removing one is still only possible here. */}
         <span className="ledger-tranches">
-          {tranches.map((tranche) => (
+          {shownTranches.map((tranche) => (
             <span key={tranche.id} className="ledger-tranche">
               {/* A redemption has no price, so it says what it is rather than dividing by a
                   missing amount. See V46. A purchase has one and is still not a sale, so it says
@@ -515,6 +529,11 @@ function HolderCard({
               </button>
             </span>
           ))}
+          {folded.length > 0 && !showAnswered && (
+            <button type="button" className="link" onClick={() => setShowAnswered(true)}>
+              {`${folded.length} recorded`}
+            </button>
+          )}
         </span>
 
         {refusal && <span className="split-error">{refusal}</span>}
