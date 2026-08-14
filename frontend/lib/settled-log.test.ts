@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildDropLog } from "./drop-log";
-import { buildSettledLog, orphansOf, settledTotals } from "./settled-log";
+import { buildSettledLog, consolidateSettled, orphansOf, settledTotals } from "./settled-log";
 import { closedByHolder } from "./vestige-ledger";
 import type { Holder } from "./vestige-ledger";
 import type { DropTables } from "@/types/drop";
@@ -276,5 +276,66 @@ describe("the totals over what is finished", () => {
     const two = [act({ lootIds: ["n1", "n2"], unpaid: 900 })];
     const rows = buildSettledLog(logOf([night(), night({ id: "n2" })], two), two, NAMES);
     expect(settledTotals(rows).writtenOff).toBe(900);
+  });
+});
+
+// A settlement usually closes several nights at once, so drawn flat it is a row per night saying the
+// same thing about the same person on the same day, for ever.
+describe("folding the nights one act closed", () => {
+  it("folds an act's nights into one line", () => {
+    const two = [act({ lootIds: ["n1", "n2"] })];
+    const lines = consolidateSettled(
+      buildSettledLog(logOf([night(), night({ id: "n2" })], two), two, NAMES),
+    );
+    expect(lines).toHaveLength(1);
+    expect([lines[0]!.folded, lines[0]!.records.length]).toEqual([true, 2]);
+  });
+
+  it("adds the fold up to what its nights hold, so the line and the rows agree", () => {
+    const two = [act({ lootIds: ["n1", "n2"], unpaid: 900 })];
+    const rows = buildSettledLog(logOf([night(), night({ id: "n2" })], two), two, NAMES);
+    const line = consolidateSettled(rows)[0]!;
+    expect(line.pieces).toBe(line.records.reduce((sum, r) => sum + r.pieces, 0));
+    expect(line.writtenOff).toBe(900);
+  });
+
+  it("keeps two acts apart, because they are two decisions", () => {
+    // Folding them would put one date on both. Same night, two people, two acts.
+    const jared: Holder = { kind: "PERSON", personId: "p-jared", characterName: null };
+    const two = [act(), act({ id: "s2", holder: jared, settledAt: "2026-08-11T00:00:00Z" })];
+    const lines = consolidateSettled(
+      buildSettledLog(logOf([night()], two), two, new Map([...NAMES, ["person:p-jared", "Jared"]])),
+    );
+    expect(lines).toHaveLength(2);
+    expect(lines.every((l) => !l.folded)).toBe(true);
+  });
+
+  it("never folds a money drop, each having sold at its own price", () => {
+    const rows = buildSettledLog(logOf([drop(), drop({ id: "l2" })]));
+    const lines = consolidateSettled(rows);
+    expect(lines).toHaveLength(2);
+    expect(lines.every((l) => !l.folded)).toBe(true);
+  });
+
+  it("leaves a one-night act unfolded, a chevron onto one row opening onto itself", () => {
+    const one = [act()];
+    const lines = consolidateSettled(buildSettledLog(logOf([night()], one), one, NAMES));
+    expect(lines[0]!.folded).toBe(false);
+  });
+
+  it("puts the fold where its first record sat, rather than at either end", () => {
+    // The list is newest-finished first, so a fold that jumped to the top or the bottom would move
+    // an act to a date it did not happen on.
+    const two = [act({ lootIds: ["n1", "n2"] })];
+    const rows = buildSettledLog(logOf([drop(), night(), night({ id: "n2" })], two), two, NAMES);
+    const lines = consolidateSettled(rows);
+    const firstNight = rows.findIndex((r) => r.kind === "PIECES");
+    expect(lines[firstNight]!.records[0]).toBe(rows[firstNight]);
+  });
+
+  it("loses no record, so the fold can bring every one back", () => {
+    const two = [act({ lootIds: ["n1", "n2"] })];
+    const rows = buildSettledLog(logOf([drop(), night(), night({ id: "n2" })], two), two, NAMES);
+    expect(consolidateSettled(rows).flatMap((l) => l.records)).toHaveLength(rows.length);
   });
 });

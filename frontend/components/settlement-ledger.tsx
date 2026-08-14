@@ -1135,26 +1135,31 @@ function PieceNights({
 }) {
   return (
     <ul className="ledger-queue">
-      {drops.map((drop) => {
-        const boss = bossByKey.get(drop.bossKey ?? "");
-        const party = partyById.get(drop.partyId);
-        return (
-          <li key={`${drop.lootId}:${drop.pieces}`} className="ledger-drop">
-            <div className="ledger-drop-head">
-              <Link href={`/bosses/parties/${drop.partyId}`} className="loot-name">
-                {boss ? bossLabel(boss.name, party?.difficulty ?? null) : "Unknown boss"}
-              </Link>
-              <span className="loot-meta">
-                {drop.looterName} · week of {formatWeekStart(drop.weekStart)}
-                {/* Why this one is not in the count above. Said on the row it belongs to, rather
-                    than as a second sentence under the button. */}
-                {drop.shared && " · owes somebody else too"}
-              </span>
-              <span className="ledger-amount">{drop.pieces}</span>
-            </div>
-          </li>
-        );
-      })}
+      {/* A night a sale already answered for is at zero, and it is still one of the nights closing
+          the pair would close: it is kept in the list for that and drawn in none. See
+          spendOldestFirst. */}
+      {drops
+        .filter((drop) => drop.pieces > 0)
+        .map((drop) => {
+          const boss = bossByKey.get(drop.bossKey ?? "");
+          const party = partyById.get(drop.partyId);
+          return (
+            <li key={`${drop.lootId}:${drop.pieces}`} className="ledger-drop">
+              <div className="ledger-drop-head">
+                <Link href={`/bosses/parties/${drop.partyId}`} className="loot-name">
+                  {boss ? bossLabel(boss.name, party?.difficulty ?? null) : "Unknown boss"}
+                </Link>
+                <span className="loot-meta">
+                  {drop.looterName} · week of {formatWeekStart(drop.weekStart)}
+                  {/* Why this one is not in the count above. Said on the row it belongs to, rather
+                      than as a second sentence under the button. */}
+                  {drop.shared && " · owes somebody else too"}
+                </span>
+                <span className="ledger-amount">{drop.pieces}</span>
+              </div>
+            </li>
+          );
+        })}
     </ul>
   );
 }

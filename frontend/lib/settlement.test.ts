@@ -1292,23 +1292,35 @@ describe("pieces a sale has already answered for", () => {
     expect(row!.piecesAnswered).toEqual({ yours: 0, theirs: 70 });
   });
 
-  it("leaves the nights whole, having no night to take them off", () => {
-    // A tranche names a person and never a boss, so there is no drop to subtract from. The list is
-    // what the count came from, not a second copy of it.
+  it("takes nothing off the OTHER direction, which this sale did not answer", () => {
+    // The sale came out of your pile, so it answers what you owe. What Bro is holding of yours is a
+    // separate count with its own answered figure, and spending one on the other would be the
+    // cross-person netting one card away.
     const { ledgers, answered } = theNight();
     const [row] = cardFor(ledgers, answered);
+    expect(row!.piecesAnswered.yours).toBe(0);
     expect(row!.drops.map((d) => d.pieces)).toEqual([20]);
   });
 
-  it("leaves the listed nights adding up, once the answered count is taken off them", () => {
-    // The invariant the card draws: a gross list, the pieces it has been paid for, and the count
-    // that is left. Without the middle figure the list showed 150 against an outstanding 20 and
-    // said nothing about the gap, which is one debt read twice, in two units, on one card.
+  it("leaves the listed nights adding up to the count above them", () => {
+    // The invariant the card draws. The list used to be GROSS, on the reasoning that a tranche names
+    // a person and never a boss so there is no night to take the answered pieces off; what that cost
+    // is six nights and 150 coupons listed under a headline of 20. The answer comes off the nights
+    // oldest first now, so the list and the count cannot disagree.
     const { ledgers, answered } = theNight();
     const [row] = cardFor(ledgers, answered);
     const listed = row!.owedDrops.reduce((sum, d) => sum + d.pieces, 0);
-    expect(listed).toBe(150);
-    expect(listed - row!.piecesAnswered.theirs).toBe(row!.piecesYouOwe);
+    expect(listed).toBe(row!.piecesYouOwe);
+  });
+
+  it("keeps an answered night in the list at zero, so closing the pair still closes it", () => {
+    // The trap under the fold. A night answered in money is finished and closing its books is right,
+    // so dropping it from the list would quietly take it out of settleThePair and leave it open for
+    // ever. It is kept at zero and drawn in no row. See spendOldestFirst.
+    const { ledgers, answered } = theNight();
+    const [row] = cardFor(ledgers, answered);
+    expect(row!.owedDrops.some((d) => d.pieces === 0)).toBe(true);
+    expect(settleThePair(row!).bosses).toBe(6);
   });
 
   it("squares to nothing once every coupon has been sold or netted", () => {

@@ -207,6 +207,67 @@ export function orphansOf(entries: DropEntry[], settlements: VestigeSettlement[]
   );
 }
 
+/** One line of the view: a single record, or the nights one act closed together. */
+export type SettledLine = {
+  /** The act when this is a fold, the record's own key when it stands for one row. */
+  key: string;
+  /** The rows behind it, newest first. Exactly one unless this is a fold. */
+  records: SettledRecord[];
+  /** True when it stands for more than one, so the line counts instead of naming. */
+  folded: boolean;
+  /** Coupons across every night behind it. Zero on a money line. */
+  pieces: number;
+  /** Mesos written off across them, which is the act's own figure put back together. */
+  writtenOff: number;
+};
+
+/**
+ * The records as lines, folding the nights ONE ACT closed.
+ *
+ * A settlement usually closes several nights at once, so drawn flat it is a row per night saying the
+ * same thing about the same person on the same day: five for one act on this account, and one per
+ * boss per week for ever after. The act is the honest unit anyway, because "how it was settled" is a
+ * property of the act and not of any one night behind it.
+ *
+ * By the ACT and never by the person. Two settlements with Bro a month apart are two decisions, and
+ * folding them together would put one date on both.
+ *
+ * A money drop is its own line always. Each sold separately, at its own price, and nothing groups
+ * them: a fold would be a heading over unrelated rows.
+ *
+ * Order is kept from the records, so a fold sits where its newest night sat.
+ */
+export function consolidateSettled(rows: SettledRecord[]): SettledLine[] {
+  const at = new Map<string, number>();
+  const out: SettledLine[] = [];
+
+  for (const row of rows) {
+    const act = row.settlementId;
+    if (act === null) {
+      out.push({ key: row.key, records: [row], folded: false, pieces: 0, writtenOff: 0 });
+      continue;
+    }
+    const seen = at.get(act);
+    if (seen === undefined) {
+      at.set(act, out.length);
+      out.push({
+        key: `settlement:${act}`,
+        records: [row],
+        folded: false,
+        pieces: row.pieces,
+        writtenOff: row.writtenOff,
+      });
+      continue;
+    }
+    const line = out[seen]!;
+    line.records.push(row);
+    line.folded = true;
+    line.pieces += row.pieces;
+    line.writtenOff += row.writtenOff;
+  }
+  return out;
+}
+
 /** What the view says above the rows. The two kinds counted apart, because they do not add. */
 export type SettledTotals = {
   /** Coupon nights whose books were closed. */

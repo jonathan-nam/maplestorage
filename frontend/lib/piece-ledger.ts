@@ -219,3 +219,39 @@ export function transfersOf(
 export function transferKey(transfer: { fromId: string; toId: string }): string {
   return `${transfer.fromId}>${transfer.toId}`;
 }
+
+/**
+ * A credit spent over nights, oldest first, leaving what each still owes.
+ *
+ * A pair's debt is one running count and the nights behind it are a queue, so a sale that answered
+ * for 130 coupons answered the oldest 130 of them. That is not a claim about which physical coupons
+ * went to market: it is the same statement the total already makes, distributed over the rows the
+ * reader is looking at, so the list adds up to the figure above it. A list that sums to 180 under a
+ * headline of 50 is a wrong number wherever the reader happens to add it up.
+ *
+ * By the day the night FELL, never the order the rows are drawn in. A sale cannot have come off a
+ * night that had not happened yet, and the queue is drawn in the catalog's order so that two bosses
+ * in one week never swap places.
+ *
+ * Every night is RETURNED, a covered one at zero rather than dropped. What a night still owes and
+ * whether it is one of the nights an act would close are different questions: a night answered in
+ * money is finished and closing the books on it is right, so dropping it here would quietly take it
+ * out of `settleThePair` and leave it open for ever. Whoever DRAWS the list skips the zeroes. The
+ * input order is preserved, because spending order and reading order are different questions too.
+ *
+ * The credit is one CREDITOR's. Spending Bro's answered coupons on a night Jared is owed is the
+ * cross-person netting this app refuses everywhere else.
+ */
+export function spendOldestFirst<T extends { pieces: number; droppedOn: string }>(
+  nights: T[],
+  credit: number,
+): T[] {
+  let left = Math.max(0, credit);
+  const owed = new Map<T, number>();
+  for (const night of [...nights].sort((a, b) => a.droppedOn.localeCompare(b.droppedOn))) {
+    const spent = Math.min(left, night.pieces);
+    left -= spent;
+    owed.set(night, night.pieces - spent);
+  }
+  return nights.map((night) => ({ ...night, pieces: owed.get(night) ?? night.pieces }));
+}

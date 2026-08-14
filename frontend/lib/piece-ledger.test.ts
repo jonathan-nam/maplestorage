@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { type LedgerSeat, balances, entitlements, transferKey, transfersOf } from "./piece-ledger";
+import {
+  type LedgerSeat,
+  balances,
+  entitlements,
+  spendOldestFirst,
+  transferKey,
+  transfersOf,
+} from "./piece-ledger";
 
 const seat = (name: string, looted: number, shares = 1): LedgerSeat => ({
   memberId: `m-${name}`,
@@ -119,5 +126,61 @@ describe("who owes whom, in pieces and never in mesos", () => {
     expect(transferKey({ fromId: "a", toId: "b" })).not.toBe(
       transferKey({ fromId: "b", toId: "a" }),
     );
+  });
+});
+
+// A pair's debt is one running count and the nights behind it are a queue, so an answered figure
+// answered the oldest of them. The alternative was a list that summed to 180 under a headline of 50.
+describe("spending an answered count over the nights behind it", () => {
+  const night = (id: string, droppedOn: string, pieces: number) => ({ id, droppedOn, pieces });
+
+  it("clears the oldest nights first", () => {
+    const out = spendOldestFirst(
+      [night("a", "2026-08-13", 10), night("b", "2026-08-13", 30), night("c", "2026-08-14", 30)],
+      40,
+    );
+    expect(out.map((n) => [n.id, n.pieces])).toEqual([
+      ["a", 0],
+      ["b", 0],
+      ["c", 30],
+    ]);
+  });
+
+  it("leaves the remainder on the night the credit runs out on", () => {
+    expect(spendOldestFirst([night("a", "2026-08-13", 60)], 20)[0]!.pieces).toBe(40);
+  });
+
+  it("goes by the day the night FELL, not the order the rows are drawn in", () => {
+    // The queue is drawn in the catalog's order so two bosses in one week never swap places, which
+    // is not the order the nights happened in. A sale cannot come off a night that had not happened.
+    const out = spendOldestFirst(
+      [night("newest", "2026-08-14", 30), night("oldest", "2026-08-13", 30)],
+      30,
+    );
+    expect(out.map((n) => [n.id, n.pieces])).toEqual([
+      ["newest", 30],
+      ["oldest", 0],
+    ]);
+  });
+
+  it("returns a covered night at zero rather than dropping it", () => {
+    // A night answered in money is finished, and closing its books is right. Dropping it would take
+    // it out of settleThePair and leave it open for ever.
+    expect(spendOldestFirst([night("a", "2026-08-13", 10)], 50)).toHaveLength(1);
+  });
+
+  it("adds up to what was owed less what was answered", () => {
+    const nights = [
+      night("a", "2026-08-13", 10),
+      night("b", "2026-08-13", 30),
+      night("c", "2026-08-14", 30),
+    ];
+    const left = spendOldestFirst(nights, 25).reduce((sum, n) => sum + n.pieces, 0);
+    expect(left).toBe(70 - 25);
+  });
+
+  it("spends nothing it has not got, and never reads negative", () => {
+    expect(spendOldestFirst([night("a", "2026-08-13", 10)], 0).map((n) => n.pieces)).toEqual([10]);
+    expect(spendOldestFirst([night("a", "2026-08-13", 10)], -5).map((n) => n.pieces)).toEqual([10]);
   });
 });
