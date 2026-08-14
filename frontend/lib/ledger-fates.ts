@@ -217,6 +217,55 @@ export function asksAnything(ledger: HolderLedger, heldOfYours: HeldOfYours = ne
 type Night = HolderLedger["drops"][number];
 
 /**
+ * Which nights a creditor's answered pieces have finished, oldest night first.
+ *
+ * The gate used to be the whole pile: while any of it was outstanding EVERY night stayed up, on the
+ * reasoning that a tranche names a person and never a boss, so picking some would be a guess about
+ * which coupons went to market. The cost of that was not a guess avoided, it was five settled nights
+ * coming back the moment a sixth was entered: 150 pieces answered, one new 30-piece night logged,
+ * and the queue went from nothing to six rows including the five already sold. A night that has been
+ * answered for is finished, and a night logged today cannot un-finish it.
+ *
+ * Oldest first, by the day the night FELL. A sale cannot have come off a night that had not happened
+ * yet, which is the same reckoning receivedSinceClosing applies to money (#350). Not the order the
+ * rows are drawn in: that is the catalog's, so two bosses in one week never swap places, and it is
+ * not the order the nights happened in.
+ *
+ * PER CREDITOR, never pooled. Bro's sold coupons cannot finish a night owed to Jared, which is the
+ * cross-person netting `owes` already refuses.
+ *
+ * Stops at the first night its creditors cannot cover, rather than skipping on to a smaller one it
+ * could. Leftover credit going unspent leaves a night on screen that is nearly finished, which is
+ * the safe direction: this fold HIDES rows, so it errs towards showing one too many.
+ */
+function foldAnswered(ledger: HolderLedger, owing: Night[], heldOfYours: HeldOfYours): Set<string> {
+  const credit = new Map<string, number>();
+  for (const night of owing) {
+    for (const transfer of night.transfers) {
+      if (credit.has(transfer.toId)) continue;
+      credit.set(
+        transfer.toId,
+        (heldOfYours.get(transfer.toId) ?? 0) + (ledger.answeredByCreditor.get(transfer.toId) ?? 0),
+      );
+    }
+  }
+
+  const folded = new Set<string>();
+  const oldest = [...owing].sort((a, b) => a.droppedOn.localeCompare(b.droppedOn));
+  for (const night of oldest) {
+    const owed = new Map<string, number>();
+    for (const transfer of night.transfers) {
+      owed.set(transfer.toId, (owed.get(transfer.toId) ?? 0) + transfer.pieces);
+    }
+    // Every creditor of the night, because closing it would say all of them were answered for.
+    if (![...owed].every(([key, pieces]) => (credit.get(key) ?? 0) >= pieces)) break;
+    for (const [key, pieces] of owed) credit.set(key, (credit.get(key) ?? 0) - pieces);
+    folded.add(night.lootId);
+  }
+  return folded;
+}
+
+/**
  * What the card's queue lists, and what it says as a count instead.
  *
  * Only the nights that owe somebody get a row. A night that divided the way it fell is finished when
@@ -229,10 +278,7 @@ type Night = HolderLedger["drops"][number];
  * of those sat under a header already saying nothing was outstanding. Same "already dealt with" as
  * a closed boss, and they were the only kind still drawn.
  *
- * ALL of them or none. A tranche names a person and never a boss, so there is no way to say which
- * nights the money came off, and picking some would be a guess about which coupons went to market.
- * The gate is therefore the pile owing nothing at all: while any of it is outstanding every night
- * stays up, because any one of them could be the part still owed.
+ * Answered NIGHT BY NIGHT, oldest first. See foldAnswered for why, and for the order.
  *
  * No absence is silent. A count that changed still gets said, so all three go on screen as counts,
  * the way a closed boss already did. See V52 and CLAUDE.md.
@@ -243,12 +289,12 @@ export function queueOf(
 ): { owing: Night[]; clean: number; closed: number; answered: number } {
   const open = ledger.drops.filter((d) => !d.closed);
   const owing = open.filter((d) => d.transfers.length > 0);
-  const done = outstandingOf(ledger, heldOfYours) === 0;
+  const folded = foldAnswered(ledger, owing, heldOfYours);
   return {
-    owing: done ? [] : owing,
+    owing: owing.filter((d) => !folded.has(d.lootId)),
     clean: open.length - owing.length,
     closed: ledger.drops.length - open.length,
-    answered: done ? owing.length : 0,
+    answered: folded.size,
   };
 }
 

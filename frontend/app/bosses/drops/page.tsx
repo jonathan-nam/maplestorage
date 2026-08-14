@@ -426,6 +426,9 @@ export default function DropLogPage() {
     receivedByHolder(payments),
     closures,
     answeredByHolder(tranches),
+    // The same pieces per creditor, which is what lets a night the sales already answered stay off
+    // the queue when a later one is logged. See foldAnswered.
+    answeredByPair(tranches),
   );
   // What other people owe you, in both units it can be owed in: pieces of yours they are holding,
   // and shares of a sale they made. Off the same two aggregations the ledger and the wallet already
