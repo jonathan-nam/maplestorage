@@ -1,11 +1,13 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
 import { apiAssetUrl } from "@/lib/api";
 import { bossLabel } from "@/lib/boss-difficulty";
 import { formatMesos } from "@/lib/drop-split";
 import { formatDropped } from "@/lib/loot";
-import type { SettledRecord, SettledTotals } from "@/lib/settled-log";
+import { consolidateSettled } from "@/lib/settled-log";
+import type { SettledLine, SettledRecord, SettledTotals } from "@/lib/settled-log";
 import type { Boss } from "@/types/boss";
 import type { Party } from "@/types/party";
 
@@ -34,35 +36,92 @@ function endedWith(row: SettledRecord): string | null {
   return row.settledOn ? `paid out ${formatDropped(row.settledOn.slice(0, 10))}` : "paid out";
 }
 
+/** The nights behind a fold, indented past the chevron the way the Drop Log's runs are. */
+function SettledNights({
+  records,
+  bossByKey,
+  partyById,
+  id,
+}: {
+  records: SettledRecord[];
+  bossByKey: Map<string, Boss>;
+  partyById: Map<string, Party>;
+  id: string;
+}) {
+  return (
+    <ul className="droplog-runs" id={id}>
+      {records.map((row) => {
+        const boss = bossByKey.get(row.bossKey ?? "") ?? null;
+        const party = partyById.get(row.partyId) ?? null;
+        return (
+          <li key={row.key} className="droplog-run">
+            <Link href={`/bosses/parties/${row.partyId}`} className="loot-name">
+              {boss ? bossLabel(boss.name, party?.difficulty ?? null) : "Unknown boss"}
+            </Link>
+            <span className="loot-meta">{formatDropped(row.droppedOn)}</span>
+            {/* The same wrapper the Drop Log's runs put their figures in, so the counts line up down
+                the right the way those do. */}
+            <span className="droplog-amounts">
+              <span className="droplog-take">{row.pieces}</span>
+              <span className="loot-share-nets">coupons</span>
+            </span>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
 function SettledRow({
-  row,
+  line,
   bossByKey,
   partyById,
   busy,
   onUndo,
 }: {
-  row: SettledRecord;
+  line: SettledLine;
   bossByKey: Map<string, Boss>;
   partyById: Map<string, Party>;
   busy: boolean;
   onUndo: (settlementId: string) => Promise<void>;
 }) {
+  const [open, setOpen] = useState(false);
+  const row = line.records[0]!;
   const boss = bossByKey.get(row.bossKey ?? "") ?? null;
   const party = partyById.get(row.partyId) ?? null;
-  const meta = [
-    boss ? bossLabel(boss.name, party?.difficulty ?? null) : null,
-    formatDropped(row.droppedOn),
-    row.sale?.seller
-      ? `${row.sale.basis === "BOUGHT" ? "bought by" : "sold by"} ${row.sale.seller}`
-      : null,
-    endedWith(row),
-  ].filter(Boolean);
+  const panelId = `settled-nights-${line.key}`;
+  const nights = `${line.records.length} nights`;
+  // A fold stands for several nights, so it names what they have in common (the act) and counts the
+  // rest. Naming one boss and one date would be naming one night out of five.
+  const meta = line.folded
+    ? [nights, endedWith(row)].filter(Boolean)
+    : [
+        boss ? bossLabel(boss.name, party?.difficulty ?? null) : null,
+        formatDropped(row.droppedOn),
+        row.sale?.seller
+          ? `${row.sale.basis === "BOUGHT" ? "bought by" : "sold by"} ${row.sale.seller}`
+          : null,
+        endedWith(row),
+      ].filter(Boolean);
 
   return (
-    <li className="droplog-row">
+    <li className={`droplog-row${open ? " is-open" : ""}`}>
       <div className="droplog-row-head">
-        {/* The frame is kept with no chevron so these rows line up with the Drop Log's. */}
-        <span className="party-row-toggle is-empty" aria-hidden="true" />
+        {line.folded ? (
+          <button
+            type="button"
+            className="party-row-toggle"
+            aria-expanded={open}
+            aria-controls={panelId}
+            onClick={() => setOpen((o) => !o)}
+          >
+            <span className="party-row-chevron" aria-hidden="true" />
+            <span className="visually-hidden">{open ? `Hide ${nights}` : `Show ${nights}`}</span>
+          </button>
+        ) : (
+          // The frame is kept so one row lines up with a folded one, as the Drop Log's does.
+          <span className="party-row-toggle is-empty" aria-hidden="true" />
+        )}
 
         {row.iconUrl ? (
           <img className="loot-icon" src={apiAssetUrl(row.iconUrl)} alt="" />
@@ -71,10 +130,16 @@ function SettledRow({
         )}
 
         <span className="droplog-title">
-          <Link href={`/bosses/parties/${row.partyId}`} className="loot-name">
-            {row.name}
-            {row.quantity > 1 && <span className="loot-count"> x{row.quantity}</span>}
-          </Link>
+          {/* A fold's nights came off several parties, so its name links to none of them: it would
+              open whichever happened to be first. The nights below carry the links. */}
+          {line.folded ? (
+            <span className="loot-name">{row.name}</span>
+          ) : (
+            <Link href={`/bosses/parties/${row.partyId}`} className="loot-name">
+              {row.name}
+              {row.quantity > 1 && <span className="loot-count"> x{row.quantity}</span>}
+            </Link>
+          )}
           <span className="loot-meta">{meta.join(" · ")}</span>
         </span>
 
@@ -86,11 +151,12 @@ function SettledRow({
             </>
           ) : row.kind === "PIECES" ? (
             <>
-              <span className="droplog-take">{row.pieces}</span>
+              <span className="droplog-take">{line.pieces}</span>
               <span className="loot-share-nets">
-                {/* A write-off is a decision, so it is said on the row it was made about. */}
-                {row.writtenOff > 0
-                  ? `coupons, ${formatMesos(row.writtenOff, true)} written off`
+                {/* A write-off is a decision, so it is said on the line it was made about, which for
+                    a fold is the act that made it. */}
+                {line.writtenOff > 0
+                  ? `coupons, ${formatMesos(line.writtenOff, true)} written off`
                   : "coupons"}
               </span>
             </>
@@ -114,6 +180,17 @@ function SettledRow({
           </button>
         )}
       </div>
+
+      {/* One act closed all of these, so Reopen above takes back all of them. The nights are here to
+          be read, not acted on one at a time. */}
+      {line.folded && open && (
+        <SettledNights
+          records={line.records}
+          bossByKey={bossByKey}
+          partyById={partyById}
+          id={panelId}
+        />
+      )}
     </li>
   );
 }
@@ -164,10 +241,10 @@ export function SettledView({
       </p>
 
       <ul className="droplog-list">
-        {rows.map((row) => (
+        {consolidateSettled(rows).map((line) => (
           <SettledRow
-            key={row.key}
-            row={row}
+            key={line.key}
+            line={line}
             bossByKey={bossByKey}
             partyById={partyById}
             busy={busy}

@@ -54,3 +54,18 @@ describe("the fully-settled state", () => {
     expect(css).not.toContain("ledger-closed-toggle");
   });
 });
+
+// Settled is the end of the pipeline, so it sits at the end of the row. Two rules that only work
+// together: `margin-left: auto` does nothing inside the `inline-flex` that `.basis-row` gives the
+// row, because the row shrinks to its chips and there is no free space to push into.
+describe("the Settled chip", () => {
+  it("sits in a row that spans the page, or it has nowhere to go", () => {
+    const rule = css.match(/^\.droplog-sections \{([^}]*)\}/m);
+    expect(rule?.[1]).toContain("display: flex");
+  });
+
+  it("is pushed to the far end", () => {
+    const rule = css.match(/^\.droplog-sections \.basis-tab:last-child \{([^}]*)\}/m);
+    expect(rule?.[1]).toContain("margin-left: auto");
+  });
+});

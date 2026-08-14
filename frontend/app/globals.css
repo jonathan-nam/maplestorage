@@ -4830,9 +4830,19 @@ button.link:disabled {
   font-variant-numeric: tabular-nums;
 }
 
-/* The two halves of the page, above whichever one is showing. */
+/* The page's four stages, above whichever one is showing. Flex rather than the inline-flex
+   `.basis-row` gives it, so the row spans the page and the last chip has somewhere to go. */
 .droplog-sections {
+  display: flex;
   margin-bottom: 16px;
+}
+
+/* Settled sits at the far end, because it is the end: the three worklists are a sequence you move
+   through and the record is not one of them. Keyed on the last chip rather than on the name, and the
+   order that makes it Settled is pinned by lib/drop-sections.test.ts. Wrapped onto its own line on a
+   narrow page it stays right, which still reads as the end of the row. */
+.droplog-sections .basis-tab:last-child {
+  margin-left: auto;
 }
 
 .droplog-filter {

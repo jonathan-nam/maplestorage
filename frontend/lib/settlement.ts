@@ -19,6 +19,7 @@
 // No total is computed here. The shares are lib/wallet.ts's, the pieces and the sale splits are
 // lib/vestige-ledger.ts's, and a second copy of any of them would be a second answer.
 
+import { spendOldestFirst } from "./piece-ledger";
 import { SELF_KEY, answeredKey, holderFromKey, holderKey } from "./vestige-ledger";
 import type { CouponSale, Holder, HolderLedger, SaleCredit } from "./vestige-ledger";
 import type { Wallet, WalletLine } from "./wallet";
@@ -30,7 +31,15 @@ export type HeldOfYours = {
   partyId: string;
   bossKey: string | null;
   weekStart: string;
-  /** Pieces this person is owed off this night, never the size of the pile holding them. */
+  /** The day it fell, which is the order a debt is answered in. See spendOldestFirst. */
+  droppedOn: string;
+  /**
+   * Pieces this person is owed off this night, never the size of the pile holding them.
+   *
+   * What is STILL owed, not what the night owed to begin with: a sale that answered for 130 coupons
+   * has already come off the oldest nights by the time this is read. So these add up to the figure
+   * on the card, which the gross ones did not.
+   */
   pieces: number;
   /** Which character bent down for them. */
   looterName: string;
@@ -290,6 +299,7 @@ export function buildSettlement(
           partyId: drop.partyId,
           bossKey: drop.bossKey,
           weekStart: drop.weekStart,
+          droppedOn: drop.droppedOn,
           pieces: transfer.pieces,
           looterName: drop.looterName,
           // A different PERSON, not merely a second transfer: one night can owe one person twice,
@@ -309,6 +319,11 @@ export function buildSettlement(
     const paid = answered.get(answeredKey(SELF_KEY, key)) ?? 0;
     row.piecesAnswered.theirs = Math.min(row.piecesYouOwe, paid);
     row.piecesYouOwe -= row.piecesAnswered.theirs;
+    // And off the nights themselves, oldest first, so the list adds up to the count above it. It
+    // used to be left gross on the reasoning that a tranche names a person and never a boss: true,
+    // and what it cost was a panel listing six nights and 180 coupons under a headline of 50, with
+    // five of them already sold for. See spendOldestFirst.
+    row.owedDrops = spendOldestFirst(row.owedDrops, row.piecesAnswered.theirs);
   }
 
   // The pieces. Your own pile is not a debt to you, and a closed one is finished.
@@ -323,6 +338,7 @@ export function buildSettlement(
         partyId: d.partyId,
         bossKey: d.bossKey,
         weekStart: d.weekStart,
+        droppedOn: d.droppedOn,
         pieces: d.transfers
           .filter((t) => t.toId === SELF_KEY)
           .reduce((sum, t) => sum + t.pieces, 0),
@@ -340,9 +356,9 @@ export function buildSettlement(
     const paid = answered.get(answeredKey(holderKey(ledger.holder), SELF_KEY)) ?? 0;
     row.piecesAnswered.yours = Math.min(ledger.owedToYou, paid);
     row.pieces = ledger.owedToYou - row.piecesAnswered.yours;
-    // Gross, and deliberately: a tranche names a person, never a boss, so there is no night to take
-    // the answered pieces off. The count above is what is still owed and this is what it came from.
-    row.drops = drops;
+    // The same subtraction as the other direction, over the same nights, so neither list can state a
+    // total the card contradicts.
+    row.drops = spendOldestFirst(drops, row.piecesAnswered.yours);
   }
 
   // The shares, NETTED: what they owe you less what you owe them, per person. One transfer of the
