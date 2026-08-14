@@ -93,9 +93,10 @@ export type Settlement = {
   /**
    * Pieces already answered with money, in each direction, and so NOT in the two counts above.
    *
-   * Said rather than silently subtracted. The nights are still listed whole under `drops`, because a
-   * tranche names a person and never a boss, so there is no night to take them off. Without this the
-   * list would stop adding up to the count above it, which is a screen hiding what it dropped.
+   * Taken off the nights as well, oldest first, so each list adds up to the count over it. The money
+   * they became is already on the card, theirs under `already off` or `holding` and yours as a part of
+   * the net, so the count is not said again beside the nights: a debt that has been dealt with read as
+   * one still outstanding.
    */
   piecesAnswered: { yours: number; theirs: number };
   /**
@@ -450,7 +451,23 @@ export function buildSettlement(
   for (const key of pinned) rowFor(key).pinned = true;
 
   // Both directions are in by now, so the pair becomes the one figure that changes hands.
-  for (const row of out.values()) row.piecesNet = row.piecesYouOwe - row.pieces;
+  for (const row of out.values()) {
+    // The sides cancel BEFORE either is listed. The header was already the net, one handover settling
+    // the pair, and leaving the lists gross made them contradict it: 50 coupons of Bro's in your pile
+    // over 20 of yours in his read as 70 outstanding under a headline of 30, and the 20 on each side
+    // was a night nobody has to do anything about.
+    //
+    // Netting a COUNT is safe where netting a price would not be: same coupon, same person, nothing
+    // valued. It is the rule the header already runs on, applied one level down.
+    const wash = Math.min(row.pieces, row.piecesYouOwe);
+    row.pieces -= wash;
+    row.piecesYouOwe -= wash;
+    // Oldest first, the way a sale is spent, and the cancelled nights stay in the array at zero:
+    // settleThePair closes them, and a wash finishes both sides of one. PieceNights draws none.
+    row.drops = spendOldestFirst(row.drops, wash);
+    row.owedDrops = spendOldestFirst(row.owedDrops, wash);
+    row.piecesNet = row.piecesYouOwe - row.pieces;
+  }
 
   return [...out.values()]
     .filter(

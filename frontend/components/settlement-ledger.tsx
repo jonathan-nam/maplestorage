@@ -817,7 +817,8 @@ function SettlementCard({
 
           Headed by WHOSE INVENTORY, not by "pieces". Each list is one side of the netted count in the
           header and already subtracted from it, so under a bare "PIECES" they read as a claim on top:
-          a card netting to 130 listed a 20 under it, and 20 was not 20 more.
+          a card netting to 130 listed a 20 under it, and 20 was not 20 more. The two sides also cancel
+          against each other before either is drawn, so together they come to exactly the header.
 
           Drawn whenever there is a night, even where none of them can be closed. The button is what
           the refusal takes away, never the list: a card that went quiet about what is outstanding
@@ -833,7 +834,6 @@ function SettlementCard({
             <>
               <span className="ledger-step">{`${row.name} is holding`}</span>
               <PieceNights drops={row.drops} bossByKey={bossByKey} partyById={partyById} />
-              <Covered pieces={row.piecesAnswered.yours} />
               {/* The one thing the netting cannot decide for the two of you. Their coupons come off
                   what you owe them ONLY if they agree to that; they may want the mesos and to give
                   the coupons back. So it is an act with a price on it, never an assumption, and
@@ -891,7 +891,6 @@ function SettlementCard({
             <>
               <span className="ledger-step">I am holding</span>
               <PieceNights drops={row.owedDrops} bossByKey={bossByKey} partyById={partyById} />
-              <Covered pieces={row.piecesAnswered.theirs} />
             </>
           )}
 
@@ -922,22 +921,6 @@ function SettlementCard({
       {refusal && <span className="split-error">{refusal}</span>}
     </section>
   );
-}
-
-/**
- * How many of the nights above are already paid for, where any are.
- *
- * The list is GROSS and has to be: a tranche names a person and never a boss, so there is no night to
- * take the sold pieces off and no honest way to shorten it. Without this line a card with 150 listed
- * and 20 outstanding showed the 150 and said nothing, which is the same debt read twice: once as
- * coupons here and once as mesos in the money above.
- *
- * The subtraction, not the conclusion. What is left is the header's, and saying it here as well would
- * be the third place one figure lives.
- */
-function Covered({ pieces }: { pieces: number }) {
-  if (pieces <= 0) return null;
-  return <span className="ledger-progress">{`${pieces} sold, priced above`}</span>;
 }
 
 /** The day part of a timestamp, this list being a history of days rather than of minutes. */
@@ -1135,9 +1118,9 @@ function PieceNights({
 }) {
   return (
     <ul className="ledger-queue">
-      {/* A night a sale already answered for is at zero, and it is still one of the nights closing
-          the pair would close: it is kept in the list for that and drawn in none. See
-          spendOldestFirst. */}
+      {/* A night a sale answered for, or one the other side cancelled, is at zero, and it is still one
+          of the nights closing the pair would close: it is kept in the list for that and drawn in
+          none. See spendOldestFirst. */}
       {drops
         .filter((drop) => drop.pieces > 0)
         .map((drop) => {

@@ -150,10 +150,10 @@ describe("what one person owes you", () => {
     expect([rows[0]!.name, rows[0]!.pieces, rows[0]!.piecesYouOwe]).toEqual(["Bro", 0, 30]);
   });
 
-  it("keeps the two directions apart, and counts every night of each", () => {
+  it("cancels the two directions against each other before either is listed", () => {
     // Husky's week: 30 of Bro's off Kalos and 15 off Seren in your inventory, 20 of yours off
-    // Baldrix in his. Two figures on one card, because a debt in coupons is settled by handing the
-    // coupons over and the two piles are in different inventories.
+    // Baldrix in his. One handover settles the pair, so the 20 on each side is a night neither of you
+    // has to do anything about, and it comes off BOTH lists rather than standing on each.
     const rows = buildSettlement(
       [
         ledger(SELF, "you", {
@@ -164,9 +164,53 @@ describe("what one person owes you", () => {
       wallet([]),
     );
     expect(rows).toHaveLength(1);
-    expect([rows[0]!.pieces, rows[0]!.piecesYouOwe]).toEqual([20, 45]);
-    // And the pair nets, because one handover settles both: 45 of theirs less 20 of yours.
-    expect(rows[0]!.piecesNet).toBe(25);
+    expect([rows[0]!.pieces, rows[0]!.piecesYouOwe, rows[0]!.piecesNet]).toEqual([0, 25, 25]);
+    // And the nights say the same, oldest first: Kalos gives up the 20, Seren is untouched.
+    expect(rows[0]!.owedDrops.map((d) => d.pieces)).toEqual([10, 15]);
+    expect(rows[0]!.drops.map((d) => d.pieces)).toEqual([0]);
+  });
+
+  it("cancels the nights a sale left, oldest first", () => {
+    // The card as Jonathan read it: 60 of Bro's in your pile over two nights, 10 of them already sold
+    // and offset, and 20 of yours in his. Kalos was down to 20 and Baldrix to 20, and both were
+    // listed as outstanding when between them they were nothing. What is left is the later night
+    // whole, which is the one figure that changes hands.
+    const [row] = buildSettlement(
+      [
+        ledger(SELF, "you", {
+          drops: [
+            holdingOf("l1", "kalos-the-guardian", 30),
+            { ...holdingOf("l2", "kaling", 30), droppedOn: "2026-08-14" },
+          ],
+        }),
+        ledger(BRO, "Bro", { owedToYou: 20, drops: [owing("l3", "baldrix", 20)] }),
+      ],
+      wallet([]),
+      [],
+      new Map(),
+      new Map(),
+      new Map(),
+      new Set(),
+      new Map([[answeredKey("self", "person:p-bro"), 10]]),
+    );
+    expect(row!.piecesNet).toBe(30);
+    expect(row!.owedDrops.map((d) => d.pieces)).toEqual([0, 30]);
+    expect(row!.drops.map((d) => d.pieces)).toEqual([0]);
+  });
+
+  it("keeps a cancelled night in the list at zero, so closing the pair still closes it", () => {
+    // The same trap the answered nights have: a night that cancelled is finished and closing its
+    // books is right, so dropping it from the list would take it out of settleThePair and leave it
+    // open for ever. It is kept at zero and drawn in no row.
+    const [row] = buildSettlement(
+      [
+        ledger(SELF, "you", { drops: [holdingOf("l1", "kalos-the-guardian", 30)] }),
+        ledger(BRO, "Bro", { owedToYou: 30, drops: [owing("l2", "baldrix", 30)] }),
+      ],
+      wallet([counterparty("person:p-bro", "Bro", [line("l3", 900 * M)])]),
+    );
+    expect([row!.pieces, row!.piecesYouOwe, row!.piecesNet]).toEqual([0, 0, 0]);
+    expect(settleThePair(row!).bosses).toBe(2);
   });
 
   it("nets the two directions into the one count that changes hands", () => {
@@ -1273,7 +1317,8 @@ describe("pieces a sale has already answered for", () => {
   it("takes them off what you owe, so both ledgers give one answer", () => {
     const { ledgers, answered } = theNight();
     const [row] = cardFor(ledgers, answered);
-    expect([row!.piecesYouOwe, row!.pieces, row!.piecesNet]).toEqual([80, 20, 60]);
+    // 150 owed less the 70 sold is 80, and the 20 Bro holds of yours cancels against it.
+    expect([row!.piecesYouOwe, row!.pieces, row!.piecesNet]).toEqual([60, 0, 60]);
   });
 
   it("said 130 before, which was the 70 asked for twice", () => {
@@ -1296,8 +1341,16 @@ describe("pieces a sale has already answered for", () => {
     // The sale came out of your pile, so it answers what you owe. What Bro is holding of yours is a
     // separate count with its own answered figure, and spending one on the other would be the
     // cross-person netting one card away.
-    const { ledgers, answered } = theNight();
-    const [row] = cardFor(ledgers, answered);
+    //
+    // Its own night rather than theNight()'s, so the pair cancelling cannot be read as the sale doing
+    // it: 10 of his in your pile and all of it sold, against 20 of yours in his.
+    const [row] = cardFor(
+      [
+        ledger(SELF, "you", { drops: [holdingOf("l1", "kaling", 10)] }),
+        ledger(BRO, "Bro", { owedToYou: 20, drops: [owing("l2", "baldrix", 20)] }),
+      ],
+      new Map([[answeredKey("self", "person:p-bro"), 10]]),
+    );
     expect(row!.piecesAnswered.yours).toBe(0);
     expect(row!.drops.map((d) => d.pieces)).toEqual([20]);
   });
@@ -1324,14 +1377,32 @@ describe("pieces a sale has already answered for", () => {
   });
 
   it("squares to nothing once every coupon has been sold or netted", () => {
-    // Two sales of 70 and 60 against 150 owed, and Bro holding the last 20. Nothing changes hands in
-    // coupons, and the 130 is on the card in mesos instead.
+    // Two sales of 70 and 60 against 150 owed, and Bro holding the last 20. The 130 is on the card in
+    // mesos, the last 20 cancels against his, and both counts are zero.
+    //
+    // Pinned only so there is a row to read: see below for what an unpinned one does.
     const { ledgers } = theNight();
-    const [row] = cardFor(ledgers, new Map([[answeredKey("self", "person:p-bro"), 130]]));
-    expect([row!.piecesYouOwe, row!.pieces, row!.piecesNet]).toEqual([20, 20, 0]);
+    const [row] = buildSettlement(
+      ledgers,
+      wallet([]),
+      [],
+      new Map(),
+      new Map(),
+      new Map(),
+      new Set(["person:p-bro"]),
+      new Map([[answeredKey("self", "person:p-bro"), 130]]),
+    );
+    expect([row!.piecesYouOwe, row!.pieces, row!.piecesNet]).toEqual([0, 0, 0]);
     expect(row!.piecesAnswered.theirs).toBe(130);
-    // Still a card, and still six nights to close: the coupons are square, the books are not.
+    // Six nights to close still: the coupons are square, the books are not.
     expect(settleThePair(row!).bosses).toBe(6);
+  });
+
+  it("drops the card once nothing is outstanding in either unit", () => {
+    // The same night unpinned. Every coupon sold or cancelled and no money on it, so it goes the way
+    // every other card with nothing on it goes, and comes straight back on the next night.
+    const { ledgers } = theNight();
+    expect(cardFor(ledgers, new Map([[answeredKey("self", "person:p-bro"), 130]]))).toEqual([]);
   });
 
   it("caps at what is owed, so a mistyped tranche cannot answer for more", () => {
