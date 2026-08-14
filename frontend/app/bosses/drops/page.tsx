@@ -446,8 +446,11 @@ export default function DropLogPage() {
           offsetShares.set(shareKey(loot.id, share.memberId), {
             key: shareKey(loot.id, share.memberId),
             item: loot.name,
+            iconUrl: loot.iconUrl,
             boss: boss ? bossLabel(boss.name, party.difficulty) : "Unknown boss",
-            who: share.name,
+            // Everybody the night paid out to, which is who was in it. Off the same split the share
+            // came from, so the row cannot name a roster the figure was not divided by.
+            members: split.shares.map((s) => s.name),
             on: loot.droppedOn,
             share: share.pay,
             sale: loot.saleAmount,

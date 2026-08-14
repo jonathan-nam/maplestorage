@@ -621,8 +621,16 @@ export type OffsetShare = {
   key: string;
   /** What fell. Leads the row: the boss alone says which night, never which thing. */
   item: string;
+  /** Its art, so the row is read the way every other drop row on this account is. */
+  iconUrl: string | null;
   boss: string;
-  who: string;
+  /**
+   * Who was in that night, not who the share belonged to.
+   *
+   * The payee is whoever this card is about, so naming them on their own card said nothing. Who ELSE
+   * was there is the fact that places the night, and it is the same list the drop's own row carries.
+   */
+  members: string[];
   /** The day it dropped, so two nights on one boss are told apart. */
   on: string;
   /** This seat's share, which is the money the offset actually discharged. */

@@ -5,6 +5,7 @@ import { useState } from "react";
 import { formatWeekStart } from "@/lib/boss-clears";
 import { bossLabel } from "@/lib/boss-difficulty";
 import {
+  type Discharge,
   type HeldOfYours,
   type Settlement,
   type OffsetShare,
@@ -15,6 +16,7 @@ import {
   shareKey,
   sharesOf,
 } from "@/lib/settlement";
+import { apiAssetUrl } from "@/lib/api";
 import { CopyAmount } from "@/components/copy-amount";
 import { formatMesos, parseMesos } from "@/lib/drop-split";
 import { formatDropped } from "@/lib/loot";
@@ -283,19 +285,10 @@ function SettlementCard({
       mesos: row.parts.shares,
       detail: behindShares,
     },
-    {
-      key: "sold",
-      // "or took", because a purchase out of your own pile now prices their coupons the way a sale
-      // does. One row for both: it is one figure of theirs in your hands either way, and which
-      // tranche it came off is on the Sale Ledger rather than said twice here.
-      //
-      // Counted, because these are the coupons the headline above no longer asks for. Said here and
-      // only here: it is one fact, that this many pieces became this much money.
-      // Worded to read with a count in front of it and without one, since the count is only there
-      // when a tranche named this person. "Bro's coupons" would not take one.
-      label: countedLabel(row.piecesAnswered.theirs, `coupons of ${row.name}'s I sold or took`),
-      mesos: row.parts.soldOfTheirs,
-    },
+    // `soldOfTheirs` is NOT here, and must not be. It is only ever the part of their money somebody
+    // has said comes off their debt, which makes it a discharge, and discharges are listed once
+    // under `already off`. It was in both lists at once: 2,412,222,150 read as a row of the owed
+    // list and again inside the fold below it, so the two lists came to more than the card did.
     {
       key: "theirs",
       label: countedLabel(row.piecesAnswered.yours, `coupons of mine ${row.name} sold`),
@@ -358,22 +351,21 @@ function SettlementCard({
   const sendable = owes > 0;
 
   /**
-   * The shares one entry discharged, named. Empty for a hand-entered debt, which names none.
-   *
-   * Off the pools rather than the wallet's lines: the settle that made this offset marked those
-   * shares PAID, so they have left the wallet by the time this row is drawn. That is the whole
-   * reason V58 stores them.
+   * The nights one act discharged, named. Off the pools rather than the wallet's lines: the settle
+   * that made an offset marked those shares PAID, so they have left the wallet by the time this row
+   * is drawn. That is the whole reason V58 stores them.
    */
-  const sharesBehind = (entry: SettlementDebt) =>
-    entry.payouts.map(
+  const nightsBehind = (payouts: { lootId: string; memberId: string }[]): OffsetShare[] =>
+    payouts.map(
       (share) =>
         offsetShares.get(shareKey(share.lootId, share.memberId)) ?? {
           // The drop has been deleted since. Said rather than left out: a row that quietly drops one
           // of the nights behind a figure is a figure that no longer adds up.
           key: shareKey(share.lootId, share.memberId),
           item: "A drop that has been deleted",
+          iconUrl: null,
           boss: "",
-          who: "",
+          members: [],
           on: "",
           share: 0,
           sale: null,
@@ -474,7 +466,6 @@ function SettlementCard({
                 key={entry.id}
                 entry={entry}
                 name={row.name}
-                shares={sharesBehind(entry)}
                 busy={busy}
                 signed={signed}
                 onRemove={() => void write(onRemoveDebt(entry.id), null)}
@@ -717,40 +708,28 @@ function SettlementCard({
                 <span className="ledger-amount">{signed(-discharged)}</span>
               </div>
 
+              {/* A queue, not a share list. `.loot-shares > li` is a wrapping ROW with a rule above
+                  it, and a `.ledger-drop` is a COLUMN with a rule down its left: nesting one in the
+                  other gave every act both, so the rows came out with a stray top border and two
+                  indents fighting. Drop rows go in a drop queue. */}
               {showOff && (
-                <ul className="loot-shares" id={`off-${row.key}`}>
-                  {discharges.map((act) =>
-                    // A debt entry keeps its own row, which folds again to the shares it discharged:
-                    // that list is the only place they are named, an offset having marked them paid.
-                    act.source === "DEBT" ? (
-                      <EnteredRow
-                        key={act.id}
-                        entry={row.entries.find((e) => e.id === act.id)!}
-                        name={row.name}
-                        shares={sharesBehind(row.entries.find((e) => e.id === act.id)!)}
-                        busy={busy}
-                        signed={signed}
-                        onRemove={() => void write(onRemoveDebt(act.id), null)}
-                      />
-                    ) : (
-                      <li key={act.id} className="ledger-drop">
-                        <div className="ledger-drop-head">
-                          <span className="party-row-toggle is-empty" aria-hidden="true" />
-                          <span className="loot-name">{act.label}</span>
-                          <span className="ledger-amount">{signed(-act.amount)}</span>
-                          <button
-                            type="button"
-                            className="link ledger-drop-sale"
-                            disabled={busy}
-                            onClick={() => void write(onRemoveDisposal(act.id), null)}
-                            aria-label={`Undo ${formatMesos(act.amount, true)} off what ${row.name} owes you`}
-                          >
-                            ×
-                          </button>
-                        </div>
-                      </li>
-                    ),
-                  )}
+                <ul className="ledger-queue" id={`off-${row.key}`}>
+                  {discharges.map((act) => (
+                    <DischargeRow
+                      key={act.id}
+                      act={act}
+                      name={row.name}
+                      shares={nightsBehind(act.payouts)}
+                      busy={busy}
+                      signed={signed}
+                      onRemove={() =>
+                        void write(
+                          act.source === "DEBT" ? onRemoveDebt(act.id) : onRemoveDisposal(act.id),
+                          null,
+                        )
+                      }
+                    />
+                  ))}
                 </ul>
               )}
             </li>
@@ -954,6 +933,119 @@ function Covered({ pieces }: { pieces: number }) {
 }
 
 /**
+ * One act that came off, read the way every other drop row on this account is read.
+ *
+ * Almost every offset covers ONE share, so the act row used to be a free-text note and a count with
+ * the night itself a second fold down: two clicks to reach "which drop was that", and the middle row
+ * saying nothing but "offset against Bro". Where there is one share, its drop IS the row.
+ *
+ * Several shares keep the fold, because then the act really is a group and no single night names it.
+ * A coupon sale has no night at all: a tranche names a person, never a boss, so it says what it was
+ * and when, and there is nothing to open.
+ */
+function DischargeRow({
+  act,
+  name,
+  shares,
+  busy,
+  signed,
+  onRemove,
+}: {
+  act: Discharge;
+  name: string;
+  shares: OffsetShare[];
+  busy: boolean;
+  signed: (mesos: number) => string;
+  onRemove: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const one = shares.length === 1 ? shares[0]! : null;
+  const panelId = `act-${act.id}`;
+
+  return (
+    <li className="ledger-drop">
+      <div className="ledger-drop-head">
+        {shares.length > 1 ? (
+          <button
+            type="button"
+            className="party-row-toggle"
+            aria-expanded={open}
+            aria-controls={panelId}
+            onClick={() => setOpen((o) => !o)}
+          >
+            <span className="party-row-chevron" aria-hidden="true" />
+            <span className="visually-hidden">
+              {open ? `Hide the ${shares.length} nights` : `Show the ${shares.length} nights`}
+            </span>
+          </button>
+        ) : (
+          // The frame is kept so a single-night row lines up with a folded one.
+          <span className="party-row-toggle is-empty" aria-hidden="true" />
+        )}
+
+        {one?.iconUrl ? (
+          <img className="loot-icon" src={apiAssetUrl(one.iconUrl)} alt="" />
+        ) : (
+          <span className="loot-icon" aria-hidden="true" />
+        )}
+
+        {one && one.partyId ? (
+          <Link href={`/bosses/parties/${one.partyId}`} className="loot-name">
+            {one.item}
+          </Link>
+        ) : (
+          <span className="loot-name">{one ? one.item : act.label}</span>
+        )}
+
+        <span className="loot-meta">
+          {(one
+            ? [
+                one.boss,
+                one.members.join(", "),
+                one.on && formatDropped(one.on),
+                // The lot it came out of, so the share can be checked against it rather than taken
+                // on trust. Absent on a drop that never sold, which owes nobody anything.
+                one.sale !== null && `sold for ${formatMesos(one.sale, true)}`,
+              ]
+            : [
+                shares.length > 1 && `${shares.length} nights`,
+                act.at && formatDropped(act.at.slice(0, 10)),
+              ]
+          )
+            .filter(Boolean)
+            .join(" · ")}
+        </span>
+
+        <span className="ledger-amount">{signed(-act.amount)}</span>
+        <button
+          type="button"
+          className="link ledger-drop-sale"
+          disabled={busy}
+          onClick={onRemove}
+          aria-label={`Undo ${formatMesos(act.amount, true)} off what ${name} owes you`}
+        >
+          ×
+        </button>
+      </div>
+
+      {open && shares.length > 1 && (
+        <ul className="loot-shares" id={panelId}>
+          {shares.map((share) => (
+            <li key={share.key}>
+              <span className="loot-share-name">{share.item}</span>
+              <span className="loot-share-nets">
+                {[share.boss, share.on && formatDropped(share.on)].filter(Boolean).join(" · ")}
+              </span>
+              <span className="ledger-amount">{signed(-share.share)}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </li>
+  );
+}
+
+/**
  * One side's nights, whichever inventory they are in.
  *
  * Both lists are the same row, so they are one component: two copies would be two places for the
@@ -1002,50 +1094,32 @@ function PieceNights({
  * folds: the flat list then grows by one row per offset however many nights went into it, which is
  * what keeps a card with hundreds of them readable.
  */
+/**
+ * One debt somebody typed.
+ *
+ * No fold and no shares any more: an entry that names a share is a DISCHARGE and is drawn under
+ * `already off` by DischargeRow, which puts the drop itself on the row rather than a note and a
+ * count. What is left here names nothing, so the chevron never had anything to open.
+ */
 function EnteredRow({
   entry,
   name,
-  shares,
   busy,
   signed,
   onRemove,
 }: {
   entry: SettlementDebt;
   name: string;
-  shares: OffsetShare[];
   busy: boolean;
   signed: (mesos: number) => string;
   onRemove: () => void;
 }) {
-  const [open, setOpen] = useState(false);
-  const panelId = `entry-${entry.id}`;
-  const label = entry.note ?? "entered";
-  const count = `${shares.length} ${shares.length === 1 ? "share" : "shares"}`;
-
   return (
     <li className="ledger-drop">
       <div className="ledger-drop-head">
-        {shares.length > 0 ? (
-          <button
-            type="button"
-            className="party-row-toggle"
-            aria-expanded={open}
-            aria-controls={panelId}
-            onClick={() => setOpen((o) => !o)}
-          >
-            <span className="party-row-chevron" aria-hidden="true" />
-            <span className="visually-hidden">
-              {open ? `Hide the ${count} behind ${label}` : `Show the ${count} behind ${label}`}
-            </span>
-          </button>
-        ) : (
-          // The frame is kept so a typed row lines up with a folded one, as a drop row does.
-          <span className="party-row-toggle is-empty" aria-hidden="true" />
-        )}
-        <span className="loot-name">
-          {label}
-          {shares.length > 0 && <span className="loot-meta"> · {count}</span>}
-        </span>
+        {/* The frame is kept so a typed row lines up with a folded one, as a drop row does. */}
+        <span className="party-row-toggle is-empty" aria-hidden="true" />
+        <span className="loot-name">{entry.note ?? "entered"}</span>
         <span className="ledger-amount">{signed(entry.amount)}</span>
         <button
           type="button"
@@ -1057,41 +1131,6 @@ function EnteredRow({
           ×
         </button>
       </div>
-
-      {open && (
-        <ul className="loot-shares" id={panelId}>
-          {shares.map((share) => (
-            <li key={share.key} className="ledger-drop">
-              <div className="ledger-drop-head">
-                {/* The same shape a share line has above: what fell, then which night it was. Linked
-                    to its party, because "which one was that" ends at the drop's own row. */}
-                {share.partyId ? (
-                  <Link href={`/bosses/parties/${share.partyId}`} className="loot-name">
-                    {share.item}
-                  </Link>
-                ) : (
-                  <span className="loot-name">{share.item}</span>
-                )}
-                <span className="loot-meta">
-                  {[
-                    share.boss,
-                    share.who,
-                    share.on && formatDropped(share.on),
-                    // The lot it came out of, so the share can be checked against it rather than
-                    // taken on trust. Absent on a drop that never sold, which owes nobody anything.
-                    share.sale !== null && `sold for ${formatMesos(share.sale, true)}`,
-                  ]
-                    .filter(Boolean)
-                    .join(" · ")}
-                </span>
-                {/* This seat's own share, which is the money the offset discharged. The rows sum to
-                    the figure on the fold above them. */}
-                <span className="ledger-amount">{signed(-share.share)}</span>
-              </div>
-            </li>
-          ))}
-        </ul>
-      )}
     </li>
   );
 }
