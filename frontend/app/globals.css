@@ -359,24 +359,21 @@ body:has(.nav-pending) main {
 
 /* Out of flow, so the content below it sits where it will finally sit rather than being pushed
    down by a placeholder that is on its way out. Left and right pinned so a placeholder that wraps
-   keeps the measure it had. */
+   keeps the measure it had.
+   No fade here, and that is the point. A CSS animation restarts from the base opacity, so it drew
+   the placeholder at FULL strength before fading it, including through the delay above where
+   nothing had been drawn at all: measured at 0.00 to 1.00 in one frame. The element keeps
+   .page-waiting and page-swap.tsx fades it from whatever it is actually at. */
 .page-swap-out {
   position: absolute;
   top: 0;
   left: 0;
   right: 0;
   pointer-events: none;
-  animation: page-swap-out 280ms ease-out both;
 }
 
 .page-swap-in {
   animation: page-swap-in 280ms ease-out both;
-}
-
-@keyframes page-swap-out {
-  to {
-    opacity: 0;
-  }
 }
 
 @keyframes page-swap-in {
