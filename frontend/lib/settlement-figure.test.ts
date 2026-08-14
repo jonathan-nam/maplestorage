@@ -113,6 +113,22 @@ describe("what the card says a person owes", () => {
     expect(source).toContain("party-row-chevron");
   });
 
+  it("holds an offset to ONE line, whatever is behind it", () => {
+    // Two folds in there is no width for an icon, a name, a boss, three member names, a date and two
+    // mesos figures: they came out three lines tall and the list stopped being scannable. The figure,
+    // the art and what fell stay; the rest is the title, which is what the shares row above already
+    // does. The name is the only part allowed to give, being the one a reader recognises from half.
+    expect(source).toContain(
+      '<div className="ledger-drop-head is-oneline" title={behind || undefined}>',
+    );
+    expect(css).toContain(".ledger-drop-head.is-oneline");
+    expect(css).toContain("flex-wrap: nowrap");
+    expect(css).toContain("text-overflow: ellipsis");
+    // The figure is pushed right and never shrunk: it is the one number nobody can infer.
+    expect(css).toContain(".ledger-drop-head.is-oneline .ledger-amount");
+    expect(css).toContain(".ledger-drop-head.is-oneline .loot-icon");
+  });
+
   it("nests a drop queue in a drop row, never a share list", () => {
     // `.loot-shares > li` is a wrapping ROW with a rule above it and a `.ledger-drop` is a COLUMN
     // with a rule down its left. One inside the other gave every act both, and the section came out
