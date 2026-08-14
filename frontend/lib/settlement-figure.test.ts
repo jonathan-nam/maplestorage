@@ -87,24 +87,45 @@ describe("what the card says a person owes", () => {
   it("still says what a MIXED settle also does, since it clears both directions", () => {
     expect(source).toContain("also records ${formatMesos(owes, true)} sent to ${row.name}");
   });
-  it("names the shares an offset discharged, and folds them behind one row", () => {
+  it("names the nights an offset discharged, off the pools", () => {
     // Without V58 the link is gone: the settle marks those shares PAID, so they leave the wallet,
-    // and the adjustment is left saying only "-139,548,023, offset against Bro". Folding is what
-    // keeps the list one row per offset however many nights went into it.
-    expect(source).toContain("const sharesBehind = (entry: SettlementDebt)");
+    // and the adjustment is left saying only "-139,548,023, offset against Bro".
+    expect(source).toContain("const nightsBehind = (payouts:");
     expect(source).toContain("offsetShares.get(shareKey(share.lootId, share.memberId))");
-    expect(source).toContain("function EnteredRow(");
+    expect(source).toContain("function DischargeRow(");
+  });
+
+  it("puts the DROP on the offset's own row, not a note and a count", () => {
+    // Almost every offset covers one share, so a middle row reading "offset against Bro · 1 share"
+    // cost a second click to reach the only fact anybody wanted: which drop that was. Where there
+    // is one share, its drop IS the row, with the art the rest of the account reads drops by.
+    expect(source).toContain("const one = shares.length === 1 ? shares[0]! : null;");
+    expect(source).toContain("apiAssetUrl(one.iconUrl)");
+    expect(source).toContain("{one.item}");
+    expect(source).toContain(`one.members.join(", ")`);
+    expect(source).toContain("formatDropped(one.on)");
+    expect(source).toContain("sold for ${formatMesos(one.sale, true)}");
+  });
+
+  it("keeps a fold for the offset that really is a group", () => {
+    // Several nights and no single one names the act, so the count stands and opens.
+    expect(source).toContain("shares.length > 1 ? (");
     expect(source).toContain("party-row-chevron");
   });
 
-  it("names WHAT FELL first, then when and what the lot made", () => {
-    // One boss drops several things and the same box drops off several bosses, so the boss alone
-    // says which night without ever saying which thing. The date tells two nights on one boss
-    // apart, and the lot is what the share can be checked against rather than taken on trust.
-    expect(source).toContain("{share.item}");
-    expect(source).toContain("formatDropped(share.on)");
-    expect(source).toContain("sold for ${formatMesos(share.sale, true)}");
-    expect(source).toContain("{signed(-share.share)}");
+  it("nests a drop queue in a drop row, never a share list", () => {
+    // `.loot-shares > li` is a wrapping ROW with a rule above it and a `.ledger-drop` is a COLUMN
+    // with a rule down its left. One inside the other gave every act both, and the section came out
+    // with stray borders and two indents fighting.
+    expect(source).toContain('<ul className="ledger-queue" id={`off-${row.key}`}>');
+    expect(css).toContain(".ledger-drop .ledger-queue");
+  });
+
+  it("states a discharge once, in the list that is for discharges", () => {
+    // `soldOfTheirs` is only ever the part somebody has said comes off their debt, which makes it a
+    // discharge. Listed as a part as well, 2,412,222,150 sat in the owed list AND inside the fold
+    // below it, so the two lists came to more than the card did.
+    expect(source).not.toContain("mesos: row.parts.soldOfTheirs");
   });
 
   it("resolves a share off the POOLS, since an offset's shares are paid and gone from the wallet", () => {
@@ -127,9 +148,11 @@ describe("what the card says a person owes", () => {
   });
 
   it("keeps a hand-entered debt a plain row, since it discharges no share", () => {
-    // The chevron frame is still drawn, so a typed row lines up with a folded one.
-    expect(source).toContain("shares.length > 0 ? (");
+    // The chevron frame is still drawn, so a typed row lines up with a folded one. No fold on it at
+    // all any more: an entry that names a share is a discharge and is drawn under `already off`, so
+    // what is left in the owed list names nothing and never had anything to open.
     expect(source).toContain('<span className="party-row-toggle is-empty"');
+    expect(source).toContain("function EnteredRow(");
   });
   it("keeps the summary to totals, since the cards are the per-person list", () => {
     // A line per person went here and came straight back out: the cards below say the same thing, at

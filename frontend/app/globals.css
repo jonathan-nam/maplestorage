@@ -5593,6 +5593,15 @@ button.ledger-drop-sale:hover:not(:disabled) {
   padding-left: 14px;
 }
 
+/* Same for a queue inside a row, which is what a folded group of acts is. A `.loot-shares` was used
+   here first and came out wrong: its `> li` is a wrapping ROW with a rule above it, and a
+   `.ledger-drop` is a COLUMN with a rule down its left, so every act got both. Drop rows nest in a
+   drop queue; the gap is tighter than the outer one because these are one group, not a list. */
+.ledger-drop .ledger-queue {
+  gap: 8px;
+  padding-left: 14px;
+}
+
 .ledger-drop-head .loot-name {
   text-decoration: none;
 }
