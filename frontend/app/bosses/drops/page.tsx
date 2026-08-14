@@ -77,6 +77,7 @@ import type { DropTables } from "@/types/drop";
 import type { Loot, LogDropBody, PartyLootPool, SettleBody } from "@/types/loot";
 import type { Party, Person } from "@/types/party";
 import type {
+  ProceedsDisposal,
   SettlementDebt,
   VestigePayment,
   VestigeSettlement,
@@ -103,6 +104,7 @@ const TRANCHES_KEY = "/api/vestige-tranches";
 const PAYMENTS_KEY = "/api/vestige-payments";
 const SETTLEMENTS_KEY = "/api/vestige-settlements";
 const DEBTS_KEY = "/api/settlement-debts";
+const DISPOSALS_KEY = "/api/proceeds-disposals";
 const PEOPLE_KEY = "/api/people";
 
 // The stacking drop the piece ledger is for. One key, because one item behaves this way: a boss
@@ -126,6 +128,7 @@ export default function DropLogPage() {
   const [payments, setPayments] = useState<VestigePayment[]>([]);
   const [settlements, setSettlements] = useState<VestigeSettlement[]>([]);
   const [debts, setDebts] = useState<SettlementDebt[]>([]);
+  const [disposals, setDisposals] = useState<ProceedsDisposal[]>([]);
   const [people, setPeople] = useState<Person[]>(peek<Person[]>(PEOPLE_KEY) ?? []);
 
   // A drop names the party it fell in and links to it, which draws its seats. See
@@ -144,21 +147,30 @@ export default function DropLogPage() {
 
   async function load(token?: string | null) {
     const withToken = token !== undefined ? () => Promise.resolve(token) : getToken;
-    const [partyResult, poolResult, trancheResult, paymentResult, settlementResult, debtResult] =
-      await Promise.all([
-        apiFetch<Party[]>(PARTIES_KEY, { method: "GET" }, withToken),
-        apiFetch<PartyLootPool[]>(POOLS_KEY, { method: "GET" }, withToken),
-        apiFetch<VestigeTranche[]>(TRANCHES_KEY, { method: "GET" }, withToken),
-        apiFetch<VestigePayment[]>(PAYMENTS_KEY, { method: "GET" }, withToken),
-        apiFetch<VestigeSettlement[]>(SETTLEMENTS_KEY, { method: "GET" }, withToken),
-        apiFetch<SettlementDebt[]>(DEBTS_KEY, { method: "GET" }, withToken),
-      ]);
+    const [
+      partyResult,
+      poolResult,
+      trancheResult,
+      paymentResult,
+      settlementResult,
+      debtResult,
+      disposalResult,
+    ] = await Promise.all([
+      apiFetch<Party[]>(PARTIES_KEY, { method: "GET" }, withToken),
+      apiFetch<PartyLootPool[]>(POOLS_KEY, { method: "GET" }, withToken),
+      apiFetch<VestigeTranche[]>(TRANCHES_KEY, { method: "GET" }, withToken),
+      apiFetch<VestigePayment[]>(PAYMENTS_KEY, { method: "GET" }, withToken),
+      apiFetch<VestigeSettlement[]>(SETTLEMENTS_KEY, { method: "GET" }, withToken),
+      apiFetch<SettlementDebt[]>(DEBTS_KEY, { method: "GET" }, withToken),
+      apiFetch<ProceedsDisposal[]>(DISPOSALS_KEY, { method: "GET" }, withToken),
+    ]);
     setParties(partyResult);
     setPools(poolResult);
     setTranches(trancheResult);
     setPayments(paymentResult);
     setSettlements(settlementResult);
     setDebts(debtResult);
+    setDisposals(disposalResult);
     put(PARTIES_KEY, partyResult);
   }
 
@@ -284,6 +296,18 @@ export default function DropLogPage() {
     setBusy(true);
     try {
       setDebts(await apiFetch<SettlementDebt[]>(path, options, getToken));
+    } catch (e) {
+      throw new Error(e instanceof ApiError ? e.body : "That didn't save.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  /** The same, for deciding what became of money a sale of their coupons left you holding. See V61. */
+  async function disposalWrite(path: string, options: RequestInit) {
+    setBusy(true);
+    try {
+      setDisposals(await apiFetch<ProceedsDisposal[]>(path, options, getToken));
     } catch (e) {
       throw new Error(e instanceof ApiError ? e.body : "That didn't save.");
     } finally {
@@ -447,6 +471,9 @@ export default function DropLogPage() {
     // same rows came to, and passing one without the other is what had this card asking Bro for 130
     // coupons while the Sale Ledger, subtracting the 70 he had been sold, asked for 60.
     answeredByPair(tranches),
+    // What has been decided about their money, and nothing more. An empty list means undecided,
+    // which is the honest state for a sale nobody has said anything about. See V61.
+    disposals,
   );
   // Nights that did not divide and that nobody has said the arrangement for. Above the ledger,
   // because until one is answered its pieces are missing from every figure below it.
@@ -802,6 +829,17 @@ export default function DropLogPage() {
                   // An ACT and never a netting. Their coupons only come off your debt if they agree
                   // to that, and they may want the mesos instead.
                   keptRows={keptOfYours(tranches)}
+                  // What becomes of their money you are holding. An ACT, because the two things it
+                  // can be end in different places and only the two of you can say which. See V61.
+                  onDisposeProceeds={(holder: Holder, amount, kind) =>
+                    disposalWrite(DISPOSALS_KEY, {
+                      method: "POST",
+                      body: JSON.stringify({ holder, amount, kind }),
+                    })
+                  }
+                  onRemoveDisposal={(disposalId) =>
+                    disposalWrite(`${DISPOSALS_KEY}/${disposalId}`, { method: "DELETE" })
+                  }
                   onKeepPieces={(holder: Holder, pieces, amount) =>
                     saleWrite(TRANCHES_KEY, {
                       method: "POST",

@@ -55,6 +55,8 @@ export function SettlementLedger({
   onAddDebt,
   onRemoveDebt,
   keptRows,
+  onDisposeProceeds,
+  onRemoveDisposal,
   onKeepPieces,
   onRemoveKeep,
   onSettlePair,
@@ -76,6 +78,15 @@ export function SettlementLedger({
   onRemoveDebt: (debtId: string) => Promise<void>;
   /** Purchases each person's pile has recorded against your coupons. See keptOfYours. */
   keptRows: Map<string, VestigeTranche[]>;
+  /**
+   * Says what becomes of their money you are holding: off their debt, or sent to them. See V61.
+   *
+   * The card cannot choose, so it asks. Netting it on arrival was the app deciding something only
+   * the two of you can.
+   */
+  onDisposeProceeds: (holder: Holder, amount: number, kind: "OFFSET" | "PAID") => Promise<void>;
+  /** Taking a decision back off, which nothing else on any screen can do. */
+  onRemoveDisposal: (disposalId: string) => Promise<void>;
   /**
    * Records that they are keeping the coupons of yours they hold, at a price the two of you agreed.
    *
@@ -115,6 +126,8 @@ export function SettlementLedger({
           onAddDebt={onAddDebt}
           onRemoveDebt={onRemoveDebt}
           keptRows={keptRows.get(row.key) ?? []}
+          onDisposeProceeds={onDisposeProceeds}
+          onRemoveDisposal={onRemoveDisposal}
           onKeepPieces={onKeepPieces}
           onRemoveKeep={onRemoveKeep}
           onSettlePair={onSettlePair}
@@ -139,6 +152,8 @@ function SettlementCard({
   onAddDebt,
   onRemoveDebt,
   keptRows,
+  onDisposeProceeds,
+  onRemoveDisposal,
   onKeepPieces,
   onRemoveKeep,
   onSettlePair,
@@ -160,6 +175,15 @@ function SettlementCard({
   onRemoveDebt: (debtId: string) => Promise<void>;
   /** This person's pile's purchases of your coupons, so a mistyped one can be taken back. */
   keptRows: VestigeTranche[];
+  /**
+   * Says what becomes of their money you are holding: off their debt, or sent to them. See V61.
+   *
+   * The card cannot choose, so it asks. Netting it on arrival was the app deciding something only
+   * the two of you can.
+   */
+  onDisposeProceeds: (holder: Holder, amount: number, kind: "OFFSET" | "PAID") => Promise<void>;
+  /** Taking a decision back off, which nothing else on any screen can do. */
+  onRemoveDisposal: (disposalId: string) => Promise<void>;
   /**
    * Records that they are keeping the coupons of yours they hold, at a price the two of you agreed.
    *
@@ -650,6 +674,68 @@ function SettlementCard({
         </div>
       )}
 
+      {/* Their money, sitting in your hands, with nothing decided about it yet.
+
+          Two things can happen to it and they end in different places, so the card asks rather than
+          choosing: OFFSET takes it off what they owe you, PAID means you sent it and their debt never
+          moved. Until one is recorded it is outside the net entirely, which is why this block is not
+          under `owed` with the parts. See V61. */}
+      {(row.holding > 0 || row.disposals.length > 0) && (
+        <div className="ledger-entry">
+          <span className="ledger-step">{`${row.name}'s money I'm holding`}</span>
+          {row.holding > 0 && (
+            <>
+              <span className="ledger-amount">{formatMesos(row.holding, true)}</span>
+              <span className="ledger-settle">
+                <button
+                  type="button"
+                  className="party-save"
+                  disabled={busy}
+                  onClick={() =>
+                    void write(onDisposeProceeds(row.holder, row.holding, "OFFSET"), null)
+                  }
+                >
+                  Offset
+                </button>
+                <button
+                  type="button"
+                  className="party-save"
+                  disabled={busy}
+                  onClick={() =>
+                    void write(onDisposeProceeds(row.holder, row.holding, "PAID"), null)
+                  }
+                >
+                  I paid them
+                </button>
+                <span className="ledger-progress">
+                  {`takes ${formatMesos(row.holding, true)} off what ${row.name} owes you, or sends it`}
+                </span>
+              </span>
+            </>
+          )}
+          {/* Every decision removable, and only here: nothing else on any screen records one, so a
+              wrong one would move two figures with no way back. */}
+          {row.disposals.length > 0 && (
+            <span className="ledger-tranches">
+              {row.disposals.map((disposal) => (
+                <span key={disposal.id} className="ledger-tranche">
+                  {`${formatMesos(disposal.amount, true)} ${disposal.kind === "OFFSET" ? "offset" : "paid out"}`}
+                  <button
+                    type="button"
+                    className="link ledger-drop-sale"
+                    disabled={busy}
+                    onClick={() => void write(onRemoveDisposal(disposal.id), null)}
+                    aria-label={`Undo ${formatMesos(disposal.amount, true)} ${disposal.kind === "OFFSET" ? "offset" : "paid out"}`}
+                  >
+                    ×
+                  </button>
+                </span>
+              ))}
+            </span>
+          )}
+        </div>
+      )}
+
       {/* The nights the coupons are still sitting on, both directions, and the act that closes them.
           No price on either side: what a coupon fetched is only known where somebody sold it and said
           so, and that is already money on the card above.
@@ -660,8 +746,13 @@ function SettlementCard({
 
           Drawn whenever there is a night, even where none of them can be closed. The button is what
           the refusal takes away, never the list: a card that went quiet about what is outstanding
-          would be hiding exactly what it is for. */}
-      {(row.drops.length > 0 || row.owedDrops.length > 0) && (
+          would be hiding exactly what it is for.
+
+          NOT drawn when the two sides cancel. Nothing is outstanding in coupons, so there is nothing
+          to hand over and nothing to read: the coupon relationship is a running balance, and a
+          balance at zero is not a thing anybody has to close. It comes straight back the moment a
+          night tips it either way, with every night still on it. */}
+      {row.piecesNet !== 0 && (row.drops.length > 0 || row.owedDrops.length > 0) && (
         <div className="ledger-entry">
           {row.drops.length > 0 && (
             <>

@@ -107,6 +107,27 @@ export type SettlementDebt = {
   incurredAt: string;
 };
 
+// What became of the money a sale of somebody else's coupons left in your hands. See V61.
+//
+// Two things can happen to it and they end in different places, so which one it was is stored rather
+// than read off a sign: OFFSET comes off what they owe you, PAID means you sent it and their debt did
+// not move. Until one of these lands, the money is undecided and belongs in neither.
+export type ProceedsDisposal = {
+  id: string;
+  holder: Holder;
+  // Positive always. The direction is `kind`.
+  amount: number;
+  kind: "OFFSET" | "PAID";
+  decidedAt: string;
+};
+
+// POST /api/proceeds-disposals. Answers with every row, not the one added.
+export type AddProceedsDisposalBody = {
+  holder: Holder;
+  amount: number;
+  kind: "OFFSET" | "PAID";
+};
+
 // One share an offset discharged. The PAYOUT, since one drop owes several people and only one of
 // those shares is the one covered.
 export type SettlementDebtPayout = {

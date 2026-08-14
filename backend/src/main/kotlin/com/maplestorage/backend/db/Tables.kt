@@ -513,6 +513,27 @@ object VestigePayment : Table("vestige_payment") {
     override val primaryKey = PrimaryKey(id)
 }
 
+// What became of the mesos from selling somebody else's coupons: taken off what they owe you, or sent
+// to them. A running figure per holder rather than a link to a tranche, so a sale entered next week is
+// undecided the moment it lands. See V61__proceeds_disposal.sql.
+object VestigeProceedsDisposal : Table("vestige_proceeds_disposal") {
+    val id = uuid("id")
+    val userId = reference("user_id", Users.id)
+
+    val holderKind = text("holder_kind")
+    val personId = optReference("person_id", Person.id)
+    val characterName = text("character_name").nullable()
+
+    // Positive always. Which direction it went is `kind`, never a sign.
+    val amount = long("amount")
+    val kind = text("kind")
+
+    val decidedAt = timestamp("decided_at")
+    val createdAt = timestamp("created_at")
+
+    override val primaryKey = PrimaryKey(id)
+}
+
 // One act of closing a holder's books, and which drops it closed. `unpaid` is what was still owed at
 // that moment, stored once per act and never split across the drops: that split would be a derived
 // share. See V52__vestige_settlement.sql.

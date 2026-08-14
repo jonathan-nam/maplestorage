@@ -139,9 +139,10 @@ data class AddVestigeTrancheRequest(
  * NOT under /api/parties: a looter's pile spans every party they loot for, and keying it to one of them
  * is the per-boss ledger this replaced.
  *
- * Four paths because they are four different facts. What became of the coupons (a tranche), what came
- * back for them (a payment, V51), somebody deciding the books are closed (a settlement, V52), and what
- * a person owes you that no drop accounts for (a debt, V56). Only the first can be derived from
+ * Five paths because they are five different facts. What became of the coupons (a tranche), what came
+ * back for them (a payment, V51), somebody deciding the books are closed (a settlement, V52), what a
+ * person owes you that no drop accounts for (a debt, V56), and what became of the money a sale of
+ * SOMEBODY ELSE'S coupons left in your hands (a disposal, V61). Only the first can be derived from
  * anything.
  */
 fun Route.vestigeLedgerRoutes() {
@@ -149,6 +150,7 @@ fun Route.vestigeLedgerRoutes() {
     route("/api/vestige-payments") { vestigePaymentRoutes() }
     route("/api/vestige-settlements") { vestigeSettlementRoutes() }
     route("/api/settlement-debts") { settlementDebtRoutes() }
+    route("/api/proceeds-disposals") { proceedsDisposalRoutes() }
 }
 
 fun Route.vestigeRoutes() {
