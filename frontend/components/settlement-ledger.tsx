@@ -960,11 +960,39 @@ function DischargeRow({
 }) {
   const [open, setOpen] = useState(false);
   const one = shares.length === 1 ? shares[0]! : null;
+
+  /**
+   * Which night it was, on hover rather than on the row.
+   *
+   * The row carries the figure, the art and what fell, and those three are what it is scanned for.
+   * The boss, who was there, the day and what the lot made are four more things: on the line they
+   * wrapped it onto two and then three, and a history you cannot scan is a history nobody reads.
+   * A title, which is what this card already does with the nights behind the shares figure.
+   */
+  const behind = (
+    one
+      ? [
+          one.boss,
+          one.members.join(", "),
+          one.on && formatDropped(one.on),
+          // The lot it came out of, so the share can be checked against it rather than taken on
+          // trust. Absent on a drop that never sold, which owes nobody anything.
+          one.sale !== null && `sold for ${formatMesos(one.sale, true)}`,
+        ]
+      : [
+          shares.length > 1 && `${shares.length} nights`,
+          act.at && formatDropped(act.at.slice(0, 10)),
+        ]
+  )
+    .filter(Boolean)
+    .join(" · ");
   const panelId = `act-${act.id}`;
 
   return (
     <li className="ledger-drop">
-      <div className="ledger-drop-head">
+      {/* ONE LINE. The row is a history entry and a history is scanned, so what it must hold is the
+          figure, the art and what fell. Everything else is the title above. */}
+      <div className="ledger-drop-head is-oneline" title={behind || undefined}>
         {shares.length > 1 ? (
           <button
             type="button"
@@ -990,31 +1018,12 @@ function DischargeRow({
         )}
 
         {one && one.partyId ? (
-          <Link href={`/bosses/parties/${one.partyId}`} className="loot-name">
+          <Link href={`/bosses/parties/${one.partyId}`} className="loot-name has-detail">
             {one.item}
           </Link>
         ) : (
-          <span className="loot-name">{one ? one.item : act.label}</span>
+          <span className="loot-name has-detail">{one ? one.item : act.label}</span>
         )}
-
-        <span className="loot-meta">
-          {(one
-            ? [
-                one.boss,
-                one.members.join(", "),
-                one.on && formatDropped(one.on),
-                // The lot it came out of, so the share can be checked against it rather than taken
-                // on trust. Absent on a drop that never sold, which owes nobody anything.
-                one.sale !== null && `sold for ${formatMesos(one.sale, true)}`,
-              ]
-            : [
-                shares.length > 1 && `${shares.length} nights`,
-                act.at && formatDropped(act.at.slice(0, 10)),
-              ]
-          )
-            .filter(Boolean)
-            .join(" · ")}
-        </span>
 
         <span className="ledger-amount">{signed(-act.amount)}</span>
         <button

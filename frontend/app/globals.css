@@ -5602,6 +5602,41 @@ button.ledger-drop-sale:hover:not(:disabled) {
   padding-left: 14px;
 }
 
+/* A history entry, held to one line.
+
+   `.ledger-drop-head` wraps by default, which is right for a row whose parts are all worth reading.
+   These are scanned, and two levels in there is not the width for it: an icon, a name, a boss, three
+   member names, a date and two mesos figures came out three lines tall and the list stopped being
+   readable at all. What survives on the line is the figure, the art and what fell; the rest is the
+   title. */
+.ledger-drop-head.is-oneline {
+  flex-wrap: nowrap;
+  min-width: 0;
+}
+
+/* The name is the only part that can give: it is the one thing a reader can still recognise from
+   half of it, and the alternative is the figure sliding off the end. */
+.ledger-drop-head.is-oneline .loot-name {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* Pushed right and never shrunk. It is the one number on the row nobody can infer from anything
+   else on it. */
+.ledger-drop-head.is-oneline .ledger-amount {
+  flex: none;
+  margin-left: auto;
+}
+
+/* Small, because these sit two folds in. The 46px frame is normalised for a card header, where the
+   art is the subject; here it is a label on a line of text. */
+.ledger-drop-head.is-oneline .loot-icon {
+  width: 22px;
+  height: 22px;
+}
+
 .ledger-drop-head .loot-name {
   text-decoration: none;
 }
