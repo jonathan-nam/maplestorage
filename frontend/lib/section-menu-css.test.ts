@@ -89,24 +89,33 @@ describe("the wait for a page that has been asked for", () => {
   // reads as three beats with a blank one in the middle. Traced on the production build, that
   // frame was the full height of the loaded page with only the title on it.
   it("crossfades, so neither half is ever on screen alone", () => {
-    expect(/\.page-swap-out \{[^}]*animation:\s*page-swap-out\s+\d+m?s/.test(css)).toBe(true);
     expect(/\.page-swap-in \{[^}]*animation:\s*page-swap-in\s+\d+m?s/.test(css)).toBe(true);
-    expect(/@keyframes page-swap-out \{\s*to \{\s*opacity:\s*0;/.test(css)).toBe(true);
     expect(/@keyframes page-swap-in \{\s*from \{\s*opacity:\s*0;/.test(css)).toBe(true);
   });
 
-  // Both halves over the same span, or one of them is alone on screen for the difference. The JS
-  // that unmounts the placeholder counts the same number: see CROSSFADE_MS.
+  // The departing half is script's, and must stay that way. A CSS animation cannot start from where
+  // the fade in got to, it restarts from the base opacity: measured in Chromium, a wait ending
+  // inside the delay took the placeholder from 0.00 to 1.00 in one frame and then faded all of it
+  // out, which is the flicker the delay exists to prevent, arriving one step later.
+  it("does not fade the departing placeholder from CSS", () => {
+    const rule = /\.page-swap-out \{[^}]*/.exec(css)?.[0] ?? "";
+    expect(
+      rule,
+      "the fade out belongs to page-swap.tsx, which can read the current opacity",
+    ).not.toMatch(/animation|transition/);
+    expect(css).not.toContain("@keyframes page-swap-out");
+  });
+
+  // Both halves over the same span, or one of them is alone on screen for the difference. The
+  // arriving half is CSS's and the departing half is the component's, so they agree here.
   it("runs both halves for the same time, and for as long as the component holds them", () => {
-    const ms = (rule: string) =>
-      /animation:\s*[a-z-]+\s+(\d+)ms/.exec(
-        new RegExp(`\\${rule} \\{[^}]*`).exec(css)?.[0] ?? "",
-      )?.[1];
-    expect(ms(".page-swap-out")).toBe(ms(".page-swap-in"));
+    const arriving = /animation:\s*[a-z-]+\s+(\d+)ms/.exec(
+      /\.page-swap-in \{[^}]*/.exec(css)?.[0] ?? "",
+    )?.[1];
     const held = /CROSSFADE_MS = (\d+)/.exec(
       readFileSync(join(__dirname, "..", "components", "page-swap.tsx"), "utf8"),
     )?.[1];
-    expect(ms(".page-swap-out")).toBe(held);
+    expect(arriving).toBe(held);
   });
 
   // Starting immediately is the point. A delay here is the blank frame back again, with the
@@ -120,6 +129,17 @@ describe("the wait for a page that has been asked for", () => {
   // when it finally goes: a shift at the end of the very transition meant to remove one.
   it("takes the departing placeholder out of flow", () => {
     expect(/\.page-swap-out \{[^}]*position:\s*absolute;/.test(css)).toBe(true);
+  });
+
+  // Losing either half of this puts the flash back. Dropping .page-waiting on the way out is what
+  // made the read say 1 when the placeholder was at 0, and reading anything other than the live
+  // opacity is the same guess by another route.
+  it("fades the departing placeholder from the opacity it is actually at", () => {
+    const source = readFileSync(join(__dirname, "..", "components", "page-swap.tsx"), "utf8");
+    expect(source, "the departing placeholder keeps its delay").toContain(
+      '"page-waiting page-swap-out"',
+    );
+    expect(source).toMatch(/animate\(\s*\[\{\s*opacity:\s*getComputedStyle\(el\)\.opacity\s*\}/);
   });
 });
 

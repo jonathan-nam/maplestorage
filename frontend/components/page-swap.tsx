@@ -1,6 +1,6 @@
 "use client";
 
-import { type ReactNode, useEffect, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 
 /**
  * Holds the wait on screen until what replaces it is visible.
@@ -17,9 +17,8 @@ import { type ReactNode, useEffect, useState } from "react";
  * it would be without the wrapper.
  */
 
-// The overlap. Must match .page-swap-out and .page-swap-in in globals.css: the placeholder is
-// unmounted from here, so a shorter timer cuts the fade off part-way through it. Pinned by
-// page-swap.test.ts.
+// The overlap. Must match .page-swap-in in globals.css: the placeholder is unmounted from here, so
+// a shorter timer cuts the fade off part-way through it. Pinned by section-menu-css.test.ts.
 export const CROSSFADE_MS = 280;
 
 export function PageSwap({
@@ -34,6 +33,7 @@ export function PageSwap({
 }) {
   const [lingering, setLingering] = useState(false);
   const [wasWaiting, setWasWaiting] = useState(waiting);
+  const leaving = useRef<HTMLDivElement>(null);
 
   // Adjusted during render rather than in an effect. React supports this for deriving a transition
   // from a prop change, and it is the difference between the placeholder lingering from the very
@@ -48,6 +48,32 @@ export function PageSwap({
     if (!lingering) return;
     const timer = setTimeout(() => setLingering(false), CROSSFADE_MS);
     return () => clearTimeout(timer);
+  }, [lingering]);
+
+  /*
+   * The fade OUT is script's, because only script can read where the fade IN got to.
+   *
+   * A CSS animation cannot: it restarts from the base opacity, which is 1. Measured in Chromium
+   * against the real rules, a wait ending at 60ms took the placeholder from 0.00 to 1.00 in one
+   * frame, and one ending at 200ms from 0.59 to 1.00. The first is the whole flicker on Drop Log:
+   * inside the 150ms delay nothing has been drawn, and the way out drew all of it anyway. It was
+   * only ever noticed there because every other page stands a line of text in the gap and that
+   * page stands a full-height skeleton.
+   *
+   * .page-waiting stays on the element, so this reads the opacity actually on screen and the fade
+   * in carries on undisturbed until this takes over.
+   */
+  useEffect(() => {
+    const el = leaving.current;
+    if (!lingering || !el || typeof el.animate !== "function") return;
+    const fade = el.animate([{ opacity: getComputedStyle(el).opacity }, { opacity: 0 }], {
+      duration: CROSSFADE_MS,
+      easing: "ease-out",
+      // Or the placeholder snaps back to what the fade in left it at, for any frame between this
+      // ending and the timer above unmounting it.
+      fill: "forwards",
+    });
+    return () => fade.cancel();
   }, [lingering]);
 
   const holding = waiting || lingering;
@@ -66,8 +92,13 @@ export function PageSwap({
         //
         // On the way out it goes out of flow, not stacked in a grid: a grid container does not
         // collapse margins with its children, which added 20px above the first panel for the length
-        // of the fade and then took it away again. That is the shift this exists to remove.
-        <div className={waiting ? "page-waiting" : "page-swap-out"} aria-hidden={!waiting}>
+        // of the fade and then took it away again. That is the shift this exists to remove. It keeps
+        // .page-waiting through that, so the delay is not undone on the way out: see the fade above.
+        <div
+          ref={leaving}
+          className={waiting ? "page-waiting" : "page-waiting page-swap-out"}
+          aria-hidden={!waiting}
+        >
           {placeholder}
         </div>
       )}
