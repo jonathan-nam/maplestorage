@@ -84,17 +84,25 @@ describe("the wait for a page that has been asked for", () => {
     expect(/@keyframes page-waiting-in \{\s*from \{\s*opacity:\s*0;/.test(css)).toBe(true);
   });
 
-  // The delay assumes the page you came from is still underneath, and it is not: the router
-  // unmounts it as the route commits. Measured on a real click through to Drop Log, the outgoing
-  // 747px page went at 9ms and the 801px skeleton did not land until 208ms, so 180ms of the title
-  // on an empty screen. A placeholder that is the page's own shape opts out.
-  it("draws a page-shaped placeholder without waiting", () => {
-    const shorthand = /\.page-waiting-shaped \{[^}]*animation:\s*([^;]+);/.exec(css)?.[1];
-    expect(shorthand, "no .page-waiting-shaped rule").toBeDefined();
-    // One time is a duration alone. A second would be a delay, which is the blank screen back.
-    expect(shorthand?.match(/\d+m?s\b/g)).toHaveLength(1);
-    // And it must keep its space, or the page still jumps when the space opens instead.
-    expect(shorthand).not.toContain("page-waiting-space");
+  // A placeholder that is the page's own shape gets NO wait treatment: no delay, no fade in, no
+  // crossfade out. Each was measured off in turn, on a real click rather than a document load.
+  //
+  // Held hidden for the delay, the outgoing 747px page went at 9ms and the 801px skeleton did not
+  // land until 208ms: 180ms of the title on an empty screen. Faded up from zero instead, a menu
+  // click swapped the page for a near-empty screen that rose over 200ms, which is invisible on a
+  // REFRESH (no outgoing page to compare against) and obvious on a navigation. Both are gone only
+  // if it is drawn at once, at full strength, and bare.
+  it("gives a page-shaped placeholder no wait treatment at all", () => {
+    expect(css, "drawn at once, so there is nothing for CSS to say").not.toContain(
+      ".page-waiting-shaped",
+    );
+    const boundary = readFileSync(join(__dirname, "..", "components", "route-loading.tsx"), "utf8");
+    expect(boundary).toMatch(/PAGE_WAITING_SHAPED = "page"/);
+
+    const swap = readFileSync(join(__dirname, "..", "components", "page-swap.tsx"), "utf8");
+    // Bare, and no wrapper: the boundary and the page then render the same thing, so handing over
+    // from loading.tsx to the page's own wait changes nothing on screen.
+    expect(swap).toMatch(/if \(shaped\) return <>\{placeholder\}<\/>/);
   });
 
   // The other end of the same transition, and the half that was got wrong first. Fading the
@@ -144,19 +152,35 @@ describe("the wait for a page that has been asked for", () => {
     expect(/\.page-swap-out \{[^}]*position:\s*absolute;/.test(css)).toBe(true);
   });
 
-  // Both of the Drop Log's waits, or the boundary blanks and the page's own placeholder does not,
-  // or the other way round, which is the same blink arriving at a different moment.
+  // Every page that stands its own shape in the gap, and BOTH of each page's waits. Marking only
+  // one of the pair puts the flicker back at whichever of the two the reader happens to hit: the
+  // boundary is what a menu click shows, the page's own wait is what a refresh shows.
   //
-  // Opted into per page rather than applied to every skeleton. The criterion is how long the page
-  // takes: /bosses is the page the delay was ADDED for, because it loads fast enough that its
-  // 980px skeleton flashed for one frame. The Drop Log reads eleven endpoints and never finishes
-  // inside the delay, so for it the delay is only ever an empty screen.
-  it("draws the Drop Log's skeleton at once, at both of its waits", () => {
+  // These three are the pages whose placeholder is a skeleton. The remaining waits stand a line of
+  // "Loading..." instead, and a line of text has nothing to fade or dissolve badly, so they keep
+  // the delay and the crossfade.
+  const SHAPED = [
+    ["app/bosses/drops/loading.tsx", "app/bosses/drops/page.tsx"],
+    ["app/bosses/loading.tsx", "app/bosses/page.tsx"],
+    ["app/inventory/loading.tsx", "app/inventory/page.tsx"],
+  ];
+
+  it.each(SHAPED)("%s and %s both draw their skeleton at once", (boundary, page) => {
     const read = (f: string) => readFileSync(join(__dirname, "..", f), "utf8");
-    expect(read("app/bosses/drops/loading.tsx")).toContain("<RouteLoading shaped>");
-    expect(read("app/bosses/drops/page.tsx"), "the page's own wait is the longer one").toMatch(
-      /\bshaped\b/,
-    );
+    expect(read(boundary)).toContain("<RouteLoading shaped>");
+    expect(read(page), "the page's own wait is the one a refresh shows").toMatch(/\bshaped\b/);
+  });
+
+  // The list above has to keep up with the skeletons. A new one that quietly keeps the text
+  // treatment is the blank screen back on that page, and nothing else would say so.
+  it("has every skeleton page in that list", () => {
+    const here = join(__dirname, "..");
+    const withSkeleton = globSync("app/**/{page,loading}.tsx", { cwd: here }).filter((f) => {
+      const src = readFileSync(join(here, f), "utf8");
+      // A named *Skeleton component, or the matrix asked to draw itself as one.
+      return /<\w+Skeleton\b/.test(src) || /<BossMatrix\s+loading\b/.test(src);
+    });
+    expect(withSkeleton.sort()).toEqual([...new Set(SHAPED.flat())].sort());
   });
 
   // A skeleton is REPLACED, not dissolved into what it stood for. Crossfading draws both layouts
@@ -177,10 +201,10 @@ describe("the wait for a page that has been asked for", () => {
   // opacity is the same guess by another route.
   it("fades the departing placeholder from the opacity it is actually at", () => {
     const source = readFileSync(join(__dirname, "..", "components", "page-swap.tsx"), "utf8");
-    expect(source, "the departing placeholder keeps whichever wait it had").toContain(
-      "${wait} page-swap-out",
+    // Only a text placeholder ever departs: a shaped one is replaced outright, above.
+    expect(source, "the departing placeholder keeps its delay").toContain(
+      '"page-waiting page-swap-out"',
     );
-    expect(source).toMatch(/const wait = shaped \? "page-waiting-shaped" : "page-waiting"/);
     expect(source).toMatch(/animate\(\s*\[\{\s*opacity:\s*getComputedStyle\(el\)\.opacity\s*\}/);
   });
 });

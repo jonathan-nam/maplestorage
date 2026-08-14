@@ -207,6 +207,7 @@ export default function BossesPage() {
         placeholder={
           <BossMatrix loading bosses={bosses} characters={characters} clearsByCharacter={{}} />
         }
+        shaped
       >
         {state === "loaded" && (
           <>

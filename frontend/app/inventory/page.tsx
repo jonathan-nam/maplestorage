@@ -210,7 +210,7 @@ export default function CharactersPage() {
           as one piece rather than an empty inventory and a lone "add character" tile filling in.
           It is a true crossfade: the skeleton is held through the fade rather than dropped at the
           moment it ends. See components/page-swap.tsx. */}
-      <PageSwap waiting={state === "loading"} placeholder={<CharactersSkeleton />}>
+      <PageSwap waiting={state === "loading"} placeholder={<CharactersSkeleton />} shaped>
         {state === "loaded" && (
           <>
             <SearchBar
