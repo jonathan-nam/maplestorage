@@ -579,9 +579,19 @@ function sumSold(entries: DropEntry[]): { pooled: number | null; yourTake: numbe
   };
 }
 
-/** One character's share of a fold, and the runs it came off. */
-export type CharacterFold = {
-  characterId: string;
+/**
+ * Which side of a run a fold is broken up by. A view choice, like Grouping.
+ *
+ * Both answer "how many each", off the same rows and to the same total. Which one is useful depends
+ * on the question: a week of coupons is either what each character came away with, or what each
+ * boss paid out.
+ */
+export type RunAxis = "character" | "boss";
+
+/** One character's, or one boss's, share of a fold, and the runs it came off. */
+export type RunFold = {
+  /** The character id or the boss key, per the axis. Null only where the row names no boss. */
+  key: string | null;
   /** How many of the drop are theirs, across those runs. Summed like a line's, off `yours`. */
   yours: number;
   /** Their runs, in the order the fold holds them, which is newest first. */
@@ -591,29 +601,36 @@ export type CharacterFold = {
 };
 
 /**
- * A fold's rows split by character, each subtotalled.
+ * A fold's rows split down one axis, each subtotalled.
  *
  * The level between a stacking drop and the nights it fell on: six characters clearing five bosses
- * a week is thirty rows behind one chevron, and the question asked of it is how many each character
- * got, not which Tuesday.
+ * a week is thirty rows behind one chevron, and what is asked of it is how many each, not which
+ * Tuesday.
  *
- * Order is first appearance, which consolidate() has already put in roster order. Deliberately not
- * re-sorted here: two orders for one list is two lists.
+ * By character, order is first appearance, which consolidate() has already put in roster order.
+ * Deliberately not re-sorted: two orders for one list is two lists. By boss there is no such
+ * pre-sort to walk, so the rows are ordered by `bossOrder` first. Stably, so one boss's runs stay
+ * in the roster order underneath it.
  */
-export function byCharacter(entries: DropEntry[]): CharacterFold[] {
-  const folds: CharacterFold[] = [];
-  const byId = new Map<string, CharacterFold>();
-  for (const entry of entries) {
-    let fold = byId.get(entry.characterId);
+export function foldRuns(
+  entries: DropEntry[],
+  axis: RunAxis,
+  bossOrder: Map<string, number> = new Map(),
+): RunFold[] {
+  // A boss off the end of the catalog sorts last rather than first, which is where a missing index
+  // would otherwise put every one of them. Same reasoning as consolidate's roster rank.
+  const rankOf = (entry: DropEntry) =>
+    bossOrder.get(entry.bossKey ?? "") ?? Number.MAX_SAFE_INTEGER;
+  const rows = axis === "character" ? entries : [...entries].sort((a, b) => rankOf(a) - rankOf(b));
+
+  const folds: RunFold[] = [];
+  const byKey = new Map<string | null, RunFold>();
+  for (const entry of rows) {
+    const key = axis === "character" ? entry.characterId : entry.bossKey;
+    let fold = byKey.get(key);
     if (!fold) {
-      fold = {
-        characterId: entry.characterId,
-        yours: 0,
-        entries: [],
-        pooled: null,
-        yourTake: null,
-      };
-      byId.set(entry.characterId, fold);
+      fold = { key, yours: 0, entries: [], pooled: null, yourTake: null };
+      byKey.set(key, fold);
       folds.push(fold);
     }
     fold.entries.push(entry);
