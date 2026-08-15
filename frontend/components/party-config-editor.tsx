@@ -342,19 +342,6 @@ function ConfigRow({
   const addsUp =
     bundlesForEdit === undefined || (!badStacks && stacksAddUp(halves as number[], bundlesForEdit));
 
-  /**
-   * Whether there are any coupons here to argue over.
-   *
-   * Black Mage drops none at any difficulty and Chaos Kalos none at that one, so both were being
-   * asked who loots the pieces and how to split them. `pieces` carries only the difficulties that
-   * drop some, which is what makes the second case answerable at all.
-   *
-   * A config with no difficulty recorded still shows it: the boss CAN drop them, and hiding it
-   * would put the setting out of reach of a party that has never written a difficulty down.
-   */
-  const dropsVestige =
-    vestige !== undefined && (difficulty === "" || vestige.pieces?.[difficulty] !== undefined);
-
   return (
     <article className="config-row">
       <header className="config-head">
@@ -406,7 +393,18 @@ function ConfigRow({
 
           Absent on a boss that drops no coupons, and on one whose mode nobody has written down: the
           stacks that fell are what these numbers have to add up to. */}
-      {dropsVestige && bundlesForEdit !== undefined && total !== undefined && (
+      {/* Asked only where there is something to argue over: a count AND a stack count for this
+          boss, at this mode, in this world. Black Mage drops none at any mode and Chaos Kalos no
+          coupons at that one, so both would otherwise be asked how to split nothing.
+
+          These two reads ARE the guard. There used to be a third condition in front of them, a
+          `dropsVestige` that asked the same question again and got it wrong: it read
+          `pieces[difficulty]` from a map the world had since been put on top of (V63), so it
+          returned a whole world's map, which is never undefined and never a number. Comparing that
+          to undefined is legal TypeScript, so the compiler said nothing and the block vanished from
+          every party with a mode set. Do not reintroduce a second answer to a question these two
+          already answer. */}
+      {bundlesForEdit !== undefined && total !== undefined && (
         <div className="config-vestige">
           <span className="config-share-drop">
             {`${total} in ${bundlesForEdit} stacks of ${total / bundlesForEdit}`}
