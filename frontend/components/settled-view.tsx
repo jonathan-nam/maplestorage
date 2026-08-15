@@ -8,6 +8,7 @@ import { formatMesos } from "@/lib/drop-split";
 import { formatDropped } from "@/lib/loot";
 import { consolidateSettled } from "@/lib/settled-log";
 import type { SettledLine, SettledRecord, SettledTotals } from "@/lib/settled-log";
+import type { DropLogTotals } from "@/lib/drop-log";
 import type { Boss } from "@/types/boss";
 import type { Party } from "@/types/party";
 
@@ -176,22 +177,54 @@ function SettledRow({
   );
 }
 
+/**
+ * What the whole log holds, which is NOT what this view's other figures count.
+ *
+ * Every other number on this page is off the settled rows. This one is off every drop there has
+ * ever been, so it is stated on its own and named for the thing it counts rather than joined to the
+ * counts line, where "60 drops · 3 settled" reads as two figures about one population.
+ *
+ * Drawn even when nothing is settled: it was the Drop Ledger's own heading, and a page that shows it
+ * only once something else has happened would drop the count of an account that has logged drops and
+ * settled none.
+ */
+function LoggedCount({ logged }: { logged: DropLogTotals }) {
+  return (
+    <p className="loot-meta settled-counts">
+      {logged.drops} logged
+      {/* Whichever happened. A Heroic account never sells one and an Interactive one never takes
+          one, so in practice this is a single figure either way. */}
+      {logged.sold > 0 || logged.taken === 0 ? ` · ${logged.sold} sold` : ""}
+      {logged.taken > 0 ? ` · ${logged.taken} taken` : ""}
+      {logged.pending > 0 ? ` · ${logged.pending} in the pool` : ""}
+    </p>
+  );
+}
+
 export function SettledView({
   rows,
   totals,
+  logged,
   orphans,
   bossByKey,
   partyById,
 }: {
   rows: SettledRecord[];
   totals: SettledTotals;
+  /** The whole log's counts, which the Drop Ledger used to head itself with. See LoggedCount. */
+  logged: DropLogTotals;
   /** Settlements naming a drop the pool no longer has. Said, never absorbed. See orphansOf. */
   orphans: number;
   bossByKey: Map<string, Boss>;
   partyById: Map<string, Party>;
 }) {
   if (rows.length === 0) {
-    return <p className="party-hint">Nothing settled yet.</p>;
+    return (
+      <>
+        <LoggedCount logged={logged} />
+        <p className="party-hint">Nothing settled yet.</p>
+      </>
+    );
   }
 
   // The two kinds counted apart, because a coupon night and a sale do not add. Money is the one
@@ -203,49 +236,56 @@ export function SettledView({
   ].filter(Boolean);
 
   return (
-    <section className="loot-pool">
-      <header className="droplog-group-head">
-        <h2 className="loot-pool-title">Settled</h2>
-        <span className="droplog-group-total">
-          {formatMesos(totals.pooled, true)}
-          <span className="stat-label"> split</span>
-          {/* Your share of it. The Drop Ledger totalled this per month, and stopped stating any meso
+    <>
+      {/* Above the section, not inside it. Two lines in the same style under one heading read as two
+          figures about the same rows, and these count different things: every drop there has been,
+          against the ones that are finished. */}
+      <LoggedCount logged={logged} />
+
+      <section className="loot-pool">
+        <header className="droplog-group-head">
+          <h2 className="loot-pool-title">Settled</h2>
+          <span className="droplog-group-total">
+            {formatMesos(totals.pooled, true)}
+            <span className="stat-label"> split</span>
+            {/* Your share of it. The Drop Ledger totalled this per month, and stopped stating any meso
               when sale figures became this view's, so it arrived here with the rows behind it. Both
               figures carry the coupon lots too, which are on no row. See SettledTotals.pooled. */}
-          {` · ${formatMesos(totals.yourTake, true)}`}
-          <span className="stat-label"> your take</span>
-        </span>
-      </header>
+            {` · ${formatMesos(totals.yourTake, true)}`}
+            <span className="stat-label"> your take</span>
+          </span>
+        </header>
 
-      <p className="loot-meta settled-counts">
-        {counts.join(" · ")}
-        {totals.writtenOff > 0 && ` · ${formatMesos(totals.writtenOff, true)} written off`}
-      </p>
+        <p className="loot-meta settled-counts">
+          {counts.join(" · ")}
+          {totals.writtenOff > 0 && ` · ${formatMesos(totals.writtenOff, true)} written off`}
+        </p>
 
-      <ul className="droplog-list">
-        {consolidateSettled(rows).map((line) => (
-          <SettledRow key={line.key} line={line} bossByKey={bossByKey} partyById={partyById} />
-        ))}
-      </ul>
+        <ul className="droplog-list">
+          {consolidateSettled(rows).map((line) => (
+            <SettledRow key={line.key} line={line} bossByKey={bossByKey} partyById={partyById} />
+          ))}
+        </ul>
 
-      {/* Money missing from the totals above, said where those totals are. It was the Drop Ledger's
+        {/* Money missing from the totals above, said where those totals are. It was the Drop Ledger's
           note until that page stopped stating a meso. Same shape as the orphan count below: an
           absence nothing says is the silent wrong number. */}
-      {totals.unreadable > 0 && (
-        <p className="loot-warn droplog-note">
-          {totals.unreadable} sold{" "}
-          {totals.unreadable === 1 ? "drop names a seat" : "drops name seats"} that has left, so{" "}
-          {totals.unreadable === 1 ? "its split cannot" : "their splits cannot"} be read and{" "}
-          {totals.unreadable === 1 ? "its" : "their"} money is in neither total above.
-        </p>
-      )}
+        {totals.unreadable > 0 && (
+          <p className="loot-warn droplog-note">
+            {totals.unreadable} sold{" "}
+            {totals.unreadable === 1 ? "drop names a seat" : "drops name seats"} that has left, so{" "}
+            {totals.unreadable === 1 ? "its split cannot" : "their splits cannot"} be read and{" "}
+            {totals.unreadable === 1 ? "its" : "their"} money is in neither total above.
+          </p>
+        )}
 
-      {orphans > 0 && (
-        <p className="loot-warn droplog-note">
-          {orphans} {orphans === 1 ? "settlement names a drop" : "settlements name drops"} the pool
-          no longer has, so {orphans === 1 ? "it is" : "they are"} not listed.
-        </p>
-      )}
-    </section>
+        {orphans > 0 && (
+          <p className="loot-warn droplog-note">
+            {orphans} {orphans === 1 ? "settlement names a drop" : "settlements name drops"} the
+            pool no longer has, so {orphans === 1 ? "it is" : "they are"} not listed.
+          </p>
+        )}
+      </section>
+    </>
   );
 }
