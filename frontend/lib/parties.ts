@@ -6,6 +6,7 @@
 // solo configs out unless asked, which is what keeps the list short enough to read.
 
 import { weekEndExclusive } from "@/lib/boss-clears";
+import { foldSeats } from "@/lib/vestige-ledger";
 import type { Boss } from "@/types/boss";
 import type { BossDrop } from "@/types/drop";
 import type { Party } from "@/types/party";
@@ -59,6 +60,28 @@ export function partySizeLabel(size: number): string {
   if (size === 2) return "Duo";
   if (size === 3) return "Trio";
   return `${size}-man`;
+}
+
+/**
+ * The party, in the one line a row has for it: who you ran it with.
+ *
+ * The heading already names your side of it, the boss when the list is filed by character and the
+ * character when it is filed by boss, so the words left are the people. Folded to people rather than
+ * listed as seats, the same rule the Drop Log's rows follow, so a partner who brought two characters
+ * is one name on both pages.
+ *
+ * THIS WEEK's roster, which is what `members` is and what the row is about. `seats` is every seat the
+ * party has ever had and would name somebody who sat the week out.
+ *
+ * Past three it goes back to the size. Six names is what the roster panel is for, one chevron away,
+ * and a row is scanned rather than read. The size is also the whole truth about a solo, and about a
+ * party of two characters of your own, which is why it is the fallback and not a special case.
+ */
+export function rosterLabel(party: Party): string {
+  const others = foldSeats(party.members).filter((seat) => seat.holder.kind !== "SELF");
+  return others.length === 0 || others.length > 3
+    ? partySizeLabel(party.members.length)
+    : others.map((seat) => seat.name).join(", ");
 }
 
 /**

@@ -12,6 +12,7 @@ import {
   knownCharacterNames,
   otherMembers,
   partySizeLabel,
+  rosterLabel,
   runningThisPeriod,
   standingMembers,
   standingParties,
@@ -95,6 +96,61 @@ describe("partySizeLabel", () => {
     expect(partySizeLabel(2)).toBe("Duo");
     expect(partySizeLabel(3)).toBe("Trio");
     expect(partySizeLabel(6)).toBe("6-man");
+  });
+});
+
+describe("what a party row says the party is", () => {
+  /** One person behind two seats, which is how a partner who brings an alt arrives. */
+  const asPerson = (name: string, personName: string): PartyMember => ({
+    ...seat(name),
+    personId: `p-${personName.toLowerCase()}`,
+    personName,
+  });
+
+  it("names who you ran it with, the heading having named your side", () => {
+    expect(rosterLabel(config("p1", "char-1", "limbo", ["CreedBratton", "Dwight"]))).toBe(
+      "CreedBratton, Dwight",
+    );
+  });
+
+  it("names one person once, however many characters they brought", () => {
+    // foldSeats' rule, and the Drop Log's rows follow it too: two seats of one human are one
+    // holder. Listed as seats this read "Chris, Chris" and the row looked like a trio.
+    const party = config("p1", "char-1", "limbo", []);
+    const both = {
+      ...party,
+      members: [...party.members, asPerson("Creed", "Chris"), asPerson("Dwight", "Chris")],
+    };
+    expect(rosterLabel(both)).toBe("Chris");
+  });
+
+  it("falls back to the size past three, a row being scanned rather than read", () => {
+    const five = config("p1", "char-1", "limbo", ["Creed", "Dwight", "Jim", "Pam"]);
+    expect(rosterLabel(five)).toBe("5-man");
+  });
+
+  it("says the size where there is nobody else to name", () => {
+    // A solo, and a party of two characters of your own: both are the size and nothing more, which
+    // is why the size is the fallback rather than a case of its own.
+    expect(rosterLabel(config("p1", "char-1", "limbo", []))).toBe("Solo");
+    const mine = config("p1", "char-1", "limbo", []);
+    const twoOfYours = {
+      ...mine,
+      members: [...mine.members, seat("myAlt", "char-2")],
+    };
+    expect(rosterLabel(twoOfYours)).toBe("Duo");
+  });
+
+  it("reads the week being shown, not every seat the party has ever had", () => {
+    // `members` is the week and `seats` is the history. Off `seats` this would name the member who
+    // sat the week out, on a row that is about the week.
+    const party = config("p1", "char-1", "limbo", ["CreedBratton"]);
+    const dwightInstead = {
+      ...party,
+      members: [seat("mine", "char-1"), seat("Dwight")],
+      seats: [...party.seats, seat("Dwight")],
+    };
+    expect(rosterLabel(dwightInstead)).toBe("Dwight");
   });
 });
 

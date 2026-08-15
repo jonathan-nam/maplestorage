@@ -10,7 +10,7 @@ import { ApiError, SAVED_BUT_STALE, StaleAfterWrite, apiAssetUrl } from "@/lib/a
 import { clearClass, clearStateLabel, nextClear } from "@/lib/boss-clears";
 import type { PieceStatus } from "@/lib/drop-log";
 import { type CouponsOutstanding, poolLabel } from "@/lib/loot";
-import { guaranteedDrop, otherMembers, partySizeLabel } from "@/lib/parties";
+import { guaranteedDrop, otherMembers, rosterLabel } from "@/lib/parties";
 import type { Boss } from "@/types/boss";
 import type { BossDrop, DropTables } from "@/types/drop";
 import type { AddLootBody, Loot, SellLootBody } from "@/types/loot";
@@ -232,7 +232,9 @@ export function PartyCard({
         <Link className="party-row-heading" href={`/bosses/parties/${party.id}`}>
           {heading}
         </Link>
-        <span className="party-row-label">{partySizeLabel(party.members.length)}</span>
+        {/* Who you ran it with, where three or fewer can be named. It said the party's SIZE, which
+            is the one thing about a roster the row could already be counted for. See rosterLabel. */}
+        <span className="party-row-label">{rosterLabel(party)}</span>
 
         {/* A boss that drops vestige coupons, said with the coupon itself. A fact about the boss and
             its difficulty rather than about anything that has happened, so it does not come and go
