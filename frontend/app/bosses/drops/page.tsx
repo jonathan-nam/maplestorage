@@ -38,6 +38,7 @@ import { buildWallet } from "@/lib/wallet";
 import { type DropSectionKey, dropSections, saleCards, shownSection } from "@/lib/drop-sections";
 import {
   buildDropLog,
+  isUntradeablePiece,
   foldRuns,
   forCharacter,
   groupDrops,
@@ -405,7 +406,15 @@ export default function DropLogPage() {
   // The whole log is kept alongside the filtered one so the toolbar does not come and go: which
   // controls exist is a property of the account, not of what the filter currently leaves.
   const closures = closedByHolder(settlements);
-  const whole = buildDropLog(parties, pools, dropTables, closures.closed);
+  // Eternal pieces are left out of the log entirely. It is a history of what drops were WORTH and
+  // who was paid, and a piece has no price, no sale and no settlement: it is settled by whose turn
+  // it was to bend down, which the run says and this page cannot. They are still in the pool on
+  // Party View, where the turn is answered for.
+  const sellable = pools.map((pool) => ({
+    ...pool,
+    loot: pool.loot.filter((row) => !isUntradeablePiece(row, dropTables)),
+  }));
+  const whole = buildDropLog(parties, sellable, dropTables, closures.closed);
   const log = forCharacter(whole, character);
   const { totals } = log;
   // Lined here rather than inside each section, so the toolbar can ask whether anything folds at

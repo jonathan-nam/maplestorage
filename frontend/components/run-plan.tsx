@@ -49,9 +49,25 @@ function waitLine(time: RunTime): string {
  * in the same pool. Absent for a hand-typed night: there is no config behind those rows, so there
  * is nothing to write to and no controls are drawn.
  */
+/**
+ * Whose turn it is on a run's pieces, keyed by the person columns.
+ *
+ * Only ever built for a run whose pieces do NOT divide evenly: an even one has everybody on the
+ * same number every week, and a column of identical figures on every row is noise. See rotationOnRun.
+ */
+export type RunRotation = {
+  /** The piece being divided, for the cell's tooltip. The grid has no room to name it outright. */
+  drop: string;
+  /** Pieces to pick up, by person id. A person with no entry takes none this week, which is a real
+   *  answer on a night that will not divide. */
+  takes: Map<string, number>;
+};
+
 export type RunLog = {
   /** The config a planned run came from, by run id. */
   partyOf: (runId: string) => Party | undefined;
+  /** Whose turn it is on this run's pieces, or null where the row has nothing to say. */
+  rotationOf: (runId: string) => RunRotation | null;
   /** That boss's drop table, for the picker. Undefined leaves it offering "something else". */
   dropTable: (bossKey: string) => BossDrop[] | undefined;
   /** THIS config's write, not the page's: one row saving must not dim the rest of the night. */
@@ -143,6 +159,9 @@ export function RunPlan({
             const time = times[row];
             const tick = ticks[row];
             const party = log?.partyOf(planned.run.id);
+            // Only where the pieces will not divide, which is the night somebody has to be told
+            // about. See RunRotation.
+            const rotation = log?.rotationOf(planned.run.id) ?? null;
             const pool = party ? poolSize(party) : 0;
             // Every drop, not just the outstanding ones, but quietly once there is nothing left to
             // do with them. Same two states the party row's summary has.
@@ -275,6 +294,20 @@ export function RunPlan({
                               </span>
                             )}
                             {cell.character}
+                            {/* How many pieces to pick up, on the night it matters. Drawn on the
+                                person's own cell because the grid already means "this person, this
+                                run", so the number needs no label to say whose it is.
+
+                                A zero is DRAWN, not left out: somebody's turn is to take none, and
+                                an empty cell there reads as the rotation having forgotten them. */}
+                            {rotation && (
+                              <span
+                                className="run-take"
+                                title={`${rotation.takes.get(person.id) ?? 0} ${rotation.drop} for ${person.name}`}
+                              >
+                                {rotation.takes.get(person.id) ?? 0}
+                              </span>
+                            )}
                           </>
                         )}
                       </td>
