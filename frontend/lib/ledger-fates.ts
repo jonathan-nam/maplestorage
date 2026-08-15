@@ -390,28 +390,43 @@ export function worthDrawing(
 /**
  * A pile's recorded tranches, split by whether the row still has anything to say.
  *
- * A tranche that NAMED whose pieces were in it is answered somewhere else, and better: its money is
- * on that person's Settlement card and its pieces have come off what this pile owes them. The pill
- * here is then the record of a finished act, and a card that keeps every one grows a row per sale
- * for as long as the account runs.
+ * A sale of somebody's coupons is finished when its money has been paid out or taken off what they
+ * owe you. Then the act is over on both sides, the pill is a record of it, and a card that keeps
+ * every one grows a row per sale for as long as the account runs.
+ *
+ * NAMING a creditor is not that, and folding on it was this list's bug: the money sits in your hands
+ * as theirs until the two of you say which of the two things happens to it, so the sale nobody has
+ * decided about yet went behind the fold beside the ones already settled. Which decisions took which
+ * sales is `decidedSales`, off the same match the Settlement card's own rows are drawn from.
  *
  * FOLDED, never dropped, and the count says how many. A mistyped tranche re-prices every boss behind
  * it and this pill is the only place one can be taken back off, so a card that simply forgot them
  * would be a ledger you cannot correct. Same shape as `worthDrawing` above.
  *
- * A share naming the pile's own holder does not count as naming anybody: a pile owes itself nothing.
- * Same rule as `answeredByPair`, and it has to be, or a tranche the two disagree about would vanish
- * from the card while still asking on it.
+ * A share naming the pile's own holder does not count as naming anybody: a pile owes itself nothing,
+ * so there is no decision to wait for and no other screen carrying the row. Same rule as
+ * `answeredByPair`, and it has to be, or a tranche the two disagree about would vanish from the card
+ * while still asking on it.
  */
-export function foldTranches<T extends { holder: Holder; shares?: { holder: Holder }[] }>(
+export function foldTranches<
+  T extends { id: string; holder: Holder; shares?: { holder: Holder }[] },
+>(
   tranches: T[],
+  /** Creditors whose money off each sale has been decided, keyed by tranche. See decidedSales. */
+  decided: Map<string, Set<string>>,
 ): { shown: T[]; folded: T[] } {
   const shown: T[] = [];
   const folded: T[] = [];
   for (const tranche of tranches) {
     const pile = holderKey(tranche.holder);
-    const named = (tranche.shares ?? []).some((s) => holderKey(s.holder) !== pile);
-    (named ? folded : shown).push(tranche);
+    const named = (tranche.shares ?? [])
+      .map((s) => holderKey(s.holder))
+      .filter((creditor) => creditor !== pile);
+    // EVERY creditor, since one sale can hold two people's coupons: settled with one of them, it is
+    // still waiting on the other, and the pill is where that is said.
+    const settled =
+      named.length > 0 && named.every((creditor) => decided.get(tranche.id)?.has(creditor));
+    (settled ? folded : shown).push(tranche);
   }
   return { shown, folded };
 }

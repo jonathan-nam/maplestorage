@@ -58,6 +58,7 @@ export function PieceLedger({
   ledgers,
   heldOfYours,
   tranches,
+  decided,
   bossByKey,
   partyById,
   iconUrl,
@@ -73,6 +74,8 @@ export function PieceLedger({
   heldOfYours: HeldOfYours;
   /** Every holder's tranches, keyed by holderKey(), oldest first as the server returns them. */
   tranches: Map<string, VestigeTranche[]>;
+  /** Which sales have had their money decided, and by whom. See decidedSales. */
+  decided: Map<string, Set<string>>;
   bossByKey: Map<string, Boss>;
   partyById: Map<string, Party>;
   /** The coupon's own sprite, backend-relative. Null when the catalog has no art for it. */
@@ -118,6 +121,7 @@ export function PieceLedger({
           forEntry={forEntry}
           focusEntry={forEntry && i === 0}
           tranches={tranches.get(holderKey(ledger.holder)) ?? []}
+          decided={decided}
           bossByKey={bossByKey}
           partyById={partyById}
           iconUrl={iconUrl}
@@ -136,6 +140,7 @@ function HolderCard({
   ledger,
   heldOfYours,
   tranches,
+  decided,
   bossByKey,
   partyById,
   iconUrl,
@@ -156,6 +161,7 @@ function HolderCard({
    */
   heldOfYours: HeldOfYours;
   tranches: VestigeTranche[];
+  decided: Map<string, Set<string>>;
   bossByKey: Map<string, Boss>;
   partyById: Map<string, Party>;
   iconUrl: string | null;
@@ -184,8 +190,8 @@ function HolderCard({
   // Asked for on a pile that owes nobody. The card is still the only place its rows can be corrected,
   // so it stays drawn either way, and this is only whether the boxes are out.
   const [entering, setEntering] = useState(forEntry);
-  // Whether the tranches that have already been answered are back on screen. Folded by default and
-  // never dropped: this card is the only place a mistyped one can be taken off. See foldTranches.
+  // Whether the sales that are already settled are back on screen. Folded by default and never
+  // dropped: this card is the only place a mistyped one can be taken off. See foldTranches.
   const [showAnswered, setShowAnswered] = useState(false);
   const entryRef = useRef<HTMLInputElement>(null);
 
@@ -201,10 +207,10 @@ function HolderCard({
     ledger.drops.flatMap((d) => d.transfers).map((t) => [t.toId, t.to]),
   );
 
-  // The rows still worth a pill, and the ones a Settlement card now carries. Folded rather than
-  // dropped, and the whole list comes back rather than one at a time: they are corrected together or
-  // not at all, and a per-row reveal would be a control per finished act.
-  const { shown, folded } = foldTranches(tranches);
+  // The rows still waiting on a decision, and the ones somebody has been paid out or offset for.
+  // Folded rather than dropped, and the whole list comes back rather than one at a time: they are
+  // corrected together or not at all, and a per-row reveal would be a control per finished act.
+  const { shown, folded } = foldTranches(tranches, decided);
   const shownTranches = showAnswered ? tranches : shown;
 
   const overEntered = Math.max(0, ledger.accounted - ledger.pieces);
@@ -487,9 +493,10 @@ function HolderCard({
         {/* The pieces step's own rows, in the order the queue spends them. Removable because a mistyped
             tranche re-prices every boss behind it, and there is nowhere else to correct one.
 
-            A tranche that said whose pieces it held is folded away: it has been answered on that
-            person's Settlement card, in money, and the pill outlives the act by the whole life of the
-            account. The count keeps the way back, since removing one is still only possible here. */}
+            A sale whose money has been paid out or offset is folded away: the act is over on both
+            sides, and the pill outlives it by the whole life of the account. One nobody has decided
+            about yet stays, because that decision is still to make. The count keeps the way back,
+            since removing one is only possible here. */}
         <span className="ledger-tranches">
           {shownTranches.map((tranche) => (
             <span key={tranche.id} className="ledger-tranche">
@@ -526,8 +533,11 @@ function HolderCard({
             </span>
           ))}
           {folded.length > 0 && !showAnswered && (
+            /* "recorded" while nothing else was ever drawn here, and wrong the moment something is:
+               the rows beside it are recorded too. What sets these apart is that the money is dealt
+               with. */
             <button type="button" className="link" onClick={() => setShowAnswered(true)}>
-              {`${folded.length} recorded`}
+              {`${folded.length} settled`}
             </button>
           )}
         </span>

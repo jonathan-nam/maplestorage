@@ -576,6 +576,43 @@ function couponSalesBehind(
 }
 
 /**
+ * Which sales somebody has said what happens to the money of, and who for.
+ *
+ * The Sale Ledger's fold. A sale of somebody's coupons is finished when its money has been paid out
+ * or taken off what they owe you, and not before: until then it is on their Settlement card as money
+ * of theirs in your hands, waiting for the two of you to decide.
+ *
+ * The SAME match the discharge rows are drawn from, so the pill and the act cannot name different
+ * sales. A decision whose sales cannot be told exactly is in neither, which leaves the pill on screen:
+ * a worklist that keeps a finished row is noise, and one that hides an unfinished one is a lie.
+ *
+ * Off the credits rather than the built cards, which is the one thing here worth knowing. Paying
+ * somebody out in full empties their card, and a card with nothing on it is not in the list at all,
+ * so a sale read off the rows would go from decided back to undecided the moment it was finished.
+ *
+ * Per creditor, because one sale can hold two people's coupons and each decides separately.
+ */
+export function decidedSales(
+  credits: Map<string, SaleCredit>,
+  disposals: ProceedsDisposal[],
+): Map<string, Set<string>> {
+  const out = new Map<string, Set<string>>();
+  for (const [key, credit] of credits) {
+    // Their own decisions, in the order they were made, which is the order buildSettlement spends
+    // them in. Two people's decisions never queue against one another's money.
+    const theirs = disposals.filter((d) => holderKey(d.holder) === key);
+    for (const sales of couponSalesBehind(credit.sales, theirs).values()) {
+      for (const sale of sales) {
+        const creditors = out.get(sale.trancheId) ?? new Set<string>();
+        creditors.add(key);
+        out.set(sale.trancheId, creditors);
+      }
+    }
+  }
+  return out;
+}
+
+/**
  * The money rows split by what they ARE: what builds the debt, and what has come off it.
  *
  * One list mixed the two, so an offset read as a debt and only a chevron told them apart, and every
