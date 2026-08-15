@@ -304,6 +304,23 @@ describe("the totals over what is finished", () => {
   it("counts no unreadable split where every sale divides", () => {
     expect(settledTotals(buildSettledLog(logOf([drop()]))).unreadable).toBe(0);
   });
+
+  it("carries the coupon lots, which are on no row", () => {
+    // A coupon night has no one price: its pieces sell in lots that name no night, so the money is
+    // stated whole or not at all. Without it the view was every sale but the vestiges.
+    const rows = buildSettledLog(logOf([drop()]));
+    const withLots = settledTotals(rows, { pooled: 2_000 * M, yourTake: 1_200 * M });
+
+    expect(withLots.pooled).toBe(9_500 * M + 2_000 * M);
+    expect(withLots.yourTake).toBe(settledTotals(rows).yourTake + 1_200 * M);
+    // And the counts are the rows', which coupon lots are not: a lot is not a settled night.
+    expect([withLots.nights, withLots.sales]).toEqual([0, 1]);
+  });
+
+  it("is the rows alone when no coupons have sold", () => {
+    const rows = buildSettledLog(logOf([drop()]));
+    expect(settledTotals(rows, { pooled: 0, yourTake: 0 })).toEqual(settledTotals(rows));
+  });
 });
 
 // A settlement usually closes several nights at once, so drawn flat it is a row per night saying the

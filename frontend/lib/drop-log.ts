@@ -19,7 +19,7 @@
 import { formatWeekStart } from "./boss-clears";
 import { splitOf, statusLabel } from "./loot";
 import type { CouponsOutstanding } from "./loot";
-import { closureKeyOf, couponGapOf, foldSeats, ranSeats, yourShare } from "./vestige-ledger";
+import { closureKeyOf, couponGapOf, ranSeats, yourShare } from "./vestige-ledger";
 import type { DropTables } from "@/types/drop";
 import type { Loot, PartyLootPool } from "@/types/loot";
 import type { Party, PartyMember } from "@/types/party";
@@ -110,7 +110,7 @@ export type DropEntry = {
   splitMethod: string | null;
   /** Who took it, where a world cannot sell. Null everywhere else, and on a seat that has left. */
   takenByName: string | null;
-  /** Who you ran it with, that week, in people. Empty on a solo. See ranWith. */
+  /** Who you ran it with, that week, in characters. Empty on a solo. See ranWith. */
   ranWith: string[];
   /** Who sold it, or who bought it on a BOUGHT basis. Null while it is still in the pool. */
   sellerName: string | null;
@@ -157,8 +157,6 @@ export type DropLogTotals = {
    * for ever, on parties where the split came out exactly even.
    */
   pending: number;
-  /** Coupons somebody ELSE is holding for you. The pieces behind the count above. */
-  piecesOwed: number;
   /** Across sold drops: what landed in inventories, party-wide. See the header note. */
   pooled: number;
   /** Across sold drops: your side of them. */
@@ -232,18 +230,21 @@ function takeFor(loot: Loot, members: PartyMember[]): number | null {
  * question as "what did it make".
  */
 /**
- * Who you ran it with, in people rather than seats.
+ * Who you ran it with, in the characters that ran it.
  *
  * THAT WEEK's roster, off ranSeats: a party's membership is edited, and reading today's would put
  * somebody who joined in December in a row from August. Same rule as the share on the row above it.
  *
  * Your own seats are not in it. The row already names which character of yours the drop is filed
- * under, so listing it again is the one name on the line that says nothing. Folded to people, so a
- * partner who brought two characters is one name and not two.
+ * under, so listing it again is the one name on the line that says nothing.
+ *
+ * SEATS, not people: a night is run by characters, and the character is what the party screen, the
+ * clear and the arrangement all name. A partner who brought two of them is two names here, which is
+ * two characters that were in the party. What one person came to is the ledgers' question.
  */
 function ranWith(loot: Loot, party: Party): string[] {
-  return foldSeats(ranSeats(loot, party))
-    .filter((seat) => seat.holder.kind !== "SELF")
+  return ranSeats(loot, party)
+    .filter((seat) => !isMine(seat))
     .map((seat) => seat.name);
 }
 
@@ -334,9 +335,9 @@ export function buildDropLog(
  * share: `owedBy` is set only then, and a party that divided evenly leaves it null.
  */
 export function isOutstanding(entry: DropEntry): boolean {
-  // A piece drop is never counted here, whoever is holding it. It is said in COUPONS instead, by
-  // piecesOwed and by the party row's own figure, and counting it both ways read as two things to
-  // do: one coupon drop showed as "1 in the pool · 30 coupons owed", which is one fact twice.
+  // A piece drop is never counted here, whoever is holding it. It is said in COUPONS instead, by the
+  // party row's own figure, and counting it both ways read as two things to do: one coupon drop
+  // showed as "1 in the pool · 30 coupons owed", which is one fact twice.
   return entry.status === "PENDING" && !entry.pieces;
 }
 
@@ -368,9 +369,6 @@ function totalsOf(entries: DropEntry[]): DropLogTotals {
     sold: entries.filter((e) => e.status === "SOLD" || e.status === "PAID_OUT").length,
     taken: entries.filter((e) => e.status === "TAKEN").length,
     pending: entries.filter(isOutstanding).length,
-    piecesOwed: entries
-      .filter((e) => e.pieces && e.owedBy !== null && !e.closed)
-      .reduce((sum, e) => sum + e.owedToYou, 0),
     pooled: entries.reduce((sum, e) => sum + (e.pooled ?? 0), 0),
     yourTake: entries.reduce((sum, e) => sum + (e.yourTake ?? 0), 0),
     unreadable: entries.filter((e) => e.unreadable).length,
@@ -557,16 +555,6 @@ export function foldNames(
   const distinct = [...new Set(names.filter((n): n is string => Boolean(n)))];
   if (distinct.length === 0) return null;
   return distinct.length <= max ? distinct.join(", ") : `${distinct.length} ${plural}`;
-}
-
-/**
- * Whether every row behind a fold came off one boss.
- *
- * The line above already names the bosses, so where there is only one, naming it again on each run
- * says the same three words eleven times. What tells those runs apart is the date.
- */
-export function oneBossBehind(entries: DropEntry[]): boolean {
-  return new Set(entries.map((e) => e.bossKey ?? null)).size === 1;
 }
 
 /**

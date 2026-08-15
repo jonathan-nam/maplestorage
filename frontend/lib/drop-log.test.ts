@@ -10,7 +10,6 @@ import {
   forCharacter,
   groupDrops,
   monthLabel,
-  oneBossBehind,
   pieceStatusByParty,
   weekLabel,
 } from "./drop-log";
@@ -732,7 +731,6 @@ describe("a piece drop counts YOUR share, not what fell", () => {
 
     expect(log.entries[0]!.status).toBe("PENDING");
     expect(log.totals.pending).toBe(0);
-    expect(log.totals.piecesOwed).toBe(0);
     // And the row says so. "In the pool" off the raw status was the message on every coupon drop
     // the account has ever had, for ever, because a piece row never sells.
     expect(dropStatusLabel(log.entries[0]!)).toBe("Yours");
@@ -744,7 +742,7 @@ describe("a piece drop counts YOUR share, not what fell", () => {
     // One drop, one fact. Counting it both ways read as two things to do: a single coupon drop
     // showed as "1 in the pool · 30 coupons owed" on the party row.
     expect(log.totals.pending).toBe(0);
-    expect(log.totals.piecesOwed).toBe(20);
+    expect(couponsOutstandingByParty(log.entries).get("pa")).toEqual({ toYou: 20, byYou: 0 });
     // And "in the pool" is not what it is. It is in somebody else's inventory, which the row says.
     expect(dropStatusLabel(log.entries[0]!)).toBe("Owed");
   });
@@ -801,7 +799,6 @@ describe("a piece drop counts YOUR share, not what fell", () => {
     expect(entry.yours).toBe(30);
     expect(entry.owedToYou).toBe(0);
     expect(entry.owedBy).toBeNull();
-    expect(log.totals.piecesOwed).toBe(0);
     // Not owed TO you, and not nothing either: you are holding 40 of a 30 share, so 10 of it is
     // theirs and the row says so the other way round.
     expect(entry.owedByYou).toBe(10);
@@ -817,7 +814,6 @@ describe("a piece drop counts YOUR share, not what fell", () => {
     expect(log.entries[0]!.yours).toBe(30);
     expect(log.entries[0]!.owedToYou).toBe(10);
     expect(log.entries[0]!.owedBy).toBe("CreedBratton");
-    expect(log.totals.piecesOwed).toBe(10);
     expect(couponsOutstandingByParty(log.entries).get("pa")).toEqual({ toYou: 10, byYou: 0 });
     expect(dropStatusLabel(log.entries[0]!)).toBe("Owed");
   });
@@ -843,7 +839,7 @@ describe("a piece drop counts YOUR share, not what fell", () => {
     const log = buildDropLog([pair()], pools, tables, closed);
 
     expect(log.entries[0]!.closed).toBe(true);
-    expect(log.totals.piecesOwed).toBe(0);
+    expect(couponsOutstandingByParty(log.entries).has("pa")).toBe(false);
     expect(dropStatusLabel(log.entries[0]!)).toBe("Settled");
   });
 
@@ -865,7 +861,6 @@ describe("a piece drop counts YOUR share, not what fell", () => {
     const pools = [pool("pa", [coupons()])];
 
     const open = buildDropLog(parties, pools, tables);
-    expect(open.totals.piecesOwed).toBe(20);
     expect(couponsOutstandingByParty(open.entries).get("pa")).toEqual({ toYou: 20, byYou: 0 });
     expect(dropStatusLabel(open.entries[0]!)).toBe("Owed");
 
@@ -876,7 +871,6 @@ describe("a piece drop counts YOUR share, not what fell", () => {
     const done = buildDropLog(parties, pools, tables, closed);
 
     expect(done.entries[0]!.closed).toBe(true);
-    expect(done.totals.piecesOwed).toBe(0);
     expect(couponsOutstandingByParty(done.entries).has("pa")).toBe(false);
     expect(dropStatusLabel(done.entries[0]!)).toBe("Settled");
   });
@@ -956,7 +950,6 @@ describe("a piece drop counts YOUR share, not what fell", () => {
     const log = buildDropLog([trio()], [pool("pa", [hammer])], tables);
 
     expect(log.totals.pending).toBe(1);
-    expect(log.totals.piecesOwed).toBe(0);
   });
 
   it("names who is holding your share when one seat looted the lot", () => {
@@ -1011,54 +1004,32 @@ describe("foldNames", () => {
   });
 });
 
-describe("oneBossBehind", () => {
-  // Only bossKey is read, so a run is only its boss here.
-  const run = (bossKey: string | null) => ({ bossKey }) as DropEntry;
-
-  it("is true when every run came off the same boss", () => {
-    // Eleven Kalos runs behind one coupon fold: the line above says Kalos, and each run repeating
-    // it says nothing eleven times.
-    expect(oneBossBehind([run("kalos-the-guardian"), run("kalos-the-guardian")])).toBe(true);
-    expect(oneBossBehind([run("kalos-the-guardian")])).toBe(true);
-  });
-
-  it("is false when the fold spans bosses, which is when the name tells them apart", () => {
-    expect(oneBossBehind([run("kalos-the-guardian"), run("limbo")])).toBe(false);
-    // A boss and a free-text row filed with none are still two different answers.
-    expect(oneBossBehind([run("kalos-the-guardian"), run(null)])).toBe(false);
-  });
-
-  it("is true when no run has a boss at all, so the date is all there is either way", () => {
-    expect(oneBossBehind([run(null), run(null)])).toBe(true);
-  });
-});
-
 describe("who a drop was run with", () => {
   const ranWith = (party: Party, loot: Loot) =>
     buildDropLog([party], [pool(party.id, [loot])], {}).entries[0]!.ranWith;
 
-  it("names the partner and not your own character", () => {
+  it("names the partner's character and not your own", () => {
     // The row already says which character of yours it is filed under. Naming it again in the same
     // line is the one word on it that tells the reader nothing.
-    expect(ranWith(duo(), drop())).toEqual(["Chris"]);
+    expect(ranWith(duo(), drop())).toEqual(["CreedBratton"]);
   });
 
-  it("names one person once, however many characters they brought", () => {
-    // foldSeats' rule, which every count on this page already runs on: two seats of one human are
-    // one holder. Listed as seats it read "Chris, Chris".
+  it("names each character that ran it, not the person behind them", () => {
+    // A night is run by characters, and the character is what the party screen and the clear name.
+    // Folded to people this read "Chris" over a party of two seats nobody could match to it.
     const two = party("pa", [
       mine("m1", "mechyfechy"),
       theirs("m2", "Creed"),
       theirs("m3", "Dwight"),
     ]);
-    expect(ranWith(two, drop())).toEqual(["Chris"]);
+    expect(ranWith(two, drop())).toEqual(["Creed", "Dwight"]);
   });
 
   it("reads the roster of the week it FELL in, not the party as it stands", () => {
     // A drop from August must not name somebody who joined in December. Same rule as the share on
     // the row above it, and the same primitive: see ranSeats.
     expect(ranWith(duo(), drop({ ranThatWeek: ["m1"] }))).toEqual([]);
-    expect(ranWith(duo(), drop({ ranThatWeek: ["m1", "m2"] }))).toEqual(["Chris"]);
+    expect(ranWith(duo(), drop({ ranThatWeek: ["m1", "m2"] }))).toEqual(["CreedBratton"]);
   });
 
   it("names nobody on a solo, which has nobody to name", () => {

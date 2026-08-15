@@ -47,7 +47,6 @@ import {
   dropStatusLabel,
   foldNames,
   foldStatus,
-  oneBossBehind,
   type DropEntry,
   type DropGroup,
   type Grouping,
@@ -62,6 +61,7 @@ import {
   SELF_HOLDER,
   SELF_KEY,
   alsoHeldByYou,
+  couponMoney,
   answeredByHolder,
   answeredByPair,
   boughtByHolder,
@@ -507,7 +507,9 @@ export default function DropLogPage() {
   // What is finished. Off the WHOLE log rather than the filtered one, for the reason the ledgers
   // above are: this is the account's record, and a month's slice of it is not one.
   const settledRows = buildSettledLog(whole.entries, settlements, holderNames);
-  const settledCounts = settledTotals(settledRows);
+  // The coupon lots with it: a coupon night has no one price, so its money arrives whole from the
+  // tranche ledger or the view is every sale but the vestiges. See SettledTotals.pooled.
+  const settledCounts = settledTotals(settledRows, couponMoney(tranches));
   const settledOrphans = orphansOf(whole.entries, settlements);
   const open = unanswered(parties, pools, VESTIGE);
   // Only the drops still open tilt the rotation: a debt that has been closed was compensated, so it
@@ -670,10 +672,6 @@ export default function DropLogPage() {
                         .filter(Boolean)
                         .join(", ")}
                       {totals.pending > 0 && `, ${totals.pending} in the pool`}
-                      {/* The pieces behind the count, because one row is one hammer or 180
-                        coupons and a number of rows does not say which. Only when somebody is
-                        holding some. */}
-                      {totals.piecesOwed > 0 && `, ${totals.piecesOwed} coupons owed you`}
                     </span>
                   </div>
                   {/* What it all sold for stood here, and it is the Settled View's now, beside the
@@ -1058,26 +1056,13 @@ function DropRow({
   const characterName = characterById.get(entry.characterId)?.name ?? null;
   const panelId = `droplog-runs-${line.key}`;
 
-  // A fold stands for several runs, so it names what they have in common instead of one boss and
-  // one date. Both sides are counted rather than listed past a few: the runs themselves are under
-  // the chevron, and eight boss names ran wider than the row.
+  // A fold names the drop and how many of it are yours, and nothing else. Which bosses and which
+  // characters were a summary of the rows under the chevron, said in a form ("3 bosses", "2
+  // characters") that answers neither "which" nor "how many each": the rows themselves do both.
+  // Who it was run with was never here, for a stronger reason: a roster belongs to one night, so the
+  // union across a fold names a party that never ran.
   const meta = line.folded
-    ? [
-        foldNames(
-          line.entries.map((e) => bossByKey.get(e.bossKey ?? "")?.name),
-          "bosses",
-        ),
-        showCharacter
-          ? foldNames(
-              line.entries.map((e) => characterById.get(e.characterId)?.name),
-              "characters",
-            )
-          : null,
-        // Who it was run with is NOT here. A roster belongs to one night, and a fold spans several,
-        // so the union of them names a party that never ran: eleven Limbos over three months read
-        // as one line with everybody who has ever been in it. The runs under the chevron each say
-        // their own, which is the only place it is a true statement.
-      ].filter(Boolean)
+    ? []
     : [
         boss?.name,
         showCharacter ? characterName : null,
@@ -1094,9 +1079,6 @@ function DropRow({
   const runs = `${line.entries.length} runs`;
   // A level per character is only worth the chevron when there is more than one to tell apart.
   const heads = showCharacter && new Set(line.entries.map((e) => e.characterId)).size > 1;
-  // The fold's own meta names the one boss they all came off, so the runs under it are told apart
-  // by date instead of by the same name once per run.
-  const oneBoss = oneBossBehind(line.entries);
 
   return (
     <li className={`droplog-row status-${entry.status.toLowerCase()}${open ? " is-open" : ""}`}>
@@ -1140,7 +1122,8 @@ function DropRow({
               {line.yours > 1 && <span className="loot-count"> x{line.yours}</span>}
             </Link>
           )}
-          <span className="loot-meta">{meta.join(" · ")}</span>
+          {/* A fold says none of this, so the element is not drawn empty either. */}
+          {meta.length > 0 && <span className="loot-meta">{meta.join(" · ")}</span>}
         </span>
 
         <Stage label={status} statusClass={entry.status.toLowerCase()} />
@@ -1150,8 +1133,8 @@ function DropRow({
         <ul className="droplog-runs" id={panelId}>
           {/* Whose they are first, and only then which nights. A week of five bosses on six
               characters is thirty rows, and what is asked of a coupon fold is how many each
-              character got. Skipped where there is one character to tell apart: the line above has
-              already named them, and a chevron onto a single group opens onto itself. */}
+              character got. Skipped where there is one character to tell apart: a chevron onto a
+              single group opens onto itself, and the run rows name the character themselves. */}
           {heads
             ? byCharacter(line.entries).map((fold) => (
                 <CharacterRuns
@@ -1160,14 +1143,13 @@ function DropRow({
                   name={characterById.get(fold.characterId)?.name ?? "Unknown character"}
                   panelId={`${panelId}-${fold.characterId}`}
                   bossByKey={bossByKey}
-                  oneBoss={oneBoss}
                 />
               ))
             : line.entries.map((e) => (
                 <RunRow
                   key={e.lootId}
                   entry={e}
-                  boss={oneBoss ? null : (bossByKey.get(e.bossKey ?? "") ?? null)}
+                  boss={bossByKey.get(e.bossKey ?? "") ?? null}
                   characterName={characterById.get(e.characterId)?.name ?? null}
                   showCharacter={showCharacter}
                 />
@@ -1184,14 +1166,11 @@ function CharacterRuns({
   name,
   panelId,
   bossByKey,
-  oneBoss,
 }: {
   fold: CharacterFold;
   name: string;
   panelId: string;
   bossByKey: Map<string, Boss>;
-  /** Every run behind the whole fold came off one boss, so its runs are told apart by date. */
-  oneBoss: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const runs = `${fold.entries.length} runs`;
@@ -1231,7 +1210,7 @@ function CharacterRuns({
             <RunRow
               key={e.lootId}
               entry={e}
-              boss={oneBoss ? null : (bossByKey.get(e.bossKey ?? "") ?? null)}
+              boss={bossByKey.get(e.bossKey ?? "") ?? null}
               characterName={name}
               // Named by the row above, so a run under it would be saying it a second time.
               showCharacter={false}
@@ -1270,9 +1249,10 @@ function RunRow({
       {/* No portrait: the drop's own icon is on the line above, and a second column of art told
           nobody which run this was that the boss name did not already say. */}
       <Link href={`/bosses/parties/${entry.partyId}`} className="loot-name">
-        {/* The drop is named by the line above, so the run is named by its boss. Null where the
-            line above already named the one boss they all came off, and where free text was filed
-            with no boss at all: the date is what is left to tell the runs apart. */}
+        {/* The drop is named by the line above, so the run is named by its boss. Every run says its
+            own, including a fold whose runs all came off one: the line above no longer names it, and
+            eleven Kalos rows saying Kalos is the price of not asking the reader to remember it. Null
+            where free text was filed with no boss at all, and the date is what is left. */}
         {boss?.name ?? formatDropped(entry.droppedOn)}
         {/* Yours, the same as the line above sums. Counting what fell here made a fold of 440
             open onto runs adding up to 900. */}
