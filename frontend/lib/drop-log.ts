@@ -19,7 +19,7 @@
 import { formatWeekStart } from "./boss-clears";
 import { splitOf, statusLabel } from "./loot";
 import type { CouponsOutstanding } from "./loot";
-import { closureKeyOf, couponGapOf, ranSeats, yourShare } from "./vestige-ledger";
+import { closureKeyOf, couponGapOf, foldSeats, ranSeats, yourShare } from "./vestige-ledger";
 import type { DropTables } from "@/types/drop";
 import type { Loot, PartyLootPool } from "@/types/loot";
 import type { Party, PartyMember } from "@/types/party";
@@ -110,6 +110,8 @@ export type DropEntry = {
   splitMethod: string | null;
   /** Who took it, where a world cannot sell. Null everywhere else, and on a seat that has left. */
   takenByName: string | null;
+  /** Who you ran it with, that week, in people. Empty on a solo. See ranWith. */
+  ranWith: string[];
   /** Who sold it, or who bought it on a BOUGHT basis. Null while it is still in the pool. */
   sellerName: string | null;
   /**
@@ -229,6 +231,22 @@ function takeFor(loot: Loot, members: PartyMember[]): number | null {
  * Every logged drop is here, sold or not: "what have we got off Limbo this year" is as much the
  * question as "what did it make".
  */
+/**
+ * Who you ran it with, in people rather than seats.
+ *
+ * THAT WEEK's roster, off ranSeats: a party's membership is edited, and reading today's would put
+ * somebody who joined in December in a row from August. Same rule as the share on the row above it.
+ *
+ * Your own seats are not in it. The row already names which character of yours the drop is filed
+ * under, so listing it again is the one name on the line that says nothing. Folded to people, so a
+ * partner who brought two characters is one name and not two.
+ */
+function ranWith(loot: Loot, party: Party): string[] {
+  return foldSeats(ranSeats(loot, party))
+    .filter((seat) => seat.holder.kind !== "SELF")
+    .map((seat) => seat.name);
+}
+
 export function buildDropLog(
   parties: Party[],
   pools: PartyLootPool[],
@@ -291,6 +309,7 @@ export function buildDropLog(
         // Off `seats` and never `members`: a seat that has since left the party still took the item,
         // and resolving it through this week's roster would lose the name the week after they left.
         takenByName: party.seats.find((s) => s.id === loot.takenByMemberId)?.name ?? null,
+        ranWith: ranWith(loot, party),
         sellerName: split?.seller.name ?? null,
         pooled: split?.split.sellerReceives ?? null,
         yourTake: split ? takeFor(loot, party.seats) : null,

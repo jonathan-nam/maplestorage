@@ -209,6 +209,10 @@ export function SettledView({
         <span className="droplog-group-total">
           {formatMesos(totals.pooled, true)}
           <span className="stat-label"> split</span>
+          {/* Your share of it. The Drop Ledger totalled this per month, and stopped stating any meso
+              when sale figures became this view's, so it arrived here with the rows it sums. */}
+          {` · ${formatMesos(totals.yourTake, true)}`}
+          <span className="stat-label"> your take</span>
         </span>
       </header>
 
@@ -222,6 +226,18 @@ export function SettledView({
           <SettledRow key={line.key} line={line} bossByKey={bossByKey} partyById={partyById} />
         ))}
       </ul>
+
+      {/* Money missing from the totals above, said where those totals are. It was the Drop Ledger's
+          note until that page stopped stating a meso. Same shape as the orphan count below: an
+          absence nothing says is the silent wrong number. */}
+      {totals.unreadable > 0 && (
+        <p className="loot-warn droplog-note">
+          {totals.unreadable} sold{" "}
+          {totals.unreadable === 1 ? "drop names a seat" : "drops name seats"} that has left, so{" "}
+          {totals.unreadable === 1 ? "its split cannot" : "their splits cannot"} be read and{" "}
+          {totals.unreadable === 1 ? "its" : "their"} money is in neither total above.
+        </p>
+      )}
 
       {orphans > 0 && (
         <p className="loot-warn droplog-note">

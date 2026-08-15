@@ -52,7 +52,6 @@ import {
   type DropGroup,
   type Grouping,
 } from "@/lib/drop-log";
-import { formatMesos } from "@/lib/drop-split";
 import { formatDropped, splitOf } from "@/lib/loot";
 import { type LotSaleBody, fungibleDropKeys, lotDrops } from "@/lib/lot-sale";
 import { useDropIcons } from "@/lib/drop-icons";
@@ -677,26 +676,9 @@ export default function DropLogPage() {
                       {totals.piecesOwed > 0 && `, ${totals.piecesOwed} coupons owed you`}
                     </span>
                   </div>
-                  {money && (
-                    <>
-                      <div className="stat-tile">
-                        <span className="stat-label">Sold for</span>
-                        <span className="stat-value is-good">
-                          {formatMesos(totals.pooled, true)}
-                        </span>
-                        {/* Labelled precisely, because the obvious reading of "total sales" is a
-                          number that cannot be computed. See the header of lib/drop-log.ts. */}
-                        <span className="stat-note">what there was to split</span>
-                      </div>
-                      <div className="stat-tile">
-                        <span className="stat-label">Your take</span>
-                        <span className="stat-value is-good">
-                          {formatMesos(totals.yourTake, true)}
-                        </span>
-                        <span className="stat-note">your share of the above</span>
-                      </div>
-                    </>
-                  )}
+                  {/* What it all sold for stood here, and it is the Settled View's now, beside the
+                    rows it is the sum of. A first-stage list that ends in a money total is answering
+                    the last stage's question. */}
                 </div>
 
                 {whole.totals.drops > 0 && (
@@ -744,19 +726,12 @@ export default function DropLogPage() {
                     characterById={characterById}
                     characterOrder={characterOrder}
                     showCharacter={character === null}
-                    money={money}
                   />
                 ))}
 
-                {totals.unreadable > 0 && (
-                  <p className="loot-warn droplog-note">
-                    {totals.unreadable} sold {totals.unreadable === 1 ? "drop names" : "drops name"}{" "}
-                    a seat that has left its party, so {totals.unreadable === 1 ? "its" : "their"}{" "}
-                    split cannot be read. {totals.unreadable === 1 ? "It is" : "They are"} listed
-                    below with no figures, and {totals.unreadable === 1 ? "its" : "their"} money is
-                    in neither total above.
-                  </p>
-                )}
+                {/* A split that cannot be read is money missing from a total, so it is said where the
+                  totals are, which is the Settled View. Said here it named an absence from figures
+                  this tab no longer states. */}
               </>
             )}
 
@@ -1029,14 +1004,13 @@ export default function DropLogPage() {
   );
 }
 
-/** One month or one week of the log, with what it made on its heading. */
+/** One month or one week of the log. */
 function GroupSection({
   group,
   bossByKey,
   characterById,
   characterOrder,
   showCharacter,
-  money,
 }: {
   group: DropGroup;
   bossByKey: Map<string, Boss>;
@@ -1044,18 +1018,13 @@ function GroupSection({
   /** Character ids in roster order, which is what the runs behind a fold are sorted by. */
   characterOrder: string[];
   showCharacter: boolean;
-  money: boolean;
 }) {
   return (
     <section className="party-group">
+      {/* The month, and nothing else. What it came to is the Settled View's, which is where every
+          other figure about a sale went. */}
       <header className="droplog-group-head">
         <h2 className="party-group-name">{group.label}</h2>
-        {money && (
-          <span className="droplog-group-total">
-            {formatMesos(group.yourTake, true)}
-            <span className="stat-label"> your take</span>
-          </span>
-        )}
       </header>
       <ul className="droplog-list">
         {consolidate(group.entries, characterOrder).map((line) => (
@@ -1104,6 +1073,9 @@ function DropRow({
               "characters",
             )
           : null,
+        // Everybody across the runs, deduped by foldNames. A fold of eleven Limbos is the same
+        // three people ten times over, and a count of them is what a wider row would cost.
+        ranWith(line.entries.flatMap((e) => e.ranWith)),
       ].filter(Boolean)
     : [
         boss?.name,
@@ -1112,13 +1084,10 @@ function DropRow({
         // The count on this row is your share, and this is who is holding it until they hand it
         // over. Without it the row reads as pieces you already have.
         entry.owedBy ? `${entry.owedBy} looted` : null,
-        entry.sellerName
-          ? `${entry.amountBasis === "BOUGHT" ? "bought by" : "sold by"} ${entry.sellerName}`
-          : null,
+        ranWith(entry.ranWith),
       ].filter(Boolean);
 
   const status = foldStatus(line.entries);
-  const unreadable = line.entries.some((e) => e.unreadable);
   const runs = `${line.entries.length} runs`;
   // A level per character is only worth the chevron when there is more than one to tell apart.
   const heads = showCharacter && new Set(line.entries.map((e) => e.characterId)).size > 1;
@@ -1171,13 +1140,7 @@ function DropRow({
           <span className="loot-meta">{meta.join(" · ")}</span>
         </span>
 
-        <Amounts
-          label={status}
-          statusClass={entry.status.toLowerCase()}
-          unreadable={unreadable}
-          pooled={line.pooled}
-          yourTake={line.yourTake}
-        />
+        <Stage label={status} statusClass={entry.status.toLowerCase()} />
       </div>
 
       {line.folded && open && (
@@ -1253,12 +1216,9 @@ function CharacterRuns({
           <span className="loot-count"> x{fold.yours}</span>
         </span>
 
-        <Amounts
+        <Stage
           label={foldStatus(fold.entries)}
           statusClass={fold.entries[0]!.status.toLowerCase()}
-          unreadable={fold.entries.some((e) => e.unreadable)}
-          pooled={fold.pooled}
-          yourTake={fold.yourTake}
         />
       </div>
 
@@ -1297,9 +1257,9 @@ function RunRow({
     boss ? formatDropped(entry.droppedOn) : null,
     showCharacter ? characterName : null,
     entry.owedBy ? `${entry.owedBy} looted` : null,
-    entry.sellerName
-      ? `${entry.amountBasis === "BOUGHT" ? "bought by" : "sold by"} ${entry.sellerName}`
-      : null,
+    // Per run, because the roster is the WEEK's: a fold spanning two months is two rosters, and the
+    // line above can only name their union.
+    ranWith(entry.ranWith),
   ].filter(Boolean);
 
   return (
@@ -1316,49 +1276,34 @@ function RunRow({
         {entry.yours > 1 && <span className="loot-count"> x{entry.yours}</span>}
       </Link>
       <span className="loot-meta">{meta.join(" · ")}</span>
-      <Amounts
-        label={dropStatusLabel(entry)}
-        statusClass={entry.status.toLowerCase()}
-        unreadable={entry.unreadable}
-        pooled={entry.pooled}
-        yourTake={entry.yourTake}
-      />
+      <Stage label={dropStatusLabel(entry)} statusClass={entry.status.toLowerCase()} />
     </li>
   );
 }
 
-/** The right of a line or a run: what it made, or where it is instead. */
-function Amounts({
-  label,
-  statusClass,
-  unreadable,
-  pooled,
-  yourTake,
-}: {
-  label: string;
-  statusClass: string;
-  unreadable: boolean;
-  pooled: number | null;
-  yourTake: number | null;
-}) {
-  if (unreadable) {
-    return (
-      <span className="droplog-amounts">
-        <span className="loot-share-nets">split unreadable</span>
-      </span>
-    );
-  }
-  if (pooled === null) {
-    return (
-      <span className="droplog-amounts">
-        <span className={`loot-status is-${statusClass}`}>{label}</span>
-      </span>
-    );
-  }
+/**
+ * Who the drop was run with, as the meta says it.
+ *
+ * Past three the names become a count. Six of them ran the row wider than the page, and which six
+ * is a question the party behind the link answers; that there were six is the one the row can.
+ * Never an empty string: a solo names nobody and gets no segment at all.
+ */
+function ranWith(names: string[]): string | null {
+  const said = foldNames(names, "others");
+  return said === null ? null : `with ${said}`;
+}
+
+/**
+ * The right of a line or a run: how far down the pipeline it has got.
+ *
+ * What it SOLD for used to be here, and it is the Settled View's now, per row and in the total. This
+ * ledger is the first of four stages and says what fell; a figure here was the last stage's answer
+ * printed on the first stage's list. See lib/drop-sections.ts.
+ */
+function Stage({ label, statusClass }: { label: string; statusClass: string }) {
   return (
     <span className="droplog-amounts">
-      <span className="droplog-take">{formatMesos(yourTake ?? 0, true)}</span>
-      <span className="loot-share-nets">of {formatMesos(pooled, true)}</span>
+      <span className={`loot-status is-${statusClass}`}>{label}</span>
     </span>
   );
 }

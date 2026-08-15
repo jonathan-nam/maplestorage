@@ -4822,11 +4822,25 @@ button.link:disabled {
   background: var(--surface-2);
 }
 
+/* Takes the row's spare width and gives it back under pressure. Without `flex: 1` the column sizes
+   to its longest line, so a meta naming three partners pushed the status chip off the right rather
+   than shrinking; `min-width: 0` is what lets a flex item go narrower than its content at all. */
 .droplog-title {
   display: flex;
   flex-direction: column;
   gap: 2px;
   min-width: 0;
+  flex: 1;
+}
+
+/* One line, cut with an ellipsis. The meta is a joined string, so `display: block` is what makes
+   text-overflow apply: an inline-flex box has no text of its own to clip. The names are already
+   capped at three by foldNames, and this is the narrow-screen backstop under that. */
+.droplog-title .loot-meta {
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .droplog-title .loot-name {

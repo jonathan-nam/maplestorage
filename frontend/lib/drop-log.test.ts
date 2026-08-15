@@ -1032,3 +1032,36 @@ describe("oneBossBehind", () => {
     expect(oneBossBehind([run(null), run(null)])).toBe(true);
   });
 });
+
+describe("who a drop was run with", () => {
+  const ranWith = (party: Party, loot: Loot) =>
+    buildDropLog([party], [pool(party.id, [loot])], {}).entries[0]!.ranWith;
+
+  it("names the partner and not your own character", () => {
+    // The row already says which character of yours it is filed under. Naming it again in the same
+    // line is the one word on it that tells the reader nothing.
+    expect(ranWith(duo(), drop())).toEqual(["Chris"]);
+  });
+
+  it("names one person once, however many characters they brought", () => {
+    // foldSeats' rule, which every count on this page already runs on: two seats of one human are
+    // one holder. Listed as seats it read "Chris, Chris".
+    const two = party("pa", [
+      mine("m1", "mechyfechy"),
+      theirs("m2", "Creed"),
+      theirs("m3", "Dwight"),
+    ]);
+    expect(ranWith(two, drop())).toEqual(["Chris"]);
+  });
+
+  it("reads the roster of the week it FELL in, not the party as it stands", () => {
+    // A drop from August must not name somebody who joined in December. Same rule as the share on
+    // the row above it, and the same primitive: see ranSeats.
+    expect(ranWith(duo(), drop({ ranThatWeek: ["m1"] }))).toEqual([]);
+    expect(ranWith(duo(), drop({ ranThatWeek: ["m1", "m2"] }))).toEqual(["Chris"]);
+  });
+
+  it("names nobody on a solo, which has nobody to name", () => {
+    expect(ranWith(party("pa", [mine("m1", "mechyfechy")]), drop())).toEqual([]);
+  });
+});
