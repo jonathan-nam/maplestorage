@@ -19,7 +19,7 @@
 import { formatWeekStart } from "./boss-clears";
 import { splitOf, statusLabel } from "./loot";
 import type { CouponsOutstanding } from "./loot";
-import { closureKeyOf, couponGapOf, foldSeats, ranSeats, yourShare } from "./vestige-ledger";
+import { closureKeyOf, couponGapOf, ranSeats, yourShare } from "./vestige-ledger";
 import type { DropTables } from "@/types/drop";
 import type { Loot, PartyLootPool } from "@/types/loot";
 import type { Party, PartyMember } from "@/types/party";
@@ -110,7 +110,7 @@ export type DropEntry = {
   splitMethod: string | null;
   /** Who took it, where a world cannot sell. Null everywhere else, and on a seat that has left. */
   takenByName: string | null;
-  /** Who you ran it with, that week, in people. Empty on a solo. See ranWith. */
+  /** Who you ran it with, that week, in characters. Empty on a solo. See ranWith. */
   ranWith: string[];
   /** Who sold it, or who bought it on a BOUGHT basis. Null while it is still in the pool. */
   sellerName: string | null;
@@ -230,18 +230,21 @@ function takeFor(loot: Loot, members: PartyMember[]): number | null {
  * question as "what did it make".
  */
 /**
- * Who you ran it with, in people rather than seats.
+ * Who you ran it with, in the characters that ran it.
  *
  * THAT WEEK's roster, off ranSeats: a party's membership is edited, and reading today's would put
  * somebody who joined in December in a row from August. Same rule as the share on the row above it.
  *
  * Your own seats are not in it. The row already names which character of yours the drop is filed
- * under, so listing it again is the one name on the line that says nothing. Folded to people, so a
- * partner who brought two characters is one name and not two.
+ * under, so listing it again is the one name on the line that says nothing.
+ *
+ * SEATS, not people: a night is run by characters, and the character is what the party screen, the
+ * clear and the arrangement all name. A partner who brought two of them is two names here, which is
+ * two characters that were in the party. What one person came to is the ledgers' question.
  */
 function ranWith(loot: Loot, party: Party): string[] {
-  return foldSeats(ranSeats(loot, party))
-    .filter((seat) => seat.holder.kind !== "SELF")
+  return ranSeats(loot, party)
+    .filter((seat) => !isMine(seat))
     .map((seat) => seat.name);
 }
 
@@ -552,16 +555,6 @@ export function foldNames(
   const distinct = [...new Set(names.filter((n): n is string => Boolean(n)))];
   if (distinct.length === 0) return null;
   return distinct.length <= max ? distinct.join(", ") : `${distinct.length} ${plural}`;
-}
-
-/**
- * Whether every row behind a fold came off one boss.
- *
- * The line above already names the bosses, so where there is only one, naming it again on each run
- * says the same three words eleven times. What tells those runs apart is the date.
- */
-export function oneBossBehind(entries: DropEntry[]): boolean {
-  return new Set(entries.map((e) => e.bossKey ?? null)).size === 1;
 }
 
 /**

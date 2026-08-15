@@ -10,7 +10,6 @@ import {
   forCharacter,
   groupDrops,
   monthLabel,
-  oneBossBehind,
   pieceStatusByParty,
   weekLabel,
 } from "./drop-log";
@@ -1005,54 +1004,32 @@ describe("foldNames", () => {
   });
 });
 
-describe("oneBossBehind", () => {
-  // Only bossKey is read, so a run is only its boss here.
-  const run = (bossKey: string | null) => ({ bossKey }) as DropEntry;
-
-  it("is true when every run came off the same boss", () => {
-    // Eleven Kalos runs behind one coupon fold: the line above says Kalos, and each run repeating
-    // it says nothing eleven times.
-    expect(oneBossBehind([run("kalos-the-guardian"), run("kalos-the-guardian")])).toBe(true);
-    expect(oneBossBehind([run("kalos-the-guardian")])).toBe(true);
-  });
-
-  it("is false when the fold spans bosses, which is when the name tells them apart", () => {
-    expect(oneBossBehind([run("kalos-the-guardian"), run("limbo")])).toBe(false);
-    // A boss and a free-text row filed with none are still two different answers.
-    expect(oneBossBehind([run("kalos-the-guardian"), run(null)])).toBe(false);
-  });
-
-  it("is true when no run has a boss at all, so the date is all there is either way", () => {
-    expect(oneBossBehind([run(null), run(null)])).toBe(true);
-  });
-});
-
 describe("who a drop was run with", () => {
   const ranWith = (party: Party, loot: Loot) =>
     buildDropLog([party], [pool(party.id, [loot])], {}).entries[0]!.ranWith;
 
-  it("names the partner and not your own character", () => {
+  it("names the partner's character and not your own", () => {
     // The row already says which character of yours it is filed under. Naming it again in the same
     // line is the one word on it that tells the reader nothing.
-    expect(ranWith(duo(), drop())).toEqual(["Chris"]);
+    expect(ranWith(duo(), drop())).toEqual(["CreedBratton"]);
   });
 
-  it("names one person once, however many characters they brought", () => {
-    // foldSeats' rule, which every count on this page already runs on: two seats of one human are
-    // one holder. Listed as seats it read "Chris, Chris".
+  it("names each character that ran it, not the person behind them", () => {
+    // A night is run by characters, and the character is what the party screen and the clear name.
+    // Folded to people this read "Chris" over a party of two seats nobody could match to it.
     const two = party("pa", [
       mine("m1", "mechyfechy"),
       theirs("m2", "Creed"),
       theirs("m3", "Dwight"),
     ]);
-    expect(ranWith(two, drop())).toEqual(["Chris"]);
+    expect(ranWith(two, drop())).toEqual(["Creed", "Dwight"]);
   });
 
   it("reads the roster of the week it FELL in, not the party as it stands", () => {
     // A drop from August must not name somebody who joined in December. Same rule as the share on
     // the row above it, and the same primitive: see ranSeats.
     expect(ranWith(duo(), drop({ ranThatWeek: ["m1"] }))).toEqual([]);
-    expect(ranWith(duo(), drop({ ranThatWeek: ["m1", "m2"] }))).toEqual(["Chris"]);
+    expect(ranWith(duo(), drop({ ranThatWeek: ["m1", "m2"] }))).toEqual(["CreedBratton"]);
   });
 
   it("names nobody on a solo, which has nobody to name", () => {
