@@ -15,6 +15,9 @@ export type BossDrop = {
   // Log can price a queue of rows from one box. False for anything with its own potential lines and
   // its own price, where a queue could only guess which copy went. See lib/lot-sale.ts.
   fungible: boolean;
+  // The item cannot change hands, so it never sells and no settlement can move it. It still divides
+  // by count: entitled against looted is what says whose turn it is next. See isCouponDrop.
+  untradeable: boolean;
   // How many pieces this boss drops of it, by difficulty, for the count to be filled in with. Only
   // the difficulties that drop any are here: absent means nothing to fill, not none.
   pieces: Record<string, number>;

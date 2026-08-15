@@ -33,6 +33,14 @@ data class BossDropResponse(
      */
     val fungible: Boolean = false,
     /**
+     * The item cannot change hands, so it never sells and no settlement can move it.
+     *
+     * Divisibility is untouched: a stack of these still divides by count, and entitled against
+     * looted is what says whose turn it is next. What it removes is the DEBT, since a member short
+     * of their share cannot be handed the difference.
+     */
+    val untradeable: Boolean = false,
+    /**
      * How many pieces this boss drops of it, by difficulty, for the count to be filled in with.
      *
      * Only the difficulties that drop any are in here. An absent one means nothing to fill, which is
@@ -93,6 +101,7 @@ internal fun dropTables(): Map<String, List<BossDropResponse>> {
                 worlds = row[DropCatalog.worlds],
                 quantity = row[DropCatalog.quantity],
                 fungible = row[DropCatalog.fungible],
+                untradeable = row[DropCatalog.untradeable],
                 pieces = piecesFor[row[BossCatalog.bossKey] to row[DropCatalog.dropKey]].orEmpty(),
                 bundles = bundlesFor[row[BossCatalog.bossKey] to row[DropCatalog.dropKey]].orEmpty(),
             )

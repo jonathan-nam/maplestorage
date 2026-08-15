@@ -20,13 +20,19 @@ import { formatWeekStart } from "./boss-clears";
 import { splitOf, statusLabel } from "./loot";
 import type { CouponsOutstanding } from "./loot";
 import { closureKeyOf, couponGapOf, ranSeats, yourShare } from "./vestige-ledger";
-import type { DropTables } from "@/types/drop";
+import type { BossDrop, DropTables } from "@/types/drop";
 import type { Loot, PartyLootPool } from "@/types/loot";
 import type { Party, PartyMember } from "@/types/party";
 
 /** A seat is yours when it links to your roster. Same test the wallet uses. */
 function isMine(member: PartyMember): boolean {
   return member.characterId !== null;
+}
+
+/** The catalog row behind a logged drop, or null for free text or a boss with no table. */
+function catalogDrop(loot: Loot, dropTables: DropTables): BossDrop | null {
+  if (loot.dropKey === null) return null;
+  return (dropTables[loot.bossKey ?? ""] ?? []).find((d) => d.dropKey === loot.dropKey) ?? null;
 }
 
 /**
@@ -36,11 +42,27 @@ function isMine(member: PartyMember): boolean {
  * that knows: vestige coupons divide, a ring does not, and the row itself cannot tell you which it
  * is holding. A boss with no amount for its difficulty is not a piece drop, so its count is left
  * exactly as it was entered.
+ *
+ * This is DIVISIBILITY only. Whether the pieces can then be moved between members is a second
+ * question, and isCouponDrop is the one that asks it.
  */
 export function isPieceDrop(loot: Loot, party: Party, dropTables: DropTables): boolean {
-  if (loot.dropKey === null || party.difficulty === null) return false;
-  const table = dropTables[loot.bossKey ?? ""] ?? [];
-  return (table.find((d) => d.dropKey === loot.dropKey)?.pieces?.[party.difficulty] ?? 0) > 0;
+  if (party.difficulty === null) return false;
+  return (catalogDrop(loot, dropTables)?.pieces?.[party.difficulty] ?? 0) > 0;
+}
+
+/**
+ * True when a piece drop's shortfall is a DEBT: divisible, and made of pieces that can change hands.
+ *
+ * The two are not the same test, and conflating them is how an Eternal armour piece would end up in
+ * the tranche ledger. Both divide by count, so both have an entitled share and a looted share. Only
+ * a coupon can be handed over afterwards, which is what makes a gap between the two a debt somebody
+ * settles. An untradeable piece leaves a gap nothing can close, so it is owed as a LOOT next week
+ * and never as pieces or mesos, and reporting it as a debt would invent a transfer that cannot
+ * happen.
+ */
+export function isCouponDrop(loot: Loot, party: Party, dropTables: DropTables): boolean {
+  return isPieceDrop(loot, party, dropTables) && !catalogDrop(loot, dropTables)?.untradeable;
 }
 
 export type DropEntry = {
@@ -276,8 +298,10 @@ export function buildDropLog(
       // Only a PIECE drop divides by count. Everything else is one thing that sells for one price
       // and divides as money, and a third of an item is not a number to put on a row.
       const pieces = isPieceDrop(loot, party, dropTables);
-      // Whose coupons ended the night in the wrong hands, off the night's own arrangement.
-      const gap = pieces ? couponGapOf(loot, party) : null;
+      // Whose coupons ended the night in the wrong hands, off the night's own arrangement. Only for
+      // pieces that can be handed over: an untradeable one leaves a gap nothing can close, so
+      // naming a creditor for it would put a transfer on screen that cannot be made.
+      const gap = isCouponDrop(loot, party, dropTables) ? couponGapOf(loot, party) : null;
 
       entries.push({
         lootId: loot.id,

@@ -9,6 +9,8 @@ import {
   foldStatus,
   forCharacter,
   groupDrops,
+  isCouponDrop,
+  isPieceDrop,
   monthLabel,
   pieceStatusByParty,
   weekLabel,
@@ -732,6 +734,7 @@ describe("a piece drop counts YOUR share, not what fell", () => {
         quantity: 1,
         // A piece drop settles through the tranche ledger, not by being sold as a lot.
         fungible: false,
+        untradeable: false,
         pieces: { HARD: 60 },
         bundles: { HARD: 3 },
       },
@@ -1100,5 +1103,86 @@ describe("who a drop was run with", () => {
 
   it("names nobody on a solo, which has nobody to name", () => {
     expect(ranWith(party("pa", [mine("m1", "mechyfechy")]), drop())).toEqual([]);
+  });
+});
+
+describe("an untradeable piece divides, but is owed to nobody", () => {
+  // Eternal armour pieces. They divide by count exactly as coupons do, so a member still has a
+  // share they were entitled to and a number they actually bent down for. What they do not have is
+  // a way to close the gap: the item cannot change hands, so a shortfall is not a debt anybody
+  // settles, it is a turn to loot next week.
+  //
+  // Reporting one as a debt is what this guards. `owedBy` reads as a person holding pieces of
+  // yours, and the Drop Log offers to settle it, on an item that cannot be handed over at all.
+  const TOKEN = "distorted-ambition";
+
+  const tableWith = (untradeable: boolean) => ({
+    limbo: [
+      {
+        dropKey: TOKEN,
+        name: "Distorted Ambition",
+        iconUrl: null,
+        perMember: null,
+        worlds: null,
+        quantity: 1,
+        fungible: false,
+        untradeable,
+        pieces: { HARD: 6 },
+        bundles: { HARD: 6 },
+      },
+    ],
+  });
+
+  const tokens = (over: Partial<Loot> = {}): Loot =>
+    pending({ dropKey: TOKEN, name: "Distorted Ambition", quantity: 6, ...over });
+
+  /** m2 looted the lot, which is what makes a coupon row owe you your share. */
+  const trio = () =>
+    party("pa", [mine("m1", "Huskyxkenshi"), theirs("m2", "CreedBratton"), theirs("m3", "Free")], {
+      difficulty: "HARD",
+      looterMemberId: "m2",
+    });
+
+  it("still says what your share of it was", () => {
+    const log = buildDropLog([trio()], [pool("pa", [tokens()])], tableWith(true));
+    const entry = log.entries[0]!;
+
+    expect(entry.pieces).toBe(true);
+    expect(entry.quantity).toBe(6);
+    expect(entry.yours).toBe(2);
+  });
+
+  it("names no creditor and no debt, where a tradeable one names both", () => {
+    const untradeable = buildDropLog([trio()], [pool("pa", [tokens()])], tableWith(true));
+    const tradeable = buildDropLog([trio()], [pool("pa", [tokens()])], tableWith(false));
+
+    // The control. Same drop, same party, same arrangement, so only the flag differs and this fails
+    // the moment it stops being read.
+    expect(tradeable.entries[0]!.owedBy).toBe("CreedBratton");
+    expect(tradeable.entries[0]!.owedToYou).toBe(2);
+
+    expect(untradeable.entries[0]!.owedBy).toBeNull();
+    expect(untradeable.entries[0]!.owedToYou).toBe(0);
+    expect(untradeable.entries[0]!.owedByYou).toBe(0);
+  });
+
+  it("divides by count without being a coupon", () => {
+    const loot = tokens();
+    const at = trio();
+
+    expect(isPieceDrop(loot, at, tableWith(true))).toBe(true);
+    expect(isCouponDrop(loot, at, tableWith(true))).toBe(false);
+    expect(isCouponDrop(loot, at, tableWith(false))).toBe(true);
+  });
+
+  it("is neither, on a difficulty the table gives no amount for", () => {
+    // NORMAL Limbo has no amount here, so the row is one item and its count is whatever was typed.
+    // Both tests have to agree on that, or a row would be a coupon without dividing.
+    const at = party("pa", [mine("m1", "Huskyxkenshi"), theirs("m2", "CreedBratton")], {
+      difficulty: "NORMAL",
+    });
+
+    expect(isPieceDrop(tokens(), at, tableWith(true))).toBe(false);
+    expect(isCouponDrop(tokens(), at, tableWith(false))).toBe(false);
   });
 });

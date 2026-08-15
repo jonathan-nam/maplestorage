@@ -355,6 +355,13 @@ def load_drops(bosses: list[dict]) -> tuple[list[dict], dict[str, list[str]]]:
         # Both flags on one drop is a manifest that contradicts itself.
         if fungible and per_member is not None:
             sys.exit(f"{key}: fungible and per_member cannot both be set, a per-member drop is not pooled")
+        untradeable = d.get("untradeable", False)
+        if not isinstance(untradeable, bool):
+            sys.exit(f"{key}: untradeable must be true or absent, got {untradeable!r}")
+        # A lot is a thing you sell. A drop that cannot change hands has no lot, no going rate, and
+        # no queue to file a sale against, so the pair is a manifest contradicting itself.
+        if untradeable and fungible:
+            sys.exit(f"{key}: untradeable and fungible cannot both be set, an untradeable drop is never sold")
         art = d.get("art")
         if art is not None and art != "cut":
             sys.exit(f"{key}: art may only be 'cut', for a picture the mirror does not carry, got {art!r}")
@@ -449,7 +456,8 @@ def drop_sql(drops: list[dict], tables: dict[str, list[str]]) -> str:
         f"    ({q(d['key'])}, {q(d['name'])}, "
         f"{q(d['key'] + '.png') if has_art(d) else 'NULL'}, "
         f"{opt(d.get('per_member'))}, {opt(d.get('worlds'))}, {d.get('quantity', 1)}, "
-        f"{'TRUE' if d.get('fungible', False) else 'FALSE'}, {i})"
+        f"{'TRUE' if d.get('fungible', False) else 'FALSE'}, "
+        f"{'TRUE' if d.get('untradeable', False) else 'FALSE'}, {i})"
         for i, d in enumerate(drops)
     )
     pairs = ",\n".join(
@@ -486,12 +494,12 @@ JOIN drop_catalog d ON d.drop_key = v.drop_key;
 -- upserts by drop_key and keeps an existing row's id, which party_loot references. boss_drop is
 -- rebuilt outright, so a drop removed from a boss's table really leaves it.
 
-INSERT INTO drop_catalog (id, drop_key, name, icon_ref_key, per_member, worlds, quantity, fungible, sort_order)
+INSERT INTO drop_catalog (id, drop_key, name, icon_ref_key, per_member, worlds, quantity, fungible, untradeable, sort_order)
 SELECT COALESCE(existing.id, gen_random_uuid()), v.drop_key, v.name, v.icon_ref_key, v.per_member,
-       v.worlds, v.quantity, v.fungible, v.sort_order
+       v.worlds, v.quantity, v.fungible, v.untradeable, v.sort_order
 FROM (VALUES
 {rows}
-) AS v (drop_key, name, icon_ref_key, per_member, worlds, quantity, fungible, sort_order)
+) AS v (drop_key, name, icon_ref_key, per_member, worlds, quantity, fungible, untradeable, sort_order)
 LEFT JOIN drop_catalog existing ON existing.drop_key = v.drop_key
 ON CONFLICT (drop_key) DO UPDATE SET
     name         = EXCLUDED.name,
@@ -500,6 +508,7 @@ ON CONFLICT (drop_key) DO UPDATE SET
     worlds     = EXCLUDED.worlds,
     quantity   = EXCLUDED.quantity,
     fungible   = EXCLUDED.fungible,
+    untradeable = EXCLUDED.untradeable,
     sort_order = EXCLUDED.sort_order;
 
 DELETE FROM boss_drop;

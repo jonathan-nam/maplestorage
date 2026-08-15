@@ -26,6 +26,7 @@ const TABLES: DropTables = {
       worlds: null,
       quantity: 1,
       fungible: false,
+      untradeable: false,
       pieces: { HARD: 60 },
       bundles: { HARD: 3 },
     },

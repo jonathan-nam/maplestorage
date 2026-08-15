@@ -31,6 +31,13 @@
 # confirm them. Absent means the drop is sold one at a time, which is the only honest input for a
 # thing with its own potential lines and its own price.
 #
+# `untradeable` marks a drop that cannot change hands at all. Eternal armour pieces are the case:
+# what a member ends the night holding is whatever they bent down for, and no arrangement afterwards
+# can move one. So it never sells, appears in no sale and no settlement, and a member short of their
+# share is not owed anything, they are owed a LOOT next week. A divisible drop is still divisible
+# with this set: entitled against looted is exactly as meaningful, it is only the debt that is not.
+# Absent is tradeable, which is every drop in the file today.
+#
 # Flags sit on the item rather than on the (boss, item) pair because nothing in these tables
 # behaves differently per boss. Move one down to `tables` the day that stops being true.
 #

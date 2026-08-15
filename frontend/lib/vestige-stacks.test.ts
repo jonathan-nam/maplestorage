@@ -34,6 +34,7 @@ const table = (over: Partial<BossDrop> = {}): BossDrop[] => [
     worlds: "INTERACTIVE",
     quantity: 1,
     fungible: false,
+    untradeable: false,
     pieces: { HARD: 180 },
     bundles: { HARD: 3 },
     ...over,
