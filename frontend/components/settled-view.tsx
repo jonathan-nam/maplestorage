@@ -178,26 +178,64 @@ function SettledRow({
 }
 
 /**
- * What the whole log holds, which is NOT what this view's other figures count.
+ * The three figures this page is read for, above the rows they are the sum of.
  *
- * Every other number on this page is off the settled rows. This one is off every drop there has
- * ever been, so it is stated on its own and named for the thing it counts rather than joined to the
- * counts line, where "60 drops · 3 settled" reads as two figures about one population.
+ * Drops counts the WHOLE log and the money counts the settled rows, which is why the first tile
+ * says what it counts in its note. The two were a line each and read as one population: "15 sold"
+ * over "12 sold" is the same word for every drop that found a buyer and for the subset that has
+ * been paid out.
  *
- * Drawn even when nothing is settled: it was the Drop Ledger's own heading, and a page that shows it
- * only once something else has happened would drop the count of an account that has logged drops and
- * settled none.
+ * Drawn even when nothing is settled. An account that has logged drops and settled none would
+ * otherwise lose the count altogether, and a zero is an answer where a missing tile is not.
  */
-function LoggedCount({ logged }: { logged: DropLogTotals }) {
+function SettledTiles({
+  logged,
+  totals,
+  money,
+}: {
+  logged: DropLogTotals;
+  totals: SettledTotals;
+  money: boolean;
+}) {
   return (
-    <p className="loot-meta settled-counts">
-      {logged.drops} logged
-      {/* Whichever happened. A Heroic account never sells one and an Interactive one never takes
-          one, so in practice this is a single figure either way. */}
-      {logged.sold > 0 || logged.taken === 0 ? ` · ${logged.sold} sold` : ""}
-      {logged.taken > 0 ? ` · ${logged.taken} taken` : ""}
-      {logged.pending > 0 ? ` · ${logged.pending} in the pool` : ""}
-    </p>
+    <div className="stat-row">
+      <div className="stat-tile">
+        <span className="stat-label">Drops</span>
+        <span className="stat-value">{logged.drops}</span>
+        <span className="stat-note">
+          {/* Whichever happened. A Heroic account never sells one and an Interactive one never
+              takes one, so in practice this is a single figure either way. */}
+          {[
+            logged.sold > 0 || logged.taken === 0 ? `${logged.sold} sold` : null,
+            logged.taken > 0 ? `${logged.taken} taken` : null,
+          ]
+            .filter(Boolean)
+            .join(", ")}
+          {logged.pending > 0 && `, ${logged.pending} in the pool`}
+        </span>
+      </div>
+
+      {/* Only where there is money to talk about. A Heroic account trades nothing, so both of these
+          would be true zeroes wearing a label about selling. */}
+      {money && (
+        <>
+          <div className="stat-tile">
+            <span className="stat-label">Sold for</span>
+            <span className="stat-value is-good">{formatMesos(totals.pooled, true)}</span>
+            {/* Labelled precisely, because the obvious reading of "total sales" is a number that
+              cannot be computed: a listed price and a received one are quantities either side of
+              the Auction House fee, and adding them is the confident wrong number this repo exists
+              to prevent. See the header of lib/drop-log.ts. */}
+            <span className="stat-note">what there was to split</span>
+          </div>
+          <div className="stat-tile">
+            <span className="stat-label">Your take</span>
+            <span className="stat-value is-good">{formatMesos(totals.yourTake, true)}</span>
+            <span className="stat-note">your share of the above</span>
+          </div>
+        </>
+      )}
+    </div>
   );
 }
 
@@ -205,14 +243,17 @@ export function SettledView({
   rows,
   totals,
   logged,
+  money,
   orphans,
   bossByKey,
   partyById,
 }: {
   rows: SettledRecord[];
   totals: SettledTotals;
-  /** The whole log's counts, which the Drop Ledger used to head itself with. See LoggedCount. */
+  /** The whole log's counts, which the Drop Ledger used to head itself with. See SettledTiles. */
   logged: DropLogTotals;
+  /** Whether this world trades at all. Two of the three tiles are about selling. */
+  money: boolean;
   /** Settlements naming a drop the pool no longer has. Said, never absorbed. See orphansOf. */
   orphans: number;
   bossByKey: Map<string, Boss>;
@@ -221,39 +262,36 @@ export function SettledView({
   if (rows.length === 0) {
     return (
       <>
-        <LoggedCount logged={logged} />
+        <SettledTiles logged={logged} totals={totals} money={money} />
         <p className="party-hint">Nothing settled yet.</p>
       </>
     );
   }
 
-  // The two kinds counted apart, because a coupon night and a sale do not add. Money is the one
-  // figure that means the same thing across every basis: what there was to split.
+  // What the rows below are, which is NOT what the tiles count. "Paid out" rather than "sold":
+  // every one of these has been settled, and the tile above already says how many found a buyer.
+  // Two lines reading "N sold" against different populations is what this replaced.
+  //
+  // The two kinds counted apart, because a coupon night and a sale do not add.
   const counts = [
-    totals.sales > 0 ? `${totals.sales} sold` : null,
+    totals.sales > 0 ? `${totals.sales} paid out` : null,
     totals.nights > 0 ? `${totals.nights} settled` : null,
     totals.taken > 0 ? `${totals.taken} taken` : null,
   ].filter(Boolean);
 
   return (
     <>
-      {/* Above the section, not inside it. Two lines in the same style under one heading read as two
-          figures about the same rows, and these count different things: every drop there has been,
-          against the ones that are finished. */}
-      <LoggedCount logged={logged} />
+      {/* Above the section, not inside it. The tiles are what the page is read for, and the rows
+          below are what they are the sum of. */}
+      <SettledTiles logged={logged} totals={totals} money={money} />
 
       <section className="loot-pool">
         <header className="droplog-group-head">
+          {/* The heading alone. What was split and your share of it stood here too, and they are the
+              second and third tiles now: a figure said twice on one screen is a figure a reader has
+              to check against itself. Both carry the coupon lots, which are on no row below. See
+              SettledTotals.pooled. */}
           <h2 className="loot-pool-title">Settled</h2>
-          <span className="droplog-group-total">
-            {formatMesos(totals.pooled, true)}
-            <span className="stat-label"> split</span>
-            {/* Your share of it. The Drop Ledger totalled this per month, and stopped stating any meso
-              when sale figures became this view's, so it arrived here with the rows behind it. Both
-              figures carry the coupon lots too, which are on no row. See SettledTotals.pooled. */}
-            {` · ${formatMesos(totals.yourTake, true)}`}
-            <span className="stat-label"> your take</span>
-          </span>
         </header>
 
         <p className="loot-meta settled-counts">

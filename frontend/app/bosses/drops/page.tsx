@@ -1002,9 +1002,9 @@ export default function DropLogPage() {
                 rows={settledRows}
                 totals={settledCounts}
                 // The whole log's own count, which the Drop Ledger used to head itself with. It
-                // counts every drop rather than the settled ones, so it is stated apart from the
-                // figures below and named for what it counts.
+                // counts every drop rather than the settled ones, so its tile says so in its note.
                 logged={totals}
+                money={money}
                 orphans={settledOrphans}
                 bossByKey={bossByKey}
                 partyById={partyById}
