@@ -38,10 +38,11 @@ import { buildWallet } from "@/lib/wallet";
 import { type DropSectionKey, dropSections, saleCards, shownSection } from "@/lib/drop-sections";
 import {
   buildDropLog,
-  byCharacter,
+  foldRuns,
   forCharacter,
   groupDrops,
-  type CharacterFold,
+  type RunAxis,
+  type RunFold,
   type DropLine,
   consolidate,
   dropStatusLabel,
@@ -148,6 +149,7 @@ export default function DropLogPage() {
   const [state, setState] = useState<LoadState>("loading");
   const [character, setCharacter] = useState<string | null>(null);
   const [grouping, setGrouping] = useState<Grouping>("month");
+  const [runAxis, setRunAxis] = useState<RunAxis>("character");
   // Whether the reader has asked for the box that sells out of a pile nobody is owed anything from.
   const [sellingOwn, setSellingOwn] = useState(false);
   const [section, setSection] = useState<DropSectionKey>("drops");
@@ -396,13 +398,23 @@ export default function DropLogPage() {
   // Roster order, as /api/characters returns it (Characters.position). The same list the party
   // arrangements are ordered by, so one character sits in the same place on both screens.
   const characterOrder = characters.map((c) => c.id);
+  // The catalog's own order, which is what /api/bosses returns, so two bosses cleared in one week
+  // never swap places in the queue and re-price each other. Shared with the fold that splits a
+  // line's runs by boss, so a boss sits in the same place on both.
+  const bossOrder = new Map(bosses.map((b, i) => [b.bossKey, i]));
   // The whole log is kept alongside the filtered one so the toolbar does not come and go: which
   // controls exist is a property of the account, not of what the filter currently leaves.
   const closures = closedByHolder(settlements);
   const whole = buildDropLog(parties, pools, dropTables, closures.closed);
   const log = forCharacter(whole, character);
   const { totals } = log;
-  const groups = groupDrops(log.entries, grouping);
+  // Lined here rather than inside each section, so the toolbar can ask whether anything folds at
+  // all without consolidating the log a second time to find out.
+  const groups = groupDrops(log.entries, grouping).map((group) => ({
+    group,
+    lines: consolidate(group.entries, characterOrder),
+  }));
+  const anyFolded = groups.some(({ lines }) => lines.some((l) => l.folded));
 
   // Only characters that actually have drops. A filter offering a name with nothing behind it
   // reads as a bug the first time it is picked.
@@ -414,9 +426,6 @@ export default function DropLogPage() {
   // every boss any of their characters loots for, so showing the part of it that falls in the
   // chosen month would price those bosses off a fraction of the sales that paid for them.
   const partyById = new Map(parties.map((p) => [p.id, p]));
-  // The catalog's own order, which is what /api/bosses returns, so two bosses cleared in one week
-  // never swap places in the queue and re-price each other.
-  const bossOrder = new Map(bosses.map((b, i) => [b.bossKey, i]));
   const settled = outstanding(parties, pools, VESTIGE, bossOrder);
   // Your own coupons from the nights that owed nobody anything, which the queue above leaves out.
   // They are yours to sell, so the card that takes a sale has to know you are holding them.
@@ -699,6 +708,22 @@ export default function DropLogPage() {
                       </label>
                     )}
 
+                    {/* Only where something folds. Nothing else on the page has runs behind it, so
+                      offered over a log of one-off drops it is a control that reorders nothing. */}
+                    {anyFolded && (
+                      <label className="droplog-filter">
+                        <span className="stat-label">Runs by</span>
+                        <select
+                          className="split-input"
+                          value={runAxis}
+                          onChange={(e) => setRunAxis(e.target.value as RunAxis)}
+                        >
+                          <option value="character">Character</option>
+                          <option value="boss">Boss</option>
+                        </select>
+                      </label>
+                    )}
+
                     <label className="droplog-filter">
                       <span className="stat-label">Group</span>
                       <select
@@ -716,13 +741,15 @@ export default function DropLogPage() {
                 {/* The form to fix it is directly above, so this says what is here and nothing else. */}
                 {totals.drops === 0 && <p className="finder-empty">No drops logged yet.</p>}
 
-                {groups.map((group) => (
+                {groups.map(({ group, lines }) => (
                   <GroupSection
                     key={group.key}
                     group={group}
+                    lines={lines}
                     bossByKey={bossByKey}
                     characterById={characterById}
-                    characterOrder={characterOrder}
+                    bossOrder={bossOrder}
+                    runAxis={runAxis}
                     showCharacter={character === null}
                   />
                 ))}
@@ -1005,16 +1032,21 @@ export default function DropLogPage() {
 /** One month or one week of the log. */
 function GroupSection({
   group,
+  lines,
   bossByKey,
   characterById,
-  characterOrder,
+  bossOrder,
+  runAxis,
   showCharacter,
 }: {
   group: DropGroup;
+  /** The group's rows, already consolidated by the page. */
+  lines: DropLine[];
   bossByKey: Map<string, Boss>;
   characterById: Map<string, Character>;
-  /** Character ids in roster order, which is what the runs behind a fold are sorted by. */
-  characterOrder: string[];
+  /** Boss keys in catalog order, which is what a fold split by boss is sorted by. */
+  bossOrder: Map<string, number>;
+  runAxis: RunAxis;
   showCharacter: boolean;
 }) {
   return (
@@ -1025,12 +1057,14 @@ function GroupSection({
         <h2 className="party-group-name">{group.label}</h2>
       </header>
       <ul className="droplog-list">
-        {consolidate(group.entries, characterOrder).map((line) => (
+        {lines.map((line) => (
           <DropRow
             key={line.key}
             line={line}
             bossByKey={bossByKey}
             characterById={characterById}
+            bossOrder={bossOrder}
+            runAxis={runAxis}
             showCharacter={showCharacter}
           />
         ))}
@@ -1043,11 +1077,15 @@ function DropRow({
   line,
   bossByKey,
   characterById,
+  bossOrder,
+  runAxis,
   showCharacter,
 }: {
   line: DropLine;
   bossByKey: Map<string, Boss>;
   characterById: Map<string, Character>;
+  bossOrder: Map<string, number>;
+  runAxis: RunAxis;
   showCharacter: boolean;
 }) {
   const [open, setOpen] = useState(false);
@@ -1077,8 +1115,11 @@ function DropRow({
 
   const status = foldStatus(line.entries);
   const runs = `${line.entries.length} runs`;
-  // A level per character is only worth the chevron when there is more than one to tell apart.
-  const heads = showCharacter && new Set(line.entries.map((e) => e.characterId)).size > 1;
+  const folds = foldRuns(line.entries, runAxis, bossOrder);
+  // A level is only worth the chevron when there is more than one of them to tell apart. By
+  // character it also goes when the log is already filtered to one: the name would head every fold
+  // on the page with the name the filter above already carries.
+  const heads = folds.length > 1 && (runAxis === "boss" || showCharacter);
 
   return (
     <li className={`droplog-row status-${entry.status.toLowerCase()}${open ? " is-open" : ""}`}>
@@ -1131,18 +1172,20 @@ function DropRow({
 
       {line.folded && open && (
         <ul className="droplog-runs" id={panelId}>
-          {/* Whose they are first, and only then which nights. A week of five bosses on six
-              characters is thirty rows, and what is asked of a coupon fold is how many each
-              character got. Skipped where there is one character to tell apart: a chevron onto a
-              single group opens onto itself, and the run rows name the character themselves. */}
+          {/* Whose they are first, or which boss paid them, and only then which nights. A week of
+              five bosses on six characters is thirty rows, and what is asked of a coupon fold is
+              how many each. Skipped where there is one of them to tell apart: a chevron onto a
+              single group opens onto itself, and the run rows name it themselves. */}
           {heads
-            ? byCharacter(line.entries).map((fold) => (
-                <CharacterRuns
-                  key={fold.characterId}
+            ? folds.map((fold) => (
+                <RunGroup
+                  key={fold.key ?? ""}
                   fold={fold}
-                  name={characterById.get(fold.characterId)?.name ?? "Unknown character"}
-                  panelId={`${panelId}-${fold.characterId}`}
+                  name={foldName(fold, runAxis, bossByKey, characterById)}
+                  panelId={`${panelId}-${fold.key ?? "none"}`}
                   bossByKey={bossByKey}
+                  characterById={characterById}
+                  runAxis={runAxis}
                 />
               ))
             : line.entries.map((e) => (
@@ -1160,17 +1203,41 @@ function DropRow({
   );
 }
 
-/** One character's share of a fold, opening onto the nights it came off. */
-function CharacterRuns({
+/**
+ * What a fold's head is called, per the axis it is split down.
+ *
+ * A boss the catalog no longer carries, or a row filed with no boss at all, still has runs under it
+ * and a count to state. Naming it for what it is beats dropping the rows, which is the silent
+ * undercount this log exists to avoid.
+ */
+function foldName(
+  fold: RunFold,
+  runAxis: RunAxis,
+  bossByKey: Map<string, Boss>,
+  characterById: Map<string, Character>,
+): string {
+  if (runAxis === "boss") {
+    if (fold.key === null) return "No boss";
+    return bossByKey.get(fold.key)?.name ?? "Unknown boss";
+  }
+  return characterById.get(fold.key ?? "")?.name ?? "Unknown character";
+}
+
+/** One character's, or one boss's, share of a fold, opening onto the nights it came off. */
+function RunGroup({
   fold,
   name,
   panelId,
   bossByKey,
+  characterById,
+  runAxis,
 }: {
-  fold: CharacterFold;
+  fold: RunFold;
   name: string;
   panelId: string;
   bossByKey: Map<string, Boss>;
+  characterById: Map<string, Character>;
+  runAxis: RunAxis;
 }) {
   const [open, setOpen] = useState(false);
   const runs = `${fold.entries.length} runs`;
@@ -1211,8 +1278,12 @@ function CharacterRuns({
               key={e.lootId}
               entry={e}
               boss={bossByKey.get(e.bossKey ?? "") ?? null}
-              characterName={name}
-              // Named by the row above, so a run under it would be saying it a second time.
+              characterName={
+                runAxis === "boss" ? (characterById.get(e.characterId)?.name ?? null) : name
+              }
+              // Named by the row above, so a run under it would be saying it a second time. Which
+              // side that is depends on the axis, so the run names the other one.
+              nameBy={runAxis === "boss" ? "character" : "boss"}
               showCharacter={false}
             />
           ))}
@@ -1228,16 +1299,23 @@ function RunRow({
   boss,
   characterName,
   showCharacter,
+  nameBy = "boss",
 }: {
   entry: DropEntry;
   boss: Boss | null;
   characterName: string | null;
   showCharacter: boolean;
+  /** Which side of the run labels it. The other one is named by the head above, or by the meta. */
+  nameBy?: RunAxis;
 }) {
+  const byBoss = nameBy === "boss";
+  const label = byBoss
+    ? (boss?.name ?? formatDropped(entry.droppedOn))
+    : (characterName ?? formatDropped(entry.droppedOn));
   const meta = [
-    // Not said twice: where there is no boss to name, the date IS the label above.
-    boss ? formatDropped(entry.droppedOn) : null,
-    showCharacter ? characterName : null,
+    // Not said twice: where the label IS the date, there is no date left to put here.
+    label === formatDropped(entry.droppedOn) ? null : formatDropped(entry.droppedOn),
+    byBoss ? (showCharacter ? characterName : null) : null,
     entry.owedBy ? `${entry.owedBy} looted` : null,
     // Per run, because the roster is the WEEK's: a fold spanning two months is two rosters, and the
     // line above can only name their union.
@@ -1249,11 +1327,11 @@ function RunRow({
       {/* No portrait: the drop's own icon is on the line above, and a second column of art told
           nobody which run this was that the boss name did not already say. */}
       <Link href={`/bosses/parties/${entry.partyId}`} className="loot-name">
-        {/* The drop is named by the line above, so the run is named by its boss. Every run says its
-            own, including a fold whose runs all came off one: the line above no longer names it, and
-            eleven Kalos rows saying Kalos is the price of not asking the reader to remember it. Null
-            where free text was filed with no boss at all, and the date is what is left. */}
-        {boss?.name ?? formatDropped(entry.droppedOn)}
+        {/* The drop is named by the line above, so the run is named by whichever side the head over
+            it is not. Every run says its own, including a fold whose runs all came off one: the line
+            above no longer names it, and eleven Kalos rows saying Kalos is the price of not asking
+            the reader to remember it. The date is what is left where there is neither. */}
+        {label}
         {/* Yours, the same as the line above sums. Counting what fell here made a fold of 440
             open onto runs adding up to 900. */}
         {entry.yours > 1 && <span className="loot-count"> x{entry.yours}</span>}
