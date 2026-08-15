@@ -52,7 +52,19 @@ internal fun addLoot(
     // Something fell here, so this config is one you run after all. Same reading as the clear
     // below: a drop is evidence of a night, and a retired config would hold it off Party View
     // while the wallet asked you to settle it.
-    Party.update({ (Party.id eq partyId) and (Party.standing eq false) }) { it[standing] = true }
+    //
+    // Only where the roster it comes back with is one the game allows. It was checked against the
+    // boss's other configs when it was made, and nothing re-asked when a drop put it back, so a seat
+    // that joined another config for this boss while it was retired came back double-booked: two
+    // standing configs naming one character for a boss they can only clear once. See
+    // validateBossRoster, which is the same rule this defers to.
+    //
+    // The DROP is recorded either way. It is a fact about a night that happened, and refusing it
+    // over the config's arrangement would lose a real count to a bookkeeping rule. The pool simply
+    // stays retired, which the Drop Log and the wallet both still read.
+    if (revivesCleanly(partyId, now)) {
+        Party.update({ (Party.id eq partyId) and (Party.standing eq false) }) { it[standing] = true }
+    }
     // A drop with no boss names nothing to clear. The pickers always send one, so this is the
     // API-only case rather than an ordinary one.
     if (bossCatalogId != null) {

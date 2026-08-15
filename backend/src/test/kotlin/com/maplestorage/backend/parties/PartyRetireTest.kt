@@ -331,4 +331,46 @@ class PartyRetireTest {
             assertTrue(partiesFor(userId).any { it.id == party.id })
         }
     }
+
+    @Test
+    fun `a drop leaves a retired config retired when a seat has since gone elsewhere`() {
+        transaction {
+            val party = trio()
+            val partyId = Uuid.parse(party.id)
+            addGrindstone(party)
+            retireOrDeleteParty(partyId, userId, Clock.System.now())
+
+            // Steve takes the boss up with another of your characters while this config is retired.
+            // Allowed, and the point of the rule: a retired config holds nobody's clear.
+            val other = Uuid.random()
+            val owner = userId
+            val now = Clock.System.now()
+            Characters.insert {
+                it[Characters.id] = other
+                it[Characters.userId] = owner
+                it[Characters.name] = "Kite"
+                it[Characters.worldType] = WORLD_INTERACTIVE
+                it[createdAt] = now
+                it[updatedAt] = now
+                it[position] = 1
+            }
+            val second = SavePartyRequest(other.toString(), "limbo", listOf("Steve"))
+            createParty(userId, other, bossIdForKey("limbo")!!, second, now)
+
+            // Now something falls on the old pool. Reviving it would put Steve in two standing
+            // configs for a boss he can only clear once, which validateBossRoster refuses at every
+            // other door.
+            val lootId = addGrindstoneOn(party, dropped)
+
+            // The drop is kept whatever the rosters say: it is a night that happened, and losing a
+            // real count to a bookkeeping rule is the failure this repo exists to prevent.
+            assertTrue(lootFor(partyId).any { it.id == lootId.toString() })
+            // Still readable by the two that answer for money, exactly as any retired pool is.
+            assertTrue(
+                partiesFor(userId, includeSolo = true, includeRetired = true).any { it.id == party.id },
+            )
+            // But it does not come back onto Party View double-booked.
+            assertTrue(partiesFor(userId).none { it.id == party.id })
+        }
+    }
 }
