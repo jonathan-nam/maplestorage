@@ -8,7 +8,7 @@
 // Nothing else can hold this. Each file's own tests pin its own rule, and both passed the whole time.
 
 import { describe, expect, it } from "vitest";
-import { foldTranches, heldOfYoursBy, outstandingOf, queueOf } from "./ledger-fates";
+import { heldOfYoursBy, outstandingOf, queueOf, stillAsking } from "./ledger-fates";
 import { buildSettlement, decidedSales, moneyRows } from "./settlement";
 import {
   type Holder,
@@ -217,11 +217,10 @@ describe("the two ledgers agree on one night", () => {
   });
 });
 
-// The same pair of surfaces, over the money rather than the pieces. A sale of somebody's coupons ends
-// in two places at once: an act on their Settlement card, and a pill on the Sale Ledger that stops
-// asking. Told apart by different rules they disagreed, and the Sale Ledger's was the wrong one: it
-// folded on the sale NAMING somebody, which happens the moment it is entered, so a sale nobody had
-// decided about yet sat behind the fold beside the ones already settled.
+// The same pair of surfaces, over the money rather than the pieces. A finished sale leaves the Sale
+// Ledger, and the act that finished it stays on the other person's Settlement card naming the very
+// sales it was made of. So the two have to agree on WHICH sales those were, or one screen drops a row
+// the other never picked up, and the way back to a mistyped sale is gone.
 describe("the two ledgers agree on which sales are finished", () => {
   /** One sale out of your own pile, all of it Bro's coupons. */
   const tranche = (id: string, pieces: number, amount: number) => ({
@@ -262,23 +261,27 @@ describe("the two ledgers agree on which sales are finished", () => {
       disposals,
     )[0]!;
 
-  it("folds the sales the offset was made of, and no others", () => {
-    const { shown, folded } = foldTranches(SALES, decidedSales(saleCredits(SALES), [OFFSET]));
-    expect([folded.map((t) => t.id), shown.map((t) => t.id)]).toEqual([
-      ["t1", "t2"],
-      ["t3", "t4"],
-    ]);
-    // The two the Settlement card names inside the act. One decision, one pair of sales, two screens.
+  it("drops the sales the offset was made of, and no others", () => {
+    const shown = stillAsking(SALES, decidedSales(saleCredits(SALES), [OFFSET]));
+    expect(shown.map((t) => t.id)).toEqual(["t3", "t4"]);
+    // The two that left are the two the Settlement card names inside the act, so nothing has gone
+    // off both screens at once. One decision, one pair of sales, one place to take it back.
     expect(moneyRows(card([OFFSET])).discharges[0]!.sales.map((s) => s.trancheId)).toEqual([
       "t1",
       "t2",
     ]);
   });
 
-  it("folds none of them while the money is undecided, which is what the other card says too", () => {
-    const { shown, folded } = foldTranches(SALES, decidedSales(saleCredits(SALES), []));
-    expect([shown.length, folded.length]).toEqual([4, 0]);
+  it("drops none of them while the money is undecided, which is what the other card says too", () => {
+    expect(stillAsking(SALES, decidedSales(saleCredits(SALES), []))).toHaveLength(4);
     // Not an absence: every meso of it is on Bro's card as money of his you are holding.
     expect(card([]).holding).toBe(SALES.reduce((sum, t) => sum + t.amount, 0));
+  });
+
+  it("brings them back when the offset is taken off, which is the way back to a mistyped one", () => {
+    // Undoing the act on the Settlement card puts the money in your hands undecided again, and the
+    // sales it was made of return to the Sale Ledger, where a wrong one can be removed.
+    expect(stillAsking(SALES, decidedSales(saleCredits(SALES), []))).toEqual(SALES);
+    expect(card([]).disposals).toEqual([]);
   });
 });

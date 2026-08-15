@@ -359,9 +359,12 @@ function unattributed(ledger: HolderLedger): number {
 /**
  * Your own piles, split by whether the Sale Ledger has a reason to draw one.
  *
- * A pile that owes somebody, or one with rows already recorded, is a card: there is something to
+ * A pile that owes somebody, or one with a row still to deal with, is a card: there is something to
  * answer or something to correct. A pile with neither is a place a sale MAY be recorded and nothing
  * else, and drawn anyway it is a permanent "holding 1140" at a reader with nothing to do about it.
+ *
+ * `recorded` is the caller's, and what it counts moved with `stillAsking`: a sale that is finished is
+ * not drawn on the card any more, so a pile kept open by one would be a card with nothing on it.
  *
  * The quiet ones are held back, not dropped. Dropping them would re-break what `alsoHeldByYou`
  * exists for, which is that a Sale Ledger refusing to admit you hold the coupons cannot take the
@@ -388,45 +391,42 @@ export function worthDrawing(
 }
 
 /**
- * A pile's recorded tranches, split by whether the row still has anything to say.
+ * A pile's recorded sales, less the ones that are finished.
  *
  * A sale of somebody's coupons is finished when its money has been paid out or taken off what they
- * owe you. Then the act is over on both sides, the pill is a record of it, and a card that keeps
- * every one grows a row per sale for as long as the account runs.
+ * owe you. Nothing about it is waiting on anybody then, and this card is a worklist, so it leaves:
+ * kept, it is a row per sale for as long as the account runs, and the finished ones outnumber the
+ * live one within a month of playing. Which decisions took which sales is `decidedSales`, off the
+ * same match the Settlement card's own rows are drawn from.
  *
- * NAMING a creditor is not that, and folding on it was this list's bug: the money sits in your hands
- * as theirs until the two of you say which of the two things happens to it, so the sale nobody has
- * decided about yet went behind the fold beside the ones already settled. Which decisions took which
- * sales is `decidedSales`, off the same match the Settlement card's own rows are drawn from.
+ * NAMING a creditor is not finished, and it is the trap here: the money sits in your hands as theirs
+ * until the two of you say which of the two things happens to it, so a sale nobody has decided about
+ * is exactly the one still to deal with.
  *
- * FOLDED, never dropped, and the count says how many. A mistyped tranche re-prices every boss behind
- * it and this pill is the only place one can be taken back off, so a card that simply forgot them
- * would be a ledger you cannot correct. Same shape as `worthDrawing` above.
+ * DROPPED, not folded behind a count. That count was still finished work on a worklist, and this was
+ * never the only way back to a row: the act that settled it is on the other person's Settlement card,
+ * where an offset names the very sale it was made of, and taking it off there puts the money back in
+ * your hands undecided, which brings the sale back here to be corrected or removed.
  *
  * A share naming the pile's own holder does not count as naming anybody: a pile owes itself nothing,
  * so there is no decision to wait for and no other screen carrying the row. Same rule as
- * `answeredByPair`, and it has to be, or a tranche the two disagree about would vanish from the card
+ * `answeredByPair`, and it has to be, or a sale the two disagree about would vanish from the card
  * while still asking on it.
  */
-export function foldTranches<
+export function stillAsking<
   T extends { id: string; holder: Holder; shares?: { holder: Holder }[] },
 >(
   tranches: T[],
   /** Creditors whose money off each sale has been decided, keyed by tranche. See decidedSales. */
   decided: Map<string, Set<string>>,
-): { shown: T[]; folded: T[] } {
-  const shown: T[] = [];
-  const folded: T[] = [];
-  for (const tranche of tranches) {
+): T[] {
+  return tranches.filter((tranche) => {
     const pile = holderKey(tranche.holder);
     const named = (tranche.shares ?? [])
       .map((s) => holderKey(s.holder))
       .filter((creditor) => creditor !== pile);
     // EVERY creditor, since one sale can hold two people's coupons: settled with one of them, it is
-    // still waiting on the other, and the pill is where that is said.
-    const settled =
-      named.length > 0 && named.every((creditor) => decided.get(tranche.id)?.has(creditor));
-    (settled ? folded : shown).push(tranche);
-  }
-  return { shown, folded };
+    // still waiting on the other, and this row is where that is said.
+    return !(named.length > 0 && named.every((creditor) => decided.get(tranche.id)?.has(creditor)));
+  });
 }
