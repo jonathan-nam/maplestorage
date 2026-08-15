@@ -188,13 +188,9 @@ export function LootList({
       )}
       {/* Whose turn it is, which is a fact about the boss and the weeks already answered for, so it
           stands whether or not this week's piece has fallen yet. Unconditional on the rows above it
-          for that reason, unlike the split, which hangs under its own night when there is one. */}
-      {rotation && (
-        <div className="loot-config-card">
-          <h3 className="loot-group-title is-config">Loot this week</h3>
-          <LootRotation rotation={rotation} />
-        </div>
-      )}
+          for that reason, unlike the split, which hangs under its own night when there is one.
+          It frames itself, because the DROP heads it rather than a title of ours. */}
+      {rotation && <LootRotation rotation={rotation} />}
     </>
   );
 }

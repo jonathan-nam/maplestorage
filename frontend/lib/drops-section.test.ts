@@ -46,15 +46,14 @@ describe("the week's coupons are drops, not configuration", () => {
       '<div className="loot-config-card"> <h3 className="loot-group-title is-config">' +
         "{stacks.entitledTitle}</h3> <StackAssign",
     );
-    // Twice, and only for these two: the standing split, and the rotation. What must never take the
-    // frame is the GROUP OF ROWS, which is the arrangement that had a stack of 180 reading as a
-    // setting. Counted rather than named so a third one has to come past this line.
-    expect(list.match(/loot-config-card/g)).toHaveLength(2);
-    // The rotation is the second, and it is a config card for the same reason: what the boss gives
-    // is a fact about the boss, so whose turn it is stands in a week nothing has fallen in yet.
-    expect(list).toContain(
-      '{rotation && ( <div className="loot-config-card"> ' +
-        '<h3 className="loot-group-title is-config">Loot this week</h3> <LootRotation',
+    // Once only: the group of rows must not frame itself as config again, which is the arrangement
+    // that had a stack of 180 reading as a setting.
+    expect(list.match(/loot-config-card/g)).toHaveLength(1);
+    // The rotation is a config card too, and frames ITSELF: the drop heads it, with its own art, so
+    // a title of ours above the drop would put the instruction over the thing it is about.
+    expect(list).toContain("{rotation && <LootRotation rotation={rotation} />}");
+    expect(source("components", "loot-rotation.tsx")).toContain(
+      '<div className="loot-config-card"> <header className="loot-head">',
     );
     expect(source("app", "globals.css")).toContain(".loot-config-card {");
     // And the group of rows still draws nothing when empty, which is what leaves that case to

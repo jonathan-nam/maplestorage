@@ -56,6 +56,8 @@ export type RotationHolder = {
 export type Rotation = {
   dropKey: string;
   name: string;
+  /** Backend-relative, resolved by apiAssetUrl(). Null for a piece the mirror has no sprite for. */
+  iconUrl: string | null;
   /** What falls each week at this party's mode and world. */
   quantity: number;
   /** One row per person, in the party's own seat order. */
@@ -192,6 +194,7 @@ export function rotationFor(
   return {
     dropKey: drop.dropKey,
     name: drop.name,
+    iconUrl: drop.iconUrl,
     quantity,
     even: dividesEvenly(quantity, folded),
     weeks,
