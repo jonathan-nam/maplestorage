@@ -732,7 +732,6 @@ describe("a piece drop counts YOUR share, not what fell", () => {
 
     expect(log.entries[0]!.status).toBe("PENDING");
     expect(log.totals.pending).toBe(0);
-    expect(log.totals.piecesOwed).toBe(0);
     // And the row says so. "In the pool" off the raw status was the message on every coupon drop
     // the account has ever had, for ever, because a piece row never sells.
     expect(dropStatusLabel(log.entries[0]!)).toBe("Yours");
@@ -744,7 +743,7 @@ describe("a piece drop counts YOUR share, not what fell", () => {
     // One drop, one fact. Counting it both ways read as two things to do: a single coupon drop
     // showed as "1 in the pool · 30 coupons owed" on the party row.
     expect(log.totals.pending).toBe(0);
-    expect(log.totals.piecesOwed).toBe(20);
+    expect(couponsOutstandingByParty(log.entries).get("pa")).toEqual({ toYou: 20, byYou: 0 });
     // And "in the pool" is not what it is. It is in somebody else's inventory, which the row says.
     expect(dropStatusLabel(log.entries[0]!)).toBe("Owed");
   });
@@ -801,7 +800,6 @@ describe("a piece drop counts YOUR share, not what fell", () => {
     expect(entry.yours).toBe(30);
     expect(entry.owedToYou).toBe(0);
     expect(entry.owedBy).toBeNull();
-    expect(log.totals.piecesOwed).toBe(0);
     // Not owed TO you, and not nothing either: you are holding 40 of a 30 share, so 10 of it is
     // theirs and the row says so the other way round.
     expect(entry.owedByYou).toBe(10);
@@ -817,7 +815,6 @@ describe("a piece drop counts YOUR share, not what fell", () => {
     expect(log.entries[0]!.yours).toBe(30);
     expect(log.entries[0]!.owedToYou).toBe(10);
     expect(log.entries[0]!.owedBy).toBe("CreedBratton");
-    expect(log.totals.piecesOwed).toBe(10);
     expect(couponsOutstandingByParty(log.entries).get("pa")).toEqual({ toYou: 10, byYou: 0 });
     expect(dropStatusLabel(log.entries[0]!)).toBe("Owed");
   });
@@ -843,7 +840,7 @@ describe("a piece drop counts YOUR share, not what fell", () => {
     const log = buildDropLog([pair()], pools, tables, closed);
 
     expect(log.entries[0]!.closed).toBe(true);
-    expect(log.totals.piecesOwed).toBe(0);
+    expect(couponsOutstandingByParty(log.entries).has("pa")).toBe(false);
     expect(dropStatusLabel(log.entries[0]!)).toBe("Settled");
   });
 
@@ -865,7 +862,6 @@ describe("a piece drop counts YOUR share, not what fell", () => {
     const pools = [pool("pa", [coupons()])];
 
     const open = buildDropLog(parties, pools, tables);
-    expect(open.totals.piecesOwed).toBe(20);
     expect(couponsOutstandingByParty(open.entries).get("pa")).toEqual({ toYou: 20, byYou: 0 });
     expect(dropStatusLabel(open.entries[0]!)).toBe("Owed");
 
@@ -876,7 +872,6 @@ describe("a piece drop counts YOUR share, not what fell", () => {
     const done = buildDropLog(parties, pools, tables, closed);
 
     expect(done.entries[0]!.closed).toBe(true);
-    expect(done.totals.piecesOwed).toBe(0);
     expect(couponsOutstandingByParty(done.entries).has("pa")).toBe(false);
     expect(dropStatusLabel(done.entries[0]!)).toBe("Settled");
   });
@@ -956,7 +951,6 @@ describe("a piece drop counts YOUR share, not what fell", () => {
     const log = buildDropLog([trio()], [pool("pa", [hammer])], tables);
 
     expect(log.totals.pending).toBe(1);
-    expect(log.totals.piecesOwed).toBe(0);
   });
 
   it("names who is holding your share when one seat looted the lot", () => {

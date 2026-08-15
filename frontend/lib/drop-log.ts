@@ -157,8 +157,6 @@ export type DropLogTotals = {
    * for ever, on parties where the split came out exactly even.
    */
   pending: number;
-  /** Coupons somebody ELSE is holding for you. The pieces behind the count above. */
-  piecesOwed: number;
   /** Across sold drops: what landed in inventories, party-wide. See the header note. */
   pooled: number;
   /** Across sold drops: your side of them. */
@@ -334,9 +332,9 @@ export function buildDropLog(
  * share: `owedBy` is set only then, and a party that divided evenly leaves it null.
  */
 export function isOutstanding(entry: DropEntry): boolean {
-  // A piece drop is never counted here, whoever is holding it. It is said in COUPONS instead, by
-  // piecesOwed and by the party row's own figure, and counting it both ways read as two things to
-  // do: one coupon drop showed as "1 in the pool · 30 coupons owed", which is one fact twice.
+  // A piece drop is never counted here, whoever is holding it. It is said in COUPONS instead, by the
+  // party row's own figure, and counting it both ways read as two things to do: one coupon drop
+  // showed as "1 in the pool · 30 coupons owed", which is one fact twice.
   return entry.status === "PENDING" && !entry.pieces;
 }
 
@@ -368,9 +366,6 @@ function totalsOf(entries: DropEntry[]): DropLogTotals {
     sold: entries.filter((e) => e.status === "SOLD" || e.status === "PAID_OUT").length,
     taken: entries.filter((e) => e.status === "TAKEN").length,
     pending: entries.filter(isOutstanding).length,
-    piecesOwed: entries
-      .filter((e) => e.pieces && e.owedBy !== null && !e.closed)
-      .reduce((sum, e) => sum + e.owedToYou, 0),
     pooled: entries.reduce((sum, e) => sum + (e.pooled ?? 0), 0),
     yourTake: entries.reduce((sum, e) => sum + (e.yourTake ?? 0), 0),
     unreadable: entries.filter((e) => e.unreadable).length,

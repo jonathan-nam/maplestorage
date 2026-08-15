@@ -1139,6 +1139,55 @@ export function saleCredits(rows: (TrancheRow & { id: string })[]): Map<string, 
   return out;
 }
 
+/** What coupon sales came to, in the two figures a sold drop reports. See couponMoney. */
+export type CouponMoney = { pooled: number; yourTake: number };
+
+/** Nothing sold, for a caller that has decided the coupon piles are not part of what it is showing. */
+export const NO_COUPON_MONEY: CouponMoney = { pooled: 0, yourTake: 0 };
+
+/**
+ * What the coupon piles have fetched, said the way a sold drop says it.
+ *
+ * A coupon row settles through this ledger and never through a sale on its own row, so the Drop
+ * Log's money was every sale the account had made EXCEPT the vestiges.
+ *
+ * Left out, and why:
+ *
+ *  - a redemption, which realized nothing. Same test as elsewhere: no amount, no sale.
+ *  - a purchase, which is pieces bought INTO the pile. That money goes the other way.
+ *  - a tranche neither side of which is yours, the case buildWallet calls `betweenOthers`.
+ *
+ * A share is priced the way saleCredits prices one, rounding included, so the same coupons are the
+ * same mesos here and on the card that asks for them.
+ */
+export function couponMoney(rows: TrancheRow[]): CouponMoney {
+  let pooled = 0;
+  let yourTake = 0;
+  for (const row of rows) {
+    const { amount } = row;
+    if (amount === null || row.pieces < 1 || isBought(row)) continue;
+    const shares = row.shares ?? [];
+    const mesosOf = (of: (key: string) => boolean) =>
+      shares
+        .filter((s) => of(holderKey(s.holder)))
+        .reduce((sum, s) => sum + Math.round((s.pieces * amount) / row.pieces), 0);
+
+    if (holderKey(row.holder) === SELF_KEY) {
+      pooled += amount;
+      // The lot less the coupons in it that were somebody else's. A row naming nobody is all yours,
+      // which is every tranche entered before V56.
+      yourTake += Math.max(0, amount - mesosOf((key) => key !== SELF_KEY));
+    } else {
+      // Their lot, with coupons of yours in it. Only your shares are yours to count.
+      const mine = mesosOf((key) => key === SELF_KEY);
+      if (mine === 0) continue;
+      pooled += amount;
+      yourTake += mine;
+    }
+  }
+  return { pooled, yourTake };
+}
+
 /**
  * The key a closure is remembered by: one holder's decision about one drop.
  *

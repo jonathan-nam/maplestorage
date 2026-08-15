@@ -9,6 +9,7 @@ import {
   boughtByHolder,
   closedByHolder,
   closureKey,
+  couponMoney,
   holderKey,
   holderLedgers,
   holderOf,
@@ -17,6 +18,7 @@ import {
   outstanding,
   runningBalance,
   receivedByHolder,
+  saleCredits,
   salesByHolder,
   stillOpen,
   suggestArrangement,
@@ -1032,5 +1034,78 @@ describe("the coupons you hold that owe nobody anything", () => {
     const you = ledgers.find((l) => holderKey(l.holder) === SELF_KEY)!;
     // 80 off the uneven night plus 120 off the one that divided. It used to read 80.
     expect(you.pieces).toBe(200);
+  });
+});
+
+describe("what the coupon piles fetched", () => {
+  it("counts a sale of your own coupons on both sides", () => {
+    expect(couponMoney([{ holder: SELF, pieces: 60, amount: 1_500 * M }])).toEqual({
+      pooled: 1_500 * M,
+      yourTake: 1_500 * M,
+    });
+  });
+
+  it("keeps only your part of a lot that held somebody else's coupons", () => {
+    // Half the lot was Bro's, so half the price is his. The whole lot is still what there was to
+    // split, which is what the tile says it is showing.
+    expect(
+      couponMoney([
+        { holder: SELF, pieces: 60, amount: 1_500 * M, shares: [{ holder: BRO, pieces: 30 }] },
+      ]),
+    ).toEqual({ pooled: 1_500 * M, yourTake: 750 * M });
+  });
+
+  it("counts your share of a lot sold out of somebody else's pile, and nothing more", () => {
+    expect(
+      couponMoney([
+        { holder: BRO, pieces: 80, amount: 2_000 * M, shares: [{ holder: SELF, pieces: 20 }] },
+      ]),
+    ).toEqual({ pooled: 2_000 * M, yourTake: 500 * M });
+  });
+
+  it("leaves out a sale between two other people, which is no money of yours", () => {
+    const other: Holder = { kind: "PERSON", personId: "p-other", characterName: null };
+    expect(
+      couponMoney([
+        { holder: BRO, pieces: 80, amount: 2_000 * M, shares: [{ holder: other, pieces: 80 }] },
+      ]),
+    ).toEqual({ pooled: 0, yourTake: 0 });
+  });
+
+  it("leaves out a redemption, which realized nothing to put in a total", () => {
+    expect(couponMoney([{ holder: SELF, pieces: 50, amount: null }])).toEqual({
+      pooled: 0,
+      yourTake: 0,
+    });
+  });
+
+  it("leaves out a purchase, which is money going the other way", () => {
+    // Pieces bought INTO your pile at an agreed price. Counted as a sale it would report what you
+    // paid Bro as what you made.
+    expect(
+      couponMoney([
+        {
+          holder: SELF,
+          pieces: 25,
+          amount: 600 * M,
+          disposition: "BOUGHT",
+          shares: [{ holder: BRO, pieces: 25 }],
+        },
+      ]),
+    ).toEqual({ pooled: 0, yourTake: 0 });
+  });
+
+  it("prices a share the way the card that asks for it does", () => {
+    // saleCredits' own rounding, to the meso. The two disagreeing is one lot of coupons coming to
+    // different money on two screens.
+    const lot = {
+      holder: SELF,
+      pieces: 7,
+      amount: 1_000 * M,
+      shares: [{ holder: BRO, pieces: 3 }],
+    };
+    const credit = saleCredits([{ id: "t1", ...lot }]).get("person:p-bro")!;
+
+    expect(couponMoney([lot]).yourTake).toBe(1_000 * M - credit.toThem);
   });
 });

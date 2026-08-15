@@ -16,7 +16,8 @@
 // settled with both is TWO records. Folding them would name one person and quietly drop the other.
 
 import type { DropEntry } from "./drop-log";
-import { holderKey } from "./vestige-ledger";
+import { NO_COUPON_MONEY, holderKey } from "./vestige-ledger";
+import type { CouponMoney } from "./vestige-ledger";
 import type { VestigeSettlement } from "@/types/vestige";
 
 /** One finished thing: what it was, what it came to, and the act that ended it. */
@@ -282,13 +283,19 @@ export type SettledTotals = {
    * A drop entered as "listed for 10b" and one entered as "received 9.5b" are different quantities,
    * one before the Auction House cut and one after, and adding them is the confident wrong number
    * this repo exists to prevent. Same total, same reason, as the Drop Log's. See drop-log.ts.
+   *
+   * The coupon sales are in it and are on NO ROW, so this is the one figure here that does not add
+   * back up to the rows beneath it. A coupon night has no one price: its pieces sell in lots that
+   * name no night, so the money can be stated whole or not at all, and leaving it out made this
+   * every sale the account has made except the vestiges.
    */
   pooled: number;
   /**
    * Your share of the above, which is the one figure here that is yours rather than the party's.
    *
    * The Drop Ledger totalled this per month and no longer states a meso, sale figures being this
-   * view's. Off the same rows as `pooled`, so the two cannot come to different sets of sales.
+   * view's. Off the same sales as `pooled`, coupon lots included, so the two cannot come to
+   * different sets of them.
    */
   yourTake: number;
   /** Mesos written off closing the nights. A decision, so it is said rather than absorbed. */
@@ -302,13 +309,17 @@ export type SettledTotals = {
   unreadable: number;
 };
 
-export function settledTotals(rows: SettledRecord[]): SettledTotals {
+export function settledTotals(
+  rows: SettledRecord[],
+  /** What the coupon piles fetched, which no row carries. See couponMoney and `pooled` above. */
+  coupons: CouponMoney = NO_COUPON_MONEY,
+): SettledTotals {
   return {
     nights: rows.filter((r) => r.kind === "PIECES").length,
     sales: rows.filter((r) => r.kind === "MONEY" && r.takenBy === null).length,
     taken: rows.filter((r) => r.takenBy !== null).length,
-    pooled: rows.reduce((sum, r) => sum + (r.sale?.pooled ?? 0), 0),
-    yourTake: rows.reduce((sum, r) => sum + (r.sale?.yourTake ?? 0), 0),
+    pooled: rows.reduce((sum, r) => sum + (r.sale?.pooled ?? 0), coupons.pooled),
+    yourTake: rows.reduce((sum, r) => sum + (r.sale?.yourTake ?? 0), coupons.yourTake),
     writtenOff: rows.reduce((sum, r) => sum + r.writtenOff, 0),
     // A sale that HAS a price and no split behind it. `pooled` is null exactly when the seat that
     // sold it has left, which is what makes the share unreadable. See drop-log.ts.

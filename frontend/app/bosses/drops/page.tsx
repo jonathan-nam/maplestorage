@@ -62,6 +62,7 @@ import {
   SELF_HOLDER,
   SELF_KEY,
   alsoHeldByYou,
+  couponMoney,
   answeredByHolder,
   answeredByPair,
   boughtByHolder,
@@ -507,7 +508,9 @@ export default function DropLogPage() {
   // What is finished. Off the WHOLE log rather than the filtered one, for the reason the ledgers
   // above are: this is the account's record, and a month's slice of it is not one.
   const settledRows = buildSettledLog(whole.entries, settlements, holderNames);
-  const settledCounts = settledTotals(settledRows);
+  // The coupon lots with it: a coupon night has no one price, so its money arrives whole from the
+  // tranche ledger or the view is every sale but the vestiges. See SettledTotals.pooled.
+  const settledCounts = settledTotals(settledRows, couponMoney(tranches));
   const settledOrphans = orphansOf(whole.entries, settlements);
   const open = unanswered(parties, pools, VESTIGE);
   // Only the drops still open tilt the rotation: a debt that has been closed was compensated, so it
@@ -670,10 +673,6 @@ export default function DropLogPage() {
                         .filter(Boolean)
                         .join(", ")}
                       {totals.pending > 0 && `, ${totals.pending} in the pool`}
-                      {/* The pieces behind the count, because one row is one hammer or 180
-                        coupons and a number of rows does not say which. Only when somebody is
-                        holding some. */}
-                      {totals.piecesOwed > 0 && `, ${totals.piecesOwed} coupons owed you`}
                     </span>
                   </div>
                   {/* What it all sold for stood here, and it is the Settled View's now, beside the

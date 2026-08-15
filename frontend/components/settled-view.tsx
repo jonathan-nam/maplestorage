@@ -210,7 +210,8 @@ export function SettledView({
           {formatMesos(totals.pooled, true)}
           <span className="stat-label"> split</span>
           {/* Your share of it. The Drop Ledger totalled this per month, and stopped stating any meso
-              when sale figures became this view's, so it arrived here with the rows it sums. */}
+              when sale figures became this view's, so it arrived here with the rows behind it. Both
+              figures carry the coupon lots too, which are on no row. See SettledTotals.pooled. */}
           {` · ${formatMesos(totals.yourTake, true)}`}
           <span className="stat-label"> your take</span>
         </span>
