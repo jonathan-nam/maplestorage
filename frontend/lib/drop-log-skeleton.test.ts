@@ -13,14 +13,18 @@ const page = readFileSync(join(root, "app", "bosses", "drops", "page.tsx"), "utf
 // being faded were 132px and 1204px.
 //
 // Measured on the production build once the skeleton was in: every element above the list (tabs,
-// Add Drop panel, its form, the stat row, the Group filter, the group heading, the first row) sits
-// at the SAME offset loading and loaded. Nothing here can re-measure that, so what is pinned is the
-// thing that would break it: a piece of chrome the page draws and the skeleton forgets.
+// Add Drop panel, its form, the Group filter, the group heading, the first row) sits at the SAME
+// offset loading and loaded. Nothing here can re-measure that, so what is pinned is the thing that
+// would break it: a piece of chrome the page draws and the skeleton forgets.
+//
+// The stat row was in that list until the count of drops went to the Settled View. It is pinned by
+// its absence now, below, because a placeholder for a row the page does not draw jumps exactly as
+// far as a missing one, in the other direction.
 describe("the Drop Log's loading state is the page's shape", () => {
-  // Split by who renders it. The page draws the tabs, the tiles and the list itself; the Add Drop
-  // panel is LogDrop's and its row of controls is DropPicker's. Asserting all of them against
-  // page.tsx passed nothing and only proved the test had not been run.
-  const OWN = ["droplog-sections", "stat-row", "stat-tile", "party-toolbar", "droplog-list"];
+  // Split by who renders it. The page draws the tabs and the list itself; the Add Drop panel is
+  // LogDrop's and its row of controls is DropPicker's. Asserting all of them against page.tsx
+  // passed nothing and only proved the test had not been run.
+  const OWN = ["droplog-sections", "party-toolbar", "droplog-list"];
   const BORROWED = [
     ["add-panel", join("components", "log-drop.tsx")],
     ["loot-add", join("components", "drop-picker.tsx")],
@@ -50,13 +54,24 @@ describe("the Drop Log's loading state is the page's shape", () => {
 
   // Every figure on this page is somebody's money. A placeholder that says "Sold for" to an account
   // that never sells, or draws a number-shaped thing that reads as a number, is the confident wrong
-  // statement this repo exists to prevent, so the tiles carry shimmer and no words at all.
-  it("puts no words in the tiles it cannot know the contents of", () => {
+  // statement this repo exists to prevent.
+  it("puts no words on screen it cannot know the contents of", () => {
     // Comments stripped first: this file explains why those words are absent, and matching its own
     // explanation is how a regex-over-source test passes for the wrong reason.
     const drawn = skeleton.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
     for (const word of ["Sold for", "Your take", ">Drops<"]) {
       expect(drawn, `the skeleton states "${word}" before it can know it`).not.toContain(word);
+    }
+  });
+
+  // The other direction, and the one this page has actually been wrong in: the skeleton drew three
+  // tiles for a row that had gone down to one, and then to none. A placeholder for chrome the page
+  // does not draw is the same height jump as a forgotten one.
+  it("draws no stat row, because the tab no longer has one", () => {
+    const drawn = skeleton.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+    for (const cls of ["stat-row", "stat-tile"]) {
+      expect(page, `the drops tab draws ${cls} again, so the skeleton has to`).not.toContain(cls);
+      expect(drawn, `the skeleton draws ${cls} where the page draws none`).not.toContain(cls);
     }
   });
 

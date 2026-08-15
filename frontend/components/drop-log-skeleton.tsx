@@ -79,25 +79,9 @@ export function DropLogSkeleton() {
         </form>
       </section>
 
-      {/* Three tiles, shimmer in place of both the label and the figure. Two of the three only exist
-          in a world that trades, and drawing "Sold for" at somebody who will never see it is the
-          kind of confident wrong statement this repo exists to avoid. The height is the same either
-          way, which is all the tiles are here to hold. */}
-      <div className="stat-row" aria-hidden="true">
-        {[0, 1, 2].map((i) => (
-          <div className="stat-tile" key={i}>
-            <span className="stat-label">
-              <span className="skeleton sk-line" style={{ width: "54px" }} />
-            </span>
-            <span className="stat-value">
-              <span className="skeleton sk-line" style={{ width: "118px", height: "15px" }} />
-            </span>
-            <span className="stat-note">
-              <span className="skeleton sk-line" style={{ width: "92px", height: "9px" }} />
-            </span>
-          </div>
-        ))}
-      </div>
+      {/* No stat row. It held three tiles, then one once the money went to the Settled View, and
+          none once the count followed it. A placeholder for a row the page does not draw is the
+          height jump this skeleton exists to prevent, pointing the other way. */}
 
       {/* The Group picker. Real markup again, because measuring its 57px by hand and pasting the
           number in is how the rows below end up landing somewhere else. */}

@@ -654,8 +654,8 @@ export default function DropLogPage() {
 
             {shown === "drops" && (
               <>
-                {/* Above the totals it changes. Nothing to log against with no roster, and a picker of
-                  nobody is not worth holding the space for. */}
+                {/* First on the tab, because it is what the tab is for. Nothing to log against with
+                  no roster, and a picker of nobody is not worth holding the space for. */}
                 {characters.length > 0 && (
                   <LogDrop
                     characters={characters}
@@ -667,26 +667,10 @@ export default function DropLogPage() {
                 )}
                 {error && <p className="split-error">{error}</p>}
 
-                <div className="stat-row">
-                  <div className="stat-tile">
-                    <span className="stat-label">Drops</span>
-                    <span className="stat-value">{totals.drops}</span>
-                    <span className="stat-note">
-                      {/* Whichever happened. A Heroic account never sells one and an Interactive
-                        one never takes one, so in practice this is a single figure either way. */}
-                      {[
-                        totals.sold > 0 || totals.taken === 0 ? `${totals.sold} sold` : null,
-                        totals.taken > 0 ? `${totals.taken} taken` : null,
-                      ]
-                        .filter(Boolean)
-                        .join(", ")}
-                      {totals.pending > 0 && `, ${totals.pending} in the pool`}
-                    </span>
-                  </div>
-                  {/* What it all sold for stood here, and it is the Settled View's now, beside the
-                    rows it is the sum of. A first-stage list that ends in a money total is answering
-                    the last stage's question. */}
-                </div>
+                {/* The count of drops stood here, in the last tile of a row that once held three.
+                  The money tiles went to the Settled View when this page stopped stating a meso,
+                  and the count has followed them: one tile in a three-up grid is two thirds of
+                  nothing, and the list below already says what fell. */}
 
                 {whole.totals.drops > 0 && (
                   <div className="party-toolbar">
@@ -1017,6 +1001,10 @@ export default function DropLogPage() {
               <SettledView
                 rows={settledRows}
                 totals={settledCounts}
+                // The whole log's own count, which the Drop Ledger used to head itself with. It
+                // counts every drop rather than the settled ones, so it is stated apart from the
+                // figures below and named for what it counts.
+                logged={totals}
                 orphans={settledOrphans}
                 bossByKey={bossByKey}
                 partyById={partyById}
