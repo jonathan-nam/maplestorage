@@ -4,6 +4,7 @@ import Link from "next/link";
 import { type ReactNode, useState } from "react";
 import { DropPicker } from "@/components/drop-picker";
 import { LootList, type StackAssignment } from "@/components/loot-list";
+import type { Rotation } from "@/lib/loot-rotation";
 import { RosterInputs } from "@/components/roster-inputs";
 import { RosterStrip } from "@/components/roster-strip";
 import { ApiError, SAVED_BUT_STALE, StaleAfterWrite, apiAssetUrl } from "@/lib/api";
@@ -49,6 +50,7 @@ export function PartyCard({
   onSaveRoster,
   onTakeOff,
   stacks,
+  rotation,
 }: {
   party: Party;
   heading: ReactNode;
@@ -135,6 +137,13 @@ export function PartyCard({
    * one person).
    */
   stacks?: StackAssignment;
+  /**
+   * Whose turn it is to loot the boss's Eternal pieces, or absent where nothing rotates.
+   *
+   * Beside `stacks` rather than inside it: that one is a deal a party edits, and this is read off
+   * the weeks already answered for. Nothing here is written.
+   */
+  rotation?: Rotation | null;
   /**
    * Takes this boss off the period, leaving the config standing.
    *
@@ -430,6 +439,7 @@ export function PartyCard({
               bossByKey={pool.bossByKey}
               pieceStatus={pool.pieceStatus}
               stacks={stacks}
+              rotation={rotation}
               splitElsewhere={Boolean(stacks) && picked === stacks?.dropKey}
               // The stack is what the config under it is about, so removing it from here would take
               // the split and the week's pickup with it. The pool's own page still corrects one.

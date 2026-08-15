@@ -26,6 +26,7 @@ import { buildDropLog, couponsOutstandingByParty, pieceStatusByParty } from "@/l
 import { dropsInWeek, NOTHING_OUTSTANDING } from "@/lib/loot";
 import { closedByHolder, outstanding, runningBalance, stillOpen } from "@/lib/vestige-ledger";
 import { assignableDrops } from "@/lib/vestige-pickup";
+import { rotatingDrops, rotationFor } from "@/lib/loot-rotation";
 import { shareConfig } from "@/lib/vestige-stacks";
 import {
   byBoss,
@@ -555,6 +556,25 @@ export default function PartiesPage() {
    * The live view only, the same rule the pool and the roster follow. A past week is shown and not
    * edited, and its share is now pinned anyway: see pinWeeksAlreadyWritten.
    */
+  /**
+   * Whose turn it is to loot the boss's Eternal pieces, or null where nothing rotates.
+   *
+   * Read, never written: the balance comes off the arrangements already recorded on this party's own
+   * rows. Not shown on a past week, the same rule the split and the roster follow, because "this
+   * week" says nothing when the week being looked at is over.
+   *
+   * One rotation, because a boss's token modes and its fragment modes do not overlap, so a party
+   * running one mode sees one of them. rotatingDrops returns a list rather than picking, which is
+   * what would hide the second the day that stops being true.
+   */
+  const rotationOf = (party: Party) => {
+    if (history) return null;
+    const drop = rotatingDrops(party, dropTables)[0];
+    if (!drop) return null;
+    const quantity = drop.pieces?.[party.worldType]?.[party.difficulty ?? ""] ?? 0;
+    return rotationFor(party, lootByParty.get(party.id) ?? [], drop, quantity);
+  };
+
   const stacksFor = (party: Party) => {
     if (history) return undefined;
     const config = shareConfig(
@@ -740,6 +760,7 @@ export default function PartiesPage() {
         onAddDrop={canAddDrops ? (body) => addDrop(party, body) : undefined}
         pool={poolFor(party)}
         stacks={stacksFor(party)}
+        rotation={rotationOf(party)}
         onSaveRoster={history ? undefined : (members) => saveRoster(party, members)}
         onTakeOff={history ? undefined : () => setSkipped(party, true)}
         heading={
@@ -988,6 +1009,7 @@ export default function PartiesPage() {
                         onAddDrop={canAddDrops ? (body) => addDrop(party, body) : undefined}
                         pool={poolFor(party)}
                         stacks={stacksFor(party)}
+                        rotation={rotationOf(party)}
                         onSaveRoster={history ? undefined : (members) => saveRoster(party, members)}
                         onTakeOff={history ? undefined : () => setSkipped(party, true)}
                         heading={
