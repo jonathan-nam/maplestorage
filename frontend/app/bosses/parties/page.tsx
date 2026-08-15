@@ -572,7 +572,10 @@ export default function PartiesPage() {
     const drop = rotatingDrops(party, dropTables)[0];
     if (!drop) return null;
     const quantity = drop.pieces?.[party.worldType]?.[party.difficulty ?? ""] ?? 0;
-    return rotationFor(party, lootByParty.get(party.id) ?? [], drop, quantity);
+    // The stacks it falls in, which is what a party can actually hand over. Absent is uncounted, and
+    // rotationFor refuses it rather than assuming the drop divides down to the single piece.
+    const bundles = drop.bundles?.[party.worldType]?.[party.difficulty ?? ""] ?? 0;
+    return rotationFor(party, lootByParty.get(party.id) ?? [], drop, quantity, bundles);
   };
 
   const stacksFor = (party: Party) => {

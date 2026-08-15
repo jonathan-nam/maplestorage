@@ -187,15 +187,30 @@ class BossDropAmountSeedTest {
     }
 
     @Test
-    fun `one token is one bundle, so a piece drop divides down to the single token`() {
-        // Derived by build.py rather than written, which is why it is checked here: a party that
-        // cannot divide 5 pieces six ways hands the odd one to whoever is next, and that is only
-        // possible because no stack has to move whole.
+    fun `a token is usually one to a stack, so the drop divides down to the single piece`() {
+        // Derived from the count by build.py rather than written, which is why it is checked here: a
+        // party that cannot divide 5 pieces six ways hands the odd one to whoever is next, and that
+        // is only possible because no stack has to move whole.
         val kalos = transaction { dropTables()["kalos-the-guardian"] }.orEmpty()
         val token = kalos.single { it.dropKey == "kalos-token" }
 
         assertEquals(token.pieces["INTERACTIVE"], token.bundles["INTERACTIVE"])
         assertEquals(token.pieces["HEROIC"], token.bundles["HEROIC"])
+    }
+
+    @Test
+    fun `Hard Malefic Star is the piece that falls in stacks of three`() {
+        // The exception, and the reason `count` can state a bundling apart from the total. 18 in 6
+        // stacks is what a party divides by, so four people cannot take four and a half pieces each:
+        // they are moving stacks that will not cut. Seeded as 18 in 18 for a day, which said the
+        // opposite.
+        val star = transaction { dropTables()["malefic-star"] }.orEmpty()
+        val shard = star.single { it.dropKey == "blissful-fantasy-shard" }
+
+        assertEquals(18, shard.pieces["INTERACTIVE"]?.get("HARD"))
+        assertEquals(6, shard.bundles["INTERACTIVE"]?.get("HARD"))
+        // Heroic gives 2 EACH, so there is nothing to divide and the bundling says nothing.
+        assertEquals(2, shard.pieces["HEROIC"]?.get("HARD"))
     }
 
     private data class Row(

@@ -163,7 +163,7 @@ FROM (VALUES
     ('first-adversary', 'whisper-ancient-resolve', 'NORMAL', 'HEROIC', 2, 2),
     ('malefic-star', 'vestige-of-erion', 'HARD', 'INTERACTIVE', 90, 3),
     ('malefic-star', 'vestige-of-erion', 'HARD', 'HEROIC', 90, 3),
-    ('malefic-star', 'blissful-fantasy-shard', 'HARD', 'INTERACTIVE', 18, 18),
+    ('malefic-star', 'blissful-fantasy-shard', 'HARD', 'INTERACTIVE', 18, 6),
     ('malefic-star', 'blissful-fantasy-shard', 'HARD', 'HEROIC', 2, 2),
     ('malefic-star', 'blissful-fantasy-fragment', 'NORMAL', 'INTERACTIVE', 6, 6),
     ('malefic-star', 'blissful-fantasy-fragment', 'NORMAL', 'HEROIC', 2, 2),
