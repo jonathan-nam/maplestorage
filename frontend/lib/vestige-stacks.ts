@@ -29,20 +29,23 @@ export type ShareConfig = {
  *
  * Null, each for its own reason:
  *
- *  - the boss drops no coupon at this mode, or nobody has said which mode the party runs.
+ *  - the boss drops no coupon at this mode IN THIS WORLD, or nobody has said which mode it runs.
  *  - the catalog has not counted the stacks, which is not a claim that it falls in one.
  *  - one seat, or none. A split needs two sides.
  */
 export function shareConfig(
   table: BossDrop[] | undefined,
   difficulty: string | null,
+  world: string,
   dropKey: string,
   seats: PartyMember[],
 ): ShareConfig | null {
   if (!table || difficulty === null || seats.length < 2) return null;
   const drop = table.find((row) => row.dropKey === dropKey);
-  const quantity = drop?.pieces?.[difficulty];
-  const bundles = drop?.bundles?.[difficulty];
+  // Against the party's own world: how many drop is a per-world number, so reading the wrong one
+  // divides a Heroic party's night by an Interactive party's pile.
+  const quantity = drop?.pieces?.[world]?.[difficulty];
+  const bundles = drop?.bundles?.[world]?.[difficulty];
   if (!quantity || !bundles) return null;
   return { quantity, bundles, size: quantity / bundles, seats };
 }

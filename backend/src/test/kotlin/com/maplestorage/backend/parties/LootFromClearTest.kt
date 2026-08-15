@@ -124,6 +124,15 @@ class LootFromClearTest {
 
     private fun pool(partyId: Uuid) = lootFor(partyId)
 
+    /**
+     * The coupon row, which is what these tests are about.
+     *
+     * Extreme Kalos guarantees two things now, the vestige coupons and 14 Eternal pieces, so the
+     * pool no longer holds exactly one row. `single()` here still says what it used to: one coupon
+     * row, and a second of them would still fail.
+     */
+    private fun coupon(partyId: Uuid) = pool(partyId).single { it.dropKey == "vestige-of-erion" }
+
     @Test
     fun `clearing a boss run alone files what it guarantees, off the catalog's own count`() {
         transaction {
@@ -132,7 +141,7 @@ class LootFromClearTest {
 
             lootFromClear(characterId, bossId, "WEEKLY", today, Clock.System.now())
 
-            val row = pool(partyId).single()
+            val row = coupon(partyId)
             assertEquals("Vestige of Erion Coupon", row.name)
             // 180, not a share of 180. There is one seat, so those are the same number here, and the
             // row is WHAT FELL either way. See V40.
@@ -209,23 +218,29 @@ class LootFromClearTest {
             // Two days later in the same week, which is the same period and so the same 180.
             lootFromClear(characterId, bossId, "WEEKLY", LocalDate.parse("2026-08-10"), now)
 
-            assertEquals(1, pool(partyId).size)
+            // Two rows, because Extreme Kalos guarantees two things: the coupons and 14 Eternal
+            // pieces. Three ticks and still one of each is the claim, not the total.
+            assertEquals(2, pool(partyId).size)
+            assertEquals(1, pool(partyId).count { it.dropKey == "vestige-of-erion" })
+            assertEquals(1, pool(partyId).count { it.dropKey == "kalos-token" })
         }
     }
 
     @Test
     fun `says nothing where the amount is unknown`() {
         transaction {
-            // Chaos Kalos drops none, and the catalog carries no row for it rather than a zero.
-            val (chaosCharacter, chaosParty) = alone(difficulty = "CHAOS")
+            // Easy Kalos drops none of anything, and the catalog carries no row for it rather than
+            // a zero. catalog/drops.yaml states that as `EASY: 0`, which build.py keeps out of the
+            // seed on purpose: nothing to fill is what an empty box already says.
+            val (easyCharacter, easyParty) = alone(difficulty = "EASY")
             lootFromClear(
-                chaosCharacter,
+                easyCharacter,
                 bossIdForKey("kalos-the-guardian")!!,
                 "WEEKLY",
                 today,
                 Clock.System.now(),
             )
-            assertTrue(pool(chaosParty).isEmpty())
+            assertTrue(pool(easyParty).isEmpty())
         }
         cleanUp()
         transaction {
@@ -258,7 +273,7 @@ class LootFromClearTest {
             // Sold, and now the clear is un-ticked: that is money somebody is owed, and un-ticking a
             // clear says nothing about it.
             lootFromClear(characterId, bossId, "WEEKLY", today, now)
-            val row = pool(partyId).single()
+            val row = coupon(partyId)
             val seller = findParty(partyId, userId)!!.members.first()
             sellLoot(
                 Uuid.parse(row.id),
@@ -282,7 +297,7 @@ class LootFromClearTest {
             // Coupons never get a sold_at: they settle through the tranche ledger, so "unsold" says
             // nothing about whether anybody is finished with them. Closing the books is what does,
             // and the closure names this row, so deleting it would take the closure with it.
-            closeBooks(Uuid.parse(pool(partyId).single().id), now)
+            closeBooks(Uuid.parse(coupon(partyId).id), now)
 
             unlootFromClear(characterId, bossId, "WEEKLY", today)
 
@@ -354,7 +369,7 @@ class LootFromClearTest {
 
             // Rows filed into a pool before it was retired stay removable by the tick that put
             // them there, which is the only thing that may take them.
-            assertEquals(1, pool(partyId).size)
+            assertEquals(2, pool(partyId).size)
             unlootFromClear(characterId, bossId, "WEEKLY", backThen)
             assertTrue(pool(partyId).isEmpty())
         }

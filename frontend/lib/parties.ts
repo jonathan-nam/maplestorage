@@ -238,15 +238,18 @@ export function bossesWithoutConfig(parties: Party[], bosses: Boss[], characterI
  * The drop this boss gives for certain at the mode a party runs, or null.
  *
  * Read off the boss's own table, so it is a fact about the boss rather than about anything that has
- * happened: vestige coupons drop every time it dies, and the amount is per (boss, difficulty). Null
- * when nobody has said which difficulty, since a boss that drops them at Extreme drops none at Chaos.
+ * happened: vestige coupons drop every time it dies, and the amount is per (boss, difficulty, world).
+ * Null when nobody has said which difficulty, since a boss that drops them at Extreme drops none at
+ * Chaos, and read against the party's own world, since a mode can give a pile in one and nothing in
+ * the other.
  */
 export function guaranteedDrop(
   table: BossDrop[] | undefined,
   difficulty: string | null,
+  world: string,
 ): BossDrop | null {
   if (!table || difficulty === null) return null;
-  return table.find((drop) => (drop.pieces?.[difficulty] ?? 0) > 0) ?? null;
+  return table.find((drop) => (drop.pieces?.[world]?.[difficulty] ?? 0) > 0) ?? null;
 }
 
 /**

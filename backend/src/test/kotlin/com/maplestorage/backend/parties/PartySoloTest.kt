@@ -199,6 +199,9 @@ class PartySoloTest {
         }
     }
 
+    /** The coupon row. A clear files the boss's Eternal pieces alongside it, so the pool holds both. */
+    private fun couponIn(partyId: Uuid) = lootFor(partyId).single { it.dropKey == "vestige-of-erion" }
+
     @Test
     fun `a mode named after the clear was ticked files that period's coupons`() {
         transaction {
@@ -210,7 +213,8 @@ class PartySoloTest {
 
             val partyId = setSoloDifficulty(userId, characterId, bossIdForKey("limbo")!!, "WEEKLY", "HARD", now)!!
 
-            assertEquals(60, lootFor(partyId).single().quantity)
+            // The coupon row. Hard Limbo guarantees an Eternal piece as well, so the pool holds two.
+            assertEquals(60, couponIn(partyId).quantity)
         }
     }
 
@@ -224,16 +228,18 @@ class PartySoloTest {
 
             setSoloDifficulty(userId, characterId, bossId, "WEEKLY", "HARD", now)
             val partyId = partyIdFor(characterId, bossId)!!
-            assertEquals(60, lootFor(partyId).single().quantity)
+            assertEquals(60, couponIn(partyId).quantity)
 
             // Extreme Kaling gives 480. The 60 is a row the app filed itself and its premise has
             // changed, so it goes rather than sitting beside the new one.
             setSoloDifficulty(userId, characterId, bossId, "WEEKLY", "EXTREME", now)
-            assertEquals(480, lootFor(partyId).single().quantity)
+            assertEquals(480, couponIn(partyId).quantity)
 
-            // And a mode that drops none leaves nothing, which is what the catalog says about it.
+            // And a mode that drops no COUPONS leaves none. Easy Kaling is not empty: it still gives
+            // one Eternal fragment, which is a different drop and stands on its own.
             setSoloDifficulty(userId, characterId, bossId, "WEEKLY", "EASY", now)
-            assertTrue(lootFor(partyId).isEmpty())
+            assertTrue(lootFor(partyId).none { it.dropKey == "vestige-of-erion" })
+            assertEquals(1, lootFor(partyId).single().quantity)
         }
     }
 

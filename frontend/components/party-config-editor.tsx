@@ -289,7 +289,7 @@ function ConfigRow({
   const savedBundles =
     party.difficulty === null
       ? undefined
-      : drops.find((d) => d.dropKey === VESTIGE)?.bundles?.[party.difficulty];
+      : drops.find((d) => d.dropKey === VESTIGE)?.bundles?.[party.worldType]?.[party.difficulty];
   const savedStacks = (bundleCount: number | undefined): Record<string, string> => {
     const seats = party.seats.filter((s) => !s.guest);
     if (bundleCount === undefined || seats.length === 0) return {};
@@ -323,9 +323,12 @@ function ConfigRow({
   const vestige = drops.find((d) => d.dropKey === VESTIGE);
   // Optional all the way down, not just on `vestige`. lib/cache.ts hands back whatever shape the
   // API had when this page last fetched, so a tab open across a deploy that adds a field gets a
-  // drop with no `bundles` at all, and `vestige?.bundles[difficulty]` throws on the read.
-  const bundlesForEdit = difficulty === "" ? undefined : vestige?.bundles?.[difficulty];
-  const total = difficulty === "" ? undefined : vestige?.pieces?.[difficulty];
+  // drop with no `bundles` at all, and `vestige?.bundles[difficulty]` throws on the read. The world
+  // is one of those added fields, so a stale cached shape reads as nothing to divide rather than as
+  // the wrong world's pile.
+  const world = party.worldType;
+  const bundlesForEdit = difficulty === "" ? undefined : vestige?.bundles?.[world]?.[difficulty];
+  const total = difficulty === "" ? undefined : vestige?.pieces?.[world]?.[difficulty];
   /** The typed entitlements, in halves, in roster order. Null anywhere one is not an answer. */
   const halves = rosterNames.map((name) => parseStacks(entitled[name] ?? ""));
   const badStacks = halves.some((n) => n === null);

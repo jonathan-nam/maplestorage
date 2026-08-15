@@ -128,36 +128,61 @@ describe("the count the box opens with", () => {
   const vestige = drop({
     dropKey: "vestige-of-erion",
     name: "Vestige of Erion Coupon",
-    pieces: { HARD: 60, EXTREME: 480 },
+    pieces: { INTERACTIVE: { HARD: 60, EXTREME: 480 } },
   });
 
   it("fills the boss's own figure for the difficulty being run", () => {
-    expect(defaultQuantity(vestige, "EXTREME")).toBe("480");
-    expect(defaultQuantity(vestige, "HARD")).toBe("60");
+    expect(defaultQuantity(vestige, "EXTREME", "INTERACTIVE")).toBe("480");
+    expect(defaultQuantity(vestige, "HARD", "INTERACTIVE")).toBe("60");
   });
 
   it("fills nothing for a difficulty that drops none", () => {
     // Only the difficulties in the tables drop them, and a pre-filled zero would be a claim the
     // catalog does not make.
-    expect(defaultQuantity(vestige, "NORMAL")).toBe("");
-    expect(defaultQuantity(vestige, "EASY")).toBe("");
+    expect(defaultQuantity(vestige, "NORMAL", "INTERACTIVE")).toBe("");
+    expect(defaultQuantity(vestige, "EASY", "INTERACTIVE")).toBe("");
   });
 
   it("fills nothing when nobody has said which difficulty", () => {
     // A config with no difficulty, and the Drop Log, which never asks for one.
-    expect(defaultQuantity(vestige, null)).toBe("");
-    expect(defaultQuantity(vestige, undefined)).toBe("");
+    expect(defaultQuantity(vestige, null, "INTERACTIVE")).toBe("");
+    expect(defaultQuantity(vestige, undefined, "INTERACTIVE")).toBe("");
   });
 
   it("fills nothing for a drop that has no amounts, or no drop at all", () => {
-    expect(defaultQuantity(drop(), "EXTREME")).toBe("");
-    expect(defaultQuantity(undefined, "EXTREME")).toBe("");
+    expect(defaultQuantity(drop(), "EXTREME", "INTERACTIVE")).toBe("");
+    expect(defaultQuantity(undefined, "EXTREME", "INTERACTIVE")).toBe("");
   });
 
   it("survives an answer from before amounts existed", () => {
     // pieces absent rather than empty, which is what a cached older response looks like.
     const older = { ...drop() } as Partial<typeof vestige>;
     delete older.pieces;
-    expect(defaultQuantity(older as typeof vestige, "EXTREME")).toBe("");
+    expect(defaultQuantity(older as typeof vestige, "EXTREME", "INTERACTIVE")).toBe("");
+  });
+
+  it("fills the count for the party's OWN world", () => {
+    // Chaos Kalos gives 5 pieces to the whole party on Interactive and 2 to each member on Heroic,
+    // and Extreme 14 against 3. Neither is a multiple of the other, so reading the wrong world is
+    // not an approximation, it is a different number wearing the right name.
+    //
+    // This is the read that broke silently when the world was added above the difficulty:
+    // `pieces[difficulty]` still type-checked, still returned something, and String() turned the
+    // map it now got into a value the box would have shown.
+    const token = drop({
+      dropKey: "kalos-token",
+      name: "Kalos's Residual Determination",
+      pieces: { INTERACTIVE: { CHAOS: 5, EXTREME: 14 }, HEROIC: { CHAOS: 2, EXTREME: 3 } },
+    });
+
+    expect(defaultQuantity(token, "CHAOS", "INTERACTIVE")).toBe("5");
+    expect(defaultQuantity(token, "CHAOS", "HEROIC")).toBe("2");
+    expect(defaultQuantity(token, "EXTREME", "INTERACTIVE")).toBe("14");
+    expect(defaultQuantity(token, "EXTREME", "HEROIC")).toBe("3");
+  });
+
+  it("fills nothing for a world the drop has no count in", () => {
+    // Not zero, and not the other world's figure. The catalog says nothing about this pair.
+    expect(defaultQuantity(vestige, "EXTREME", "HEROIC")).toBe("");
   });
 });

@@ -735,8 +735,8 @@ describe("a piece drop counts YOUR share, not what fell", () => {
         // A piece drop settles through the tranche ledger, not by being sold as a lot.
         fungible: false,
         untradeable: false,
-        pieces: { HARD: 60 },
-        bundles: { HARD: 3 },
+        pieces: { INTERACTIVE: { HARD: 60 } },
+        bundles: { INTERACTIVE: { HARD: 3 } },
       },
     ],
   };
@@ -1127,8 +1127,8 @@ describe("an untradeable piece divides, but is owed to nobody", () => {
         quantity: 1,
         fungible: false,
         untradeable,
-        pieces: { HARD: 6 },
-        bundles: { HARD: 6 },
+        pieces: { INTERACTIVE: { HARD: 6 } },
+        bundles: { INTERACTIVE: { HARD: 6 } },
       },
     ],
   });

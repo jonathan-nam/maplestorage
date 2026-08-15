@@ -18,13 +18,15 @@ export type BossDrop = {
   // The item cannot change hands, so it never sells and no settlement can move it. It still divides
   // by count: entitled against looted is what says whose turn it is next. See isCouponDrop.
   untradeable: boolean;
-  // How many pieces this boss drops of it, by difficulty, for the count to be filled in with. Only
-  // the difficulties that drop any are here: absent means nothing to fill, not none.
-  pieces: Record<string, number>;
-  // How many equal stacks those pieces fall in, by difficulty. What a party actually picks up, so
-  // it is what makes a share ratio mean anything on screen. Absent for a difficulty nobody has
+  // How many pieces this boss drops of it, keyed by WORLD and then by difficulty. Two keys because
+  // the count really is per world and is not a restatement of perMember: Chaos Kalos gives 5 to the
+  // whole party on Interactive and 2 to EACH member on Heroic. Only the difficulties that drop any
+  // are here: absent means nothing to fill, not none.
+  pieces: Record<string, Record<string, number>>;
+  // How many equal stacks those pieces fall in, keyed the same way. What a party actually picks up,
+  // so it is what makes a share ratio mean anything on screen. Absent for a difficulty nobody has
   // counted the stacks for, which is not a claim that it falls in one.
-  bundles: Record<string, number>;
+  bundles: Record<string, Record<string, number>>;
 };
 
 // Keyed by boss key, as /api/bosses/drops returns it.

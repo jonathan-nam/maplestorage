@@ -5,6 +5,7 @@ import com.maplestorage.backend.bosses.periodOf
 import com.maplestorage.backend.bosses.periodStartFor
 import com.maplestorage.backend.db.BossClear
 import com.maplestorage.backend.db.BossDropAmount
+import com.maplestorage.backend.db.Characters
 import com.maplestorage.backend.db.DropCatalog
 import com.maplestorage.backend.db.Party
 import com.maplestorage.backend.db.PartyLoot
@@ -80,6 +81,16 @@ internal fun lootFromClear(
     val fileable = config != null && config[Party.solo] && config[Party.standing]
     if (partyId == null || difficulty == null || !fileable) return
 
+    // The world the character is in, which the guaranteed count is keyed on as well as the mode.
+    // Absent is a character that has gone, which files nothing rather than guessing a world. Looked
+    // up after the guard above, so a clear that could never file anything asks nothing of the table.
+    val world =
+        Characters
+            .selectAll()
+            .where { Characters.id eq characterId }
+            .firstOrNull()
+            ?.get(Characters.worldType) ?: return
+
     val period = periodOf(reset, on)
     val nextPeriod = periodAfter(reset, period)
     // Dated inside the period the CLEAR is for, so a clear ticked for a past week files in that week
@@ -88,7 +99,7 @@ internal fun lootFromClear(
     val droppedOn = if (on >= period && on < nextPeriod) on else period
     // WHAT FELL, always, never a share of it. One seat makes those the same number here, and the row
     // has to keep reading as what fell if the pool is ever adopted into a party. See V40.
-    guaranteedDrops(bossCatalogId, difficulty)
+    guaranteedDrops(bossCatalogId, difficulty, world)
         .filter { (dropId, pieces) -> pieces >= 1 && !alreadyFiled(partyId, dropId, period, nextPeriod) }
         .forEach { (dropId, pieces) ->
             addLoot(
@@ -182,16 +193,25 @@ private fun spokenFor(lootIds: List<Uuid>): Set<Uuid> {
     return (settled + bundled).toSet()
 }
 
-/** What this boss drops for certain at this difficulty, as (drop id -> pieces). */
+/**
+ * What this boss drops for certain at this difficulty IN THIS WORLD, as (drop id -> pieces).
+ *
+ * The world is not optional. How many drop is a per-world number, so without it every drop matches
+ * twice and the clear files each of them once per world: a boss with one guaranteed drop filed two
+ * rows, and one with four filed eight.
+ */
 private fun guaranteedDrops(
     bossCatalogId: Uuid,
     difficulty: String,
+    world: String,
 ): List<Pair<Uuid, Int>> =
     BossDropAmount
         .innerJoin(DropCatalog)
         .selectAll()
         .where {
-            (BossDropAmount.bossCatalogId eq bossCatalogId) and (BossDropAmount.difficulty eq difficulty)
+            (BossDropAmount.bossCatalogId eq bossCatalogId) and
+                (BossDropAmount.difficulty eq difficulty) and
+                (BossDropAmount.world eq world)
         }.map { it[BossDropAmount.dropCatalogId] to it[BossDropAmount.pieces] }
 
 /**

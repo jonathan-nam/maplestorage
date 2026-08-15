@@ -43,12 +43,16 @@ function catalogDrop(loot: Loot, dropTables: DropTables): BossDrop | null {
  * is holding. A boss with no amount for its difficulty is not a piece drop, so its count is left
  * exactly as it was entered.
  *
+ * Read against the party's WORLD as well as its mode, because the count is per world: a boss can
+ * drop a divisible pile on Interactive and one item each on Heroic.
+ *
  * This is DIVISIBILITY only. Whether the pieces can then be moved between members is a second
  * question, and isCouponDrop is the one that asks it.
  */
 export function isPieceDrop(loot: Loot, party: Party, dropTables: DropTables): boolean {
   if (party.difficulty === null) return false;
-  return (catalogDrop(loot, dropTables)?.pieces?.[party.difficulty] ?? 0) > 0;
+  const inWorld = catalogDrop(loot, dropTables)?.pieces?.[party.worldType];
+  return (inWorld?.[party.difficulty] ?? 0) > 0;
 }
 
 /**

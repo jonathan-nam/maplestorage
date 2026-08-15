@@ -157,7 +157,7 @@ export function PartyCard({
   // The badge, named as the party page names it: `pool` is the pool itself here.
   const poolLine = poolLabel(party, coupons);
   // The coupon this boss drops for certain at the mode this party runs, or null.
-  const guaranteed = guaranteedDrop(dropTable, party.difficulty);
+  const guaranteed = guaranteedDrop(dropTable, party.difficulty, party.worldType);
   const panelId = `party-panel-${party.id}`;
   const others = otherMembers(party);
   // A solo party has no roster, but it does have a pool, so it opens too now.

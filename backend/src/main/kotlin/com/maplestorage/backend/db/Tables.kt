@@ -368,13 +368,17 @@ object BossDropAmount : Table("boss_drop_amount") {
     val bossCatalogId = reference("boss_catalog_id", BossCatalog.id)
     val dropCatalogId = reference("drop_catalog_id", DropCatalog.id)
     val difficulty = text("difficulty")
+
+    // INTERACTIVE or HEROIC. A second, independent number per world, not a restatement of
+    // per_member. See V63__boss_drop_amount_world.sql.
+    val world = text("world")
     val pieces = integer("pieces")
 
     // How many equal whole stacks those pieces fall in, which is what a party actually picks up.
     // Null is uncounted, NOT one stack. See V41__loot_bundles.sql.
     val bundles = integer("bundles").nullable()
 
-    override val primaryKey = PrimaryKey(bossCatalogId, dropCatalogId, difficulty)
+    override val primaryKey = PrimaryKey(bossCatalogId, dropCatalogId, difficulty, world)
 }
 
 // A party's loot pool. Stores what was entered, never what was computed: the split arithmetic
