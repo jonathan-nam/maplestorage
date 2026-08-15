@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildSettlement,
+  decidedSales,
   settlementTotals,
   isEmpty,
   keptOfYours,
@@ -20,6 +21,7 @@ const M = 1_000_000;
 
 const SELF: Holder = { kind: "SELF", personId: null, characterName: null };
 const BRO: Holder = { kind: "PERSON", personId: "p-bro", characterName: null };
+const JARED: Holder = { kind: "PERSON", personId: "p-jared", characterName: null };
 const STRANGER: Holder = { kind: "CHARACTER", personId: null, characterName: "zaddy" };
 
 /** One holder's card, with only the fields the settlement reads. */
@@ -466,7 +468,13 @@ describe("the money a sale of somebody else's coupons puts on the card", () => {
       wallet([]),
       [],
       saleCredits([
-        { holder: SELF, pieces: 160, amount: 4_000 * M, shares: [{ holder: BRO, pieces: 80 }] },
+        {
+          id: "t1",
+          holder: SELF,
+          pieces: 160,
+          amount: 4_000 * M,
+          shares: [{ holder: BRO, pieces: 80 }],
+        },
       ]),
       new Map(),
       new Map([["person:p-bro", "Bro"]]),
@@ -483,7 +491,13 @@ describe("the money a sale of somebody else's coupons puts on the card", () => {
       wallet([]),
       [debt(BRO, 3_000 * M, "Ludi loan")],
       saleCredits([
-        { holder: SELF, pieces: 160, amount: 4_000 * M, shares: [{ holder: BRO, pieces: 80 }] },
+        {
+          id: "t1",
+          holder: SELF,
+          pieces: 160,
+          amount: 4_000 * M,
+          shares: [{ holder: BRO, pieces: 80 }],
+        },
       ]),
     );
     expect(rows[0]!.mesos).toBe(3_000 * M);
@@ -497,7 +511,13 @@ describe("the money a sale of somebody else's coupons puts on the card", () => {
       wallet([]),
       [debt(BRO, 3_000 * M, "Ludi loan")],
       saleCredits([
-        { holder: SELF, pieces: 160, amount: 4_000 * M, shares: [{ holder: BRO, pieces: 80 }] },
+        {
+          id: "t1",
+          holder: SELF,
+          pieces: 160,
+          amount: 4_000 * M,
+          shares: [{ holder: BRO, pieces: 80 }],
+        },
       ]),
       new Map(),
       new Map(),
@@ -517,7 +537,13 @@ describe("the money a sale of somebody else's coupons puts on the card", () => {
       wallet([]),
       [debt(BRO, 3_000 * M, "Ludi loan")],
       saleCredits([
-        { holder: SELF, pieces: 160, amount: 4_000 * M, shares: [{ holder: BRO, pieces: 80 }] },
+        {
+          id: "t1",
+          holder: SELF,
+          pieces: 160,
+          amount: 4_000 * M,
+          shares: [{ holder: BRO, pieces: 80 }],
+        },
       ]),
       new Map(),
       new Map(),
@@ -535,7 +561,13 @@ describe("the money a sale of somebody else's coupons puts on the card", () => {
       wallet([]),
       [debt(BRO, 3_000 * M, "Ludi loan")],
       saleCredits([
-        { holder: SELF, pieces: 160, amount: 4_000 * M, shares: [{ holder: BRO, pieces: 80 }] },
+        {
+          id: "t1",
+          holder: SELF,
+          pieces: 160,
+          amount: 4_000 * M,
+          shares: [{ holder: BRO, pieces: 80 }],
+        },
       ]),
       new Map(),
       new Map(),
@@ -554,7 +586,13 @@ describe("the money a sale of somebody else's coupons puts on the card", () => {
       wallet([]),
       [],
       saleCredits([
-        { holder: SELF, pieces: 100, amount: 2_500 * M, shares: [{ holder: BRO, pieces: 80 }] },
+        {
+          id: "t1",
+          holder: SELF,
+          pieces: 100,
+          amount: 2_500 * M,
+          shares: [{ holder: BRO, pieces: 80 }],
+        },
       ]),
     );
     expect(rows[0]!.holding).toBe(2_000 * M);
@@ -565,7 +603,7 @@ describe("the money a sale of somebody else's coupons puts on the card", () => {
       [],
       wallet([]),
       [],
-      saleCredits([{ holder: SELF, pieces: 160, amount: 4_000 * M }]),
+      saleCredits([{ id: "t1", holder: SELF, pieces: 160, amount: 4_000 * M }]),
     );
     expect(rows).toEqual([]);
   });
@@ -573,7 +611,7 @@ describe("the money a sale of somebody else's coupons puts on the card", () => {
   it("divides no redemption, which realized nothing to share", () => {
     // The server refuses shares on one too; this is the reader agreeing with it.
     const credits = saleCredits([
-      { holder: SELF, pieces: 80, amount: null, shares: [{ holder: BRO, pieces: 80 }] },
+      { id: "t1", holder: SELF, pieces: 80, amount: null, shares: [{ holder: BRO, pieces: 80 }] },
     ]);
     expect(credits.size).toBe(0);
   });
@@ -583,6 +621,7 @@ describe("the money a sale of somebody else's coupons puts on the card", () => {
     // back. Leaving it out settled the pieces and stated the money for them nowhere.
     const credits = saleCredits([
       {
+        id: "t1",
         holder: SELF,
         pieces: 80,
         amount: 2_000 * M,
@@ -594,7 +633,13 @@ describe("the money a sale of somebody else's coupons puts on the card", () => {
       toThem: 2_000 * M,
       toYou: 0,
       sales: [
-        { pieces: 80, mesos: 2_000 * M, lot: { pieces: 80, amount: 2_000 * M }, soldAt: null },
+        {
+          trancheId: "t1",
+          pieces: 80,
+          mesos: 2_000 * M,
+          lot: { pieces: 80, amount: 2_000 * M },
+          soldAt: null,
+        },
       ],
     });
   });
@@ -604,6 +649,7 @@ describe("the money a sale of somebody else's coupons puts on the card", () => {
     // rest of the tranche was the buyer's own to begin with.
     const credits = saleCredits([
       {
+        id: "t1",
         holder: SELF,
         pieces: 80,
         amount: 2_000 * M,
@@ -615,7 +661,13 @@ describe("the money a sale of somebody else's coupons puts on the card", () => {
       toThem: 1_000 * M,
       toYou: 0,
       sales: [
-        { pieces: 40, mesos: 1_000 * M, lot: { pieces: 80, amount: 2_000 * M }, soldAt: null },
+        {
+          trancheId: "t1",
+          pieces: 40,
+          mesos: 1_000 * M,
+          lot: { pieces: 80, amount: 2_000 * M },
+          soldAt: null,
+        },
       ],
     });
   });
@@ -623,7 +675,13 @@ describe("the money a sale of somebody else's coupons puts on the card", () => {
   it("leaves a sale between two other people alone, since settling it is not yours", () => {
     // The same treatment buildWallet gives betweenOthers. Real, and not a debt of yours either way.
     const credits = saleCredits([
-      { holder: BRO, pieces: 80, amount: 2_000 * M, shares: [{ holder: STRANGER, pieces: 80 }] },
+      {
+        id: "t1",
+        holder: BRO,
+        pieces: 80,
+        amount: 2_000 * M,
+        shares: [{ holder: STRANGER, pieces: 80 }],
+      },
     ]);
     expect(credits.size).toBe(0);
   });
@@ -744,12 +802,14 @@ describe("the money a sale of somebody else's coupons puts on the card", () => {
     // 1 of 3 pieces out of 1000 mesos. The two sides must add up to the tranche exactly, and the
     // person who typed the figure is the one who can check it.
     const credits = saleCredits([
-      { holder: SELF, pieces: 3, amount: 1_000, shares: [{ holder: BRO, pieces: 1 }] },
+      { id: "t1", holder: SELF, pieces: 3, amount: 1_000, shares: [{ holder: BRO, pieces: 1 }] },
     ]);
     expect(credits.get("person:p-bro")).toEqual({
       toThem: 333,
       toYou: 0,
-      sales: [{ pieces: 1, mesos: 333, lot: { pieces: 3, amount: 1_000 }, soldAt: null }],
+      sales: [
+        { trancheId: "t1", pieces: 1, mesos: 333, lot: { pieces: 3, amount: 1_000 }, soldAt: null },
+      ],
     });
   });
 });
@@ -890,7 +950,13 @@ describe("discharging what you owe against what they owe you", () => {
     // would be backwards. It belongs in `toComeOff` with the sign it already has, from the moment
     // somebody says it comes off his debt rather than being sent to him. See V61.
     const proceeds = saleCredits([
-      { holder: SELF, pieces: 80, amount: 800 * M, shares: [{ holder: BRO, pieces: 40 }] },
+      {
+        id: "t1",
+        holder: SELF,
+        pieces: 80,
+        amount: 800 * M,
+        shares: [{ holder: BRO, pieces: 40 }],
+      },
     ]);
     const card = (disposals: ProceedsDisposal[]) =>
       buildSettlement(
@@ -1074,7 +1140,8 @@ describe("what builds the debt, and what has come off it", () => {
 
 describe("the coupon sales behind a decision", () => {
   /** One tranche that was all theirs, which is the ordinary night. */
-  const sale = (pieces: number, mesos: number, soldAt: string): CouponSale => ({
+  const sale = (id: string, pieces: number, mesos: number, soldAt: string): CouponSale => ({
+    trancheId: id,
     pieces,
     mesos,
     lot: { pieces, amount: mesos },
@@ -1108,7 +1175,7 @@ describe("the coupon sales behind a decision", () => {
     // the row said "coupon sale" and the count was on no screen at all.
     const rows = moneyRows(
       card(
-        [sale(70, 1_298_888_850, "2026-08-14"), sale(60, 1_113_333_300, "2026-08-14")],
+        [sale("t1", 70, 1_298_888_850, "2026-08-14"), sale("t2", 60, 1_113_333_300, "2026-08-14")],
         [decided("15", 2_412_222_150)],
       ),
     );
@@ -1118,7 +1185,9 @@ describe("the coupon sales behind a decision", () => {
   it("says nothing about the parts of a decision the sales cannot account for", () => {
     // Part of a sale cannot say which coupons it was, and "70 coupons" beside 400m of a 1.3b sale is
     // a wrong number wearing an itemisation. The figure stands and the row makes no claim.
-    const rows = moneyRows(card([sale(70, 1_000 * M, "2026-08-14")], [decided("15", 400 * M)]));
+    const rows = moneyRows(
+      card([sale("t1", 70, 1_000 * M, "2026-08-14")], [decided("15", 400 * M)]),
+    );
     expect([rows.discharges[0]!.amount, rows.discharges[0]!.sales]).toEqual([400 * M, []]);
   });
 
@@ -1127,7 +1196,7 @@ describe("the coupon sales behind a decision", () => {
     // spend money you were holding. Shown the offsets alone this would name the first sale twice.
     const rows = moneyRows(
       card(
-        [sale(70, 1_000 * M, "2026-08-14"), sale(120, 2_000 * M, "2026-08-15")],
+        [sale("t1", 70, 1_000 * M, "2026-08-14"), sale("t2", 120, 2_000 * M, "2026-08-15")],
         [decided("15", 1_000 * M, "PAID"), decided("16", 2_000 * M)],
       ),
     );
@@ -1137,11 +1206,83 @@ describe("the coupon sales behind a decision", () => {
   it("stops at the decision the alignment goes, rather than guessing past it", () => {
     const rows = moneyRows(
       card(
-        [sale(70, 1_000 * M, "2026-08-14"), sale(120, 2_000 * M, "2026-08-15")],
+        [sale("t1", 70, 1_000 * M, "2026-08-14"), sale("t2", 120, 2_000 * M, "2026-08-15")],
         [decided("15", 400 * M), decided("16", 2_600 * M)],
       ),
     );
     expect(rows.discharges.map((d) => d.sales.length)).toEqual([0, 0]);
+  });
+
+  // What the Sale Ledger folds on. The same match, so a sale the Settlement card says was offset and
+  // a pill the Sale Ledger holds back are the same sale.
+  /** The sales of one person's coupons, as saleCredits hands them over. */
+  const held = (sales: CouponSale[]) =>
+    new Map([
+      ["person:p-bro", { toThem: sales.reduce((sum, s) => sum + s.mesos, 0), toYou: 0, sales }],
+    ]);
+
+  it("names the sales that are finished, and who they were finished with", () => {
+    const out = decidedSales(
+      held([
+        sale("t1", 70, 1_298_888_850, "2026-08-14"),
+        sale("t2", 60, 1_113_333_300, "2026-08-14"),
+      ]),
+      [decided("15", 2_412_222_150)],
+    );
+    expect([...out]).toEqual([
+      ["t1", new Set(["person:p-bro"])],
+      ["t2", new Set(["person:p-bro"])],
+    ]);
+  });
+
+  it("counts a payment out as finished, the money having left your hands either way", () => {
+    // OFFSET takes it off their debt and PAID sends it. Both are decisions, and a sale waiting on
+    // one is the only kind the pill is still asking about.
+    const sales = held([sale("t1", 70, 1_000 * M, "2026-08-14")]);
+    const undecided = decidedSales(sales, []);
+    const sent = decidedSales(sales, [decided("15", 1_000 * M, "PAID")]);
+    expect([undecided.size, [...sent.keys()]]).toEqual([0, ["t1"]]);
+  });
+
+  it("keeps saying so once their card is empty, which paying them out in full makes it", () => {
+    // Read off the built cards this went backwards: the last decision takes the row off the ledger
+    // entirely, and a sale nothing carries any more would come back to the Sale Ledger as pending.
+    const sales = held([sale("t1", 70, 1_000 * M, "2026-08-14")]);
+    const disposal = decided("15", 1_000 * M, "PAID");
+    expect(
+      buildSettlement([], wallet([]), [], sales, new Map(), new Map(), new Set(), new Map(), [
+        disposal,
+      ]),
+    ).toEqual([]);
+    expect([...decidedSales(sales, [disposal]).keys()]).toEqual(["t1"]);
+  });
+
+  it("names none of a decision whose sales cannot be told apart exactly", () => {
+    // The pill stays on screen. A worklist that keeps a finished row is noise; one that hides an
+    // unfinished row is a wrong number nobody can find again.
+    const out = decidedSales(held([sale("t1", 70, 1_000 * M, "2026-08-14")]), [
+      decided("15", 400 * M),
+    ]);
+    expect(out.size).toBe(0);
+  });
+
+  it("never queues one person's decisions against another's money", () => {
+    // Two piles, one decision. Spending them in one queue would have Jared's offset land on the sale
+    // of Bro's coupons and settle a debt Jared never agreed to.
+    const out = decidedSales(
+      new Map([
+        [
+          "person:p-bro",
+          { toThem: 1_000 * M, toYou: 0, sales: [sale("t1", 70, 1_000 * M, "2026-08-14")] },
+        ],
+        [
+          "person:p-jared",
+          { toThem: 1_000 * M, toYou: 0, sales: [sale("t2", 70, 1_000 * M, "2026-08-15")] },
+        ],
+      ]),
+      [{ ...decided("15", 1_000 * M), holder: JARED }],
+    );
+    expect([...out]).toEqual([["t2", new Set(["person:p-jared"])]]);
   });
 });
 

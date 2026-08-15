@@ -27,6 +27,7 @@ import { peek, put } from "@/lib/cache";
 import {
   type OffsetShare,
   buildSettlement,
+  decidedSales,
   keptOfYours,
   settlementTotals,
   shareKey,
@@ -479,11 +480,14 @@ export default function DropLogPage() {
       }
     }
   }
+  // What sales of somebody else's coupons came to. Held rather than passed inline: the Sale Ledger's
+  // fold reads the same figures, and two calls is two lists to fall out of step. See decidedSales.
+  const credits = saleCredits(tranches);
   const settlement = buildSettlement(
     ledgers,
     wallet,
     debts,
-    saleCredits(tranches),
+    credits,
     // Only what no closure has already spoken for. A payment that settled a pile is spent, and
     // counting it again takes it off the next thing entered against that person. See #350.
     receivedSinceClosing(payments, settlements),
@@ -563,6 +567,10 @@ export default function DropLogPage() {
   const pileCard = {
     heldOfYours,
     tranches: tranchesByHolder,
+    // Which sales are finished, which is the ones somebody has been paid out or offset for. The same
+    // match the Settlement Ledger's discharge rows are drawn from, so one sale cannot be settled on
+    // one screen and pending on the other. See decidedSales.
+    decided: decidedSales(credits, disposals),
     bossByKey,
     partyById,
     iconUrl: vestigeIcon,

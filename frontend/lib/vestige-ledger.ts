@@ -1055,6 +1055,12 @@ export function answeredByPair(rows: TrancheRow[]): Map<string, number> {
  * 70 of his out of a lot of 200 put different money on his card.
  */
 export type CouponSale = {
+  /**
+   * The tranche it came off, so a decision about the money can be told back to the pill that records
+   * the sale. The Sale Ledger folds a sale away once its money has been decided, and it can only know
+   * which sales those were from the one spend that matched them. See decidedSales.
+   */
+  trancheId: string;
   pieces: number;
   /** Their share of what the lot fetched. saleCredits' own figure, so the two cannot disagree. */
   mesos: number;
@@ -1098,7 +1104,7 @@ export type SaleCredit = {
  * A row where neither side is you is left out. That debt is real and it is between two other people,
  * the same case buildWallet counts as `betweenOthers` rather than putting in your totals.
  */
-export function saleCredits(rows: TrancheRow[]): Map<string, SaleCredit> {
+export function saleCredits(rows: (TrancheRow & { id: string })[]): Map<string, SaleCredit> {
   const out = new Map<string, SaleCredit>();
   const add = (key: string, side: "toThem" | "toYou", mesos: number) => {
     const seen = out.get(key) ?? { toThem: 0, toYou: 0, sales: [] };
@@ -1121,6 +1127,7 @@ export function saleCredits(rows: TrancheRow[]): Map<string, SaleCredit> {
       // kind of step the two would come to disagree over.
       if (pile === SELF_KEY)
         add(creditor, "toThem", mesos).sales.push({
+          trancheId: row.id,
           pieces: share.pieces,
           mesos,
           lot: { pieces: row.pieces, amount: row.amount },

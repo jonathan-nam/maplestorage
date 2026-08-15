@@ -8,8 +8,8 @@
 // Nothing else can hold this. Each file's own tests pin its own rule, and both passed the whole time.
 
 import { describe, expect, it } from "vitest";
-import { heldOfYoursBy, outstandingOf, queueOf } from "./ledger-fates";
-import { buildSettlement } from "./settlement";
+import { foldTranches, heldOfYoursBy, outstandingOf, queueOf } from "./ledger-fates";
+import { buildSettlement, decidedSales, moneyRows } from "./settlement";
 import {
   type Holder,
   type HolderLedger,
@@ -19,11 +19,13 @@ import {
   holderLedgers,
   keptByHolder,
   outstanding,
+  saleCredits,
   salesByHolder,
 } from "./vestige-ledger";
 import type { Wallet } from "./wallet";
 import type { Loot, PartyLootPool } from "@/types/loot";
 import type { Party, PartyMember } from "@/types/party";
+import type { ProceedsDisposal } from "@/types/vestige";
 
 const M = 1_000_000;
 const VESTIGE = "vestige-of-erion";
@@ -212,5 +214,71 @@ describe("the two ledgers agree on one night", () => {
       const listed = owing.flatMap((n) => n.transfers).reduce((sum, t) => sum + t.pieces, 0);
       expect(listed).toBe(outstandingOf(selfPile(ledgers), heldOfYoursBy(ledgers)));
     }
+  });
+});
+
+// The same pair of surfaces, over the money rather than the pieces. A sale of somebody's coupons ends
+// in two places at once: an act on their Settlement card, and a pill on the Sale Ledger that stops
+// asking. Told apart by different rules they disagreed, and the Sale Ledger's was the wrong one: it
+// folded on the sale NAMING somebody, which happens the moment it is entered, so a sale nobody had
+// decided about yet sat behind the fold beside the ones already settled.
+describe("the two ledgers agree on which sales are finished", () => {
+  /** One sale out of your own pile, all of it Bro's coupons. */
+  const tranche = (id: string, pieces: number, amount: number) => ({
+    id,
+    holder: SELF,
+    pieces,
+    amount,
+    disposition: "SOLD",
+    shares: [{ holder: BRO, pieces }],
+  });
+
+  // Jonathan's own account as he reported it: four sales, and one Offset that came to exactly the
+  // first two of them.
+  const SALES = [
+    tranche("t1", 70, 1_298_888_850),
+    tranche("t2", 60, 1_113_333_300),
+    tranche("t3", 90, 1_789_999_920),
+    tranche("t4", 14, 278_444_432),
+  ];
+  const OFFSET: ProceedsDisposal = {
+    id: "d1",
+    holder: BRO,
+    amount: 2_412_222_150,
+    kind: "OFFSET",
+    decidedAt: "2026-08-14",
+  };
+
+  const card = (disposals: ProceedsDisposal[]) =>
+    buildSettlement(
+      [],
+      NO_WALLET,
+      [],
+      saleCredits(SALES),
+      new Map(),
+      new Map(),
+      new Set([BRO_KEY]),
+      new Map(),
+      disposals,
+    )[0]!;
+
+  it("folds the sales the offset was made of, and no others", () => {
+    const { shown, folded } = foldTranches(SALES, decidedSales(saleCredits(SALES), [OFFSET]));
+    expect([folded.map((t) => t.id), shown.map((t) => t.id)]).toEqual([
+      ["t1", "t2"],
+      ["t3", "t4"],
+    ]);
+    // The two the Settlement card names inside the act. One decision, one pair of sales, two screens.
+    expect(moneyRows(card([OFFSET])).discharges[0]!.sales.map((s) => s.trancheId)).toEqual([
+      "t1",
+      "t2",
+    ]);
+  });
+
+  it("folds none of them while the money is undecided, which is what the other card says too", () => {
+    const { shown, folded } = foldTranches(SALES, decidedSales(saleCredits(SALES), []));
+    expect([shown.length, folded.length]).toEqual([4, 0]);
+    // Not an absence: every meso of it is on Bro's card as money of his you are holding.
+    expect(card([]).holding).toBe(SALES.reduce((sum, t) => sum + t.amount, 0));
   });
 });
