@@ -3,10 +3,12 @@
 import Link from "next/link";
 
 import { LootRow } from "@/components/loot-row";
+import { LootRotation } from "@/components/loot-rotation";
 import { StackAssign } from "@/components/stack-assign";
 import { StackPickup } from "@/components/stack-pickup";
 import { isPieceDrop, type PieceStatus } from "@/lib/drop-log";
 import type { StackDrop } from "@/lib/vestige-pickup";
+import type { Rotation } from "@/lib/loot-rotation";
 import type { ShareConfig } from "@/lib/vestige-stacks";
 import type { Loot, SellLootBody } from "@/types/loot";
 import type { Boss } from "@/types/boss";
@@ -60,6 +62,7 @@ export function LootList({
   bossByKey,
   pieceStatus,
   stacks,
+  rotation,
   splitElsewhere,
   couponRemovable,
   editing,
@@ -82,6 +85,14 @@ export function LootList({
    * Absent on the party's own page and on a past week, where the rows are read rather than answered.
    */
   stacks?: StackAssignment;
+  /**
+   * Whose turn it is to bend down, for a piece that cannot change hands.
+   *
+   * Absent where there is nothing to rotate, which is most of the catalog: see rotatingDrops. It is
+   * NOT the coupon split above. That one is a deal about how to divide a pile that can be handed
+   * over afterwards; this is a schedule, because these cannot.
+   */
+  rotation?: Rotation | null;
   /**
    * The standing split is being drawn somewhere else on this screen, so it is not drawn here.
    *
@@ -173,6 +184,15 @@ export function LootList({
             busy={busy ?? false}
             onSave={stacks.onSave}
           />
+        </div>
+      )}
+      {/* Whose turn it is, which is a fact about the boss and the weeks already answered for, so it
+          stands whether or not this week's piece has fallen yet. Unconditional on the rows above it
+          for that reason, unlike the split, which hangs under its own night when there is one. */}
+      {rotation && (
+        <div className="loot-config-card">
+          <h3 className="loot-group-title is-config">Loot this week</h3>
+          <LootRotation rotation={rotation} />
         </div>
       )}
     </>
