@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { rotatingDrops, rotationFor } from "./loot-rotation";
+import { rotatingDrops, rotatingDropsAt, rotationFor } from "./loot-rotation";
 import type { BossDrop, DropTables } from "@/types/drop";
 import type { Loot } from "@/types/loot";
 import type { Party, PartyMember } from "@/types/party";
@@ -158,6 +158,28 @@ describe("which drops rotate at all", () => {
     // Easy Kalos drops none, and the catalog carries no row for it rather than a zero.
     expect(rotatingDrops(party(seats, { difficulty: "EASY" }), tables(token()))).toEqual([]);
     expect(rotatingDrops(party(seats, { difficulty: null }), tables(token()))).toEqual([]);
+  });
+});
+
+describe("asking about a mode nobody is running yet", () => {
+  // What the config editor needs. It is asking about the difficulty being TYPED into the select,
+  // which is not the one the party is saved on, so it cannot go through the party at all.
+  const table = [token()];
+
+  it("answers for a mode the party is not on", () => {
+    expect(rotatingDropsAt(table, "EXTREME", "INTERACTIVE").map((d) => d.dropKey)).toEqual([TOKEN]);
+  });
+
+  it("rotates nothing on Heroic, and nothing that is instanced in both worlds", () => {
+    // Jonathan's rule, and the whole scope of the feature: pooled bosses only, so never on Heroic
+    // and never on Limbo, Baldrix or Jupiter.
+    expect(rotatingDropsAt(table, "EXTREME", "HEROIC")).toEqual([]);
+    expect(rotatingDropsAt([token({ perMember: "ALWAYS" })], "EXTREME", "INTERACTIVE")).toEqual([]);
+    expect(rotatingDropsAt([token({ perMember: "ALWAYS" })], "EXTREME", "HEROIC")).toEqual([]);
+  });
+
+  it("answers nothing with no mode typed, rather than guessing one", () => {
+    expect(rotatingDropsAt(table, "", "INTERACTIVE")).toEqual([]);
   });
 });
 

@@ -31,19 +31,33 @@ const editor = code("components", "party-config-editor.tsx");
 describe("the share boxes read the world before the difficulty", () => {
   it("takes both figures through the party's world", () => {
     expect(editor).toContain("const world = party.worldType;");
-    expect(editor).toContain(
-      'const bundlesForEdit = difficulty === "" ? undefined : vestige?.bundles?.[world]?.[difficulty];',
-    );
-    expect(editor).toContain(
-      'const total = difficulty === "" ? undefined : vestige?.pieces?.[world]?.[difficulty];',
-    );
+    expect(editor).toContain("const bundlesForEdit = dividing?.bundles?.[world]?.[difficulty];");
+    expect(editor).toContain("const total = dividing?.pieces?.[world]?.[difficulty];");
   });
 
   it("gates the boxes on those two and nothing else", () => {
-    // A third condition is what broke it. These two already require a real count at this boss, this
-    // mode and this world, so anything in front of them is a second answer to one question.
-    expect(editor).toContain("{bundlesForEdit !== undefined && total !== undefined && (");
+    // A third condition is what broke it once. These two already require a real count at this boss,
+    // this mode and this world, so anything in front of them is a second answer to one question.
+    expect(editor).toContain(
+      "const showBoxes = bundlesForEdit !== undefined && total !== undefined;",
+    );
+    expect(editor).toContain("{showBoxes && (");
     expect(editor).not.toContain("dropsVestige");
+  });
+
+  it("judges the typed boxes only where boxes are drawn", () => {
+    // A blank box is not an answer, and every box is blank when none are drawn. Ungated, this was
+    // true for every party whose boss divides nothing, so Black Mage had Save disabled for ever on
+    // a form with no boxes to fix.
+    expect(editor).toContain("const badStacks = showBoxes && halves.some((n) => n === null);");
+  });
+
+  it("passes the stored ratio back when nobody typed in the boxes", () => {
+    // The boxes cannot always SHOW the stored ratio: 2:1 over 14 pieces does not land on whole
+    // half-stacks, so they open on the even split. Deriving from that on every save turned editing
+    // a party's minutes into a silent rewrite of its deal.
+    expect(editor).toContain("stacksDirty ?");
+    expect(editor).toContain("savedShares.get(name) ?? 1");
   });
 
   it("indexes no amount map by a difficulty alone, anywhere that reads one", () => {
@@ -69,7 +83,7 @@ describe("the share boxes read the world before the difficulty", () => {
   it("still sees the code it is checking, with the comments gone", () => {
     // The stripper is the load-bearing part of this file, so it is checked rather than trusted: a
     // regex that ate everything would make every assertion above pass by matching nothing.
-    expect(editor).toContain("const vestige = drops.find((d) => d.dropKey === VESTIGE);");
+    expect(editor).toContain("const dividingAt = (mode: string): BossDrop | undefined => {");
     expect(editor).not.toContain("Do not reintroduce");
   });
 });

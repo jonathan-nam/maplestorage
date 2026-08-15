@@ -90,13 +90,22 @@ export type Rotation = {
  * fragment. Returning one would have to pick, and picking would hide the other the day that changes.
  */
 export function rotatingDrops(party: Party, dropTables: DropTables): BossDrop[] {
-  if (party.difficulty === null) return [];
-  const world = party.worldType as WorldType;
-  return (dropTables[party.bossKey] ?? []).filter(
+  return rotatingDropsAt(dropTables[party.bossKey] ?? [], party.difficulty ?? "", party.worldType);
+}
+
+/**
+ * The same question asked of a mode nobody is running yet.
+ *
+ * What the config editor needs: it is asking about the difficulty being TYPED, which is not the one
+ * the party is saved on. An empty mode is nobody having said, and rotates nothing.
+ */
+export function rotatingDropsAt(drops: BossDrop[], difficulty: string, world: string): BossDrop[] {
+  if (difficulty === "") return [];
+  return drops.filter(
     (drop) =>
       drop.untradeable &&
-      !isPerMember(drop.perMember, world) &&
-      (drop.pieces?.[world]?.[party.difficulty!] ?? 0) > 0,
+      !isPerMember(drop.perMember, world as WorldType) &&
+      (drop.pieces?.[world]?.[difficulty] ?? 0) > 0,
   );
 }
 

@@ -6,6 +6,7 @@ import { KNOWN_CHARACTERS_ID, KnownCharacters } from "@/components/known-charact
 import { RosterInputs } from "@/components/roster-inputs";
 import { apiAssetUrl } from "@/lib/api";
 import { MAX_MINUTES, parseMinutes } from "@/lib/boss-minutes";
+import { rotatingDropsAt } from "@/lib/loot-rotation";
 import { bossesWithoutConfig, standingMembers, standingParties } from "@/lib/parties";
 import {
   couponsOf,
@@ -286,10 +287,30 @@ function ConfigRow({
   // A ratio is what gets STORED, and it cannot say "four stacks and two" on its own: those stacks
   // depend on how many fell. So the boxes are filled from the ratio and the boss's stack count
   // together, and an unanswered config opens on the even split rather than on blanks. See lib/stacks.
-  const savedBundles =
-    party.difficulty === null
-      ? undefined
-      : drops.find((d) => d.dropKey === VESTIGE)?.bundles?.[party.worldType]?.[party.difficulty];
+  // Optional all the way down. lib/cache.ts hands back whatever shape the API had when this page
+  // last fetched, so a tab open across a deploy that adds a field gets a drop with no `bundles` at
+  // all, and `bundles[difficulty]` throws on the read. The world is one of those added fields, so a
+  // stale cached shape reads as nothing to divide rather than as the wrong world's pile.
+  const world = party.worldType;
+
+  /**
+   * The drop this party's split is measured in, at a given mode, or none.
+   *
+   * The coupon where the boss drops one, because that is what the boxes have always counted and the
+   * one ratio governs everything the party divides. Otherwise the Eternal piece, which is the whole
+   * reason this is a function: Chaos Kalos and every fragment mode drop something that divides and
+   * no coupon at all, so those parties had no way to set a split, while the rotation went on
+   * dividing by a ratio nobody could reach.
+   */
+  const dividingAt = (mode: string): BossDrop | undefined => {
+    if (mode === "") return undefined;
+    const coupon = drops.find((d) => d.dropKey === VESTIGE);
+    if ((coupon?.pieces?.[world]?.[mode] ?? 0) > 0) return coupon;
+    return rotatingDropsAt(drops, mode, world)[0];
+  };
+
+  const savedMode = party.difficulty ?? "";
+  const savedBundles = dividingAt(savedMode)?.bundles?.[world]?.[savedMode];
   const savedStacks = (bundleCount: number | undefined): Record<string, string> => {
     const seats = party.seats.filter((s) => !s.guest);
     if (bundleCount === undefined || seats.length === 0) return {};
@@ -302,15 +323,27 @@ function ConfigRow({
   };
   const [entitled, setEntitled] = useState<Record<string, string>>(savedStacks(savedBundles));
   const parsed = parseMinutes(minutes);
+  /**
+   * Whether anybody has typed in the boxes.
+   *
+   * What decides whether the save DERIVES the ratio or passes the stored one through. A ratio that
+   * does not land on whole half-stacks cannot be shown in these boxes at all, so they open on the
+   * even split instead: 2:1 over 14 pieces opens at 7 and 7. Deriving from that on every save meant
+   * editing a party's MINUTES quietly rewrote its 2:1 into 1:1. Rare on coupons, where six stacks
+   * absorb most ratios; the ordinary case on pieces.
+   */
+  const stacksDirty = stacksKey(entitled) !== stacksKey(savedStacks(savedBundles));
   const dirty =
     members.join(" ") !== saved.join(" ") ||
     difficulty !== savedDifficulty ||
     minutes !== savedMinutes ||
     looter !== savedLooter ||
-    stacksKey(entitled) !== stacksKey(savedStacks(savedBundles));
+    stacksDirty;
   // The roster as it is being edited, not as it was saved, so somebody added in this same edit can
   // be picked and a renamed seat keeps whatever it was designated for.
   const rosterNames = [ownName, ...members.map((m) => m.trim())].filter((name) => name !== "");
+  /** What each seat is on now, by name, for a save that must not restate a deal it cannot show. */
+  const savedShares = new Map(party.seats.filter((s) => !s.guest).map((s) => [s.name, s.shares]));
   const attributed = standingMembers(party).filter((m) => m.personName);
 
   /**
@@ -320,18 +353,17 @@ function ConfigRow({
    * config with no mode chosen, a boss that drops no coupons, or a mode nobody has counted the stacks
    * for get nothing rather than a number standing in for one. No stack count, no boxes.
    */
-  const vestige = drops.find((d) => d.dropKey === VESTIGE);
-  // Optional all the way down, not just on `vestige`. lib/cache.ts hands back whatever shape the
-  // API had when this page last fetched, so a tab open across a deploy that adds a field gets a
-  // drop with no `bundles` at all, and `vestige?.bundles[difficulty]` throws on the read. The world
-  // is one of those added fields, so a stale cached shape reads as nothing to divide rather than as
-  // the wrong world's pile.
-  const world = party.worldType;
-  const bundlesForEdit = difficulty === "" ? undefined : vestige?.bundles?.[world]?.[difficulty];
-  const total = difficulty === "" ? undefined : vestige?.pieces?.[world]?.[difficulty];
+  const dividing = dividingAt(difficulty);
+  const bundlesForEdit = dividing?.bundles?.[world]?.[difficulty];
+  const total = dividing?.pieces?.[world]?.[difficulty];
+  /** Whether there is anything to divide here, which is the only state the boxes are drawn in. */
+  const showBoxes = bundlesForEdit !== undefined && total !== undefined;
   /** The typed entitlements, in halves, in roster order. Null anywhere one is not an answer. */
   const halves = rosterNames.map((name) => parseStacks(entitled[name] ?? ""));
-  const badStacks = halves.some((n) => n === null);
+  // Only where the boxes are ON SCREEN. A blank box is not an answer, and every box is blank when
+  // none are drawn, so this was true for every party whose boss divides nothing: Black Mage and
+  // friends had Save disabled for ever, on a form with no boxes to fix.
+  const badStacks = showBoxes && halves.some((n) => n === null);
   /**
    * Whether the boxes come to the stacks that fell.
    *
@@ -341,6 +373,10 @@ function ConfigRow({
    */
   const addsUp =
     bundlesForEdit === undefined || (!badStacks && stacksAddUp(halves as number[], bundlesForEdit));
+  /** Coupons per stack, which is 1 for every piece but Hard Star's. */
+  const stackSize = showBoxes ? total! / bundlesForEdit! : 1;
+  /** What the boxes are counting. A piece cannot change hands; a coupon can. */
+  const unit = dividing?.untradeable ? "pieces" : "coupons";
 
   return (
     <article className="config-row">
@@ -404,10 +440,15 @@ function ConfigRow({
           to undefined is legal TypeScript, so the compiler said nothing and the block vanished from
           every party with a mode set. Do not reintroduce a second answer to a question these two
           already answer. */}
-      {bundlesForEdit !== undefined && total !== undefined && (
+      {showBoxes && (
         <div className="config-vestige">
           <span className="config-share-drop">
-            {`${total} in ${bundlesForEdit} stacks of ${total / bundlesForEdit}`}
+            {/* The stack size only where it is a fact worth carrying. Most pieces fall one to a
+                stack, and "5 in 5 stacks of 1" says the same thing three times; Hard Star's 18 in 6
+                stacks of 3 is the number the boxes are actually measured in. */}
+            {stackSize > 1
+              ? `${total} in ${bundlesForEdit} stacks of ${stackSize}`
+              : `${total} ${unit}`}
           </span>
           <div className="config-shares">
             {rosterNames.map((name, i) => (
@@ -424,9 +465,9 @@ function ConfigRow({
                 />
                 {/* What the stacks come to in coupons, which is the number the ledger states debts
                     in. Only where the box reads: half a typed answer is not a count. */}
-                {halves[i] !== null && (
+                {halves[i] !== null && stackSize > 1 && (
                   <span className="config-share-stacks">
-                    {`${couponsOf(halves[i]!, total, bundlesForEdit)} coupons`}
+                    {`${couponsOf(halves[i]!, total!, bundlesForEdit!)} ${unit}`}
                   </span>
                 )}
               </label>
@@ -471,12 +512,20 @@ function ConfigRow({
                 // Stacks in, RATIO out: what is stored weights the money split too, so it goes in
                 // lowest terms. Lossless while the boxes add up, which is the only state that saves:
                 // the stacks come back as bundles * shares / total. See lib/stacks.
-                Object.fromEntries(
-                  rosterNames.map((name, i) => [
-                    name,
-                    sharesFromStacks(halves.map((n) => n ?? 0))[i] ?? 1,
-                  ]),
-                ),
+                // Derived from the boxes only where somebody typed in them. Untouched, the
+                // stored share is passed straight back, because the boxes cannot always SHOW it:
+                // see stacksDirty. A name the party has never had takes one share, which is what
+                // the server would have defaulted it to anyway.
+                stacksDirty
+                  ? Object.fromEntries(
+                      rosterNames.map((name, i) => [
+                        name,
+                        sharesFromStacks(halves.map((n) => n ?? 0))[i] ?? 1,
+                      ]),
+                    )
+                  : Object.fromEntries(
+                      rosterNames.map((name) => [name, savedShares.get(name) ?? 1]),
+                    ),
               )
             }
           >
