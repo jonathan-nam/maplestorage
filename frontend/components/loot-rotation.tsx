@@ -1,21 +1,39 @@
+"use client";
+
+import { apiAssetUrl } from "@/lib/api";
 import type { Rotation } from "@/lib/loot-rotation";
 
 // Whose turn it is this week, for pieces that cannot change hands.
 //
-// A name and a number each, and nothing else. A coupon block can afford to say "180 in 6 stacks of
-// 30" because the stack size does not follow from the count; here one token is one piece and the
-// number IS the instruction. The rotation explains itself by being on screen two weeks running.
+// The DROP heads it, with its own art, the same shape a pool row uses. It read the other way round
+// first, headed "Loot this week" with the drop named underneath, and that put the instruction above
+// the thing it was about: on a boss row among other drops, what this block is for is the drop.
+//
+// Nothing here is new markup. The head is loot-row's, and the numbers are the coupon config's, so a
+// count per member reads the same wherever it appears and there is no CSS to keep in step.
 //
 // The accumulated balance is deliberately NOT drawn. It is fractional by construction, since a
-// week's exact share of five pieces between six people is five sixths, and rounding it to "2
-// behind" would put a figure on screen that nobody told us. It orders this list and stays there.
+// week's exact share of five pieces between six people is five sixths, and rounding it to "2 behind"
+// would put a figure on screen that nobody told us. It orders this list and stays there.
 
 export function LootRotation({ rotation }: { rotation: Rotation }) {
   return (
-    <div className="config-vestige">
-      <span className="config-share-drop">
-        {rotation.quantity} {rotation.name}
-      </span>
+    <div className="loot-config-card">
+      <header className="loot-head">
+        {rotation.iconUrl ? (
+          <img className="loot-icon" src={apiAssetUrl(rotation.iconUrl)} alt="" />
+        ) : (
+          // No official art, which is every piece the pinned dataset predates. An empty frame keeps
+          // the block aligned with the ones that have it. See catalog/drops.yaml.
+          <span className="loot-icon" aria-hidden="true" />
+        )}
+        <div className="loot-title">
+          <span className="loot-name">{rotation.name}</span>
+          {/* The verb earns its place. Without it these read as what already fell, which is what the
+              rows above the block are, and the two numbers would be indistinguishable. */}
+          <span className="loot-meta">Loot {rotation.quantity} this week</span>
+        </div>
+      </header>
       <div className="config-shares">
         {rotation.holders.map((holder) => (
           <span className="config-share" key={holder.key}>
