@@ -326,10 +326,12 @@ ON CONFLICT (boss_key) DO UPDATE SET
 def _token_counts(boss_key: str, row: dict, modes_of: dict[str, list[str]]) -> dict:
     """`count:` on a table entry: how many tokens fall, per difficulty and per WORLD.
 
-    Kept apart from `pieces` because the two say different things about stacks. A vestige count
-    states its bundling separately, since a party can only divide those a whole stack at a time. One
-    token is one bundle, always, so writing that out would only be a number to get wrong: it is
-    derived here.
+    Kept apart from `pieces` because a token count is usually its own bundling: one token is one
+    bundle, so the drop divides down to the single piece and the count says so on its own.
+
+    USUALLY, not always. Hard Malefic Star drops 18 in 6 stacks of 3, so a bundle count can be
+    written out where it differs, and then it is what the party can actually divide by: 6 stacks
+    between 4 people is not 4 and a half pieces each, it is stacks that cannot be cut.
 
     A bare count claims the two worlds agree. It is a claim and not a default: Limbo earns it, Kalos
     does not, since Chaos Kalos gives 5 to the whole party on Interactive and 2 to each member on
@@ -359,7 +361,19 @@ def _token_counts(boss_key: str, row: dict, modes_of: dict[str, list[str]]) -> d
             per_world = {"INTERACTIVE": amount["interactive"], "HEROIC": amount["heroic"]}
         else:
             per_world = {world: amount for world in COUNTED_WORLDS}
-        for world, total in per_world.items():
+        for world, count in per_world.items():
+            # A bare number is a count whose bundling IS the count. A mapping states the two apart,
+            # for the drop that falls in stacks bigger than one.
+            if isinstance(count, dict):
+                unknown = sorted(set(count) - {"total", "bundles"})
+                if unknown:
+                    sys.exit(
+                        f"drop table for {boss_key!r} {difficulty} {world}: takes total and "
+                        f"bundles, got {unknown}"
+                    )
+                total, bundles = count.get("total"), count.get("bundles")
+            else:
+                total, bundles = count, count
             if not isinstance(total, int) or total < 0:
                 sys.exit(
                     f"drop table for {boss_key!r} {difficulty} {world}: count must be a whole "
@@ -367,9 +381,19 @@ def _token_counts(boss_key: str, row: dict, modes_of: dict[str, list[str]]) -> d
                 )
             if total == 0:
                 continue
-            # One token is one bundle, so the drop divides down to the single token and a party can
-            # hand the odd one to whoever is next. Derived, never written.
-            counts.setdefault(difficulty, {})[world] = {"total": total, "bundles": total}
+            if not isinstance(bundles, int) or bundles < 1:
+                sys.exit(
+                    f"drop table for {boss_key!r} {difficulty} {world}: bundles must be a positive "
+                    f"integer, got {bundles!r}"
+                )
+            # Stacks are equal and whole, so a total that does not divide by them means one of the
+            # two numbers is wrong. The same check `pieces` gets, and the reason to write both.
+            if total % bundles:
+                sys.exit(
+                    f"drop table for {boss_key!r} {difficulty} {world}: {total} pieces do not "
+                    f"divide into {bundles} bundles"
+                )
+            counts.setdefault(difficulty, {})[world] = {"total": total, "bundles": bundles}
     return counts
 
 

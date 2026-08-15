@@ -111,6 +111,20 @@ const takesOf = (r: Rotated) => Object.fromEntries(r.holders.map((h) => [h.name,
 const behindOf = (r: Rotated) => Object.fromEntries(r.holders.map((h) => [h.name, h.behind]));
 const totalTaken = (r: Rotated) => r.holders.reduce((sum, h) => sum + h.takes, 0);
 
+/**
+ * A rotation on a drop that falls one piece to a stack, which is all of them but Hard Malefic Star.
+ *
+ * The bundle count defaults to the piece count for exactly that reason. Where it does not, the tests
+ * pass it, because that is the whole difference.
+ */
+const rotate = (
+  at: Party,
+  loot: Loot[],
+  drop: BossDrop,
+  quantity: number,
+  bundles: number = quantity,
+) => rotationFor(at, loot, drop, quantity, bundles);
+
 /** A sixth, which is the unit a five-across-six rotation moves in. */
 const SIXTH = 1 / 6;
 
@@ -153,7 +167,7 @@ describe("a rotation nobody has answered for yet", () => {
   const seats = [mine("m1", "Husky"), theirs("m2", "Rune"), theirs("m3", "Free")];
 
   it("carries nobody, and still says what an even week looks like", () => {
-    const r = rotationFor(party(seats), [], token(), 5)!;
+    const r = rotate(party(seats), [], token(), 5)!;
 
     expect(r.weeks).toBe(0);
     expect(behindOf(r)).toEqual({ you: 0, Rune: 0, Free: 0 });
@@ -162,7 +176,7 @@ describe("a rotation nobody has answered for yet", () => {
   });
 
   it("ignores a week the drop fell in that nobody filled the boxes for", () => {
-    const r = rotationFor(party(seats), [night("l1", 5, {})], token(), 5)!;
+    const r = rotate(party(seats), [night("l1", 5, {})], token(), 5)!;
 
     expect(r.weeks).toBe(0);
     expect(behindOf(r)).toEqual({ you: 0, Rune: 0, Free: 0 });
@@ -183,7 +197,7 @@ describe("the balance carries the fraction, which is what makes it turn", () => 
   it("shows a zero take, because somebody's turn is to miss one", () => {
     // Chaos Kalos on Interactive gives 5 to the whole party. Six people, so one of them gets none,
     // every single week. That is the line the screen exists to draw.
-    const r = rotationFor(party(six), [], token(), 5)!;
+    const r = rotate(party(six), [], token(), 5)!;
 
     expect(r.even).toBe(false);
     expect(Object.values(takesOf(r)).filter((n) => n === 0)).toHaveLength(1);
@@ -196,7 +210,7 @@ describe("the balance carries the fraction, which is what makes it turn", () => 
     // entitled to one every week and the sixth to none, nobody would ever be behind, and the
     // rotation would never move. Against 5/6 each, the one who got none is five sixths behind.
     const week1 = night("l1", 5, { m1: 1, m2: 1, m3: 1, m4: 1, m5: 1 }, ALL);
-    const r = rotationFor(party(six), [week1], token(), 5)!;
+    const r = rotate(party(six), [week1], token(), 5)!;
 
     expect(r.weeks).toBe(1);
     expect(behindOf(r).Pam).toBeCloseTo(5 * SIXTH);
@@ -214,7 +228,7 @@ describe("the balance carries the fraction, which is what makes it turn", () => 
     const missed: string[] = [];
 
     for (let week = 0; week < 6; week += 1) {
-      const r = rotationFor(seats, rows, token(), 5)!;
+      const r = rotate(seats, rows, token(), 5)!;
       missed.push(r.holders.find((h) => h.takes === 0)!.name);
       const by: Record<string, number> = {};
       for (const seat of six) {
@@ -238,7 +252,7 @@ describe("the balance carries the fraction, which is what makes it turn", () => 
       missed("l3", "2026-08-06"),
     ];
 
-    const r = rotationFor(party(six), rows, token(), 5)!;
+    const r = rotate(party(six), rows, token(), 5)!;
 
     expect(r.weeks).toBe(3);
     expect(behindOf(r).Pam).toBeCloseTo(3 * 5 * SIXTH);
@@ -248,7 +262,7 @@ describe("the balance carries the fraction, which is what makes it turn", () => 
   });
 
   it("counts somebody who took more than their share as ahead", () => {
-    const r = rotationFor(party(six), [night("l1", 5, { m1: 5 }, ALL)], token(), 5)!;
+    const r = rotate(party(six), [night("l1", 5, { m1: 5 }, ALL)], token(), 5)!;
 
     expect(behindOf(r).you).toBeCloseTo(5 * SIXTH - 5);
     expect(behindOf(r).Pam).toBeCloseTo(5 * SIXTH);
@@ -258,7 +272,7 @@ describe("the balance carries the fraction, which is what makes it turn", () => 
 
   it("balances to zero across the party, so nothing is invented or lost", () => {
     const rows = [night("l1", 5, { m1: 3, m2: 2 }, ALL), night("l2", 5, { m3: 5 }, ALL)];
-    const r = rotationFor(party(six), rows, token(), 5)!;
+    const r = rotate(party(six), rows, token(), 5)!;
 
     expect(r.holders.reduce((sum, h) => sum + h.behind, 0)).toBeCloseTo(0);
   });
@@ -273,7 +287,7 @@ describe("what a rotation measures itself against", () => {
       { ...theirs("m2", "Rune", "p-rune"), name: "RuneAlt" },
       theirs("m3", "Rune", "p-rune"),
     ];
-    const r = rotationFor(party(seats), [], token(), 6)!;
+    const r = rotate(party(seats), [], token(), 6)!;
 
     expect(r.holders).toHaveLength(2);
     // Six pieces, one share against two, so four are theirs and two are yours.
@@ -287,7 +301,7 @@ describe("what a rotation measures itself against", () => {
     const nowADuo = party([all[0]!, all[1]!], { seats: all });
     const july = night("l1", 3, { m1: 2, m2: 1 }, ["m1", "m2", "m3"]);
 
-    const r = rotationFor(nowADuo, [july], token(), 3)!;
+    const r = rotate(nowADuo, [july], token(), 3)!;
 
     // One each across the three who ran, so taking two of them is one ahead.
     expect(behindOf(r).you).toBeCloseTo(-1);
@@ -296,7 +310,7 @@ describe("what a rotation measures itself against", () => {
 
   it("weighs the turns by the shares the party agreed", () => {
     const seats = [{ ...mine("m1", "Husky"), shares: 2 }, theirs("m2", "Rune")];
-    const r = rotationFor(party(seats), [], token(), 6)!;
+    const r = rotate(party(seats), [], token(), 6)!;
 
     expect(takesOf(r)).toEqual({ you: 4, Rune: 2 });
     expect(r.even).toBe(true);
@@ -308,10 +322,72 @@ describe("what a rotation measures itself against", () => {
     const six = ["m1", "m2", "m3", "m4", "m5", "m6"].map((id, i) =>
       i === 0 ? mine(id, "Husky") : theirs(id, `P${i}`),
     );
-    const r = rotationFor(party(six), [], token(), 18)!;
+    const r = rotate(party(six), [], token(), 18)!;
 
     expect(r.even).toBe(true);
     expect(new Set(Object.values(takesOf(r)))).toEqual(new Set([3]));
+  });
+});
+
+describe("a piece that falls in stacks of more than one", () => {
+  // Hard Malefic Star: 18 pieces in 6 stacks of 3, and the only one in the catalog like it. A stack
+  // is the smallest thing anybody can hand over, so the rotation has to move stacks and report
+  // pieces. It shipped moving single pieces, which for four people meant telling them to take 5, 5,
+  // 4 and 4 of something that will not cut.
+  const trio = () =>
+    party([mine("m1", "Husky"), theirs("m2", "Rune"), theirs("m3", "Free")], {
+      bossKey: "malefic-star",
+      difficulty: "HARD",
+    });
+  const quartet = () =>
+    party(
+      [mine("m1", "Husky"), theirs("m2", "Rune"), theirs("m3", "Free"), theirs("m4", "Creed")],
+      { bossKey: "malefic-star", difficulty: "HARD" },
+    );
+
+  it("hands out whole stacks, counted in pieces", () => {
+    const r = rotate(trio(), [], token(), 18, 6)!;
+
+    // Two stacks each, which is six pieces each. Every figure is a multiple of the stack size.
+    expect(takesOf(r)).toEqual({ you: 6, Rune: 6, Free: 6 });
+    expect(r.even).toBe(true);
+  });
+
+  it("never proposes a part of a stack", () => {
+    const r = rotate(quartet(), [], token(), 18, 6)!;
+
+    // Six stacks across four is 1.5 each, so two of them take two stacks and two take one. In
+    // pieces that is 6, 6, 3, 3, and never 5, 5, 4, 4.
+    expect(Object.values(takesOf(r)).every((n) => n % 3 === 0)).toBe(true);
+    expect(Object.values(takesOf(r)).reduce((a, b) => a + b, 0)).toBe(18);
+    expect(r.even).toBe(false);
+  });
+
+  it("asks whether the STACKS divide, not the pieces", () => {
+    // 18 pieces across four looks divisible if you only count pieces. It is the six stacks that
+    // decide, and they do not.
+    expect(rotate(quartet(), [], token(), 18, 6)!.even).toBe(false);
+    // And the same eighteen falling one to a stack would divide, which is the contrast.
+    expect(rotate(quartet(), [], token(), 18, 18)!.even).toBe(false);
+    expect(rotate(quartet(), [], token(), 8, 8)!.even).toBe(true);
+  });
+
+  it("reads a recorded pickup in stacks, and the balance in pieces", () => {
+    // `bundlesBy` counts STACKS. One stack of Hard Star is three pieces, so a member who took one
+    // stack of six is four stacks short, which is twelve pieces and not four.
+    const week = night("l1", 18, { m1: 5, m2: 1 }, ["m1", "m2", "m3"], { bundles: 6 });
+    const r = rotate(trio(), [week], token(), 18, 6)!;
+
+    expect(r.weeks).toBe(1);
+    expect(behindOf(r).you).toBeCloseTo(6 - 15);
+    expect(behindOf(r).Rune).toBeCloseTo(6 - 3);
+    expect(behindOf(r).Free).toBeCloseTo(6);
+  });
+
+  it("refuses a count that does not divide into its stacks", () => {
+    // One of the two numbers is wrong, and guessing which would put a fraction of a stack on screen.
+    expect(rotate(trio(), [], token(), 18, 5)).toBeNull();
+    expect(rotate(trio(), [], token(), 18, 0)).toBeNull();
   });
 });
 
@@ -322,13 +398,13 @@ describe("what a rotation refuses to read", () => {
     // bundles null is uncounted, NOT one stack, so what a pickup of "2" means is unknown. Reading it
     // as 2 pieces on a drop that fell in stacks of 30 would be out by a factor of thirty.
     const unreadable = night("l1", 5, { m1: 3, m2: 2 }, ["m1", "m2"], { bundles: null });
-    expect(rotationFor(party(seats), [unreadable], token(), 5)!.weeks).toBe(0);
+    expect(rotate(party(seats), [unreadable], token(), 5)!.weeks).toBe(0);
   });
 
   it("skips a week naming a seat the party cannot resolve", () => {
     // Silently dropping the row would shrink what was looted and invent a shortfall out of nothing.
     const ghost = night("l1", 5, { m1: 3, gone: 2 }, ["m1", "m2"]);
-    expect(rotationFor(party(seats), [ghost], token(), 5)!.weeks).toBe(0);
+    expect(rotate(party(seats), [ghost], token(), 5)!.weeks).toBe(0);
   });
 
   it("counts only its own drop, so fragments never mix with tokens", () => {
@@ -338,11 +414,11 @@ describe("what a rotation refuses to read", () => {
     const fragments = night("l1", 3, { m1: 3 }, ["m1", "m2"], {
       dropKey: "kalos-residual-determination-fragment",
     });
-    expect(rotationFor(party(seats), [fragments], token(), 5)!.weeks).toBe(0);
+    expect(rotate(party(seats), [fragments], token(), 5)!.weeks).toBe(0);
   });
 
   it("has nothing to say with no roster, or a mode that drops none", () => {
-    expect(rotationFor(party([]), [], token(), 5)).toBeNull();
-    expect(rotationFor(party(seats), [], token(), 0)).toBeNull();
+    expect(rotate(party([]), [], token(), 5)).toBeNull();
+    expect(rotate(party(seats), [], token(), 0)).toBeNull();
   });
 });

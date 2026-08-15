@@ -72,8 +72,16 @@
 #         CHAOS:   { interactive: 5,  heroic: 2 }
 #         EXTREME: { interactive: 14, heroic: 3 }
 #
-# `count` is `pieces` for a drop where one token is one bundle, so the bundling is derived instead
-# of written: there is no number there to get wrong. It is also per WORLD, because the two are
+# `count` is `pieces` for a drop that usually falls one token to a stack, so the bundling is derived
+# from the count instead of written twice. Where it does NOT, write both:
+#
+#         HARD: { interactive: { total: 18, bundles: 6 }, heroic: 2 }
+#
+# which is Hard Malefic Star, the one piece in the file that falls in stacks of more than one. The
+# bundle count is what a party can actually divide by, so it is not decoration: 18 in 6 stacks
+# between four people is stacks that cannot be cut, not four and a half pieces each.
+#
+# It is also per WORLD, because the two are
 # genuinely independent. Chaos Kalos gives 5 to the whole party on Interactive and 2 to EACH member
 # on Heroic, and Extreme 14 against 3, so neither world can be worked out from the other. A bare
 # count says they agree, which is a claim; a 0 says the boss drops none at that mode, which is not
@@ -368,11 +376,13 @@ tables:
     - key: vestige-of-erion
       pieces:
         HARD: { total: 90, bundles: 3 }
+    # The one piece that does NOT fall one to a stack. Hard Star gives 18 in 6 stacks of 3, so a
+    # party divides it three at a time and 18 between four people is not four and a half each.
     - item: blissful-fantasy-shard
       per_member: HEROIC
       untradeable: true
       count:
-        HARD: { interactive: 18, heroic: 2 }
+        HARD: { interactive: { total: 18, bundles: 6 }, heroic: 2 }
     - key: blissful-fantasy-fragment
       count:
         NORMAL: { interactive: 6, heroic: 2 }

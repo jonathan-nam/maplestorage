@@ -141,9 +141,16 @@ export function rotationFor(
   loot: Loot[],
   drop: BossDrop,
   quantity: number,
+  bundles: number,
 ): Rotation | null {
   const folded = foldSeats(party.members);
   if (folded.length === 0 || quantity <= 0) return null;
+  // A stack is the smallest thing anybody can hand over, so the rotation deals in STACKS and reports
+  // pieces. Usually the two are the same, since a token falls one to a stack. Hard Malefic Star does
+  // not: 18 in 6 stacks of 3, and telling four people to take 5, 5, 4 and 4 pieces of it would be an
+  // instruction nobody can carry out.
+  if (bundles <= 0 || quantity % bundles !== 0) return null;
+  const size = quantity / bundles;
 
   // Only the weeks somebody answered for. A week with no arrangement recorded contributes nothing
   // rather than an assumed even split: the party can see its own empty boxes, and guessing there
@@ -182,13 +189,15 @@ export function rotationFor(
     weeks += 1;
   }
 
-  // The same suggestion the coupons get: floor of each share, and the spares to whoever is furthest
-  // behind, so the odd piece rotates on its own instead of landing on one person every week.
-  const suggested = suggestArrangement(quantity, party.members, behind);
+  // The same suggestion the coupons get: floor of each share, and the spare STACKS to whoever is
+  // furthest behind, so the odd one rotates on its own instead of landing on one person every week.
+  const suggested = suggestArrangement(bundles, party.members, behind);
   const takesByHolder = new Map<string, number>();
   for (const seat of party.members) {
     const key = holderKey(holderOf(seat));
-    takesByHolder.set(key, (takesByHolder.get(key) ?? 0) + (suggested.get(seat.id) ?? 0));
+    // Reported in PIECES, which is the unit somebody counts in their inventory. Stacks are what the
+    // rotation moves; pieces are what it is moving.
+    takesByHolder.set(key, (takesByHolder.get(key) ?? 0) + (suggested.get(seat.id) ?? 0) * size);
   }
 
   return {
@@ -196,7 +205,9 @@ export function rotationFor(
     name: drop.name,
     iconUrl: drop.iconUrl,
     quantity,
-    even: dividesEvenly(quantity, folded),
+    // Against the STACKS, which is what has to divide. 18 pieces between three people is six each
+    // and looks fine on the pieces alone; it is the six stacks that decide whether they can.
+    even: dividesEvenly(bundles, folded),
     weeks,
     holders: folded.map((f) => ({
       key: f.key,
