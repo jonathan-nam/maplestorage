@@ -69,3 +69,28 @@ describe("the Settled chip", () => {
     expect(rule?.[1]).toContain("margin-left: auto");
   });
 });
+
+// A drop row names who it was run with, so its meta line grew by up to three names. The row is a
+// nowrap flex, and a column that sizes to its content does not give any of it back: the status chip
+// went off the right rather than the text getting narrower. Three rules, none of which works alone.
+describe("the drop row's meta line", () => {
+  it("takes the spare width, so there is something to shrink", () => {
+    const rule = css.match(/^\.droplog-title \{([^}]*)\}/m);
+    expect(rule?.[1]).toContain("flex: 1");
+  });
+
+  it("may go narrower than its own text, which a flex item otherwise refuses to", () => {
+    const rule = css.match(/^\.droplog-title \{([^}]*)\}/m);
+    expect(rule?.[1]).toContain("min-width: 0");
+  });
+
+  it("clips to one line rather than pushing the row wider", () => {
+    // `display: block` is part of the clip, not a tidy-up: `.loot-meta` is inline-flex, and
+    // text-overflow has nothing to act on in a box with no text of its own.
+    const rule = css.match(/^\.droplog-title \.loot-meta \{([^}]*)\}/m);
+    expect(rule?.[1]).toContain("display: block");
+    expect(rule?.[1]).toContain("white-space: nowrap");
+    expect(rule?.[1]).toContain("overflow: hidden");
+    expect(rule?.[1]).toContain("text-overflow: ellipsis");
+  });
+});

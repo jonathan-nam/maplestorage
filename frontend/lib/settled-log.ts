@@ -284,8 +284,22 @@ export type SettledTotals = {
    * this repo exists to prevent. Same total, same reason, as the Drop Log's. See drop-log.ts.
    */
   pooled: number;
+  /**
+   * Your share of the above, which is the one figure here that is yours rather than the party's.
+   *
+   * The Drop Ledger totalled this per month and no longer states a meso, sale figures being this
+   * view's. Off the same rows as `pooled`, so the two cannot come to different sets of sales.
+   */
+  yourTake: number;
   /** Mesos written off closing the nights. A decision, so it is said rather than absorbed. */
   writtenOff: number;
+  /**
+   * Sales whose split names a seat that has left its party, so no figure can be read off them.
+   *
+   * In neither total above, and counted here rather than left out: an absence nothing says is the
+   * silent wrong number. It was the Drop Ledger's note while that page carried the totals.
+   */
+  unreadable: number;
 };
 
 export function settledTotals(rows: SettledRecord[]): SettledTotals {
@@ -294,6 +308,10 @@ export function settledTotals(rows: SettledRecord[]): SettledTotals {
     sales: rows.filter((r) => r.kind === "MONEY" && r.takenBy === null).length,
     taken: rows.filter((r) => r.takenBy !== null).length,
     pooled: rows.reduce((sum, r) => sum + (r.sale?.pooled ?? 0), 0),
+    yourTake: rows.reduce((sum, r) => sum + (r.sale?.yourTake ?? 0), 0),
     writtenOff: rows.reduce((sum, r) => sum + r.writtenOff, 0),
+    // A sale that HAS a price and no split behind it. `pooled` is null exactly when the seat that
+    // sold it has left, which is what makes the share unreadable. See drop-log.ts.
+    unreadable: rows.filter((r) => r.sale !== null && r.sale.pooled === null).length,
   };
 }

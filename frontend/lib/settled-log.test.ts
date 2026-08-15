@@ -279,6 +279,31 @@ describe("the totals over what is finished", () => {
     const rows = buildSettledLog(logOf([night(), night({ id: "n2" })], two), two, NAMES);
     expect(settledTotals(rows).writtenOff).toBe(900);
   });
+
+  it("totals your own share of it, which the Drop Ledger used to state per month", () => {
+    // Your side of the 9.5b there was to split, which is not half: you sold it, and splitOf pays the
+    // seller for that. The Drop Ledger states no meso now, so this is the only place the figure is,
+    // and it comes off the rows drawn under it rather than off a second reading.
+    const one = buildSettledLog(logOf([drop()]));
+    expect([one[0]!.sale!.yourTake, settledTotals(one).yourTake]).toEqual([
+      4_628_205_128, 4_628_205_128,
+    ]);
+    const two = buildSettledLog(logOf([drop(), drop({ id: "l2" })]));
+    expect(settledTotals(two).yourTake).toBe(2 * 4_628_205_128);
+  });
+
+  it("counts a split it cannot read, whose money is in neither total", () => {
+    // A sale naming a seat that has left its party. Counted rather than left out: an absence
+    // nothing says is the silent wrong number this app exists to prevent.
+    const rows = buildSettledLog(logOf([drop({ sellerMemberId: "gone" })]));
+    const totals = settledTotals(rows);
+    expect([totals.unreadable, totals.sales]).toEqual([1, 1]);
+    expect([totals.pooled, totals.yourTake]).toEqual([0, 0]);
+  });
+
+  it("counts no unreadable split where every sale divides", () => {
+    expect(settledTotals(buildSettledLog(logOf([drop()]))).unreadable).toBe(0);
+  });
 });
 
 // A settlement usually closes several nights at once, so drawn flat it is a row per night saying the
