@@ -1073,9 +1073,10 @@ function DropRow({
               "characters",
             )
           : null,
-        // Everybody across the runs, deduped by foldNames. A fold of eleven Limbos is the same
-        // three people ten times over, and a count of them is what a wider row would cost.
-        ranWith(line.entries.flatMap((e) => e.ranWith)),
+        // Who it was run with is NOT here. A roster belongs to one night, and a fold spans several,
+        // so the union of them names a party that never ran: eleven Limbos over three months read
+        // as one line with everybody who has ever been in it. The runs under the chevron each say
+        // their own, which is the only place it is a true statement.
       ].filter(Boolean)
     : [
         boss?.name,
@@ -1084,6 +1085,8 @@ function DropRow({
         // The count on this row is your share, and this is who is holding it until they hand it
         // over. Without it the row reads as pieces you already have.
         entry.owedBy ? `${entry.owedBy} looted` : null,
+        // This row IS the run when it stands alone: one night, one roster, and no chevron under it
+        // to say so instead.
         ranWith(entry.ranWith),
       ].filter(Boolean);
 
