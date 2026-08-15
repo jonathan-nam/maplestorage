@@ -340,31 +340,35 @@ describe("guaranteedDrop", () => {
     worlds: null,
     quantity: 1,
     fungible: false,
-    pieces: { EXTREME: 180 },
-    bundles: { EXTREME: 6 },
+    untradeable: false,
+    pieces: { INTERACTIVE: { EXTREME: 180 } },
+    bundles: { INTERACTIVE: { EXTREME: 6 } },
   };
   const grindstone = {
     ...coupon,
     dropKey: "grindstone-of-faith",
     name: "Grindstone",
     fungible: true,
+    untradeable: false,
     pieces: {},
     bundles: {},
   };
 
   it("names the drop this boss gives for certain at the mode being run", () => {
-    expect(guaranteedDrop([grindstone, coupon], "EXTREME")?.dropKey).toBe("vestige-of-erion");
+    expect(guaranteedDrop([grindstone, coupon], "EXTREME", "INTERACTIVE")?.dropKey).toBe(
+      "vestige-of-erion",
+    );
   });
 
   it("says nothing at a difficulty that drops none of it", () => {
     // Extreme Kalos gives 180 and Chaos Kalos none, so the marker is not a property of the boss
     // alone.
-    expect(guaranteedDrop([grindstone, coupon], "CHAOS")).toBeNull();
+    expect(guaranteedDrop([grindstone, coupon], "CHAOS", "INTERACTIVE")).toBeNull();
   });
 
   it("says nothing when nobody has recorded a difficulty, or there is no table", () => {
-    expect(guaranteedDrop([grindstone, coupon], null)).toBeNull();
-    expect(guaranteedDrop(undefined, "EXTREME")).toBeNull();
+    expect(guaranteedDrop([grindstone, coupon], null, "INTERACTIVE")).toBeNull();
+    expect(guaranteedDrop(undefined, "EXTREME", "INTERACTIVE")).toBeNull();
   });
 
   // Which bosses the routine list asks a mode for. A boss whose table carries an amount at some mode

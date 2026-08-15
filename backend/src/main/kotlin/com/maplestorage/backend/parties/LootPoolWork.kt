@@ -1,9 +1,11 @@
 package com.maplestorage.backend.parties
 
 import com.maplestorage.backend.db.BossDropAmount
+import com.maplestorage.backend.db.Characters
 import com.maplestorage.backend.db.Party
 import com.maplestorage.backend.db.PartyLoot
 import org.jetbrains.exposed.v1.core.JoinType
+import org.jetbrains.exposed.v1.core.alias
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.inList
@@ -21,20 +23,27 @@ import kotlin.uuid.Uuid
 // one is said in COUPONS, on the party row and on the Drop Log, so counting the row as well would
 // be the same fact twice. Mirrors isOutstanding in frontend/lib/drop-log.ts.
 
+/** This join's own character, so it cannot collide with a caller's. See LootQueries.amountWorld. */
+private val amountWorld = Characters.alias("amount_world")
+
 /**
- * The drops in these parties that come in pieces, at the mode each party runs.
+ * The drops in these parties that come in pieces, at the mode each party runs and in its world.
  *
- * Per (boss, difficulty), so a party with no mode recorded matches no amount: nothing is claimed
- * about its drops and they are counted the ordinary way.
+ * Per (boss, difficulty, world), so a party with no mode recorded matches no amount: nothing is
+ * claimed about its drops and they are counted the ordinary way.
  */
 internal fun pieceLootIds(partyIds: List<Uuid>): Set<Uuid> {
     if (partyIds.isEmpty()) return emptySet()
     return PartyLoot
         .join(Party, JoinType.INNER, PartyLoot.partyId, Party.id)
+        // Through the character for the world, which the amount is also keyed on, and aliased for the
+        // same reason as in lootWithCatalog: a caller may already have Characters in its own FROM.
+        .join(amountWorld, JoinType.INNER, Party.characterId, amountWorld[Characters.id])
         .join(BossDropAmount, JoinType.INNER) {
             (BossDropAmount.bossCatalogId eq PartyLoot.bossCatalogId) and
                 (BossDropAmount.dropCatalogId eq PartyLoot.dropCatalogId) and
-                (BossDropAmount.difficulty eq Party.difficulty)
+                (BossDropAmount.difficulty eq Party.difficulty) and
+                (BossDropAmount.world eq amountWorld[Characters.worldType])
         }.selectAll()
         .where { PartyLoot.partyId inList partyIds }
         .map { it[PartyLoot.id] }

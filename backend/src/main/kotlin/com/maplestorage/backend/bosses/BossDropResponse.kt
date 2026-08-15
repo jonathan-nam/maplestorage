@@ -33,20 +33,32 @@ data class BossDropResponse(
      */
     val fungible: Boolean = false,
     /**
-     * How many pieces this boss drops of it, by difficulty, for the count to be filled in with.
+     * The item cannot change hands, so it never sells and no settlement can move it.
+     *
+     * Divisibility is untouched: a stack of these still divides by count, and entitled against
+     * looted is what says whose turn it is next. What it removes is the DEBT, since a member short
+     * of their share cannot be handed the difference.
+     */
+    val untradeable: Boolean = false,
+    /**
+     * How many pieces this boss drops of it, keyed by WORLD and then by difficulty.
+     *
+     * Two keys because the count is genuinely per world, not a restatement of `perMember`: Chaos
+     * Kalos gives 5 pieces to the whole party on Interactive and 2 to each member on Heroic. World
+     * outermost because a caller knows which world it is asking about before it knows the mode.
      *
      * Only the difficulties that drop any are in here. An absent one means nothing to fill, which is
      * not the same as none: a pre-filled zero would be a claim the drop table does not make.
      */
-    val pieces: Map<String, Int> = emptyMap(),
+    val pieces: Map<String, Map<String, Int>> = emptyMap(),
     /**
-     * How many equal stacks those pieces fall in, by difficulty.
+     * How many equal stacks those pieces fall in, keyed the same way.
      *
      * What a party actually picks up, so it is what makes a share ratio mean anything on screen:
      * two against one on Extreme Kalos is four stacks of thirty against two. Absent for a
      * difficulty nobody has counted the stacks for, which is not a claim that it falls in one.
      */
-    val bundles: Map<String, Int> = emptyMap(),
+    val bundles: Map<String, Map<String, Int>> = emptyMap(),
 )
 
 /**
@@ -66,16 +78,23 @@ internal fun dropTables(): Map<String, List<BossDropResponse>> {
             .groupBy({ it[BossCatalog.bossKey] to it[DropCatalog.dropKey] }) { it }
     val piecesFor =
         amounts.mapValues { (_, rows) ->
-            rows.associate { it[BossDropAmount.difficulty] to it[BossDropAmount.pieces] }
+            rows.groupBy { it[BossDropAmount.world] }.mapValues { (_, inWorld) ->
+                inWorld.associate { it[BossDropAmount.difficulty] to it[BossDropAmount.pieces] }
+            }
         }
     // Only the difficulties whose stacks have been counted, so an uncounted one is absent rather
-    // than present as one stack.
+    // than present as one stack. A world left with nothing counted drops out entirely, for the same
+    // reason: an empty map there would read as a world whose stacks are known and are none.
     val bundlesFor =
         amounts.mapValues { (_, rows) ->
             rows
-                .mapNotNull { row ->
-                    row[BossDropAmount.bundles]?.let { row[BossDropAmount.difficulty] to it }
-                }.toMap()
+                .groupBy { it[BossDropAmount.world] }
+                .mapValues { (_, inWorld) ->
+                    inWorld
+                        .mapNotNull { row ->
+                            row[BossDropAmount.bundles]?.let { row[BossDropAmount.difficulty] to it }
+                        }.toMap()
+                }.filterValues { it.isNotEmpty() }
         }
 
     return BossDrop
@@ -93,6 +112,7 @@ internal fun dropTables(): Map<String, List<BossDropResponse>> {
                 worlds = row[DropCatalog.worlds],
                 quantity = row[DropCatalog.quantity],
                 fungible = row[DropCatalog.fungible],
+                untradeable = row[DropCatalog.untradeable],
                 pieces = piecesFor[row[BossCatalog.bossKey] to row[DropCatalog.dropKey]].orEmpty(),
                 bundles = bundlesFor[row[BossCatalog.bossKey] to row[DropCatalog.dropKey]].orEmpty(),
             )

@@ -17,22 +17,80 @@ import kotlin.test.assertNull
 /**
  * How many pieces each boss drops, against a real Postgres.
  *
- * These eleven numbers were verified by hand against the game, one difficulty at a time, and they
- * fill the count when a drop is logged. That makes them the kind of number this repo is most afraid
- * of: one nobody re-checks because the box was already filled in. So they are pinned here, and a
- * build.py change that drops or renames a row fails rather than quietly filling nothing.
+ * Every number here was verified by hand against the game, one difficulty at a time, and they fill
+ * the count when a drop is logged. That makes them the kind this repo is most afraid of: a number
+ * nobody re-checks because the box was already filled in. So the WHOLE grid is pinned, keyed by
+ * (boss, drop, difficulty, world), and compared as one map. A missing row fails as loudly as a
+ * wrong one, which a spot check of a few figures would not.
+ *
+ * The world is not decoration. Chaos Kalos gives 5 pieces to the whole party on Interactive and 2
+ * to EACH member on Heroic, and Extreme 14 against 3, so neither world can be derived from the
+ * other. Extreme Kaling lands on 18 either way, which is exactly the coincidence that would let a
+ * wrong derivation rule look correct.
  */
 class BossDropAmountSeedTest {
+    /** boss -> drop -> difficulty -> world -> pieces. Mirrors catalog/drops.yaml, by hand. */
     private val expected =
         mapOf(
-            "chosen-seren" to mapOf("EXTREME" to 30),
-            "kalos-the-guardian" to mapOf("EXTREME" to 180),
-            "kaling" to mapOf("HARD" to 60, "EXTREME" to 480),
-            "limbo" to mapOf("HARD" to 60),
-            "baldrix" to mapOf("HARD" to 120),
-            "malefic-star" to mapOf("HARD" to 90),
-            "first-adversary" to mapOf("HARD" to 30, "EXTREME" to 240),
-            "jupiter" to mapOf("NORMAL" to 45, "HARD" to 360),
+            // --- Vestige coupons. One number each, read in whichever world the party is in, which
+            // is what this file has always claimed. Written to both worlds rather than reinterpreted.
+            "chosen-seren" to
+                mapOf("vestige-of-erion" to mapOf("EXTREME" to bothWorlds(30))),
+            "limbo" to
+                mapOf(
+                    "vestige-of-erion" to mapOf("HARD" to bothWorlds(60)),
+                    // Instanced in both worlds AND the same count in both, which is why it is a bare
+                    // number in the manifest where Kalos needs one per world. No fragment tier:
+                    // Normal drops the piece itself.
+                    "distorted-ambition" to
+                        mapOf("NORMAL" to bothWorlds(1), "HARD" to bothWorlds(2)),
+                ),
+            "kalos-the-guardian" to
+                mapOf(
+                    "vestige-of-erion" to mapOf("EXTREME" to bothWorlds(180)),
+                    "kalos-token" to
+                        mapOf("CHAOS" to perWorld(5, 2), "EXTREME" to perWorld(14, 3)),
+                    "kalos-residual-determination-fragment" to
+                        mapOf("NORMAL" to perWorld(3, 2)),
+                ),
+            "kaling" to
+                mapOf(
+                    "vestige-of-erion" to
+                        mapOf("HARD" to bothWorlds(60), "EXTREME" to bothWorlds(480)),
+                    "ferocious-beast-ring" to
+                        mapOf("HARD" to perWorld(7, 2), "EXTREME" to perWorld(18, 3)),
+                    // Easy still drops one here, where Easy Kalos drops nothing at all. The two
+                    // ladders are not one rule, so neither may be copied onto the other.
+                    "ferocious-entanglement-ring-fragment" to
+                        mapOf("EASY" to bothWorlds(1), "NORMAL" to perWorld(5, 2)),
+                ),
+            "first-adversary" to
+                mapOf(
+                    "vestige-of-erion" to
+                        mapOf("HARD" to bothWorlds(30), "EXTREME" to bothWorlds(240)),
+                    "echo-ancient-resolve" to
+                        mapOf("HARD" to perWorld(6, 2), "EXTREME" to perWorld(16, 3)),
+                    "whisper-ancient-resolve" to mapOf("NORMAL" to perWorld(4, 2)),
+                ),
+            "malefic-star" to
+                mapOf(
+                    "vestige-of-erion" to mapOf("HARD" to bothWorlds(90)),
+                    "blissful-fantasy-shard" to mapOf("HARD" to perWorld(18, 2)),
+                    "blissful-fantasy-fragment" to mapOf("NORMAL" to perWorld(6, 2)),
+                ),
+            "baldrix" to
+                mapOf(
+                    "vestige-of-erion" to mapOf("HARD" to bothWorlds(120)),
+                    "trace-eternal-loyalty" to
+                        mapOf("NORMAL" to bothWorlds(1), "HARD" to bothWorlds(2)),
+                ),
+            "jupiter" to
+                mapOf(
+                    "vestige-of-erion" to
+                        mapOf("NORMAL" to bothWorlds(45), "HARD" to bothWorlds(360)),
+                    "lingering-twisted-desire" to
+                        mapOf("NORMAL" to bothWorlds(1), "HARD" to bothWorlds(2)),
+                ),
         )
 
     @BeforeTest
@@ -59,24 +117,103 @@ class BossDropAmountSeedTest {
                     .innerJoin(BossCatalog)
                     .innerJoin(DropCatalog)
                     .selectAll()
-                    .groupBy({ it[BossCatalog.bossKey] }) {
-                        it[BossDropAmount.difficulty] to it[BossDropAmount.pieces]
-                    }.mapValues { (_, pairs) -> pairs.toMap() }
+                    .map {
+                        Row(
+                            boss = it[BossCatalog.bossKey],
+                            drop = it[DropCatalog.dropKey],
+                            difficulty = it[BossDropAmount.difficulty],
+                            world = it[BossDropAmount.world],
+                            pieces = it[BossDropAmount.pieces],
+                        )
+                    }
             }
-        assertEquals(expected, seeded, "the seeded amounts and catalog/drops.yaml disagree")
+        val actual =
+            seeded
+                .groupBy { it.boss }
+                .mapValues { (_, ofBoss) ->
+                    ofBoss.groupBy { it.drop }.mapValues { (_, ofDrop) ->
+                        ofDrop.groupBy { it.difficulty }.mapValues { (_, ofMode) ->
+                            ofMode.associate { it.world to it.pieces }
+                        }
+                    }
+                }
+        assertEquals(expected, actual, "the seeded amounts and catalog/drops.yaml disagree")
     }
 
     @Test
-    fun `the drop table carries them, which is what fills the count`() {
+    fun `a difficulty that drops none has no row at all`() {
+        // Easy Kalos and Easy First Adversary drop no pieces, which catalog/drops.yaml states as a
+        // 0. It reaches the database as an ABSENT row, not a zero: nothing to fill is what an empty
+        // box already says, and a pre-filled zero would be a claim the drop table does not make.
+        //
+        // Pinned rather than left to the grid above, because "no row" is the fact that would rot
+        // silently: an Easy row appearing later reads as a boss that started dropping pieces.
+        val kalos = transaction { dropTables()["kalos-the-guardian"] }.orEmpty()
+        val token = kalos.single { it.dropKey == "kalos-token" }
+
+        assertNull(token.pieces["INTERACTIVE"]?.get("EASY"))
+        assertNull(token.pieces["HEROIC"]?.get("EASY"))
+        // And the mode above it is there, so the absence above is the count and not a broken read.
+        assertEquals(5, token.pieces["INTERACTIVE"]?.get("CHAOS"))
+    }
+
+    @Test
+    fun `the drop table carries them per world, which is what fills the count`() {
         val kalos = transaction { dropTables()["kalos-the-guardian"] }.orEmpty()
         val vestige = kalos.single { it.dropKey == "vestige-of-erion" }
-        assertEquals(mapOf("EXTREME" to 180), vestige.pieces)
+        assertEquals(mapOf("EXTREME" to 180), vestige.pieces["INTERACTIVE"])
+        assertEquals(mapOf("EXTREME" to 180), vestige.pieces["HEROIC"])
 
         // A difficulty that drops none is ABSENT rather than zero, so the box fills nothing instead
         // of claiming the boss drops none at Chaos.
-        assertNull(vestige.pieces["CHAOS"])
+        assertNull(vestige.pieces["INTERACTIVE"]?.get("CHAOS"))
 
         // And a drop with no amounts at all is untouched by the join, rather than losing its row.
         assertEquals(emptyMap(), kalos.single { it.dropKey == "grindstone-of-life" }.pieces)
+    }
+
+    @Test
+    fun `an Eternal piece is untradeable and a coupon is not`() {
+        // What keeps a piece out of the tranche ledger and out of any settlement. Seeded from the
+        // manifest, so this fails if an `item:` entry loses the flag. See V62.
+        val kalos = transaction { dropTables()["kalos-the-guardian"] }.orEmpty()
+
+        assertEquals(true, kalos.single { it.dropKey == "kalos-token" }.untradeable)
+        assertEquals(
+            true,
+            kalos.single { it.dropKey == "kalos-residual-determination-fragment" }.untradeable,
+        )
+        assertEquals(false, kalos.single { it.dropKey == "vestige-of-erion" }.untradeable)
+    }
+
+    @Test
+    fun `one token is one bundle, so a piece drop divides down to the single token`() {
+        // Derived by build.py rather than written, which is why it is checked here: a party that
+        // cannot divide 5 pieces six ways hands the odd one to whoever is next, and that is only
+        // possible because no stack has to move whole.
+        val kalos = transaction { dropTables()["kalos-the-guardian"] }.orEmpty()
+        val token = kalos.single { it.dropKey == "kalos-token" }
+
+        assertEquals(token.pieces["INTERACTIVE"], token.bundles["INTERACTIVE"])
+        assertEquals(token.pieces["HEROIC"], token.bundles["HEROIC"])
+    }
+
+    private data class Row(
+        val boss: String,
+        val drop: String,
+        val difficulty: String,
+        val world: String,
+        val pieces: Int,
+    )
+
+    private companion object {
+        /** A count the manifest states once, so both worlds carry it. */
+        fun bothWorlds(pieces: Int) = mapOf("INTERACTIVE" to pieces, "HEROIC" to pieces)
+
+        /** Two independent counts. Interactive first, matching the manifest's own order. */
+        fun perWorld(
+            interactive: Int,
+            heroic: Int,
+        ) = mapOf("INTERACTIVE" to interactive, "HEROIC" to heroic)
     }
 }

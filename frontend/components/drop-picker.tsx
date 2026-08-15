@@ -149,6 +149,7 @@ export function DropPicker({
             const count = defaultQuantity(
               drops.find((d) => d.dropKey === picked),
               difficulty,
+              worldType,
             );
             setQuantity(count);
             // The stack boxes open on the same suggestion the recorded ones do, and clear with any

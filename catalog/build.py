@@ -102,6 +102,9 @@ DROP_ICONS = ROOT / "backend" / "src" / "main" / "resources" / "seed-assets" / "
 DROP_SQL_OUT = ROOT / "backend" / "src" / "main" / "resources" / "db" / "migration" / "R__drop_catalog.sql"
 DROP_PER_MEMBER = {"ALWAYS", "HEROIC"}
 DROP_WORLDS = {"INTERACTIVE", "HEROIC"}
+# The worlds a COUNT can differ between, which is not the same axis as DROP_WORLDS: that one says
+# where a drop exists at all. See V63__boss_drop_amount_world.sql.
+COUNTED_WORLDS = ["INTERACTIVE", "HEROIC"]
 
 # The display icons are the official item sprites from maplestory.io, keyed by Nexon item id.
 # `icon_id` in items.yaml pins the one a human validated against the in-game art. The version is
@@ -320,11 +323,135 @@ ON CONFLICT (boss_key) DO UPDATE SET
 """
 
 
-def load_drops(bosses: list[dict]) -> tuple[list[dict], dict[str, list[str]]]:
-    """The drop manifest, validated against the boss catalog it keys on."""
+def _token_counts(boss_key: str, row: dict, modes_of: dict[str, list[str]]) -> dict:
+    """`count:` on a table entry: how many tokens fall, per difficulty and per WORLD.
+
+    Kept apart from `pieces` because the two say different things about stacks. A vestige count
+    states its bundling separately, since a party can only divide those a whole stack at a time. One
+    token is one bundle, always, so writing that out would only be a number to get wrong: it is
+    derived here.
+
+    A bare count claims the two worlds agree. It is a claim and not a default: Limbo earns it, Kalos
+    does not, since Chaos Kalos gives 5 to the whole party on Interactive and 2 to each member on
+    Heroic.
+
+    Zero says the boss drops none at that difficulty, which is worth writing down and is NOT the
+    same as leaving the difficulty out (nobody has counted it). Neither reaches the database, since
+    an absent row is already what fills nothing, and boss_drop_amount refuses a zero for that
+    reason. The difference is kept here, for the human reading the manifest.
+    """
+    counts: dict[str, dict] = {}
+    for difficulty, amount in (row.get("count") or {}).items():
+        if difficulty not in modes_of.get(boss_key, []):
+            sys.exit(f"drop table for {boss_key!r}: {difficulty!r} is not one of its difficulties")
+        if isinstance(amount, dict):
+            unknown = sorted(set(amount) - {"interactive", "heroic"})
+            if unknown:
+                sys.exit(
+                    f"drop table for {boss_key!r} {difficulty}: count takes interactive and heroic, "
+                    f"got {unknown}"
+                )
+            if len(amount) != 2:
+                sys.exit(
+                    f"drop table for {boss_key!r} {difficulty}: a count that differs by world needs "
+                    f"both worlds, or a bare number to say they agree"
+                )
+            per_world = {"INTERACTIVE": amount["interactive"], "HEROIC": amount["heroic"]}
+        else:
+            per_world = {world: amount for world in COUNTED_WORLDS}
+        for world, total in per_world.items():
+            if not isinstance(total, int) or total < 0:
+                sys.exit(
+                    f"drop table for {boss_key!r} {difficulty} {world}: count must be a whole "
+                    f"number of tokens, got {total!r}"
+                )
+            if total == 0:
+                continue
+            # One token is one bundle, so the drop divides down to the single token and a party can
+            # hand the odd one to whoever is next. Derived, never written.
+            counts.setdefault(difficulty, {})[world] = {"total": total, "bundles": total}
+    return counts
+
+
+def _item_drops(
+    tables: dict, items: list[dict], bosses: list[dict], drop_keys: set[str]
+) -> list[dict]:
+    """drop_catalog rows generated from an items.yaml entry, so a token is described in ONE place.
+
+    A redemption token is already an item: it has a name, an icon and a vision template. Typing any
+    of those into this file a second time is the four-places-one-truth drift items.yaml exists to
+    end, so a table entry names the item and the row is generated from it.
+
+    `per_member` and `untradeable` come off the TABLE ENTRY rather than the item, because they are
+    facts about the drop and not about the thing sitting in an inventory.
+    """
+    item_by_key = {it["key"]: it for it in items}
+    boss_of_name = {b["name"]: b["key"] for b in bosses}
+    out: dict[str, dict] = {}
+
+    for boss_key, entries in tables.items():
+        for entry in entries:
+            if not isinstance(entry, dict) or "item" not in entry:
+                continue
+            key = entry["item"]
+            if "key" in entry:
+                sys.exit(f"drop table for {boss_key!r}: {key!r} names both item and key, pick one")
+            item = item_by_key.get(key)
+            if item is None:
+                sys.exit(f"drop table for {boss_key!r}: no item {key!r} in catalog/items.yaml")
+            if item.get("category") != "REDEMPTION_TOKEN":
+                sys.exit(
+                    f"drop table for {boss_key!r}: {key!r} is a {item.get('category')}, and only a "
+                    f"REDEMPTION_TOKEN is collected off a boss"
+                )
+            # The item already names its boss. Two answers to that is the drift this reference
+            # exists to remove, so they have to agree rather than one quietly winning.
+            if boss_of_name.get(item.get("boss") or "") != boss_key:
+                sys.exit(
+                    f"drop table for {boss_key!r}: item {key!r} says its boss is "
+                    f"{item.get('boss')!r}, which is a different boss"
+                )
+            if key in drop_keys:
+                sys.exit(
+                    f"drop table for {boss_key!r}: {key!r} is a drop in this file as well, which "
+                    f"would be two rows for one item"
+                )
+            if key in out:
+                sys.exit(
+                    f"item {key!r} is referenced by two boss tables, and one drop_catalog row "
+                    f"cannot carry two per_member answers"
+                )
+            row = {
+                "key": key,
+                "name": item["name"],
+                "generated": True,
+                "per_member": entry.get("per_member"),
+                "untradeable": entry.get("untradeable", False),
+            }
+            # The official sprite where the item has one, so the drop and the inventory draw the
+            # same picture from the same id. Where it does not (an item newer than the pinned
+            # dataset), the item's hand-cut art is copied across instead: still one source, because
+            # there is only ever one file and this end of it is generated. See sync_item_art.
+            if item.get("icon_id") is not None:
+                row["icon_id"] = item["icon_id"]
+                if item.get("icon_version") is not None:
+                    row["icon_version"] = item["icon_version"]
+            else:
+                row["art"] = "item"
+            out[key] = row
+    return list(out.values())
+
+
+def load_drops(
+    bosses: list[dict], items: list[dict]
+) -> tuple[list[dict], dict[str, list[dict]]]:
+    """The drop manifest, validated against the boss and item catalogs it keys on."""
     data = load_yaml(DROP_MANIFEST)
-    drops = data["drops"]
+    drops = list(data["drops"])
     tables = data["tables"]
+
+    # Resolved before the checks below, so a generated row is held to every rule a written one is.
+    drops += _item_drops(tables, items, bosses, {d["key"] for d in drops})
 
     seen: set[str] = set()
     for d in drops:
@@ -355,8 +482,17 @@ def load_drops(bosses: list[dict]) -> tuple[list[dict], dict[str, list[str]]]:
         # Both flags on one drop is a manifest that contradicts itself.
         if fungible and per_member is not None:
             sys.exit(f"{key}: fungible and per_member cannot both be set, a per-member drop is not pooled")
+        untradeable = d.get("untradeable", False)
+        if not isinstance(untradeable, bool):
+            sys.exit(f"{key}: untradeable must be true or absent, got {untradeable!r}")
+        # A lot is a thing you sell. A drop that cannot change hands has no lot, no going rate, and
+        # no queue to file a sale against, so the pair is a manifest contradicting itself.
+        if untradeable and fungible:
+            sys.exit(f"{key}: untradeable and fungible cannot both be set, an untradeable drop is never sold")
         art = d.get("art")
-        if art is not None and art != "cut":
+        # 'item' is not writable here: it is what _item_drops sets on a row it generated, meaning
+        # the picture is copied from the item's own icon.
+        if art is not None and not (art == "cut" or (art == "item" and d.get("generated"))):
             sys.exit(f"{key}: art may only be 'cut', for a picture the mirror does not carry, got {art!r}")
         if art == "cut" and icon_id is not None:
             sys.exit(f"{key}: art 'cut' and an icon_id are two sources for one picture, pick one")
@@ -372,6 +508,10 @@ def load_drops(bosses: list[dict]) -> tuple[list[dict], dict[str, list[str]]]:
         # A bare key is the ordinary entry. A mapping carries what varies per (boss, difficulty),
         # which so far is only how many pieces drop.
         rows = [{"key": e} if isinstance(e, str) else dict(e) for e in entries]
+        # An `item:` entry is keyed by the item it names, resolved above into a drop of that key.
+        for row in rows:
+            if "item" in row:
+                row["key"] = row.pop("item")
         keys = [r.get("key") for r in rows]
         for key in keys:
             if key not in seen:
@@ -379,6 +519,14 @@ def load_drops(bosses: list[dict]) -> tuple[list[dict], dict[str, list[str]]]:
         if len(set(keys)) != len(keys):
             sys.exit(f"drop table for {boss_key!r}: lists the same drop twice")
         for row in rows:
+            if "pieces" in row and "count" in row:
+                sys.exit(
+                    f"drop table for {boss_key!r} {row['key']}: pieces and count are two spellings "
+                    f"of one number, pick one"
+                )
+            if "count" in row:
+                row["pieces"] = _token_counts(boss_key, row, modes_of)
+                continue
             pieces = row.get("pieces") or {}
             if not isinstance(pieces, dict):
                 sys.exit(f"drop table for {boss_key!r}: pieces must map a difficulty to a count")
@@ -423,7 +571,12 @@ def load_drops(bosses: list[dict]) -> tuple[list[dict], dict[str, list[str]]]:
                             f"drop table for {boss_key!r} {difficulty}: {total} pieces do not "
                             f"divide into {bundles} bundles"
                         )
-                counts[difficulty] = {"total": total, "bundles": bundles}
+                # One number, stated once and read in whichever world the party is in. That is what
+                # this file has always claimed for a vestige count, so it is written to both worlds
+                # rather than reinterpreted as one of them. See V63.
+                counts[difficulty] = {
+                    world: {"total": total, "bundles": bundles} for world in COUNTED_WORLDS
+                }
             if counts:
                 row["pieces"] = counts
         normalised[boss_key] = rows
@@ -449,7 +602,8 @@ def drop_sql(drops: list[dict], tables: dict[str, list[str]]) -> str:
         f"    ({q(d['key'])}, {q(d['name'])}, "
         f"{q(d['key'] + '.png') if has_art(d) else 'NULL'}, "
         f"{opt(d.get('per_member'))}, {opt(d.get('worlds'))}, {d.get('quantity', 1)}, "
-        f"{'TRUE' if d.get('fungible', False) else 'FALSE'}, {i})"
+        f"{'TRUE' if d.get('fungible', False) else 'FALSE'}, "
+        f"{'TRUE' if d.get('untradeable', False) else 'FALSE'}, {i})"
         for i, d in enumerate(drops)
     )
     pairs = ",\n".join(
@@ -460,19 +614,20 @@ def drop_sql(drops: list[dict], tables: dict[str, list[str]]) -> str:
     # NULL bundles is a drop nobody has counted the stacks for. Not one stack: the column is read to
     # decide whether a party could divide the drop at all, and a wrong one there invents a debt.
     amounts = ",\n".join(
-        f"    ({q(boss_key)}, {q(row['key'])}, {q(difficulty)}, {amount['total']}, "
+        f"    ({q(boss_key)}, {q(row['key'])}, {q(difficulty)}, {q(world)}, {amount['total']}, "
         f"{amount['bundles'] if amount['bundles'] is not None else 'NULL'})"
         for boss_key, rows in tables.items()
         for row in rows
-        for difficulty, amount in (row.get("pieces") or {}).items()
+        for difficulty, by_world in (row.get("pieces") or {}).items()
+        for world, amount in by_world.items()
     )
     amount_sql = (
         f"""
-INSERT INTO boss_drop_amount (boss_catalog_id, drop_catalog_id, difficulty, pieces, bundles)
-SELECT b.id, d.id, v.difficulty, v.pieces, v.bundles
+INSERT INTO boss_drop_amount (boss_catalog_id, drop_catalog_id, difficulty, world, pieces, bundles)
+SELECT b.id, d.id, v.difficulty, v.world, v.pieces, v.bundles
 FROM (VALUES
 {amounts}
-) AS v (boss_key, drop_key, difficulty, pieces, bundles)
+) AS v (boss_key, drop_key, difficulty, world, pieces, bundles)
 JOIN boss_catalog b ON b.boss_key = v.boss_key
 JOIN drop_catalog d ON d.drop_key = v.drop_key;
 """
@@ -486,12 +641,12 @@ JOIN drop_catalog d ON d.drop_key = v.drop_key;
 -- upserts by drop_key and keeps an existing row's id, which party_loot references. boss_drop is
 -- rebuilt outright, so a drop removed from a boss's table really leaves it.
 
-INSERT INTO drop_catalog (id, drop_key, name, icon_ref_key, per_member, worlds, quantity, fungible, sort_order)
+INSERT INTO drop_catalog (id, drop_key, name, icon_ref_key, per_member, worlds, quantity, fungible, untradeable, sort_order)
 SELECT COALESCE(existing.id, gen_random_uuid()), v.drop_key, v.name, v.icon_ref_key, v.per_member,
-       v.worlds, v.quantity, v.fungible, v.sort_order
+       v.worlds, v.quantity, v.fungible, v.untradeable, v.sort_order
 FROM (VALUES
 {rows}
-) AS v (drop_key, name, icon_ref_key, per_member, worlds, quantity, fungible, sort_order)
+) AS v (drop_key, name, icon_ref_key, per_member, worlds, quantity, fungible, untradeable, sort_order)
 LEFT JOIN drop_catalog existing ON existing.drop_key = v.drop_key
 ON CONFLICT (drop_key) DO UPDATE SET
     name         = EXCLUDED.name,
@@ -500,6 +655,7 @@ ON CONFLICT (drop_key) DO UPDATE SET
     worlds     = EXCLUDED.worlds,
     quantity   = EXCLUDED.quantity,
     fungible   = EXCLUDED.fungible,
+    untradeable = EXCLUDED.untradeable,
     sort_order = EXCLUDED.sort_order;
 
 DELETE FROM boss_drop;
@@ -746,8 +902,33 @@ def has_art(drop: dict) -> bool:
     A hand cut (`art: cut`) is for an item the pinned dataset does not carry. The mirror is the
     default and stays it; this is the escape hatch for a drop the game has and it does not, and it
     names the same seed-assets file an icon_id would have.
+
+    'item' is the third source: a drop generated from an items.yaml entry whose own art is hand-cut,
+    copied across by sync_item_art so the two ends cannot drift.
     """
-    return drop.get("icon_id") is not None or drop.get("art") == "cut"
+    return drop.get("icon_id") is not None or drop.get("art") in {"cut", "item"}
+
+
+def item_art_copies(drops: list[dict]) -> list[tuple[pathlib.Path, bytes]]:
+    """Drop icons copied from an item's own art, for a token the mirror has no sprite for.
+
+    Two static routes serve these (/drop-icons and /token-icons) off two directories, so a drop row
+    cannot point at a token's file. The picture is copied instead, and the copy is GENERATED output:
+    --check compares it byte for byte, exactly as it does the SQL, so the two ends cannot drift.
+
+    A token whose item HAS an icon_id does not come through here at all. It carries the id, and the
+    ordinary --fetch-icons path downloads the same official sprite the inventory draws.
+    """
+    out = []
+    for d in drops:
+        if d.get("art") != "item":
+            continue
+        source = ICONS / f"{d['key']}.png"
+        if not source.exists():
+            # Reported by check_art against the item, which is where the missing file belongs.
+            continue
+        out.append((DROP_ICONS / f"{d['key']}.png", source.read_bytes()))
+    return out
 
 
 def check_drop_art(drops: list[dict]) -> list[str]:
@@ -819,11 +1000,18 @@ def main() -> None:
 
     items = load()
     bosses = load_bosses()
-    drops, drop_tables = load_drops(bosses)
+    drops, drop_tables = load_drops(bosses, items)
 
     if args.fetch_icons:
         fetch_icons(items)
         fetch_drop_icons(drops)
+
+    # Before the art check, which is what would otherwise report the copy as missing on a fresh
+    # clone. It is generated output, like the SQL, so --check compares rather than writes.
+    art_copies = item_art_copies(drops)
+    if not args.check:
+        for dest, want in art_copies:
+            dest.write_bytes(want)
 
     problems = check_art(items) + check_drop_art(drops) + check_boss_art(bosses)
 
@@ -838,6 +1026,11 @@ def main() -> None:
     if args.check:
         _refuse_missing_art(problems)
         stale = [path for path, want in outputs if (path.read_text() if path.exists() else "") != want]
+        stale += [
+            dest
+            for dest, want in art_copies
+            if (dest.read_bytes() if dest.exists() else b"") != want
+        ]
         if stale:
             names = ", ".join(str(p.relative_to(ROOT)) for p in stale)
             sys.exit(f"stale, run python catalog/build.py: {names}")

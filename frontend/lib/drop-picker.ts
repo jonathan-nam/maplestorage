@@ -29,9 +29,13 @@ export function pickableDrops(table: BossDrop[] | undefined, world: WorldType): 
 export function defaultQuantity(
   drop: BossDrop | undefined,
   difficulty: string | null | undefined,
+  world: string,
 ): string {
   if (!drop || !difficulty) return "";
-  const pieces = drop.pieces?.[difficulty];
+  // Both keys, and typed as a number rather than passed straight to String(): the world was added
+  // above the difficulty, and String() on the map that used to be a count returns "[object Object]"
+  // without the typechecker saying a word.
+  const pieces: number | undefined = drop.pieces?.[world]?.[difficulty];
   return pieces === undefined ? "" : String(pieces);
 }
 

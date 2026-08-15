@@ -5,31 +5,42 @@
 -- upserts by drop_key and keeps an existing row's id, which party_loot references. boss_drop is
 -- rebuilt outright, so a drop removed from a boss's table really leaves it.
 
-INSERT INTO drop_catalog (id, drop_key, name, icon_ref_key, per_member, worlds, quantity, fungible, sort_order)
+INSERT INTO drop_catalog (id, drop_key, name, icon_ref_key, per_member, worlds, quantity, fungible, untradeable, sort_order)
 SELECT COALESCE(existing.id, gen_random_uuid()), v.drop_key, v.name, v.icon_ref_key, v.per_member,
-       v.worlds, v.quantity, v.fungible, v.sort_order
+       v.worlds, v.quantity, v.fungible, v.untradeable, v.sort_order
 FROM (VALUES
-    ('whisper-of-the-source', 'Whisper of the Source', 'whisper-of-the-source.png', NULL, NULL, 1, FALSE, 0),
-    ('oath-of-death', 'Oath of Death', 'oath-of-death.png', NULL, NULL, 1, FALSE, 1),
-    ('immortal-legacy', 'Immortal Legacy', 'immortal-legacy.png', NULL, NULL, 1, FALSE, 2),
-    ('blissful-nightmare', 'Blissful Nightmare', NULL, NULL, NULL, 1, FALSE, 3),
-    ('exceptional-hammer-face', 'Exceptional Hammer (Face Acc)', 'exceptional-hammer-face.png', NULL, NULL, 1, FALSE, 4),
-    ('exceptional-hammer-eye', 'Exceptional Hammer (Eye Acc)', 'exceptional-hammer-eye.png', NULL, NULL, 1, FALSE, 5),
-    ('exceptional-hammer-earrings', 'Exceptional Hammer (Earrings)', 'exceptional-hammer-earrings.png', NULL, NULL, 1, FALSE, 6),
-    ('exceptional-hammer-medal', 'Exceptional Hammer (Medal)', 'exceptional-hammer-medal.png', NULL, NULL, 1, FALSE, 7),
-    ('grindstone-of-faith', 'Grindstone of Faith', 'grindstone-of-faith.png', NULL, NULL, 1, TRUE, 8),
-    ('grindstone-of-life', 'Grindstone of Life', 'grindstone-of-life.png', NULL, NULL, 1, TRUE, 9),
-    ('eternal-armor-of-desire-box', 'Eternal Armor of Desire Box', 'eternal-armor-of-desire-box.png', NULL, NULL, 1, TRUE, 10),
-    ('divine-eternal-armor-box', 'Divine Eternal Armor Box', 'divine-eternal-armor-box.png', NULL, NULL, 1, TRUE, 11),
-    ('ferocious-beast-eternal-armor-box', 'Ferocious Beast Eternal Armor Box', 'ferocious-beast-eternal-armor-box.png', NULL, NULL, 1, TRUE, 12),
-    ('ancient-eternal-armor-box', 'Ancient Eternal Armor Box', 'ancient-eternal-armor-box.png', NULL, NULL, 1, TRUE, 13),
-    ('eternal-armor-of-oaths-box', 'Eternal Armor of Oaths Box', 'eternal-armor-of-oaths-box.png', NULL, NULL, 1, TRUE, 14),
-    ('eternal-armor-of-radiance-box', 'Eternal Armor of Radiance Box', 'eternal-armor-of-radiance-box.png', NULL, NULL, 1, TRUE, 15),
-    ('mitras-rage-selection-box', 'Mitra''s Rage Selection Box', 'mitras-rage-selection-box.png', NULL, NULL, 1, FALSE, 16),
-    ('ring-of-restraint-4', 'Ring of Restraint Lv. 4', 'ring-of-restraint-4.png', 'HEROIC', NULL, 1, FALSE, 17),
-    ('continuous-ring-4', 'Continuous Ring Lv. 4', 'continuous-ring-4.png', 'HEROIC', NULL, 1, FALSE, 18),
-    ('vestige-of-erion', 'Vestige of Erion Coupon', 'vestige-of-erion.png', NULL, NULL, 1, FALSE, 19)
-) AS v (drop_key, name, icon_ref_key, per_member, worlds, quantity, fungible, sort_order)
+    ('whisper-of-the-source', 'Whisper of the Source', 'whisper-of-the-source.png', NULL, NULL, 1, FALSE, FALSE, 0),
+    ('oath-of-death', 'Oath of Death', 'oath-of-death.png', NULL, NULL, 1, FALSE, FALSE, 1),
+    ('immortal-legacy', 'Immortal Legacy', 'immortal-legacy.png', NULL, NULL, 1, FALSE, FALSE, 2),
+    ('blissful-nightmare', 'Blissful Nightmare', NULL, NULL, NULL, 1, FALSE, FALSE, 3),
+    ('exceptional-hammer-face', 'Exceptional Hammer (Face Acc)', 'exceptional-hammer-face.png', NULL, NULL, 1, FALSE, FALSE, 4),
+    ('exceptional-hammer-eye', 'Exceptional Hammer (Eye Acc)', 'exceptional-hammer-eye.png', NULL, NULL, 1, FALSE, FALSE, 5),
+    ('exceptional-hammer-earrings', 'Exceptional Hammer (Earrings)', 'exceptional-hammer-earrings.png', NULL, NULL, 1, FALSE, FALSE, 6),
+    ('exceptional-hammer-medal', 'Exceptional Hammer (Medal)', 'exceptional-hammer-medal.png', NULL, NULL, 1, FALSE, FALSE, 7),
+    ('grindstone-of-faith', 'Grindstone of Faith', 'grindstone-of-faith.png', NULL, NULL, 1, TRUE, FALSE, 8),
+    ('grindstone-of-life', 'Grindstone of Life', 'grindstone-of-life.png', NULL, NULL, 1, TRUE, FALSE, 9),
+    ('eternal-armor-of-desire-box', 'Eternal Armor of Desire Box', 'eternal-armor-of-desire-box.png', NULL, NULL, 1, TRUE, FALSE, 10),
+    ('divine-eternal-armor-box', 'Divine Eternal Armor Box', 'divine-eternal-armor-box.png', NULL, NULL, 1, TRUE, FALSE, 11),
+    ('ferocious-beast-eternal-armor-box', 'Ferocious Beast Eternal Armor Box', 'ferocious-beast-eternal-armor-box.png', NULL, NULL, 1, TRUE, FALSE, 12),
+    ('ancient-eternal-armor-box', 'Ancient Eternal Armor Box', 'ancient-eternal-armor-box.png', NULL, NULL, 1, TRUE, FALSE, 13),
+    ('eternal-armor-of-oaths-box', 'Eternal Armor of Oaths Box', 'eternal-armor-of-oaths-box.png', NULL, NULL, 1, TRUE, FALSE, 14),
+    ('eternal-armor-of-radiance-box', 'Eternal Armor of Radiance Box', 'eternal-armor-of-radiance-box.png', NULL, NULL, 1, TRUE, FALSE, 15),
+    ('mitras-rage-selection-box', 'Mitra''s Rage Selection Box', 'mitras-rage-selection-box.png', NULL, NULL, 1, FALSE, FALSE, 16),
+    ('ring-of-restraint-4', 'Ring of Restraint Lv. 4', 'ring-of-restraint-4.png', 'HEROIC', NULL, 1, FALSE, FALSE, 17),
+    ('continuous-ring-4', 'Continuous Ring Lv. 4', 'continuous-ring-4.png', 'HEROIC', NULL, 1, FALSE, FALSE, 18),
+    ('vestige-of-erion', 'Vestige of Erion Coupon', 'vestige-of-erion.png', NULL, NULL, 1, FALSE, FALSE, 19),
+    ('kalos-residual-determination-fragment', 'Kalos''s Residual Determination Fragment', 'kalos-residual-determination-fragment.png', 'HEROIC', NULL, 1, FALSE, TRUE, 20),
+    ('ferocious-entanglement-ring-fragment', 'Ferocious Entanglement Ring Fragment', 'ferocious-entanglement-ring-fragment.png', 'HEROIC', NULL, 1, FALSE, TRUE, 21),
+    ('whisper-ancient-resolve', 'Whisper of Ancient Resolve', 'whisper-ancient-resolve.png', 'HEROIC', NULL, 1, FALSE, TRUE, 22),
+    ('blissful-fantasy-fragment', 'Blissful Fantasy Fragment', NULL, 'HEROIC', NULL, 1, FALSE, TRUE, 23),
+    ('lingering-twisted-desire', 'Lingering Twisted Desire', NULL, 'ALWAYS', NULL, 1, FALSE, TRUE, 24),
+    ('distorted-ambition', 'Distorted Ambition', 'distorted-ambition.png', 'ALWAYS', NULL, 1, FALSE, TRUE, 25),
+    ('kalos-token', 'Kalos''s Residual Determination', 'kalos-token.png', 'HEROIC', NULL, 1, FALSE, TRUE, 26),
+    ('ferocious-beast-ring', 'Ferocious Beast Entanglement Ring', 'ferocious-beast-ring.png', 'HEROIC', NULL, 1, FALSE, TRUE, 27),
+    ('echo-ancient-resolve', 'Echo of Ancient Resolve', 'echo-ancient-resolve.png', 'HEROIC', NULL, 1, FALSE, TRUE, 28),
+    ('blissful-fantasy-shard', 'Blissful Fantasy Shard', 'blissful-fantasy-shard.png', 'HEROIC', NULL, 1, FALSE, TRUE, 29),
+    ('trace-eternal-loyalty', 'Trace of Eternal Loyalty', 'trace-eternal-loyalty.png', 'ALWAYS', NULL, 1, FALSE, TRUE, 30)
+) AS v (drop_key, name, icon_ref_key, per_member, worlds, quantity, fungible, untradeable, sort_order)
 LEFT JOIN drop_catalog existing ON existing.drop_key = v.drop_key
 ON CONFLICT (drop_key) DO UPDATE SET
     name         = EXCLUDED.name,
@@ -38,6 +49,7 @@ ON CONFLICT (drop_key) DO UPDATE SET
     worlds     = EXCLUDED.worlds,
     quantity   = EXCLUDED.quantity,
     fungible   = EXCLUDED.fungible,
+    untradeable = EXCLUDED.untradeable,
     sort_order = EXCLUDED.sort_order;
 
 DELETE FROM boss_drop;
@@ -53,6 +65,7 @@ FROM (VALUES
     ('limbo', 'ring-of-restraint-4', 4),
     ('limbo', 'continuous-ring-4', 5),
     ('limbo', 'vestige-of-erion', 6),
+    ('limbo', 'distorted-ambition', 7),
     ('chosen-seren', 'exceptional-hammer-face', 0),
     ('chosen-seren', 'mitras-rage-selection-box', 1),
     ('chosen-seren', 'ring-of-restraint-4', 2),
@@ -64,6 +77,8 @@ FROM (VALUES
     ('kalos-the-guardian', 'ring-of-restraint-4', 3),
     ('kalos-the-guardian', 'continuous-ring-4', 4),
     ('kalos-the-guardian', 'vestige-of-erion', 5),
+    ('kalos-the-guardian', 'kalos-token', 6),
+    ('kalos-the-guardian', 'kalos-residual-determination-fragment', 7),
     ('kaling', 'exceptional-hammer-earrings', 0),
     ('kaling', 'grindstone-of-life', 1),
     ('kaling', 'grindstone-of-faith', 2),
@@ -71,6 +86,8 @@ FROM (VALUES
     ('kaling', 'ring-of-restraint-4', 4),
     ('kaling', 'continuous-ring-4', 5),
     ('kaling', 'vestige-of-erion', 6),
+    ('kaling', 'ferocious-beast-ring', 7),
+    ('kaling', 'ferocious-entanglement-ring-fragment', 8),
     ('first-adversary', 'immortal-legacy', 0),
     ('first-adversary', 'exceptional-hammer-medal', 1),
     ('first-adversary', 'grindstone-of-life', 2),
@@ -78,6 +95,8 @@ FROM (VALUES
     ('first-adversary', 'ring-of-restraint-4', 4),
     ('first-adversary', 'continuous-ring-4', 5),
     ('first-adversary', 'vestige-of-erion', 6),
+    ('first-adversary', 'echo-ancient-resolve', 7),
+    ('first-adversary', 'whisper-ancient-resolve', 8),
     ('malefic-star', 'blissful-nightmare', 0),
     ('malefic-star', 'grindstone-of-life', 1),
     ('malefic-star', 'grindstone-of-faith', 2),
@@ -85,32 +104,83 @@ FROM (VALUES
     ('malefic-star', 'ring-of-restraint-4', 4),
     ('malefic-star', 'continuous-ring-4', 5),
     ('malefic-star', 'vestige-of-erion', 6),
+    ('malefic-star', 'blissful-fantasy-shard', 7),
+    ('malefic-star', 'blissful-fantasy-fragment', 8),
     ('jupiter', 'vestige-of-erion', 0),
+    ('jupiter', 'lingering-twisted-desire', 1),
     ('baldrix', 'oath-of-death', 0),
     ('baldrix', 'grindstone-of-life', 1),
     ('baldrix', 'grindstone-of-faith', 2),
     ('baldrix', 'eternal-armor-of-oaths-box', 3),
     ('baldrix', 'ring-of-restraint-4', 4),
     ('baldrix', 'continuous-ring-4', 5),
-    ('baldrix', 'vestige-of-erion', 6)
+    ('baldrix', 'vestige-of-erion', 6),
+    ('baldrix', 'trace-eternal-loyalty', 7)
 ) AS v (boss_key, drop_key, sort_order)
 JOIN boss_catalog b ON b.boss_key = v.boss_key
 JOIN drop_catalog d ON d.drop_key = v.drop_key;
 
-INSERT INTO boss_drop_amount (boss_catalog_id, drop_catalog_id, difficulty, pieces, bundles)
-SELECT b.id, d.id, v.difficulty, v.pieces, v.bundles
+INSERT INTO boss_drop_amount (boss_catalog_id, drop_catalog_id, difficulty, world, pieces, bundles)
+SELECT b.id, d.id, v.difficulty, v.world, v.pieces, v.bundles
 FROM (VALUES
-    ('limbo', 'vestige-of-erion', 'HARD', 60, 3),
-    ('chosen-seren', 'vestige-of-erion', 'EXTREME', 30, 6),
-    ('kalos-the-guardian', 'vestige-of-erion', 'EXTREME', 180, 6),
-    ('kaling', 'vestige-of-erion', 'HARD', 60, 6),
-    ('kaling', 'vestige-of-erion', 'EXTREME', 480, 6),
-    ('first-adversary', 'vestige-of-erion', 'HARD', 30, 3),
-    ('first-adversary', 'vestige-of-erion', 'EXTREME', 240, 3),
-    ('malefic-star', 'vestige-of-erion', 'HARD', 90, 3),
-    ('jupiter', 'vestige-of-erion', 'NORMAL', 45, 3),
-    ('jupiter', 'vestige-of-erion', 'HARD', 360, 3),
-    ('baldrix', 'vestige-of-erion', 'HARD', 120, 3)
-) AS v (boss_key, drop_key, difficulty, pieces, bundles)
+    ('limbo', 'vestige-of-erion', 'HARD', 'INTERACTIVE', 60, 3),
+    ('limbo', 'vestige-of-erion', 'HARD', 'HEROIC', 60, 3),
+    ('limbo', 'distorted-ambition', 'NORMAL', 'INTERACTIVE', 1, 1),
+    ('limbo', 'distorted-ambition', 'NORMAL', 'HEROIC', 1, 1),
+    ('limbo', 'distorted-ambition', 'HARD', 'INTERACTIVE', 2, 2),
+    ('limbo', 'distorted-ambition', 'HARD', 'HEROIC', 2, 2),
+    ('chosen-seren', 'vestige-of-erion', 'EXTREME', 'INTERACTIVE', 30, 6),
+    ('chosen-seren', 'vestige-of-erion', 'EXTREME', 'HEROIC', 30, 6),
+    ('kalos-the-guardian', 'vestige-of-erion', 'EXTREME', 'INTERACTIVE', 180, 6),
+    ('kalos-the-guardian', 'vestige-of-erion', 'EXTREME', 'HEROIC', 180, 6),
+    ('kalos-the-guardian', 'kalos-token', 'CHAOS', 'INTERACTIVE', 5, 5),
+    ('kalos-the-guardian', 'kalos-token', 'CHAOS', 'HEROIC', 2, 2),
+    ('kalos-the-guardian', 'kalos-token', 'EXTREME', 'INTERACTIVE', 14, 14),
+    ('kalos-the-guardian', 'kalos-token', 'EXTREME', 'HEROIC', 3, 3),
+    ('kalos-the-guardian', 'kalos-residual-determination-fragment', 'NORMAL', 'INTERACTIVE', 3, 3),
+    ('kalos-the-guardian', 'kalos-residual-determination-fragment', 'NORMAL', 'HEROIC', 2, 2),
+    ('kaling', 'vestige-of-erion', 'HARD', 'INTERACTIVE', 60, 6),
+    ('kaling', 'vestige-of-erion', 'HARD', 'HEROIC', 60, 6),
+    ('kaling', 'vestige-of-erion', 'EXTREME', 'INTERACTIVE', 480, 6),
+    ('kaling', 'vestige-of-erion', 'EXTREME', 'HEROIC', 480, 6),
+    ('kaling', 'ferocious-beast-ring', 'HARD', 'INTERACTIVE', 7, 7),
+    ('kaling', 'ferocious-beast-ring', 'HARD', 'HEROIC', 2, 2),
+    ('kaling', 'ferocious-beast-ring', 'EXTREME', 'INTERACTIVE', 18, 18),
+    ('kaling', 'ferocious-beast-ring', 'EXTREME', 'HEROIC', 3, 3),
+    ('kaling', 'ferocious-entanglement-ring-fragment', 'EASY', 'INTERACTIVE', 1, 1),
+    ('kaling', 'ferocious-entanglement-ring-fragment', 'EASY', 'HEROIC', 1, 1),
+    ('kaling', 'ferocious-entanglement-ring-fragment', 'NORMAL', 'INTERACTIVE', 5, 5),
+    ('kaling', 'ferocious-entanglement-ring-fragment', 'NORMAL', 'HEROIC', 2, 2),
+    ('first-adversary', 'vestige-of-erion', 'HARD', 'INTERACTIVE', 30, 3),
+    ('first-adversary', 'vestige-of-erion', 'HARD', 'HEROIC', 30, 3),
+    ('first-adversary', 'vestige-of-erion', 'EXTREME', 'INTERACTIVE', 240, 3),
+    ('first-adversary', 'vestige-of-erion', 'EXTREME', 'HEROIC', 240, 3),
+    ('first-adversary', 'echo-ancient-resolve', 'HARD', 'INTERACTIVE', 6, 6),
+    ('first-adversary', 'echo-ancient-resolve', 'HARD', 'HEROIC', 2, 2),
+    ('first-adversary', 'echo-ancient-resolve', 'EXTREME', 'INTERACTIVE', 16, 16),
+    ('first-adversary', 'echo-ancient-resolve', 'EXTREME', 'HEROIC', 3, 3),
+    ('first-adversary', 'whisper-ancient-resolve', 'NORMAL', 'INTERACTIVE', 4, 4),
+    ('first-adversary', 'whisper-ancient-resolve', 'NORMAL', 'HEROIC', 2, 2),
+    ('malefic-star', 'vestige-of-erion', 'HARD', 'INTERACTIVE', 90, 3),
+    ('malefic-star', 'vestige-of-erion', 'HARD', 'HEROIC', 90, 3),
+    ('malefic-star', 'blissful-fantasy-shard', 'HARD', 'INTERACTIVE', 18, 18),
+    ('malefic-star', 'blissful-fantasy-shard', 'HARD', 'HEROIC', 2, 2),
+    ('malefic-star', 'blissful-fantasy-fragment', 'NORMAL', 'INTERACTIVE', 6, 6),
+    ('malefic-star', 'blissful-fantasy-fragment', 'NORMAL', 'HEROIC', 2, 2),
+    ('jupiter', 'vestige-of-erion', 'NORMAL', 'INTERACTIVE', 45, 3),
+    ('jupiter', 'vestige-of-erion', 'NORMAL', 'HEROIC', 45, 3),
+    ('jupiter', 'vestige-of-erion', 'HARD', 'INTERACTIVE', 360, 3),
+    ('jupiter', 'vestige-of-erion', 'HARD', 'HEROIC', 360, 3),
+    ('jupiter', 'lingering-twisted-desire', 'NORMAL', 'INTERACTIVE', 1, 1),
+    ('jupiter', 'lingering-twisted-desire', 'NORMAL', 'HEROIC', 1, 1),
+    ('jupiter', 'lingering-twisted-desire', 'HARD', 'INTERACTIVE', 2, 2),
+    ('jupiter', 'lingering-twisted-desire', 'HARD', 'HEROIC', 2, 2),
+    ('baldrix', 'vestige-of-erion', 'HARD', 'INTERACTIVE', 120, 3),
+    ('baldrix', 'vestige-of-erion', 'HARD', 'HEROIC', 120, 3),
+    ('baldrix', 'trace-eternal-loyalty', 'NORMAL', 'INTERACTIVE', 1, 1),
+    ('baldrix', 'trace-eternal-loyalty', 'NORMAL', 'HEROIC', 1, 1),
+    ('baldrix', 'trace-eternal-loyalty', 'HARD', 'INTERACTIVE', 2, 2),
+    ('baldrix', 'trace-eternal-loyalty', 'HARD', 'HEROIC', 2, 2)
+) AS v (boss_key, drop_key, difficulty, world, pieces, bundles)
 JOIN boss_catalog b ON b.boss_key = v.boss_key
 JOIN drop_catalog d ON d.drop_key = v.drop_key;

@@ -12,6 +12,7 @@ import com.maplestorage.backend.users.activeWorldFor
 import org.jetbrains.exposed.v1.core.JoinType
 import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.SortOrder
+import org.jetbrains.exposed.v1.core.alias
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.inList
@@ -43,22 +44,33 @@ internal const val STATUS_TAKEN = "TAKEN"
 internal val AMOUNT_BASES = setOf("LISTED", "RECEIVED", "BOUGHT")
 internal val SPLIT_METHODS = setOf("LAZY", "FAIR")
 
+/** The character a loot row's amount is read against, kept out of any caller's own Characters join. */
+private val amountWorld = Characters.alias("amount_world")
+
 /**
  * A drop with its catalog name, icon and boss attached, which is every read of the pool.
  *
- * Party is joined for its difficulty alone, which is the third key of the amount row: how many
- * stacks a drop falls in is per (boss, difficulty). A party with no difficulty set joins nothing
- * and the drop's bundle count comes back null, which is the honest answer.
+ * Party is joined for its difficulty, and the character behind it for its world: those are the third
+ * and fourth keys of the amount row, since how many drop and in how many stacks is per (boss,
+ * difficulty, world). A party with no difficulty set joins nothing and the drop's bundle count comes
+ * back null, which is the honest answer.
  */
 private fun lootWithCatalog() =
     PartyLoot
         .join(DropCatalog, JoinType.LEFT, PartyLoot.dropCatalogId, DropCatalog.id)
         .join(BossCatalog, JoinType.LEFT, PartyLoot.bossCatalogId, BossCatalog.id)
         .join(Party, JoinType.INNER, PartyLoot.partyId, Party.id)
+        // Through the character, which is where the world lives. Without it the amount table matches
+        // TWICE, once per world, and every drop comes back doubled.
+        //
+        // ALIASED, because callers of this join Characters themselves and Postgres refuses the same
+        // table name twice in one FROM. The alias is this join's own and belongs to nobody else.
+        .join(amountWorld, JoinType.LEFT, Party.characterId, amountWorld[Characters.id])
         .join(BossDropAmount, JoinType.LEFT) {
             (BossDropAmount.bossCatalogId eq PartyLoot.bossCatalogId) and
                 (BossDropAmount.dropCatalogId eq PartyLoot.dropCatalogId) and
-                (BossDropAmount.difficulty eq Party.difficulty)
+                (BossDropAmount.difficulty eq Party.difficulty) and
+                (BossDropAmount.world eq amountWorld[Characters.worldType])
         }
 
 /** Who is owed on these drops, in one query rather than one per drop. */

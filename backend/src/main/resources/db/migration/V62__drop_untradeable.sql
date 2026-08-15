@@ -1,0 +1,13 @@
+-- A drop that cannot change hands at all. Seeded from catalog/drops.yaml, see the flag's note there.
+--
+-- It is not the same fact as a world that cannot trade (canTrade() in lib/world.ts), which is about
+-- WHERE the party is. This is about the item: an Eternal armour piece is untradeable in every world,
+-- so what a member ends the night with is whatever they bent down for and nothing afterwards moves
+-- one.
+--
+-- What it changes: such a drop has no sale, so it is in no settlement, and a member under their
+-- share is owed no mesos and no pieces. They are owed the next loot. It stays DIVISIBLE, though,
+-- because entitled against looted is what a rotation is read from.
+--
+-- Default FALSE, which is every drop seeded today.
+ALTER TABLE drop_catalog ADD COLUMN untradeable BOOLEAN NOT NULL DEFAULT FALSE;

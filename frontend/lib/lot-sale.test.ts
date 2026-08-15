@@ -101,6 +101,7 @@ const catalogDrop = (dropKey: string, fungible: boolean): BossDrop => ({
   worlds: null,
   quantity: 1,
   fungible,
+  untradeable: false,
   pieces: {},
   bundles: {},
 });

@@ -34,13 +34,15 @@ const table = (over: Partial<BossDrop> = {}): BossDrop[] => [
     worlds: "INTERACTIVE",
     quantity: 1,
     fungible: false,
-    pieces: { HARD: 180 },
-    bundles: { HARD: 3 },
+    untradeable: false,
+    pieces: { INTERACTIVE: { HARD: 180 } },
+    bundles: { INTERACTIVE: { HARD: 3 } },
     ...over,
   },
 ];
 
-const config = (seats: PartyMember[]): ShareConfig => shareConfig(table(), "HARD", VESTIGE, seats)!;
+const config = (seats: PartyMember[]): ShareConfig =>
+  shareConfig(table(), "HARD", "INTERACTIVE", VESTIGE, seats)!;
 
 describe("what there is to split", () => {
   it("reads the boss's own table, so the split exists before the coupons do", () => {
@@ -53,13 +55,13 @@ describe("what there is to split", () => {
   it("has nothing to split without a mode, a stack count, or two sides", () => {
     const two = [seat("m1", "Husky"), seat("m2", "Rune")];
     // Nobody has said which difficulty, so what drops is not known.
-    expect(shareConfig(table(), null, VESTIGE, two)).toBeNull();
+    expect(shareConfig(table(), null, "INTERACTIVE", VESTIGE, two)).toBeNull();
     // The catalog has not counted the stacks, which is not a claim that it falls in one.
-    expect(shareConfig(table({ bundles: {} }), "HARD", VESTIGE, two)).toBeNull();
+    expect(shareConfig(table({ bundles: {} }), "HARD", "INTERACTIVE", VESTIGE, two)).toBeNull();
     // A boss that drops none at this mode.
-    expect(shareConfig(table(), "NORMAL", VESTIGE, two)).toBeNull();
+    expect(shareConfig(table(), "NORMAL", "INTERACTIVE", VESTIGE, two)).toBeNull();
     // One seat is not a split.
-    expect(shareConfig(table(), "HARD", VESTIGE, [seat("m1", "Husky")])).toBeNull();
+    expect(shareConfig(table(), "HARD", "INTERACTIVE", VESTIGE, [seat("m1", "Husky")])).toBeNull();
   });
 });
 

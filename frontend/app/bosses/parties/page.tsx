@@ -557,7 +557,13 @@ export default function PartiesPage() {
    */
   const stacksFor = (party: Party) => {
     if (history) return undefined;
-    const config = shareConfig(dropTables[party.bossKey], party.difficulty, VESTIGE, party.members);
+    const config = shareConfig(
+      dropTables[party.bossKey],
+      party.difficulty,
+      party.worldType,
+      VESTIGE,
+      party.members,
+    );
     if (!config) return undefined;
     return {
       // The deal, which is a standing fact about the party and not about any one night. The block's

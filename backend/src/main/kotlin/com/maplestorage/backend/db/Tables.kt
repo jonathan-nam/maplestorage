@@ -345,6 +345,10 @@ object DropCatalog : Table("drop_catalog") {
     // Copies are interchangeable, so these sell as a lot and a sale is filed against a queue of
     // rows rather than on the row where it sits. See V45__drop_fungible.sql.
     val fungible = bool("fungible")
+
+    // The item cannot change hands, so it never sells and settles only by who looted it. Not the
+    // same fact as a world that cannot trade. See V62__drop_untradeable.sql.
+    val untradeable = bool("untradeable")
     val sortOrder = integer("sort_order")
 
     override val primaryKey = PrimaryKey(id)
@@ -364,13 +368,17 @@ object BossDropAmount : Table("boss_drop_amount") {
     val bossCatalogId = reference("boss_catalog_id", BossCatalog.id)
     val dropCatalogId = reference("drop_catalog_id", DropCatalog.id)
     val difficulty = text("difficulty")
+
+    // INTERACTIVE or HEROIC. A second, independent number per world, not a restatement of
+    // per_member. See V63__boss_drop_amount_world.sql.
+    val world = text("world")
     val pieces = integer("pieces")
 
     // How many equal whole stacks those pieces fall in, which is what a party actually picks up.
     // Null is uncounted, NOT one stack. See V41__loot_bundles.sql.
     val bundles = integer("bundles").nullable()
 
-    override val primaryKey = PrimaryKey(bossCatalogId, dropCatalogId, difficulty)
+    override val primaryKey = PrimaryKey(bossCatalogId, dropCatalogId, difficulty, world)
 }
 
 // A party's loot pool. Stores what was entered, never what was computed: the split arithmetic

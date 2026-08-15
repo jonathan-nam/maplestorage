@@ -31,6 +31,13 @@
 # confirm them. Absent means the drop is sold one at a time, which is the only honest input for a
 # thing with its own potential lines and its own price.
 #
+# `untradeable` marks a drop that cannot change hands at all. Eternal armour pieces are the case:
+# what a member ends the night holding is whatever they bent down for, and no arrangement afterwards
+# can move one. So it never sells, appears in no sale and no settlement, and a member short of their
+# share is not owed anything, they are owed a LOOT next week. A divisible drop is still divisible
+# with this set: entitled against looted is exactly as meaningful, it is only the debt that is not.
+# Absent is tradeable, which is every drop in the file today.
+#
 # Flags sit on the item rather than on the (boss, item) pair because nothing in these tables
 # behaves differently per boss. Move one down to `tables` the day that stops being true.
 #
@@ -52,6 +59,28 @@
 #
 # A bare count is still accepted, for a drop whose bundling nobody has counted. That is not the
 # same as saying it falls in one stack.
+#
+# An entry may also name an ITEM instead of a drop. The Eternal pieces are already in
+# catalog/items.yaml, with a name, an icon and a vision template, so writing any of those here a
+# second time is the drift that file exists to end:
+#
+#     - item: kalos-token
+#       per_member: HEROIC
+#       untradeable: true
+#       count:
+#         EASY: 0
+#         CHAOS:   { interactive: 5,  heroic: 2 }
+#         EXTREME: { interactive: 14, heroic: 3 }
+#
+# `count` is `pieces` for a drop where one token is one bundle, so the bundling is derived instead
+# of written: there is no number there to get wrong. It is also per WORLD, because the two are
+# genuinely independent. Chaos Kalos gives 5 to the whole party on Interactive and 2 to EACH member
+# on Heroic, and Extreme 14 against 3, so neither world can be worked out from the other. A bare
+# count says they agree, which is a claim; a 0 says the boss drops none at that mode, which is not
+# the same as leaving the mode out (nobody has counted it).
+#
+# `per_member` and `untradeable` sit on the table entry for an item reference, since there is no
+# `drops:` row to carry them, and they describe the drop rather than the thing in an inventory.
 
 drops:
   # --- Brilliant Boss Set, one accessory per boss -------------------------------------
@@ -179,6 +208,49 @@ drops:
     name: Vestige of Erion Coupon
     art: cut
 
+  # --- Eternal piece fragments -------------------------------------------------------
+  # Half a piece: two make one of the tokens above, which is why they are their own items and not a
+  # smaller count of the same one. The lower difficulties of the four POOLED bosses drop these and
+  # the upper ones drop the piece itself, so a boss has both, at different modes.
+  #
+  # They are not in items.yaml, so the inventory cannot count one yet: that needs a vision template,
+  # which needs a capture with fragments in it. They are drops for now and become `item:` references
+  # the day they are items, which build.py forces by refusing a drop key that is also an item key.
+  #
+  # The names are not derivable from the token's. Kaling's fragment drops the "Beast", and the
+  # Adversary's is a Whisper where the token is an Echo. Confirmed against maplestory.io's own
+  # names, not guessed.
+  - key: kalos-residual-determination-fragment
+    name: Kalos's Residual Determination Fragment
+    icon_id: 2636606
+    per_member: HEROIC
+    untradeable: true
+  - key: ferocious-entanglement-ring-fragment
+    name: Ferocious Entanglement Ring Fragment
+    icon_id: 2636607
+    per_member: HEROIC
+    untradeable: true
+  - key: whisper-ancient-resolve
+    name: Whisper of Ancient Resolve
+    icon_id: 2830305
+    per_member: HEROIC
+    untradeable: true
+  # No icon_id, for the same reason blissful-fantasy-shard has none: GMS v268 is the newest complete
+  # dataset the mirror carries and it predates Malefic Star. Drawn without art rather than with
+  # somebody else's, until a sprite is cut by hand.
+  - key: blissful-fantasy-fragment
+    name: Blissful Fantasy Fragment
+    per_member: HEROIC
+    untradeable: true
+
+  # --- Jupiter's Eternal piece -------------------------------------------------------
+  # A drop rather than an `item:` reference, because it is not in items.yaml yet: v270, so the
+  # mirror has no sprite, and nobody has cut a vision template. It joins the others the day it does.
+  - key: lingering-twisted-desire
+    name: Lingering Twisted Desire
+    per_member: ALWAYS
+    untradeable: true
+
 # What each boss drops. Keys on the left are catalog/bosses.yaml boss keys; a boss with no entry
 # simply has no table recorded yet, which the UI says rather than showing an empty one.
 #
@@ -199,6 +271,14 @@ tables:
     - key: vestige-of-erion
       pieces:
         HARD: { total: 60, bundles: 3 }
+    # Instanced in BOTH worlds, and the same count in both, which is why it takes a bare number
+    # where Kalos and Kaling need one per world. Limbo has no fragment: Normal drops the piece.
+    - item: distorted-ambition
+      per_member: ALWAYS
+      untradeable: true
+      count:
+        NORMAL: 1
+        HARD: 2
 
   chosen-seren:
     - exceptional-hammer-face
@@ -218,6 +298,19 @@ tables:
     - key: vestige-of-erion
       pieces:
         EXTREME: { total: 180, bundles: 6 }
+    # Pooled on Interactive, one each on Heroic, which is what per_member HEROIC means. Easy drops
+    # none at all since the KMS change that also made these party-shared.
+    - item: kalos-token
+      per_member: HEROIC
+      untradeable: true
+      count:
+        EASY: 0
+        CHAOS: { interactive: 5, heroic: 2 }
+        EXTREME: { interactive: 14, heroic: 3 }
+    - key: kalos-residual-determination-fragment
+      count:
+        EASY: 0
+        NORMAL: { interactive: 3, heroic: 2 }
 
   kaling:
     - exceptional-hammer-earrings
@@ -230,6 +323,17 @@ tables:
       pieces:
         HARD: { total: 60, bundles: 6 }
         EXTREME: { total: 480, bundles: 6 }
+    # Easy still drops a fragment here, unlike Kalos, so the two ladders are not one rule.
+    - item: ferocious-beast-ring
+      per_member: HEROIC
+      untradeable: true
+      count:
+        HARD: { interactive: 7, heroic: 2 }
+        EXTREME: { interactive: 18, heroic: 3 }
+    - key: ferocious-entanglement-ring-fragment
+      count:
+        EASY: 1
+        NORMAL: { interactive: 5, heroic: 2 }
 
   first-adversary:
     - immortal-legacy
@@ -242,6 +346,17 @@ tables:
       pieces:
         HARD: { total: 30, bundles: 3 }
         EXTREME: { total: 240, bundles: 3 }
+    - item: echo-ancient-resolve
+      per_member: HEROIC
+      untradeable: true
+      count:
+        EASY: 0
+        HARD: { interactive: 6, heroic: 2 }
+        EXTREME: { interactive: 16, heroic: 3 }
+    - key: whisper-ancient-resolve
+      count:
+        EASY: 0
+        NORMAL: { interactive: 4, heroic: 2 }
 
   malefic-star:
     - blissful-nightmare
@@ -253,6 +368,14 @@ tables:
     - key: vestige-of-erion
       pieces:
         HARD: { total: 90, bundles: 3 }
+    - item: blissful-fantasy-shard
+      per_member: HEROIC
+      untradeable: true
+      count:
+        HARD: { interactive: 18, heroic: 2 }
+    - key: blissful-fantasy-fragment
+      count:
+        NORMAL: { interactive: 6, heroic: 2 }
 
   # Jupiter's table starts here and holds only this. The rest of what it drops is not recorded
   # yet, which the drop table page says rather than showing an empty one.
@@ -261,6 +384,10 @@ tables:
       pieces:
         NORMAL: { total: 45, bundles: 3 }
         HARD: { total: 360, bundles: 3 }
+    - key: lingering-twisted-desire
+      count:
+        NORMAL: 1
+        HARD: 2
 
   baldrix:
     - oath-of-death
@@ -272,3 +399,9 @@ tables:
     - key: vestige-of-erion
       pieces:
         HARD: { total: 120, bundles: 3 }
+    - item: trace-eternal-loyalty
+      per_member: ALWAYS
+      untradeable: true
+      count:
+        NORMAL: 1
+        HARD: 2
