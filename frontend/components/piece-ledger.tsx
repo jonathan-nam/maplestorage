@@ -11,12 +11,12 @@ import {
   type Fate,
   type HeldOfYours,
   distributeSale,
-  foldTranches,
   outstandingOf,
   owedByCreditor,
   settledOf,
   queueOf,
   roomFor,
+  stillAsking,
 } from "@/lib/ledger-fates";
 import { transferKey } from "@/lib/piece-ledger";
 import { type Holder, type HolderLedger, holderFromKey, holderKey } from "@/lib/vestige-ledger";
@@ -190,9 +190,6 @@ function HolderCard({
   // Asked for on a pile that owes nobody. The card is still the only place its rows can be corrected,
   // so it stays drawn either way, and this is only whether the boxes are out.
   const [entering, setEntering] = useState(forEntry);
-  // Whether the sales that are already settled are back on screen. Folded by default and never
-  // dropped: this card is the only place a mistyped one can be taken off. See foldTranches.
-  const [showAnswered, setShowAnswered] = useState(false);
   const entryRef = useRef<HTMLInputElement>(null);
 
   // On mount only, which is the click that drew this card: focus is what ties the two together, and
@@ -207,11 +204,9 @@ function HolderCard({
     ledger.drops.flatMap((d) => d.transfers).map((t) => [t.toId, t.to]),
   );
 
-  // The rows still waiting on a decision, and the ones somebody has been paid out or offset for.
-  // Folded rather than dropped, and the whole list comes back rather than one at a time: they are
-  // corrected together or not at all, and a per-row reveal would be a control per finished act.
-  const { shown, folded } = foldTranches(tranches, decided);
-  const shownTranches = showAnswered ? tranches : shown;
+  // The sales still waiting on a decision. A settled one is off this card for good: see stillAsking
+  // for where it goes and how it comes back.
+  const shownTranches = stillAsking(tranches, decided);
 
   const overEntered = Math.max(0, ledger.accounted - ledger.pieces);
 
@@ -491,12 +486,11 @@ function HolderCard({
         )}
 
         {/* The pieces step's own rows, in the order the queue spends them. Removable because a mistyped
-            tranche re-prices every boss behind it, and there is nowhere else to correct one.
+            tranche re-prices every boss behind it.
 
-            A sale whose money has been paid out or offset is folded away: the act is over on both
-            sides, and the pill outlives it by the whole life of the account. One nobody has decided
-            about yet stays, because that decision is still to make. The count keeps the way back,
-            since removing one is only possible here. */}
+            Only the sales still waiting on a decision. One whose money has been paid out or offset is
+            gone from here, count and all: it is finished, and finished work is not what this card is
+            for. See stillAsking. */}
         <span className="ledger-tranches">
           {shownTranches.map((tranche) => (
             <span key={tranche.id} className="ledger-tranche">
@@ -532,14 +526,6 @@ function HolderCard({
               </button>
             </span>
           ))}
-          {folded.length > 0 && !showAnswered && (
-            /* "recorded" while nothing else was ever drawn here, and wrong the moment something is:
-               the rows beside it are recorded too. What sets these apart is that the money is dealt
-               with. */
-            <button type="button" className="link" onClick={() => setShowAnswered(true)}>
-              {`${folded.length} settled`}
-            </button>
-          )}
         </span>
 
         {refusal && <span className="split-error">{refusal}</span>}

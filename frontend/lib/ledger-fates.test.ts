@@ -6,7 +6,7 @@ import {
   asksAnything,
   coversThePile,
   distributeSale,
-  foldTranches,
+  stillAsking,
   outstandingOf,
   owedByCreditor,
   owes,
@@ -796,7 +796,7 @@ describe("distributing a sale over the people it owes", () => {
   });
 });
 
-describe("which recorded tranches the card still draws a pill for", () => {
+describe("which recorded sales the card still draws a row for", () => {
   const SELF: Holder = { kind: "SELF", personId: null, characterName: null };
   const BRO: Holder = { kind: "PERSON", personId: "p-bro", characterName: null };
   const JARED: Holder = { kind: "PERSON", personId: "p-jared", characterName: null };
@@ -807,44 +807,44 @@ describe("which recorded tranches the card still draws a pill for", () => {
     new Map(pairs.map(([id, who]) => [id, new Set(who.map(holderKey))]));
 
   it("keeps one nobody has decided about, its money still sitting in your hands", () => {
-    // Jonathan's report, the other way up. Naming Bro is not settling with Bro: until somebody says
-    // whether the money is sent or comes off his debt, the sale is the thing still to deal with.
-    const { shown, folded } = foldTranches([tranche("t1", [{ holder: BRO }])], decided());
-    expect([shown.map((t) => t.id), folded]).toEqual([["t1"], []]);
+    // Naming Bro is not settling with Bro: until somebody says whether the money is sent or comes
+    // off his debt, the sale is the thing still to deal with.
+    expect(stillAsking([tranche("t1", [{ holder: BRO }])], decided()).map((t) => t.id)).toEqual([
+      "t1",
+    ]);
   });
 
-  it("folds one whose money has been paid out or offset, both sides being done", () => {
-    const { shown, folded } = foldTranches(
-      [tranche("t1", [{ holder: BRO }])],
-      decided(["t1", [BRO]]),
-    );
-    expect([shown, folded.map((t) => t.id)]).toEqual([[], ["t1"]]);
+  it("drops one whose money has been paid out or offset, count and all", () => {
+    // Jonathan's report. A finished sale is not this card's, and a count of them is not either: it
+    // was still finished work standing on a worklist, one line further down.
+    expect(stillAsking([tranche("t1", [{ holder: BRO }])], decided(["t1", [BRO]]))).toEqual([]);
   });
 
   it("keeps one settled with only one of the two people whose coupons were in it", () => {
-    // One sale can hold two piles' worth, and each of them decides separately. Folding on the first
-    // would take the second person's money off the only screen that says it is still undecided.
+    // One sale can hold two piles' worth, and each of them decides separately. Dropping it on the
+    // first would take the second person's money off the only screen that says it is undecided.
     const both = [{ holder: BRO }, { holder: JARED }];
-    const { shown } = foldTranches([tranche("t1", both)], decided(["t1", [BRO]]));
-    expect(shown.map((t) => t.id)).toEqual(["t1"]);
+    expect(stillAsking([tranche("t1", both)], decided(["t1", [BRO]])).map((t) => t.id)).toEqual([
+      "t1",
+    ]);
   });
 
-  it("keeps one that named nobody, which no other screen carries", () => {
-    // A plain sale of your own coupons, and a purchase from before shares existed. Nothing on a
-    // Settlement card knows about either, so folding them would be a row nobody could find again.
-    const { shown, folded } = foldTranches([tranche("t1"), tranche("t2", [])], decided());
-    expect([shown.map((t) => t.id), folded]).toEqual([["t1", "t2"], []]);
+  it("keeps one that named nobody, which nothing can ever decide about", () => {
+    // A plain sale of your own coupons, and a purchase from before shares existed. Neither owes
+    // anybody, so no decision is coming, and no other screen carries the row.
+    const shown = stillAsking([tranche("t1"), tranche("t2", [])], decided());
+    expect(shown.map((t) => t.id)).toEqual(["t1", "t2"]);
   });
 
   it("keeps one whose only share is the pile's own holder, who is owed nothing", () => {
-    // The same rule answeredByPair applies. If the two disagreed, a tranche could vanish from the
-    // card while still asking on it, which is the one state neither screen can be corrected from.
-    const { shown } = foldTranches([tranche("t1", [{ holder: SELF }])], decided(["t1", [SELF]]));
+    // The same rule answeredByPair applies. If the two disagreed, a sale could vanish from the card
+    // while still asking on it, which is the one state neither screen can be corrected from.
+    const shown = stillAsking([tranche("t1", [{ holder: SELF }])], decided(["t1", [SELF]]));
     expect(shown.map((t) => t.id)).toEqual(["t1"]);
   });
 
-  it("splits a mixed list without reordering either half", () => {
-    const { shown, folded } = foldTranches(
+  it("takes the finished ones out without reordering what is left", () => {
+    const shown = stillAsking(
       [
         tranche("t1"),
         tranche("t2", [{ holder: BRO }]),
@@ -854,14 +854,14 @@ describe("which recorded tranches the card still draws a pill for", () => {
       decided(["t2", [BRO]], ["t4", [BRO]]),
     );
     expect(shown.map((t) => t.id)).toEqual(["t1", "t3"]);
-    expect(folded.map((t) => t.id)).toEqual(["t2", "t4"]);
   });
 
-  it("loses none of them, so the count can bring every one back", () => {
-    // The pill is the only place a mistyped tranche is taken off. Folded has to mean folded.
-    const all = [tranche("t1"), tranche("t2", [{ holder: BRO }])];
-    const { shown, folded } = foldTranches(all, decided(["t2", [BRO]]));
-    expect(shown.length + folded.length).toBe(all.length);
+  it("gives a sale back the moment the decision behind it is taken off", () => {
+    // The way back, and the reason dropping a finished sale strands nothing. Undoing the offset on
+    // the Settlement card puts the money in your hands undecided, and the row returns here.
+    const sales = [tranche("t1", [{ holder: BRO }])];
+    expect(stillAsking(sales, decided(["t1", [BRO]]))).toEqual([]);
+    expect(stillAsking(sales, decided())).toEqual(sales);
   });
 });
 

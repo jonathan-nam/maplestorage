@@ -33,7 +33,7 @@ import {
   shareKey,
   yourPiles,
 } from "@/lib/settlement";
-import { heldOfYoursBy, worthDrawing } from "@/lib/ledger-fates";
+import { heldOfYoursBy, stillAsking, worthDrawing } from "@/lib/ledger-fates";
 import { buildWallet } from "@/lib/wallet";
 import { type DropSectionKey, dropSections, saleCards, shownSection } from "@/lib/drop-sections";
 import {
@@ -524,10 +524,18 @@ export default function DropLogPage() {
     const key = holderKey(paid.holder);
     paymentsByHolder.set(key, [...(paymentsByHolder.get(key) ?? []), paid]);
   }
+  // Which sales are finished, which is the ones somebody has been paid out or offset for. The same
+  // match the Settlement Ledger's discharge rows are drawn from, so one sale cannot be settled on
+  // one screen and pending on the other. See decidedSales.
+  const decided = decidedSales(credits, disposals);
   // The Sale Ledger is piles you can sell out of, which is yours. What somebody else owes is the
   // Settlement Ledger's to say, and only its, so the two never give two answers.
+  //
+  // A sale that is FINISHED does not hold a card open. It is off the card itself (see stillAsking),
+  // so counting it here would keep a pile on the worklist to draw nothing on it.
   const recorded = (key: string) =>
-    (tranchesByHolder.get(key)?.length ?? 0) > 0 || (paymentsByHolder.get(key)?.length ?? 0) > 0;
+    stillAsking(tranchesByHolder.get(key) ?? [], decided).length > 0 ||
+    (paymentsByHolder.get(key)?.length ?? 0) > 0;
   const yours = yourPiles(ledgers);
   // What the OTHER piles are holding of yours, so your own pile's debt reads as what changes hands:
   // owing Bro 90 while he holds 20 of yours is 70. Netted per creditor, never across people. See owes.
@@ -567,10 +575,7 @@ export default function DropLogPage() {
   const pileCard = {
     heldOfYours,
     tranches: tranchesByHolder,
-    // Which sales are finished, which is the ones somebody has been paid out or offset for. The same
-    // match the Settlement Ledger's discharge rows are drawn from, so one sale cannot be settled on
-    // one screen and pending on the other. See decidedSales.
-    decided: decidedSales(credits, disposals),
+    decided,
     bossByKey,
     partyById,
     iconUrl: vestigeIcon,
