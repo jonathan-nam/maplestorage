@@ -157,6 +157,47 @@ export default function CharactersPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedId, revision]);
 
+  /**
+   * A count being stepped, before it is written. Keyed by item, and only ever for the character on
+   * screen, so a figure cannot be painted under somebody else's name.
+   *
+   * The stepper fires far faster than a save should, so what it changes is THIS rather than the
+   * server: the total lands once the pressing stops. See SAVE_AFTER_MS.
+   */
+  //
+  // Carried WITH the character and revision it belongs to, and read back only when those still
+  // match. An effect clearing it on change was a cascading render, and worse: for one paint the
+  // old character's figures were drawn under the new one's name.
+  const stepGen = `${selectedId ?? "none"}-${revision}`;
+  const [steppedAt, setSteppedAt] = useState<{ gen: string; values: Record<string, number> }>({
+    gen: stepGen,
+    values: {},
+  });
+  const stepped = steppedAt.gen === stepGen ? steppedAt.values : {};
+  const setStepped = (next: (current: Record<string, number>) => Record<string, number>) =>
+    setSteppedAt({ gen: stepGen, values: next(stepped) });
+
+  /** Writes one item's total, and re-pulls so what is on screen is the server's answer. */
+  async function commitCount(tokenCatalogId: string, quantity: number) {
+    if (!selectedId) return;
+    try {
+      await apiFetch<unknown>(
+        `/api/characters/${selectedId}/tokens/${tokenCatalogId}`,
+        { method: "PUT", body: JSON.stringify({ quantity }) },
+        getToken,
+      );
+      invalidate(ALL_TOKENS_KEY);
+      setRevision((n) => n + 1);
+    } catch {
+      // The figure on screen is now a claim the server has not accepted, so it goes rather than
+      // sitting there looking saved. The re-pull below puts the stored one back.
+      setStepped((current) => {
+        const { [tokenCatalogId]: _dropped, ...rest } = current;
+        return rest;
+      });
+    }
+  }
+
   const selected = characters.find((c) => c.id === selectedId);
 
   const searching = query.trim().length > 0;
@@ -206,16 +247,22 @@ export default function CharactersPage() {
     reportedReady.current = true;
     reportVital({ name: "inventory-ready", value: performance.now() - arrivedAt.current });
   }, [state, tokensReady]);
-  const characterItems: InventoryItem[] = (selectedTokens ?? []).map((token) => ({
-    id: token.tokenCatalogId,
-    name: token.name,
-    iconUrl: token.iconUrl,
-    quantity: token.quantity,
-    itemGroup: token.itemGroup,
-    note: token.redeemThreshold
-      ? `${redemptionNote(token.quantity, token.redeemThreshold)}\nbuys: ${token.redeemSlots.join(" / ")}`
-      : `${token.quantity} in total`,
-  }));
+  const characterItems: InventoryItem[] = (selectedTokens ?? []).map((token) => {
+    // What the stepper has moved it to, if anything, else what is stored. Everything below reads
+    // this one figure, so the note and the redemption progress cannot disagree with the count
+    // drawn under the icon.
+    const quantity = stepped[token.tokenCatalogId] ?? token.quantity;
+    return {
+      id: token.tokenCatalogId,
+      name: token.name,
+      iconUrl: token.iconUrl,
+      quantity,
+      itemGroup: token.itemGroup,
+      note: token.redeemThreshold
+        ? `${redemptionNote(quantity, token.redeemThreshold)}\nbuys: ${token.redeemSlots.join(" / ")}`
+        : `${quantity} in total`,
+    };
+  });
 
   return (
     <main className="page">
@@ -270,12 +317,16 @@ export default function CharactersPage() {
               <InventoryPanel
                 title={selected.name}
                 loading={!tokensReady}
-                emptyHint="No tokens here yet. Upload an inventory screenshot."
+                emptyHint="No tokens here yet."
                 items={characterItems}
                 // Clicking an item searches every character for it: the query fills the bar above
                 // (bound to this same state), focus moves there so it can be edited (see SearchBar),
                 // and the results take over this slot.
                 onSelectItem={handleSelectItem}
+                // Hovering an item raises the stepper. onAdjust is every step and writes nothing;
+                // onCommit is the total once the pressing stops.
+                onAdjust={(id, next) => setStepped((current) => ({ ...current, [id]: next }))}
+                onCommit={commitCount}
               />
             ) : characters.length === 0 ? (
               // The add control is no longer on this page, so the empty state has to say where it
