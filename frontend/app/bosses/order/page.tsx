@@ -4,7 +4,9 @@ import { useAuth } from "@clerk/nextjs";
 import { useDeferredValue, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 
 import { RunDraftEditor } from "@/components/run-draft-editor";
-import { CopyPlan, type RunLog, RunPlan } from "@/components/run-plan";
+import { CopyPlan, type RunLog, type RunRotation, RunPlan } from "@/components/run-plan";
+import { rotatingDrops, rotationFor, takesByOwner } from "@/lib/loot-rotation";
+import type { PartyLootPool } from "@/types/loot";
 import { apiFetch, readBack } from "@/lib/api";
 import { progressLabel } from "@/lib/boss-clears";
 import { bossLabel } from "@/lib/boss-difficulty";
@@ -50,6 +52,7 @@ const PARTIES_KEY = "/api/parties";
 // The whole catalog's drop tables, so a row can open its picker without a round-trip. Same key as
 // Party View and the party page, so all three share one cached copy.
 const DROPS_KEY = "/api/bosses/drops";
+const POOLS_KEY = "/api/parties/loot";
 const DRAFT_KEY = "sharpeyes.run-order.drafts";
 
 /** The windows people actually block out. Anything else goes in the box beside them. */
@@ -154,6 +157,9 @@ export default function RunOrderPage() {
   const [parties, setParties] = useState<Party[]>(seededParties ?? []);
   const [bosses, setBosses] = useState<Boss[]>(seededBosses ?? []);
   const [dropTables, setDropTables] = useState<DropTables>(peek<DropTables>(DROPS_KEY) ?? {});
+  // Only for the loot rotation, which is read off what each week's pickups were. Nothing else on
+  // this page needs the pools, so losing them costs a line on some rows and nothing else.
+  const [pools, setPools] = useState<PartyLootPool[]>(peek<PartyLootPool[]>(POOLS_KEY) ?? []);
   const [state, setState] = useState<LoadState>(seededParties ? "loaded" : "loading");
 
   // A run in the night links to its party, which draws its seats. See lib/seat-sprites.ts.
@@ -175,6 +181,9 @@ export default function RunOrderPage() {
   function keepInNight(partyId: string) {
     setAnswered((current) => (current.has(partyId) ? current : new Set(current).add(partyId)));
   }
+
+  /** Each party's own rows, for the rotation to read its answered weeks off. */
+  const lootByParty = new Map(pools.map((pool) => [pool.partyId, pool.loot]));
 
   const [source, setSource] = useState<Source>("parties");
   const [duration, setDuration] = useState(120);
@@ -237,9 +246,12 @@ export default function RunOrderPage() {
           // Optional, as it is on Party View: losing it costs a row's drop picker, and a night you
           // cannot log a drop from still tells you what to run and in what order.
           apiFetch<DropTables>(DROPS_KEY, { method: "GET" }, withToken).catch(() => null),
+          // Optional for the same reason: it only feeds the rotation, and a night still tells you
+          // what to run without it.
+          apiFetch<PartyLootPool[]>(POOLS_KEY, { method: "GET" }, withToken).catch(() => null),
         ]);
       })
-      .then(([nextParties, nextBosses, nextDrops]) => {
+      .then(([nextParties, nextBosses, nextDrops, nextPools]) => {
         if (!live) return;
         setParties(nextParties);
         setBosses(nextBosses);
@@ -248,6 +260,10 @@ export default function RunOrderPage() {
         if (nextDrops) {
           setDropTables(nextDrops);
           put(DROPS_KEY, nextDrops);
+        }
+        if (nextPools) {
+          setPools(nextPools);
+          put(POOLS_KEY, nextPools);
         }
         setState("loaded");
       })
@@ -476,11 +492,32 @@ export default function RunOrderPage() {
   // make from here. Same rule as Party View's.
   const haveDropTables = Object.keys(dropTables).length > 0;
 
+  /**
+   * Whose turn it is on this run's pieces, or null where the row should say nothing.
+   *
+   * Null in every case but the one worth drawing: a boss with no pooled piece at this mode, a world
+   * where everyone gets their own, and a split that comes out EVEN. An even one needs no telling,
+   * since everybody takes the same number every week and a column of identical figures on every run
+   * is noise the plan does not need.
+   */
+  const rotationOnRun = (party: Party | undefined): RunRotation | null => {
+    if (!party) return null;
+    const drop = rotatingDrops(party, dropTables)[0];
+    if (!drop) return null;
+    const mode = party.difficulty ?? "";
+    const quantity = drop.pieces?.[party.worldType]?.[mode] ?? 0;
+    const bundles = drop.bundles?.[party.worldType]?.[mode] ?? 0;
+    const rotation = rotationFor(party, lootByParty.get(party.id) ?? [], drop, quantity, bundles);
+    if (!rotation || rotation.even) return null;
+    return { drop: rotation.name, takes: takesByOwner(rotation, party) };
+  };
+
   // Only a night built from your parties can be answered for: a hand-typed run has no config
   // behind it, so there is nothing to tick and no pool to log a drop into.
   const log: RunLog | undefined = showingAccount
     ? {
         partyOf: (runId) => partyById.get(runId),
+        rotationOf: (runId) => rotationOnRun(partyById.get(runId)),
         dropTable: (bossKey) => dropTables[bossKey],
         busy: isSaving,
         onToggleClear: toggleClear,

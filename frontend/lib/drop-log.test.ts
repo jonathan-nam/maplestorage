@@ -11,6 +11,7 @@ import {
   groupDrops,
   isCouponDrop,
   isPieceDrop,
+  isUntradeablePiece,
   monthLabel,
   pieceStatusByParty,
   weekLabel,
@@ -1103,6 +1104,53 @@ describe("who a drop was run with", () => {
 
   it("names nobody on a solo, which has nobody to name", () => {
     expect(ranWith(party("pa", [mine("m1", "mechyfechy")]), drop())).toEqual([]);
+  });
+});
+
+describe("an untradeable piece is not a line in the money log", () => {
+  // The Drop Log is a history of what drops were WORTH and who was paid. A piece has no price, no
+  // sale and no settlement, so it has nothing to say there. It is settled by whose turn it was to
+  // bend down, which the run says.
+  const tables = {
+    limbo: [
+      {
+        dropKey: "distorted-ambition",
+        name: "Distorted Ambition",
+        iconUrl: null,
+        perMember: "ALWAYS",
+        worlds: null,
+        quantity: 1,
+        fungible: false,
+        untradeable: true,
+        pieces: { INTERACTIVE: { HARD: 2 } },
+        bundles: { INTERACTIVE: { HARD: 2 } },
+      },
+      {
+        dropKey: "vestige-of-erion",
+        name: "Vestige of Erion Coupon",
+        iconUrl: null,
+        perMember: null,
+        worlds: null,
+        quantity: 1,
+        fungible: false,
+        untradeable: false,
+        pieces: { INTERACTIVE: { HARD: 60 } },
+        bundles: { INTERACTIVE: { HARD: 3 } },
+      },
+    ],
+  };
+
+  it("knows a piece from a coupon by the item alone, with no mode to read", () => {
+    // Deliberately not isPieceDrop's question. That one asks whether the row DIVIDES and needs the
+    // party's mode for it; this is a fact about the item, for a screen that wants none of them.
+    const piece = pending({ dropKey: "distorted-ambition", bossKey: "limbo" });
+    const coupon = pending({ dropKey: "vestige-of-erion", bossKey: "limbo" });
+
+    expect(isUntradeablePiece(piece, tables)).toBe(true);
+    expect(isUntradeablePiece(coupon, tables)).toBe(false);
+    // Free text, and a boss with no table, are not pieces either.
+    expect(isUntradeablePiece(pending({ dropKey: null }), tables)).toBe(false);
+    expect(isUntradeablePiece(piece, {})).toBe(false);
   });
 });
 

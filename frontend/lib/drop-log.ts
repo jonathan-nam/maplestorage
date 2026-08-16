@@ -56,6 +56,16 @@ export function isPieceDrop(loot: Loot, party: Party, dropTables: DropTables): b
 }
 
 /**
+ * True when this row is a piece that cannot change hands, whatever its boss or mode.
+ *
+ * Not the same question as isPieceDrop, which is about DIVIDING and so needs the party's mode. This
+ * one is a fact about the item alone, for the screens that want nothing to do with it.
+ */
+export function isUntradeablePiece(loot: Loot, dropTables: DropTables): boolean {
+  return catalogDrop(loot, dropTables)?.untradeable === true;
+}
+
+/**
  * True when a piece drop's shortfall is a DEBT: divisible, and made of pieces that can change hands.
  *
  * The two are not the same test, and conflating them is how an Eternal armour piece would end up in
