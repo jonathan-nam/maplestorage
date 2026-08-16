@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { apiAssetUrl } from "@/lib/api";
 import { MAX_COUNT, SAVE_AFTER_MS, clampCount, parseCount, stepFor } from "@/lib/count-stepper";
 
 // Editing one item's count, in a popup over the slot you clicked.
@@ -15,11 +14,18 @@ import { MAX_COUNT, SAVE_AFTER_MS, clampCount, parseCount, stepFor } from "@/lib
 // was drawn in. Nothing between the grid and the viewport carries a transform, which is what would
 // quietly turn a fixed box back into an absolute one.
 //
-// Stacked in the order you read it: what the item is, then what you hold, then the controls.
+// Two lines: what the item is, then what you hold with a button either side of it. It carried the
+// item's ICON as a third line and no longer does. The slot you clicked is directly under the popup
+// and already shows it, at the 46px every icon here is normalised to and drawn at 1:1, so a second
+// copy cost a third of the popup's height to repeat what was under it. Shrinking that copy was not
+// an option: these are pixel sprites and rescaling one is the bug drop-icon-canvas already fixed.
+//
+// Dressed as the window it opens over, in the client's own Arial 12/18 and the --ms-* palette. It
+// is drawn ON the game's window, so the dark shell's surface and ink read as a different app's
+// dialog sitting on top of it.
 
 export function CountPopup({
   name,
-  iconUrl,
   value,
   anchor,
   onChange,
@@ -27,7 +33,6 @@ export function CountPopup({
   onClose,
 }: {
   name: string;
-  iconUrl: string | null;
   value: number;
   /** The slot this belongs to, in viewport coordinates. */
   anchor: DOMRect;
@@ -114,39 +119,7 @@ export function CountPopup({
       aria-label={`How many ${name}`}
     >
       <span className="ms-count-name">{name}</span>
-      {iconUrl ? (
-        <img className="ms-count-icon" src={apiAssetUrl(iconUrl)} alt="" />
-      ) : (
-        // No art, which is every item newer than the pinned dataset. The frame keeps the popup the
-        // same height either way.
-        <span className="ms-count-icon" aria-hidden="true" />
-      )}
-      <input
-        className="split-input ms-count-input"
-        inputMode="numeric"
-        // Text, not number: a number input turns a half-typed value into "" and takes the spinners
-        // with it, and the spinners are what the buttons below already are.
-        type="text"
-        value={typed}
-        aria-label={`How many ${name}`}
-        autoFocus
-        onChange={(e) => {
-          setTyped(e.target.value);
-          const read = parseCount(e.target.value);
-          // Nothing is written until it reads as a number. A box mid-clear is not a zero.
-          if (read !== null) {
-            live.current = read;
-            onChange(read);
-            if (saver.current) clearTimeout(saver.current);
-            saver.current = setTimeout(() => onCommit(live.current), SAVE_AFTER_MS);
-          }
-        }}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") onClose();
-        }}
-        maxLength={String(MAX_COUNT).length}
-      />
-      <div className="ms-count-buttons">
+      <div className="ms-count-row">
         <button
           type="button"
           className="ms-step"
@@ -159,6 +132,31 @@ export function CountPopup({
         >
           &minus;
         </button>
+        <input
+          className="ms-count-input"
+          inputMode="numeric"
+          // Text, not number: a number input turns a half-typed value into "" and takes the spinners
+          // with it, and the spinners are what the buttons below already are.
+          type="text"
+          value={typed}
+          aria-label={`How many ${name}`}
+          autoFocus
+          onChange={(e) => {
+            setTyped(e.target.value);
+            const read = parseCount(e.target.value);
+            // Nothing is written until it reads as a number. A box mid-clear is not a zero.
+            if (read !== null) {
+              live.current = read;
+              onChange(read);
+              if (saver.current) clearTimeout(saver.current);
+              saver.current = setTimeout(() => onCommit(live.current), SAVE_AFTER_MS);
+            }
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") onClose();
+          }}
+          maxLength={String(MAX_COUNT).length}
+        />
         <button
           type="button"
           className="ms-step"

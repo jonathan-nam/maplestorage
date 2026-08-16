@@ -179,7 +179,6 @@ export function SlotGrid({
             {editing?.id === item.id && (
               <CountPopup
                 name={item.name}
-                iconUrl={item.iconUrl}
                 value={item.quantity}
                 anchor={editing.anchor}
                 onChange={(next) => onAdjust!(item.id, next)}
