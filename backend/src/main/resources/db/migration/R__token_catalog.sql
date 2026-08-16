@@ -19,6 +19,11 @@ FROM (VALUES
     ('ferocious-beast-ring', 'Ferocious Beast Entanglement Ring', 'Kaling', 'ferocious-beast-ring.png', 'Eternal Pieces', 11),
     ('kalos-token', 'Kalos''s Residual Determination', 'Kalos the Guardian', 'kalos-token.png', 'Eternal Pieces', 10),
     ('trace-eternal-loyalty', 'Trace of Eternal Loyalty', 'Baldrix', 'trace-eternal-loyalty.png', 'Eternal Pieces', 15),
+    ('lingering-twisted-desire', 'Lingering Twisted Desire', 'Jupiter', NULL, 'Eternal Pieces', 16),
+    ('kalos-residual-determination-fragment', 'Kalos''s Residual Determination Fragment', 'Kalos the Guardian', 'kalos-residual-determination-fragment.png', 'Eternal Pieces', 17),
+    ('ferocious-entanglement-ring-fragment', 'Ferocious Entanglement Ring Fragment', 'Kaling', 'ferocious-entanglement-ring-fragment.png', 'Eternal Pieces', 18),
+    ('whisper-ancient-resolve', 'Whisper of Ancient Resolve', 'First Adversary', 'whisper-ancient-resolve.png', 'Eternal Pieces', 19),
+    ('blissful-fantasy-fragment', 'Blissful Fantasy Fragment', 'Malefic Star', NULL, 'Eternal Pieces', 20),
     ('sayram-elixir', 'Sayram''s Elixir', 'The Collector', 'sayram-elixir.png', 'Consumables', 40),
     ('aurelia-elixir', 'Aurelia''s Elixir', 'The Collector', 'aurelia-elixir.png', 'Consumables', 41),
     ('honorable-elixir', 'Honorable Elixir', 'The Collector', 'honorable-elixir.png', 'Consumables', 42),
@@ -54,7 +59,7 @@ ON CONFLICT (vision_key) DO UPDATE SET
 DELETE FROM redemption_rule
 WHERE item_id IN (
     SELECT id FROM token_catalog
-    WHERE vision_key NOT IN ('blissful-fantasy-shard', 'distorted-ambition', 'echo-ancient-resolve', 'ferocious-beast-ring', 'kalos-token', 'trace-eternal-loyalty')
+    WHERE vision_key NOT IN ('blissful-fantasy-shard', 'distorted-ambition', 'echo-ancient-resolve', 'ferocious-beast-ring', 'kalos-token', 'trace-eternal-loyalty', 'lingering-twisted-desire', 'kalos-residual-determination-fragment', 'ferocious-entanglement-ring-fragment', 'whisper-ancient-resolve', 'blissful-fantasy-fragment')
 );
 
 INSERT INTO redemption_rule (item_id, redeem_threshold, slot_group)
@@ -65,7 +70,12 @@ FROM (VALUES
     ('echo-ancient-resolve', 10, ARRAY['Hat', 'Top', 'Bottom', 'Shoulder']::TEXT[]),
     ('ferocious-beast-ring', 10, ARRAY['Hat', 'Top', 'Bottom', 'Shoulder']::TEXT[]),
     ('kalos-token', 10, ARRAY['Hat', 'Top', 'Bottom', 'Shoulder']::TEXT[]),
-    ('trace-eternal-loyalty', 10, ARRAY['Cape', 'Glove', 'Shoe']::TEXT[])
+    ('trace-eternal-loyalty', 10, ARRAY['Cape', 'Glove', 'Shoe']::TEXT[]),
+    ('lingering-twisted-desire', 10, ARRAY['Cape', 'Glove', 'Shoe']::TEXT[]),
+    ('kalos-residual-determination-fragment', 20, ARRAY['Hat', 'Top', 'Bottom', 'Shoulder']::TEXT[]),
+    ('ferocious-entanglement-ring-fragment', 20, ARRAY['Hat', 'Top', 'Bottom', 'Shoulder']::TEXT[]),
+    ('whisper-ancient-resolve', 20, ARRAY['Hat', 'Top', 'Bottom', 'Shoulder']::TEXT[]),
+    ('blissful-fantasy-fragment', 20, ARRAY['Hat', 'Top', 'Bottom', 'Shoulder']::TEXT[])
 ) AS v (vision_key, redeem_threshold, slot_group)
 JOIN token_catalog c ON c.vision_key = v.vision_key
 ON CONFLICT (item_id) DO UPDATE SET

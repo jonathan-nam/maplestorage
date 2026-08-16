@@ -59,12 +59,38 @@ class TokenCatalogSeedTest {
 
         assertEquals(declared, seeded, "the seeded catalog and catalog/items.yaml disagree")
 
+        // An icon is not universal any more: an item the pinned dataset does not carry and nobody
+        // has cut art for is drawn as an empty slot, which is honest, and is what the drop side has
+        // always done. So the claim is checked against the manifest rather than assumed: a filename
+        // pointing at nothing is a broken image, and a missing one where art was declared is a bug.
+        val withArt = manifestKeysWithArt()
         rows.forEach { row ->
-            assertTrue(
+            val key = row[TokenCatalog.visionKey]
+            assertEquals(
+                key in withArt,
                 row[TokenCatalog.iconRefKey] != null,
-                "Expected iconRefKey to be set for ${row[TokenCatalog.name]}",
+                "icon_ref_key disagrees with catalog/items.yaml for $key",
             )
         }
+    }
+
+    /**
+     * The keys whose manifest entry claims a picture: an `icon_id` to download, or `art: cut`.
+     *
+     * Read by line, like manifestKeys above and for the same reason: the backend has no YAML parser
+     * and pulling one in for a file whose only shape here is two keys under a `- key:` would be a
+     * dependency to keep in step with nothing.
+     */
+    private fun manifestKeysWithArt(): Set<String> {
+        val keyed = Regex("""^\s*-\s*key:\s*(\S+)""")
+        val claims = Regex("""^\s*(icon_id:\s*\d+|art:\s*cut)\s*$""")
+        val out = mutableSetOf<String>()
+        var current: String? = null
+        File("../catalog/items.yaml").readLines().forEach { line ->
+            keyed.find(line)?.let { current = it.groupValues[1] }
+            if (claims.containsMatchIn(line)) current?.let { out.add(it) }
+        }
+        return out
     }
 
     // What the UI searches and counts on. All three were shipped empty at least once, the field
@@ -123,8 +149,13 @@ class TokenCatalogSeedTest {
                 ruled to byId.values.toSet()
             }
 
-        // The six boss tokens are collected and traded in. The elixirs and potions are drunk:
-        // no rule, and therefore no threshold for the UI to invent progress against.
+        // Every Eternal piece is collected and traded in. The elixirs and potions are drunk: no
+        // rule, and therefore no threshold for the UI to invent progress against.
+        //
+        // Eleven, not six. Jupiter's token joined the seven, and so did the four FRAGMENTS, which
+        // are half a piece each: twenty of one buy the same armour that ten of its token do, and
+        // that ratio is the threshold rather than a second concept. They could not be items at all
+        // until a vision template stopped being required.
         val expected =
             setOf(
                 "blissful-fantasy-shard",
@@ -133,6 +164,11 @@ class TokenCatalogSeedTest {
                 "ferocious-beast-ring",
                 "kalos-token",
                 "trace-eternal-loyalty",
+                "lingering-twisted-desire",
+                "blissful-fantasy-fragment",
+                "ferocious-entanglement-ring-fragment",
+                "kalos-residual-determination-fragment",
+                "whisper-ancient-resolve",
             )
         assertEquals(expected, ruled)
         assertTrue(all.size > ruled.size, "the catalog should hold consumables too")
