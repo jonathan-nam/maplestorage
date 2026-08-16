@@ -1,8 +1,9 @@
 "use client";
 
-import { Fragment, useEffect, useRef, useState } from "react";
-import { CountStepper } from "@/components/count-stepper";
+import { useEffect, useState } from "react";
+import { CountPopup } from "@/components/count-popup";
 import { apiAssetUrl } from "@/lib/api";
+import type { TokenCatalogItem } from "@/types/token-catalog";
 
 // The count, drawn from the client's own digit sprites rather than set in a web font.
 //
@@ -53,57 +54,83 @@ function deltaLabel(delta: number | null | undefined): string | null {
 export function SlotGrid({
   items,
   rows,
-  onSelectItem,
   onAdjust,
   onCommit,
+  addable,
+  onAdd,
 }: {
   items: SlotItem[];
   rows: number;
-  // When set, each filled slot is a button that hands its item name back, so the page can
-  // search every character for it. Left unset by the capture preview, whose slots are a parse
-  // to look at, not holdings to search.
-  onSelectItem?: (name: string) => void;
-  // When set, hovering a filled slot raises a stepper ABOVE it. Above rather than on it because
-  // the slot is already the search button: two targets in one 42px square would mean a click a few
+  // When set, clicking a filled slot opens a popup to edit its count. Left unset by the capture
+  // preview, whose slots are a parse to look at rather than holdings to change.
+  //
+  // Clicking used to put the item's name in the search bar instead. One click, one thing: a
+  // stepper that shared the slot with that meant two targets in one 42px square, and a click a few
   // pixels off changed a count when you meant to look the item up.
   onAdjust?: (id: string, next: number) => void;
   // The total to keep once the pressing stops. Separate from onAdjust, which fires on every step
   // and writes nothing.
   onCommit?: (id: string, final: number) => void;
+  // A trailing + slot offering the items this character holds none of. Only the LAST grid on a
+  // panel gets one, so there is one + on the screen and not one per section.
+  addable?: TokenCatalogItem[];
+  onAdd?: (tokenCatalogId: string) => void;
 }) {
-  const slots = COLS * rows;
-  // One stepper at a time, with the slot it belongs to in viewport coordinates: the popover is
-  // fixed, so it needs an anchor rather than a positioned parent. See CountStepper.
-  const [stepping, setStepping] = useState<{ id: string; anchor: DOMRect } | null>(null);
-  // Closing is DELAYED, because the popover sits a few pixels clear of its slot and crossing that
-  // gap leaves both. Without the grace period the stepper vanished as you reached for it.
-  const closing = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const wantsAdd = Boolean(addable && addable.length > 0 && onAdd);
+  // The + sits at the item's own index, immediately after the last one drawn, rather than after
+  // the empty cells that pad the grid out: at the end of the padding it was nowhere near the item
+  // it follows. A grid the items fill exactly gets one more row to put it in.
+  const padded = COLS * rows;
+  const slots = wantsAdd && items.length >= padded ? padded + COLS : padded;
+  // The item being edited, with its slot in viewport coordinates: the popup is fixed, so it needs
+  // an anchor rather than a positioned parent. See CountPopup.
+  const [editing, setEditing] = useState<{ id: string; anchor: DOMRect } | null>(null);
 
-  function hold(id: string, anchor: DOMRect) {
-    if (closing.current) clearTimeout(closing.current);
-    setStepping({ id, anchor });
-  }
-
-  function release() {
-    if (closing.current) clearTimeout(closing.current);
-    closing.current = setTimeout(() => setStepping(null), 140);
-  }
-
-  // A fixed popover is anchored to where the slot WAS. Scrolling moves the slot and not the
-  // popover, so it is dismissed rather than left pointing at the wrong item.
+  // A fixed popup is anchored to where the slot WAS. Scrolling moves the slot and not the popup,
+  // so it is dismissed rather than left pointing at the wrong item.
   useEffect(() => {
-    if (!stepping) return;
-    const drop = () => setStepping(null);
+    if (!editing) return;
+    const drop = () => setEditing(null);
     window.addEventListener("scroll", drop, true);
     return () => window.removeEventListener("scroll", drop, true);
-  }, [stepping]);
+  }, [editing]);
+  /* Everything above draws what somebody HOLDS, so an item at zero has no slot to hover and no
+     stepper to raise. This is the one case hovering cannot cover.
 
-  useEffect(() => () => (closing.current ? clearTimeout(closing.current) : undefined), []);
+     A native select rather than a popover of our own: the list is the whole catalog minus what is
+     held, and a select gets keyboard, type-ahead and a scrolling list for free. It covers the slot
+     invisibly, so the + underneath is what you see and the browser's own dropdown is what you get. */
+  function addSlot(key: number) {
+    return (
+      <div key={key} className="ms-slot ms-add" title="Add item">
+        <select
+          className="ms-add-select"
+          aria-label="Add an item"
+          value=""
+          onChange={(e) => e.target.value && onAdd!(e.target.value)}
+        >
+          {/* Selected and empty, so the box reads as unanswered and picking the same item twice in
+              a row still fires a change. */}
+          <option value="">Add item</option>
+          {addable!.map((option) => (
+            <option key={option.tokenCatalogId} value={option.tokenCatalogId}>
+              {option.name}
+            </option>
+          ))}
+        </select>
+        <span className="ms-add-mark" aria-hidden="true">
+          +
+        </span>
+      </div>
+    );
+  }
+
   return (
     <div className="ms-grid" style={{ gridTemplateColumns: `repeat(${COLS}, 1fr)` }}>
       {Array.from({ length: slots }, (_, i) => {
         const item = items[i];
-        if (!item) return <div key={i} className="ms-slot" />;
+        if (!item)
+          return wantsAdd && i === items.length ? addSlot(i) : <div key={i} className="ms-slot" />;
 
         const badge = deltaLabel(item.delta);
         // The tooltip is the item name and nothing else. The count is drawn under the icon
@@ -122,41 +149,42 @@ export function SlotGrid({
           </>
         );
 
-        const steppable = Boolean(onAdjust && onCommit);
-        const slot = onSelectItem ? (
-          <button
-            type="button"
-            className="ms-slot filled clickable"
-            title={item.name}
-            onClick={() => onSelectItem(item.name)}
-          >
-            {contents}
-          </button>
-        ) : (
-          <div className="ms-slot filled" title={item.name}>
-            {contents}
-          </div>
-        );
-
-        if (!steppable) return <Fragment key={i}>{slot}</Fragment>;
+        const editable = Boolean(onAdjust && onCommit);
+        if (!editable) {
+          return (
+            <div key={i} className="ms-slot filled" title={item.name}>
+              {contents}
+            </div>
+          );
+        }
 
         return (
-          <div
-            key={i}
-            className="ms-slot-hold"
-            onPointerEnter={(e) => hold(item.id, e.currentTarget.getBoundingClientRect())}
-            onPointerLeave={release}
-          >
-            {slot}
-            {stepping?.id === item.id && (
-              <CountStepper
+          <div key={i} className="ms-slot-hold">
+            <button
+              type="button"
+              className="ms-slot filled clickable"
+              title={item.name}
+              aria-haspopup="dialog"
+              aria-expanded={editing?.id === item.id}
+              onClick={(e) =>
+                setEditing((open) =>
+                  open?.id === item.id
+                    ? null
+                    : { id: item.id, anchor: e.currentTarget.getBoundingClientRect() },
+                )
+              }
+            >
+              {contents}
+            </button>
+            {editing?.id === item.id && (
+              <CountPopup
+                name={item.name}
+                iconUrl={item.iconUrl}
                 value={item.quantity}
-                anchor={stepping.anchor}
-                label={item.name}
+                anchor={editing.anchor}
                 onChange={(next) => onAdjust!(item.id, next)}
                 onCommit={(final) => onCommit!(item.id, final)}
-                onPointerEnter={() => hold(item.id, stepping.anchor)}
-                onPointerLeave={release}
+                onClose={() => setEditing(null)}
               />
             )}
           </div>
