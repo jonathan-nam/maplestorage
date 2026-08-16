@@ -12,17 +12,75 @@ import io.ktor.server.response.respond
 import io.ktor.server.routing.Route
 import io.ktor.server.routing.RoutingContext
 import io.ktor.server.routing.get
+import kotlinx.serialization.Serializable
 import org.jetbrains.exposed.v1.core.JoinType
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.countDistinct
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.sum
 import org.jetbrains.exposed.v1.jdbc.select
+import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 
 fun Route.tokenRoutes() {
     get { getTokenTotals() }
+    // Registered BEFORE any parameter route would be, and needed because the totals above only
+    // carry what somebody already HOLDS. Typing a count for an item you hold none of needs the list
+    // of items that exist, which nothing else served.
+    get("/catalog") { getTokenCatalog() }
 }
+
+/**
+ * Every item the catalog knows, whether or not anybody holds one.
+ *
+ * The inventory reads what you hold; this reads what there IS to hold. Not merged into the totals,
+ * because a total of zero and an item nobody has ever picked up are the same row here and very
+ * different claims on the screen that counts them.
+ */
+private suspend fun RoutingContext.getTokenCatalog() {
+    val (userId, email) = call.principalIdAndEmail()
+    val items =
+        transaction {
+            ensureUser(userId, email)
+            TokenCatalog
+                .join(
+                    RedemptionRule,
+                    JoinType.LEFT,
+                    onColumn = TokenCatalog.id,
+                    otherColumn = RedemptionRule.itemId,
+                ).selectAll()
+                .orderBy(TokenCatalog.sortOrder)
+                .map {
+                    TokenCatalogResponse(
+                        tokenCatalogId = it[TokenCatalog.id].toString(),
+                        name = it[TokenCatalog.name],
+                        iconUrl = it[TokenCatalog.iconRefKey]?.let { file -> "/token-icons/$file" },
+                        itemGroup = it[TokenCatalog.itemGroup],
+                        sourceBoss = it[TokenCatalog.sourceBossName],
+                        redeemThreshold = it[RedemptionRule.redeemThreshold],
+                        redeemSlots = it.getOrNull(RedemptionRule.slotGroup) ?: emptyList(),
+                    )
+                }
+        }
+    call.respond(items)
+}
+
+/**
+ * One item, with no count attached.
+ *
+ * Deliberately NOT CharacterTokenResponse with a zero: that one carries a quantity and a capturedAt,
+ * and inventing both to describe an item nobody holds is two figures nobody said.
+ */
+@Serializable
+data class TokenCatalogResponse(
+    val tokenCatalogId: String,
+    val name: String,
+    val iconUrl: String?,
+    val itemGroup: String?,
+    val sourceBoss: String?,
+    val redeemThreshold: Int?,
+    val redeemSlots: List<String> = emptyList(),
+)
 
 private suspend fun RoutingContext.getTokenTotals() {
     val (userId, email) = call.principalIdAndEmail()
