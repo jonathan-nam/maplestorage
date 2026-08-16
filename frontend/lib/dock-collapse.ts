@@ -4,12 +4,13 @@
 // upload and in the way on the other six. Folding it has to STICK, or the fold is just a chore
 // repeated on every visit.
 
-export type DockName = "inventory" | "planner";
+export type DockName = "inventory" | "planner" | "counts";
 
 /** The dock's title bar, and the only thing on screen when it is folded. */
 export const DOCK_LABELS: Record<DockName, string> = {
   inventory: "Inventory screenshot",
   planner: "Maple Planner screenshot",
+  counts: "Counts",
 };
 
 const PREFIX = "sharpeyes.dock.";

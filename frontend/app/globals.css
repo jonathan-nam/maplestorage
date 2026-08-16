@@ -1547,6 +1547,52 @@ img.user-avatar-img {
 
 /* Width and centring come from .page now. Centring itself here is what made it drift away from
    the inventory window, which does not centre. */
+/* Typing what a character holds. A list rather than the inventory's slot lattice: the grid is a
+   faithful copy of the game window and a box inside a 42px slot would be neither a slot nor a
+   field. Rows wrap, so a section is as wide as the dock and as tall as it needs to be. */
+.counts-section {
+  margin-top: 10px;
+}
+
+.counts-section-head {
+  margin: 0 0 6px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.counts-rows {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+}
+
+.counts-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--ink);
+}
+
+/* The same 46px frame every icon in this app is normalised to, drawn 1:1. An item with no art
+   keeps the frame so the rows beside it stay aligned. */
+.counts-icon {
+  width: 46px;
+  height: 46px;
+  flex: none;
+  image-rendering: pixelated;
+}
+
+.counts-name {
+  max-width: 210px;
+}
+
+/* Wide enough for six digits, which is past anything anybody holds and short of the column
+   stretching the row. */
+.counts-input {
+  width: 84px;
+}
+
 .dock {
   margin: 0 0 1rem;
 }

@@ -13,6 +13,9 @@ import { redemptionNote } from "@/lib/redemption";
 import type { Character } from "@/types/character";
 import type { CharacterToken } from "@/types/character-token";
 import { CaptureDock } from "@/components/capture-dock";
+import { CountsDock } from "@/components/counts-dock";
+import type { CountRow } from "@/lib/counts-editor";
+import type { TokenCatalogItem } from "@/types/token-catalog";
 import { SearchBar, SearchResults, search } from "@/components/item-search";
 import { CharacterCarousel, type Selection } from "@/components/character-carousel";
 
@@ -20,6 +23,9 @@ type LoadState = "loading" | "loaded" | "error";
 
 const CHARACTERS_KEY = "/api/characters";
 const ALL_TOKENS_KEY = "/api/characters/tokens";
+// Every item that EXISTS, which is not the same list as every item held: an item you have none
+// of is exactly the one you need a box for.
+const CATALOG_KEY = "/api/tokens/catalog";
 
 export default function CharactersPage() {
   const { getToken } = useAuth();
@@ -83,6 +89,13 @@ export default function CharactersPage() {
   // Bumped after an upload writes counts, to re-pull the inventory it just changed.
   const [revision, setRevision] = useState(0);
 
+  // The whole catalog, for the boxes. Optional: losing it costs the typing dock and nothing else,
+  // so it does not hold up the inventory itself.
+  const [catalog, setCatalog] = useState<TokenCatalogItem[]>(
+    peek<TokenCatalogItem[]>(CATALOG_KEY) ?? [],
+  );
+  const [savingCounts, setSavingCounts] = useState(false);
+
   useEffect(() => {
     // Every character's inventory is fetched HERE, on load, alongside the roster, not lazily
     // when you click one. The page already knows you are about to look at one of these; it just
@@ -97,9 +110,10 @@ export default function CharactersPage() {
         return Promise.all([
           apiFetch<Character[]>(CHARACTERS_KEY, { method: "GET" }, withToken),
           apiFetch<Record<string, CharacterToken[]>>(ALL_TOKENS_KEY, { method: "GET" }, withToken),
+          apiFetch<TokenCatalogItem[]>(CATALOG_KEY, { method: "GET" }, withToken).catch(() => null),
         ]);
       })
-      .then(([characterResult, allTokens]) => {
+      .then(([characterResult, allTokens, catalogResult]) => {
         // The bulk query only returns characters that HAVE something. A character with an empty
         // inventory comes back absent, which is indistinguishable from "not fetched yet", so it
         // would sit on a loading state forever. Say so explicitly: no tokens is an answer.
@@ -114,6 +128,10 @@ export default function CharactersPage() {
         setSelectedId((current) => current ?? characterResult[0]?.id ?? null);
         put(CHARACTERS_KEY, characterResult);
         put(ALL_TOKENS_KEY, seeded);
+        if (catalogResult) {
+          setCatalog(catalogResult);
+          put(CATALOG_KEY, catalogResult);
+        }
         setState("loaded");
       })
       // Only show the error state if we have nothing at all. A failed refresh
@@ -159,6 +177,41 @@ export default function CharactersPage() {
   const matches = search(query, characters, tokensByChar);
 
   const selectedTokens = selectedId ? tokensByChar[selectedId] : undefined;
+
+  /**
+   * A box for every item, holding what this character has of it.
+   *
+   * Off the CATALOG rather than off what they hold, which is the whole point: an item at zero is
+   * the one you need to type into, and it is the case a screenshot used to cover by seeing it in
+   * the window.
+   */
+  const countRows: CountRow[] = catalog.map((item) => ({
+    tokenCatalogId: item.tokenCatalogId,
+    name: item.name,
+    iconUrl: item.iconUrl,
+    itemGroup: item.itemGroup,
+    stored:
+      (selectedTokens ?? []).find((t) => t.tokenCatalogId === item.tokenCatalogId)?.quantity ?? 0,
+  }));
+
+  /** One PUT per changed row, then a re-pull, so what is on screen is the server's answer. */
+  async function saveCounts(changes: { tokenCatalogId: string; quantity: number }[]) {
+    if (!selectedId) return;
+    setSavingCounts(true);
+    try {
+      for (const change of changes) {
+        await apiFetch<unknown>(
+          `/api/characters/${selectedId}/tokens/${change.tokenCatalogId}`,
+          { method: "PUT", body: JSON.stringify({ quantity: change.quantity }) },
+          getToken,
+        );
+      }
+      invalidate(ALL_TOKENS_KEY);
+      setRevision((n) => n + 1);
+    } finally {
+      setSavingCounts(false);
+    }
+  }
   const tokensReady = selectedTokens !== undefined;
 
   useEffect(() => {
@@ -186,6 +239,19 @@ export default function CharactersPage() {
           rendering it only once the roster lands would push the whole page down at the moment the
           fetch returns. It also means a screenshot can be dropped while the roster is still on its
           way, which is the same generic upload the eye offers. */}
+      {/* Beside the dropzone rather than instead of it, for now. Typing is the path that does not
+          need a template cut for every new item, which is what made adding one expensive. */}
+      {/* Keyed so it remounts on a different character or a landed save, which is what puts the
+          boxes back to what is stored. An effect doing the same job wiped typing on every render
+          of this page, because the rows it watched are rebuilt each time. */}
+      <CountsDock
+        key={`${selectedId ?? "none"}-${revision}`}
+        characterName={characters.find((c) => c.id === selectedId)?.name ?? null}
+        rows={countRows}
+        busy={savingCounts}
+        onSave={saveCounts}
+      />
+
       <CaptureDock
         characters={characters}
         pinnedCharacterId={selectedId}
