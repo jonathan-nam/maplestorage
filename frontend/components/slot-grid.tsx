@@ -166,13 +166,13 @@ export function SlotGrid({
               title={item.name}
               aria-haspopup="dialog"
               aria-expanded={editing?.id === item.id}
-              onClick={(e) =>
-                setEditing((open) =>
-                  open?.id === item.id
-                    ? null
-                    : { id: item.id, anchor: e.currentTarget.getBoundingClientRect() },
-                )
-              }
+              onClick={(e) => {
+                // Measured HERE, not inside the updater below. React nulls currentTarget once the
+                // handler returns, and a functional updater runs later, so reading the rect in
+                // there threw on the very first click of any item.
+                const anchor = e.currentTarget.getBoundingClientRect();
+                setEditing((open) => (open?.id === item.id ? null : { id: item.id, anchor }));
+              }}
             >
               {contents}
             </button>
