@@ -12,7 +12,6 @@ import { invalidate, peek, put } from "@/lib/cache";
 import { redemptionNote } from "@/lib/redemption";
 import type { Character } from "@/types/character";
 import type { CharacterToken } from "@/types/character-token";
-import { CaptureDock } from "@/components/capture-dock";
 import { CountsDock } from "@/components/counts-dock";
 import type { CountRow } from "@/lib/counts-editor";
 import type { TokenCatalogItem } from "@/types/token-catalog";
@@ -66,11 +65,6 @@ export default function CharactersPage() {
     setQuery(name);
     setSearchFocusSignal((n) => n + 1);
   }
-
-  // Which character to come back to when you turn the generic upload back off. Without it, the
-  // eye is a one-way door: deselecting is easy, and getting back means hunting for the tile you
-  // were on.
-  const [lastSelectedId, setLastSelectedId] = useState<string | null>(null);
 
   // Tokens are kept PER CHARACTER, not as a single "the tokens" slot.
   //
@@ -163,14 +157,6 @@ export default function CharactersPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedId, revision]);
 
-  // Adding is on /characters now. This one path remains, and is not that control: an upload whose
-  // screenshot names a character you do not have offers to create it, and the roster on screen has
-  // to grow to match. Dropping the cache is what stops the next page serving the list from before.
-  function handleAdded(character: Character) {
-    setCharacters((prev) => [...prev, character]);
-    invalidate("/api/");
-  }
-
   const selected = characters.find((c) => c.id === selectedId);
 
   const searching = query.trim().length > 0;
@@ -239,8 +225,6 @@ export default function CharactersPage() {
           rendering it only once the roster lands would push the whole page down at the moment the
           fetch returns. It also means a screenshot can be dropped while the roster is still on its
           way, which is the same generic upload the eye offers. */}
-      {/* Beside the dropzone rather than instead of it, for now. Typing is the path that does not
-          need a template cut for every new item, which is what made adding one expensive. */}
       {/* Keyed so it remounts on a different character or a landed save, which is what puts the
           boxes back to what is stored. An effect doing the same job wiped typing on every render
           of this page, because the rows it watched are rebuilt each time. */}
@@ -250,23 +234,6 @@ export default function CharactersPage() {
         rows={countRows}
         busy={savingCounts}
         onSave={saveCounts}
-      />
-
-      <CaptureDock
-        characters={characters}
-        pinnedCharacterId={selectedId}
-        stored={new Map((selectedTokens ?? []).map((t) => [t.tokenCatalogId, t.quantity]))}
-        getToken={getToken}
-        onCharacterAdded={handleAdded}
-        onSaved={() => setRevision((n) => n + 1)}
-        onToggleGeneric={() => {
-          if (selectedId) {
-            setLastSelectedId(selectedId);
-            setSelectedId(null);
-          } else {
-            setSelectedId(lastSelectedId ?? characters[0]?.id ?? null);
-          }
-        }}
       />
 
       {state === "error" && <p>Couldn&apos;t load your characters.</p>}

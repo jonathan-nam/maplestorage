@@ -5,8 +5,6 @@ import { useAuth } from "@clerk/nextjs";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { BossMatrix } from "@/components/boss-matrix";
-import { DockSkeleton } from "@/components/dock-shell";
-import { PlannerDock } from "@/components/planner-dock";
 import { ResetTimer } from "@/components/reset-timer";
 import { WeekStepper } from "@/components/week-stepper";
 import { apiFetch } from "@/lib/api";
@@ -49,7 +47,6 @@ export default function BossesPage() {
   const [week, setWeek] = useState<string | null>(null);
   const [stepping, setStepping] = useState(false);
   const [ticking, setTicking] = useState(false);
-  const [uploadFor, setUploadFor] = useState<string | null>(null);
 
   // Clicking the arrow twice quickly fires two requests, and they can land in either order. Only
   // the newest one may write state, or the matrix ends up showing a week the label disagrees with.
@@ -70,17 +67,6 @@ export default function BossesPage() {
     setReceivedAt(Date.now());
     if (target === null) put(CLEARS_KEY, result);
     return true;
-  }
-
-  // After a capture saves, the matrix is stale. Only the clears can have changed, so only they are
-  // refetched; the catalog and the roster are the same as they were a moment ago.
-  async function refetchClears() {
-    try {
-      await loadClears(week);
-    } catch {
-      // The save itself succeeded, so leaving the old matrix up is better than blanking it. The
-      // next load will pick the new clears up.
-    }
   }
 
   /**
@@ -166,36 +152,10 @@ export default function BossesPage() {
 
   // Not "characters.length === 0": that is also true while the roster is still loading, when the
   // answer is "not yet" rather than "nobody".
-  const noRoster = state !== "loading" && characters.length === 0;
 
   return (
     <main className="page">
       <h1 className="page-title">Individual View</h1>
-
-      {/* Uploading files a capture against now, so it only makes sense on the live view. Offering
-          it under a past week would invite a capture that silently lands in this week instead of
-          the one on screen.
-
-          Outside the load states otherwise: it is the first thing on the page, so waiting for the
-          roster would push the matrix down at the moment the fetch returns. The picker holds the
-          space with tiles of its own until then, rather than standing empty at the wrong height.
-
-          An empty roster is the one case the dock cannot be offered in: a planner capture carries
-          no name of its own, so there would be nobody to file it under. */}
-      {week === null &&
-        (state === "loading" ? (
-          <DockSkeleton name="planner" picker />
-        ) : (
-          !noRoster && (
-            <PlannerDock
-              characters={characters}
-              selectedCharacterId={uploadFor}
-              onSelectCharacter={setUploadFor}
-              getToken={getToken}
-              onSaved={refetchClears}
-            />
-          )
-        ))}
 
       {state === "error" && <p>Couldn&apos;t load your boss clears.</p>}
 
