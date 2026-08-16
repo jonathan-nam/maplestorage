@@ -216,49 +216,6 @@ drops:
     name: Vestige of Erion Coupon
     art: cut
 
-  # --- Eternal piece fragments -------------------------------------------------------
-  # Half a piece: two make one of the tokens above, which is why they are their own items and not a
-  # smaller count of the same one. The lower difficulties of the four POOLED bosses drop these and
-  # the upper ones drop the piece itself, so a boss has both, at different modes.
-  #
-  # They are not in items.yaml, so the inventory cannot count one yet: that needs a vision template,
-  # which needs a capture with fragments in it. They are drops for now and become `item:` references
-  # the day they are items, which build.py forces by refusing a drop key that is also an item key.
-  #
-  # The names are not derivable from the token's. Kaling's fragment drops the "Beast", and the
-  # Adversary's is a Whisper where the token is an Echo. Confirmed against maplestory.io's own
-  # names, not guessed.
-  - key: kalos-residual-determination-fragment
-    name: Kalos's Residual Determination Fragment
-    icon_id: 2636606
-    per_member: HEROIC
-    untradeable: true
-  - key: ferocious-entanglement-ring-fragment
-    name: Ferocious Entanglement Ring Fragment
-    icon_id: 2636607
-    per_member: HEROIC
-    untradeable: true
-  - key: whisper-ancient-resolve
-    name: Whisper of Ancient Resolve
-    icon_id: 2830305
-    per_member: HEROIC
-    untradeable: true
-  # No icon_id, for the same reason blissful-fantasy-shard has none: GMS v268 is the newest complete
-  # dataset the mirror carries and it predates Malefic Star. Drawn without art rather than with
-  # somebody else's, until a sprite is cut by hand.
-  - key: blissful-fantasy-fragment
-    name: Blissful Fantasy Fragment
-    per_member: HEROIC
-    untradeable: true
-
-  # --- Jupiter's Eternal piece -------------------------------------------------------
-  # A drop rather than an `item:` reference, because it is not in items.yaml yet: v270, so the
-  # mirror has no sprite, and nobody has cut a vision template. It joins the others the day it does.
-  - key: lingering-twisted-desire
-    name: Lingering Twisted Desire
-    per_member: ALWAYS
-    untradeable: true
-
 # What each boss drops. Keys on the left are catalog/bosses.yaml boss keys; a boss with no entry
 # simply has no table recorded yet, which the UI says rather than showing an empty one.
 #
@@ -315,7 +272,9 @@ tables:
         EASY: 0
         CHAOS: { interactive: 5, heroic: 2 }
         EXTREME: { interactive: 14, heroic: 3 }
-    - key: kalos-residual-determination-fragment
+    - item: kalos-residual-determination-fragment
+      per_member: HEROIC
+      untradeable: true
       count:
         EASY: 0
         NORMAL: { interactive: 3, heroic: 2 }
@@ -338,7 +297,9 @@ tables:
       count:
         HARD: { interactive: 7, heroic: 2 }
         EXTREME: { interactive: 18, heroic: 3 }
-    - key: ferocious-entanglement-ring-fragment
+    - item: ferocious-entanglement-ring-fragment
+      per_member: HEROIC
+      untradeable: true
       count:
         EASY: 1
         NORMAL: { interactive: 5, heroic: 2 }
@@ -361,7 +322,9 @@ tables:
         EASY: 0
         HARD: { interactive: 6, heroic: 2 }
         EXTREME: { interactive: 16, heroic: 3 }
-    - key: whisper-ancient-resolve
+    - item: whisper-ancient-resolve
+      per_member: HEROIC
+      untradeable: true
       count:
         EASY: 0
         NORMAL: { interactive: 4, heroic: 2 }
@@ -383,7 +346,9 @@ tables:
       untradeable: true
       count:
         HARD: { interactive: { total: 18, bundles: 6 }, heroic: 2 }
-    - key: blissful-fantasy-fragment
+    - item: blissful-fantasy-fragment
+      per_member: HEROIC
+      untradeable: true
       count:
         NORMAL: { interactive: 6, heroic: 2 }
 
@@ -394,7 +359,9 @@ tables:
       pieces:
         NORMAL: { total: 45, bundles: 3 }
         HARD: { total: 360, bundles: 3 }
-    - key: lingering-twisted-desire
+    - item: lingering-twisted-desire
+      per_member: ALWAYS
+      untradeable: true
       count:
         NORMAL: 1
         HARD: 2

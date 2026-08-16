@@ -200,6 +200,12 @@ def load() -> list[dict]:
         # Star pieces make a Hat, Top, Bottom or Shoulder; Limbo/Baldrix pieces make a Cape,
         # Glove or Shoe, so ten of one and ten of the other are not "twenty pieces". A
         # redeemable token without this is a token whose progress bar means nothing.
+        art = it.get("art")
+        if art is not None and art != "cut":
+            sys.exit(f"{key}: art may only be 'cut', for a picture the mirror does not carry, got {art!r}")
+        if art == "cut" and icon_id is not None:
+            sys.exit(f"{key}: art 'cut' and an icon_id are two sources for one picture, pick one")
+
         slots = it.get("redeem_slots")
         if cat == "REDEMPTION_TOKEN" and not slots:
             sys.exit(f"{key}: a REDEMPTION_TOKEN needs redeem_slots. What does it buy?")
@@ -460,8 +466,11 @@ def _item_drops(
                 row["icon_id"] = item["icon_id"]
                 if item.get("icon_version") is not None:
                     row["icon_version"] = item["icon_version"]
-            else:
+            elif item.get("art") == "cut":
                 row["art"] = "item"
+            # An item with NEITHER has no picture to copy, so the drop has none either and is drawn
+            # as an empty slot. Claiming `item` here pointed the copy at a file that does not exist.
+
             out[key] = row
     return list(out.values())
 
@@ -695,23 +704,40 @@ JOIN drop_catalog d ON d.drop_key = v.drop_key;
 {amount_sql}"""
 
 
+def has_item_art(item: dict) -> bool:
+    """Whether this item claims a picture: downloaded from the mirror, or cut by hand.
+
+    The same two sources a drop has, and the same reason for saying so rather than looking: an item
+    the mirror does not carry and nobody has cut art for is drawn as an empty slot, which is honest,
+    where a filename pointing at nothing is a broken image.
+    """
+    return item.get("icon_id") is not None or item.get("art") == "cut"
+
+
 def check_art(items: list[dict]) -> list[str]:
-    """Every item needs a template and an icon, both named from its key."""
+    """An item must have the art it CLAIMS. A vision template is optional.
+
+    The template used to be required, and that requirement was the whole cost of adding an item: a
+    capture, a hand cut, and a process nobody had written down. So an item the parser could not read
+    was an item the app could not be told about at all, which is why four Eternal fragments and
+    Jupiter's token were drops rather than items for weeks.
+
+    An item without one is simply not readable off a capture. Its count is typed instead (see
+    CharacterTokenWrites.kt), which is now a thing that can be done.
+    """
     problems = []
     for it in items:
         key = it["key"]
-        tpl = TEMPLATES / f"token-{key}.png"
         icon = ICONS / f"{key}.png"
-        if not tpl.exists():
-            problems.append(f"missing vision template: {tpl.relative_to(ROOT)}  (cut one with vision/app/cv/build_icons.py)")
-        if not icon.exists():
-            problems.append(f"missing icon asset:     {icon.relative_to(ROOT)}")
+        if has_item_art(it) and not icon.exists():
+            hint = "cut by hand, see catalog/items.yaml" if it.get("art") == "cut" else "run --fetch-icons"
+            problems.append(f"missing icon asset:     {icon.relative_to(ROOT)} ({hint})")
         if off := canvas_problem(icon):
             problems.append(f"off-canvas icon:        {off}")
 
-    # And nothing may exist that the manifest does not know about, an orphan template
-    # is an item the parser can detect but the app cannot name, which is the same class
-    # of silent mismatch this file exists to prevent.
+    # A template the manifest does not know about still has to go. That is an item the parser can
+    # detect and the app cannot name, which is the silent mismatch this file exists to prevent, and
+    # it is unaffected by the template being optional in the other direction.
     known = {it["key"] for it in items}
     for tpl in sorted(TEMPLATES.glob("token-*.png")):
         key = tpl.stem.removeprefix("token-")
@@ -725,7 +751,8 @@ def sql(items: list[dict]) -> str:
         return "'" + s.replace("'", "''") + "'"
 
     rows = ",\n".join(
-        f"    ({q(it['key'])}, {q(it['name'])}, {q(it['boss'])}, {q(it['key'] + '.png')}, "
+        f"    ({q(it['key'])}, {q(it['name'])}, {q(it['boss'])}, "
+        f"{q(it['key'] + '.png') if has_item_art(it) else 'NULL'}, "
         f"{q(it['group'])}, {int(it['sort'])})"
         for it in items
     )

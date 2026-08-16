@@ -16,6 +16,19 @@
 # token_catalog.vision_key column. It must never change without renaming those with it
 #, which is exactly what build.py checks.
 #
+# A VISION TEMPLATE IS OPTIONAL. It used to be required, and that requirement was the entire cost
+# of adding an item: a capture, a hand cut, and a process nobody had written down. So an item the
+# parser could not read was an item the app could not be told about at all, which is why four
+# Eternal fragments and Jupiter's token sat in catalog/drops.yaml as bare drops for weeks.
+#
+# An item without one is simply not readable off a capture. Its count is typed instead. What
+# build.py still refuses is a template the manifest does not know about, which is an item the
+# parser can detect and the app cannot name.
+#
+# `icon_id` is the maplestory.io item id the picture comes from, and `art: cut` says it was cut by
+# hand for an item the pinned dataset does not carry. Neither is required either: an item with no
+# picture is drawn as an empty slot, which is honest, and is what the drop side has always done.
+#
 # `name` is prose for humans, and can be reworded freely.
 #
 # `redeem_slots` is which Eternal pieces a token can be traded for. It is not cosmetic: the two
@@ -40,6 +53,7 @@ items:
     sort: 13
     redeem_threshold: 10
     redeem_slots: [Hat, Top, Bottom, Shoulder]
+    art: cut
 
   - key: distorted-ambition
     name: Distorted Ambition
@@ -94,6 +108,71 @@ items:
     redeem_threshold: 10
     redeem_slots: [Cape, Glove, Shoe]
 
+  # No icon_id and no `art: cut`: GMS v268 is the newest dataset the mirror carries and this is a
+  # v270 item, so there is no sprite to point at and nobody has cut one. Drawn as an empty slot,
+  # which is what an item with no picture has always looked like on the drop side.
+  - key: lingering-twisted-desire
+    name: Lingering Twisted Desire
+    boss: Jupiter
+    category: REDEMPTION_TOKEN
+    group: Eternal Pieces
+    sort: 16
+    redeem_threshold: 10
+    redeem_slots: [Cape, Glove, Shoe]
+
+  # --- Fragments ---------------------------------------------------------------------
+  # Half a piece each: two make one of the tokens above, so TWENTY buy one Eternal piece. That is
+  # what the threshold says, and it is why they are their own items rather than a smaller count of
+  # the same one. The lower difficulties of the four pooled bosses drop these and the upper ones
+  # drop the token itself, so a boss has both and never at the same mode.
+  #
+  # The names are not derivable from the token's. Kaling's fragment drops the "Beast", and the
+  # Adversary's is a Whisper where the token is an Echo. Confirmed against maplestory.io's own
+  # names, not guessed.
+  #
+  # None of these has a vision template, which is now allowed: their counts are typed. That is the
+  # whole reason they can be items at all, having sat in catalog/drops.yaml as bare drops until the
+  # template requirement was lifted.
+  - key: kalos-residual-determination-fragment
+    name: Kalos's Residual Determination Fragment
+    boss: Kalos the Guardian
+    category: REDEMPTION_TOKEN
+    group: Eternal Pieces
+    sort: 17
+    icon_id: 2636606
+    redeem_threshold: 20
+    redeem_slots: [Hat, Top, Bottom, Shoulder]
+
+  - key: ferocious-entanglement-ring-fragment
+    name: Ferocious Entanglement Ring Fragment
+    boss: Kaling
+    category: REDEMPTION_TOKEN
+    group: Eternal Pieces
+    sort: 18
+    icon_id: 2636607
+    redeem_threshold: 20
+    redeem_slots: [Hat, Top, Bottom, Shoulder]
+
+  - key: whisper-ancient-resolve
+    name: Whisper of Ancient Resolve
+    boss: First Adversary
+    category: REDEMPTION_TOKEN
+    group: Eternal Pieces
+    sort: 19
+    icon_id: 2830305
+    redeem_threshold: 20
+    redeem_slots: [Hat, Top, Bottom, Shoulder]
+
+  # No art, for the same reason as Jupiter's token above: v270, and the mirror stops at v268.
+  - key: blissful-fantasy-fragment
+    name: Blissful Fantasy Fragment
+    boss: Malefic Star
+    category: REDEMPTION_TOKEN
+    group: Eternal Pieces
+    sort: 20
+    redeem_threshold: 20
+    redeem_slots: [Hat, Top, Bottom, Shoulder]
+
   # --- Consumables -------------------------------------------------------------------
   # Bought and drunk, not collected and redeemed: no redeem_threshold, and the UI must not
   # invent one. Templates cut from test-fixtures/inventory/potions.png.
@@ -124,6 +203,7 @@ items:
     category: CONSUMABLE
     group: Consumables
     sort: 42
+    art: cut
 
   - key: collector-elixir
     name: Collector's Elixir
