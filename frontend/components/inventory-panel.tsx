@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { COLS, SlotGrid, type SlotItem } from "@/components/slot-grid";
+import type { TokenCatalogItem } from "@/types/token-catalog";
 
 // The client's tab row, in its order and with its spelling ("Etc." and "Set-up" carry their
 // punctuation in-game). Everything we track is a consumable, so it all lives in Use.
@@ -48,9 +49,10 @@ export function InventoryPanel({
   items,
   emptyHint,
   loading = false,
-  onSelectItem,
   onAdjust,
   onCommit,
+  addable,
+  onAdd,
 }: {
   // The character's name, and nothing else. The level used to hang off it as "· Lv.287", which
   // repeated what the tile directly above already says and gave the window's title bar a second
@@ -64,12 +66,14 @@ export function InventoryPanel({
   // are not in the browser yet (e.g. one added mid-session); the initial page load uses the
   // full-page skeleton instead.
   loading?: boolean;
-  // Clicking an item searches every character for it (see the page).
-  onSelectItem?: (name: string) => void;
   // Hovering an item raises a stepper above it. Absent on a read-only panel, which is every use of
   // this that is not somebody's own live inventory.
   onAdjust?: (id: string, next: number) => void;
   onCommit?: (id: string, final: number) => void;
+  // Items this character holds none of. They have no slot to hover, so the + at the end of the
+  // grid is the only way in for them.
+  addable?: TokenCatalogItem[];
+  onAdd?: (tokenCatalogId: string) => void;
 }) {
   const [category, setCategory] = useState<Category>("Use");
   const [focused, setFocused] = useState(false);
@@ -164,7 +168,7 @@ export function InventoryPanel({
       {loading ? (
         <InventoryGridSkeleton />
       ) : sections.length > 0 ? (
-        sections.map((section) => (
+        sections.map((section, s) => (
           <section key={section.name} className="ms-section">
             <header className="ms-section-head">
               <h3>{section.name}</h3>
@@ -175,12 +179,21 @@ export function InventoryPanel({
             <SlotGrid
               items={section.items}
               rows={Math.max(1, Math.ceil(section.items.length / COLS))}
-              onSelectItem={onSelectItem}
               onAdjust={onAdjust}
               onCommit={onCommit}
+              // The LAST section only, so there is one + on the screen rather than one per
+              // section, and it sits after the last item drawn.
+              addable={s === sections.length - 1 ? addable : undefined}
+              onAdd={s === sections.length - 1 ? onAdd : undefined}
             />
           </section>
         ))
+      ) : category === "Use" && addable && addable.length > 0 && onAdd ? (
+        // Nothing held yet, which is the case with no slot to hover at all and so the one that
+        // most needs a way in. The grid is drawn holding only the +.
+        <section className="ms-section">
+          <SlotGrid items={[]} rows={1} addable={addable} onAdd={onAdd} />
+        </section>
       ) : (
         <div className="ms-empty">
           {category === "Use" ? (emptyHint ?? "Nothing here yet.") : `No ${category} items.`}

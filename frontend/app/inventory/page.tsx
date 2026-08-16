@@ -9,7 +9,9 @@ import { CharactersSkeleton } from "@/components/loading-skeleton";
 import { apiFetch } from "@/lib/api";
 import { reportVital } from "@/lib/rum";
 import { invalidate, peek, put } from "@/lib/cache";
+import { STARTING_COUNT, addableItems } from "@/lib/add-item";
 import { redemptionNote } from "@/lib/redemption";
+import type { TokenCatalogItem } from "@/types/token-catalog";
 import type { Character } from "@/types/character";
 import type { CharacterToken } from "@/types/character-token";
 import { SearchBar, SearchResults, search } from "@/components/item-search";
@@ -19,6 +21,9 @@ type LoadState = "loading" | "loaded" | "error";
 
 const CHARACTERS_KEY = "/api/characters";
 const ALL_TOKENS_KEY = "/api/characters/tokens";
+// Every item that EXISTS, which is not the list of items HELD. An item held none of has no
+// slot to hover, so the + at the end of the grid is the only way in for it.
+const CATALOG_KEY = "/api/tokens/catalog";
 
 export default function CharactersPage() {
   const { getToken } = useAuth();
@@ -50,16 +55,6 @@ export default function CharactersPage() {
 
   const [query, setQuery] = useState("");
 
-  // Bumped when an inventory item is clicked into the bar, so the SearchBar knows to pull focus.
-  // Separate from `query` because clicking the same item twice leaves the query unchanged but
-  // should still re-focus.
-  const [searchFocusSignal, setSearchFocusSignal] = useState(0);
-
-  function handleSelectItem(name: string) {
-    setQuery(name);
-    setSearchFocusSignal((n) => n + 1);
-  }
-
   // Tokens are kept PER CHARACTER, not as a single "the tokens" slot.
   //
   // Two reasons, and the second one is what you see. Overlapping requests: clicking down the
@@ -74,8 +69,13 @@ export default function CharactersPage() {
     peek<Record<string, CharacterToken[]>>(ALL_TOKENS_KEY) ?? {},
   );
 
-  // Bumped after an upload writes counts, to re-pull the inventory it just changed.
+  // Bumped after a write, to re-pull the inventory it just changed.
   const [revision, setRevision] = useState(0);
+
+  // Optional: losing it costs the + and nothing else, so it does not hold the inventory up.
+  const [catalog, setCatalog] = useState<TokenCatalogItem[]>(
+    peek<TokenCatalogItem[]>(CATALOG_KEY) ?? [],
+  );
 
   useEffect(() => {
     // Every character's inventory is fetched HERE, on load, alongside the roster, not lazily
@@ -91,9 +91,10 @@ export default function CharactersPage() {
         return Promise.all([
           apiFetch<Character[]>(CHARACTERS_KEY, { method: "GET" }, withToken),
           apiFetch<Record<string, CharacterToken[]>>(ALL_TOKENS_KEY, { method: "GET" }, withToken),
+          apiFetch<TokenCatalogItem[]>(CATALOG_KEY, { method: "GET" }, withToken).catch(() => null),
         ]);
       })
-      .then(([characterResult, allTokens]) => {
+      .then(([characterResult, allTokens, catalogResult]) => {
         // The bulk query only returns characters that HAVE something. A character with an empty
         // inventory comes back absent, which is indistinguishable from "not fetched yet", so it
         // would sit on a loading state forever. Say so explicitly: no tokens is an answer.
@@ -108,6 +109,10 @@ export default function CharactersPage() {
         setSelectedId((current) => current ?? characterResult[0]?.id ?? null);
         put(CHARACTERS_KEY, characterResult);
         put(ALL_TOKENS_KEY, seeded);
+        if (catalogResult) {
+          setCatalog(catalogResult);
+          put(CATALOG_KEY, catalogResult);
+        }
         setState("loaded");
       })
       // Only show the error state if we have nothing at all. A failed refresh
@@ -188,6 +193,19 @@ export default function CharactersPage() {
   const selectedTokens = selectedId ? tokensByChar[selectedId] : undefined;
   const tokensReady = selectedTokens !== undefined;
 
+  /** What this character holds none of, for the + at the end of the grid. */
+  const addable = addableItems(catalog, selectedTokens ?? []);
+
+  /**
+   * Starts holding an item, at one.
+   *
+   * The same write the stepper commits, so there is one way a count reaches the server. It lands
+   * as a slot in the grid on the re-pull, and the stepper takes it from there.
+   */
+  function addItem(tokenCatalogId: string) {
+    void commitCount(tokenCatalogId, STARTING_COUNT);
+  }
+
   const characterItems: InventoryItem[] = (selectedTokens ?? []).map((token) => {
     // What the stepper has moved it to, if anything, else what is stored. Everything below reads
     // this one figure, so the note and the redemption progress cannot disagree with the count
@@ -229,7 +247,6 @@ export default function CharactersPage() {
               characters={characters}
               tokensByChar={tokensByChar}
               onSelectCharacter={setSelectedId}
-              focusSignal={searchFocusSignal}
             />
 
             <CharacterCarousel
@@ -249,14 +266,12 @@ export default function CharactersPage() {
                 loading={!tokensReady}
                 emptyHint="No tokens here yet."
                 items={characterItems}
-                // Clicking an item searches every character for it: the query fills the bar above
-                // (bound to this same state), focus moves there so it can be edited (see SearchBar),
-                // and the results take over this slot.
-                onSelectItem={handleSelectItem}
                 // Hovering an item raises the stepper. onAdjust is every step and writes nothing;
                 // onCommit is the total once the pressing stops.
                 onAdjust={(id, next) => setStepped((current) => ({ ...current, [id]: next }))}
                 onCommit={commitCount}
+                addable={addable}
+                onAdd={addItem}
               />
             ) : characters.length === 0 ? (
               // The add control is no longer on this page, so the empty state has to say where it

@@ -50,6 +50,20 @@ export function clampCount(n: number): number {
 }
 
 /**
+ * A typed count as a number, or null when it is not an answer.
+ *
+ * Blank is null rather than zero, and the distinction matters: a box somebody is halfway through
+ * clearing reads blank for a keystroke, and writing a zero there would delete the row out from
+ * under them. Nothing is written until it reads as a number.
+ */
+export function parseCount(input: string): number | null {
+  const cleaned = input.trim();
+  if (cleaned === "" || !/^\d+$/.test(cleaned)) return null;
+  const n = Number(cleaned);
+  return n >= 0 && n <= MAX_COUNT ? n : null;
+}
+
+/**
  * How long to wait after the last press before writing.
  *
  * Long enough that a hold is one write rather than forty, short enough that letting go feels like

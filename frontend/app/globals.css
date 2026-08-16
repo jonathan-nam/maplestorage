@@ -762,6 +762,47 @@ a:hover {
   background: var(--ms-grid-bg);
 }
 
+/* The + at the end of the grid: the one way in for an item held none of, which has no slot to
+   hover and so no stepper to raise.
+
+   The select covers the slot invisibly, so what you SEE is the + and what you GET is the browser's
+   own dropdown, with its keyboard, type-ahead and scrolling. A popover of ours would have had to
+   reimplement all three for a list the length of the catalog. */
+.ms-add {
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+
+.ms-add-mark {
+  color: var(--ms-slot-edge);
+  font-size: 20px;
+  line-height: 1;
+}
+
+.ms-add:hover .ms-add-mark {
+  color: var(--ms-ink);
+}
+
+.ms-add-select {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+  /* Firefox draws a focus ring on the invisible select, which lands as a rectangle floating over
+     the slot. The visible + carries the focus instead. */
+  appearance: none;
+  border: 0;
+  padding: 0;
+}
+
+.ms-add-select:focus-visible + .ms-add-mark,
+.ms-add:focus-within .ms-add-mark {
+  color: var(--ms-ink);
+}
+
 /* A slot with a stepper over it. It has to be a real positioned box: `display: contents` generates
    none, so the absolutely positioned stepper inside would resolve against some ancestor further up
    and land nowhere near its slot. The slot keeps its own 42px, so the grid's pitch is unchanged. */
@@ -769,40 +810,67 @@ a:hover {
   position: relative;
 }
 
-/* Raising and lowering a count, ABOVE the slot rather than on it.
+/* Editing one item's count, in a popup over the slot you clicked.
 
-   The slot is already the search button, so a stepper inside it would put two targets in one 42px
-   square, and a click a few pixels off would change a count when you meant to look the item up.
-   Above, the two surfaces cannot be confused for each other. */
-.ms-stepper {
-  /* FIXED, not absolute: .ms-window sets overflow-x: auto, and an element that clips one axis
-     clips both, so an absolutely positioned popover over the first row was cut off by the window
-     it was drawn in. left/top come from the slot's own rect. */
+   FIXED rather than absolute: .ms-window sets overflow-x: auto, and an element that clips one axis
+   clips both, so an absolutely positioned popup over the first row was cut off by the window it was
+   drawn in. left/top come from the slot's own rect.
+
+   Stacked in the order you read it: what the item is, then what you hold, then the controls. */
+.ms-count-popup {
   position: fixed;
   transform: translate(-50%, -100%);
   z-index: 40;
   display: flex;
-  gap: 2px;
-  padding: 2px;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  min-width: 132px;
+  padding: 8px;
   border: 1px solid var(--line);
-  border-radius: 6px;
+  border-radius: 8px;
   background: var(--surface);
-  box-shadow: 0 2px 6px rgb(0 0 0 / 25%);
+  box-shadow: 0 4px 14px rgb(0 0 0 / 35%);
+}
+
+.ms-count-name {
+  max-width: 168px;
+  color: var(--ink);
+  font-size: 12px;
+  text-align: center;
+}
+
+/* The same 46px frame every icon is normalised to, drawn 1:1. An item with no art keeps the frame
+   so the popup is the same height either way. */
+.ms-count-icon {
+  width: 46px;
+  height: 46px;
+  image-rendering: pixelated;
+}
+
+.ms-count-input {
+  width: 84px;
+  text-align: center;
+}
+
+.ms-count-buttons {
+  display: flex;
+  gap: 6px;
 }
 
 .ms-step {
-  width: 22px;
-  height: 20px;
+  width: 36px;
+  height: 24px;
   padding: 0;
   border: 1px solid var(--line-soft);
   border-radius: 4px;
   background: var(--surface);
   color: var(--ink);
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1;
   cursor: pointer;
   /* A hold is a press, not a selection. Without this, holding + drags a text cursor across the
-     grid and the browser starts highlighting the counts under it. */
+     popup and the browser starts highlighting the number above it. */
   user-select: none;
   touch-action: manipulation;
 }

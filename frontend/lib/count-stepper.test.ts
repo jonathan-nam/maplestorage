@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { MAX_COUNT, SAVE_AFTER_MS, clampCount, stepFor } from "./count-stepper";
+import { MAX_COUNT, SAVE_AFTER_MS, clampCount, parseCount, stepFor } from "./count-stepper";
 
 describe("how a held button speeds up", () => {
   it("gives a plain click one, and a long pause before anything repeats", () => {
@@ -74,5 +74,29 @@ describe("when the total gets written", () => {
     expect(SAVE_AFTER_MS).toBeGreaterThanOrEqual(300);
     // And short enough that letting go feels like it saved.
     expect(SAVE_AFTER_MS).toBeLessThanOrEqual(1500);
+  });
+});
+
+describe("reading a typed count", () => {
+  it("takes a whole number, including zero", () => {
+    // Zero is a real answer: the item you have just spent. It clears the row on the server.
+    expect(parseCount("14")).toBe(14);
+    expect(parseCount("0")).toBe(0);
+    expect(parseCount(" 7 ")).toBe(7);
+  });
+
+  it("refuses a blank rather than reading it as zero", () => {
+    // A box somebody is halfway through clearing reads blank for a keystroke, and writing a zero
+    // there would delete the row out from under them.
+    expect(parseCount("")).toBeNull();
+    expect(parseCount("  ")).toBeNull();
+  });
+
+  it("refuses anything that is not a count", () => {
+    // "1O" is the letter O, which is the typo this repo has been bitten by on a quantity before.
+    expect(parseCount("1O")).toBeNull();
+    expect(parseCount("-2")).toBeNull();
+    expect(parseCount("1.5")).toBeNull();
+    expect(parseCount(String(MAX_COUNT + 1))).toBeNull();
   });
 });
