@@ -27,6 +27,7 @@ from app.cv.match import load_templates
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent.parent
 MANIFEST = ROOT / "catalog" / "items.yaml"
+TEMPLATES = ROOT / "vision" / "app" / "cv" / "templates"
 
 REFERENCE_CAPTURES = [
     f"{INVENTORY}/untradeables sample.png",
@@ -41,12 +42,25 @@ def manifest_keys() -> set[str]:
     return {i["key"] for i in yaml.safe_load(MANIFEST.read_text())["items"]}
 
 
-def test_every_manifest_item_has_a_template():
-    templates = load_templates()
-    missing = manifest_keys() - set(templates)
-    assert not missing, (
-        f"in the manifest but with no template the parser can match: {sorted(missing)}"
-    )
+def template_keys() -> set[str]:
+    """The templates on disk, by key.
+
+    Off the filenames rather than through load_templates(), because this runs at COLLECTION time and
+    decoding every icon to decide what to parametrise is work done before a single test has run.
+    """
+    return {p.stem.removeprefix("token-") for p in TEMPLATES.glob("token-*.png")}
+
+
+# There is deliberately NO test that every manifest item has a template.
+#
+# It used to be here, and it was the same rule catalog/build.py enforced from the other side. That
+# rule was the whole cost of adding an item: a capture, a hand cut, and a process nobody had written
+# down, so an item the parser could not read was an item the app could not be told about at all.
+# Four Eternal fragments and Jupiter's token sat in catalog/drops.yaml as bare drops because of it.
+#
+# An item without a template is simply not readable off a capture; its count is typed instead. The
+# direction that survives is below, and it is the one that was ever load-bearing: a template the
+# manifest cannot name is an item the parser detects and the app cannot report.
 
 
 def test_every_template_is_in_the_manifest():
@@ -88,11 +102,14 @@ def test_no_two_templates_are_confusable():
     assert not found, "icons the verifier cannot tell apart:\n" + "\n".join(found)
 
 
-@pytest.mark.parametrize("key", sorted(manifest_keys()))
+@pytest.mark.parametrize("key", sorted(template_keys()))
 def test_a_template_matches_itself_perfectly(key):
     """Sanity: the client draws each icon pixel-identically, so a template must score
     ~1.0 against itself. A template that does not is corrupt, or was cut with the wrong
-    mask, and will never be found in a real screenshot either."""
+    mask, and will never be found in a real screenshot either.
+
+    Over the templates that EXIST rather than over every manifest key, since an item may now have
+    none. Parametrising on the manifest turned five perfectly good items into five KeyErrors."""
     templates = load_templates()
     assert masked_score(templates[key], templates[key]) > 0.99
 
