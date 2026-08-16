@@ -10,6 +10,13 @@ import { apiFetch } from "@/lib/api";
 import { reportVital } from "@/lib/rum";
 import { invalidate, peek, put } from "@/lib/cache";
 import { STARTING_COUNT, addableItems } from "@/lib/add-item";
+import {
+  noPending,
+  pendingFor,
+  shownCount,
+  withPending,
+  withoutPending,
+} from "@/lib/pending-counts";
 import { redemptionNote } from "@/lib/redemption";
 import type { TokenCatalogItem } from "@/types/token-catalog";
 import type { Character } from "@/types/character";
@@ -152,17 +159,13 @@ export default function CharactersPage() {
    * server: the total lands once the pressing stops. See SAVE_AFTER_MS.
    */
   //
-  // Carried WITH the character and revision it belongs to, and read back only when those still
-  // match. An effect clearing it on change was a cascading render, and worse: for one paint the
-  // old character's figures were drawn under the new one's name.
-  const stepGen = `${selectedId ?? "none"}-${revision}`;
-  const [steppedAt, setSteppedAt] = useState<{ gen: string; values: Record<string, number> }>({
-    gen: stepGen,
-    values: {},
-  });
-  const stepped = steppedAt.gen === stepGen ? steppedAt.values : {};
-  const setStepped = (next: (current: Record<string, number>) => Record<string, number>) =>
-    setSteppedAt({ gen: stepGen, values: next(stepped) });
+  // Carried with the CHARACTER it belongs to and nothing else, so it outlives the re-pull the write
+  // triggers. It used to be keyed on the refresh counter too, and that was the flicker: the figure
+  // was dropped the moment the write succeeded, which is a round trip before the answer carrying it
+  // arrives, so the slot fell back to the stored number and showed the old count in between. See
+  // lib/pending-counts.ts.
+  const [pending, setPending] = useState(() => noPending(selectedId ?? ""));
+  const stepped = pendingFor(pending, selectedId ?? "");
 
   /** Writes one item's total, and re-pulls so what is on screen is the server's answer. */
   async function commitCount(tokenCatalogId: string, quantity: number) {
@@ -173,15 +176,16 @@ export default function CharactersPage() {
         { method: "PUT", body: JSON.stringify({ quantity }) },
         getToken,
       );
+      // The figure the server now holds, so what is on screen agrees with it through the re-pull
+      // and after it. Without this a stale one outlives its write: stepping an item to zero
+      // deletes the row, and re-adding it with the + would then draw the 0 over the new 1.
+      setPending((current) => withPending(current, selectedId, tokenCatalogId, quantity));
       invalidate(ALL_TOKENS_KEY);
       setRevision((n) => n + 1);
     } catch {
       // The figure on screen is now a claim the server has not accepted, so it goes rather than
-      // sitting there looking saved. The re-pull below puts the stored one back.
-      setStepped((current) => {
-        const { [tokenCatalogId]: _dropped, ...rest } = current;
-        return rest;
-      });
+      // sitting there looking saved. The re-pull puts the stored one back.
+      setPending((current) => withoutPending(current, tokenCatalogId));
     }
   }
 
@@ -210,7 +214,7 @@ export default function CharactersPage() {
     // What the stepper has moved it to, if anything, else what is stored. Everything below reads
     // this one figure, so the note and the redemption progress cannot disagree with the count
     // drawn under the icon.
-    const quantity = stepped[token.tokenCatalogId] ?? token.quantity;
+    const quantity = shownCount(token.quantity, stepped[token.tokenCatalogId]);
     return {
       id: token.tokenCatalogId,
       name: token.name,
@@ -272,7 +276,9 @@ export default function CharactersPage() {
                 items={characterItems}
                 // Hovering an item raises the stepper. onAdjust is every step and writes nothing;
                 // onCommit is the total once the pressing stops.
-                onAdjust={(id, next) => setStepped((current) => ({ ...current, [id]: next }))}
+                onAdjust={(id, next) =>
+                  setPending((current) => withPending(current, selectedId ?? "", id, next))
+                }
                 onCommit={commitCount}
                 addable={addable}
                 onAdd={addItem}
