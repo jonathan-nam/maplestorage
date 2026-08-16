@@ -262,6 +262,10 @@ export default function CharactersPage() {
               <SearchResults query={query} matches={matches} />
             ) : selected ? (
               <InventoryPanel
+                // Keyed on the character, so picking a different one tears the panel down and any
+                // open count popup with it. The popup takes its write target once, at mount, and
+                // one left open across a switch would be bound to the character it opened over.
+                key={selected.id}
                 title={selected.name}
                 loading={!tokensReady}
                 emptyHint="No tokens here yet."

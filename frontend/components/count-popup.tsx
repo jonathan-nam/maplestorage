@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { MAX_COUNT, SAVE_AFTER_MS, clampCount, parseCount, stepFor } from "@/lib/count-stepper";
+import { deferredWrite } from "@/lib/deferred-write";
 
 // Editing one item's count, in a popup over the slot you clicked.
 //
@@ -45,24 +46,36 @@ export function CountPopup({
   const box = useRef<HTMLDivElement>(null);
   const live = useRef(value);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const saver = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Held back until the pressing stops, and FLUSHED when this closes rather than cancelled. It was
+  // cancelled, and that is what lost edits: typing a count and clicking another item inside the
+  // wait threw the write away in silence, so the number went back to what was stored and read as
+  // though it had been reset. See lib/deferred-write.ts.
+  //
+  // onCommit is taken ONCE, at mount, which is safe only because this popup cannot outlive what it
+  // writes to: it is remounted per item, and the panel above is keyed on the character, so picking
+  // a different one closes it rather than leaving it bound to the character it opened over.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const held = useMemo(() => deferredWrite(onCommit, SAVE_AFTER_MS), []);
   // The box as typed, so a half-cleared "" survives the keystroke it takes to retype it. See
   // parseCount: blank is not zero.
   const [typed, setTyped] = useState(String(value));
 
+  // Only while nothing is waiting to be written. A re-pull elsewhere on the page changes this prop
+  // mid-edit, and taking it then would drop the figure being typed and write the old one back.
   useEffect(() => {
-    live.current = value;
+    if (!held.pending()) live.current = value;
   }, [value]);
 
-  // Nothing may outlive the popup: a repeat still firing after it closed would go on changing a
-  // count nobody is looking at, and the write behind it would land a figure nobody saw.
-  useEffect(
-    () => () => {
+  // On the way out: stop the repeat, then WRITE what is waiting. A repeat still firing after this
+  // closed would go on changing a count nobody is looking at, but a value already typed is one
+  // somebody meant, and dropping it is the bug this file was rewritten for.
+  useEffect(() => {
+    return () => {
       if (timer.current) clearTimeout(timer.current);
-      if (saver.current) clearTimeout(saver.current);
-    },
-    [],
-  );
+      held.flush();
+    };
+  }, []);
 
   // Escape closes, and so does a click anywhere else. Both commit first: closing is not cancelling,
   // and a number you typed and then clicked away from is one you meant.
@@ -86,10 +99,9 @@ export function CountPopup({
     live.current = next;
     onChange(next);
     setTyped(String(next));
-    if (saver.current) clearTimeout(saver.current);
-    // Written as a TOTAL once the pressing stops, so a flush cannot land a figure nobody saw, and
-    // a hold is one write rather than forty.
-    saver.current = setTimeout(() => onCommit(live.current), SAVE_AFTER_MS);
+    // A TOTAL, so the one write that lands is the figure this ended on, and a hold is one write
+    // rather than forty.
+    held.schedule(next);
   }
 
   function stop() {
@@ -148,8 +160,7 @@ export function CountPopup({
             if (read !== null) {
               live.current = read;
               onChange(read);
-              if (saver.current) clearTimeout(saver.current);
-              saver.current = setTimeout(() => onCommit(live.current), SAVE_AFTER_MS);
+              held.schedule(read);
             }
           }}
           onKeyDown={(e) => {
