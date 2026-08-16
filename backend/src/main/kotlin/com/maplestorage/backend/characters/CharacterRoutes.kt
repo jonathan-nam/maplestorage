@@ -42,6 +42,8 @@ fun Route.characterRoutes(
     put("/{id}") { updateCharacter() }
     post("/{id}/refresh") { refreshCharacter(nexonLookupService, spriteCache) }
     get("/{id}/tokens") { getCharacterTokens() }
+    // Typing a count in. The only other writer of these rows is a screenshot parse.
+    put("/{id}/tokens/{tokenId}") { setCharacterTokenCount() }
     delete("/{id}") { deleteCharacter() }
 }
 

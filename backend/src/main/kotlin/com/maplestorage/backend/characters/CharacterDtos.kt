@@ -41,6 +41,19 @@ data class CharacterTokenResponse(
     val capturedAt: String,
 )
 
+/**
+ * Typing in what a character holds of one item.
+ *
+ * ABSOLUTE, exactly as a parse's figure was: "what do you hold" has one answer, and re-typing it
+ * corrects a mistake completely. A "+2 after a run" button reads the figure on screen and sends the
+ * sum, so what is stored is always a number somebody was looking at rather than a running total
+ * nobody has checked. Zero clears the row. See CharacterTokenWrites.kt.
+ */
+@Serializable
+data class SetTokenCountRequest(
+    val quantity: Int,
+)
+
 @Serializable
 data class CreateCharacterRequest(
     val name: String,
