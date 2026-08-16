@@ -762,6 +762,56 @@ a:hover {
   background: var(--ms-grid-bg);
 }
 
+/* A slot with a stepper over it. It has to be a real positioned box: `display: contents` generates
+   none, so the absolutely positioned stepper inside would resolve against some ancestor further up
+   and land nowhere near its slot. The slot keeps its own 42px, so the grid's pitch is unchanged. */
+.ms-slot-hold {
+  position: relative;
+}
+
+/* Raising and lowering a count, ABOVE the slot rather than on it.
+
+   The slot is already the search button, so a stepper inside it would put two targets in one 42px
+   square, and a click a few pixels off would change a count when you meant to look the item up.
+   Above, the two surfaces cannot be confused for each other. */
+.ms-stepper {
+  /* FIXED, not absolute: .ms-window sets overflow-x: auto, and an element that clips one axis
+     clips both, so an absolutely positioned popover over the first row was cut off by the window
+     it was drawn in. left/top come from the slot's own rect. */
+  position: fixed;
+  transform: translate(-50%, -100%);
+  z-index: 40;
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface);
+  box-shadow: 0 2px 6px rgb(0 0 0 / 25%);
+}
+
+.ms-step {
+  width: 22px;
+  height: 20px;
+  padding: 0;
+  border: 1px solid var(--line-soft);
+  border-radius: 4px;
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+  /* A hold is a press, not a selection. Without this, holding + drags a text cursor across the
+     grid and the browser starts highlighting the counts under it. */
+  user-select: none;
+  touch-action: manipulation;
+}
+
+.ms-step:disabled {
+  color: var(--muted-2);
+  cursor: default;
+}
+
 /* 42px fill on a 46px pitch: the client's own slot size. */
 .ms-slot {
   width: 42px;

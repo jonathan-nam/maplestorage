@@ -49,6 +49,8 @@ export function InventoryPanel({
   emptyHint,
   loading = false,
   onSelectItem,
+  onAdjust,
+  onCommit,
 }: {
   // The character's name, and nothing else. The level used to hang off it as "· Lv.287", which
   // repeated what the tile directly above already says and gave the window's title bar a second
@@ -64,6 +66,10 @@ export function InventoryPanel({
   loading?: boolean;
   // Clicking an item searches every character for it (see the page).
   onSelectItem?: (name: string) => void;
+  // Hovering an item raises a stepper above it. Absent on a read-only panel, which is every use of
+  // this that is not somebody's own live inventory.
+  onAdjust?: (id: string, next: number) => void;
+  onCommit?: (id: string, final: number) => void;
 }) {
   const [category, setCategory] = useState<Category>("Use");
   const [focused, setFocused] = useState(false);
@@ -170,6 +176,8 @@ export function InventoryPanel({
               items={section.items}
               rows={Math.max(1, Math.ceil(section.items.length / COLS))}
               onSelectItem={onSelectItem}
+              onAdjust={onAdjust}
+              onCommit={onCommit}
             />
           </section>
         ))

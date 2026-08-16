@@ -1,5 +1,7 @@
 "use client";
 
+import { Fragment, useEffect, useRef, useState } from "react";
+import { CountStepper } from "@/components/count-stepper";
 import { apiAssetUrl } from "@/lib/api";
 
 // The count, drawn from the client's own digit sprites rather than set in a web font.
@@ -52,6 +54,8 @@ export function SlotGrid({
   items,
   rows,
   onSelectItem,
+  onAdjust,
+  onCommit,
 }: {
   items: SlotItem[];
   rows: number;
@@ -59,8 +63,42 @@ export function SlotGrid({
   // search every character for it. Left unset by the capture preview, whose slots are a parse
   // to look at, not holdings to search.
   onSelectItem?: (name: string) => void;
+  // When set, hovering a filled slot raises a stepper ABOVE it. Above rather than on it because
+  // the slot is already the search button: two targets in one 42px square would mean a click a few
+  // pixels off changed a count when you meant to look the item up.
+  onAdjust?: (id: string, next: number) => void;
+  // The total to keep once the pressing stops. Separate from onAdjust, which fires on every step
+  // and writes nothing.
+  onCommit?: (id: string, final: number) => void;
 }) {
   const slots = COLS * rows;
+  // One stepper at a time, with the slot it belongs to in viewport coordinates: the popover is
+  // fixed, so it needs an anchor rather than a positioned parent. See CountStepper.
+  const [stepping, setStepping] = useState<{ id: string; anchor: DOMRect } | null>(null);
+  // Closing is DELAYED, because the popover sits a few pixels clear of its slot and crossing that
+  // gap leaves both. Without the grace period the stepper vanished as you reached for it.
+  const closing = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  function hold(id: string, anchor: DOMRect) {
+    if (closing.current) clearTimeout(closing.current);
+    setStepping({ id, anchor });
+  }
+
+  function release() {
+    if (closing.current) clearTimeout(closing.current);
+    closing.current = setTimeout(() => setStepping(null), 140);
+  }
+
+  // A fixed popover is anchored to where the slot WAS. Scrolling moves the slot and not the
+  // popover, so it is dismissed rather than left pointing at the wrong item.
+  useEffect(() => {
+    if (!stepping) return;
+    const drop = () => setStepping(null);
+    window.addEventListener("scroll", drop, true);
+    return () => window.removeEventListener("scroll", drop, true);
+  }, [stepping]);
+
+  useEffect(() => () => (closing.current ? clearTimeout(closing.current) : undefined), []);
   return (
     <div className="ms-grid" style={{ gridTemplateColumns: `repeat(${COLS}, 1fr)` }}>
       {Array.from({ length: slots }, (_, i) => {
@@ -84,23 +122,43 @@ export function SlotGrid({
           </>
         );
 
-        if (onSelectItem) {
-          return (
-            <button
-              key={i}
-              type="button"
-              className="ms-slot filled clickable"
-              title={item.name}
-              onClick={() => onSelectItem(item.name)}
-            >
-              {contents}
-            </button>
-          );
-        }
+        const steppable = Boolean(onAdjust && onCommit);
+        const slot = onSelectItem ? (
+          <button
+            type="button"
+            className="ms-slot filled clickable"
+            title={item.name}
+            onClick={() => onSelectItem(item.name)}
+          >
+            {contents}
+          </button>
+        ) : (
+          <div className="ms-slot filled" title={item.name}>
+            {contents}
+          </div>
+        );
+
+        if (!steppable) return <Fragment key={i}>{slot}</Fragment>;
 
         return (
-          <div key={i} className="ms-slot filled" title={item.name}>
-            {contents}
+          <div
+            key={i}
+            className="ms-slot-hold"
+            onPointerEnter={(e) => hold(item.id, e.currentTarget.getBoundingClientRect())}
+            onPointerLeave={release}
+          >
+            {slot}
+            {stepping?.id === item.id && (
+              <CountStepper
+                value={item.quantity}
+                anchor={stepping.anchor}
+                label={item.name}
+                onChange={(next) => onAdjust!(item.id, next)}
+                onCommit={(final) => onCommit!(item.id, final)}
+                onPointerEnter={() => hold(item.id, stepping.anchor)}
+                onPointerLeave={release}
+              />
+            )}
           </div>
         );
       })}
