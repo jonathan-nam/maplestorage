@@ -89,7 +89,11 @@ export function LootRow({
   // stands now. Offering more than that would offer a seller the sell route refuses, and offering
   // the week's roster for a guest week is the only way to name the guest who actually sold it.
   const ran = party.seats.filter((m) => loot.ranThatWeek.includes(m.id));
-  const [sellerMemberId, setSellerMemberId] = useState(ran[0]?.id ?? "");
+  // Whoever picked it up is who is holding it, so they are the seller unless somebody says
+  // otherwise. A recorded fact (V64) rather than the first seat in the roster, which named an
+  // arbitrary person as seller and so set which way the debt ran.
+  const looted = ran.find((m) => m.id === loot.looterMemberId)?.id;
+  const [sellerMemberId, setSellerMemberId] = useState(looted ?? ran[0]?.id ?? "");
   const [selling, setSelling] = useState(false);
   // Seeded from each seat's weight in the week this drop FELL in, falling back to the standing one
   // for the weeks that named no deal of their own. A party where somebody always carries needs no
