@@ -63,7 +63,7 @@ says "permission denied".
 
 ```bash
 git clone https://github.com/jonathan-nam/sharpeyes.git
-cd maplestorage
+cd sharpeyes
 cp .env.prod.example .env
 vi .env                    # every field. DB_PASSWORD: openssl rand -base64 32
 ./deploy.sh
@@ -90,7 +90,7 @@ Then add both hostnames to the Clerk dashboard's allowed origins, or every reque
 ```bash
 crontab -e
 # 07:30 UTC, half an hour after the Lightsail snapshot
-30 7 * * * cd /home/ubuntu/maplestorage && ./scripts/backup-db.sh >> /var/log/maplestorage-backup.log 2>&1
+30 7 * * * cd /home/ubuntu/sharpeyes && ./scripts/backup-db.sh >> /var/log/sharpeyes-backup.log 2>&1
 ```
 
 **Then rehearse the restore, once, before you need it** (below). An untested backup is a file you
