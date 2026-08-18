@@ -62,7 +62,7 @@ says "permission denied".
 ### 3. Configure and deploy
 
 ```bash
-git clone https://github.com/jonathan-nam/maplestorage.git
+git clone https://github.com/jonathan-nam/sharpeyes.git
 cd maplestorage
 cp .env.prod.example .env
 vi .env                    # every field. DB_PASSWORD: openssl rand -base64 32

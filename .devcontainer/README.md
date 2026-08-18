@@ -56,7 +56,7 @@ Restart.**
 
 ```bash
 mkdir -p ~/projects && cd ~/projects
-git clone https://github.com/jonathan-nam/maplestorage.git
+git clone https://github.com/jonathan-nam/sharpeyes.git
 cd maplestorage
 ```
 
