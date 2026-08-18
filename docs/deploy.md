@@ -6,13 +6,14 @@ service and Postgres. $12/month. The frontend is on Vercel's free tier.
 ```
                     Cloudflare (free tier, proxied)
                        │
-   maplestorage.com ───┼──> Vercel          Next frontend   (DNS-only, grey cloud)
-   api.maplestorage.com┴──> Lightsail box                   (proxied, orange cloud)
+   sharpeyes.gg ───────┼──> Vercel          Next frontend   (DNS-only, grey cloud)
+   api.sharpeyes.gg ───┴──> Lightsail box                   (proxied, orange cloud)
                                 │
-                            Caddy :443      TLS, 20MB body limit
+                            Caddy :443      TLS, 20MB body limit, load balances
                                 │
-                            backend :8080 ─┐  shared network namespace:
-                            vision  :8000 ─┘  the backend reaches the parser on 127.0.0.1
+                            backend   :8080 ─┐ shared network namespace:
+                            backend-b :8081 ─┤ the replicas reach the parser on 127.0.0.1,
+                            vision    :8000 ─┘ and Caddy reaches them both at `vision:<port>`
                                 │
                             postgres + volume
                                 │  nightly pg_dump
@@ -23,12 +24,14 @@ service and Postgres. $12/month. The frontend is on Vercel's free tier.
 
 ### 1. Domain and DNS
 
-Register the domain (Cloudflare Registrar sells at cost and we want Cloudflare's DNS anyway), then:
+Register the domain wherever carries `.gg`, then move its nameservers to Cloudflare. Cloudflare
+Registrar does not sell `.gg`, but its DNS is free and the proxy in front of the box is the reason
+it is here at all.
 
 | Record | Points at | Proxy |
 | --- | --- | --- |
-| `maplestorage.com` | Vercel | **DNS-only (grey cloud)** |
-| `api.maplestorage.com` | the box's static IP | proxied (orange cloud) |
+| `sharpeyes.gg` | Vercel | **DNS-only (grey cloud)** |
+| `api.sharpeyes.gg` | the box's static IP | proxied (orange cloud) |
 
 The apex must be **grey**. Cloudflare's proxy fights Vercel's own TLS, and the failure looks like a
 certificate error nobody can explain.
@@ -60,8 +63,8 @@ says "permission denied".
 ### 3. Configure and deploy
 
 ```bash
-git clone https://github.com/jonathan-nam/maplestorage.git
-cd maplestorage
+git clone https://github.com/jonathan-nam/sharpeyes.git
+cd sharpeyes
 cp .env.prod.example .env
 vi .env                    # every field. DB_PASSWORD: openssl rand -base64 32
 ./deploy.sh
@@ -76,7 +79,7 @@ variable, and Flyway migrates on every boot, so a bad migration surfaces here an
 On Vercel, from the repo, root directory `frontend/`:
 
 ```
-NEXT_PUBLIC_API_BASE_URL=https://api.maplestorage.com
+NEXT_PUBLIC_API_BASE_URL=https://api.sharpeyes.gg
 NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_live_...
 CLERK_SECRET_KEY=sk_live_...
 ```
@@ -88,7 +91,7 @@ Then add both hostnames to the Clerk dashboard's allowed origins, or every reque
 ```bash
 crontab -e
 # 07:30 UTC, half an hour after the Lightsail snapshot
-30 7 * * * cd /home/ubuntu/maplestorage && ./scripts/backup-db.sh >> /var/log/maplestorage-backup.log 2>&1
+30 7 * * * cd /home/ubuntu/sharpeyes && ./scripts/backup-db.sh >> /var/log/sharpeyes-backup.log 2>&1
 ```
 
 **Then rehearse the restore, once, before you need it** (below). An untested backup is a file you
@@ -96,13 +99,86 @@ believe is a backup.
 
 ## Deploying a change
 
+Push to master and let CI publish the images, then:
+
 ```bash
 ssh ubuntu@<static-ip>
-cd maplestorage && ./deploy.sh
+cd sharpeyes && ./deploy.sh
 ```
 
-About 30 seconds of downtime. That is the accepted cost of one box: a rolling deploy needs
-somewhere to roll to.
+**No downtime.** Two backend replicas sit behind Caddy, and `deploy.sh` restarts one at a time,
+waiting for each to answer `/health` before touching the next. Measured on the real images, polling
+`/health` through Caddy every 20ms across a deploy:
+
+| Deploy | Requests | Failures | Slowest request |
+| --- | --- | --- | --- |
+| backend change | 224 | 0 | 109ms |
+| parser change | 267 | 0 | 4.6s (one request) |
+
+A parser change is the worse case because both replicas live in vision's network namespace and have
+to restart with it. Caddy's `lb_try_duration` absorbs that gap rather than returning 502, so it
+costs one slow request rather than errors.
+
+Nothing is built on the box. `.github/workflows/publish-images.yml` pushes both images to GHCR
+tagged with the commit SHA, and `deploy.sh` pulls that tag. Two consequences worth knowing:
+
+- **The images must be made public** after the workflow's first run, or the box needs a registry
+  login. GHCR publishes new packages private by default, so this is a one-off click under the
+  repo's Packages tab. A pull that 403s is this and nothing else.
+- **`deploy.sh` waits up to 5 minutes** for the images to appear, because a deploy run straight
+  after a merge will beat CI to the registry.
+
+Flyway still migrates on boot, which is why the script polls `https://$API_DOMAIN/health` from
+outside rather than trusting `docker compose ps`.
+
+Running `docker compose` by hand on the box needs `IMAGE_TAG` set, even for `logs` or `ps`: Compose
+interpolates the whole file on every subcommand. Any value works when you are not starting anything.
+There is deliberately no default, because a `latest` that silently outranks the checked-out commit
+is how a rollback ends up running the code it was rolling back from.
+
+### Migrations must survive the previous release
+
+Both replicas do not restart at once, so for the length of a deploy the **old code runs against the
+new schema**. That is not a property of this script, it is what rolling anything means.
+
+Dropping or renaming a column therefore takes two deploys: add the new shape and write to both,
+deploy, then remove the old one in a later commit. Flyway's lock handles the concurrency itself
+(verified: two replicas booting against an empty database, one applied all 66 migrations while the
+other waited and found it up to date), so the risk is never a corrupt schema. It is the old binary
+selecting a column that the new schema no longer has.
+
+### Rolling back
+
+Revert on master and deploy that, which keeps the box on a branch and CI on the thing that is
+running. When it has to be faster than a PR, roll back on the box, bypassing `deploy.sh`:
+
+```bash
+git checkout <last-good-sha>                                   # detached HEAD
+IMAGE_TAG=$(git rev-parse HEAD) docker compose \
+  -f docker-compose.yml -f docker-compose.prod.yml up -d
+```
+
+`IMAGE_TAG` has to be set by hand here, because it is `deploy.sh` that normally derives it from the
+checkout. Without it Compose has no tag to pull and refuses to start. Note this restarts both
+replicas at once, so unlike a deploy it is not free; it is the emergency path.
+
+`deploy.sh` cannot do this. It starts with `git pull --ff-only`, which on a detached HEAD exits with
+"You are not currently on a branch" before anything is built. Get the box back onto `master` before
+the next deploy, or that one fails the same way.
+
+Either route rolls back **code only**. Flyway has no down migrations, so a schema change stays
+applied and an old backend then runs against a newer schema. If the bad deploy carried a migration,
+restore from S3 instead (below), and take a backup *before* deploying one:
+
+```bash
+./scripts/backup-db.sh
+```
+
+Note that `R__` migrations are repeatable: they re-run whenever their checksum changes, so a catalog
+edit applies on the next deploy without a new version number.
+
+Changing `.env` needs `up -d` afterwards. It is not in git, so `deploy.sh`'s pull will not touch it,
+and a running container will not pick it up.
 
 ## Restoring the database
 
@@ -143,6 +219,14 @@ else. The static IP survives, so DNS does not change.
 - **The vision service binds `127.0.0.1`** and the backend joins its network namespace. Put them on
   a normal Compose network and the backend cannot reach the parser at all: uploads fail, and nothing
   in the logs says why. This is also why Caddy proxies to `vision:8080` and not `backend:8080`.
+- **Naming `vision` in `up -d` strands both replicas, permanently.** Naming services limits what
+  Compose will recreate to those services, so a replaced vision container leaves the replicas
+  holding a namespace with nothing in it. Measured on the real stack: all five services keep
+  reporting `running`, Caddy gets connection refused on both upstreams, and it never recovers,
+  because nothing about the replicas changed and a later `up -d` will not touch them. `up -d` with
+  **no service names** does handle it, but that is not something a rolling deploy can use, so
+  `deploy.sh` compares vision's container id across the call and restarts both replicas itself when
+  it changed.
 - **Do not shrink screenshots in the browser** to speed up uploads from far away. That is the bug
   this project exists to prevent: an OCR path that resampled its own evidence away and returned
   confident wrong counts. Uploads are 1.25-3.1 MB and that is fine.

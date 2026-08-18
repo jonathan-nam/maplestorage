@@ -25,6 +25,16 @@ apt-get install -y \
   docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin \
   awscli git
 
+# Headroom, not a build requirement: images are built in CI and only pulled here. The box is 2 GB
+# and runs two backend replicas (~390 MB each, measured idle), the parser, Postgres and Caddy.
+if [ ! -e /swapfile ]; then
+  fallocate -l 2G /swapfile
+  chmod 600 /swapfile
+  mkswap /swapfile
+  swapon /swapfile
+  echo '/swapfile none swap sw 0 0' >>/etc/fstab
+fi
+
 # So the ubuntu user can run docker without sudo. Takes effect on its next login, which is why
 # docs/deploy.md tells you to reconnect before deploying.
 usermod -aG docker ubuntu

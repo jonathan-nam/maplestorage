@@ -1,0 +1,52 @@
+name: Publish images
+
+# Builds the two images the box runs and pushes them to GHCR, tagged with the commit SHA.
+#
+# Separate from ci.yml on purpose. ci.yml runs on pull requests too, and its `required-checks` gate
+# asserts over every job in `needs`; a publish job living there would either have to join that gate
+# (and block merges on a registry push) or sit outside it (which the gate's comment forbids).
+#
+# It does not wait for CI. Master is protected and a PR cannot merge without the gate passing, and
+# an unpulled image in the registry harms nothing: deploy.sh is run by hand and health-checks what
+# it started.
+on:
+  push:
+    branches: [master]
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      # Both images always, even for a backend-only commit. deploy.sh pulls both by the same commit
+      # SHA, so a tag that exists for one image and not the other is a deploy that cannot run.
+      matrix:
+        include:
+          - name: backend
+            context: ./backend
+          - name: vision
+            context: ./vision
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/sharpeyes-${{ matrix.name }}:${{ github.sha }}
+            ghcr.io/${{ github.repository_owner }}/sharpeyes-${{ matrix.name }}:latest
+          # Without a cache the backend is a cold Gradle build every push. Scoped per image, or the
+          # two matrix legs overwrite each other's cache and neither ever hits.
+          cache-from: type=gha,scope=${{ matrix.name }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.name }}

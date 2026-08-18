@@ -56,8 +56,8 @@ Restart.**
 
 ```bash
 mkdir -p ~/projects && cd ~/projects
-git clone https://github.com/jonathan-nam/maplestorage.git
-cd maplestorage
+git clone https://github.com/jonathan-nam/sharpeyes.git
+cd sharpeyes
 ```
 
 > **Trap.** If the repo sits on the Windows `C:` drive, WSL reaches it over 9p, which has no

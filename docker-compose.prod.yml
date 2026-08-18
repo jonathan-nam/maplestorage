@@ -1,15 +1,31 @@
 # Production overlay for the single box. Never used locally.
 #
-#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+#   ./deploy.sh
 #
 # Caddy is the only thing the internet can reach. It terminates TLS (certificates from Let's
-# Encrypt, obtained and renewed on its own) and proxies to the backend. Everything else loses the
-# ports the base file publishes for local development.
+# Encrypt, obtained and renewed on its own) and load-balances across two backend replicas.
+# Everything else loses the ports the base file publishes for local development.
+#
+# Images are built by .github/workflows/publish-images.yml and pulled by tag, never built here. The
+# box has 2 vCPUs, and a Gradle compile on them makes the running site slow for the length of the
+# build, which is not downtime but is the thing you would notice.
+#
+# IMAGE_TAG is the commit SHA, set by deploy.sh from the checkout. Pinning it to the commit is what
+# makes rollback work: `git checkout <old-sha> && ./deploy.sh` pulls that commit's images. A
+# floating `latest` would check out old code and run the new binary.
 #
 # `ports: !reset []` is the load-bearing line here, not decoration. Compose MERGES `ports` across
 # files rather than replacing them. Without the reset, the base file's 5432 and 8000 stay published
 # on the host, which puts the database and the parser on the public internet behind nothing at all.
 # Requires Compose v2.24+ for the !reset tag.
+
+# The prod-only backend settings, shared by both replicas. Anchored rather than repeated: a new
+# variable added to one replica and not the other is a box where half the requests work.
+x-backend-prod-env: &backend-prod-env
+  DB_USERNAME: ${DB_USERNAME:?set it in .env on the box}
+  DB_PASSWORD: ${DB_PASSWORD:?set it in .env on the box}
+  FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:?the frontend's origin, e.g. https://sharpeyes.gg}
+
 services:
   postgres:
     ports: !reset []
@@ -20,18 +36,44 @@ services:
       POSTGRES_PASSWORD: ${DB_PASSWORD:?set a real one in .env on the box}
 
   vision:
+    image: ghcr.io/jonathan-nam/sharpeyes-vision:${IMAGE_TAG:?deploy.sh sets this. Any value works for exec/logs/ps}
+    build: !reset null
     ports: !reset []
     # The base file mounts ./test-fixtures so the local smoke test can POST a screenshot from
     # inside the container. Production has no such need, and no reason to carry the images.
     volumes: !reset []
     restart: unless-stopped
 
+  # Replica A. Owns port 8080 inside the shared namespace, as the base file already has it.
   backend:
+    image: ghcr.io/jonathan-nam/sharpeyes-backend:${IMAGE_TAG:?deploy.sh sets this. Any value works for exec/logs/ps}
+    build: !reset null
+    restart: unless-stopped
+    environment: *backend-prod-env
+
+  # Replica B, so a deploy has somewhere to send traffic while A restarts. Both replicas live in
+  # the vision container's network namespace, so they are two ports on one address, which is why
+  # Caddy's upstreams are `vision:8080 vision:8081`.
+  #
+  # `extends` rather than a second copy: it inherits the base file's environment block, so a new
+  # variable there reaches both replicas. It does NOT inherit the prod overlay's own additions to
+  # `backend` (extends reads one file), hence the anchor above, and it drops `depends_on`, hence
+  # the explicit one below.
+  backend-b:
+    extends:
+      file: docker-compose.yml
+      service: backend
+    image: ghcr.io/jonathan-nam/sharpeyes-backend:${IMAGE_TAG:?deploy.sh sets this. Any value works for exec/logs/ps}
+    build: !reset null
     restart: unless-stopped
     environment:
-      DB_USERNAME: ${DB_USERNAME:?set it in .env on the box}
-      DB_PASSWORD: ${DB_PASSWORD:?set it in .env on the box}
-      FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:?the frontend's origin, e.g. https://maplestorage.com}
+      <<: *backend-prod-env
+      PORT: "8081"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      vision:
+        condition: service_healthy
 
   caddy:
     image: caddy:2-alpine
@@ -48,7 +90,7 @@ services:
       - caddy-data:/data
       - caddy-config:/config
     environment:
-      API_DOMAIN: ${API_DOMAIN:?the API hostname, e.g. api.maplestorage.com}
+      API_DOMAIN: ${API_DOMAIN:?the API hostname, e.g. api.sharpeyes.gg}
     depends_on:
       - vision
 
