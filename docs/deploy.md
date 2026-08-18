@@ -70,9 +70,13 @@ vi .env                    # every field. DB_PASSWORD: openssl rand -base64 32
 ./deploy.sh
 ```
 
-`deploy.sh` builds, starts, and then polls `https://$API_DOMAIN/health` from outside, through
-Caddy, over TLS. A container being "up" proves nothing: the backend crash-loops on a missing
-variable, and Flyway migrates on every boot, so a bad migration surfaces here and nowhere earlier.
+`deploy.sh` pulls the images CI built, starts them, and then polls `https://$API_DOMAIN/health`
+from outside, through Caddy, over TLS. A container being "up" proves nothing: the backend
+crash-loops on a missing variable, and Flyway migrates on every boot, so a bad migration surfaces
+here and nowhere earlier.
+
+The very first deploy needs the GHCR packages public, or it will sit waiting five minutes for
+images it cannot see. See "Deploying a change" below.
 
 ### 4. Frontend
 
