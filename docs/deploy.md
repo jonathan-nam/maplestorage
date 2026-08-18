@@ -98,13 +98,56 @@ believe is a backup.
 
 ## Deploying a change
 
+Push to master first. `deploy.sh` pulls `--ff-only`, so it will refuse a box whose checkout has
+diverged rather than merge on the box.
+
 ```bash
 ssh ubuntu@<static-ip>
-cd maplestorage && ./deploy.sh
+cd sharpeyes && ./deploy.sh
 ```
 
 About 30 seconds of downtime. That is the accepted cost of one box: a rolling deploy needs
 somewhere to roll to.
+
+The backend is built **on the box**, so a deploy is a full Gradle compile on 2 vCPUs, not a pull.
+Flyway then migrates on boot, which is why `deploy.sh` polls `https://$API_DOMAIN/health` from
+outside instead of trusting `docker compose ps`.
+
+Backend only, skipping the vision rebuild:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build backend
+```
+
+That one is safe. **Naming `vision` alone is not**, see below.
+
+### Rolling back
+
+Revert on master and deploy that, which keeps the box on a branch and CI on the thing that is
+running. When it has to be faster than a PR, roll back on the box, bypassing `deploy.sh`:
+
+```bash
+git checkout <last-good-sha>     # detached HEAD
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+```
+
+`deploy.sh` cannot do this. It starts with `git pull --ff-only`, which on a detached HEAD exits with
+"You are not currently on a branch" before anything is built. Get the box back onto `master` before
+the next deploy, or that one fails the same way.
+
+Either route rolls back **code only**. Flyway has no down migrations, so a schema change stays
+applied and an old backend then runs against a newer schema. If the bad deploy carried a migration, restore from
+S3 instead (below), and take a backup *before* deploying one:
+
+```bash
+./scripts/backup-db.sh
+```
+
+Note that `R__` migrations are repeatable: they re-run whenever their checksum changes, so a catalog
+edit applies on the next deploy without a new version number.
+
+Changing `.env` needs `up -d` afterwards. It is not in git, so `deploy.sh`'s pull will not touch it,
+and a running container will not pick it up.
 
 ## Restoring the database
 
@@ -145,6 +188,12 @@ else. The static IP survives, so DNS does not change.
 - **The vision service binds `127.0.0.1`** and the backend joins its network namespace. Put them on
   a normal Compose network and the backend cannot reach the parser at all: uploads fail, and nothing
   in the logs says why. This is also why Caddy proxies to `vision:8080` and not `backend:8080`.
+- **Never recreate `vision` by name.** `up -d --force-recreate vision` gives vision a new namespace
+  and strands the backend in the old, dead one. Measured: `docker compose ps` reports both services
+  `running`, a TCP connect to the published port still succeeds, and every request returns nothing.
+  Recreating the *whole project* is fine, because Compose recreates the backend along with vision,
+  and so is naming `backend` alone. It is only vision-by-name that breaks, which is why `deploy.sh`
+  never does it.
 - **Do not shrink screenshots in the browser** to speed up uploads from far away. That is the bug
   this project exists to prevent: an OCR path that resampled its own evidence away and returned
   confident wrong counts. Uploads are 1.25-3.1 MB and that is fine.
