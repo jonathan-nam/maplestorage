@@ -19,6 +19,11 @@ source .env
 
 COMPOSE=(docker compose -f docker-compose.yml -f docker-compose.prod.yml)
 
+# Compose interpolates the whole file on every subcommand, `exec` included, and the prod overlay
+# requires IMAGE_TAG. Which image the services would run has no bearing on execing into one that is
+# already up, so any value does. deploy.sh is what sets the real one.
+export IMAGE_TAG="${IMAGE_TAG:-irrelevant-here}"
+
 # UTC, sortable, and it never collides: two dumps in the same second would be the same dump.
 stamp=$(date -u +%Y%m%dT%H%M%SZ)
 dump="/tmp/maplestorage-${stamp}.sql.gz"

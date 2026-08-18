@@ -25,9 +25,8 @@ apt-get install -y \
   docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin \
   awscli git
 
-# The box is 2 GB and builds its own images: deploy.sh runs `up -d --build`, and backend/Dockerfile
-# compiles Kotlin with Gradle while Postgres, the parser and Caddy are still running. Without swap
-# the kernel kills the Gradle daemon, which reads as a build that hung rather than one that failed.
+# Headroom, not a build requirement: images are built in CI and only pulled here. The box is 2 GB
+# and runs two backend replicas (~390 MB each, measured idle), the parser, Postgres and Caddy.
 if [ ! -e /swapfile ]; then
   fallocate -l 2G /swapfile
   chmod 600 /swapfile

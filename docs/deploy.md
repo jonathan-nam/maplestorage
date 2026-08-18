@@ -9,10 +9,11 @@ service and Postgres. $12/month. The frontend is on Vercel's free tier.
    sharpeyes.gg ───────┼──> Vercel          Next frontend   (DNS-only, grey cloud)
    api.sharpeyes.gg ───┴──> Lightsail box                   (proxied, orange cloud)
                                 │
-                            Caddy :443      TLS, 20MB body limit
+                            Caddy :443      TLS, 20MB body limit, load balances
                                 │
-                            backend :8080 ─┐  shared network namespace:
-                            vision  :8000 ─┘  the backend reaches the parser on 127.0.0.1
+                            backend   :8080 ─┐ shared network namespace:
+                            backend-b :8081 ─┤ the replicas reach the parser on 127.0.0.1,
+                            vision    :8000 ─┘ and Caddy reaches them both at `vision:<port>`
                                 │
                             postgres + volume
                                 │  nightly pg_dump
@@ -98,28 +99,53 @@ believe is a backup.
 
 ## Deploying a change
 
-Push to master first. `deploy.sh` pulls `--ff-only`, so it will refuse a box whose checkout has
-diverged rather than merge on the box.
+Push to master and let CI publish the images, then:
 
 ```bash
 ssh ubuntu@<static-ip>
 cd sharpeyes && ./deploy.sh
 ```
 
-About 30 seconds of downtime. That is the accepted cost of one box: a rolling deploy needs
-somewhere to roll to.
+**No downtime.** Two backend replicas sit behind Caddy, and `deploy.sh` restarts one at a time,
+waiting for each to answer `/health` before touching the next. Measured on the real images, polling
+`/health` through Caddy every 20ms across a deploy:
 
-The backend is built **on the box**, so a deploy is a full Gradle compile on 2 vCPUs, not a pull.
-Flyway then migrates on boot, which is why `deploy.sh` polls `https://$API_DOMAIN/health` from
-outside instead of trusting `docker compose ps`.
+| Deploy | Requests | Failures | Slowest request |
+| --- | --- | --- | --- |
+| backend change | 224 | 0 | 109ms |
+| parser change | 267 | 0 | 4.6s (one request) |
 
-Backend only, skipping the vision rebuild:
+A parser change is the worse case because both replicas live in vision's network namespace and have
+to restart with it. Caddy's `lb_try_duration` absorbs that gap rather than returning 502, so it
+costs one slow request rather than errors.
 
-```bash
-docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build backend
-```
+Nothing is built on the box. `.github/workflows/publish-images.yml` pushes both images to GHCR
+tagged with the commit SHA, and `deploy.sh` pulls that tag. Two consequences worth knowing:
 
-That one is safe. **Naming `vision` alone is not**, see below.
+- **The images must be made public** after the workflow's first run, or the box needs a registry
+  login. GHCR publishes new packages private by default, so this is a one-off click under the
+  repo's Packages tab. A pull that 403s is this and nothing else.
+- **`deploy.sh` waits up to 5 minutes** for the images to appear, because a deploy run straight
+  after a merge will beat CI to the registry.
+
+Flyway still migrates on boot, which is why the script polls `https://$API_DOMAIN/health` from
+outside rather than trusting `docker compose ps`.
+
+Running `docker compose` by hand on the box needs `IMAGE_TAG` set, even for `logs` or `ps`: Compose
+interpolates the whole file on every subcommand. Any value works when you are not starting anything.
+There is deliberately no default, because a `latest` that silently outranks the checked-out commit
+is how a rollback ends up running the code it was rolling back from.
+
+### Migrations must survive the previous release
+
+Both replicas do not restart at once, so for the length of a deploy the **old code runs against the
+new schema**. That is not a property of this script, it is what rolling anything means.
+
+Dropping or renaming a column therefore takes two deploys: add the new shape and write to both,
+deploy, then remove the old one in a later commit. Flyway's lock handles the concurrency itself
+(verified: two replicas booting against an empty database, one applied all 66 migrations while the
+other waited and found it up to date), so the risk is never a corrupt schema. It is the old binary
+selecting a column that the new schema no longer has.
 
 ### Rolling back
 
@@ -127,9 +153,14 @@ Revert on master and deploy that, which keeps the box on a branch and CI on the 
 running. When it has to be faster than a PR, roll back on the box, bypassing `deploy.sh`:
 
 ```bash
-git checkout <last-good-sha>     # detached HEAD
-docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+git checkout <last-good-sha>                                   # detached HEAD
+IMAGE_TAG=$(git rev-parse HEAD) docker compose \
+  -f docker-compose.yml -f docker-compose.prod.yml up -d
 ```
+
+`IMAGE_TAG` has to be set by hand here, because it is `deploy.sh` that normally derives it from the
+checkout. Without it Compose has no tag to pull and refuses to start. Note this restarts both
+replicas at once, so unlike a deploy it is not free; it is the emergency path.
 
 `deploy.sh` cannot do this. It starts with `git pull --ff-only`, which on a detached HEAD exits with
 "You are not currently on a branch" before anything is built. Get the box back onto `master` before
@@ -188,12 +219,14 @@ else. The static IP survives, so DNS does not change.
 - **The vision service binds `127.0.0.1`** and the backend joins its network namespace. Put them on
   a normal Compose network and the backend cannot reach the parser at all: uploads fail, and nothing
   in the logs says why. This is also why Caddy proxies to `vision:8080` and not `backend:8080`.
-- **Never recreate `vision` by name.** `up -d --force-recreate vision` gives vision a new namespace
-  and strands the backend in the old, dead one. Measured: `docker compose ps` reports both services
-  `running`, a TCP connect to the published port still succeeds, and every request returns nothing.
-  Recreating the *whole project* is fine, because Compose recreates the backend along with vision,
-  and so is naming `backend` alone. It is only vision-by-name that breaks, which is why `deploy.sh`
-  never does it.
+- **Naming `vision` in `up -d` strands both replicas, permanently.** Naming services limits what
+  Compose will recreate to those services, so a replaced vision container leaves the replicas
+  holding a namespace with nothing in it. Measured on the real stack: all five services keep
+  reporting `running`, Caddy gets connection refused on both upstreams, and it never recovers,
+  because nothing about the replicas changed and a later `up -d` will not touch them. `up -d` with
+  **no service names** does handle it, but that is not something a rolling deploy can use, so
+  `deploy.sh` compares vision's container id across the call and restarts both replicas itself when
+  it changed.
 - **Do not shrink screenshots in the browser** to speed up uploads from far away. That is the bug
   this project exists to prevent: an OCR path that resampled its own evidence away and returned
   confident wrong counts. Uploads are 1.25-3.1 MB and that is fine.
