@@ -136,8 +136,8 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
 the next deploy, or that one fails the same way.
 
 Either route rolls back **code only**. Flyway has no down migrations, so a schema change stays
-applied and an old backend then runs against a newer schema. If the bad deploy carried a migration, restore from
-S3 instead (below), and take a backup *before* deploying one:
+applied and an old backend then runs against a newer schema. If the bad deploy carried a migration,
+restore from S3 instead (below), and take a backup *before* deploying one:
 
 ```bash
 ./scripts/backup-db.sh
