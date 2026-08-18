@@ -6,8 +6,8 @@ service and Postgres. $12/month. The frontend is on Vercel's free tier.
 ```
                     Cloudflare (free tier, proxied)
                        │
-   maplestorage.com ───┼──> Vercel          Next frontend   (DNS-only, grey cloud)
-   api.maplestorage.com┴──> Lightsail box                   (proxied, orange cloud)
+   sharpeyes.gg ───────┼──> Vercel          Next frontend   (DNS-only, grey cloud)
+   api.sharpeyes.gg ───┴──> Lightsail box                   (proxied, orange cloud)
                                 │
                             Caddy :443      TLS, 20MB body limit
                                 │
@@ -23,12 +23,14 @@ service and Postgres. $12/month. The frontend is on Vercel's free tier.
 
 ### 1. Domain and DNS
 
-Register the domain (Cloudflare Registrar sells at cost and we want Cloudflare's DNS anyway), then:
+Register the domain wherever carries `.gg`, then move its nameservers to Cloudflare. Cloudflare
+Registrar does not sell `.gg`, but its DNS is free and the proxy in front of the box is the reason
+it is here at all.
 
 | Record | Points at | Proxy |
 | --- | --- | --- |
-| `maplestorage.com` | Vercel | **DNS-only (grey cloud)** |
-| `api.maplestorage.com` | the box's static IP | proxied (orange cloud) |
+| `sharpeyes.gg` | Vercel | **DNS-only (grey cloud)** |
+| `api.sharpeyes.gg` | the box's static IP | proxied (orange cloud) |
 
 The apex must be **grey**. Cloudflare's proxy fights Vercel's own TLS, and the failure looks like a
 certificate error nobody can explain.
@@ -76,7 +78,7 @@ variable, and Flyway migrates on every boot, so a bad migration surfaces here an
 On Vercel, from the repo, root directory `frontend/`:
 
 ```
-NEXT_PUBLIC_API_BASE_URL=https://api.maplestorage.com
+NEXT_PUBLIC_API_BASE_URL=https://api.sharpeyes.gg
 NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_live_...
 CLERK_SECRET_KEY=sk_live_...
 ```

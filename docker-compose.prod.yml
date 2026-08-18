@@ -31,7 +31,7 @@ services:
     environment:
       DB_USERNAME: ${DB_USERNAME:?set it in .env on the box}
       DB_PASSWORD: ${DB_PASSWORD:?set it in .env on the box}
-      FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:?the frontend's origin, e.g. https://maplestorage.com}
+      FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:?the frontend's origin, e.g. https://sharpeyes.gg}
 
   caddy:
     image: caddy:2-alpine
@@ -48,7 +48,7 @@ services:
       - caddy-data:/data
       - caddy-config:/config
     environment:
-      API_DOMAIN: ${API_DOMAIN:?the API hostname, e.g. api.maplestorage.com}
+      API_DOMAIN: ${API_DOMAIN:?the API hostname, e.g. api.sharpeyes.gg}
     depends_on:
       - vision
 

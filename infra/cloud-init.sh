@@ -25,6 +25,17 @@ apt-get install -y \
   docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin \
   awscli git
 
+# The box is 2 GB and builds its own images: deploy.sh runs `up -d --build`, and backend/Dockerfile
+# compiles Kotlin with Gradle while Postgres, the parser and Caddy are still running. Without swap
+# the kernel kills the Gradle daemon, which reads as a build that hung rather than one that failed.
+if [ ! -e /swapfile ]; then
+  fallocate -l 2G /swapfile
+  chmod 600 /swapfile
+  mkswap /swapfile
+  swapon /swapfile
+  echo '/swapfile none swap sw 0 0' >>/etc/fstab
+fi
+
 # So the ubuntu user can run docker without sudo. Takes effect on its next login, which is why
 # docs/deploy.md tells you to reconnect before deploying.
 usermod -aG docker ubuntu
