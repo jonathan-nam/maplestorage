@@ -12,8 +12,11 @@
 //
 // What is STORED is still party_member.shares, a ratio, reduced to its lowest terms. That is lossless
 // for an entitlement that adds up to the stacks that fell, which is the only kind this file lets you
-// save: stacks = bundles * shares / total, exactly. Storing the halves themselves would work too, and
-// would leak the encoding into the money side, where a 4:2 party's payout row would read "8 shares".
+// save: stacks = bundles * shares / total, exactly.
+//
+// It is an entitlement to the STACKS and to nothing else. A sale opens on an even split whatever it
+// says, because a duo that cannot divide three stacks is stored as 1:2 and that is not a claim about
+// how they split a ring. See the note in components/loot-row.tsx.
 
 /** The most stacks one seat may be given, in halves. No boss drops more than six. */
 export const MAX_STACK_HALVES = 24;
@@ -62,9 +65,8 @@ export function stacksAddUp(halves: number[], bundles: number): boolean {
  * The ratio to store for these entitlements, in lowest terms.
  *
  * Lossless while they add up, which is the only case this is called in: the stacks come back out as
- * `bundles * shares / total`. Lowest terms so the number that reaches the money side is the one a
- * human would have written, since the same column weights an item's payout: 4 stacks against 2 is
- * "2 shares" on that row, not "8".
+ * `bundles * shares / total`. Lowest terms so what is stored is the ratio a human would have written:
+ * 4 stacks against 2 is "2 shares", not "8".
  */
 export function sharesFromStacks(halves: number[]): number[] {
   const divisor = halves.reduce((a, b) => gcd(a, b), 0);

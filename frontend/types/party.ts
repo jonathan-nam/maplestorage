@@ -18,8 +18,8 @@ export type PartyMember = {
   // Not in the party's usual roster: here for this week only, or gone from it since. Said out loud
   // because "who is in this party" and "who ran it that week" now have different answers.
   guest: boolean;
-  // What this seat usually takes of a split, 1 unless somebody carries. A sale starts from it and
-  // pins its own counts, so changing it cannot rewrite a night already settled.
+  // What this seat is entitled to of the STACKS the party divides, as a ratio: see lib/stacks.ts.
+  // Not a money weight. A sale opens even and pins its own counts, whatever this says.
   shares: number;
 };
 
