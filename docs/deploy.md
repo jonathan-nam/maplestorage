@@ -188,11 +188,11 @@ credentials are **PutObject-only**, so it cannot read its backups. Restore from 
 
 ```bash
 # From your laptop, with real AWS credentials:
-aws s3 ls s3://maplestorage-backups-<account-id>/
-aws s3 cp s3://maplestorage-backups-<account-id>/maplestorage-<stamp>.sql.gz .
+aws s3 ls s3://sharpeyes-backups-<account-id>/
+aws s3 cp s3://sharpeyes-backups-<account-id>/sharpeyes-<stamp>.sql.gz .
 
 # On the box, into a scratch database first:
-gunzip -c maplestorage-<stamp>.sql.gz | \
+gunzip -c sharpeyes-<stamp>.sql.gz | \
   docker compose -f docker-compose.yml -f docker-compose.prod.yml exec -T postgres \
   psql -U maplestorage -d postgres -c 'CREATE DATABASE restore_check;' -d restore_check
 

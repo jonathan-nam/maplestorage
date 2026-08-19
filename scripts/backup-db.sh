@@ -26,7 +26,7 @@ export IMAGE_TAG="${IMAGE_TAG:-irrelevant-here}"
 
 # UTC, sortable, and it never collides: two dumps in the same second would be the same dump.
 stamp=$(date -u +%Y%m%dT%H%M%SZ)
-dump="/tmp/maplestorage-${stamp}.sql.gz"
+dump="/tmp/sharpeyes-${stamp}.sql.gz"
 
 trap 'rm -f "$dump"' EXIT
 
