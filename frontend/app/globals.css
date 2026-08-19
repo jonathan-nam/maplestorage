@@ -6003,3 +6003,15 @@ button.ledger-drop-sale:hover:not(:disabled) {
   cursor: default;
   opacity: 0.6;
 }
+
+/* The legal notice. Required rather than read, so it is the quietest thing on the page and sits
+   below everything, aligned to the same column as the rest of the app. */
+.site-footer {
+  max-width: var(--measure);
+  margin: 56px auto 24px;
+  padding: 0 8px;
+  color: var(--muted-2);
+  font-size: 12px;
+  line-height: 1.5;
+  text-align: center;
+}
