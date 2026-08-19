@@ -515,6 +515,9 @@ object VestigePayment : Table("vestige_payment") {
     val characterName = text("character_name").nullable()
 
     val amount = long("amount")
+
+    // What it was for. Never read by the netting: a payment is against the whole debt. See V64.
+    val note = text("note").nullable()
     val receivedAt = timestamp("received_at")
     val createdAt = timestamp("created_at")
 

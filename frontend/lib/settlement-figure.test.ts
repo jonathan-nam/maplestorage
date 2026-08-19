@@ -239,6 +239,22 @@ describe("what the card says a person owes", () => {
     );
   });
 
+  it("asks what a PAYMENT was for too, the same way the entry above it does", () => {
+    // The two halves of one conversation were recorded differently: a debt could say "for the Kalos
+    // run" and the money arriving back could not say which debt it answered. Same box, same words,
+    // and optional on both, so neither form waits on it.
+    expect(source).toContain("onAddPayment(row.holder, paid, gotNote.trim())");
+    expect(source).toContain("const [gotNote, setGotNote] = useState");
+    // Its own state. One box shared between the two forms would clear a half-typed note in the
+    // other the moment either saved.
+    expect(source).not.toContain("setGotNote(note)");
+    expect(page).toContain("body: JSON.stringify({ holder, amount, note: note || undefined })");
+  });
+
+  it("says what a receipt was for where it has one, and stays plain where it does not", () => {
+    expect(source).toContain("${formatMesos(got.amount, true)} paid \\u00b7 ${got.note}");
+  });
+
   it("keeps a pinned person's card drawn with nothing on it", () => {
     // The one case a blank card is wanted: it is where next week's entry goes. Without it the place
     // you record what somebody owes is somewhere you have to make appear first.

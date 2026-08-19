@@ -78,7 +78,7 @@ export function SettlementLedger({
   busy: boolean;
   /** What each person has paid, keyed by holderKey(), so a mistyped one can be taken back. */
   payments: Map<string, VestigePayment[]>;
-  onAddPayment: (holder: Holder, amount: number) => Promise<void>;
+  onAddPayment: (holder: Holder, amount: number, note: string) => Promise<void>;
   onRemovePayment: (paymentId: string) => Promise<void>;
   onAddDebt: (holder: Holder, amount: number, note: string) => Promise<void>;
   onRemoveDebt: (debtId: string) => Promise<void>;
@@ -179,7 +179,7 @@ function SettlementCard({
   busy: boolean;
   /** This person's payments, so a mistyped one can be taken back. */
   payments: VestigePayment[];
-  onAddPayment: (holder: Holder, amount: number) => Promise<void>;
+  onAddPayment: (holder: Holder, amount: number, note: string) => Promise<void>;
   onRemovePayment: (paymentId: string) => Promise<void>;
   onAddDebt: (holder: Holder, amount: number, note: string) => Promise<void>;
   onRemoveDebt: (debtId: string) => Promise<void>;
@@ -222,6 +222,9 @@ function SettlementCard({
   // Whether the history of what has come off is open. Folded by default: it is the half that grows.
   const [showOff, setShowOff] = useState(false);
   const [note, setNote] = useState("");
+  // Its own, not the debt form's: two forms sharing one box would clear a half-typed note in the
+  // other the moment either saved.
+  const [gotNote, setGotNote] = useState("");
   const [refusal, setRefusal] = useState<string | null>(null);
 
   const payment = parseMesos(got);
@@ -531,7 +534,12 @@ function SettlementCard({
           className="ledger-sale"
           onSubmit={(e) => {
             e.preventDefault();
-            if (paid) void write(onAddPayment(row.holder, paid), () => setGot(""));
+            if (paid) {
+              void write(onAddPayment(row.holder, paid, gotNote.trim()), () => {
+                setGot("");
+                setGotNote("");
+              });
+            }
           }}
         >
           <label className="loot-share-input">
@@ -545,6 +553,16 @@ function SettlementCard({
               aria-label={`What ${row.name} has paid you`}
             />
           </label>
+          {/* The same box the entry above it carries, in the same words. A receipt that cannot say
+              what it answered is one nobody can check a month later. */}
+          <input
+            className="split-input"
+            value={gotNote}
+            onChange={(e) => setGotNote(e.target.value)}
+            placeholder="what for"
+            maxLength={120}
+            aria-label="What it was for, optional"
+          />
           <button type="submit" className="party-save" disabled={busy || paid === null}>
             Add
           </button>
@@ -557,7 +575,9 @@ function SettlementCard({
           <span className="ledger-tranches">
             {payments.map((got) => (
               <span key={got.id} className="ledger-tranche">
-                {`${formatMesos(got.amount, true)} paid`}
+                {got.note
+                  ? `${formatMesos(got.amount, true)} paid \u00b7 ${got.note}`
+                  : `${formatMesos(got.amount, true)} paid`}
                 <button
                   type="button"
                   className="link ledger-drop-sale"

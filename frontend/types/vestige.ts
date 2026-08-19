@@ -66,6 +66,9 @@ export type VestigePayment = {
   id: string;
   holder: Holder;
   amount: number;
+  // What it was for. Optional, and never read by the netting: a payment is against the whole debt,
+  // so this labels the receipt rather than saying which piece of it went. See V64.
+  note: string | null;
   receivedAt: string;
 };
 
@@ -73,6 +76,7 @@ export type VestigePayment = {
 export type AddVestigePaymentBody = {
   holder: Holder;
   amount: number;
+  note?: string;
 };
 
 // One act of closing a holder's books: which drops it covered, and what was left unpaid. The drops
