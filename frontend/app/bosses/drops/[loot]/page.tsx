@@ -1,12 +1,12 @@
 "use client";
 
 import { PageSwap } from "@/components/page-swap";
-import { useAuth } from "@clerk/nextjs";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { DropAuditView } from "@/components/drop-audit";
 import { apiFetch } from "@/lib/api";
+import { useAuth } from "@/lib/use-auth";
 import { bossLabel } from "@/lib/boss-difficulty";
 import { peek, put } from "@/lib/cache";
 import { buildDropAudit } from "@/lib/drop-audit";

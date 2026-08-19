@@ -1,7 +1,7 @@
 "use client";
 
 import { PageSwap } from "@/components/page-swap";
-import { useAuth } from "@clerk/nextjs";
+import { useAuth } from "@/lib/use-auth";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { BossMatrix } from "@/components/boss-matrix";
@@ -125,9 +125,9 @@ export default function BossesPage() {
   }
 
   useEffect(() => {
-    // Not before Clerk answers, or the fetch goes out as `Bearer null`. See lib/api.ts.
+    // Not before auth answers, or the fetch goes out as `Bearer null`. See lib/api.ts.
     if (!isLoaded) return;
-    // One token for the whole burst. getToken() can round-trip to Clerk and that cost is paid
+    // One token for the whole burst. getToken() can round-trip to auth and that cost is paid
     // before each request goes out (see lib/api.ts), so three separate calls would pay it three
     // times. Mint once and share, as the inventory page does.
     getToken()
