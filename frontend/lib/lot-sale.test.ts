@@ -139,13 +139,16 @@ describe("the queue a lot is drawn from", () => {
     expect(lotQueue(parties, pools, STONE, SELF_KEY).map((r) => r.lootId)).toEqual(["l1", "l2"]);
   });
 
-  it("names your own seat as the seller, and seeds the shares from the party", () => {
+  it("names your own seat as the seller, and opens every seat on one share", () => {
     const [first] = lotQueue(parties, pools, STONE, SELF_KEY);
     expect(first?.sellerMemberId).toBe("m1");
     expect(first?.shares).toEqual({ m1: 1, m2: 1 });
   });
 
-  it("carries a standing share rather than flattening it", () => {
+  it("splits evenly whatever stack ratio the party is on", () => {
+    // Rune's 2 is an entitlement to the vestige stacks, which is the only thing that column says.
+    // A lot has no share boxes at all, so reading it here sold a pile of grindstones 1:2 and put
+    // that nowhere on screen.
     const carried = [seat("m1", "Husky", { mine: true }), seat("m2", "Rune", { shares: 2 })];
     const queue = lotQueue(
       [party("p1", "limbo", carried)],
@@ -153,17 +156,14 @@ describe("the queue a lot is drawn from", () => {
       STONE,
       SELF_KEY,
     );
-    expect(queue[0]?.shares).toEqual({ m1: 1, m2: 2 });
+    expect(queue[0]?.shares).toEqual({ m1: 1, m2: 1 });
   });
 
-  it("carries the week's own deal over the standing one", () => {
-    // The week was split evenly and the party has since agreed Rune carries. A config edit freezes
-    // the share of every week already settled, so seeding this row from the standing weight would
-    // sell an old night on a deal nobody had made when it fell.
-    const carried = [seat("m1", "Husky", { mine: true }), seat("m2", "Rune", { shares: 2 })];
+  it("splits evenly whatever the week itself was pinned on", () => {
+    const carried = [seat("m1", "Husky", { mine: true }), seat("m2", "Rune", { shares: 1 })];
     const queue = lotQueue(
       [party("p1", "limbo", carried)],
-      [pool("p1", [drop("l1", STONE, "2026-07-30", ["m1", "m2"], { sharesThatWeek: { m2: 1 } })])],
+      [pool("p1", [drop("l1", STONE, "2026-07-30", ["m1", "m2"], { sharesThatWeek: { m2: 2 } })])],
       STONE,
       SELF_KEY,
     );

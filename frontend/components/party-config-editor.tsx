@@ -509,9 +509,9 @@ function ConfigRow({
                 // ALWAYS sent, never omitted. writeMembers reads a missing name as one share, so a
                 // save that left this out would quietly reset every seat the party had agreed
                 // otherwise for. Whole roster every time, the way the members list is.
-                // Stacks in, RATIO out: what is stored weights the money split too, so it goes in
-                // lowest terms. Lossless while the boxes add up, which is the only state that saves:
-                // the stacks come back as bundles * shares / total. See lib/stacks.
+                // Stacks in, RATIO out, in lowest terms. Lossless while the boxes add up, which is
+                // the only state that saves: the stacks come back as bundles * shares / total. See
+                // lib/stacks.
                 // Derived from the boxes only where somebody typed in them. Untouched, the
                 // stored share is passed straight back, because the boxes cannot always SHOW it:
                 // see stacksDirty. A name the party has never had takes one share, which is what

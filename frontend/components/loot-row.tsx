@@ -91,14 +91,12 @@ export function LootRow({
   const ran = party.seats.filter((m) => loot.ranThatWeek.includes(m.id));
   const [sellerMemberId, setSellerMemberId] = useState(ran[0]?.id ?? "");
   const [selling, setSelling] = useState(false);
-  // Seeded from each seat's weight in the week this drop FELL in, falling back to the standing one
-  // for the weeks that named no deal of their own. A party where somebody always carries needs no
-  // typing, and a one-off arrangement is one box away. What is saved is this, not either stored
-  // value, so a sale keeps the shares it was actually split on.
+  // Every seat opens on one share, and an uneven split is typed here. It used to be seeded from
+  // `party_member.shares`, which is the STACK entitlement the party config's boxes write: a duo
+  // splitting three vestige stacks 1 and 2 had every ring and grindstone they ever sold open at
+  // 1:2. That ratio divides the coupon pile and nothing else, which is ranSeats' job, not this one.
   const [shares, setShares] = useState<Record<string, string>>({});
-  const shareOf = (memberId: string) =>
-    shares[memberId] ??
-    String(loot.sharesThatWeek?.[memberId] ?? ran.find((m) => m.id === memberId)?.shares ?? 1);
+  const shareOf = (memberId: string) => shares[memberId] ?? "1";
   const entered = ran.map((m) => parseShares(shareOf(m.id)));
   const sharesReadable = entered.every((count) => count !== null);
   // A member buying it off the party is the same shape as a sale: they hold the value and owe

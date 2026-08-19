@@ -19,7 +19,7 @@ import { largestRemainder } from "./piece-ledger";
 import { holderKey, holderOf } from "./vestige-ledger";
 import { canTrade } from "./world";
 import type { DropTables } from "@/types/drop";
-import type { Loot, PartyLootPool } from "@/types/loot";
+import type { PartyLootPool } from "@/types/loot";
 import type { Party, PartyMember } from "@/types/party";
 
 /**
@@ -61,10 +61,10 @@ export type LotRow = {
   sellerMemberId: string;
   sellerName: string;
   /**
-   * What each seat that ran takes, seeded from their weight in the week the drop fell in.
+   * What each seat that ran takes: one each, the same even split the per-row sale form opens on.
    *
-   * The same seeding the per-row sale form does, so a lot splits the way that party's sales already
-   * split and a party where somebody carries needs no typing.
+   * Every seat, not only the uneven ones, because the panel counts these keys to tell a lot that
+   * divides from one that does not.
    */
   shares: Record<string, number>;
 };
@@ -115,7 +115,7 @@ export function lotQueue(
         characterId: party.characterId,
         sellerMemberId: seller.id,
         sellerName: seller.name,
-        shares: sharesOf(ran, loot),
+        shares: sharesOf(ran),
       });
     }
   }
@@ -126,14 +126,15 @@ export function lotQueue(
 }
 
 /**
- * Each seat's weight in the week this drop fell in, keyed by seat id. What the sale pins.
+ * One share each, keyed by seat id. What the sale pins.
  *
- * The week's own deal where it named one, the standing weight otherwise. A config edit freezes the
- * share of every week already over (see pinWeeksAlreadyWritten), so reading the standing weight
- * alone would sell an old night on a deal agreed after it.
+ * A lot has no share boxes, so anything but an even split here is a split nobody was shown. It used
+ * to seed from `party_member.shares`, which is the stack entitlement the party config writes: a
+ * party on 1:2 vestige stacks sold every lot of grindstones 1:2 and said so nowhere. See the note
+ * in loot-row.tsx.
  */
-function sharesOf(ran: PartyMember[], loot: Loot): Record<string, number> {
-  return Object.fromEntries(ran.map((s) => [s.id, loot.sharesThatWeek?.[s.id] ?? s.shares]));
+function sharesOf(ran: PartyMember[]): Record<string, number> {
+  return Object.fromEntries(ran.map((s) => [s.id, 1]));
 }
 
 /** Which rows a lot of this size covers, or why it covers none. */
