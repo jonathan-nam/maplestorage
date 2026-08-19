@@ -34,6 +34,15 @@ class VestigePaymentTest {
     }
 
     @Test
+    fun `a payment may say what it was for, within the same bound an entered debt has`() {
+        val self = VestigeHolder(kind = "SELF")
+
+        assertNull(paymentRefusal(self, 1, null))
+        assertNull(paymentRefusal(self, 1, "x".repeat(120)))
+        assertTrue(paymentRefusal(self, 1, "x".repeat(121))!!.contains("120"))
+    }
+
+    @Test
     fun `a payment is not measured against the debt`() {
         val self = VestigeHolder(kind = "SELF")
 

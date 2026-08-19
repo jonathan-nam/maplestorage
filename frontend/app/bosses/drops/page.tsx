@@ -837,10 +837,10 @@ export default function DropLogPage() {
                   // Every payment, not only the ones counted since closing: these are the rows as
                   // typed, and one entered against a closed boss is still one somebody may need back.
                   payments={paymentsByHolder}
-                  onAddPayment={(holder: Holder, amount) =>
+                  onAddPayment={(holder: Holder, amount, note) =>
                     paymentWrite(PAYMENTS_KEY, {
                       method: "POST",
-                      body: JSON.stringify({ holder, amount }),
+                      body: JSON.stringify({ holder, amount, note: note || undefined }),
                     })
                   }
                   onRemovePayment={(paymentId) =>

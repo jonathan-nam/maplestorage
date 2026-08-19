@@ -37,11 +37,15 @@ import kotlin.uuid.Uuid
 /** The most one payment can be. A typo guard, the same shape as MAX_PIECES on a tranche. */
 private const val MAX_AMOUNT = 1_000_000_000_000L
 
+/** As long as a note may be, matching the check in V64 and the one an entered debt carries. */
+private const val MAX_NOTE = 120
+
 @Serializable
 data class VestigePaymentResponse(
     val id: String,
     val holder: VestigeHolder,
     val amount: Long,
+    val note: String? = null,
     val receivedAt: String,
 )
 
@@ -49,6 +53,7 @@ data class VestigePaymentResponse(
 data class AddVestigePaymentRequest(
     val holder: VestigeHolder,
     val amount: Long,
+    val note: String? = null,
 )
 
 fun Route.vestigePaymentRoutes() {
@@ -71,8 +76,9 @@ private suspend fun RoutingContext.addPaymentRoute() {
     val (userId, email) = call.principalIdAndEmail()
     val request = call.receive<AddVestigePaymentRequest>()
     val holder = request.holder.normalised()
+    val note = request.note?.trim()?.takeIf { it.isNotEmpty() }
 
-    val refusal = paymentRefusal(holder, request.amount)
+    val refusal = paymentRefusal(holder, request.amount, note)
     if (refusal != null) return call.respond(HttpStatusCode.BadRequest, refusal)
 
     val result =
@@ -90,6 +96,7 @@ private suspend fun RoutingContext.addPaymentRoute() {
                 it[personId] = person
                 it[characterName] = holder.characterName
                 it[amount] = request.amount
+                it[VestigePayment.note] = note
                 it[receivedAt] = now
                 it[createdAt] = now
             }
@@ -130,6 +137,7 @@ private suspend fun RoutingContext.deletePaymentRoute() {
 internal fun paymentRefusal(
     holder: VestigeHolder,
     amount: Long,
+    note: String? = null,
 ): String? =
     when {
         holder.kind !in setOf("PERSON", "SELF", "CHARACTER") ->
@@ -142,6 +150,7 @@ internal fun paymentRefusal(
         holder.personId != null && runCatching { Uuid.parse(holder.personId) }.isFailure ->
             "personId is not an id"
         amount < 1 || amount > MAX_AMOUNT -> "amount must be between 1 and $MAX_AMOUNT"
+        note != null && note.length > MAX_NOTE -> "note must be at most $MAX_NOTE characters"
         else -> null
     }
 
@@ -171,6 +180,7 @@ internal fun paymentsFor(userId: String): List<VestigePaymentResponse> =
                 id = it[VestigePayment.id].toString(),
                 holder = holder,
                 amount = it[VestigePayment.amount],
+                note = it[VestigePayment.note],
                 receivedAt = it[VestigePayment.receivedAt].toString(),
             )
         }
