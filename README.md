@@ -38,3 +38,13 @@ of them.
   every time.
 
 Running it yourself: `.devcontainer/README.md`.
+
+## Not a Nexon product
+
+SharpEyes is an unofficial fan project. It is **not affiliated with, endorsed by, or sponsored by
+Nexon**. MapleStory and all game assets are the property of Nexon.
+
+It reads screenshots you took of your own account, and it ships some of the game's art so that what
+it shows you looks like what you saw: boss portraits, item and drop icons, and the inventory count
+digits. Those are used to identify what the game already showed you, and they remain Nexon's. The
+project is free, carries no advertising, and is not sold.
