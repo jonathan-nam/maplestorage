@@ -231,6 +231,14 @@ describe("what the card says a person owes", () => {
     expect(source).toContain("<CopyAmount");
   });
 
+  it("lets the money you are HOLDING be copied too, it being the one you send", () => {
+    // "I paid them" beside it means the mesos went across in a trade, so this is a figure that gets
+    // pasted, and it was the only one on the card with an act behind it and no way to take it.
+    expect(source).toContain(
+      "<CopyAmount value={row.holding} display={formatMesos(row.holding, true)} />",
+    );
+  });
+
   it("keeps a pinned person's card drawn with nothing on it", () => {
     // The one case a blank card is wanted: it is where next week's entry goes. Without it the place
     // you record what somebody owes is somewhere you have to make appear first.

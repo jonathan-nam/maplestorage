@@ -756,7 +756,11 @@ function SettlementCard({
           <span className="ledger-step">{`${row.name}'s money I'm holding`}</span>
           {row.holding > 0 && (
             <>
-              <span className="ledger-amount">{formatMesos(row.holding, true)}</span>
+              {/* Copyable, like the headline: "I paid them" means pasting this into a trade box,
+                  and it was the one figure on a card with an act behind it you could not take. */}
+              <span className="ledger-amount">
+                <CopyAmount value={row.holding} display={formatMesos(row.holding, true)} />
+              </span>
               <span className="ledger-settle">
                 <button
                   type="button"
