@@ -13,11 +13,11 @@ import kotlin.test.assertFailsWith
 // log said `expired-token` for credentials that were perfectly good.
 //
 // These bracket the leeway rather than assert the constant. Too little and that comes back, too
-// much and a 60s Clerk token quietly outlives what Clerk issued it for.
+// much and a token quietly outlives what the auth service issued it for.
 class SecurityTest {
     private val algorithm = Algorithm.HMAC256("test-secret")
 
-    private val verifier = JWT.require(algorithm).apply { clerkClaims() }.build()
+    private val verifier = JWT.require(algorithm).apply { sessionClaims() }.build()
 
     private fun tokenExpiringIn(seconds: Long): String =
         JWT
