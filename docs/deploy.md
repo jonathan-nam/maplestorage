@@ -70,9 +70,10 @@ vi .env                    # every field. DB_PASSWORD: openssl rand -base64 32
 ./deploy.sh
 ```
 
-`deploy.sh` builds, starts, and then polls `https://$API_DOMAIN/health` from outside, through
-Caddy, over TLS. A container being "up" proves nothing: the backend crash-loops on a missing
-variable, and Flyway migrates on every boot, so a bad migration surfaces here and nowhere earlier.
+`deploy.sh` pulls the images CI built, starts them, and then polls `https://$API_DOMAIN/health`
+from outside, through Caddy, over TLS. A container being "up" proves nothing: the backend
+crash-loops on a missing variable, and Flyway migrates on every boot, so a bad migration surfaces
+here and nowhere earlier.
 
 ### 4. Frontend
 
@@ -122,9 +123,9 @@ costs one slow request rather than errors.
 Nothing is built on the box. `.github/workflows/publish-images.yml` pushes both images to GHCR
 tagged with the commit SHA, and `deploy.sh` pulls that tag. Two consequences worth knowing:
 
-- **The images must be made public** after the workflow's first run, or the box needs a registry
-  login. GHCR publishes new packages private by default, so this is a one-off click under the
-  repo's Packages tab. A pull that 403s is this and nothing else.
+- **The images are public**, inherited from the repository, so the box pulls them without a
+  registry login. Verified anonymously against GHCR: both manifests answer 200 with no credentials.
+  If that ever changes, a pull 403s and the Packages tab is the only place to look.
 - **`deploy.sh` waits up to 5 minutes** for the images to appear, because a deploy run straight
   after a merge will beat CI to the registry.
 
