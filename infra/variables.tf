@@ -19,7 +19,10 @@ variable "environment" {
 variable "project_name" {
   description = "Short project name, used as a prefix for resource names."
   type        = string
-  default     = "maplestorage"
+  # Renaming this renames the instance, the static IP and the backups bucket, so it is only free
+  # before the first apply. The Terraform state bucket is NOT derived from it, see
+  # bootstrap-state-backend.sh.
+  default = "sharpeyes"
 }
 
 # small_3_0: $12/mo, 2 vCPU, 2 GB RAM, 60 GB SSD, 3 TB transfer, static IPv4 included.
