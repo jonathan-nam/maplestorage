@@ -112,10 +112,15 @@ export type DropEntry = {
    * shows, because "how many did I get" is the question a log of your own drops answers.
    */
   yours: number;
-  /** The character holding part of your share until they hand it over. Null when nobody is. */
+  /**
+   * The character holding part of your share. Null when nobody is.
+   *
+   * WHO, never how much. It survives the night being answered or cancelled, because who bent down
+   * does not change: `owedToYou` is the figure, and it can be zero with this still set.
+   */
   owedBy: string | null;
   /**
-   * How many of your share that character is holding. Zero whenever `owedBy` is null.
+   * How many of your share that character is still holding for you. Zero when nobody is.
    *
    * The GAP between your share and what you picked up, not the share itself. A night you looted four
    * stacks of six on owes you nothing even though a partner was there, and reading `yours` as the
@@ -291,43 +296,83 @@ function ranWith(loot: Loot, party: Party): string[] {
     .map((seat) => seat.name);
 }
 
+/** One side of a coupon relationship: the nights running one way, and the figure they carry. */
+type OwedSide = { nights: DropEntry[]; figure: "owedToYou" | "owedByYou" };
+
 /**
- * Takes the coupons a sale already answered off the nights that owe them. See V56.
+ * Spends a budget of coupons across nights, oldest first, and says what is left of it.
  *
- * Oldest night first and per creditor, which is the spend settlement.ts makes on the same figures
- * (see spendOldestFirst). Both screens have to run the same one or the badge and the card disagree
- * about the same night, and the count that is left is the one somebody still has to hand over.
+ * Oldest first, then the id, so two nights of the same day are spent in a fixed order. Without the
+ * tie-break the credit falls on whichever pool the server listed first, and a badge that moves
+ * between two parties on a refresh is a figure nobody can act on.
+ *
+ * The same spend settlement.ts makes on the same figures (see spendOldestFirst). Both screens have
+ * to run it or the badge and the card disagree about which night is finished.
+ */
+function spend(side: OwedSide, budget: number): void {
+  let left = budget;
+  if (left <= 0) return;
+  const oldest = [...side.nights].sort(
+    (a, b) => a.droppedOn.localeCompare(b.droppedOn) || a.lootId.localeCompare(b.lootId),
+  );
+  for (const night of oldest) {
+    const spent = Math.min(left, night[side.figure]);
+    night[side.figure] -= spent;
+    left -= spent;
+    if (left <= 0) break;
+  }
+}
+
+/** What a side still adds up to. */
+function totalOf(side: OwedSide): number {
+  return side.nights.reduce((sum, night) => sum + night[side.figure], 0);
+}
+
+/**
+ * Settles each coupon relationship down to what somebody still has to do about it.
+ *
+ * Two subtractions, in the order settlement.ts makes them, because a night can finish three ways
+ * and a badge that only knows the first asks again for coupons that have already changed hands:
+ *
+ *  - a sale that already answered them, per pile and creditor, in mesos rather than coupons (V56).
+ *  - the two directions CANCELLING, because one handover settles the pair (#417). Twenty of yours
+ *    in their pile against twenty of theirs in yours is a night nobody has to do anything about,
+ *    and Hard Baldrix went on asking for its twenty a week after the pair had washed.
+ *
+ * The third is `closed`, which the entries carry already and which keeps them out of here: a
+ * finished night must not eat a budget that a night still owed has a claim on.
  *
  * Not capped anywhere: a budget larger than the nights owed simply clears them, which is a tranche
- * naming more than was ever owed. The Settlement Ledger says that out loud on its own card, and
- * a party badge is the wrong place to say it twice.
+ * naming more than was ever owed. The Settlement Ledger says that out loud on its own card, and a
+ * party badge is the wrong place to say it twice.
  */
-function spendAnswered(
-  owed: { entry: DropEntry; creditor: string }[],
+function settleCouponNights(
+  owed: { entry: DropEntry; other: string; yours: boolean }[],
   answered: Map<string, number>,
 ): void {
-  const byCreditor = new Map<string, DropEntry[]>();
-  for (const { entry, creditor } of owed) {
-    const seen = byCreditor.get(creditor);
-    if (seen) seen.push(entry);
-    else byCreditor.set(creditor, [entry]);
+  const sides = new Map<string, { byYou: OwedSide; toYou: OwedSide }>();
+  for (const { entry, other, yours } of owed) {
+    const pair =
+      sides.get(other) ??
+      sides
+        .set(other, {
+          byYou: { nights: [], figure: "owedByYou" },
+          toYou: { nights: [], figure: "owedToYou" },
+        })
+        .get(other)!;
+    (yours ? pair.byYou : pair.toYou).nights.push(entry);
   }
 
-  for (const [creditor, nights] of byCreditor) {
-    let left = answered.get(answeredKey(SELF_KEY, creditor)) ?? 0;
-    if (left <= 0) continue;
-    // Oldest first, then the id, so two nights of the same day are spent in a fixed order. Without
-    // the tie-break the credit falls on whichever pool the server listed first, and a badge that
-    // moves between two parties on a refresh is a figure nobody can act on.
-    const oldest = [...nights].sort(
-      (a, b) => a.droppedOn.localeCompare(b.droppedOn) || a.lootId.localeCompare(b.lootId),
-    );
-    for (const night of oldest) {
-      const spent = Math.min(left, night.owedByYou);
-      night.owedByYou -= spent;
-      left -= spent;
-      if (left <= 0) break;
-    }
+  for (const [other, pair] of sides) {
+    // Coupons of theirs you sold, and coupons of yours they sold. Each answers its own direction:
+    // a sale out of YOUR pile says nothing about what is sitting in theirs.
+    spend(pair.byYou, answered.get(answeredKey(SELF_KEY, other)) ?? 0);
+    spend(pair.toYou, answered.get(answeredKey(other, SELF_KEY)) ?? 0);
+    // What is left of the two cancels. Netting a COUNT is safe where netting a price would not be:
+    // same coupon, same person, nothing valued.
+    const wash = Math.min(totalOf(pair.byYou), totalOf(pair.toYou));
+    spend(pair.byYou, wash);
+    spend(pair.toYou, wash);
   }
 }
 
@@ -356,8 +401,8 @@ export function buildDropLog(
 ): DropLog {
   const partyById = new Map(parties.map((p) => [p.id, p]));
   const entries: DropEntry[] = [];
-  /** The nights you owe on, with whose coupons they are, so `answered` can be spent across them. */
-  const owed: { entry: DropEntry; creditor: string }[] = [];
+  /** Every night with a coupon debt on it, and who the other side of it is. See settleCouponNights. */
+  const owed: { entry: DropEntry; other: string; yours: boolean }[] = [];
 
   for (const pool of pools) {
     const party = partyById.get(pool.partyId);
@@ -414,13 +459,13 @@ export function buildDropLog(
         unreadable,
       };
       entries.push(entry);
-      // Only the open ones. A closed night is finished, and spending the budget on it would leave
-      // less of it for a night that is still owed.
-      if (gap !== null && gap.yours && !entry.closed) owed.push({ entry, creditor: gap.byKey });
+      // Only the open ones. A closed night is finished, and letting it soak up a subtraction
+      // would leave less of it for a night that is still owed.
+      if (gap !== null && !entry.closed) owed.push({ entry, other: gap.byKey, yours: gap.yours });
     }
   }
 
-  spendAnswered(owed, answered);
+  settleCouponNights(owed, answered);
 
   // Newest first, and stable on the id so two drops logged the same day keep one order.
   entries.sort(
@@ -434,8 +479,8 @@ export function buildDropLog(
  * Work still to do on a drop.
  *
  * A piece drop is settled through the tranche ledger, never through a sale on its own row, so
- * "not sold" says nothing about it. What is left to do is whether somebody else is holding your
- * share: `owedBy` is set only then, and a party that divided evenly leaves it null.
+ * "not sold" says nothing about it. What is left to do is `owedToYou`, and a party that divided
+ * evenly leaves it at zero.
  */
 export function isOutstanding(entry: DropEntry): boolean {
   // A piece drop is never counted here, whoever is holding it. It is said in COUPONS instead, by the
@@ -458,7 +503,10 @@ export function dropStatusLabel(entry: DropEntry): string {
   // arrangement being reported as though it were the ledger's answer.
   if (entry.pieces) {
     if (entry.closed) return "Settled";
-    return entry.owedBy === null ? "Yours" : "Owed";
+    // Off the FIGURE, never off who looted it. `owedBy` names whoever bent down, which stays true
+    // after a sale has answered the night or the pair has cancelled it; what is still outstanding
+    // is the count. Reading the name here said "Owed" on a night nobody has to do anything about.
+    return entry.owedToYou > 0 ? "Owed" : "Yours";
   }
   return statusLabel(entry.status);
 }

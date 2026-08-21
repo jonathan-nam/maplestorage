@@ -714,9 +714,9 @@ describe("foldStatus", () => {
     // "In the pool" about pieces that are already in the inventory.
     const coupons = [entry({ pieces: true }), entry({ pieces: true })];
     expect(foldStatus(coupons)).toBe("Yours");
-    expect(foldStatus([...coupons, entry({ pieces: true, owedBy: "CreedBratton" })])).toBe(
-      "3 runs",
-    );
+    expect(
+      foldStatus([...coupons, entry({ pieces: true, owedBy: "CreedBratton", owedToYou: 20 })]),
+    ).toBe("3 runs");
   });
 });
 
@@ -1016,6 +1016,137 @@ describe("a piece drop counts YOUR share, not what fell", () => {
       );
 
       expect(log.entries[0]!.owedToYou).toBe(30);
+    });
+
+    it("answers the other direction off THEIR pile, where they sold yours", () => {
+      // The mirror, and keyed the other way round: their pile, you the creditor.
+      const log = buildDropLog(
+        [pair()],
+        [pool("pa", [arranged(0, 3)])],
+        tables,
+        new Set(),
+        new Map([[answeredKey(CHRIS, SELF_KEY), 30]]),
+      );
+
+      expect(log.entries[0]!.owedToYou).toBe(0);
+    });
+  });
+
+  // One handover settles a coupon relationship, so the two directions cancel before either is
+  // said. Twenty of yours in their pile against twenty of theirs in yours is a night nobody has to
+  // do anything about, and Hard Baldrix asked for its twenty for a week after the pair had washed.
+  // Same rule as the Settlement Ledger's, one screen along. See #417.
+  describe("the two directions cancel", () => {
+    const CHRIS = "person:p-chris";
+    const other = (over: Partial<Party> = {}) =>
+      party("pb", [mine("m1", "Huskyxkenshi"), theirs("m2", "CreedBratton")], {
+        difficulty: "HARD",
+        ...over,
+      });
+    const theirNight = (over: Partial<Loot> = {}) =>
+      coupons({
+        bundles: 3,
+        bundlesBy: [
+          { memberId: "m1", bundles: 1 },
+          { memberId: "m2", bundles: 2 },
+        ],
+        ...over,
+      });
+
+    it("washes an equal debt each way, across two different parties", () => {
+      // 10 of yours in their pile off one boss, 10 of theirs in yours off another. Both cards go
+      // quiet, because one handover between the two of you is nothing.
+      const theirs10 = theirNight({ id: "l1", droppedOn: "2026-08-13" });
+      const yours10 = coupons({
+        id: "l2",
+        droppedOn: "2026-08-14",
+        bundles: 3,
+        bundlesBy: [
+          { memberId: "m1", bundles: 2 },
+          { memberId: "m2", bundles: 1 },
+        ],
+      });
+      const log = buildDropLog(
+        [pair(), other()],
+        [pool("pa", [yours10]), pool("pb", [theirs10])],
+        tables,
+      );
+      const out = couponsOutstandingByParty(log.entries);
+
+      expect(out.has("pa")).toBe(false);
+      expect(out.has("pb")).toBe(false);
+    });
+
+    it("leaves the difference, on the newest night", () => {
+      // 30 of theirs in your pile against 10 of yours in theirs. The 10 cancel and 20 are left to
+      // hand over, and the wash spends the older night first.
+      const theirs10 = theirNight({ id: "old", droppedOn: "2026-08-13" });
+      const yours30 = coupons({
+        id: "mid",
+        droppedOn: "2026-08-14",
+        bundles: 3,
+        bundlesBy: [{ memberId: "m1", bundles: 3 }],
+      });
+      const log = buildDropLog(
+        [pair(), other()],
+        [pool("pa", [yours30]), pool("pb", [theirs10])],
+        tables,
+      );
+      const out = couponsOutstandingByParty(log.entries);
+
+      expect(out.has("pb")).toBe(false);
+      expect(out.get("pa")).toEqual({ toYou: 0, byYou: 20 });
+    });
+
+    it("does not cancel across two different people", () => {
+      // Chris holding 10 of yours has nothing to do with what you owe Jared. Netting a count is
+      // only safe within one relationship, which is why the sides are kept per person.
+      const jared = { ...theirs("m2", "Challynnger"), personId: "p-jared", personName: "Jared" };
+      const withJared = party("pc", [mine("m1", "Huskyxkenshi"), jared], { difficulty: "HARD" });
+      const theirs10 = theirNight({ id: "l1", droppedOn: "2026-08-13" });
+      const yours10 = coupons({
+        id: "l2",
+        droppedOn: "2026-08-14",
+        bundles: 3,
+        bundlesBy: [
+          { memberId: "m1", bundles: 2 },
+          { memberId: "m2", bundles: 1 },
+        ],
+      });
+      const log = buildDropLog(
+        [withJared, other()],
+        [pool("pc", [yours10]), pool("pb", [theirs10])],
+        tables,
+      );
+      const out = couponsOutstandingByParty(log.entries);
+
+      expect(out.get("pb")).toEqual({ toYou: 10, byYou: 0 });
+      expect(out.get("pc")).toEqual({ toYou: 0, byYou: 10 });
+    });
+
+    it("washes what a sale has not already answered, and not before", () => {
+      // The order matters: the sale answers first, and only what survives it can cancel. A sale
+      // that cleared all 30 you owed leaves nothing to wash against, so the 10 of yours they are
+      // holding stands. Washing first would have cancelled it and then answered the same coupons
+      // again, which is the pair spent twice.
+      const theirs10 = theirNight({ id: "old", droppedOn: "2026-08-13" });
+      const yours30 = coupons({
+        id: "mid",
+        droppedOn: "2026-08-14",
+        bundles: 3,
+        bundlesBy: [{ memberId: "m1", bundles: 3 }],
+      });
+      const log = buildDropLog(
+        [pair(), other()],
+        [pool("pa", [yours30]), pool("pb", [theirs10])],
+        tables,
+        new Set(),
+        new Map([[answeredKey(SELF_KEY, CHRIS), 30]]),
+      );
+      const out = couponsOutstandingByParty(log.entries);
+
+      expect(out.get("pb")).toEqual({ toYou: 10, byYou: 0 });
+      expect(out.has("pa")).toBe(false);
     });
   });
 
