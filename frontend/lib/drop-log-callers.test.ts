@@ -59,4 +59,12 @@ describe("every caller of buildDropLog hands it the settlements", () => {
     // Named either way at the call sites in hand. What matters is that something was passed.
     expect(args).toMatch(/closed|closures/);
   });
+
+  // The same guard for the other half of "this night is finished". A closure is a decision somebody
+  // made; a tranche is a sale that answered the coupons with money. Miss either and the badge asks
+  // for a debt that is not owed, which is how this one was found: two weeks of Extreme Kalos coupons
+  // billed again a week after they were sold and offset. See V56.
+  it.each(calls)("passes the answered tranches in $file", ({ args }) => {
+    expect(args).toMatch(/answeredByPair|answered/);
+  });
 });

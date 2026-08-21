@@ -1132,6 +1132,7 @@ describe("a night one person looted whole", () => {
       pieces: 60,
       yours: true,
       by: "Rune",
+      byKey: "character:rune",
       holder: SELF_KEY,
     });
   });
@@ -1144,6 +1145,7 @@ describe("a night one person looted whole", () => {
       pieces: 60,
       yours: true,
       by: "Rune",
+      byKey: "character:rune",
       holder: SELF_KEY,
     });
   });
@@ -1185,6 +1187,7 @@ describe("a night one person looted whole", () => {
       pieces: 135,
       yours: true,
       by: "Rune",
+      byKey: "character:rune",
       holder: SELF_KEY,
     });
   });

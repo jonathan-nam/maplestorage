@@ -17,7 +17,7 @@ import {
   weekLabel,
 } from "./drop-log";
 import type { DropEntry } from "./drop-log";
-import { closedByHolder, holderOf } from "./vestige-ledger";
+import { SELF_KEY, answeredKey, closedByHolder, holderOf } from "./vestige-ledger";
 import { splitOf } from "./loot";
 import type { Loot, PartyLootPool } from "@/types/loot";
 import type { Party, PartyMember } from "@/types/party";
@@ -850,13 +850,14 @@ describe("a piece drop counts YOUR share, not what fell", () => {
       looterMemberId: "m2",
       ...over,
     });
-  const arranged = (mineStacks: number, theirStacks: number): Loot =>
+  const arranged = (mineStacks: number, theirStacks: number, over: Partial<Loot> = {}): Loot =>
     coupons({
       bundles: 3,
       bundlesBy: [
         ...(mineStacks > 0 ? [{ memberId: "m1", bundles: mineStacks }] : []),
         ...(theirStacks > 0 ? [{ memberId: "m2", bundles: theirStacks }] : []),
       ],
+      ...over,
     });
 
   it("owes you nothing on a night you walked away with more than your share", () => {
@@ -906,6 +907,116 @@ describe("a piece drop counts YOUR share, not what fell", () => {
     expect(log.entries[0]!.owedByYou).toBe(30);
     expect(log.entries[0]!.owedToYou).toBe(0);
     expect(couponsOutstandingByParty(log.entries).get("pa")).toEqual({ toYou: 0, byYou: 30 });
+  });
+
+  // The other way a night you looted whole finishes: you sell their share instead of handing it
+  // back, and their money is on their Settlement card. The Settlement Ledger has subtracted those
+  // coupons since V56; this side had never heard of them, so Extreme Kalos asked for two weeks of
+  // coupons that had been sold and offset a week earlier.
+  describe("coupons a sale of yours already answered", () => {
+    const CHRIS = "person:p-chris";
+    const answered = (creditor: string, pieces: number) =>
+      new Map([[answeredKey(SELF_KEY, creditor), pieces]]);
+
+    it("takes them off the night, so the debt is not asked for in both units", () => {
+      const log = buildDropLog(
+        [pair()],
+        [pool("pa", [arranged(3, 0)])],
+        tables,
+        new Set(),
+        answered(CHRIS, 30),
+      );
+
+      expect(log.entries[0]!.owedByYou).toBe(0);
+      expect(couponsOutstandingByParty(log.entries).has("pa")).toBe(false);
+    });
+
+    it("leaves the part no sale spoke for", () => {
+      const log = buildDropLog(
+        [pair()],
+        [pool("pa", [arranged(3, 0)])],
+        tables,
+        new Set(),
+        answered(CHRIS, 20),
+      );
+
+      expect(log.entries[0]!.owedByYou).toBe(10);
+    });
+
+    it("spends oldest night first, the way the Settlement Ledger does", () => {
+      // Two nights of 30 owed and one night's worth sold. The older one is the one it answered, so
+      // the two screens name the same night as finished.
+      const nights = [
+        arranged(3, 0, { id: "old", droppedOn: "2026-08-14" }),
+        arranged(3, 0, { id: "new", droppedOn: "2026-08-21" }),
+      ];
+      const log = buildDropLog(
+        [pair()],
+        [pool("pa", nights)],
+        tables,
+        new Set(),
+        answered(CHRIS, 30),
+      );
+      const owed = new Map(log.entries.map((e) => [e.lootId, e.owedByYou]));
+
+      expect(owed.get("old")).toBe(0);
+      expect(owed.get("new")).toBe(30);
+      expect(couponsOutstandingByParty(log.entries).get("pa")).toEqual({ toYou: 0, byYou: 30 });
+    });
+
+    it("spends one person's budget on their own nights and nobody else's", () => {
+      // Jared's coupons are not answered by a lot of Chris's, however much of it sold. Same rule
+      // as answeredByPair, which is why the budget is keyed by pair and not by pile.
+      const jared = {
+        ...theirs("m2", "Challynnger"),
+        personId: "p-jared",
+        personName: "Jared",
+      };
+      const withJared = party("pb", [mine("m1", "Huskyxkenshi"), jared], { difficulty: "HARD" });
+      const log = buildDropLog(
+        [withJared],
+        [pool("pb", [arranged(3, 0)])],
+        tables,
+        new Set(),
+        answered(CHRIS, 30),
+      );
+
+      expect(log.entries[0]!.owedByYou).toBe(30);
+    });
+
+    it("does not spend it on a night that was already closed", () => {
+      // A closed night is finished, and letting it eat the budget would leave less for the night
+      // still owed: the debt would come out too small rather than too big.
+      const nights = [
+        arranged(3, 0, { id: "shut", droppedOn: "2026-08-14" }),
+        arranged(3, 0, { id: "open", droppedOn: "2026-08-21" }),
+      ];
+      const closed = closedByHolder([
+        {
+          holder: { kind: "SELF", personId: null, characterName: null },
+          lootIds: ["shut"],
+          unpaid: 0,
+        },
+      ]).closed;
+      const log = buildDropLog([pair()], [pool("pa", nights)], tables, closed, answered(CHRIS, 30));
+      const owed = new Map(log.entries.map((e) => [e.lootId, e.owedByYou]));
+
+      expect(owed.get("open")).toBe(0);
+    });
+
+    it("leaves alone the coupons of yours somebody ELSE is holding", () => {
+      // A sale out of YOUR pile says nothing about theirs. The budget is keyed on your pile, and
+      // this night is not in it.
+      const log = buildDropLog(
+        [pair()],
+        [pool("pa", [arranged(0, 3)])],
+        tables,
+        new Set(),
+        answered(CHRIS, 30),
+      );
+
+      expect(log.entries[0]!.owedToYou).toBe(30);
+    });
   });
 
   it("closes an arranged night through the holder the arrangement names", () => {

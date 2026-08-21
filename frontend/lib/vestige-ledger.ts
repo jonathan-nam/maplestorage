@@ -415,6 +415,13 @@ export type CouponGap = {
   by: string;
   /** The holder key of whoever is holding the surplus, which is whose books close it. See V52. */
   holder: string;
+  /**
+   * `by` as a key, which is the CREDITOR when the coupons are yours to hand over.
+   *
+   * What matches the night against a tranche that already sold their share of it. The name cannot:
+   * a pile of two characters is named as both and a person is named however the seat spells them.
+   */
+  byKey: string;
 };
 
 /**
@@ -461,8 +468,8 @@ export function couponGapOf(loot: Loot, party: Party): CouponGap | null {
   if (!them) return null;
   const by = held.get(them.h.key)?.by ?? them.h.name;
   return short > 0
-    ? { pieces: short, yours: false, by, holder: them.h.key }
-    : { pieces: -short, yours: true, by, holder: SELF_KEY };
+    ? { pieces: short, yours: false, by, byKey: them.h.key, holder: them.h.key }
+    : { pieces: -short, yours: true, by, byKey: them.h.key, holder: SELF_KEY };
 }
 
 /**
