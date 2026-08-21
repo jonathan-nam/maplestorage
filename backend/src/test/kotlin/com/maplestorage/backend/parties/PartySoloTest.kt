@@ -261,6 +261,35 @@ class PartySoloTest {
     }
 
     @Test
+    fun `a boss whose party was retired can be given a mode as one run alone`() {
+        transaction {
+            val characterId = character()
+            val bossId = bossIdForKey("limbo")!!
+            val now = Clock.System.now()
+            val request =
+                SavePartyRequest(characterId.toString(), "limbo", listOf("Steve"), difficulty = "HARD")
+            val partyId = createParty(userId, characterId, bossId, request, now)
+            addLoot(partyId, LootedDrop(dropIdForKey("grindstone-of-faith")!!), bossId, dropped, now)
+            // Kept, not deleted: it holds a drop. Which left the pair with a config on no list, and
+            // no way to say the boss is run alone now, since a party needs somebody else in it.
+            assertEquals(Removal.RETIRED, retireOrDeleteParty(partyId, userId, now))
+
+            assertEquals(partyId, setSoloDifficulty(userId, characterId, bossId, "WEEKLY", "NORMAL", now))
+
+            val pool = findParty(partyId, userId)!!
+            assertTrue(pool.solo)
+            assertEquals("NORMAL", pool.difficulty)
+            // Back on the list the routine editor reads, which leaves retired configs out.
+            assertTrue(partiesFor(userId, includeSolo = true).any { it.id == partyId.toString() })
+            // One seat from now on, so what a clear files divides by one.
+            assertEquals(listOf(characterId.toString()), pool.members.map { it.characterId })
+            // The night it was a duo keeps both of them. Steve is off the roster, not out of it.
+            assertEquals(2, pool.seats.size)
+            assertEquals(2, rosterFor(partyId, weekOf20Jul).size)
+        }
+    }
+
+    @Test
     fun `a boss run alone is not a party the routine editor has to be argued with`() {
         transaction {
             val characterId = character()

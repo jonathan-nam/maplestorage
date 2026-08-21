@@ -105,9 +105,11 @@ internal fun poolFor(
  * ticked does not leave this week's coupons missing until the reset, and Chaos corrected to Extreme
  * leaves one row of 180 rather than two.
  *
- * Null when the pair is held by a party. That config carries the mode already, beside the roster and
- * the split it is read with, and writing one here would edit a party through a door that sees
- * neither.
+ * Null when the pair is held by a STANDING party. That config carries the mode already, beside the
+ * roster and the split it is read with, and writing one here would edit a party through a door that
+ * sees neither.
+ *
+ * A RETIRED one is not that claim, so it is taken back as the pool it now is. See soloAgain.
  */
 internal fun setSoloDifficulty(
     userId: String,
@@ -118,8 +120,10 @@ internal fun setSoloDifficulty(
     now: Instant,
 ): Uuid? {
     val held = partyIdFor(characterId, bossCatalogId)
-    if (held != null && !isSoloParty(held)) return null
+    val retired = held != null && isRetiredParty(held)
+    if (held != null && !retired && !isSoloParty(held)) return null
     val partyId = held ?: createSoloParty(userId, characterId, bossCatalogId, now)
+    if (retired) soloAgain(userId, partyId, characterId, now)
     Party.update({ Party.id eq partyId }) {
         it[Party.difficulty] = difficulty
         it[updatedAt] = now
@@ -130,6 +134,33 @@ internal fun setSoloDifficulty(
         lootFromClear(characterId, bossCatalogId, reset, today, now)
     }
     return partyId
+}
+
+/**
+ * Takes a retired config back as the pool for a boss this character now runs alone.
+ *
+ * The reverse of adoptSoloParty, and the only way back. One config per pair, so a retired party held
+ * the slot for a boss now run alone with no door out: a party needs somebody else in it, and naming
+ * a mode was refused over a config that is on no list to remove.
+ *
+ * writeMembers pins the roster onto every week already written before the other seats stop standing,
+ * so the nights this was a party keep the split they were played under. Without it the coupons a
+ * clear files from now on would divide by seats nobody says are there.
+ */
+private fun soloAgain(
+    userId: String,
+    partyId: Uuid,
+    characterId: Uuid,
+    now: Instant,
+) {
+    writeMembers(partyId, characterId, emptyList(), SeatContext(userId, emptyMap(), now))
+    Party.update({ Party.id eq partyId }) {
+        it[solo] = true
+        it[standing] = true
+        // A night is not what this is: a pool is on every period, like the one createSoloParty opens.
+        it[oneOff] = false
+        it[updatedAt] = now
+    }
 }
 
 /**
