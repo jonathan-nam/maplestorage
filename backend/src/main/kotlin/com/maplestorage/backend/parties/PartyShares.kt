@@ -180,7 +180,7 @@ internal fun pinWeeksAlreadyWritten(
  * This week when the boss cannot be found, which is the answer for two of the three cadences and
  * pins the straddling week of the third.
  */
-private fun liveFrom(
+internal fun liveFrom(
     reset: String?,
     now: Instant,
 ): LocalDate = if (reset == MONTHLY_CADENCE) periodStartFor(reset, now) else weekOf(todayIn(now))
@@ -213,7 +213,7 @@ private fun weeksAlreadyWritten(
 }
 
 /** The weeks this party dropped something in. */
-private fun weeksDroppedIn(partyId: Uuid): List<LocalDate> =
+internal fun weeksDroppedIn(partyId: Uuid): List<LocalDate> =
     PartyLoot
         .selectAll()
         .where { PartyLoot.partyId eq partyId }
