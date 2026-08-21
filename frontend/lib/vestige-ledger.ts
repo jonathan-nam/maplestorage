@@ -345,6 +345,20 @@ function holdersOf(loot: Loot, party: Party): FoldedSeat[] {
  * nothing said why. See #289.
  */
 function heldByHolder(loot: Loot, party: Party, holders: FoldedSeat[]): Map<string, Pile> | null {
+  const held = pilesFrom(loot, party, holders);
+  if (held === null) return null;
+  // Everybody who ran, including whoever bent down for nothing. Reading the arrangement alone left
+  // the empty-handed out of the map entirely, and the night one person loots WHOLE is the ordinary
+  // one: it read as a night with nobody on the other side, so "60 to hand over" went unsaid. Only
+  // that direction was silent, because the reader was looking for a pile and yours was the only one.
+  for (const holder of holders) {
+    if (!held.has(holder.key)) held.set(holder.key, { pieces: 0, by: holder.name });
+  }
+  return held;
+}
+
+/** The arrangement itself, before the empty-handed are put back in. See heldByHolder. */
+function pilesFrom(loot: Loot, party: Party, holders: FoldedSeat[]): Map<string, Pile> | null {
   const bundles = bundlesOf(loot);
   const bundlesBy = loot.bundlesBy ?? [];
 
@@ -431,14 +445,24 @@ export function couponGapOf(loot: Loot, party: Party): CouponGap | null {
   if (short === 0) return null;
   // Whoever is furthest from their own share is the other side of it. Named, because which of them
   // to ask is the whole use of the figure, and a pile of two characters names both (see Pile.by).
-  const others = [...held.entries()]
-    .filter(([key]) => key !== SELF_KEY)
-    .sort(([, a], [, b]) => b.pieces - a.pieces);
+  //
+  // "Furthest" runs opposite to yours: the one holding most of a surplus when you are short, the
+  // one shortest when you are the one holding. Ranking on the pile alone answered only the first,
+  // and on a trio it named the biggest pile even where a bigger entitlement had earned it.
+  const entitled = entitlements(
+    loot.quantity,
+    holders.map((h) => ({ memberId: h.key, name: h.name, looted: 0, shares: h.shares })),
+  );
+  const others = holders
+    .filter((h) => h.key !== SELF_KEY)
+    .map((h) => ({ h, off: (held.get(h.key)?.pieces ?? 0) - (entitled.get(h.key) ?? 0) }))
+    .sort((a, b) => (short > 0 ? b.off - a.off : a.off - b.off));
   const them = others[0];
   if (!them) return null;
+  const by = held.get(them.h.key)?.by ?? them.h.name;
   return short > 0
-    ? { pieces: short, yours: false, by: them[1].by, holder: them[0] }
-    : { pieces: -short, yours: true, by: them[1].by, holder: SELF_KEY };
+    ? { pieces: short, yours: false, by, holder: them.h.key }
+    : { pieces: -short, yours: true, by, holder: SELF_KEY };
 }
 
 /**
