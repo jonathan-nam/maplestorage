@@ -297,7 +297,7 @@ function SettlementCard({
     },
     // `soldOfTheirs` is NOT here, and must not be. It is only ever the part of their money somebody
     // has said comes off their debt, which makes it a discharge, and discharges are listed once
-    // under `already off`. It was in both lists at once: 2,412,222,150 read as a row of the owed
+    // under `offsets`. It was in both lists at once: 2,412,222,150 read as a row of the owed
     // list and again inside the fold below it, so the two lists came to more than the card did.
     {
       key: "theirs",
@@ -713,7 +713,7 @@ function SettlementCard({
           when, and that is what a reader opens it for. */}
       {discharges.length > 0 && (
         <div className="ledger-entry">
-          <span className="ledger-step">already off</span>
+          <span className="ledger-step">offsets</span>
           <ul className="ledger-queue">
             <li className="ledger-drop">
               <div className="ledger-drop-head">
@@ -726,7 +726,7 @@ function SettlementCard({
                 >
                   <span className="party-row-chevron" aria-hidden="true" />
                   <span className="visually-hidden">
-                    {showOff ? "Hide what has come off" : "Show what has come off"}
+                    {showOff ? "Hide the offsets" : "Show the offsets"}
                   </span>
                 </button>
                 <span className="loot-name">
@@ -809,7 +809,7 @@ function SettlementCard({
             </>
           )}
           {/* Only what was SENT to them. A decision to offset took something off what they owe you,
-              so it is said under `already off` with everything else that did: one place for one kind
+              so it is said under `offsets` with everything else that did: one place for one kind
               of fact. Paying them out took nothing off, which is exactly why it stays here, beside
               the money it came out of.
 
@@ -1182,7 +1182,7 @@ function PieceNights({
  * One debt somebody typed.
  *
  * No fold and no shares any more: an entry that names a share is a DISCHARGE and is drawn under
- * `already off` by DischargeRow, which puts the drop itself on the row rather than a note and a
+ * `offsets` by DischargeRow, which puts the drop itself on the row rather than a note and a
  * count. What is left here names nothing, so the chevron never had anything to open.
  */
 function EnteredRow({

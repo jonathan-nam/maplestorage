@@ -202,7 +202,7 @@ describe("what the card says a person owes", () => {
 
   it("keeps a hand-entered debt a plain row, since it discharges no share", () => {
     // The chevron frame is still drawn, so a typed row lines up with a folded one. No fold on it at
-    // all any more: an entry that names a share is a discharge and is drawn under `already off`, so
+    // all any more: an entry that names a share is a discharge and is drawn under `offsets`, so
     // what is left in the owed list names nothing and never had anything to open.
     expect(source).toContain('<span className="party-row-toggle is-empty"');
     expect(source).toContain("function EnteredRow(");
