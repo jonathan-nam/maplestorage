@@ -1,14 +1,14 @@
 package com.maplestorage.backend.parties
 
 import com.maplestorage.backend.bosses.bossClearedOn
-import com.maplestorage.backend.bosses.weekOf
 import com.maplestorage.backend.db.Party
-import com.maplestorage.backend.db.PartyLoot
 import com.maplestorage.backend.db.PartyMember
 import com.maplestorage.backend.db.PartyWeekSeat
 import kotlinx.datetime.LocalDate
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.core.inList
+import org.jetbrains.exposed.v1.jdbc.deleteWhere
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.update
@@ -123,7 +123,7 @@ internal fun setSoloDifficulty(
     val retired = held != null && isRetiredParty(held)
     if (held != null && !retired && !isSoloParty(held)) return null
     val partyId = held ?: createSoloParty(userId, characterId, bossCatalogId, now)
-    if (retired) soloAgain(userId, partyId, characterId, now)
+    if (retired) soloAgain(userId, partyId, characterId, reset, now)
     Party.update({ Party.id eq partyId }) {
         it[Party.difficulty] = difficulty
         it[updatedAt] = now
@@ -144,16 +144,30 @@ internal fun setSoloDifficulty(
  * a mode was refused over a config that is on no list to remove.
  *
  * writeMembers pins the roster onto every week already written before the other seats stop standing,
- * so the nights this was a party keep the split they were played under. Without it the coupons a
- * clear files from now on would divide by seats nobody says are there.
+ * so the nights this was a party keep the split they were played under.
+ *
+ * The period being answered is not one of those nights. A clear ticked before anybody named the mode
+ * makes the period count as written, and freezing the old duo onto it left the coupons the same call
+ * then files owed half to somebody this claim had just taken off the roster. A week that already
+ * holds a DROP is a night played and keeps its seats; the rest of the live period goes back to the
+ * standing roster of one.
  */
 private fun soloAgain(
     userId: String,
     partyId: Uuid,
     characterId: Uuid,
+    reset: String,
     now: Instant,
 ) {
+    // Read before the write, so only the pins writeMembers is about to invent are taken back.
+    val theirs = weeksSpelledOutFor(partyId) + weeksDroppedIn(partyId)
     writeMembers(partyId, characterId, emptyList(), SeatContext(userId, emptyMap(), now))
+    val invented = weeksSpelledOutFor(partyId).filter { it >= liveFrom(reset, now) && it !in theirs }
+    if (invented.isNotEmpty()) {
+        PartyWeekSeat.deleteWhere {
+            (PartyWeekSeat.partyId eq partyId) and (PartyWeekSeat.weekStart inList invented)
+        }
+    }
     Party.update({ Party.id eq partyId }) {
         it[solo] = true
         it[standing] = true
@@ -231,10 +245,7 @@ internal fun openSoloParty(
 internal fun pinWeeksAlreadyDropped(partyId: Uuid) {
     val seats = PartyMember.selectAll().where { PartyMember.partyId eq partyId }.map { it[PartyMember.id] }
     val spelledOut = weeksSpelledOutFor(partyId)
-    PartyLoot
-        .selectAll()
-        .where { PartyLoot.partyId eq partyId }
-        .map { weekOf(it[PartyLoot.droppedOn]) }
+    weeksDroppedIn(partyId)
         .distinct()
         .filterNot { it in spelledOut }
         .forEach { week ->

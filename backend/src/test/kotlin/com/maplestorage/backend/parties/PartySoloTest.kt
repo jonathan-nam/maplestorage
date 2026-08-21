@@ -290,6 +290,32 @@ class PartySoloTest {
     }
 
     @Test
+    fun `the period being answered does not keep the retired party's roster`() {
+        transaction {
+            val characterId = character()
+            val bossId = bossIdForKey("limbo")!!
+            val now = Clock.System.now()
+            val request =
+                SavePartyRequest(characterId.toString(), "limbo", listOf("Steve"), difficulty = "HARD")
+            val partyId = createParty(userId, characterId, bossId, request, now)
+            addLoot(partyId, LootedDrop(dropIdForKey("grindstone-of-faith")!!), bossId, dropped, now)
+            retireOrDeleteParty(partyId, userId, now)
+            // The order that got this wrong: the boss is ticked cleared before anybody says what mode
+            // it is run at, so the period counts as written and the pin reached it.
+            assertTrue(setBossClearByHand(userId, characterId, "limbo", true, now))
+
+            setSoloDifficulty(userId, characterId, bossId, "WEEKLY", "HARD", now)
+
+            // Alone this week, so the 60 coupons the clear just filed are undivided.
+            assertEquals(60, couponIn(partyId).quantity)
+            assertEquals(1, rosterFor(partyId, currentWeek()).size)
+            assertEquals(listOf(characterId.toString()), findParty(partyId, userId)!!.members.map { it.characterId })
+            // The night it was a duo still has both, which is what the pin is for.
+            assertEquals(2, rosterFor(partyId, weekOf20Jul).size)
+        }
+    }
+
+    @Test
     fun `a boss run alone is not a party the routine editor has to be argued with`() {
         transaction {
             val characterId = character()
