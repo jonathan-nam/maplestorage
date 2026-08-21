@@ -13,15 +13,20 @@ import { preloadBossArt } from "@/lib/preload-boss-art";
 import { useRowWrites } from "@/lib/use-row-writes";
 import { ApiError, SAVED_BUT_STALE, StaleAfterWrite, apiFetch, readBack } from "@/lib/api";
 import { peek, put } from "@/lib/cache";
-import { buildDropLog, couponsOutstandingByParty, pieceStatusByParty } from "@/lib/drop-log";
+import {
+  buildDropLog,
+  couponsOutstandingByParty,
+  isOutstanding,
+  pieceStatusByParty,
+} from "@/lib/drop-log";
 import { useDropIcons } from "@/lib/drop-icons";
 import { NOTHING_OUTSTANDING, poolLabel, summarize } from "@/lib/loot";
-import { closedByHolder } from "@/lib/vestige-ledger";
+import { answeredByPair, closedByHolder } from "@/lib/vestige-ledger";
 import { otherMembers, partySizeLabel } from "@/lib/parties";
 import type { Boss } from "@/types/boss";
 import type { DropTables } from "@/types/drop";
-import type { AddLootBody, Loot, SellLootBody } from "@/types/loot";
-import type { VestigeSettlement } from "@/types/vestige";
+import type { AddLootBody, Loot, PartyLootPool, SellLootBody } from "@/types/loot";
+import type { VestigeSettlement, VestigeTranche } from "@/types/vestige";
 import type { Party } from "@/types/party";
 
 type LoadState = "loading" | "loaded" | "error";
@@ -29,6 +34,9 @@ type LoadState = "loading" | "loaded" | "error";
 const BOSSES_KEY = "/api/bosses";
 const DROPS_KEY = "/api/bosses/drops";
 const SETTLEMENTS_KEY = "/api/vestige-settlements";
+const TRANCHES_KEY = "/api/vestige-tranches";
+const PARTIES_KEY = "/api/parties";
+const POOLS_KEY = "/api/parties/loot";
 // Rows are keyed by their drop's id while they save. The picker is not a row, so it takes a name of
 // its own. See lib/use-row-writes.ts.
 const ADD_DROP = "add-drop";
@@ -48,6 +56,14 @@ export default function PartyPage() {
   const [settlements, setSettlements] = useState<VestigeSettlement[]>(
     peek<VestigeSettlement[]>(SETTLEMENTS_KEY) ?? [],
   );
+  // The whole account, for the coupons figure alone. A tranche answers a PERSON rather than a
+  // night, so how much of it is left for this party's nights depends on every other party's. See
+  // spendAnswered. Optional, like the settlements: losing them overstates that one number.
+  const [tranches, setTranches] = useState<VestigeTranche[]>(
+    peek<VestigeTranche[]>(TRANCHES_KEY) ?? [],
+  );
+  const [parties, setParties] = useState<Party[]>(peek<Party[]>(PARTIES_KEY) ?? []);
+  const [pools, setPools] = useState<PartyLootPool[]>(peek<PartyLootPool[]>(POOLS_KEY) ?? []);
   const [state, setState] = useState<LoadState>("loading");
   // The pool's picker draws them. See lib/drop-icons.ts.
   useDropIcons(dropTables);
@@ -81,18 +97,44 @@ export default function PartyPage() {
           apiFetch<DropTables>(DROPS_KEY, { method: "GET" }, withToken),
           // What stops a closed debt still reading as owed here. See V52.
           apiFetch<VestigeSettlement[]>(SETTLEMENTS_KEY, { method: "GET" }, withToken),
+          apiFetch<VestigeTranche[]>(TRANCHES_KEY, { method: "GET" }, withToken).catch(() => null),
+          apiFetch<Party[]>(PARTIES_KEY, { method: "GET" }, withToken).catch(() => null),
+          apiFetch<PartyLootPool[]>(POOLS_KEY, { method: "GET" }, withToken).catch(() => null),
         ]);
       })
-      .then(([partyResult, , bossResult, dropResult, settlementResult]) => {
-        setParty(partyResult);
-        setBosses(bossResult);
-        setDropTables(dropResult);
-        setSettlements(settlementResult);
-        put(BOSSES_KEY, bossResult);
-        put(DROPS_KEY, dropResult);
-        put(SETTLEMENTS_KEY, settlementResult);
-        setState("loaded");
-      })
+      .then(
+        ([
+          partyResult,
+          ,
+          bossResult,
+          dropResult,
+          settlementResult,
+          trancheResult,
+          partiesResult,
+          poolResult,
+        ]) => {
+          setParty(partyResult);
+          setBosses(bossResult);
+          setDropTables(dropResult);
+          setSettlements(settlementResult);
+          put(BOSSES_KEY, bossResult);
+          put(DROPS_KEY, dropResult);
+          put(SETTLEMENTS_KEY, settlementResult);
+          if (trancheResult) {
+            setTranches(trancheResult);
+            put(TRANCHES_KEY, trancheResult);
+          }
+          if (partiesResult) {
+            setParties(partiesResult);
+            put(PARTIES_KEY, partiesResult);
+          }
+          if (poolResult) {
+            setPools(poolResult);
+            put(POOLS_KEY, poolResult);
+          }
+          setState("loaded");
+        },
+      )
       .catch(() => setState("error"));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [partyId]);
@@ -141,24 +183,39 @@ export default function PartyPage() {
   // every PENDING row instead made this page disagree with that card about the same party: a
   // coupon row never sells, so it was pending for ever here while the card left it out.
   const closed = closedByHolder(settlements).closed;
+  // Built over every party, not just this one. A tranche answers a person rather than a night, so
+  // what is left of it for this party's nights is only knowable against all of them: reading this
+  // party alone would spend the whole budget here and report a debt smaller than it is.
+  //
+  // This party's own rows come from `loot`, which is refetched after every write here. The list in
+  // `pools` was read on load and is a write behind by then.
+  const everyPool = party
+    ? [{ partyId: party.id, loot }, ...pools.filter((pool) => pool.partyId !== party.id)]
+    : pools;
+  const everyParty = party ? [party, ...parties.filter((p) => p.id !== party.id)] : parties;
   const log = party
-    ? buildDropLog([party], [{ partyId: party.id, loot }], dropTables, closed)
+    ? buildDropLog(everyParty, everyPool, dropTables, closed, answeredByPair(tranches))
     : null;
+  /** This party's own rows, which is what every figure below is about. */
+  const mine = log?.entries.filter((entry) => entry.partyId === party?.id) ?? [];
   // What each coupon row says it is: a piece drop is PENDING for ever, because it never sells through
   // its own row, so the raw status read "In the pool" on every vestige stack this party ever dropped.
   // The same reading Party View's panels use, from the same place.
-  const pieceStatus = party ? pieceStatusByParty(log?.entries ?? []).get(party.id) : undefined;
+  const pieceStatus = party ? pieceStatusByParty(mine).get(party.id) : undefined;
   const summary = summarize(loot);
   const poolLine = poolLabel(
     {
       // The log's own reading, which leaves out a coupon drop already in the right inventories.
       // summarize still answers for the other two: it splits sold from paid out, which the log's
       // totals do not.
-      pendingLoot: log?.totals.pending ?? summary.pending,
+      //
+      // Counted off THIS party's rows. `log.totals` is the whole account now that the log is built
+      // over every party, and putting that on this page would say the account's pool is this one's.
+      pendingLoot: log ? mine.filter(isOutstanding).length : summary.pending,
       awaitingPayout: summary.awaitingPayout,
       settledLoot: summary.settled,
     },
-    (party && couponsOutstandingByParty(log?.entries ?? []).get(party.id)) || NOTHING_OUTSTANDING,
+    (party && couponsOutstandingByParty(mine).get(party.id)) || NOTHING_OUTSTANDING,
   );
 
   return (

@@ -24,7 +24,13 @@ import { bossLabel, difficultyLabel } from "@/lib/boss-difficulty";
 import { peek, put } from "@/lib/cache";
 import { buildDropLog, couponsOutstandingByParty, pieceStatusByParty } from "@/lib/drop-log";
 import { dropsInWeek, NOTHING_OUTSTANDING } from "@/lib/loot";
-import { closedByHolder, outstanding, runningBalance, stillOpen } from "@/lib/vestige-ledger";
+import {
+  answeredByPair,
+  closedByHolder,
+  outstanding,
+  runningBalance,
+  stillOpen,
+} from "@/lib/vestige-ledger";
 import { assignableDrops } from "@/lib/vestige-pickup";
 import { rotatingDrops, rotationFor } from "@/lib/loot-rotation";
 import { shareConfig } from "@/lib/vestige-stacks";
@@ -48,7 +54,7 @@ import type { Boss, BossClearsView } from "@/types/boss";
 import type { Character } from "@/types/character";
 import type { DropTables } from "@/types/drop";
 import type { AddLootBody, PartyLootPool, SellLootBody } from "@/types/loot";
-import type { VestigeSettlement } from "@/types/vestige";
+import type { VestigeSettlement, VestigeTranche } from "@/types/vestige";
 import type {
   Party,
   Person,
@@ -83,6 +89,7 @@ const DROPS_KEY = "/api/bosses/drops";
 // cached copy and cannot disagree about what is owed.
 const POOLS_KEY = "/api/parties/loot";
 const SETTLEMENTS_KEY = "/api/vestige-settlements";
+const TRANCHES_KEY = "/api/vestige-tranches";
 
 // The stacking drop the stack boxes under a boss row are for. One key, because one item behaves
 // this way: a boss drops it in bundles that do not divide by looting alone. See lib/piece-ledger.ts.
@@ -119,6 +126,9 @@ export default function PartiesPage() {
   const [pools, setPools] = useState<PartyLootPool[]>(peek<PartyLootPool[]>(POOLS_KEY) ?? []);
   const [settlements, setSettlements] = useState<VestigeSettlement[]>(
     peek<VestigeSettlement[]>(SETTLEMENTS_KEY) ?? [],
+  );
+  const [tranches, setTranches] = useState<VestigeTranche[]>(
+    peek<VestigeTranche[]>(TRANCHES_KEY) ?? [],
   );
   const [state, setState] = useState<LoadState>(
     seededParties && seededBosses && seededCharacters ? "loaded" : "loading",
@@ -254,6 +264,10 @@ export default function PartiesPage() {
           apiFetch<VestigeSettlement[]>(SETTLEMENTS_KEY, { method: "GET" }, withToken).catch(
             () => null,
           ),
+          // Optional too, and what keeps the coupons figure off a night whose coupons you already
+          // sold. Losing it overstates that number the same way losing the settlements does, and
+          // for the same reason: both are how a night finishes. See V56.
+          apiFetch<VestigeTranche[]>(TRANCHES_KEY, { method: "GET" }, withToken).catch(() => null),
         ]);
       })
       .then(
@@ -265,6 +279,7 @@ export default function PartiesPage() {
           peopleResult,
           poolResult,
           settlementResult,
+          trancheResult,
         ]) => {
           setBosses(bossResult);
           setCharacters(characterResult);
@@ -285,6 +300,10 @@ export default function PartiesPage() {
           if (settlementResult) {
             setSettlements(settlementResult);
             put(SETTLEMENTS_KEY, settlementResult);
+          }
+          if (trancheResult) {
+            setTranches(trancheResult);
+            put(TRANCHES_KEY, trancheResult);
           }
           setState("loaded");
         },
@@ -521,7 +540,15 @@ export default function PartiesPage() {
   // badge and the log cannot disagree about what you are owed, rather than counted again here.
   // Off the ledger's own notion of finished, not off the party's arrangement: `owedBy` is
   // `entitled - looted` and never moves, so without the closures this counted a debt forever. See V52.
-  const log = buildDropLog(parties, pools, dropTables, closedByHolder(settlements).closed);
+  // And off the tranches, which are the other way a night finishes: sell their share and their
+  // money is on their Settlement card, so asking for the coupons too is one debt in two units. See V56.
+  const log = buildDropLog(
+    parties,
+    pools,
+    dropTables,
+    closedByHolder(settlements).closed,
+    answeredByPair(tranches),
+  );
   const couponsOut = couponsOutstandingByParty(log.entries);
   // What each COUPON row in a panel says it is, off the same entries the badge above it is counted
   // from, so the two cannot disagree about a stack of vestiges.

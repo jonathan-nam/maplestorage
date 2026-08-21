@@ -19,7 +19,14 @@
 import { formatWeekStart } from "./boss-clears";
 import { splitOf, statusLabel } from "./loot";
 import type { CouponsOutstanding } from "./loot";
-import { closureKeyOf, couponGapOf, ranSeats, yourShare } from "./vestige-ledger";
+import {
+  SELF_KEY,
+  answeredKey,
+  closureKeyOf,
+  couponGapOf,
+  ranSeats,
+  yourShare,
+} from "./vestige-ledger";
 import type { BossDrop, DropTables } from "@/types/drop";
 import type { Loot, PartyLootPool } from "@/types/loot";
 import type { Party, PartyMember } from "@/types/party";
@@ -284,6 +291,46 @@ function ranWith(loot: Loot, party: Party): string[] {
     .map((seat) => seat.name);
 }
 
+/**
+ * Takes the coupons a sale already answered off the nights that owe them. See V56.
+ *
+ * Oldest night first and per creditor, which is the spend settlement.ts makes on the same figures
+ * (see spendOldestFirst). Both screens have to run the same one or the badge and the card disagree
+ * about the same night, and the count that is left is the one somebody still has to hand over.
+ *
+ * Not capped anywhere: a budget larger than the nights owed simply clears them, which is a tranche
+ * naming more than was ever owed. The Settlement Ledger says that out loud on its own card, and
+ * a party badge is the wrong place to say it twice.
+ */
+function spendAnswered(
+  owed: { entry: DropEntry; creditor: string }[],
+  answered: Map<string, number>,
+): void {
+  const byCreditor = new Map<string, DropEntry[]>();
+  for (const { entry, creditor } of owed) {
+    const seen = byCreditor.get(creditor);
+    if (seen) seen.push(entry);
+    else byCreditor.set(creditor, [entry]);
+  }
+
+  for (const [creditor, nights] of byCreditor) {
+    let left = answered.get(answeredKey(SELF_KEY, creditor)) ?? 0;
+    if (left <= 0) continue;
+    // Oldest first, then the id, so two nights of the same day are spent in a fixed order. Without
+    // the tie-break the credit falls on whichever pool the server listed first, and a badge that
+    // moves between two parties on a refresh is a figure nobody can act on.
+    const oldest = [...nights].sort(
+      (a, b) => a.droppedOn.localeCompare(b.droppedOn) || a.lootId.localeCompare(b.lootId),
+    );
+    for (const night of oldest) {
+      const spent = Math.min(left, night.owedByYou);
+      night.owedByYou -= spent;
+      left -= spent;
+      if (left <= 0) break;
+    }
+  }
+}
+
 export function buildDropLog(
   parties: Party[],
   pools: PartyLootPool[],
@@ -296,9 +343,21 @@ export function buildDropLog(
    * no way to reach one. Empty is nothing closed, which is every log before V52.
    */
   closed: Set<string> = new Set(),
+  /**
+   * Coupons a sale of yours already spoke for, per (pile, creditor), from answeredByPair(). See V56.
+   *
+   * The other way a night you looted whole finishes: you sell their share rather than hand it back,
+   * and their money is on their Settlement card. Asking for the coupons as well is the same debt in
+   * both units at once, which is what the Settlement Ledger subtracts and this had no idea about.
+   *
+   * Empty is nothing sold, which is every log before V56 and every caller that has no tranches.
+   */
+  answered: Map<string, number> = new Map(),
 ): DropLog {
   const partyById = new Map(parties.map((p) => [p.id, p]));
   const entries: DropEntry[] = [];
+  /** The nights you owe on, with whose coupons they are, so `answered` can be spent across them. */
+  const owed: { entry: DropEntry; creditor: string }[] = [];
 
   for (const pool of pools) {
     const party = partyById.get(pool.partyId);
@@ -317,7 +376,7 @@ export function buildDropLog(
       // naming a creditor for it would put a transfer on screen that cannot be made.
       const gap = isCouponDrop(loot, party, dropTables) ? couponGapOf(loot, party) : null;
 
-      entries.push({
+      const entry: DropEntry = {
         lootId: loot.id,
         partyId: pool.partyId,
         characterId: party.characterId,
@@ -353,9 +412,15 @@ export function buildDropLog(
         pooled: split?.split.sellerReceives ?? null,
         yourTake: split ? takeFor(loot, party.seats) : null,
         unreadable,
-      });
+      };
+      entries.push(entry);
+      // Only the open ones. A closed night is finished, and spending the budget on it would leave
+      // less of it for a night that is still owed.
+      if (gap !== null && gap.yours && !entry.closed) owed.push({ entry, creditor: gap.byKey });
     }
   }
+
+  spendAnswered(owed, answered);
 
   // Newest first, and stable on the id so two drops logged the same day keep one order.
   entries.sort(
