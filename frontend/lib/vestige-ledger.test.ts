@@ -9,6 +9,7 @@ import {
   boughtByHolder,
   closedByHolder,
   closureKey,
+  couponGapOf,
   couponMoney,
   holderKey,
   holderLedgers,
@@ -1107,5 +1108,84 @@ describe("what the coupon piles fetched", () => {
     const credit = saleCredits([{ id: "t1", ...lot }]).get("person:p-bro")!;
 
     expect(couponMoney([lot]).yourTake).toBe(1_000 * M - credit.toThem);
+  });
+});
+
+describe("a night one person looted whole", () => {
+  // The ordinary night, and it was silent. Six stacks of an Extreme Kalos into one inventory, and
+  // the 60 owed back read as no debt at all: the reader looked for a pile on the other side, and a
+  // seat that bent down for nothing has none. Only the direction you OWE was affected, which is why
+  // coupons owed TO you kept reading and nothing looked broken.
+  const duo = () => [{ ...seat("m1", "Husky", { mine: true }), shares: 2 }, seat("m2", "Rune")];
+  const night = (over: Partial<Loot>) =>
+    coupon("l1", "kalos-the-guardian", 180, "2026-08-20", {
+      ranThatWeek: ["m1", "m2"],
+      bundles: 6,
+      ...over,
+    });
+
+  it("says what you are holding of theirs when you took every stack", () => {
+    const p = party("pa", "kalos-the-guardian", duo(), null);
+    const loot = night({ bundlesBy: [{ memberId: "m1", bundles: 6 }] });
+
+    expect(couponGapOf(loot, p)).toEqual({
+      pieces: 60,
+      yours: true,
+      by: "Rune",
+      holder: SELF_KEY,
+    });
+  });
+
+  it("says the same where a named looter holds the lot", () => {
+    const p = party("pa", "kalos-the-guardian", duo(), "m1");
+    const loot = night({ bundlesBy: [] });
+
+    expect(couponGapOf(loot, p)).toEqual({
+      pieces: 60,
+      yours: true,
+      by: "Rune",
+      holder: SELF_KEY,
+    });
+  });
+
+  it("reads the other way round, where they took the lot", () => {
+    const p = party("pa", "kalos-the-guardian", duo(), null);
+    const loot = night({ bundlesBy: [{ memberId: "m2", bundles: 6 }] });
+
+    expect(couponGapOf(loot, p)).toMatchObject({ pieces: 120, yours: false, by: "Rune" });
+  });
+
+  it("is silent on the night that came out even", () => {
+    const p = party("pa", "kalos-the-guardian", duo(), null);
+    const loot = night({
+      bundlesBy: [
+        { memberId: "m1", bundles: 4 },
+        { memberId: "m2", bundles: 2 },
+      ],
+    });
+
+    expect(couponGapOf(loot, p)).toBeNull();
+  });
+
+  it("names whoever is furthest from their own share, not the biggest pile", () => {
+    // 180 across 1:2:1 is 45, 90 and 45. Holding the lot leaves you 135 over, and it is Rune's 90
+    // the night owes, not Bob's 45. Both of them hold nothing, so a pile cannot tell them apart.
+    const members = [
+      seat("m1", "Husky", { mine: true }),
+      { ...seat("m2", "Rune"), shares: 2 },
+      seat("m3", "Bob"),
+    ];
+    const p = party("pa", "kalos-the-guardian", members, null);
+    const loot = night({
+      ranThatWeek: ["m1", "m2", "m3"],
+      bundlesBy: [{ memberId: "m1", bundles: 6 }],
+    });
+
+    expect(couponGapOf(loot, p)).toEqual({
+      pieces: 135,
+      yours: true,
+      by: "Rune",
+      holder: SELF_KEY,
+    });
   });
 });

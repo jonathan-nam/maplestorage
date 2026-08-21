@@ -897,6 +897,17 @@ describe("a piece drop counts YOUR share, not what fell", () => {
     expect(couponsOutstandingByParty(log.entries).get("pa")).toEqual({ toYou: 30, byYou: 0 });
   });
 
+  it("owes them all of theirs where YOU picked up every stack", () => {
+    // The mirror of the row above, and the one that went silent: a seat holding nothing is not in
+    // the arrangement at all, so the night read as having nobody on the other side of it and the
+    // badge said nothing. The ordinary duo night, on a boss whose stacks one person picks up.
+    const log = buildDropLog([pair()], [pool("pa", [arranged(3, 0)])], tables);
+
+    expect(log.entries[0]!.owedByYou).toBe(30);
+    expect(log.entries[0]!.owedToYou).toBe(0);
+    expect(couponsOutstandingByParty(log.entries).get("pa")).toEqual({ toYou: 0, byYou: 30 });
+  });
+
   it("closes an arranged night through the holder the arrangement names", () => {
     // The closure is keyed by whoever is holding it, which the looter no longer decides. A party
     // whose looter is not the holder would otherwise be unclosable: the books close against a key
