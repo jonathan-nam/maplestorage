@@ -19,9 +19,10 @@ import kotlin.uuid.Uuid
  * By character and boss rather than by config id, like the Drop Log's own route: the pool may not
  * exist yet, and naming the mode is what opens it.
  *
- * Solo only. A boss this character has a party for keeps its mode on that config, beside the roster
- * and the split it is read with, and writing one from here would edit a party through a door that can
- * see neither.
+ * Solo only. A boss this character has a STANDING party for keeps its mode on that config, beside the
+ * roster and the split it is read with, and writing one from here would edit a party through a door
+ * that can see neither. A retired config claims nothing about now, so it is taken back as a pool
+ * rather than refused over: see setSoloDifficulty.
  */
 internal suspend fun RoutingContext.setSoloDifficultyRoute() {
     val (userId, email) = call.principalIdAndEmail()
