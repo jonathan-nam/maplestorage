@@ -94,7 +94,7 @@ export type Settlement = {
    * Pieces already answered with money, in each direction, and so NOT in the two counts above.
    *
    * Taken off the nights as well, oldest first, so each list adds up to the count over it. The money
-   * they became is already on the card, theirs under `already off` or `holding` and yours as a part of
+   * they became is already on the card, theirs under `offsets` or `holding` and yours as a part of
    * the net, so the count is not said again beside the nights: a debt that has been dealt with read as
    * one still outstanding.
    */
