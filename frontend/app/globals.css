@@ -5486,6 +5486,12 @@ button.link:disabled {
   font-variant-numeric: tabular-nums;
 }
 
+/* A box on this line acts on the plan below it, the way the copy button beside it does. The 10px
+   the toggles carry between each other in a column would drop it off the baseline here. */
+.night-plan-line .night-toggle {
+  margin-top: 0;
+}
+
 /* The order itself: bosses down the rows, people across the columns, the same way round as the
    boss matrix. A list of each run's seats could only show who is IN a run, and a group is usually
    bigger than the six seats a party has, so the gaps in a person's column are half of the plan. */

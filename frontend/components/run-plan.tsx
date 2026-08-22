@@ -383,7 +383,16 @@ export function RunPlan({
 }
 
 /** The plan as text on the clipboard, which is where a party actually reads it. */
-export function CopyPlan({ plan, roster }: { plan: Plan; roster: NightPerson[] }) {
+export function CopyPlan({
+  plan,
+  roster,
+  noteOf,
+}: {
+  plan: Plan;
+  roster: NightPerson[];
+  /** What each run has to say about its loot, for the paste's last column. See planAsText. */
+  noteOf?: (runId: string) => string | null;
+}) {
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
@@ -398,7 +407,7 @@ export function CopyPlan({ plan, roster }: { plan: Plan; roster: NightPerson[] }
       className={copied ? "copy-amount copied" : "copy-amount"}
       onClick={() => {
         navigator.clipboard
-          ?.writeText(planAsText(plan, roster))
+          ?.writeText(planAsText(plan, roster, noteOf))
           .then(() => setCopied(true))
           .catch(() => setCopied(false));
       }}

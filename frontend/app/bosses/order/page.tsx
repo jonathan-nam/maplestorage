@@ -6,7 +6,7 @@ import { useDeferredValue, useEffect, useMemo, useState, useSyncExternalStore } 
 
 import { RunDraftEditor } from "@/components/run-draft-editor";
 import { CopyPlan, type RunLog, type RunRotation, RunPlan } from "@/components/run-plan";
-import { rotatingDrops, rotationFor, takesByOwner } from "@/lib/loot-rotation";
+import { pieceNote, rotatingDrops, rotationFor, takesByOwner } from "@/lib/loot-rotation";
 import type { PartyLootPool } from "@/types/loot";
 import { apiFetch, readBack } from "@/lib/api";
 import { progressLabel } from "@/lib/boss-clears";
@@ -41,6 +41,7 @@ import { controlsKey } from "@/lib/run-order-submit";
 import { useDropIcons } from "@/lib/drop-icons";
 import { useSeatSprites } from "@/lib/seat-sprites";
 import { useRowWrites } from "@/lib/use-row-writes";
+import { useShowPieces } from "@/lib/show-pieces";
 import { useShowTimes } from "@/lib/show-times";
 import { useWhoIsOn } from "@/lib/who-is-on";
 import type { Boss } from "@/types/boss";
@@ -202,6 +203,10 @@ export default function RunOrderPage() {
   // The windows are kept while it is off, so ticking it back on gets the same night back. Kept
   // across visits too: the choice is how you plan, not something about tonight.
   const [timed, setTimed] = useShowTimes();
+
+  // Whether the rows say how many pieces to pick up. Presentational only, so it is NOT in
+  // controlsKey: hiding a number does not make the plan below it a plan of a different night.
+  const [showPieces, setShowPieces] = useShowPieces();
 
   // The night on the reset clock: when it starts, when it has to be over, and who is only here for
   // part of it. Every one is a time against reset, signed, which is what the party already says.
@@ -515,12 +520,27 @@ export default function RunOrderPage() {
     return { drop: rotation.name, takes: takesByOwner(rotation, party) };
   };
 
+  // Worked out once for the night rather than per reader: the grid draws them, the paste carries
+  // them, and the box that hides them only exists where there is one. Three answers off one pass.
+  const rotations = new Map<string, RunRotation>();
+  for (const planned of plan.runs) {
+    const rotation = rotationOnRun(partyById.get(planned.run.id));
+    if (rotation) rotations.set(planned.run.id, rotation);
+  }
+
+  /** What this run's pieces say, for the paste's Notes column. See pieceNote. */
+  const noteOf = (runId: string): string | null => {
+    const rotation = showPieces ? rotations.get(runId) : undefined;
+    if (!rotation) return null;
+    return pieceNote(rotation.drop, rotation.takes.values());
+  };
+
   // Only a night built from your parties can be answered for: a hand-typed run has no config
   // behind it, so there is nothing to tick and no pool to log a drop into.
   const log: RunLog | undefined = showingAccount
     ? {
         partyOf: (runId) => partyById.get(runId),
-        rotationOf: (runId) => rotationOnRun(partyById.get(runId)),
+        rotationOf: (runId) => (showPieces ? (rotations.get(runId) ?? null) : null),
         dropTable: (bossKey) => dropTables[bossKey],
         busy: isSaving,
         onToggleClear: toggleClear,
@@ -809,13 +829,25 @@ export default function RunOrderPage() {
               the button keeps its place however many tabs there are. */}
           <div className="night-plan-copy">
             <div className="night-plan-line">
-              <CopyPlan plan={plan} roster={onTonight} />
+              <CopyPlan plan={plan} roster={onTonight} noteOf={noteOf} />
               {/* How far through the night is, in the words Party View already counts clears in.
                   The rows say which ones; this says how many are left without counting them. */}
               {log && (
                 <span className="night-progress">
                   {progressLabel({ cleared, total: plan.runs.length })}
                 </span>
+              )}
+              {/* Only where a run of this night actually divides pieces. A box that hides nothing
+                  is a control for a feature this party does not have. */}
+              {rotations.size > 0 && (
+                <label className="night-toggle">
+                  <input
+                    type="checkbox"
+                    checked={showPieces}
+                    onChange={(e) => setShowPieces(e.target.checked)}
+                  />
+                  <span>Show Piece Configuration</span>
+                </label>
               )}
             </div>
             {options.length > 1 && (

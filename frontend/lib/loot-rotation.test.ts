@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { rotatingDrops, rotatingDropsAt, rotationFor, takesByOwner } from "./loot-rotation";
+import {
+  pieceNote,
+  rotatingDrops,
+  rotatingDropsAt,
+  rotationFor,
+  splitShape,
+  takesByOwner,
+} from "./loot-rotation";
 import type { BossDrop, DropTables } from "@/types/drop";
 import type { Loot } from "@/types/loot";
 import type { Party, PartyMember } from "@/types/party";
@@ -506,5 +513,44 @@ describe("what a rotation refuses to read", () => {
   it("has nothing to say with no roster, or a mode that drops none", () => {
     expect(rotate(party([]), [], token(), 5)).toBeNull();
     expect(rotate(party(seats), [], token(), 0)).toBeNull();
+  });
+});
+
+describe("splitShape", () => {
+  it("says the two figures a week comes out on, biggest first", () => {
+    expect(splitShape([2, 3, 2, 3, 3, 2])).toBe("3/2");
+  });
+
+  it("says one figure where everybody is on the same number", () => {
+    expect(splitShape([4, 4, 4])).toBe("4");
+  });
+
+  // Taking none is an answer, so it is a figure in the shape and not a gap in it.
+  it("keeps a zero, because somebody's turn is to take none", () => {
+    expect(splitShape([1, 1, 0])).toBe("1/0");
+  });
+
+  it("says nothing about a party of nobody", () => {
+    expect(splitShape([])).toBe("");
+  });
+});
+
+describe("pieceNote", () => {
+  it("says the split and then what is being split", () => {
+    expect(pieceNote("Kalos's Residual Determination", [3, 2, 3])).toBe(
+      "3/2 Kalos's Residual Determination",
+    );
+  });
+
+  // A token and its own fragment differ by the last word, so the name is carried in full. Cutting
+  // it to fit a column is how a party picks up the wrong one.
+  it("keeps the whole name, however long the catalog's is", () => {
+    expect(pieceNote("Kalos's Residual Determination Fragment", [1, 0])).toBe(
+      "1/0 Kalos's Residual Determination Fragment",
+    );
+  });
+
+  it("has nothing to say about a party of nobody", () => {
+    expect(pieceNote("Kalos's Residual Determination", [])).toBeNull();
   });
 });

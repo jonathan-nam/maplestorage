@@ -553,6 +553,58 @@ describe("planAsText", () => {
     const table = fenced(textFor([R("1", "Lotus", [["Bishop", "Dave\tJr"]])], 60));
     expect(table[0]).toBe("       Dave Jr");
   });
+
+  /** The same night with a note on the runs named, keyed by run id. */
+  const notedTextFor = (drafts: DraftRun[], minutes: number, notes: Record<string, string>) => {
+    const roster = rosterFromDrafts(drafts);
+    const { eligible } = screenRuns(
+      runsFromDrafts(drafts),
+      roster.map((p) => p.id),
+    );
+    return planAsText(
+      planNight(eligible, { minutes }).best,
+      roster,
+      (runId) => notes[runId] ?? null,
+    );
+  };
+
+  it("carries a run's note in a last column of its own", () => {
+    const table = fenced(notedTextFor(SPLIT_NIGHT, 180, { "1": "3/2" }));
+    expect(table[0]).toBe("        Dave       Erin      You     Notes");
+    expect(table[1]).toBe("Lotus   Nightlord  Shadower  Bishop  3/2");
+  });
+
+  it("draws no Notes column when no run has one", () => {
+    // The column and its head both go, rather than a head over a column of blanks. A paste that
+    // says Notes and then says nothing under it is a heading talking about itself.
+    expect(notedTextFor(SPLIT_NIGHT, 180, {})).not.toContain("Notes");
+    expect(textFor(SPLIT_NIGHT, 180)).not.toContain("Notes");
+  });
+
+  it("leaves the notes column empty on a run that has nothing to say", () => {
+    // Empty, not dropped: the field is still there, so the note on the row below it lands under
+    // the head rather than under You.
+    const table = fenced(notedTextFor(SPLIT_NIGHT, 180, { "3": "2/1" }));
+    expect(table[2]).toBe("Damien  X          Shadower  Bishop");
+    expect(table[3]).toBe("Lucid   Nightlord  X         X       2/1");
+  });
+
+  it("starts the notes column at the same character on every row that fills it", () => {
+    const table = fenced(notedTextFor(SPLIT_NIGHT, 180, { "1": "6/3", "3": "2/1" }));
+    const at = (line: string) => line.indexOf("/") - 1;
+    expect(at(table[1] as string)).toBe(at(table[3] as string));
+    expect((table[0] as string).indexOf("Notes")).toBe(at(table[1] as string));
+  });
+
+  it("never pads a noted row out past its last cell", () => {
+    const table = fenced(notedTextFor(SPLIT_NIGHT, 180, { "1": "3/2" }));
+    expect(table.every((line) => line === line.trimEnd())).toBe(true);
+  });
+
+  it("keeps a note with a tab in it from knocking the column crooked", () => {
+    const table = fenced(notedTextFor(SPLIT_NIGHT, 180, { "1": "3\t2" }));
+    expect(table[1]).toBe("Lotus   Nightlord  Shadower  Bishop  3 2");
+  });
 });
 
 describe("planGrid", () => {
