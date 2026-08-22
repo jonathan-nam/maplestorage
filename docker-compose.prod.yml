@@ -64,6 +64,10 @@ services:
       # A leading dot, and never a bare subdomain, or the apex does not get the cookie.
       AUTH_COOKIE_DOMAIN: ${AUTH_COOKIE_DOMAIN:?the parent domain with a leading dot, e.g. .sharpeyes.gg}
       AUTH_TRUSTED_ORIGINS: ${FRONTEND_ORIGIN:?the frontend's origin, e.g. https://sharpeyes.gg}
+      # Required on the box. Without a sender a forgotten password is a permanently lost account,
+      # so the service refuses to start rather than accept sign-ups it cannot support.
+      RESEND_API_KEY: ${RESEND_API_KEY:?from https://resend.com, an API key with send permission}
+      AUTH_EMAIL_FROM: ${AUTH_EMAIL_FROM:?the From address, on a domain verified in Resend}
 
   # Replica A. Owns port 8080 inside the shared namespace, as the base file already has it.
   backend:

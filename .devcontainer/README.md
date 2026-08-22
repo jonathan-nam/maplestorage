@@ -92,6 +92,7 @@ http://localhost:3001/api/auth/callback/discord
 | --- | --- | --- |
 | `.env` (repo root) | `AUTH_SECRET` | encrypts the signing keys at rest. `openssl rand -base64 32` |
 | `.env` (repo root) | `DISCORD_CLIENT_ID` / `DISCORD_CLIENT_SECRET` | your Discord application |
+| `.env` (repo root) | `RESEND_API_KEY` | **optional locally.** Without it, verification and reset links are printed to `docker compose logs auth` rather than emailed |
 | `frontend/.env.local` | `NEXT_PUBLIC_API_BASE_URL` | where the backend is |
 | `frontend/.env.local` | `NEXT_PUBLIC_AUTH_BASE_URL` | where the **browser** reaches the auth service |
 

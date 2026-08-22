@@ -2,7 +2,8 @@
 
 Who you are, and a token the backend will accept.
 
-Better Auth, signing in with Discord, running as its own Node service beside Postgres on the box.
+Better Auth, running as its own Node service beside Postgres on the box. Two ways in: Discord, and
+an email and password of your own.
 
 ## Why it is a service and not part of the Next app
 
@@ -52,10 +53,41 @@ an edit to an applied one.
 | `AUTH_TRUSTED_ORIGINS` | comma-separated origins allowed to call this service |
 | `AUTH_COOKIE_DOMAIN` | optional. The parent domain **with a leading dot**, so the frontend on the apex shares the session |
 | `DISCORD_CLIENT_ID` / `DISCORD_CLIENT_SECRET` | from <https://discord.com/developers/applications> |
+| `RESEND_API_KEY` | sends verification and reset email. Optional locally, required over https |
+| `AUTH_EMAIL_FROM` | the From address, on a domain verified in Resend |
 
 Nothing is defaulted. A service that boots on a placeholder and then fails every sign-in is worse
 than one that will not start, and that failure has already cost debugging time twice on the JWKS URL
 alone.
+
+## Email and password
+
+A password account is independent of Discord, so losing the Discord account does not lose this one.
+
+Two rules are load-bearing:
+
+- **The address must be verified before it can sign in.** An unverified address is one anybody
+  could have typed, and the linking rule below decides who you *are* from a verified address.
+- **Linking happens only when BOTH addresses are verified.** That is Better Auth's default and it is
+  deliberately left alone. **Do not add `trustedProviders`.** Naming discord there means "believe
+  this provider's email without it being verified", and Discord returns an unverified address for an
+  unconfirmed account plus a synthesised `@discord.invalid` one for phone-only accounts. Trusting
+  either would let somebody who knows your email walk into your account.
+
+### Mail
+
+Resend, called over its REST API. Password reset is not optional-feeling here: without it a
+forgotten password is a permanently lost account, and everything the account holds goes with it.
+
+Locally, with no `RESEND_API_KEY`, links are **printed to this service's log** instead of sent, so
+development needs no mail vendor:
+
+```
+docker compose logs -f auth
+```
+
+That fallback is local-only. `assertCanSendEmail` refuses to start a service reachable over https
+without a key, because there the same behaviour is a reset that silently never arrives.
 
 ## Discord
 

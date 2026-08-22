@@ -36,6 +36,9 @@ export default function Home() {
             one view.
           </p>
           <SignInButton />
+          <p className="hero-alt">
+            <Link href="/sign-in">or use an email and password</Link>
+          </p>
         </section>
       )}
     </main>
