@@ -15,7 +15,7 @@ export type Settings = {
   // The character drawn as the account avatar, or null for none. Not narrowed to the active world:
   // the avatar says whose account this is, which the world lens does not change.
   mainCharacterId: string | null;
-  // That character's sprite, sent fresh with every read rather than stored anywhere here. See V65.
+  // That character's sprite, sent fresh with every read rather than stored anywhere here. See V66.
   mainCharacterSprite: string | null;
 };
 

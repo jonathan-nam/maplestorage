@@ -42,7 +42,7 @@ data class SettingsResponse(
     // Not narrowed to the active world, unlike everything above it. The avatar says whose account
     // this is, which does not change when you look at the other half of it.
     val mainCharacterId: String? = null,
-    // That character's sprite, joined fresh rather than stored: see V65.
+    // That character's sprite, joined fresh rather than stored: see V66.
     val mainCharacterSprite: String? = null,
 )
 

@@ -22,7 +22,7 @@ import kotlin.time.Clock
 import kotlin.uuid.Uuid
 
 /**
- * The account avatar's character (V65), moved out of Clerk's unsafeMetadata.
+ * The account avatar's character (V66), moved out of Clerk's unsafeMetadata.
  *
  * Two rules are worth pinning. The sprite is joined and never stored, because Clerk's stored copy
  * went stale the moment a character changed outfit. And the id has to be one of yours, because an
