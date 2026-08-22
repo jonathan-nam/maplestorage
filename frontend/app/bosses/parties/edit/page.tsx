@@ -164,7 +164,7 @@ export default function EditPartiesPage() {
       <h1 className="page-title">Edit parties</h1>
 
       {/* People is not in the hamburger any more: naming whose character is which is part of
-          setting a party up, so it lives here, where you already are when you need it. */}
+          setting a party up, so it is reached from here, where you already are when you need it. */}
       <div className="party-toolbar">
         <span className="party-toolbar-links">
           <Link className="party-cancel" href="/bosses/people">
