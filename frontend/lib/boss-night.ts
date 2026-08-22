@@ -367,6 +367,9 @@ export function runTicks(times: RunTime[]): (string | null)[] {
 const SITTING_OUT = "X";
 const SWITCH_MARK = "*";
 
+/** The last column's head, where a run has anything to say beyond who is in it. See planAsText. */
+const NOTES_HEAD = "Notes";
+
 /** One person's place in one run. */
 export type GridCell = {
   /** The character they bring, or null when they sit this one out. */
@@ -469,20 +472,33 @@ function paddedTable(rows: string[][]): string[] {
  * does not: a single boss name crossing a stop moves every column below it, which is how a table
  * that lined up in the widest-name case arrived crooked in every other.
  *
+ * ONE TRAILING COLUMN, and only where a run fills it: what the row has to say about its loot. The
+ * head is Notes and not Pieces because the split it carries today is a fact about the run rather
+ * than the only fact a run could have. A night where nothing fills it gets no column and no head,
+ * not a head over blanks.
+ *
  * Built from the Plan it is given, never restated by hand, so it cannot drift from what the page
  * is showing. The same rule explainSplit() follows.
  */
-export function planAsText(plan: Plan, roster: NightPerson[]): string {
+export function planAsText(
+  plan: Plan,
+  roster: NightPerson[],
+  /** A run's note, or null where it has none. Omitted leaves the paste as the grid alone. */
+  noteOf?: (runId: string) => string | null,
+): string {
   if (plan.runs.length === 0) return "No bosses fit in the time.";
 
   const { people, rows } = planGrid(plan, roster);
+  const notes = rows.map(({ planned }) => cell(noteOf?.(planned.run.id) ?? ""));
+  const noted = notes.some((note) => note !== "");
 
-  const header = ["", ...people.map((person) => cell(person.name))];
-  const body = rows.map(({ planned, cells }) => [
+  const header = ["", ...people.map((person) => cell(person.name)), ...(noted ? [NOTES_HEAD] : [])];
+  const body = rows.map(({ planned, cells }, row) => [
     cell(bossHeading(planned)),
     ...cells.map((c) =>
       c.character === null ? SITTING_OUT : cell(c.character + (c.switched ? SWITCH_MARK : "")),
     ),
+    ...(noted ? [notes[row] ?? ""] : []),
   ]);
 
   return ["```", ...paddedTable([header, ...body]), "```"].join("\n");

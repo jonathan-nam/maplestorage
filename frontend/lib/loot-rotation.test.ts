@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { rotatingDrops, rotatingDropsAt, rotationFor, takesByOwner } from "./loot-rotation";
+import {
+  rotatingDrops,
+  rotatingDropsAt,
+  rotationFor,
+  splitShape,
+  takesByOwner,
+} from "./loot-rotation";
 import type { BossDrop, DropTables } from "@/types/drop";
 import type { Loot } from "@/types/loot";
 import type { Party, PartyMember } from "@/types/party";
@@ -506,5 +512,24 @@ describe("what a rotation refuses to read", () => {
   it("has nothing to say with no roster, or a mode that drops none", () => {
     expect(rotate(party([]), [], token(), 5)).toBeNull();
     expect(rotate(party(seats), [], token(), 0)).toBeNull();
+  });
+});
+
+describe("splitShape", () => {
+  it("says the two figures a week comes out on, biggest first", () => {
+    expect(splitShape([2, 3, 2, 3, 3, 2])).toBe("3/2");
+  });
+
+  it("says one figure where everybody is on the same number", () => {
+    expect(splitShape([4, 4, 4])).toBe("4");
+  });
+
+  // Taking none is an answer, so it is a figure in the shape and not a gap in it.
+  it("keeps a zero, because somebody's turn is to take none", () => {
+    expect(splitShape([1, 1, 0])).toBe("1/0");
+  });
+
+  it("says nothing about a party of nobody", () => {
+    expect(splitShape([])).toBe("");
   });
 });

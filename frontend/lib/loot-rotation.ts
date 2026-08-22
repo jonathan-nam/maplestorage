@@ -255,3 +255,18 @@ export function takesByOwner(rotation: Rotation, party: Party): Map<string, numb
   }
   return out;
 }
+
+/**
+ * The shape of one week's turns, biggest first: "3/2" is some of the party on three pieces and the
+ * rest on two.
+ *
+ * Two figures in practice, since a suggestion is everyone's floor share plus one spare stack to
+ * whoever is furthest behind. Built from what is there rather than assuming the pair, so a rotation
+ * that ever spans wider says so instead of dropping the middle.
+ *
+ * It says the SPLIT, not whose turn is whose. That is what a one-cell column can carry, and the
+ * grid's own cells are where a person finds their own number. Empty where there is nothing to say.
+ */
+export function splitShape(takes: Iterable<number>): string {
+  return [...new Set(takes)].sort((a, b) => b - a).join("/");
+}
