@@ -19,6 +19,9 @@ const css = readFileSync(join(__dirname, "..", "app", "globals.css"), "utf8");
 const NATURAL = {
   ".ms-slot > img": 46, // item icon canvas
   ".loot-icon": 46,
+  // The same art two folds into a ledger card. It escaped this table for months at 22px, which is
+  // 0.478x under the pixelated filter it inherits, and the rows read as smudges.
+  ".ledger-drop-head.is-oneline .loot-icon": 46,
   ".finder-suggest-row img": 46,
   ".drop-select-icon": 46,
   ".drop-select > .drop-select-icon": 46, // half size in the closed field
