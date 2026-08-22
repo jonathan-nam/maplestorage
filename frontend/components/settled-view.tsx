@@ -56,7 +56,9 @@ function SettledNights({
         const party = partyById.get(row.partyId) ?? null;
         return (
           <li key={row.key} className="droplog-run">
-            <Link href={`/bosses/parties/${row.partyId}`} className="loot-name">
+            {/* The night's own history, not the party's: one of these rows IS one drop, and the
+                party it fell in is every drop that boss ever gave you. */}
+            <Link href={`/bosses/drops/${row.lootId}`} className="loot-name">
               {boss ? bossLabel(boss.name, party?.difficulty ?? null) : "Unknown boss"}
             </Link>
             <span className="loot-meta">{formatDropped(row.droppedOn)}</span>
@@ -127,12 +129,12 @@ function SettledRow({
         )}
 
         <span className="droplog-title">
-          {/* A fold's nights came off several parties, so its name links to none of them: it would
-              open whichever happened to be first. The nights below carry the links. */}
+          {/* A fold stands for several drops, so its name links to none of them: it would open
+              whichever happened to be first. The nights below carry the links. */}
           {line.folded ? (
             <span className="loot-name">{row.name}</span>
           ) : (
-            <Link href={`/bosses/parties/${row.partyId}`} className="loot-name">
+            <Link href={`/bosses/drops/${row.lootId}`} className="loot-name">
               {row.name}
               {row.quantity > 1 && <span className="loot-count"> x{row.quantity}</span>}
             </Link>

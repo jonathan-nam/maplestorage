@@ -387,6 +387,9 @@ function SettlementCard({
           // The drop has been deleted since. Said rather than left out: a row that quietly drops one
           // of the nights behind a figure is a figure that no longer adds up.
           key: shareKey(share.lootId, share.memberId),
+          // Empty rather than the id it was keyed by: there is nothing at the other end of a link
+          // to a drop that is gone, so the row names it and goes nowhere.
+          lootId: "",
           item: "A drop that has been deleted",
           iconUrl: null,
           boss: "",
@@ -1076,8 +1079,10 @@ function DischargeRow({
           <span className="loot-icon" aria-hidden="true" />
         )}
 
-        {one && one.partyId ? (
-          <Link href={`/bosses/parties/${one.partyId}`} className="loot-name has-detail">
+        {one && one.lootId ? (
+          // The drop's own history, not its party's. What came off here is one night's share, and
+          // the party is every night that boss ever gave you.
+          <Link href={`/bosses/drops/${one.lootId}`} className="loot-name has-detail">
             {one.item}
           </Link>
         ) : (
@@ -1108,7 +1113,15 @@ function DischargeRow({
         <ul className="loot-shares" id={panelId}>
           {shares.map((share) => (
             <li key={share.key}>
-              <span className="loot-share-name">{share.item}</span>
+              <span className="loot-share-name">
+                {share.lootId ? (
+                  <Link href={`/bosses/drops/${share.lootId}`} className="loot-name">
+                    {share.item}
+                  </Link>
+                ) : (
+                  share.item
+                )}
+              </span>
               <span className="loot-share-nets">
                 {[share.boss, share.on && formatDropped(share.on)].filter(Boolean).join(" · ")}
               </span>

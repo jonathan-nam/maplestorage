@@ -768,6 +768,8 @@ export function sharesOf(row: Settlement): { lootId: string; memberId: string }[
  */
 export type OffsetShare = {
   key: string;
+  /** The drop itself, which is what the row opens: its own history, not its party's. */
+  lootId: string;
   /** What fell. Leads the row: the boss alone says which night, never which thing. */
   item: string;
   /** Its art, so the row is read the way every other drop row on this account is. */
