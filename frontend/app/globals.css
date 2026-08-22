@@ -5963,11 +5963,15 @@ button.ledger-drop-sale:hover:not(:disabled) {
   }
 }
 
-/* Small, because these sit two folds in. The 46px frame is normalised for a card header, where the
-   art is the subject; here it is a label on a line of text. */
+/* Smaller than the 46px frame, because these sit two folds in: there the art is the subject, here it
+   is a label on a line of text. SMOOTHED, and that is what makes it legible. 22px was 0.478x of a
+   46px canvas under the inherited `image-rendering: pixelated`, so nearest-neighbour dropped every
+   other row of a 32px sprite and ate the chest lid and the star's points. Nearest is for a whole
+   ratio; below one, a smooth filter keeps the shape. See lib/pixel-scaling-css.test.ts. */
 .ledger-drop-head.is-oneline .loot-icon {
-  width: 22px;
-  height: 22px;
+  width: 32px;
+  height: 32px;
+  image-rendering: auto;
 }
 
 .ledger-drop-head .loot-name {
