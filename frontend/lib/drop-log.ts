@@ -89,11 +89,6 @@ export function isCouponDrop(loot: Loot, party: Party, dropTables: DropTables): 
 export type DropEntry = {
   lootId: string;
   partyId: string;
-  /**
-   * Where its config's page is, carried because a row can be drawn where the party list is not.
-   * See lib/party-path.ts.
-   */
-  partySlug: string;
   /** Whose config it dropped on, so the log can be read one character at a time. */
   characterId: string;
   name: string;
@@ -429,7 +424,6 @@ export function buildDropLog(
       const entry: DropEntry = {
         lootId: loot.id,
         partyId: pool.partyId,
-        partySlug: party.slug,
         characterId: party.characterId,
         name: loot.name,
         dropKey: loot.dropKey,

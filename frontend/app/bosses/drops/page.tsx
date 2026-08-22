@@ -1212,8 +1212,8 @@ function DropRow({
         )}
 
         <span className="droplog-title">
-          {/* A fold's pieces came off several runs, so its name links to none of them: it opened
-              whichever party happened to be first, which is one run out of eleven. The runs below
+          {/* A fold's pieces came off several runs, so its name links to none of them: it would
+              open whichever run happened to be first, which is one out of eleven. The runs below
               carry the links. */}
           {line.folded ? (
             <span className="loot-name">
@@ -1221,7 +1221,9 @@ function DropRow({
               <span className="loot-count"> x{line.yours}</span>
             </span>
           ) : (
-            <Link href={`/bosses/parties/${entry.partySlug}`} className="loot-name">
+            // The drop's own history, not its party's: this row IS one drop, and the party it fell
+            // in is every drop that boss ever gave you. The way back to the party is on that page.
+            <Link href={`/bosses/drops/${entry.lootId}`} className="loot-name">
               {line.name}
               {line.yours > 1 && <span className="loot-count"> x{line.yours}</span>}
             </Link>
@@ -1389,7 +1391,8 @@ function RunRow({
     <li className="droplog-run">
       {/* No portrait: the drop's own icon is on the line above, and a second column of art told
           nobody which run this was that the boss name did not already say. */}
-      <Link href={`/bosses/parties/${entry.partySlug}`} className="loot-name">
+      {/* One run is one drop, so it opens that drop. See DropRow. */}
+      <Link href={`/bosses/drops/${entry.lootId}`} className="loot-name">
         {/* The drop is named by the line above, so the run is named by whichever side the head over
             it is not. Every run says its own, including a fold whose runs all came off one: the line
             above no longer names it, and eleven Kalos rows saying Kalos is the price of not asking

@@ -5,19 +5,29 @@ import { describe, expect, it } from "vitest";
 // Naming a drop and opening its PARTY answers a different question from the one that was asked. The
 // party is every drop that boss ever gave you; the row that was clicked is one of them.
 //
-// Two lists name a single drop: the Settled tab and the offsets on a Settlement Ledger card. Both
-// have to open that drop's own history. There are no component tests in this repo, so this reads the
-// source, the same way ledger-css.test.ts and piece-row-guard.test.ts do.
+// Three lists name a single drop: the Drop Ledger, the Settled tab, and the offsets on a Settlement
+// Ledger card. All of them have to open that drop's own history. There are no component tests in
+// this repo, so this reads the source, the same way ledger-css.test.ts and piece-row-guard.test.ts
+// do.
 //
 // Whitespace is normalised first, or this fails the moment Prettier re-wraps a line.
 
 const source = (...parts: string[]) =>
   readFileSync(join(__dirname, "..", ...parts), "utf8").replace(/\s+/g, " ");
 
+const droplog = source("app", "bosses", "drops", "page.tsx");
 const settled = source("components", "settled-view.tsx");
 const ledger = source("components", "settlement-ledger.tsx");
 
 describe("a row that names one drop opens that drop", () => {
+  it("opens the drop from a Drop Ledger row and from each run behind a fold", () => {
+    // Twice: the row that stands for one drop, and each run behind a fold. A fold's own name links
+    // nowhere, because it stands for several.
+    expect(droplog.match(/\/bosses\/drops\/\$\{entry\.lootId\}/g)).toHaveLength(2);
+    // The field the party link was built from is gone, so there is nothing to fall back to.
+    expect(droplog).not.toContain("partySlug");
+  });
+
   it("opens the drop from a Settled row and from a night inside a fold", () => {
     expect(settled).toContain("href={`/bosses/drops/${row.lootId}`}");
     // Twice: the line that stands for one drop, and each night behind a settlement's fold.
