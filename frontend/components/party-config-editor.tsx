@@ -463,10 +463,11 @@ function ConfigRow({
           every party with a mode set. Do not reintroduce a second answer to a question these two
           already answer. */}
       {showBoxes && (
-        <div className="config-section">
-          {/* The drop's own name rather than the word vestige: Chaos Kalos and every fragment mode
-              divide an Eternal piece here and no coupon at all. */}
-          <h4 className="loot-group-title is-config">{dividing?.name}</h4>
+        <div className="config-section config-panel">
+          {/* The drop's own name, not the literal word vestige: Chaos Kalos and every fragment mode
+              divide an Eternal piece here and no coupon at all, so a fixed title would name the
+              wrong item on those rows. */}
+          <h4 className="loot-group-title is-config">{dividing?.name} Config</h4>
           <div className="config-vestige">
             <span className="config-share-drop">
               {/* The stack size only where it is a fact worth carrying. Most pieces fall one to a
