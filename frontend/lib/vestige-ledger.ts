@@ -1277,7 +1277,7 @@ export function receivedByHolder(rows: { holder: Holder; amount: number }[]): Ma
 }
 
 /**
- * Mesos received that no closure has already spoken for, per holder.
+ * The payments no closure has already spoken for, per holder, and the ones it has.
  *
  * Mark settled says the books are closed, so the money that arrived before it is what closed them:
  * it is spent, and it cannot pay for anything entered afterwards. Bro sold 195 coupons for 4.856b,
@@ -1288,11 +1288,15 @@ export function receivedByHolder(rows: { holder: Holder; amount: number }[]): Ma
  * By TIME rather than by amount, because a settlement records no figure to match against: it names
  * the drops it closes and what was written off, and a payment is against the holder's whole debt
  * rather than any drop. The last closure is the line, so a payment arriving after one counts.
+ *
+ * The receipts rather than their sum, because the card lists them one by one: a payment that counts
+ * is a row in the arithmetic and a spent one is not, and a card that could only see the total had to
+ * draw every receipt somewhere else. Oldest first, the order the money moved in.
  */
-export function receivedSinceClosing(
-  payments: { holder: Holder; amount: number; receivedAt: string }[],
+export function paymentsSinceClosing<T extends { holder: Holder; receivedAt: string }>(
+  payments: T[],
   settlements: { holder: Holder; settledAt: string }[],
-): Map<string, number> {
+): Map<string, { counted: T[]; spent: T[] }> {
   const closedAt = new Map<string, string>();
   for (const row of settlements) {
     const key = holderKey(row.holder);
@@ -1300,13 +1304,31 @@ export function receivedSinceClosing(
     if (seen === undefined || row.settledAt > seen) closedAt.set(key, row.settledAt);
   }
 
-  const out = new Map<string, number>();
-  for (const row of payments) {
+  const out = new Map<string, { counted: T[]; spent: T[] }>();
+  for (const row of [...payments].sort((a, b) => a.receivedAt.localeCompare(b.receivedAt))) {
     const key = holderKey(row.holder);
     const closed = closedAt.get(key);
+    const split = out.get(key) ?? { counted: [], spent: [] };
     // ISO 8601 as the server writes it, so lexical order is chronological and no date is parsed.
-    if (closed !== undefined && row.receivedAt <= closed) continue;
-    out.set(key, (out.get(key) ?? 0) + row.amount);
+    if (closed !== undefined && row.receivedAt <= closed) split.spent.push(row);
+    else split.counted.push(row);
+    out.set(key, split);
+  }
+  return out;
+}
+
+/** What those receipts come to, per holder. The figure buildSettlement nets against. */
+export function receivedSinceClosing(
+  payments: { holder: Holder; amount: number; receivedAt: string }[],
+  settlements: { holder: Holder; settledAt: string }[],
+): Map<string, number> {
+  const out = new Map<string, number>();
+  for (const [key, split] of paymentsSinceClosing(payments, settlements)) {
+    if (split.counted.length === 0) continue;
+    out.set(
+      key,
+      split.counted.reduce((sum, row) => sum + row.amount, 0),
+    );
   }
   return out;
 }

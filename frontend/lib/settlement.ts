@@ -154,6 +154,9 @@ export type Settlement = {
      *
      * Negative: a payment is a debt going away. Never more than the parts above come to, because a
      * payment cannot make you the debtor. Anything past that is `receivedOnPieces`. See V51.
+     *
+     * How much of the money LANDED, which is not what the card draws: the receipts themselves are
+     * acts in its history, each under the note it was entered with. See moneyRows.
      */
     received: number;
   };
@@ -526,9 +529,10 @@ export type Discharge = {
    * Which ledger it lives in, because taking it back goes to a different place.
    *
    * DEBT is an entry with a negative amount: the shares offset writes one, and so does anybody
-   * typing a credit by hand. PROCEEDS is a decision about their money you were holding.
+   * typing a credit by hand. PROCEEDS is a decision about their money you were holding. PAYMENT is
+   * mesos they actually sent.
    */
-  source: "DEBT" | "PROCEEDS";
+  source: "DEBT" | "PROCEEDS" | "PAYMENT";
   /** Mesos it took off. POSITIVE, so a list of them adds up to what has come off. */
   amount: number;
   label: string;
@@ -626,8 +630,16 @@ export function decidedSales(
  * A DISCHARGE is anything with a negative sign or a share behind it. Classifying on the sign as well
  * as on the payouts catches a credit typed by hand, which V57 allows and which would otherwise sit in
  * the owed list reading as a debt of minus a billion.
+ *
+ * A PAYMENT is one too. It is money that came off what they owe, dated and removable, and it grows
+ * the same way, so it belongs in the same history: as a part of the owed list it was an unlabelled
+ * "received" line saying only the sum, and what the money answered was legible only on a pill under
+ * the form. The receipts rather than their sum, because one row cannot carry two notes.
  */
-export function moneyRows(row: Settlement): {
+export function moneyRows(
+  row: Settlement,
+  received: { id: string; amount: number; note: string | null; receivedAt: string }[] = [],
+): {
   /** Debts somebody typed, in the order they were entered. */
   typed: SettlementDebt[];
   /** Every act that came off, newest first: the half worth folding is the half that grows. */
@@ -671,6 +683,18 @@ export function moneyRows(row: Settlement): {
       at: disposal.decidedAt,
       payouts: [],
       sales: behind.get(disposal.id) ?? [],
+    });
+  }
+
+  for (const got of received) {
+    discharges.push({
+      id: got.id,
+      source: "PAYMENT",
+      amount: got.amount,
+      label: got.note ?? "paid",
+      at: got.receivedAt,
+      payouts: [],
+      sales: [],
     });
   }
 

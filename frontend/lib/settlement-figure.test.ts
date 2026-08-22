@@ -18,6 +18,7 @@ const source = readFileSync(join(__dirname, "..", "components", "settlement-ledg
 const page = readFileSync(join(__dirname, "..", "app", "bosses", "drops", "page.tsx"), "utf8");
 const summary = readFileSync(join(__dirname, "..", "components", "settlement-summary.tsx"), "utf8");
 const css = readFileSync(join(__dirname, "..", "app", "globals.css"), "utf8");
+const settlement = readFileSync(join(__dirname, "settlement.ts"), "utf8");
 
 describe("what the card says a person owes", () => {
   it("states it to the meso, never shortened", () => {
@@ -271,5 +272,42 @@ describe("what the card says a person owes", () => {
   it("does not offer to copy a COUNT of pieces, which is not a price", () => {
     expect(source).toContain("row.piecesNet > 0");
     expect(source).toContain("const toCopy = row.mesos > 0 ? row.mesos");
+  });
+});
+
+// A payment was on the card twice, in two different words: an unlabelled "received" line folding
+// every receipt into the arithmetic, and a "210,000,000 paid · 20 stars" pill under the form. The
+// note was legible only on the pill and the figure only in the list, so neither said the whole act.
+describe("a receipt on the card", () => {
+  it("is an act in the history, beside the offsets that also came off", () => {
+    expect(source).toContain("moneyRows(row, payments.counted)");
+    expect(settlement).toContain('source: "PAYMENT"');
+    expect(settlement).toContain('label: got.note ?? "paid"');
+  });
+
+  it("is not also folded into a received line, which said the sum and nothing else", () => {
+    expect(source).not.toContain("row.parts.received");
+    expect(source).not.toContain('label: "received"');
+  });
+
+  it("names the step for the effect, since the history is no longer offsets alone", () => {
+    expect(source).toContain('<span className="ledger-step">came off</span>');
+    expect(source).not.toContain('<span className="ledger-step">offsets</span>');
+  });
+
+  it("counts what is in the fold rather than calling a payment an offset", () => {
+    // A count that looks right and is not is the one failure this ledger exists to prevent.
+    expect(source).toContain('plural(offsetActs, "offset")} and ${plural(paidActs, "payment")}');
+  });
+
+  it("is removable where it is drawn, since this is the only screen that records one", () => {
+    expect(source).toContain("onRemovePayment(act.id)");
+  });
+
+  it("keeps the strip for the receipts a closure already spent, and only those", () => {
+    // Those came off a debt that is closed, so listing them with the rest would put money against a
+    // debt they have already paid. They stay drawn because nothing else takes a mistyped one back.
+    expect(source).toContain("{payments.spent.length > 0 && (");
+    expect(page).toContain("paymentsSinceClosing(payments, settlements)");
   });
 });
