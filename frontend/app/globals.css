@@ -5648,6 +5648,27 @@ button.link:disabled {
   background: color-mix(in srgb, var(--accent) 15%, transparent);
 }
 
+/* What a drag has picked, and so what Ctrl+C will copy. Drawn on the whole row because that is
+   what a copy takes: a table selects by cell, and three highlighted cells over a three-row paste
+   would be the screen and the clipboard saying different things. See pickedRuns.
+
+   Over the hover band rather than composed with it, unlike the two bands: this one is an answer to
+   something you did, and the row under the pointer is not.
+
+   The cells are named as well as the row, because the column hover paints a background of its own
+   on top of the row's. */
+.run-table tbody tr.is-picked,
+.run-table tbody tr.is-picked .run-cell {
+  background: color-mix(in srgb, var(--accent) 26%, transparent);
+}
+
+/* The browser's own highlight, in the app's colour rather than the OS blue, so a drag that lands
+   inside one cell (which keeps the browser's copy) still shows something, and one that crosses
+   rows does not fight the band above. */
+.run-grid ::selection {
+  background: color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
 .run-boss {
   padding: 6px 8px;
   border-top: 1px solid var(--line-soft);

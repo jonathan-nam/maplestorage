@@ -574,6 +574,61 @@ describe("planAsText", () => {
     expect(table[1]).toBe("Lotus   Nightlord  Shadower  Bishop  3/2");
   });
 
+  /** The same night, copied down to the runs named. See planAsText's `only`. */
+  const partTextFor = (
+    drafts: DraftRun[],
+    minutes: number,
+    only: string[],
+    notes: Record<string, string> = {},
+  ) => {
+    const roster = rosterFromDrafts(drafts);
+    const { eligible } = screenRuns(
+      runsFromDrafts(drafts),
+      roster.map((p) => p.id),
+    );
+    return planAsText(
+      planNight(eligible, { minutes }).best,
+      roster,
+      (runId) => notes[runId] ?? null,
+      new Set(only),
+    );
+  };
+
+  it("copies part of the night as the same table with fewer rows", () => {
+    const table = fenced(partTextFor(SPLIT_NIGHT, 180, ["1", "2"]));
+    expect(table).toEqual([
+      "        Dave       Erin      You",
+      "Lotus   Nightlord  Shadower  Bishop",
+      "Damien  X          Shadower  Bishop",
+    ]);
+  });
+
+  it("keeps the rows in the order the night runs them, not the order they were dragged", () => {
+    expect(partTextFor(SPLIT_NIGHT, 180, ["3", "1"])).toBe(
+      partTextFor(SPLIT_NIGHT, 180, ["1", "3"]),
+    );
+  });
+
+  it("drops the column of somebody who is in none of the rows copied", () => {
+    // Damien is You and Erin. Dave's column would be one X under a name, which reads as a person
+    // sitting out a night they are not in, and makes the shorter paste the wider one.
+    const table = fenced(partTextFor(SPLIT_NIGHT, 180, ["2"]));
+    expect(table).toEqual(["        Erin      You", "Damien  Shadower  Bishop"]);
+  });
+
+  it("repads the columns to what the rows copied actually hold", () => {
+    // "Nightlord" is the widest cell in Dave's column and it is on Lotus, so a copy of Lucid alone
+    // that kept the full night's widths would be a table indented for a row that is not there.
+    const table = fenced(partTextFor(SPLIT_NIGHT, 180, ["3"]));
+    expect(table).toEqual(["       Dave", "Lucid  Nightlord"]);
+  });
+
+  it("drops the Notes column when the run that had a note is not copied", () => {
+    expect(partTextFor(SPLIT_NIGHT, 180, ["2"], { "1": "3/2" })).not.toContain("Notes");
+    const table = fenced(partTextFor(SPLIT_NIGHT, 180, ["1"], { "1": "3/2" }));
+    expect(table[1]).toBe("Lotus  Nightlord  Shadower  Bishop  3/2");
+  });
+
   it("draws no Notes column when no run has one", () => {
     // The column and its head both go, rather than a head over a column of blanks. A paste that
     // says Notes and then says nothing under it is a heading talking about itself.

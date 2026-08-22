@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useEffect, useState } from "react";
+import { Fragment, type RefObject, useEffect, useRef, useState } from "react";
 
 import { DropPicker } from "@/components/drop-picker";
 import { SAVED_BUT_STALE, StaleAfterWrite, apiAssetUrl } from "@/lib/api";
@@ -78,6 +78,91 @@ export type RunLog = {
 };
 
 /**
+ * The runs a drag has landed on, snapped to whole rows.
+ *
+ * A table selects by cell, so a drag down the middle of the grid ends inside a character name, and
+ * half a row is not a table. Touching a row at all picks the whole row.
+ *
+ * TWO CELLS is the floor. A drag inside one cell is somebody copying a character name to paste
+ * into the game, and handing them the night's table instead would be the tool overriding what was
+ * asked for. That one keeps the browser's own copy.
+ *
+ * A selection that starts outside the grid is not ours either: it holds text this cannot rebuild,
+ * and rebuilding it would drop that text without saying so.
+ */
+function pickedRuns(grid: HTMLElement, selection: Selection | null): Set<string> {
+  const picked = new Set<string>();
+  if (!selection || selection.isCollapsed || selection.rangeCount === 0) return picked;
+  if (!grid.contains(selection.getRangeAt(0).commonAncestorContainer)) return picked;
+
+  let cells = 0;
+  for (const row of grid.querySelectorAll<HTMLElement>("tr[data-run]")) {
+    if (!selection.containsNode(row, true)) continue;
+    for (const cell of row.children) {
+      if (selection.containsNode(cell, true)) cells += 1;
+    }
+    if (row.dataset.run !== undefined) picked.add(row.dataset.run);
+  }
+  return cells < 2 ? new Set() : picked;
+}
+
+function sameRuns(a: Set<string>, b: Set<string>): boolean {
+  return a.size === b.size && [...a].every((id) => b.has(id));
+}
+
+/**
+ * Ctrl+C over part of the order, as the same table with fewer rows.
+ *
+ * The button copies the night. This copies what was dragged over, because what gets said in chat
+ * is often the next two runs rather than all seven, and the alternative is pasting the whole thing
+ * and deleting lines out of it.
+ *
+ * The clipboard is REBUILT, never taken from the DOM: a row carries a portrait, a length, a pool
+ * count and a tick, none of which are in the paste, and the browser's own copy of a table row is
+ * all of them run together. Rebuilt through the same planAsText the button uses, so the two cannot
+ * disagree about what a row says.
+ */
+function useCopyPicked(
+  grid: RefObject<HTMLDivElement | null>,
+  plan: Plan,
+  roster: NightPerson[],
+  noteOf?: (runId: string) => string | null,
+) {
+  // Drawn as well as copied. A drag that highlights three cells and copies three rows is the
+  // screen and the clipboard saying different things, which is the one thing this app does not do.
+  const [picked, setPicked] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    const onSelect = () => {
+      const el = grid.current;
+      if (!el) return;
+      const now = pickedRuns(el, document.getSelection());
+      // Fires on every mousemove of a drag, so the state only moves when the rows do.
+      setPicked((was) => (sameRuns(was, now) ? was : now));
+    };
+    document.addEventListener("selectionchange", onSelect);
+    return () => document.removeEventListener("selectionchange", onSelect);
+  }, [grid]);
+
+  useEffect(() => {
+    const onCopy = (e: ClipboardEvent) => {
+      const el = grid.current;
+      if (!el) return;
+      // Read off the live selection rather than the state above, so a copy cannot lag a drag that
+      // ended in the same frame.
+      const rows = pickedRuns(el, document.getSelection());
+      if (rows.size === 0 || !e.clipboardData) return;
+      e.clipboardData.setData("text/plain", planAsText(plan, roster, noteOf, rows));
+      e.preventDefault();
+    };
+    document.addEventListener("copy", onCopy);
+    return () => document.removeEventListener("copy", onCopy);
+  }, [grid, plan, roster, noteOf]);
+
+  return picked;
+}
+
+/**
  * The night, in order: bosses down the rows, people across the columns.
  *
  * The cell is the character that person brings, or an X where they sit the run out. Both halves
@@ -99,6 +184,7 @@ export function RunPlan({
   startAt,
   timed = true,
   log,
+  noteOf,
 }: {
   plan: Plan;
   roster: NightPerson[];
@@ -107,6 +193,8 @@ export function RunPlan({
   timed?: boolean;
   /** Absent for a hand-typed night, which has no config to answer for. See RunLog. */
   log?: RunLog;
+  /** What a run says about its loot, for a copy's last column. The same one CopyPlan takes. */
+  noteOf?: (runId: string) => string | null;
 }) {
   const { people, rows } = planGrid(plan, roster);
   const times = timed ? runTimes(plan, roster, startAt) : [];
@@ -121,13 +209,17 @@ export function RunPlan({
   const [opened, setOpened] = useState<string | null>(null);
   const [addError, setAddError] = useState<string | null>(null);
 
+  // Ctrl+C over a drag through the rows, as a table of just those rows. See useCopyPicked.
+  const gridRef = useRef<HTMLDivElement>(null);
+  const picked = useCopyPicked(gridRef, plan, roster, noteOf);
+
   // The rule and the wait rows span the table, so they have to count the clear column too.
   const width = people.length + 1 + (log ? 1 : 0);
 
   return (
     // Cleared here rather than per cell, so leaving one cell for its neighbour does not blank the
     // band between the two events.
-    <div className="run-grid" onMouseLeave={() => setHovered(null)}>
+    <div ref={gridRef} className="run-grid" onMouseLeave={() => setHovered(null)}>
       <table className="run-table">
         <thead>
           <tr>
@@ -176,6 +268,8 @@ export function RunPlan({
             // still to do and not a finished one.
             if (party?.cleared === true) rowClasses.push("is-done");
             if (open) rowClasses.push("is-open");
+            // The row is what a copy takes, so the row is what the drag draws.
+            if (picked.has(planned.run.id)) rowClasses.push("is-picked");
             return (
               <Fragment key={planned.run.id}>
                 {/* Above the wait, because the wait is what carried the night into this half hour
@@ -192,7 +286,9 @@ export function RunPlan({
                     <td colSpan={width}>{waitLine(time)}</td>
                   </tr>
                 )}
-                <tr className={rowClasses.join(" ") || undefined}>
+                {/* The id is on the row because a copy is built from the plan, not the DOM:
+                    what a drag hands back is which runs it touched. See pickedRuns. */}
+                <tr className={rowClasses.join(" ") || undefined} data-run={planned.run.id}>
                   <th
                     className="run-boss"
                     scope="row"
