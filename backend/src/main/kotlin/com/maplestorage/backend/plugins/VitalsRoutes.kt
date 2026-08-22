@@ -44,9 +44,6 @@ private val POOR =
 // Below this, keep decimals (CLS is a small fraction); at or above, a whole millisecond.
 private const val DECIMAL_BELOW = 10.0
 
-// Cap on any logged string field, so an unauthenticated caller cannot bloat a log line.
-private const val MAX_FIELD_LEN = 80
-
 // Anonymous by construction: no user id, no IP is read or stored. Location is coarse
 // (tz, lang) and shared by thousands, which is what makes "slow loads come from
 // Australia" answerable without logging who.
@@ -98,19 +95,3 @@ private fun VitalReport.isAcceptable(): Boolean = name in ALLOWED_NAMES && value
 // ms rounds to whole numbers; CLS is a small decimal, so keep precision under 10.
 private fun fmt(value: Double): String =
     if (value >= DECIMAL_BELOW) "%.0f".format(value) else "%.3f".format(value).trimEnd('0').trimEnd('.')
-
-// Append " key=value" only when present, with the value sanitised. An unauthenticated
-// caller must not be able to inject spaces or newlines and forge extra fields, so keep
-// only the characters that legitimately appear in a route, timezone or locale.
-private fun StringBuilder.field(
-    key: String,
-    value: String?,
-) {
-    if (value.isNullOrBlank()) return
-    val safe =
-        value.take(MAX_FIELD_LEN).filter {
-            it.isLetterOrDigit() || it == '/' || it == '_' || it == '.' || it == ':' || it == '-'
-        }
-    if (safe.isEmpty()) return
-    append(' ').append(key).append('=').append(safe)
-}

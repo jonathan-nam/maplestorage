@@ -29,8 +29,9 @@ export type Metric = {
 };
 
 // The coarse, anonymous context every report carries. Read fresh per report: connection
-// and route can both change during a session.
-function context() {
+// and route can both change during a session. Shared with report-error.ts, which reports
+// the same load from the same browser and would otherwise describe it differently.
+export function reportContext() {
   const nav = (
     performance.getEntriesByType("navigation")[0] as PerformanceNavigationTiming | undefined
   )?.type;
@@ -54,15 +55,24 @@ export function reportVital(metric: Metric): void {
   // is unitless, so the console number there is nominal.
   record({ label: `vital ${metric.name} (${route ?? "?"})`, totalMs: metric.value });
 
-  if (!sampledIn || !API_BASE_URL || typeof navigator === "undefined" || !navigator.sendBeacon) {
-    return;
-  }
+  if (!sampledIn) return;
 
-  // text/plain, not application/json: a CORS-safelisted content type sends without a
-  // preflight, which is what makes the beacon survive being fired as the page unloads.
-  const payload = JSON.stringify({ ...metric, route, ...context() });
+  beacon("/api/vitals", { ...metric, route, ...reportContext() });
+}
+
+/**
+ * Post a small anonymous payload, best-effort.
+ *
+ * text/plain, not application/json: a CORS-safelisted content type sends without a preflight,
+ * which is what makes the beacon survive being fired as the page unloads.
+ */
+export function beacon(path: string, payload: unknown): void {
+  if (!API_BASE_URL || typeof navigator === "undefined" || !navigator.sendBeacon) return;
   try {
-    navigator.sendBeacon(`${API_BASE_URL}/api/vitals`, new Blob([payload], { type: "text/plain" }));
+    navigator.sendBeacon(
+      `${API_BASE_URL}${path}`,
+      new Blob([JSON.stringify(payload)], { type: "text/plain" }),
+    );
   } catch {
     // Telemetry is best-effort and must never throw into the app it measures.
   }

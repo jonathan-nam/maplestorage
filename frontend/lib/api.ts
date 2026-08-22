@@ -1,3 +1,4 @@
+import { reportApiFailure } from "./report-error";
 import { record, serverTimeFromHeader } from "./timing";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL;
@@ -100,14 +101,22 @@ export async function apiFetch<T>(
   const authMs = performance.now() - startedAt;
 
   const fetchedAt = performance.now();
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    ...options,
-    headers: {
-      ...(options.body ? { "Content-Type": "application/json" } : {}),
-      Authorization: `Bearer ${token}`,
-      ...options.headers,
-    },
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE_URL}${path}`, {
+      ...options,
+      headers: {
+        ...(options.body ? { "Content-Type": "application/json" } : {}),
+        Authorization: `Bearer ${token}`,
+        ...options.headers,
+      },
+    });
+  } catch (reason) {
+    // No response, so the backend has no record this was ever attempted. This report is the only
+    // trace a dropped connection or a rejected preflight will leave anywhere.
+    reportApiFailure({ kind: "network", path });
+    throw reason;
+  }
   const roundTripMs = performance.now() - fetchedAt;
 
   const serverMs = serverTimeFromHeader(response);
@@ -120,6 +129,7 @@ export async function apiFetch<T>(
   });
 
   if (!response.ok) {
+    reportApiFailure({ kind: "http", path, status: response.status });
     throw new ApiError(response.status, await response.text());
   }
 

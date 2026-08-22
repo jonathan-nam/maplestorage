@@ -2,16 +2,21 @@ package com.maplestorage.backend.plugins
 
 import com.auth0.jwk.JwkProviderBuilder
 import com.maplestorage.backend.config.Env
+import io.ktor.http.HttpHeaders
+import io.ktor.http.auth.HttpAuthHeader
 import io.ktor.server.application.Application
 import io.ktor.server.application.install
 import io.ktor.server.auth.Authentication
+import io.ktor.server.auth.UnauthorizedResponse
 import io.ktor.server.auth.jwt.JWTPrincipal
 import io.ktor.server.auth.jwt.jwt
+import io.ktor.server.response.respond
 import java.net.URI
 import java.util.concurrent.TimeUnit
 
 const val CLERK_AUTH = "clerk-jwt"
 
+private const val MILLIS_PER_SECOND = 1000L
 private const val JWK_CACHE_SIZE = 10L
 private const val JWK_CACHE_EXPIRY_HOURS = 24L
 private const val JWK_RATE_LIMIT_BUCKET_SIZE = 10L
@@ -40,6 +45,21 @@ fun Application.configureSecurity() {
                 } else {
                     null
                 }
+            }
+            // Same 401 as the default challenge, plus the reason on the request's log line. See
+            // AuthFailure.kt: which kind of 401 it is decides whose bug it is.
+            challenge { scheme, realm ->
+                call.failing(
+                    authFailureReason(
+                        call.request.headers[HttpHeaders.Authorization],
+                        System.currentTimeMillis() / MILLIS_PER_SECOND,
+                    ),
+                )
+                call.respond(
+                    UnauthorizedResponse(
+                        HttpAuthHeader.Parameterized(scheme, mapOf(HttpAuthHeader.Parameters.Realm to realm)),
+                    ),
+                )
             }
         }
     }
