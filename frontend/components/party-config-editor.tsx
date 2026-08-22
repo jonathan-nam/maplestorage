@@ -383,19 +383,6 @@ function ConfigRow({
       <header className="config-head">
         {boss?.iconUrl && <img className="boss-portrait" src={apiAssetUrl(boss.iconUrl)} alt="" />}
         <h3 className="config-boss">{boss?.name ?? party.bossKey}</h3>
-        <DifficultySelect
-          difficulties={boss?.difficulties ?? []}
-          value={difficulty}
-          label={`Difficulty for ${boss?.name ?? party.bossKey}`}
-          disabled={busy}
-          onChange={setDifficulty}
-        />
-        <RunMinutes
-          value={minutes}
-          label={`Minutes for ${boss?.name ?? party.bossKey}`}
-          disabled={busy}
-          onChange={setMinutes}
-        />
         {/* Where a boss that is off Party View is found again. The row is off that page entirely, so
             this is the only place it can be said, and it belongs beside Remove: one is the week, the
             other is for good.
@@ -412,7 +399,42 @@ function ConfigRow({
         </button>
       </header>
 
-      <RosterInputs members={members} onChange={setMembers} />
+      {/* A row asks four things, so each block is headed with the one it asks. Unheaded, a select,
+          a number box and a column of names read as one form, and the first two were sitting in the
+          boss's own heading line. */}
+      <div className="config-fields">
+        <div className="config-section">
+          <h4 className="loot-group-title is-config">Difficulty</h4>
+          <DifficultySelect
+            difficulties={boss?.difficulties ?? []}
+            value={difficulty}
+            label={`Difficulty for ${boss?.name ?? party.bossKey}`}
+            disabled={busy}
+            onChange={setDifficulty}
+          />
+        </div>
+        <div className="config-section">
+          <h4 className="loot-group-title is-config">Duration</h4>
+          <RunMinutes
+            value={minutes}
+            label={`Minutes for ${boss?.name ?? party.bossKey}`}
+            disabled={busy}
+            onChange={setMinutes}
+          />
+        </div>
+      </div>
+
+      <div className="config-section">
+        <h4 className="loot-group-title is-config">Members</h4>
+        <RosterInputs members={members} onChange={setMembers} />
+        {/* Whose character each one is, when the people list says so. Read-only here: it is an
+            account-wide fact, kept on the People page rather than per config. */}
+        {attributed.length > 0 && (
+          <p className="party-hint">
+            {attributed.map((m) => `${m.name} is ${m.personName}'s`).join(", ")}
+          </p>
+        )}
+      </div>
 
       {/* What each seat is entitled to, in STACKS.
 
@@ -441,54 +463,51 @@ function ConfigRow({
           every party with a mode set. Do not reintroduce a second answer to a question these two
           already answer. */}
       {showBoxes && (
-        <div className="config-vestige">
-          <span className="config-share-drop">
-            {/* The stack size only where it is a fact worth carrying. Most pieces fall one to a
+        <div className="config-section">
+          {/* The drop's own name rather than the word vestige: Chaos Kalos and every fragment mode
+              divide an Eternal piece here and no coupon at all. */}
+          <h4 className="loot-group-title is-config">{dividing?.name}</h4>
+          <div className="config-vestige">
+            <span className="config-share-drop">
+              {/* The stack size only where it is a fact worth carrying. Most pieces fall one to a
                 stack, and "5 in 5 stacks of 1" says the same thing three times; Hard Star's 18 in 6
                 stacks of 3 is the number the boxes are actually measured in. */}
-            {stackSize > 1
-              ? `${total} in ${bundlesForEdit} stacks of ${stackSize}`
-              : `${total} ${unit}`}
-          </span>
-          <div className="config-shares">
-            {rosterNames.map((name, i) => (
-              <label className="config-share" key={name}>
-                {name}
-                <input
-                  className="split-input"
-                  value={entitled[name] ?? ""}
-                  onChange={(e) => setEntitled({ ...entitled, [name]: e.target.value })}
-                  placeholder="1"
-                  inputMode="decimal"
-                  aria-label={`Stacks ${name} is entitled to each week`}
-                  disabled={busy}
-                />
-                {/* What the stacks come to in coupons, which is the number the ledger states debts
+              {stackSize > 1
+                ? `${total} in ${bundlesForEdit} stacks of ${stackSize}`
+                : `${total} ${unit}`}
+            </span>
+            <div className="config-shares">
+              {rosterNames.map((name, i) => (
+                <label className="config-share" key={name}>
+                  {name}
+                  <input
+                    className="split-input"
+                    value={entitled[name] ?? ""}
+                    onChange={(e) => setEntitled({ ...entitled, [name]: e.target.value })}
+                    placeholder="1"
+                    inputMode="decimal"
+                    aria-label={`Stacks ${name} is entitled to each week`}
+                    disabled={busy}
+                  />
+                  {/* What the stacks come to in coupons, which is the number the ledger states debts
                     in. Only where the box reads: half a typed answer is not a count. */}
-                {halves[i] !== null && stackSize > 1 && (
-                  <span className="config-share-stacks">
-                    {`${couponsOf(halves[i]!, total!, bundlesForEdit!)} ${unit}`}
-                  </span>
-                )}
-              </label>
-            ))}
-          </div>
-          {/* Said, not silently corrected. A deal that does not come to what fell leaves stacks
+                  {halves[i] !== null && stackSize > 1 && (
+                    <span className="config-share-stacks">
+                      {`${couponsOf(halves[i]!, total!, bundlesForEdit!)} ${unit}`}
+                    </span>
+                  )}
+                </label>
+              ))}
+            </div>
+            {/* Said, not silently corrected. A deal that does not come to what fell leaves stacks
               nobody is entitled to, and the ledger cannot say who owes them. */}
-          {!addsUp && (
-            <p className="split-error">{`These come to ${
-              badStacks ? "an unreadable number" : sumOfStacks(halves) / 2
-            } of ${bundlesForEdit} stacks.`}</p>
-          )}
+            {!addsUp && (
+              <p className="split-error">{`These come to ${
+                badStacks ? "an unreadable number" : sumOfStacks(halves) / 2
+              } of ${bundlesForEdit} stacks.`}</p>
+            )}
+          </div>
         </div>
-      )}
-
-      {/* Whose character each one is, when the people list says so. Read-only here: it is an
-          account-wide fact, kept on the People page rather than per config. */}
-      {attributed.length > 0 && (
-        <p className="party-hint">
-          {attributed.map((m) => `${m.name} is ${m.personName}'s`).join(", ")}
-        </p>
       )}
 
       {dirty && (
