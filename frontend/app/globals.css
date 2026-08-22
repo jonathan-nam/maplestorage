@@ -544,9 +544,13 @@ a:hover {
   font: inherit;
 }
 
+/* SMOOTHED, because 72 is 0.75x of the 96px avatar and the filter is inherited from .tile-sprite.
+   Nearest at three quarters drops one column in four, which walks up the face. Same call as the
+   ledger row's icon: below 1:1 it is nearest that wrecks the shape. */
 .char-tile.is-compact .tile-sprite {
   width: 72px;
   height: 72px;
+  image-rendering: auto;
 }
 
 .char-tile.is-compact .tile-name {
