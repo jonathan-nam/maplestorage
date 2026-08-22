@@ -109,9 +109,10 @@ import type {
 
 type LoadState = "loading" | "loaded" | "error";
 
-// Solo pools included, and retired configs too, which only the wallet also asks for: both hold
-// drops whose configs are off every list, and buildDropLog skips a pool whose config it cannot
-// find, so without these the log would quietly be missing them. See partiesFor.
+// Solo pools included, and retired configs too: both hold drops whose configs are off every list,
+// and buildDropLog skips a pool whose config it cannot find, so without these the log would quietly
+// be missing them. Every page that reads a pool as a ledger asks the same, Party View included, or
+// the two disagree about one debt. See partiesFor and drop-log-callers.test.ts.
 const PARTIES_KEY = "/api/parties?solo=include&retired=include";
 const POOLS_KEY = "/api/parties/loot";
 // The Wallet's settle, reused rather than reimplemented: one act, one endpoint, one set of rows.
@@ -720,6 +721,7 @@ export default function DropLogPage() {
                   <LogDrop
                     characters={characters}
                     bosses={bosses}
+                    parties={parties}
                     dropTables={dropTables}
                     busy={busy}
                     onLog={logDrop}

@@ -72,7 +72,14 @@ type LoadState = "loading" | "loaded" | "error";
 //               section, the roster in its banner and a row per boss under it
 type Grouping = "character" | "boss" | "party";
 
+// The resource, for the writes below. What this page READS is PARTY_LIST_KEY.
 const PARTIES_KEY = "/api/parties";
+// Every config, because the coupons figure is a LEDGER and a debt cancels against the other nights
+// with the same person. A retired config or a solo pool left out moves the figure on the standing
+// rows, and buildDropLog cannot tell a pool it was handed no config for from one that is square.
+// What the page DRAWS is filtered back down: see `parties`. Same key as the Drop Log, so the badge
+// and the log cannot disagree. See partiesFor.
+const PARTY_LIST_KEY = "/api/parties?solo=include&retired=include";
 const BOSSES_KEY = "/api/bosses";
 const CHARACTERS_KEY = "/api/characters";
 // Whose character is whose, for the roster editor's datalist. Same key as the edit page, so the
@@ -101,7 +108,8 @@ const VESTIGE = "vestige-of-erion";
 // Only the live view is cached. A past week is a deliberate click and worth a round-trip, and
 // caching every week stepped through would grow without bound. Same reasoning as the boss page.
 const clearsUrl = (week: string | null) => (week ? `${CLEARS_KEY}?week=${week}` : CLEARS_KEY);
-const partiesUrl = (week: string | null) => (week ? `${PARTIES_KEY}?week=${week}` : PARTIES_KEY);
+const partiesUrl = (week: string | null) =>
+  week ? `${PARTY_LIST_KEY}&week=${week}` : PARTY_LIST_KEY;
 
 // Rows are keyed by their config's id while they save. The one-off form is not a row, so it takes a
 // name of its own: it is one more thing that can be mid-save. See lib/use-row-writes.ts.
@@ -114,11 +122,11 @@ export default function PartiesPage() {
   const { getToken, isLoaded } = useAuth();
   const settings = useAccountSettings();
 
-  const seededParties = peek<Party[]>(PARTIES_KEY);
+  const seededParties = peek<Party[]>(PARTY_LIST_KEY);
   const seededBosses = peek<Boss[]>(BOSSES_KEY);
   const seededCharacters = peek<Character[]>(CHARACTERS_KEY);
 
-  const [parties, setParties] = useState<Party[]>(seededParties ?? []);
+  const [everyParty, setEveryParty] = useState<Party[]>(seededParties ?? []);
   const [bosses, setBosses] = useState<Boss[]>(seededBosses ?? []);
   const [characters, setCharacters] = useState<Character[]>(seededCharacters ?? []);
   const [dropTables, setDropTables] = useState<DropTables>(peek<DropTables>(DROPS_KEY) ?? {});
@@ -149,6 +157,11 @@ export default function PartiesPage() {
   // Why the last write to a pool did not land, and whose. Carried with the party's id so the row
   // that failed is the row that says so, rather than every open panel on the page.
   const [poolError, setPoolError] = useState<{ partyId: string; message: string } | null>(null);
+  // What this page is: the arrangements on this week. A solo pool is a pool rather than a party, and
+  // a retired config is a boss this character no longer runs, so neither is a row here. Every figure
+  // read as a ledger takes `everyParty` instead, because a debt does not stop being owed for having
+  // been arranged on a config that has since come off the list. See V33__party_standing.sql.
+  const parties = everyParty.filter((p) => !p.solo && !p.retired);
   // The seats are drawn on the party page, which is a click from here. See lib/seat-sprites.ts.
   useSeatSprites(parties);
   // The drop icons are drawn by the picker in a row's panel, a chevron from here. Same idea, and
@@ -185,9 +198,9 @@ export default function PartiesPage() {
     ]);
     if (ticket !== latestWeek.current) return false;
 
-    setParties(partyList);
+    setEveryParty(partyList);
     if (target === null) {
-      put(PARTIES_KEY, partyList);
+      put(PARTY_LIST_KEY, partyList);
     }
     if (!clears) return false;
     setView(clears);
@@ -331,9 +344,9 @@ export default function PartiesPage() {
           { method: "PUT", body: JSON.stringify({ cleared }) },
           getToken,
         );
-        const refreshed = await apiFetch<Party[]>(PARTIES_KEY, { method: "GET" }, getToken);
-        setParties(refreshed);
-        put(PARTIES_KEY, refreshed);
+        const refreshed = await apiFetch<Party[]>(PARTY_LIST_KEY, { method: "GET" }, getToken);
+        setEveryParty(refreshed);
+        put(PARTY_LIST_KEY, refreshed);
       });
     } catch {
       // Leaving the old state up beats showing a tick that did not save.
@@ -381,9 +394,9 @@ export default function PartiesPage() {
       );
       // Both lists: the shares are on the party, and every pool row's entitlement is read against
       // them, so a pool left stale would draw the old split under the new one.
-      const refreshed = await apiFetch<Party[]>(PARTIES_KEY, { method: "GET" }, getToken);
-      setParties(refreshed);
-      put(PARTIES_KEY, refreshed);
+      const refreshed = await apiFetch<Party[]>(PARTY_LIST_KEY, { method: "GET" }, getToken);
+      setEveryParty(refreshed);
+      put(PARTY_LIST_KEY, refreshed);
       await refreshPools();
     });
   }
@@ -395,7 +408,7 @@ export default function PartiesPage() {
    * week rather than the one on screen. The week is left off the body on purpose, so the server's
    * clock decides which one this is.
    *
-   * Live view only, so PARTIES_KEY is the right list to refetch. Throws on failure, which is what
+   * Live view only, so PARTY_LIST_KEY is the right list to refetch. Throws on failure, which is what
    * lets the row show the server's reason.
    */
   async function saveRoster(party: Party, members: string[] | null) {
@@ -405,9 +418,9 @@ export default function PartiesPage() {
         { method: "PUT", body: JSON.stringify({ members } satisfies SaveWeekRosterBody) },
         getToken,
       );
-      const refreshed = await apiFetch<Party[]>(PARTIES_KEY, { method: "GET" }, getToken);
-      setParties(refreshed);
-      put(PARTIES_KEY, refreshed);
+      const refreshed = await apiFetch<Party[]>(PARTY_LIST_KEY, { method: "GET" }, getToken);
+      setEveryParty(refreshed);
+      put(PARTY_LIST_KEY, refreshed);
     });
   }
 
@@ -418,7 +431,7 @@ export default function PartiesPage() {
    * roster all survive it, and next period runs as usual without being told to. The row leaves the
    * list, and the count above it is what says so.
    *
-   * Live view only, so PARTIES_KEY is the right list to refetch. Throws on failure, which is what
+   * Live view only, so PARTY_LIST_KEY is the right list to refetch. Throws on failure, which is what
    * lets the row show it did not save.
    */
   async function setSkipped(party: Party, skipped: boolean) {
@@ -430,9 +443,9 @@ export default function PartiesPage() {
         { method: "PUT", body: JSON.stringify({ skipped } satisfies SetPartySkipBody) },
         getToken,
       );
-      const refreshed = await apiFetch<Party[]>(PARTIES_KEY, { method: "GET" }, getToken);
-      setParties(refreshed);
-      put(PARTIES_KEY, refreshed);
+      const refreshed = await apiFetch<Party[]>(PARTY_LIST_KEY, { method: "GET" }, getToken);
+      setEveryParty(refreshed);
+      put(PARTY_LIST_KEY, refreshed);
     });
   }
 
@@ -453,9 +466,9 @@ export default function PartiesPage() {
           { method: "POST", body: JSON.stringify(body) },
           getToken,
         );
-        const refreshed = await apiFetch<Party[]>(PARTIES_KEY, { method: "GET" }, getToken);
-        setParties(refreshed);
-        put(PARTIES_KEY, refreshed);
+        const refreshed = await apiFetch<Party[]>(PARTY_LIST_KEY, { method: "GET" }, getToken);
+        setEveryParty(refreshed);
+        put(PARTY_LIST_KEY, refreshed);
       });
     } catch (e) {
       // The server's own reason. It is the only part of a refusal you can act on.
@@ -469,16 +482,16 @@ export default function PartiesPage() {
    * Refetched rather than patched in place, for the reason the party's own page gives: which of the
    * three counts a drop lands in, and what its status now is, are the server's to derive.
    *
-   * Live view only, so PARTIES_KEY is the right list to refetch and to cache. Both keys are the same
-   * ones the Drop Log and the party page read, so a settled drop is settled everywhere at once.
+   * Live view only, so PARTY_LIST_KEY is the right list to refetch and to cache. Both keys are the
+   * same ones the Drop Log and the party page read, so a settled drop is settled everywhere at once.
    */
   async function refreshPools() {
     const [refreshed, poolResult] = await Promise.all([
-      apiFetch<Party[]>(PARTIES_KEY, { method: "GET" }, getToken),
+      apiFetch<Party[]>(PARTY_LIST_KEY, { method: "GET" }, getToken),
       apiFetch<PartyLootPool[]>(POOLS_KEY, { method: "GET" }, getToken),
     ]);
-    setParties(refreshed);
-    put(PARTIES_KEY, refreshed);
+    setEveryParty(refreshed);
+    put(PARTY_LIST_KEY, refreshed);
     setPools(poolResult);
     put(POOLS_KEY, poolResult);
   }
@@ -545,7 +558,7 @@ export default function PartiesPage() {
   // And off the tranches, which are the other way a night finishes: sell their share and their
   // money is on their Settlement card, so asking for the coupons too is one debt in two units. See V56.
   const log = buildDropLog(
-    parties,
+    everyParty,
     pools,
     dropTables,
     closedByHolder(settlements).closed,
@@ -572,7 +585,7 @@ export default function PartiesPage() {
   const closures = closedByHolder(settlements);
   const bossOrder = new Map(bosses.map((b, i) => [b.bossKey, i]));
   const behind = runningBalance(
-    stillOpen(outstanding(parties, pools, VESTIGE, bossOrder), closures.closed),
+    stillOpen(outstanding(everyParty, pools, VESTIGE, bossOrder), closures.closed),
   );
 
   /**
