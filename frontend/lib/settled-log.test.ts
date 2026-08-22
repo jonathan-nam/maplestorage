@@ -57,6 +57,7 @@ const theirs = (id: string, name: string): PartyMember => ({
 
 const party = (over: Partial<Party> = {}): Party => ({
   id: "pa",
+  slug: "pa",
   characterId: "char-m1",
   solo: false,
   retired: false,

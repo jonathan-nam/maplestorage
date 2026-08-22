@@ -44,6 +44,9 @@ fun Route.partyRoutes(
     post("/loot/lot") { lotSaleRoute() }
     // Which mode a boss run alone is run at, by character and boss. Constant, so ahead of /{id}.
     put("/solo") { setSoloDifficultyRoute() }
+    // A config by its readable name rather than its id. Constant first segment, so it is matched
+    // ahead of /{id} and no character name can shadow a route. See PartySlug.kt.
+    get("/by/{path...}") { getPartyBySlug() }
     get("/{id}") { getParty() }
     put("/{id}") { savePartyRoute(nexonLookupService, spriteCache) }
     put("/{id}/roster") { saveWeekRosterRoute(nexonLookupService, spriteCache) }

@@ -16,6 +16,7 @@ import type { Boss } from "@/types/boss";
 import type { BossDrop, DropTables } from "@/types/drop";
 import type { AddLootBody, Loot, SellLootBody } from "@/types/loot";
 import type { Party } from "@/types/party";
+import { partyHref } from "@/lib/party-path";
 
 // One config: who ran this boss this week, and what its pool is up to.
 //
@@ -238,7 +239,7 @@ export function PartyCard({
             left a party with an empty pool reachable only by clicking the word "Duo": the badge
             below is absent until something drops, and that is exactly when you go looking for
             where to add one. */}
-        <Link className="party-row-heading" href={`/bosses/parties/${party.id}`}>
+        <Link className="party-row-heading" href={partyHref(party)}>
           {heading}
         </Link>
         <span className="party-row-label">{partySizeLabel(party.members.length)}</span>
@@ -261,7 +262,7 @@ export function PartyCard({
         {poolLine && (
           <Link
             className={poolLine.done ? "party-loot-summary is-done" : "party-loot-summary"}
-            href={`/bosses/parties/${party.id}`}
+            href={partyHref(party)}
           >
             {poolLine.text}
           </Link>
@@ -458,7 +459,7 @@ export function PartyCard({
               badge above counts an unsold drop from any week, so this is the line that stops the
               two disagreeing in silence. */}
           {pool && pool.earlier > 0 && (
-            <Link className="party-loot-earlier" href={`/bosses/parties/${party.id}`}>
+            <Link className="party-loot-earlier" href={partyHref(party)}>
               {pool.earlier} from earlier weeks
             </Link>
           )}

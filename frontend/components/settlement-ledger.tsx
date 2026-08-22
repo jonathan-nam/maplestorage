@@ -23,6 +23,7 @@ import { formatDropped } from "@/lib/loot";
 import type { Holder } from "@/lib/vestige-ledger";
 import type { Boss } from "@/types/boss";
 import type { Party } from "@/types/party";
+import { partyHrefById } from "@/lib/party-path";
 import type { SettlementDebt, VestigePayment, VestigeTranche } from "@/types/vestige";
 
 // One card per person, in the two units something can stand between you.
@@ -621,7 +622,7 @@ function SettlementCard({
               return (
                 <li key={`${line.lootId}:${line.theirsId}`} className="ledger-drop">
                   <div className="ledger-drop-head">
-                    <Link href={`/bosses/parties/${line.partyId}`} className="loot-name">
+                    <Link href={partyHrefById(line.partyId, partyById)} className="loot-name">
                       {line.name}
                     </Link>
                     <span className="loot-meta">
@@ -1182,7 +1183,7 @@ function PieceNights({
           return (
             <li key={`${drop.lootId}:${drop.pieces}`} className="ledger-drop">
               <div className="ledger-drop-head">
-                <Link href={`/bosses/parties/${drop.partyId}`} className="loot-name">
+                <Link href={partyHrefById(drop.partyId, partyById)} className="loot-name">
                   {boss ? bossLabel(boss.name, party?.difficulty ?? null) : "Unknown boss"}
                 </Link>
                 <span className="loot-meta">

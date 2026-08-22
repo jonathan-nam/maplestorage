@@ -91,6 +91,8 @@ export type AuditEvent =
 export type DropAudit = {
   lootId: string;
   partyId: string;
+  /** Where that config's page is, for the one link off this page. See lib/party-path.ts. */
+  partySlug: string;
   /**
    * The config the drop fell on is off every list, so there is nowhere to send a reader.
    *
@@ -261,6 +263,7 @@ export function buildDropAudit(
   return {
     lootId,
     partyId: entry.partyId,
+    partySlug: party.slug,
     partyRetired: party.retired,
     name: entry.name,
     iconUrl: entry.iconUrl,

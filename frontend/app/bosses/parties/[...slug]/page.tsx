@@ -50,8 +50,10 @@ export default function PartyPage() {
   preloadBossArt();
 
   const { getToken, isLoaded } = useAuth();
-  const params = useParams<{ id: string }>();
-  const partyId = params.id;
+  const params = useParams<{ slug: string[] }>();
+  // The path as the server reads it: "rune/lomien", or one segment for a uuid, which is what an
+  // older link carries. See backend PartySlug.kt.
+  const slug = params.slug.join("/");
 
   const [party, setParty] = useState<Party | null>(null);
   const [loot, setLoot] = useState<Loot[]>([]);
@@ -76,12 +78,15 @@ export default function PartyPage() {
   const { isSaving, write } = useRowWrites();
   const [error, setError] = useState<string | null>(null);
 
-  const partyUrl = `/api/parties/${partyId}`;
-  const lootUrl = `${partyUrl}/loot`;
+  const partyUrl = `/api/parties/by/${slug}`;
+  // The pool is addressed by id, which the config answers with: the slug names the config, and only
+  // it can say which one. Called from the writes below too, all of which are drawn once it is
+  // loaded, which is what makes the assertion safe.
+  const lootUrl = () => `/api/parties/${party!.id}/loot`;
 
-  async function loadLoot(token?: string | null) {
+  async function loadLoot(partyId: string, token?: string | null) {
     const result = await apiFetch<Loot[]>(
-      lootUrl,
+      `/api/parties/${partyId}/loot`,
       { method: "GET" },
       token !== undefined ? () => Promise.resolve(token) : getToken,
     );
@@ -94,9 +99,12 @@ export default function PartyPage() {
     getToken()
       .then((token) => {
         const withToken = () => Promise.resolve(token);
+        const config = apiFetch<Party>(partyUrl, { method: "GET" }, withToken);
         return Promise.all([
-          apiFetch<Party>(partyUrl, { method: "GET" }, withToken),
-          loadLoot(token),
+          config,
+          // The one read that waits on another: the pool is asked for by id, and the slug in the URL
+          // is not one. Everything below it is asked for at the same time as the config itself.
+          config.then((p) => loadLoot(p.id, token)),
           apiFetch<Boss[]>(BOSSES_KEY, { method: "GET" }, withToken),
           // The whole catalog's drop tables, cached: it is a few dozen rows and the picker needs
           // whichever boss you switch to next.
@@ -143,7 +151,7 @@ export default function PartyPage() {
       )
       .catch(() => setState("error"));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [partyId, isLoaded]);
+  }, [slug, isLoaded]);
 
   // Every mutation refetches the pool rather than patching it in place: status is derived from the
   // sale and the payout rows server side, so the server's answer is the only one that is right.
@@ -154,7 +162,7 @@ export default function PartyPage() {
         await apiFetch<unknown>(path, options, getToken);
         // Past the write, so a refetch that fails leaves the screen behind and not the write undone.
         // Saying "That didn't save." about one is what got a drop logged twice. See StaleAfterWrite.
-        await readBack(loadLoot);
+        await readBack(() => loadLoot(party!.id));
       });
     } catch (e) {
       if (e instanceof StaleAfterWrite) setError(SAVED_BUT_STALE);
@@ -164,22 +172,22 @@ export default function PartyPage() {
 
   // Keyed by the drop being written, so only that row is drawn as saving.
   const add = (body: AddLootBody) =>
-    mutate(ADD_DROP, lootUrl, { method: "POST", body: JSON.stringify(body) });
+    mutate(ADD_DROP, lootUrl(), { method: "POST", body: JSON.stringify(body) });
   const sell = (lootId: string, body: SellLootBody) =>
-    mutate(lootId, `${lootUrl}/${lootId}/sale`, { method: "PUT", body: JSON.stringify(body) });
+    mutate(lootId, `${lootUrl()}/${lootId}/sale`, { method: "PUT", body: JSON.stringify(body) });
   const unsell = (lootId: string) =>
-    mutate(lootId, `${lootUrl}/${lootId}/sale`, { method: "DELETE" });
+    mutate(lootId, `${lootUrl()}/${lootId}/sale`, { method: "DELETE" });
   const setTaken = (lootId: string, memberId: string | null) =>
-    mutate(lootId, `${lootUrl}/${lootId}/taken`, {
+    mutate(lootId, `${lootUrl()}/${lootId}/taken`, {
       method: "PUT",
       body: JSON.stringify({ memberId }),
     });
   const setPaid = (lootId: string, memberId: string, paid: boolean) =>
-    mutate(lootId, `${lootUrl}/${lootId}/payouts/${memberId}`, {
+    mutate(lootId, `${lootUrl()}/${lootId}/payouts/${memberId}`, {
       method: "PUT",
       body: JSON.stringify({ paid }),
     });
-  const remove = (lootId: string) => mutate(lootId, `${lootUrl}/${lootId}`, { method: "DELETE" });
+  const remove = (lootId: string) => mutate(lootId, `${lootUrl()}/${lootId}`, { method: "DELETE" });
 
   const bossByKey = new Map(bosses.map((b) => [b.bossKey, b]));
   // Counted from the rows on screen rather than from the party's stored counters, which were read

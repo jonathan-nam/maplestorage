@@ -41,6 +41,7 @@ const boss = (bossKey: string, name: string): Boss => ({
 
 const config = (id: string, characterId: string, bossKey: string, others: string[]): Party => ({
   id,
+  slug: id,
   characterId,
   solo: false,
   retired: false,

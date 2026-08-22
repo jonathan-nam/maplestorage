@@ -49,6 +49,7 @@ function party(
 ): Party {
   return {
     id,
+    slug: id,
     characterId: members[0]?.characterId ?? "c1",
     solo: false,
     retired: false,

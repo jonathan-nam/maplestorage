@@ -28,6 +28,7 @@ const theirs = (id: string, name: string, personId = `p-${id}`): PartyMember => 
 
 const party = (members: PartyMember[], over: Partial<Party> = {}): Party => ({
   id: "pa",
+  slug: "pa",
   characterId: "char-m1",
   solo: false,
   retired: false,

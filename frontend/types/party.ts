@@ -27,6 +27,9 @@ export type PartyMember = {
 // one of these too, flagged `solo`, so what fell on it has a pool to sit in.
 export type Party = {
   id: string;
+  // How this config addresses itself in a URL: "rune/lomien", the character and the boss. The id
+  // instead for a character whose name cannot be told from another of yours. See lib/party-path.ts.
+  slug: string;
   characterId: string;
   // Nobody else was there. One seat, nothing to split, and off every list of parties: only the
   // Drop Log asks for these, and only /api/parties?solo=include returns them.

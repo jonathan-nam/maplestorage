@@ -1221,7 +1221,7 @@ function DropRow({
               <span className="loot-count"> x{line.yours}</span>
             </span>
           ) : (
-            <Link href={`/bosses/parties/${entry.partyId}`} className="loot-name">
+            <Link href={`/bosses/parties/${entry.partySlug}`} className="loot-name">
               {line.name}
               {line.yours > 1 && <span className="loot-count"> x{line.yours}</span>}
             </Link>
@@ -1389,7 +1389,7 @@ function RunRow({
     <li className="droplog-run">
       {/* No portrait: the drop's own icon is on the line above, and a second column of art told
           nobody which run this was that the boss name did not already say. */}
-      <Link href={`/bosses/parties/${entry.partyId}`} className="loot-name">
+      <Link href={`/bosses/parties/${entry.partySlug}`} className="loot-name">
         {/* The drop is named by the line above, so the run is named by whichever side the head over
             it is not. Every run says its own, including a fold whose runs all came off one: the line
             above no longer names it, and eleven Kalos rows saying Kalos is the price of not asking
