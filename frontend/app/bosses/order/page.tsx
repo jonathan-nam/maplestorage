@@ -567,7 +567,7 @@ export default function RunOrderPage() {
 
       {fromAccount && state === "error" && (
         <p className="finder-empty">
-          Couldn&apos;t load your parties. Sign in to plan from them, or{" "}
+          Couldn&apos;t load your parties. You can still{" "}
           <button type="button" className="party-cancel" onClick={() => setSource("byHand")}>
             build the night by hand
           </button>
