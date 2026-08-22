@@ -8,6 +8,7 @@ import { apiAssetUrl } from "@/lib/api";
 import { MAX_MINUTES, parseMinutes } from "@/lib/boss-minutes";
 import { rotatingDropsAt } from "@/lib/loot-rotation";
 import { bossesWithoutConfig, standingMembers, standingParties } from "@/lib/parties";
+import { splitTitle } from "@/lib/split-title";
 import {
   couponsOf,
   evenStacks,
@@ -464,10 +465,12 @@ function ConfigRow({
           already answer. */}
       {showBoxes && (
         <div className="config-section config-panel">
-          {/* The drop's own name, not the literal word vestige: Chaos Kalos and every fragment mode
-              divide an Eternal piece here and no coupon at all, so a fixed title would name the
-              wrong item on those rows. */}
-          <h4 className="loot-group-title is-config">{dividing?.name} Config</h4>
+          {/* Built from the drop's own name, not a fixed one: Chaos Kalos and every fragment mode
+              divide an Eternal piece here and no coupon at all. See splitTitle for the suffix the
+              catalog name carries and this title does not want. */}
+          <h4 className="loot-group-title is-config">
+            {dividing ? splitTitle(dividing.name) : ""}
+          </h4>
           <div className="config-vestige">
             <span className="config-share-drop">
               {/* The stack size only where it is a fact worth carrying. Most pieces fall one to a
