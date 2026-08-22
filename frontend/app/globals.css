@@ -4368,10 +4368,13 @@ button.link:disabled {
   margin-top: 16px;
 }
 
+/* 14px between blocks, against the 6px a heading sits above its own control. At the old 10 the two
+   distances were near enough that the headings did not group anything: a heading has to be nearer
+   what it names than what it does not. */
 .config-row {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 14px;
   padding: 12px 14px;
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -4383,6 +4386,37 @@ button.link:disabled {
   flex-wrap: wrap;
   align-items: center;
   gap: 10px;
+}
+
+/* One question per block, under the heading that names it. The row's own gap spaces the blocks, so
+   the shared heading's margins would double it. */
+.config-section {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.config-section .loot-group-title {
+  margin: 0;
+}
+
+/* Difficulty and duration side by side: one is a narrow select and the other a two-digit box, and a
+   line each would push the roster below the fold on a row that has four blocks already.
+
+   28px, against the 6px each heading sits above its own control. Any closer and the two headings
+   read as one line of two words rather than as a label over each field. */
+.config-fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 28px;
+}
+
+/* The heading is what hangs the split off the row now, so the rule it carries elsewhere would be a
+   second mark saying the same thing. Same reason .loot-draft drops it. */
+.config-row .config-vestige {
+  border-left: 0;
+  padding-left: 0;
 }
 
 .config-boss {
