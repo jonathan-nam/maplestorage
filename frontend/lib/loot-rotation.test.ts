@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  pieceNote,
   rotatingDrops,
   rotatingDropsAt,
   rotationFor,
@@ -531,5 +532,25 @@ describe("splitShape", () => {
 
   it("says nothing about a party of nobody", () => {
     expect(splitShape([])).toBe("");
+  });
+});
+
+describe("pieceNote", () => {
+  it("says the split and then what is being split", () => {
+    expect(pieceNote("Kalos's Residual Determination", [3, 2, 3])).toBe(
+      "3/2 Kalos's Residual Determination",
+    );
+  });
+
+  // A token and its own fragment differ by the last word, so the name is carried in full. Cutting
+  // it to fit a column is how a party picks up the wrong one.
+  it("keeps the whole name, however long the catalog's is", () => {
+    expect(pieceNote("Kalos's Residual Determination Fragment", [1, 0])).toBe(
+      "1/0 Kalos's Residual Determination Fragment",
+    );
+  });
+
+  it("has nothing to say about a party of nobody", () => {
+    expect(pieceNote("Kalos's Residual Determination", [])).toBeNull();
   });
 });

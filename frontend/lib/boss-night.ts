@@ -473,9 +473,9 @@ function paddedTable(rows: string[][]): string[] {
  * that lined up in the widest-name case arrived crooked in every other.
  *
  * ONE TRAILING COLUMN, and only where a run fills it: what the row has to say about its loot. The
- * head is Notes and not Pieces because the split it carries today is a fact about the run rather
- * than the only fact a run could have. A night where nothing fills it gets no column and no head,
- * not a head over blanks.
+ * head is Notes and not Pieces because what it carries today (the split, and which piece is being
+ * split) is one fact about the run rather than the only fact a run could have. A night where
+ * nothing fills it gets no column and no head, not a head over blanks.
  *
  * Built from the Plan it is given, never restated by hand, so it cannot drift from what the page
  * is showing. The same rule explainSplit() follows.

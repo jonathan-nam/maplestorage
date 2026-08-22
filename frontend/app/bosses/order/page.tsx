@@ -5,7 +5,7 @@ import { useDeferredValue, useEffect, useMemo, useState, useSyncExternalStore } 
 
 import { RunDraftEditor } from "@/components/run-draft-editor";
 import { CopyPlan, type RunLog, type RunRotation, RunPlan } from "@/components/run-plan";
-import { rotatingDrops, rotationFor, splitShape, takesByOwner } from "@/lib/loot-rotation";
+import { pieceNote, rotatingDrops, rotationFor, takesByOwner } from "@/lib/loot-rotation";
 import type { PartyLootPool } from "@/types/loot";
 import { apiFetch, readBack } from "@/lib/api";
 import { progressLabel } from "@/lib/boss-clears";
@@ -527,11 +527,11 @@ export default function RunOrderPage() {
     if (rotation) rotations.set(planned.run.id, rotation);
   }
 
-  /** The split this run's pieces come out on, for the paste's Notes column. See splitShape. */
+  /** What this run's pieces say, for the paste's Notes column. See pieceNote. */
   const noteOf = (runId: string): string | null => {
     const rotation = showPieces ? rotations.get(runId) : undefined;
     if (!rotation) return null;
-    return splitShape(rotation.takes.values()) || null;
+    return pieceNote(rotation.drop, rotation.takes.values());
   };
 
   // Only a night built from your parties can be answered for: a hand-typed run has no config

@@ -270,3 +270,19 @@ export function takesByOwner(rotation: Rotation, party: Party): Map<string, numb
 export function splitShape(takes: Iterable<number>): string {
   return [...new Set(takes)].sort((a, b) => b - a).join("/");
 }
+
+/**
+ * What a run's pieces say on one line: "3/2 Kalos's Residual Determination".
+ *
+ * The split first, so the figures stay at one place down a flush-left column and reading them is
+ * not a hunt past names of different lengths.
+ *
+ * The name in full, as the catalog gives it. There is no shorthand for a piece the way there is for
+ * a boss, and inventing one here would have to tell a token from its own fragment in a word.
+ *
+ * Null where there is nothing to say, which is a run with no roster to divide between.
+ */
+export function pieceNote(drop: string, takes: Iterable<number>): string | null {
+  const split = splitShape(takes);
+  return split === "" ? null : `${split} ${drop}`;
+}
