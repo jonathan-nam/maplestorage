@@ -3672,20 +3672,45 @@ button.link:disabled {
   margin: 0;
 }
 
-/* The same two blocks in the Add Drop form, for a night with no row yet. Hung off the form the way
-   .config-vestige is hung off a row: it is part of what is being filled in, not a third thing under
-   it. No frame of its own, because the form it belongs to is not framed either. */
+/* The same two blocks in the Add Drop form, for a night with no row yet, in ONE frame. Unframed
+   they read as two more of the picker's own controls, and Save split ended up a line above Add drop
+   with nothing saying which block it belonged to. The frame the standing split already gets when
+   nothing fell (.loot-config-card), around the pair. */
 .loot-draft {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 12px;
   /* A row of its own in the form's wrap, so the picker keeps its line and Add drop keeps the next
      one. Without it the blocks would sit in the flex row beside the count box. */
   flex-basis: 100%;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
 }
 
 .loot-draft .loot-group-title.is-config {
   margin: 0;
+}
+
+/* The card is the boundary now, so each block's own left rule would be a second one drawn inside
+   it. Only in here: under a coupon row the rule is what hangs the block off the drop. */
+.loot-draft .config-vestige {
+  border-left: 0;
+  padding-left: 0;
+}
+
+/* One card, but not one question, so the second block is ruled off from the first. */
+.loot-draft .loot-group-title.is-config ~ .loot-group-title.is-config {
+  border-top: 1px solid var(--line-soft);
+  padding-top: 12px;
+}
+
+/* A seat is a name, a box and what it comes to, and at the grid's own 10px the figure sat as close
+   to the NEXT name as to its own box. Only the gap between seats widens, and only to 16px: at 24 the
+   pickup's longer figures wrapped its row onto a second line while the split's stayed on one. */
+.loot-draft .config-shares {
+  column-gap: 16px;
 }
 
 /* The standing split when NOTHING fell, which is the only time it needs a frame of its own: there is
