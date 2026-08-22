@@ -4066,6 +4066,14 @@ button.link:disabled {
   color: var(--muted);
 }
 
+/* What the share count beside it comes to. Derived from every box, so it is what makes two 1s read
+   as halves of one pot rather than two unrelated numbers. */
+.loot-share-pct {
+  min-width: 30px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
 /* Your own character on the roster line: the config, so it is named rather than typed. */
 .config-own-name {
   font-size: 13px;

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { formatMesos, parseMesos } from "@/lib/drop-split";
+import { largestRemainder } from "@/lib/piece-ledger";
 import { parseShares } from "@/lib/shares";
 import type { SellLootBody } from "@/types/loot";
 import type { Party, PartyMember } from "@/types/party";
@@ -47,6 +48,17 @@ export function LootSaleForm({
   const shareOf = (memberId: string) => shares[memberId] ?? "1";
   const entered = ran.map((m) => parseShares(shareOf(m.id)));
   const sharesReadable = entered.every((count) => count !== null);
+  // What each box works out to as a percentage of the pot, which is the thing a share count means
+  // and the thing a deal is agreed in. Derived and never typed: an 80/20 deal reads 80 and 20, and
+  // so does 4 and 1, so the box cannot be labelled a percentage without being wrong half the time.
+  //
+  // Largest remainder, so three even seats read 34/33/33 rather than three 33s that come to 99.
+  const percent = sharesReadable
+    ? largestRemainder(
+        100,
+        entered.map((count) => count ?? 0),
+      )
+    : null;
   const amount = parseMesos(price);
 
   return (
@@ -123,7 +135,7 @@ export function LootSaleForm({
           solo pool, which has nobody to divide with. */}
       {!party.solo && (
         <div className="loot-share-inputs">
-          {ran.map((m) => (
+          {ran.map((m, i) => (
             <span key={m.id} className="loot-share-input">
               <span className="loot-share-name">{m.name}</span>
               <input
@@ -133,7 +145,13 @@ export function LootSaleForm({
                 aria-label={`Shares for ${m.name}`}
                 inputMode="numeric"
                 maxLength={2}
+                // Blank is ONE, not nothing, so this is what the box already means rather than a
+                // suggestion. An example ratio here would state a split nobody typed. See V44.
+                placeholder="1"
               />
+              {/* The share as a percentage, which is what says these boxes are a ratio at all. Two
+                  names with a 1 in each said nothing about being relative to one another. */}
+              {percent && <span className="loot-share-pct">{percent[i]}%</span>}
             </span>
           ))}
         </div>
