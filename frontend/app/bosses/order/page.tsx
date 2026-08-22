@@ -554,19 +554,7 @@ export default function RunOrderPage() {
 
   return (
     <main className="page">
-      {/* Beside the title, not among the tabs below, for the reason Party View gives: those pick
-          what the page shows, so a link that leaves it reads as another one of them.
-
-          People, because a seat nobody has claimed is chipped under its character's name instead of
-          whose it is (see rosterFrom), and People is the page that says whose it is. */}
-      <div className="page-head">
-        <h1 className="page-title">Run Order</h1>
-        <span className="page-head-links">
-          <Link className="party-cancel" href="/bosses/people">
-            People
-          </Link>
-        </span>
-      </div>
+      <h1 className="page-title">Run Order</h1>
 
       <div className="basis-row" role="group" aria-label="Where the runs come from">
         {(
@@ -657,7 +645,18 @@ export default function RunOrderPage() {
 
       {roster.length > 0 && (
         <section className="night-section">
-          <h2 className="night-heading">Who is on</h2>
+          {/* Opposite the heading, not among the chips: a chip is an attendance switch, so a link
+              standing in that row would read as one more person to toggle.
+
+              People sits with the roster rather than the page title because these are the names it
+              is about. A seat nobody has claimed is chipped under its character's name instead of
+              whose it is (see rosterFrom), and People is the page that says whose it is. */}
+          <div className="night-heading-row">
+            <h2 className="night-heading">Who is on</h2>
+            <Link className="party-cancel" href="/bosses/people">
+              People
+            </Link>
+          </div>
           <ul className="night-roster">
             {roster.map((person) => {
               const on = !away.includes(person.id);
