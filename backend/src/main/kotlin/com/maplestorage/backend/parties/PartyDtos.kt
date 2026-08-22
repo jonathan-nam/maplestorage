@@ -38,6 +38,10 @@ data class PartyMemberResponse(
 @Serializable
 data class PartyResponse(
     val id: String,
+    // How this config addresses itself in a URL: "rune/lomien", the character and the boss, which
+    // is what it IS. Falls back to `id` for a character whose name cannot be told from another of
+    // yours. See PartySlug.kt.
+    val slug: String,
     val characterId: String,
     // The character's world, INTERACTIVE or HEROIC. Carried on the config because it is what
     // decides whether this pool's drops can be sold at all: Heroic worlds do not trade, so a

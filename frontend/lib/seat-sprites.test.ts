@@ -15,6 +15,7 @@ const seat = (name: string, spriteImgUrl: string | null): PartyMember => ({
 
 const config = (id: string, members: PartyMember[]): Party => ({
   id,
+  slug: id,
   characterId: "char-1",
   solo: false,
   retired: false,

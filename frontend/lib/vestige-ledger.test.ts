@@ -65,6 +65,7 @@ const party = (
   looter: string | null,
 ): Party => ({
   id,
+  slug: id,
   characterId: members[0]!.characterId ?? `char-${members[0]!.id}`,
   solo: false,
   oneOff: false,

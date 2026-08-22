@@ -96,17 +96,18 @@ internal fun partiesFor(
     // Against the week being SHOWN, not against now, so stepping back says what was said about that
     // week rather than what is true today. The trap `cleared` falls into: see clearStateFor.
     val off = notRunningIn(rows, week, Clock.System.now())
+    val characterSlugs = characterSlugsFor(userId)
 
     return rows.map { row ->
         val id = row[Party.id]
         val seats = seatsByParty[id].orEmpty()
         row.toPartyResponse(
+            slug = partySlug(id, characterSlugs[row[Party.characterId]], row[BossCatalog.bossKey]),
             members = ranIn(seats, rosters[id].orEmpty()),
             seats = seats,
             loot = counts[id] ?: LootCounts(0, 0, 0),
             clear = clears[id] ?: ClearState(null, false),
-            usualRoster = id !in spelledOut,
-            skippedThisPeriod = id in off,
+            week = WeekState(usualRoster = id !in spelledOut, skippedThisPeriod = id in off),
         )
     }
 }
@@ -127,17 +128,22 @@ internal fun findParty(
     // reads its payouts against `seats` rather than this.
     val week = currentWeek()
     val seats = seatsFor(listOf(partyId), userId)[partyId].orEmpty()
+    val state =
+        WeekState(
+            usualRoster = partyId !in weeksSpelledOut(listOf(partyId), week),
+            // The live view, which is the only one this reads: the period the boss is in now, which
+            // for a monthly boss is not the month `week` started in. See periodShown.
+            skippedThisPeriod = partyId in notRunningIn(listOf(row), week = null, now = Clock.System.now()),
+        )
     return row.toPartyResponse(
+        slug = partySlug(partyId, characterSlugsFor(userId)[row[Party.characterId]], row[BossCatalog.bossKey]),
         members = ranIn(seats, rosterFor(partyId, week)),
         seats = seats,
         // All time, unlike the list's. This is the page that sells a drop and pays it out, so a
         // week that hid an old one would put it beyond the only controls that can settle it.
         loot = lootCountsFor(listOf(partyId), week = null)[partyId] ?: LootCounts(0, 0, 0),
         clear = clearStateFor(listOf(row))[partyId] ?: ClearState(null, false),
-        usualRoster = partyId !in weeksSpelledOut(listOf(partyId), week),
-        // The live view, which is the only one this reads: the period the boss is in now, which for
-        // a monthly boss is not the month `week` started in. See periodShown.
-        skippedThisPeriod = partyId in notRunningIn(listOf(row), week = null, now = Clock.System.now()),
+        week = state,
     )
 }
 
@@ -281,6 +287,19 @@ internal data class ClearState(
     val byHand: Boolean,
 )
 
+/**
+ * What the week being shown says about a config, as against what the config itself says.
+ *
+ * Both answer for that week and neither is a property of the party, which is why they are read per
+ * request rather than stored: see weeksSpelledOut and notRunningIn.
+ */
+internal data class WeekState(
+    // False when this week was spelled out with its own roster.
+    val usualRoster: Boolean,
+    // Not running its boss in the period being shown, whichever way it got there.
+    val skippedThisPeriod: Boolean,
+)
+
 private fun clearStateFor(rows: List<ResultRow>): Map<Uuid, ClearState> {
     if (rows.isEmpty()) return emptyMap()
     val now = Clock.System.now()
@@ -337,14 +356,15 @@ private fun spriteFor(
 }
 
 private fun ResultRow.toPartyResponse(
+    slug: String,
     members: List<PartyMemberResponse>,
     seats: List<PartyMemberResponse>,
     loot: LootCounts,
     clear: ClearState,
-    usualRoster: Boolean,
-    skippedThisPeriod: Boolean,
+    week: WeekState,
 ) = PartyResponse(
     id = this[Party.id].toString(),
+    slug = slug,
     characterId = this[Party.characterId].toString(),
     worldType = this[Characters.worldType],
     bossKey = this[BossCatalog.bossKey],
@@ -356,8 +376,8 @@ private fun ResultRow.toPartyResponse(
     looterMemberId = this[Party.looterMemberId]?.toString(),
     members = members,
     seats = seats,
-    usualRoster = usualRoster,
-    skippedThisPeriod = skippedThisPeriod,
+    usualRoster = week.usualRoster,
+    skippedThisPeriod = week.skippedThisPeriod,
     pendingLoot = loot.pending,
     awaitingPayout = loot.awaitingPayout,
     settledLoot = loot.settled,

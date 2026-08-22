@@ -49,6 +49,31 @@ class PartyRouteOrderTest {
         }
 
     @Test
+    fun `a slug reaches its own handler, whole, and not the id beside it`() =
+        testApplication {
+            application {
+                routing {
+                    // Declared in the order PartyRoutes.kt declares them.
+                    get("/parties/by/{path...}") { call.respond("slug: ${call.parameters.getAll("path")}") }
+                    get("/parties/{id}") { call.respond("one party: ${call.parameters["id"]}") }
+                    route("/parties/{id}/loot") { get { call.respond("one pool") } }
+                }
+            }
+
+            // Every segment past "by" is the slug, and the tailcard is what keeps a three-segment
+            // one (a doubled character name takes its world in front) from being cut in two.
+            assertEquals("slug: [rune, limbo]", client.get("/parties/by/rune/limbo").bodyAsText())
+            assertEquals("slug: [heroic, rune, limbo]", client.get("/parties/by/heroic/rune/limbo").bodyAsText())
+            // One segment is the uuid an older link carries, and it must not read as a party called
+            // "by" either.
+            assertEquals("slug: [abc]", client.get("/parties/by/abc").bodyAsText())
+            // The neighbours are untouched, including the pool the page asks for by id straight
+            // after resolving one of the above.
+            assertEquals("one party: abc", client.get("/parties/abc").bodyAsText())
+            assertEquals("one pool", client.get("/parties/abc/loot").bodyAsText())
+        }
+
+    @Test
     fun `and on PUT, where the parameter beside it takes a config id`() =
         testApplication {
             application {

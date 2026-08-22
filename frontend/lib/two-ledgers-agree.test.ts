@@ -60,6 +60,7 @@ const SEATS = [seat("m1", "Husky", true), seat("m2", "BroChar", false)];
 
 const party = (id: string, looter: string): Party => ({
   id,
+  slug: id,
   characterId: "char-m1",
   solo: false,
   oneOff: false,

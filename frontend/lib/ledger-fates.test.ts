@@ -53,6 +53,7 @@ const seat = (
 
 const party = (members: PartyMember[], looter: string | null): Party => ({
   id: "pa",
+  slug: "pa",
   characterId: "char-m1",
   solo: false,
   oneOff: false,

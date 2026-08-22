@@ -40,6 +40,7 @@ const party = (
   over: Partial<Party> = {},
 ): Party => ({
   id,
+  slug: id,
   characterId: members[0]!.characterId ?? `char-${members[0]!.id}`,
   solo: false,
   oneOff: false,

@@ -22,6 +22,7 @@ import { transferKey } from "@/lib/piece-ledger";
 import { type Holder, type HolderLedger, holderFromKey, holderKey } from "@/lib/vestige-ledger";
 import type { Boss } from "@/types/boss";
 import type { Party } from "@/types/party";
+import { partyHrefById } from "@/lib/party-path";
 import type { VestigeTranche, VestigeTrancheShare } from "@/types/vestige";
 
 // Your own pile: what it still owes, the box that says what became of the coupons, and the nights
@@ -554,7 +555,7 @@ function HolderCard({
           return (
             <li key={drop.lootId} className="ledger-drop">
               <div className="ledger-drop-head">
-                <Link href={`/bosses/parties/${drop.partyId}`} className="loot-name">
+                <Link href={partyHrefById(drop.partyId, partyById)} className="loot-name">
                   {boss ? bossLabel(boss.name, party?.difficulty ?? null) : "Unknown boss"}
                 </Link>
                 <span className="loot-meta">

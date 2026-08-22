@@ -44,7 +44,7 @@ function detail(event: AuditEvent, audit: DropAudit): React.ReactNode {
           {audit.partyRetired ? (
             <span className="loot-name">{event.boss ?? "Unknown boss"}</span>
           ) : (
-            <Link href={`/bosses/parties/${audit.partyId}`} className="loot-name">
+            <Link href={`/bosses/parties/${audit.partySlug}`} className="loot-name">
               {event.boss ?? "Unknown boss"}
             </Link>
           )}

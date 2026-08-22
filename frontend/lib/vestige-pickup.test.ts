@@ -29,6 +29,7 @@ const seat = (
 
 const party = (seats: PartyMember[], over: Partial<Party> = {}): Party => ({
   id: "pa",
+  slug: "pa",
   characterId: seats[0]!.characterId ?? `char-${seats[0]!.id}`,
   solo: false,
   oneOff: false,
