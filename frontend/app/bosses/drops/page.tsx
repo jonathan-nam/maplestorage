@@ -11,6 +11,7 @@ import { SettlementSummary } from "@/components/settlement-summary";
 import { LogDrop } from "@/components/log-drop";
 import { LotSale } from "@/components/lot-sale";
 import { PieceLedger } from "@/components/piece-ledger";
+import { RowSale } from "@/components/row-sale";
 import { StackArrangement } from "@/components/stack-arrangement";
 import { SettledView } from "@/components/settled-view";
 import { buildSettledLog, orphansOf, settledTotals } from "@/lib/settled-log";
@@ -54,7 +55,13 @@ import {
   type Grouping,
 } from "@/lib/drop-log";
 import { formatDropped, splitOf } from "@/lib/loot";
-import { type LotSaleBody, fungibleDropKeys, lotDrops } from "@/lib/lot-sale";
+import {
+  type LotRow,
+  type LotSaleBody,
+  fungibleDropKeys,
+  lotDrops,
+  rowSales,
+} from "@/lib/lot-sale";
 import { useDropIcons } from "@/lib/drop-icons";
 import { useSeatSprites } from "@/lib/seat-sprites";
 import { useAccountSettings } from "@/lib/use-account-settings";
@@ -85,7 +92,7 @@ import { showsMoney } from "@/lib/world";
 import type { Boss } from "@/types/boss";
 import type { Character } from "@/types/character";
 import type { DropTables } from "@/types/drop";
-import type { Loot, LogDropBody, PartyLootPool, SettleBody } from "@/types/loot";
+import type { Loot, LogDropBody, PartyLootPool, SellLootBody, SettleBody } from "@/types/loot";
 import type { Party, Person } from "@/types/party";
 import type {
   ProceedsDisposal,
@@ -372,6 +379,31 @@ export default function DropLogPage() {
   }
 
   /**
+   * Prices ONE row, where the drop has its own price and no queue could say which copy went.
+   *
+   * The party page's own sale route, so a ring priced here and a ring priced on Party View are one
+   * write and cannot come out differently. Answers with the pools, which is what takes the card off
+   * this list.
+   */
+  async function rowSale(row: LotRow, body: SellLootBody) {
+    setBusy(true);
+    try {
+      await apiFetch<unknown>(
+        `/api/parties/${row.partyId}/loot/${row.lootId}/sale`,
+        { method: "PUT", body: JSON.stringify(body) },
+        getToken,
+      );
+      setPools(await apiFetch<PartyLootPool[]>(POOLS_KEY, {}, getToken));
+    } catch (e) {
+      // Thrown on rather than shown here, as a lot is: the card that asked is what the reader is
+      // looking at, and this page's error line is a screen away from it.
+      throw new Error(e instanceof ApiError ? e.body : "That didn't save.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  /**
    * Records who picked up which stacks of one drop.
    *
    * Answers with the pools rather than the row, for the same reason a tranche does: naming the
@@ -578,10 +610,14 @@ export default function DropLogPage() {
   // The piles of interchangeable drops waiting to be priced. Yours: a lot is filed against the seat
   // that sold it, and only your own seats are ones you can name as seller. A partner's pile stays on
   // its rows, where each names its own seller.
-  const lots = lotDrops(parties, pools, fungibleDropKeys(dropTables), SELF_KEY);
-  // Whether the lot boxes will draw anything, which decides with the coupon piles whether there is a
-  // Record Sale section at all. A heading over no cards is a heading over nothing.
-  const sellableLots = money && lots.length > 0;
+  const fungible = fungibleDropKeys(dropTables);
+  const lots = lotDrops(parties, pools, fungible, SELF_KEY);
+  // The drops that price alone: an accessory, a hammer, a ring. Yours for the same reason a lot is,
+  // and one card each, because a queue of them could only guess which copy went. See rowSales.
+  const alone = rowSales(parties, pools, dropTables, fungible, SELF_KEY);
+  // Whether the sale boxes will draw anything, which decides with the coupon piles whether there is
+  // a Record Sale section at all. A heading over no cards is a heading over nothing.
+  const anythingToPrice = money && (lots.length > 0 || alone.length > 0);
   // The coupon's sprite, off whichever boss table carries it. Every table names the same drop.
   const vestigeIcon =
     Object.values(dropTables)
@@ -642,6 +678,7 @@ export default function DropLogPage() {
       unanswered: open.length,
       holders: drawn.length + revealed.length,
       lots: money ? lots.length : 0,
+      rows: money ? alone.length : 0,
     }) > 0;
 
   return (
@@ -770,20 +807,32 @@ export default function DropLogPage() {
                   more of the same thing and there is nothing there to divide. */}
                 {/* Gated on what will actually draw, not on there being ledgers at all: a pile held
                   back for owing nobody leaves the heading standing over nothing. */}
-                {(sellableLots || drawn.length > 0) && (
+                {(anythingToPrice || drawn.length > 0) && (
                   <section className="loot-pool">
                     <h2 className="loot-pool-title">Record Sale</h2>
 
                     {/* Only where there is money to talk about. A Heroic-only account trades nothing,
-                      and lotDrops leaves those pools out anyway. */}
+                      and both lists leave those pools out anyway. */}
                     {money && (
-                      <LotSale
-                        drops={lots}
-                        bossByKey={bossByKey}
-                        partyById={partyById}
-                        busy={busy}
-                        onSell={lotSale}
-                      />
+                      <>
+                        <LotSale
+                          drops={lots}
+                          bossByKey={bossByKey}
+                          partyById={partyById}
+                          busy={busy}
+                          onSell={lotSale}
+                        />
+                        {/* After the lots, which are one card per drop however many rows each
+                            covers, so the shorter list is the one on top. */}
+                        <RowSale
+                          rows={alone}
+                          bossByKey={bossByKey}
+                          partyById={partyById}
+                          characterById={characterById}
+                          busy={busy}
+                          onSell={rowSale}
+                        />
+                      </>
                     )}
 
                     <PieceLedger ledgers={drawn} {...pileCard} />

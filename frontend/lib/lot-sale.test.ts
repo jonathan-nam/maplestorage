@@ -6,6 +6,7 @@ import {
   lotSaleBody,
   priceLot,
   proposeLot,
+  rowSales,
 } from "./lot-sale";
 import { largestRemainder } from "./piece-ledger";
 import { SELF_KEY } from "./vestige-ledger";
@@ -17,6 +18,9 @@ const M = 1_000_000;
 const B = 1_000_000_000;
 const STONE = "grindstone-of-faith";
 const BOX = "eternal-armor-of-desire-box";
+const RING = "ring-of-restraint-4";
+const COUPON = "vestige-of-erion";
+const TOKEN = "kalos-token";
 
 const seat = (id: string, name: string, { mine = false, shares = 1 } = {}): PartyMember => ({
   id,
@@ -93,7 +97,11 @@ const drop = (
 
 const pool = (partyId: string, loot: Loot[]): PartyLootPool => ({ partyId, loot });
 
-const catalogDrop = (dropKey: string, fungible: boolean): BossDrop => ({
+const catalogDrop = (
+  dropKey: string,
+  fungible: boolean,
+  over: Partial<BossDrop> = {},
+): BossDrop => ({
   dropKey,
   name: dropKey,
   iconUrl: null,
@@ -104,6 +112,7 @@ const catalogDrop = (dropKey: string, fungible: boolean): BossDrop => ({
   untradeable: false,
   pieces: {},
   bundles: {},
+  ...over,
 });
 
 /** Your character and one stranger, in two parties on two bosses. */
@@ -190,6 +199,81 @@ describe("the queue a lot is drawn from", () => {
     const heroic = [party("p1", "limbo", duo(), { worldType: "HEROIC" })];
     expect(
       lotQueue(heroic, [pool("p1", [drop("l1", STONE, "2026-07-30", ["m1"])])], STONE, SELF_KEY),
+    ).toEqual([]);
+  });
+});
+
+describe("the drops that price alone", () => {
+  const tables: DropTables = {
+    limbo: [
+      catalogDrop(STONE, true),
+      catalogDrop(RING, false),
+      catalogDrop(COUPON, false, { pieces: { INTERACTIVE: { HARD: 60 } } }),
+      catalogDrop(TOKEN, false, { untradeable: true, pieces: { INTERACTIVE: { CHAOS: 5 } } }),
+    ],
+  };
+  const fungible = fungibleDropKeys(tables);
+  const parties = [party("p1", "limbo", duo())];
+  const rows = (loot: Loot[], over: Party[] = parties) =>
+    rowSales(over, [pool("p1", loot)], tables, fungible, SELF_KEY).map((r) => r.lootId);
+
+  it("holds a ring, which has its own price and no queue that could name a copy", () => {
+    expect(rows([drop("l1", RING, "2026-07-30", ["m1", "m2"])])).toEqual(["l1"]);
+  });
+
+  it("leaves out an interchangeable drop, which is a lot instead", () => {
+    // The two lists must not overlap: a grindstone offered here as well would be two ways to price
+    // one row, and whichever was used second would overwrite the first.
+    expect(rows([drop("l1", STONE, "2026-07-30", ["m1", "m2"])])).toEqual([]);
+  });
+
+  it("leaves out a coupon stack, which divides by count and is settled in tranches", () => {
+    expect(rows([drop("l1", COUPON, "2026-07-30", ["m1", "m2"], { quantity: 60 })])).toEqual([]);
+  });
+
+  it("leaves out an untradeable piece at a difficulty nobody has counted", () => {
+    // The catalog has no Hard amount for the token, so isPieceDrop says "not pieces" and the only
+    // thing keeping it off this list is the item being untradeable. It cannot be sold at all.
+    expect(rows([drop("l1", TOKEN, "2026-07-30", ["m1", "m2"], { quantity: 2 })])).toEqual([]);
+  });
+
+  it("holds a drop typed by hand, which no catalog row calls interchangeable", () => {
+    const freeText = drop("l1", RING, "2026-07-30", ["m1", "m2"], {
+      dropKey: null,
+      customName: "Something new",
+      name: "Something new",
+      bossKey: null,
+    });
+    expect(rows([freeText])).toEqual(["l1"]);
+  });
+
+  it("is oldest first, and carries the seller and the even split a lot row does", () => {
+    const found = rowSales(
+      parties,
+      [
+        pool("p1", [
+          drop("l2", RING, "2026-08-06", ["m1", "m2"]),
+          drop("l1", RING, "2026-07-30", ["m1", "m2"]),
+        ]),
+      ],
+      tables,
+      fungible,
+      SELF_KEY,
+    );
+    expect(found.map((r) => r.lootId)).toEqual(["l1", "l2"]);
+    expect(found[0]?.sellerMemberId).toBe("m1");
+    expect(found[0]?.shares).toEqual({ m1: 1, m2: 1 });
+  });
+
+  it("shares the lot queue's own rules about what is sellable", () => {
+    const sold = drop("l1", RING, "2026-07-30", ["m1"], { soldAt: "2026-08-01T00:00:00Z" });
+    expect(rows([sold])).toEqual([]);
+    expect(rows([drop("l1", RING, "2026-07-30", ["m2"])])).toEqual([]);
+    expect(
+      rows(
+        [drop("l1", RING, "2026-07-30", ["m1"])],
+        [party("p1", "limbo", duo(), { worldType: "HEROIC" })],
+      ),
     ).toEqual([]);
   });
 });

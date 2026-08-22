@@ -1,0 +1,167 @@
+"use client";
+
+import { useState } from "react";
+import { formatMesos, parseMesos } from "@/lib/drop-split";
+import { parseShares } from "@/lib/shares";
+import type { SellLootBody } from "@/types/loot";
+import type { Party, PartyMember } from "@/types/party";
+
+// What one drop sold for: the price, what that price IS, how it divides, and who sold it.
+//
+// One form, two frames. It sits on the pool row on Party View and on the card that prices the same
+// drop from the Drop Log's Sale Ledger, because a ring sold on one screen and a ring sold on the
+// other are the same act. Two copies of these boxes would be two answers to the split the first
+// time one of them changed.
+//
+// Nothing here divides anything. It hands `shares` to the sale route, and splitOf() reads what the
+// server wrote.
+
+export function LootSaleForm({
+  party,
+  ran,
+  busy,
+  onSell,
+  onCancel,
+}: {
+  party: Party;
+  /**
+   * Who could have sold this drop: the seats that ran the week it FELL in, not the party as it
+   * stands now. Offering more than that would offer a seller the sell route refuses, and offering
+   * the week's roster for a guest week is the only way to name the guest who actually sold it.
+   */
+  ran: PartyMember[];
+  busy: boolean;
+  onSell: (body: SellLootBody) => void;
+  /** Absent where the form is the card rather than a mode of a row, which has nothing to go back to. */
+  onCancel?: () => void;
+}) {
+  const [price, setPrice] = useState("");
+  const [amountBasis, setAmountBasis] = useState("LISTED");
+  const [splitMethod, setSplitMethod] = useState("FAIR");
+  const [sellerMemberId, setSellerMemberId] = useState(ran[0]?.id ?? "");
+  // Every seat opens on one share, and an uneven split is typed here. It used to be seeded from
+  // `party_member.shares`, which is the STACK entitlement the party config's boxes write: a duo
+  // splitting three vestige stacks 1 and 2 had every ring and grindstone they ever sold open at
+  // 1:2. That ratio divides the coupon pile and nothing else, which is ranSeats' job, not this one.
+  const [shares, setShares] = useState<Record<string, string>>({});
+  const shareOf = (memberId: string) => shares[memberId] ?? "1";
+  const entered = ran.map((m) => parseShares(shareOf(m.id)));
+  const sharesReadable = entered.every((count) => count !== null);
+  const amount = parseMesos(price);
+
+  return (
+    <form
+      className="loot-sale-form"
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (amount === null || !sellerMemberId || !sharesReadable) return;
+        onSell({
+          amount,
+          amountBasis,
+          splitMethod,
+          sellerMemberId,
+          shares: Object.fromEntries(ran.map((m, i) => [m.id, entered[i] ?? 1])),
+        });
+      }}
+    >
+      <div className="loot-sale-line">
+        <input
+          className="split-input"
+          value={price}
+          onChange={(e) => setPrice(e.target.value)}
+          placeholder="9.5b"
+          aria-label="Sale amount"
+          inputMode="decimal"
+        />
+        <select
+          className="split-input"
+          value={amountBasis}
+          onChange={(e) => setAmountBasis(e.target.value)}
+          aria-label="What that amount is"
+        >
+          <option value="LISTED">listed for</option>
+          <option value="RECEIVED">received</option>
+          {/* No listing, so no Auction House cut off the top: the price is the whole pot.
+              The payouts are still taxed, so the split is the same one. Not offered on a
+              solo pool: there is no party for a member to buy it off. */}
+          {!party.solo && <option value="BOUGHT">member bought</option>}
+        </select>
+        {/* Neither control is a question on a solo pool: one seat means nobody to divide
+            with and nobody else it could have been sold by. The stored method is whichever
+            the state holds, and with no members splitDrop's two branches are the same
+            arithmetic (see the test). */}
+        {!party.solo && (
+          <select
+            className="split-input"
+            value={splitMethod}
+            onChange={(e) => setSplitMethod(e.target.value)}
+            aria-label="Split method"
+          >
+            {/* Both are offered for the reason lib/drop-split.ts gives: "lazy" is what most
+                parties do, and only showing "fair" would hide what it costs. */}
+            <option value="FAIR">fair split</option>
+            <option value="LAZY">lazy split</option>
+          </select>
+        )}
+        {!party.solo && (
+          <select
+            className="split-input"
+            value={sellerMemberId}
+            onChange={(e) => setSellerMemberId(e.target.value)}
+            aria-label={amountBasis === "BOUGHT" ? "Who bought it" : "Who sold it"}
+          >
+            {ran.map((m) => (
+              <option key={m.id} value={m.id}>
+                {amountBasis === "BOUGHT" ? "bought by" : "sold by"} {m.name}
+              </option>
+            ))}
+          </select>
+        )}
+      </div>
+
+      {/* One box per seat that ran, so an uneven split is typed where the sale is. Not on a
+          solo pool, which has nobody to divide with. */}
+      {!party.solo && (
+        <div className="loot-share-inputs">
+          {ran.map((m) => (
+            <span key={m.id} className="loot-share-input">
+              <span className="loot-share-name">{m.name}</span>
+              <input
+                className="split-input loot-count-input"
+                value={shareOf(m.id)}
+                onChange={(e) => setShares({ ...shares, [m.id]: e.target.value })}
+                aria-label={`Shares for ${m.name}`}
+                inputMode="numeric"
+                maxLength={2}
+              />
+            </span>
+          ))}
+        </div>
+      )}
+
+      <div className="loot-actions">
+        {/* Without a seller there is nobody to measure the shares against, and the submit
+            would return without saying so. */}
+        <button
+          type="submit"
+          className="party-save"
+          disabled={busy || amount === null || !sellerMemberId || !sharesReadable}
+        >
+          Save sale
+        </button>
+        {onCancel && (
+          <button type="button" className="party-cancel" onClick={onCancel} disabled={busy}>
+            Cancel
+          </button>
+        )}
+        {/* Shown before saving, so a typed "9.5b" is confirmed as 9,500,000,000 rather than
+            discovered afterwards. */}
+        {price !== "" && (
+          <span className="loot-parsed">
+            {amount === null ? "not a price" : formatMesos(amount, true)}
+          </span>
+        )}
+      </div>
+    </form>
+  );
+}
