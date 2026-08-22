@@ -875,6 +875,7 @@ export default function RunOrderPage() {
             startAt={shown.startAt}
             timed={shown.timed}
             log={log}
+            noteOf={noteOf}
           />
 
           {/* What was guessed stays on screen. It is what the finishing time is built from, and a
