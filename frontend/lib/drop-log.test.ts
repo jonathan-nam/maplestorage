@@ -1077,6 +1077,32 @@ describe("a piece drop counts YOUR share, not what fell", () => {
       expect(out.has("pb")).toBe(false);
     });
 
+    it("washes against a night on a config that has since been retired", () => {
+      // Why every page that reads a pool as a ledger asks for ?retired=include, and what
+      // drop-log-callers.test.ts guards. The config is off Party View; the night it holds is still a
+      // night and one handover settles the pair. Handed the standing configs alone, this page cannot
+      // see the pool at all and pa asks for 10 coupons nobody owes.
+      const theirs10 = theirNight({ id: "l1", droppedOn: "2026-08-13" });
+      const yours10 = coupons({
+        id: "l2",
+        droppedOn: "2026-08-14",
+        bundles: 3,
+        bundlesBy: [
+          { memberId: "m1", bundles: 2 },
+          { memberId: "m2", bundles: 1 },
+        ],
+      });
+      const log = buildDropLog(
+        [pair(), other({ retired: true })],
+        [pool("pa", [yours10]), pool("pb", [theirs10])],
+        tables,
+      );
+      const out = couponsOutstandingByParty(log.entries);
+
+      expect(out.has("pa")).toBe(false);
+      expect(out.has("pb")).toBe(false);
+    });
+
     it("leaves the difference, on the newest night", () => {
       // 30 of theirs in your pile against 10 of yours in theirs. The 10 cancel and 20 are left to
       // hand over, and the wash spends the older night first.

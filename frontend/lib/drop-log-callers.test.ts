@@ -68,3 +68,36 @@ describe("every caller of buildDropLog hands it the settlements", () => {
     expect(args).toMatch(/answeredByPair|answered/);
   });
 });
+
+// The same guard one argument along, on the list rather than what finishes a night.
+//
+// buildDropLog and outstanding both skip a pool whose config they were not handed, so a page that
+// fetches only the STANDING configs and all the pools drops those nights silently. That is not just
+// a row missing: a coupon debt cancels against the other nights with the same person and a sale
+// answers them in the order they fell, both across every party at once, so leaving one out moves
+// the figure on the parties that are still on the list. Party View asked for 10 coupons the Drop
+// Log had already washed against a retired config's night.
+//
+// A page may still draw only the standing ones. It has to ASK for all of them.
+describe("every page that reads a pool as a ledger fetches every config", () => {
+  const LEDGERS = ["buildDropLog(", "outstanding("];
+  const pages = sources(join(root, "app")).flatMap((file) => {
+    const text = readFileSync(file, "utf8");
+    const called = LEDGERS.filter((fn) => text.includes(fn));
+    return called.length > 0 ? [{ file: file.slice(root.length + 1), text, called }] : [];
+  });
+
+  it("finds the pages at all, so the guard cannot pass by finding none", () => {
+    expect(pages.length).toBeGreaterThanOrEqual(3);
+  });
+
+  it.each(pages)("asks for the retired configs in $file", ({ text }) => {
+    expect(text).toContain("retired=include");
+  });
+
+  // Solo pools for the same reason. A config taken back as one keeps the nights it was a party for,
+  // and those weeks have a pinned roster with somebody else in it. See soloAgain.
+  it.each(pages)("asks for the solo pools in $file", ({ text }) => {
+    expect(text).toContain("solo=include");
+  });
+});

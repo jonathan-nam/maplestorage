@@ -235,6 +235,25 @@ export function bossesWithoutConfig(parties: Party[], bosses: Boss[], characterI
 }
 
 /**
+ * The config a drop on this character and boss will land in, or undefined.
+ *
+ * The same lookup the server makes for a drop that names a character and a boss rather than a pool,
+ * and one config per pair is what makes it a lookup rather than a choice. `standing` is no part of
+ * it there, so a retired config answers here exactly as it does there. See partyIdFor.
+ *
+ * Only ever as complete as the list it is handed. Given the standing configs alone it answers
+ * undefined for a retired one, which is not distinguishable from a boss with no config at all, and
+ * those two file a drop very differently.
+ */
+export function configFor(
+  parties: Party[],
+  characterId: string,
+  bossKey: string,
+): Party | undefined {
+  return parties.find((p) => p.characterId === characterId && p.bossKey === bossKey);
+}
+
+/**
  * The drop this boss gives for certain at the mode a party runs, or null.
  *
  * Read off the boss's own table, so it is a fact about the boss rather than about anything that has

@@ -63,9 +63,11 @@ fun Route.partyRoutes(
  * `?solo=include` adds the pools for bosses run alone. Off by default: they are not parties, and a
  * caller that draws a roster or plans a night would be showing a party of one.
  *
- * `?retired=include` adds the configs taken off the lists whose pools were kept. Off by default,
- * and only the wallet and the Drop Log ask: they read the loot rows against the configs they are
- * given, so without it a retired party's drops go missing from one and unreadable in the other.
+ * `?retired=include` adds the configs taken off the lists whose pools were kept. Off by default.
+ * Every caller that reads the loot rows against the configs it was given asks for it, which is the
+ * wallet, the Drop Log and both party pages: without it a retired party's drops go missing from one
+ * and unreadable in the other, and a coupon debt that cancels against one of its nights is billed
+ * again. A page may still DRAW only the standing ones. See drop-log-callers.test.ts.
  */
 private suspend fun RoutingContext.listParties() {
     val (userId, email) = call.principalIdAndEmail()

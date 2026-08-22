@@ -55,10 +55,12 @@ internal const val MAX_SHARES = 99
  * a party of one. The Drop Log asks for them, because a drop is exactly what they hold.
  *
  * Retired configs are left out unless [includeRetired]. They are bosses this character no longer
- * runs, so no list that answers "what is on this week" should carry them. The two callers that
- * read POOLS rather than lists ask for them, and must: the wallet and the Drop Log both key their
- * loot rows off the configs they are handed, so leaving one out turns an outstanding split into a
- * debt nobody owes. See V33__party_standing.sql.
+ * runs, so no list that answers "what is on this week" should carry them. Every caller that reads
+ * POOLS asks for them, and must: it keys its loot rows off the configs it was handed, so leaving one
+ * out turns an outstanding split into a debt nobody owes. Party View draws only the standing ones
+ * and still asks for all of them, because a coupon debt cancels against the other nights with the
+ * same person and it billed one again that the Drop Log had already washed. See
+ * V33__party_standing.sql.
  */
 internal fun partiesFor(
     userId: String,

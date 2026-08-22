@@ -2,10 +2,12 @@
 
 import { useState } from "react";
 import { DropPicker } from "@/components/drop-picker";
+import { configFor, otherMembers } from "@/lib/parties";
 import type { Boss } from "@/types/boss";
 import type { Character } from "@/types/character";
 import type { DropTables } from "@/types/drop";
 import type { LogDropBody } from "@/types/loot";
+import type { Party } from "@/types/party";
 
 // The Drop Log's own form: whose character, which boss, what fell.
 //
@@ -18,16 +20,29 @@ import type { LogDropBody } from "@/types/loot";
 //
 // The pool is still not asked for or sent. A boss may have no pool at all yet, and which one it is
 // follows from the character and the boss.
+//
+// One case that resolution does not speak for itself: a RETIRED config still holds the pair's slot,
+// so the drop lands in it and divides by the roster it had when it came off the lists. That is a
+// party you were told you no longer run, splitting a drop with people who may not have been there,
+// and it is the one thing this form has to say out loud.
 
 export function LogDrop({
   characters,
   bosses,
+  parties,
   dropTables,
   busy,
   onLog,
 }: {
   characters: Character[];
   bosses: Boss[];
+  /**
+   * Every config, retired ones included, to name the pool this drop will land in.
+   *
+   * Retired ones are the whole point: without them this cannot tell a boss with no config from one
+   * whose config is off the lists, and those two file a drop very differently.
+   */
+  parties: Party[];
   dropTables: DropTables;
   busy: boolean;
   /** Rejecting keeps the picked drop on screen, so a refusal can be retried without re-picking. */
@@ -43,6 +58,9 @@ export function LogDrop({
   if (!character) return null;
 
   const chosen = bosses.some((b) => b.bossKey === bossKey) ? bossKey : "";
+  const pool = configFor(parties, character.id, chosen);
+  // Seats to name, or none. A retired pool of one splits with nobody, so it has nothing to say.
+  const retiredSeats = pool?.retired ? otherMembers(pool) : [];
 
   return (
     <section className="loot-pool add-panel">
@@ -95,6 +113,14 @@ export function LogDrop({
           })
         }
       />
+
+      {/* Under the picker rather than beside the boss select: it is about what the submit will do,
+        and .loot-add is a row of controls. Named seats, because the names are what you can act on. */}
+      {retiredSeats.length > 0 && (
+        <p className="split-note">
+          Retired party: splits with {retiredSeats.map((m) => m.name).join(", ")}.
+        </p>
+      )}
     </section>
   );
 }

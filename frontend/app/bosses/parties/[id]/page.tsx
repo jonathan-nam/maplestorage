@@ -35,7 +35,11 @@ const BOSSES_KEY = "/api/bosses";
 const DROPS_KEY = "/api/bosses/drops";
 const SETTLEMENTS_KEY = "/api/vestige-settlements";
 const TRANCHES_KEY = "/api/vestige-tranches";
-const PARTIES_KEY = "/api/parties";
+// Every config, for the log below alone. buildDropLog skips a pool whose config it cannot find, and
+// a coupon debt cancels against the OTHER nights with the same person, so a retired config or a solo
+// pool left out of this list moves the figure this page draws for the party you are looking at. Same
+// key as the Drop Log, so the two cannot disagree about what is owed. See partiesFor.
+const PARTIES_KEY = "/api/parties?solo=include&retired=include";
 const POOLS_KEY = "/api/parties/loot";
 // Rows are keyed by their drop's id while they save. The picker is not a row, so it takes a name of
 // its own. See lib/use-row-writes.ts.
@@ -262,6 +266,11 @@ export default function PartyPage() {
               {/* Your own character among them, unlike the strips on Party View, which put it in the
                 header and list only the others. Here it is one of the shares. */}
               <RosterStrip members={party.members} />
+              {/* This config is off every list, so this page is the only one that can say so. It is
+                still reachable, and it has to be: an old drop is sold and paid out from here. What
+                the word is for is the picker below, which would otherwise divide tonight's drop by
+                the roster above without anything saying the party had ended. */}
+              {party.retired && <span className="party-card-retired">Retired</span>}
               <span className="party-card-size">{partySizeLabel(party.members.length)}</span>
             </div>
 

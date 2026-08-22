@@ -3440,6 +3440,15 @@ button.link:disabled {
   letter-spacing: 0.04em;
 }
 
+/* The size label's shape, in the caveat colour: a retired config is not an error, it is a fact
+   about the page you are on. Only the party's own page draws one, since no list carries them. */
+.party-card-retired {
+  color: var(--warn);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
 .party-mvp {
   font-size: 10px;
   letter-spacing: 0.04em;

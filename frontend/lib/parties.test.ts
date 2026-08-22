@@ -3,6 +3,7 @@ import {
   bossesWithoutConfig,
   byBoss,
   byCharacter,
+  configFor,
   consolidate,
   existedInWeek,
   filterByClear,
@@ -230,6 +231,25 @@ describe("consolidate", () => {
     const otherCharacter = config("p3", "char-2", "kalos", ["CreedBratton"]);
 
     expect(consolidate([duo, trio, otherCharacter], ["char-1", "char-2"])).toHaveLength(3);
+  });
+});
+
+describe("configFor", () => {
+  it("finds the config a drop on this character and boss will land in", () => {
+    const mine = config("p1", "char-1", "limbo", ["X"]);
+    const theirs = config("p2", "char-2", "limbo", ["X"]);
+
+    expect(configFor([mine, theirs], "char-1", "limbo")?.id).toBe("p1");
+    expect(configFor([mine, theirs], "char-1", "baldrix")).toBeUndefined();
+  });
+
+  it("answers with a retired config, the way the server's own lookup does", () => {
+    // partyIdFor does not filter on standing, so this must not either: a retired config still holds
+    // the pair's slot and a drop logged on the pair lands in it, split by the roster it kept. A form
+    // that could not see it would say nothing about a party that has ended.
+    const gone = { ...config("p1", "char-1", "limbo", ["X"]), retired: true };
+
+    expect(configFor([gone], "char-1", "limbo")?.retired).toBe(true);
   });
 });
 
