@@ -718,7 +718,7 @@ export default function RunOrderPage() {
       {runs.length > 0 && (
         <label className="night-toggle">
           <input type="checkbox" checked={timed} onChange={(e) => setTimed(e.target.checked)} />
-          <span>Show times</span>
+          <span>Enable Time Configuration</span>
         </label>
       )}
 
