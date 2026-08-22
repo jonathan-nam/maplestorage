@@ -304,7 +304,22 @@ export function statusLabel(status: string): string {
  */
 export function formatDropped(iso: string): string {
   const [year, month, day] = iso.split("-").map(Number);
-  if (!year || !month || !day) return iso;
   const months = "Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec".split(" ");
+  // The month range as well as its presence: month 13 indexed past the end and drew "40 undefined".
+  // Same guard formatWeekStart carries, for the same reason.
+  if (!year || !month || !day || month > months.length) return iso;
   return `${day} ${months[month - 1]}`;
+}
+
+/**
+ * The same date carrying its year, for a list whose whole content is order in time.
+ *
+ * Every other reading of a date sits inside something that already fixes the year: the Drop Log
+ * groups by month, a pool row is one party's current business. One drop's history is neither, and
+ * two acts a year apart drew identically.
+ */
+export function formatDroppedWithYear(iso: string): string {
+  const said = formatDropped(iso);
+  const year = iso.slice(0, 4);
+  return said === iso || year.length !== 4 ? iso : `${said} ${year}`;
 }

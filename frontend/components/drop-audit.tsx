@@ -1,14 +1,16 @@
 import Link from "next/link";
 import { apiAssetUrl } from "@/lib/api";
+import { formatWeekStart } from "@/lib/boss-clears";
 import { formatMesos } from "@/lib/drop-split";
-import { formatDropped } from "@/lib/loot";
+import { formatDroppedWithYear, statusLabel } from "@/lib/loot";
+import { worldLabel } from "@/lib/world";
 import type { AuditEvent, DropAudit } from "@/lib/drop-audit";
 
 // One drop's history. Every figure comes off lib/drop-audit.ts, which comes off splitOf() and the
 // log's own entry: nothing here adds anything up.
 
-/** The day part of a timestamp. A history of days, like the offsets list. */
-const dayOf = (at: string) => formatDropped(at.slice(0, 10));
+/** The day part of a timestamp, with its year. A history of days, like the offsets list. */
+const dayOf = (at: string) => formatDroppedWithYear(at.slice(0, 10));
 
 /** The act, in one word where one word will do. */
 function what(event: AuditEvent): string {
@@ -125,13 +127,38 @@ function figure(event: AuditEvent): React.ReactNode {
 }
 
 export function DropAuditView({ audit }: { audit: DropAudit }) {
+  // Your share OUT OF what fell, worded as the pool row words it, and for the same reason: the two
+  // numbers side by side made the reader subtract. Said only where they differ, so a drop that came
+  // out even keeps the plain count. See loot-row.tsx.
+  const share = audit.yours === audit.quantity ? null : audit.yours;
+  // Facts, joined the way a pool row's meta joins them. The boss and the day are the DROPPED row's
+  // and are not repeated here.
+  const meta = [
+    audit.character,
+    worldLabel(audit.worldType),
+    `Week of ${formatWeekStart(audit.weekStart)}`,
+  ];
+
   return (
     <>
       <h1 className="page-title">
         {audit.iconUrl && <img className="loot-icon" src={apiAssetUrl(audit.iconUrl)} alt="" />}
         {audit.name}
-        {audit.quantity > 1 && <span className="loot-count"> x{audit.quantity}</span>}
+        {share !== null ? (
+          <span className="loot-count">
+            {" "}
+            {share} out of {audit.quantity}
+          </span>
+        ) : (
+          audit.quantity > 1 && <span className="loot-count"> x{audit.quantity}</span>
+        )}
+        {/* Where the drop stands now. The list says what happened; without this the reader works
+            that out by finding the last row and knowing which acts end a drop. */}
+        <span className={`loot-status is-${audit.status.toLowerCase()}`}>
+          {statusLabel(audit.status)}
+        </span>
       </h1>
+      <p className="audit-meta">{meta.filter(Boolean).join(" · ")}</p>
 
       <ul className="audit-list">
         {audit.events.map((event) => (

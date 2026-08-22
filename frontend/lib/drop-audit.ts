@@ -17,6 +17,7 @@ import { splitOf } from "./loot";
 import { holderKey } from "./vestige-ledger";
 import type { DropEntry } from "./drop-log";
 import type { Boss } from "@/types/boss";
+import type { WorldType } from "./world";
 import type { Loot, PartyLootPool } from "@/types/loot";
 import type { Party } from "@/types/party";
 import type { SettlementDebt, VestigeSettlement } from "@/types/vestige";
@@ -102,9 +103,25 @@ export type DropAudit = {
   partyRetired: boolean;
   name: string;
   iconUrl: string | null;
+  /** What FELL, as the pool files it. Your part of it is `yours`. */
   quantity: number;
+  /**
+   * How many of it are yours, which on a divided night is not what fell.
+   *
+   * The Drop Log row counts a coupon night as x30 and the pool row as x60, deliberately, and this
+   * page was reachable from the first while showing only the second. See DropEntry.yours.
+   */
+  yours: number;
   /** Already labelled with the party's difficulty. Null when the boss is not in the catalog. */
   boss: string | null;
+  /** Raw, not a label: the badge wants a class off it as well as words. See statusLabel. */
+  status: string;
+  /** The reset week it fell in, as that week's Thursday. The server's reckoning. */
+  weekStart: string;
+  /** Whose config it fell on. Null when that character has no seat left to name it. */
+  character: string | null;
+  /** Why a drop can be taken rather than sold: Heroic worlds do not trade. See lib/world.ts. */
+  worldType: WorldType;
   events: AuditEvent[];
 };
 
@@ -268,7 +285,14 @@ export function buildDropAudit(
     name: entry.name,
     iconUrl: entry.iconUrl,
     quantity: entry.quantity,
+    yours: entry.yours,
     boss: bossName,
+    status: entry.status,
+    weekStart: entry.weekStart,
+    // The seat the config is built on, which is the one seat of yours that is always there. Read off
+    // `seats` rather than `members`: a week you sat out still has the character whose config it is.
+    character: party.seats.find((seat) => seat.characterId === party.characterId)?.name ?? null,
+    worldType: party.worldType,
     events: [...events, ...inOrder(acts)],
   };
 }
