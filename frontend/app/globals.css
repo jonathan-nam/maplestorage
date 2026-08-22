@@ -95,6 +95,13 @@
   margin-right: 8px;
 }
 
+/* A title can carry the badge its row carried, so the state survives the click. Same alignment
+   problem as the art above, from the other side: an 11px pill beside 20px words. */
+.page-title .loot-status {
+  vertical-align: middle;
+  margin-left: 10px;
+}
+
 /* The title on the left, the ways off the page on the right, on one line. */
 .page-head {
   display: flex;
@@ -5135,6 +5142,14 @@ button.link:disabled {
   margin: 0 0 12px;
 }
 
+/* Which config the drop fell on, in facts and separators. The boss and the day are on the DROPPED
+   row and are not repeated here. Pulled up under the title, whose own margin is the gap. */
+.audit-meta {
+  margin: -14px 0 20px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
 /* One drop's history, oldest first. A row is an act: when it happened, what it was, and the figure
    it moved. Reuses `.droplog-amounts` for that figure, so a share reads the same here as on the row
    that links here. */
@@ -5166,10 +5181,12 @@ button.link:disabled {
 }
 
 /* Fixed, so the dates line up down the left however short a month's name is, and so the blank on an
-   undated row keeps its column. */
+   undated row keeps its column. Wide enough for the year: "10 May 2026" is the widest date
+   formatDroppedWithYear can produce at 78px, and it wrapped to two lines in the 72px this was.
+   Pinned by lib/audit-date-css.test.ts, which measures the strings rather than trusting this. */
 .audit-when {
   flex: none;
-  width: 72px;
+  width: 88px;
   color: var(--muted);
   font-size: 12px;
   font-variant-numeric: tabular-nums;

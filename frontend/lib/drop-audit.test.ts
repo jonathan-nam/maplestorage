@@ -247,6 +247,50 @@ describe("what one drop's history says", () => {
   });
 });
 
+// The page was a list of acts and nothing else: where the drop stands, whose config it fell on and
+// which world that is were all in hand and none of them drawn. They are facts off the entry and the
+// party, so what these pin is that no reading of them was invented on the way through.
+describe("what the page says about the drop itself", () => {
+  it("carries the state the row that links here was showing", () => {
+    expect(auditOf([drop()])!.status).toBe("PAID_OUT");
+    expect(auditOf([night()])!.status).toBe("PENDING");
+  });
+
+  it("names the config's own character and its world", () => {
+    const audit = auditOf([drop()])!;
+    expect([audit.character, audit.worldType]).toEqual(["mechyfechy", "INTERACTIVE"]);
+  });
+
+  it("still names the character on a week that character sat out", () => {
+    // `members` is one week's roster and can be anybody. `seats` is every seat the config ever had,
+    // which is the only list the config's own character is certainly on.
+    const audit = auditOf([drop()], { over: { members: [theirs("m2", "CreedBratton")] } })!;
+    expect(audit.character).toBe("mechyfechy");
+  });
+
+  it("says nothing rather than guessing when no seat is the config's character", () => {
+    const audit = auditOf([drop()], { over: { characterId: "char-gone" } })!;
+    expect(audit.character).toBeNull();
+  });
+
+  it("carries the week as the server reckoned it, not a week read off the date", () => {
+    expect(auditOf([drop({ droppedOn: "2026-08-09" })])!.weekStart).toBe("2026-08-06");
+  });
+
+  it("counts your share of a divided night apart from what fell", () => {
+    // The whole point of carrying both: the Drop Log row that opens this page counts the night as
+    // 30 and the pool counts it as 60, and the page used to show only the second.
+    const audit = auditOf([night()])!;
+    expect([audit.yours, audit.quantity]).toEqual([30, 60]);
+  });
+
+  it("makes the two counts equal on a drop that did not divide", () => {
+    // What lets the header drop back to a plain count: there is no share to state.
+    const audit = auditOf([drop()])!;
+    expect(audit.yours).toBe(audit.quantity);
+  });
+});
+
 describe("an offset and the share it discharged", () => {
   it("is one act, not a payment as well", () => {
     // The offset marked the payout PAID, which is its bookkeeping and not a second thing that

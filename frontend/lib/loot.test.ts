@@ -3,6 +3,7 @@ import { splitDrop } from "./drop-split";
 import {
   dropsInWeek,
   formatDropped,
+  formatDroppedWithYear,
   memberFee,
   poolLabel,
   poolSize,
@@ -241,6 +242,24 @@ describe("formatDropped", () => {
   it("reads the date as written rather than through a timezone", () => {
     expect(formatDropped("2026-07-20")).toBe("20 Jul");
     expect(formatDropped("2026-01-01")).toBe("1 Jan");
+  });
+
+  it("gives back a month it cannot name rather than naming it undefined", () => {
+    // Month 13 indexed past the end of the names and drew "40 undefined" on screen.
+    expect(formatDropped("2026-13-40")).toBe("2026-13-40");
+    expect(formatDropped("2026-00-01")).toBe("2026-00-01");
+  });
+});
+
+describe("formatDroppedWithYear", () => {
+  it("says the year, so two acts a year apart do not read the same", () => {
+    expect(formatDroppedWithYear("2026-07-20")).toBe("20 Jul 2026");
+    expect(formatDroppedWithYear("2025-07-20")).toBe("20 Jul 2025");
+  });
+
+  it("gives an unreadable date back whole rather than dressing it with a year", () => {
+    expect(formatDroppedWithYear("not a date")).toBe("not a date");
+    expect(formatDroppedWithYear("2026-13-40")).toBe("2026-13-40");
   });
 });
 
