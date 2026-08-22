@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 //
 // It seeded from ran[0], whichever seat sits first in the week's roster by PartyMember.position.
 // Submitting without opening the select therefore recorded a specific person as holding the value
-// and owing everyone else, off nothing. Now that a drop can say who picked it up (V64), the seat
+// and owing everyone else, off nothing. Now that a drop can say who picked it up (V65), the seat
 // holding it is a recorded fact, and that is the one to open on.
 //
 // A source test, like paid-toggle.test.ts: the seed is a useState initialiser in the JSX and the

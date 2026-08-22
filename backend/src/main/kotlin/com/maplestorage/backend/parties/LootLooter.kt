@@ -10,9 +10,9 @@ import kotlin.uuid.Uuid
 // Who picked a drop up: the check, and the write. In its own file for the reason LootBundles.kt is,
 // LootWrites.kt being at detekt's function ceiling.
 //
-// Until V64 the holder of an indivisible drop was recorded nowhere until it SOLD, since
+// Until V65 the holder of an indivisible drop was recorded nowhere until it SOLD, since
 // seller_member_id arrives with the sale. A member who does not loot is waiting on that sale, so
-// their Drop Log listed rows with a stage and no holder. See V64__loot_looter.sql.
+// their Drop Log listed rows with a stage and no holder. See V65__loot_looter.sql.
 
 /**
  * Why a named looter cannot be recorded, or null when it can, naming none included.

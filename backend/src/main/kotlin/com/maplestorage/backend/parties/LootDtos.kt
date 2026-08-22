@@ -60,7 +60,7 @@ data class LootResponse(
     // same time as a sale. Nothing is owed off it: the item cannot move again. See V49.
     val takenByMemberId: String? = null,
     // Which seat picked it up. Null is nobody having said, and is what a divisible drop always
-    // carries: its stacks are bundlesBy's to name one by one. See V64__loot_looter.sql.
+    // carries: its stacks are bundlesBy's to name one by one. See V65__loot_looter.sql.
     val looterMemberId: String? = null,
     val soldAt: String?,
     // Who is owed, as pinned when the drop sold. Empty until then.

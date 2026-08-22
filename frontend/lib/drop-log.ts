@@ -139,7 +139,7 @@ export type DropEntry = {
    * Who is holding this drop, when it is not you. What the meta line names, for both kinds.
    *
    * A divisible drop reads it off the night's arrangement, so it is `owedBy`. Anything else reads
-   * the seat that was recorded as picking it up (V64), which until then was written down nowhere
+   * the seat that was recorded as picking it up (V65), which until then was written down nowhere
    * until the drop SOLD: a member who does not loot had a row with a stage and no holder, and
    * nothing on screen saying who to ask for the sale they were waiting on.
    *

@@ -49,7 +49,7 @@ export type Loot = {
   //
   // OPTIONAL for the reason sharesThatWeek is: lib/cache.ts hands back whatever shape the API had
   // when the page last fetched, and absent has to mean "nobody said", which is what those rows
-  // meant. See V64__loot_looter.sql.
+  // meant. See V65__loot_looter.sql.
   looterMemberId?: string | null;
   soldAt: string | null;
   // Who is owed, pinned when the drop sold. Empty before that.

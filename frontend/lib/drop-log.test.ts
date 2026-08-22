@@ -1299,7 +1299,7 @@ describe("a divisible drop answers this from its arrangement", () => {
 
   it("reads the stacks, not a looter, so the two cannot disagree", () => {
     // Bro took both stacks of a 60 that owed him 30, so he is holding 30 of yours. A single looter
-    // id could only have said "Bro" and lost the count, which is why V64 leaves this column null on
+    // id could only have said "Bro" and lost the count, which is why V65 leaves this column null on
     // a drop that divides.
     const loot = coupons({
       bundles: 2,

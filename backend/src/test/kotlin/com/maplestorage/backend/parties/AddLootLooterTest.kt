@@ -27,7 +27,7 @@ import kotlin.uuid.Uuid
 /**
  * Who picked a drop up, carried with the drop that logs it, against a real Postgres.
  *
- * Until V64 the holder of an indivisible drop was written down nowhere until it SOLD, and the sale
+ * Until V65 the holder of an indivisible drop was written down nowhere until it SOLD, and the sale
  * is what a member who does not loot is waiting on. The claims worth a database are that the column
  * round-trips, and that the roster it is checked against is the week the drop FELL in, which is the
  * same list the seller comes from and is not a thing the request can assert about itself.
