@@ -5123,6 +5123,69 @@ button.link:disabled {
   margin: 0 0 12px;
 }
 
+/* One drop's history, oldest first. A row is an act: when it happened, what it was, and the figure
+   it moved. Reuses `.droplog-amounts` for that figure, so a share reads the same here as on the row
+   that links here. */
+.audit-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.audit-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  font-size: 13px;
+}
+
+/* No date: an act nobody recorded a day for, or one that has not happened yet. Set back like a
+   pending drop row, which is the same distinction. */
+.audit-row.is-undated {
+  background: var(--surface-2);
+}
+
+/* Fixed, so the dates line up down the left however short a month's name is, and so the blank on an
+   undated row keeps its column. */
+.audit-when {
+  flex: none;
+  width: 72px;
+  color: var(--muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.audit-what {
+  flex: none;
+  width: 66px;
+  color: var(--ink-strong);
+}
+
+/* Takes the spare width and gives it back under pressure, as `.droplog-title` does: without this a
+   roster of three names pushes the figure off the right rather than wrapping. */
+.audit-detail {
+  flex: 1;
+  min-width: 0;
+  color: var(--muted);
+}
+
+.audit-detail .loot-name {
+  font-size: 13px;
+  text-decoration: none;
+}
+
+.audit-detail .loot-name:hover {
+  color: var(--accent);
+}
+
 /* A party row opens to show who is in it. Closed is the default: the heading, the size and the
    clear state are what the list is scanned for, and a dozen bosses was a dozen rows of sprites to
    scroll past. */

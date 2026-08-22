@@ -525,6 +525,7 @@ export default function DropLogPage() {
         for (const share of split.shares) {
           offsetShares.set(shareKey(loot.id, share.memberId), {
             key: shareKey(loot.id, share.memberId),
+            lootId: loot.id,
             item: loot.name,
             iconUrl: loot.iconUrl,
             boss: boss ? bossLabel(boss.name, party.difficulty) : "Unknown boss",
