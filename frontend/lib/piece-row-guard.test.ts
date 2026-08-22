@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
@@ -57,5 +57,17 @@ describe("a piece drop cannot be sold through its own row", () => {
       expect(source("components", caller)).toContain("<LootList");
       expect(source("components", caller)).not.toContain("<LootRow");
     }
+  });
+
+  it("names every screen that draws the sale form without a row around it", () => {
+    // The form is its own component now, so the `pieces` gate above is not the only thing standing
+    // between a coupon stack and a price box: anything rendering LootSaleForm directly answers for
+    // its own rows. RowSale's come from rowSales, which drops piece drops (see lot-sale.test.ts).
+    // A third caller has to be looked at, so it fails here rather than shipping.
+    const dir = join(__dirname, "..", "components");
+    const callers = readdirSync(dir).filter((file) =>
+      readFileSync(join(dir, file), "utf8").includes("<LootSaleForm"),
+    );
+    expect(callers.sort()).toEqual(["loot-row.tsx", "row-sale.tsx"]);
   });
 });

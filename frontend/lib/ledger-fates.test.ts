@@ -731,8 +731,8 @@ describe("the way back to a pile the ledger held back", () => {
     // A heading over no cards is a heading over nothing, and holding a pile back is exactly what
     // empties the section underneath it. The revealed card is outside the section, so it is `drawn`
     // that decides, not the piles on screen.
-    expect(page).not.toMatch(/sellableLots \|\| ledgers\.length > 0/);
-    expect(page).toMatch(/sellableLots \|\| drawn\.length > 0/);
+    expect(page).not.toMatch(/anythingToPrice \|\| ledgers\.length > 0/);
+    expect(page).toMatch(/anythingToPrice \|\| drawn\.length > 0/);
   });
 
   it("draws no card for somebody else's pile, whose debt is the Settlement Ledger's to state", () => {

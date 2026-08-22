@@ -1,0 +1,132 @@
+"use client";
+
+import { useState } from "react";
+import { LootSaleForm } from "@/components/loot-sale-form";
+import { apiAssetUrl } from "@/lib/api";
+import { bossLabel } from "@/lib/boss-difficulty";
+import { formatDropped } from "@/lib/loot";
+import type { LotRow } from "@/lib/lot-sale";
+import type { SellLootBody } from "@/types/loot";
+import type { Boss } from "@/types/boss";
+import type { Character } from "@/types/character";
+import type { Party } from "@/types/party";
+
+// One card per unsold drop that prices ALONE, and the form that prices it.
+//
+// The other half of the Sale Ledger's lots. A drop whose copies are interchangeable is sold as a
+// pile and the rows are proposed; a drop with its own potential lines has its own price, so a queue
+// could only guess which one went and the card names ONE row instead. See rowSales.
+//
+// The row is named in full, because these cards stand together across every party you keep: the
+// boss with its difficulty, whose pool it is in, and the day it fell. Nothing else on the card
+// would say which of two rings this is.
+//
+// Nothing here divides anything. It is LootSaleForm's boxes and the party page's own sale route, so
+// a ring priced here and a ring priced on Party View are one write.
+
+export function RowSale({
+  rows,
+  bossByKey,
+  partyById,
+  characterById,
+  busy,
+  onSell,
+}: {
+  rows: LotRow[];
+  bossByKey: Map<string, Boss>;
+  partyById: Map<string, Party>;
+  characterById: Map<string, Character>;
+  busy: boolean;
+  onSell: (row: LotRow, body: SellLootBody) => Promise<void>;
+}) {
+  // Cards only. The "Record Sale" heading covers these, the lots and the coupon piles, so it
+  // belongs to whatever draws all three.
+  if (rows.length === 0) return null;
+  return (
+    <>
+      {rows.map((row) => (
+        <RowCard
+          key={row.lootId}
+          row={row}
+          boss={bossByKey.get(row.bossKey ?? "") ?? null}
+          party={partyById.get(row.partyId) ?? null}
+          characterName={characterById.get(row.characterId)?.name ?? null}
+          busy={busy}
+          onSell={onSell}
+        />
+      ))}
+    </>
+  );
+}
+
+function RowCard({
+  row,
+  boss,
+  party,
+  characterName,
+  busy,
+  onSell,
+}: {
+  row: LotRow;
+  boss: Boss | null;
+  party: Party | null;
+  characterName: string | null;
+  busy: boolean;
+  onSell: (row: LotRow, body: SellLootBody) => Promise<void>;
+}) {
+  const [refusal, setRefusal] = useState<string | null>(null);
+
+  // The party is what the form's controls are read against, so without it there is no card to draw.
+  // rowSales only returns rows whose party it found, which is what makes this unreachable rather
+  // than a case with a message.
+  if (party === null) return null;
+
+  async function sell(body: SellLootBody) {
+    setRefusal(null);
+    try {
+      await onSell(row, body);
+    } catch (e) {
+      setRefusal(e instanceof Error ? e.message : "That didn't save.");
+    }
+  }
+
+  return (
+    <section className="ledger-card">
+      <header className="ledger-head">
+        {row.iconUrl ? (
+          <img className="loot-icon" src={apiAssetUrl(row.iconUrl)} alt="" />
+        ) : (
+          // The drop has no official art (see catalog/drops.yaml). An empty frame keeps the card
+          // aligned with the ones that do.
+          <span className="loot-icon" aria-hidden="true" />
+        )}
+        <span className="loot-title">
+          <span className="loot-name">
+            {row.name}
+            {row.units > 1 && <span className="loot-count"> x{row.units}</span>}
+          </span>
+          <span className="loot-meta">
+            {[
+              boss ? bossLabel(boss.name, party.difficulty) : null,
+              characterName,
+              formatDropped(row.droppedOn),
+            ]
+              .filter(Boolean)
+              .join(" · ")}
+          </span>
+        </span>
+      </header>
+
+      <LootSaleForm
+        party={party}
+        // The seats that RAN the week it fell, which `shares` already has one key each for. Not the
+        // party as it stands now: the sale route refuses a seller who was not there.
+        ran={party.seats.filter((s) => s.id in row.shares)}
+        busy={busy}
+        onSell={(body) => void sell(body)}
+      />
+
+      {refusal && <span className="split-error">{refusal}</span>}
+    </section>
+  );
+}

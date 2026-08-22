@@ -22,10 +22,12 @@ export type SaleCards = {
   holders: number;
   /** One card per pile of an interchangeable drop waiting to be priced. */
   lots: number;
+  /** One card per unsold drop that prices alone, which is a row rather than a pile. See rowSales. */
+  rows: number;
 };
 
-export function saleCards({ unanswered, holders, lots }: SaleCards): number {
-  return (unanswered > 0 ? 1 : 0) + holders + lots;
+export function saleCards({ unanswered, holders, lots, rows }: SaleCards): number {
+  return (unanswered > 0 ? 1 : 0) + holders + lots + rows;
 }
 
 /** The tabs, which are the same four however little is behind them, and in pipeline order. */

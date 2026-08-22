@@ -10,16 +10,21 @@
 // price, so two of them are two different sales, and a queue that picked one would file a sale
 // against a party that did not make it. See the note on `proposeLot`.
 //
+// Which is why `rowSales` is here too: those drops are sold from the Drop Log as well, a card per
+// row rather than a queue, and the two lists must not overlap. Both read the same `fungible` set,
+// so nothing can be offered twice and nothing can fall between them.
+//
 // NOTHING here is a second splitter. A row, once priced, goes through the ordinary sale: splitOf(),
 // which is splitDrop(). The only arithmetic in this file is dividing the lot's mesos across the rows
 // it covers, and that is piece-ledger's largestRemainder, so the slices add up to exactly what was
 // entered.
 
+import { isPieceDrop, isUntradeablePiece } from "./drop-log";
 import { largestRemainder } from "./piece-ledger";
 import { holderKey, holderOf } from "./vestige-ledger";
 import { canTrade } from "./world";
 import type { DropTables } from "@/types/drop";
-import type { PartyLootPool } from "@/types/loot";
+import type { Loot, PartyLootPool } from "@/types/loot";
 import type { Party, PartyMember } from "@/types/party";
 
 /**
@@ -39,7 +44,7 @@ export function fungibleDropKeys(dropTables: DropTables): Set<string> {
   return keys;
 }
 
-/** One unsold row a lot could cover, with everything the sale it will file needs. */
+/** One unsold row a sale could be filed against, with everything that sale needs. */
 export type LotRow = {
   lootId: string;
   partyId: string;
@@ -70,7 +75,7 @@ export type LotRow = {
 };
 
 /**
- * The unsold rows of one drop that a lot could cover, oldest first.
+ * Every unsold row a sale could be filed against, oldest first, narrowed by `wanted`.
  *
  * By `droppedOn`, which is the Drop Log's own order and the plain reading of "the oldest ones went
  * first". The loot id breaks ties, so two drops logged the same day keep one order and the queue
@@ -79,13 +84,16 @@ export type LotRow = {
  * A row is only here when the holder has a seat that RAN that week: they are who the sale names as
  * seller, and the server refuses a seller who was not there. So a lot is one person's, and a pool
  * where they did not run is not theirs to price.
+ *
+ * Shared by the two ways a drop is priced from the Drop Log, a queue of interchangeable copies and
+ * a row of its own, so which rows are sellable at all is decided once.
  */
-export function lotQueue(
+function sellableRows(
   parties: Party[],
   pools: PartyLootPool[],
-  dropKey: string,
-  /** Whose lot it is, as holderKey() spells it. `SELF_KEY` is yours. */
+  /** Whose rows these are, as holderKey() spells it. `SELF_KEY` is yours. */
   holder: string,
+  wanted: (loot: Loot, party: Party) => boolean,
 ): LotRow[] {
   const partyById = new Map(parties.map((p) => [p.id, p]));
   const rows: LotRow[] = [];
@@ -97,7 +105,7 @@ export function lotQueue(
     if (!party || !canTrade(party.worldType)) continue;
 
     for (const loot of pool.loot) {
-      if (loot.dropKey !== dropKey || loot.soldAt !== null || loot.quantity < 1) continue;
+      if (loot.soldAt !== null || loot.quantity < 1 || !wanted(loot, party)) continue;
 
       const ran = party.seats.filter((s) => loot.ranThatWeek.includes(s.id));
       const seller = ran.find((s) => holderKey(holderOf(s)) === holder);
@@ -123,6 +131,16 @@ export function lotQueue(
   return rows.sort(
     (a, b) => a.droppedOn.localeCompare(b.droppedOn) || a.lootId.localeCompare(b.lootId),
   );
+}
+
+/** The unsold rows of one interchangeable drop that a lot could cover, oldest first. */
+export function lotQueue(
+  parties: Party[],
+  pools: PartyLootPool[],
+  dropKey: string,
+  holder: string,
+): LotRow[] {
+  return sellableRows(parties, pools, holder, (loot) => loot.dropKey === dropKey);
 }
 
 /**
@@ -294,4 +312,40 @@ export function lotDrops(
     });
   }
   return out.sort((a, b) => b.units - a.units || a.name.localeCompare(b.name));
+}
+
+/**
+ * Every unsold drop of yours that prices ALONE, oldest first.
+ *
+ * The complement of the lots above, and the four accessories, the four hammers, the selection box
+ * and the two rings are all in it. Each has its own potential lines and its own price, so a queue
+ * holding two of them could only guess which one went, which is why they are out of `fungible` and
+ * why each gets a card naming ONE row instead. A row somebody points at raises no such question.
+ *
+ * Piece drops are out. They divide by COUNT and are settled in tranches, so pricing one here would
+ * be a second settlement for a drop the piece ledger is already counting.
+ *
+ * Untradeable drops are out on the item alone, not on being divisible. Every one of them divides
+ * somewhere, but a mode nobody has counted has no amount, and `isPieceDrop` reads a missing amount
+ * as "not pieces": an Easy Kalos token would have arrived here as a thing to sell.
+ *
+ * Free text is in. A drop typed by hand has no catalog row to call it interchangeable, and it is
+ * still something you sold.
+ */
+export function rowSales(
+  parties: Party[],
+  pools: PartyLootPool[],
+  dropTables: DropTables,
+  fungible: Set<string>,
+  holder: string,
+): LotRow[] {
+  return sellableRows(
+    parties,
+    pools,
+    holder,
+    (loot, party) =>
+      !fungible.has(loot.dropKey ?? "") &&
+      !isUntradeablePiece(loot, dropTables) &&
+      !isPieceDrop(loot, party, dropTables),
+  );
 }
