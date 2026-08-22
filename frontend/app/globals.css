@@ -86,8 +86,11 @@
 }
 
 /* Inline rather than a flex row, because a pool page's title runs on into "with Alice, Bob" and
-   has to wrap as one paragraph. */
-.page-title .boss-portrait {
+   has to wrap as one paragraph. Art in a title needs BOTH of these: an inline image sits on the
+   baseline by default, which left a 46px drop icon hanging 16px above the words beside it, and the
+   only space between them was whatever whitespace the markup happened to carry. */
+.page-title .boss-portrait,
+.page-title .loot-icon {
   vertical-align: middle;
   margin-right: 8px;
 }
