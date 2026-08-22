@@ -8,34 +8,28 @@
 
 <p align="center"><em>A greater view of your whole MapleStory account.</em></p>
 
-The game shows you one character at a time. SharpEyes reads your screenshots and counts across all
-of them.
+The game shows you one character at a time, and a boss night is settled afterwards from memory.
+SharpEyes holds the week for the whole account: what each character cleared, who you ran it with,
+what fell, and who is owed what.
 
-## What it does
+## Bossing
 
-- **Characters.** Add by name. Level, job and sprite are looked up for you.
-- **Inventory.** Drop a screenshot on a character and it reads which items are there and how many.
-  It also reads the HUD name, and says so if the picture is not that character.
-- **Search.** 26 tracked items across every character: who is holding what, how many, and what each
-  can redeem now. Eternal pieces count per character, never pooled and never mixed.
-- **Boss clears.** Drop a Maple Planner screenshot per character and it reads what is cleared this
-  period. Tick the rest by hand.
-- **Individual View, Party View.** Clears by character, or by who you run each boss with and at what
-  difficulty. Earlier weeks are read-only.
-- **Who runs what.** Bosses a character does not run stop counting towards the week.
-- **Run Order.** Who is around and how long you have, in, out for time, and cannot be scheduled.
-  Copies as text.
-- **Drop Log, Wallet.** Log a party's drops and what they sold for to get each share. The Wallet is
-  the running total of who owes whom, settled per person.
+- **Individual View.** Every character against every boss for the week, ticked as they clear.
+  Bosses a character does not run stop counting towards the week.
+- **Party View.** The same week by party: who you ran each boss with, at what difficulty, and what
+  each seat is entitled to. Earlier weeks are read-only.
+- **Run Order.** Who is around tonight and how long you have, in, out for time, and cannot be
+  scheduled. Copies as text.
+- **Drop Log.** Four stages in one direction: what fell, what you sold, what that leaves owed, and
+  what is settled. A share is stated in mesos where it can be sold, and in pieces where it cannot.
 - **Split Utility.** A GMS Reg Server split, from the listed price or from what landed.
 
-## Limits
+## Items
 
-- An unreadable stack count is dropped, never guessed.
-- A rescaled capture (remote play, display scaling) is read at its own scale. Only a downscaled one
-  is refused.
-- No vision model and no API key. Reading a capture is a deterministic OpenCV pipeline, same answer
-  every time.
+- **Characters.** Add by name. Level, job, world and sprite are looked up for you.
+- **Inventory.** 31 tracked items, counted per character.
+- **Search.** Who is holding what, how many, and what each can redeem now. Eternal pieces count per
+  character, never pooled and never mixed.
 
 Running it yourself: `.devcontainer/README.md`.
 
@@ -44,7 +38,7 @@ Running it yourself: `.devcontainer/README.md`.
 SharpEyes is an unofficial fan project. It is **not affiliated with, endorsed by, or sponsored by
 Nexon**. MapleStory and all game assets are the property of Nexon.
 
-It reads screenshots you took of your own account, and it ships some of the game's art so that what
-it shows you looks like what you saw: boss portraits, item and drop icons, and the inventory count
-digits. Those are used to identify what the game already showed you, and they remain Nexon's. The
-project is free, carries no advertising, and is not sold.
+It ships some of the game's art so that what it shows you looks like what you saw: boss portraits,
+item and drop icons, and the inventory count digits. Those are used to identify what the game
+already showed you, and they remain Nexon's. The project is free, carries no advertising, and is
+not sold.
