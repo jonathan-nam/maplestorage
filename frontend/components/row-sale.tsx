@@ -126,7 +126,7 @@ function RowCard({
         onSell={(body) => void sell(body)}
       />
 
-      {refusal && <p className="split-error">{refusal}</p>}
+      {refusal && <span className="split-error">{refusal}</span>}
     </section>
   );
 }
