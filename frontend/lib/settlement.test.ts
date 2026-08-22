@@ -12,7 +12,12 @@ import {
   sharesOf,
   yourPiles,
 } from "./settlement";
-import { answeredKey, receivedSinceClosing, saleCredits } from "./vestige-ledger";
+import {
+  answeredKey,
+  paymentsSinceClosing,
+  receivedSinceClosing,
+  saleCredits,
+} from "./vestige-ledger";
 import type { CouponSale, Holder, HolderLedger } from "./vestige-ledger";
 import type { Counterparty, Wallet, WalletLine } from "./wallet";
 import type { ProceedsDisposal, SettlementDebt } from "@/types/vestige";
@@ -762,6 +767,34 @@ describe("the money a sale of somebody else's coupons puts on the card", () => {
     expect(receivedSinceClosing(paid, closed)).toEqual(new Map([["character:zaddy", 900 * M]]));
   });
 
+  // The card lists receipts one by one, so it needs the receipts and not their sum: a spent one is
+  // in no arithmetic on the card, and drawing it in the list would make the parts come to more than
+  // the net. See Receipts.
+  it("hands the card each receipt, split by the closure that spent it", () => {
+    const paid = [
+      { id: "p2", holder: BRO, amount: 500 * M, receivedAt: "2026-08-11T09:00:00Z" },
+      { id: "p1", holder: BRO, amount: 4_860 * M, receivedAt: "2026-08-10T22:01:46Z" },
+    ];
+    const closed = [{ holder: BRO, settledAt: "2026-08-10T22:21:53Z" }];
+    const split = paymentsSinceClosing(paid, closed).get("person:p-bro");
+    expect([split?.counted.map((r) => r.id), split?.spent.map((r) => r.id)]).toEqual([
+      ["p2"],
+      ["p1"],
+    ]);
+  });
+
+  it("hands them over oldest first, the order the money moved in", () => {
+    const paid = [
+      { id: "late", holder: BRO, amount: 500 * M, receivedAt: "2026-08-12T09:00:00Z" },
+      { id: "early", holder: BRO, amount: 400 * M, receivedAt: "2026-08-11T09:00:00Z" },
+    ];
+    expect(
+      paymentsSinceClosing(paid, [])
+        .get("person:p-bro")
+        ?.counted.map((r) => r.id),
+    ).toEqual(["early", "late"]);
+  });
+
   it("leaves the net where it was when a share you owe is OFFSET against theirs", () => {
     // The settlement two people actually make when the sums are lopsided: rather than send 139m and
     // have 254b come back, it comes off the larger figure. Marking the share paid ALONE said the
@@ -1135,6 +1168,34 @@ describe("what builds the debt, and what has come off it", () => {
       ),
     );
     expect(rows.discharges.map((d) => d.label)).toEqual(["coupon sale", "older"]);
+  });
+
+  // Money they SENT came off what they owe exactly as an offset does. It used to be one unlabelled
+  // "received" line in the owed list, saying the sum of every receipt and nothing about any of them,
+  // while the note it was entered with was legible only on a pill under the form.
+  it("takes a receipt as an act of its own, under the note it was entered with", () => {
+    const rows = moneyRows(card([entry("12", 5_000 * M, "oath")]), [
+      { id: "g1", amount: 210 * M, note: "20 stars", receivedAt: "2026-08-21T00:07:02Z" },
+    ]);
+    expect(rows.discharges.map((d) => [d.source, d.label, d.amount])).toEqual([
+      ["PAYMENT", "20 stars", 210 * M],
+    ]);
+    expect(rows.discharged).toBe(210 * M);
+  });
+
+  it("still names a receipt entered with no note", () => {
+    const rows = moneyRows(card([entry("12", 5_000 * M, "oath")]), [
+      { id: "g1", amount: 210 * M, note: null, receivedAt: "2026-08-21T00:07:02Z" },
+    ]);
+    expect(rows.discharges.map((d) => d.label)).toEqual(["paid"]);
+  });
+
+  it("dates a receipt among the offsets rather than after them", () => {
+    const rows = moneyRows(
+      card([entry("22", -100 * M, "newer", [{ lootId: "l1", memberId: "m1" }])]),
+      [{ id: "g1", amount: 210 * M, note: "20 stars", receivedAt: "2026-08-21T00:07:02Z" }],
+    );
+    expect(rows.discharges.map((d) => d.label)).toEqual(["newer", "20 stars"]);
   });
 });
 

@@ -81,6 +81,7 @@ import {
   keptByHolder,
   outstanding,
   receivedByHolder,
+  paymentsSinceClosing,
   receivedSinceClosing,
   saleCredits,
   stillOpen,
@@ -578,11 +579,9 @@ export default function DropLogPage() {
     const key = holderKey(tranche.holder);
     tranchesByHolder.set(key, [...(tranchesByHolder.get(key) ?? []), tranche]);
   }
-  const paymentsByHolder = new Map<string, VestigePayment[]>();
-  for (const paid of payments) {
-    const key = holderKey(paid.holder);
-    paymentsByHolder.set(key, [...(paymentsByHolder.get(key) ?? []), paid]);
-  }
+  // Split by the same line the money is netted against, so a receipt a closure already spent is
+  // never a row in the arithmetic that no longer counts it. See Receipts.
+  const paymentsByHolder = paymentsSinceClosing(payments, settlements);
   // Which sales are finished, which is the ones somebody has been paid out or offset for. The same
   // match the Settlement Ledger's discharge rows are drawn from, so one sale cannot be settled on
   // one screen and pending on the other. See decidedSales.
@@ -592,9 +591,14 @@ export default function DropLogPage() {
   //
   // A sale that is FINISHED does not hold a card open. It is off the card itself (see stillAsking),
   // so counting it here would keep a pile on the worklist to draw nothing on it.
-  const recorded = (key: string) =>
-    stillAsking(tranchesByHolder.get(key) ?? [], decided).length > 0 ||
-    (paymentsByHolder.get(key)?.length ?? 0) > 0;
+  const recorded = (key: string) => {
+    const receipts = paymentsByHolder.get(key);
+    return (
+      stillAsking(tranchesByHolder.get(key) ?? [], decided).length > 0 ||
+      (receipts?.counted.length ?? 0) > 0 ||
+      (receipts?.spent.length ?? 0) > 0
+    );
+  };
   const yours = yourPiles(ledgers);
   // What the OTHER piles are holding of yours, so your own pile's debt reads as what changes hands:
   // owing Bro 90 while he holds 20 of yours is 70. Netted per creditor, never across people. See owes.
