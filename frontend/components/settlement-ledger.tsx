@@ -333,20 +333,9 @@ function SettlementCard({
   // What builds the debt, and what has already come off it. Two questions, so two lists: see
   // moneyRows for why one list could not hold both.
   const { typed, discharges, discharged } = moneyRows(row, payments.counted);
-  /**
-   * What the folded line counts, named for what is in it.
-   *
-   * "4 offsets" over a list holding a payment is a count that looks right and is not, which is the
-   * one failure this ledger exists to prevent. Where they are all one kind it says that kind.
-   */
-  const paidActs = discharges.filter((act) => act.source === "PAYMENT").length;
-  const offsetActs = discharges.length - paidActs;
-  const cameOff =
-    paidActs === 0
-      ? plural(offsetActs, "offset")
-      : offsetActs === 0
-        ? plural(paidActs, "payment")
-        : `${plural(offsetActs, "offset")} and ${plural(paidActs, "payment")}`;
+  // An OFFSET here is anything that came off the debt, which is the account's word for the step and
+  // covers a payment: it is a count of acts, and each row inside names which act it was.
+  const offsets = plural(discharges.length, "offset");
   // Money you SENT them, which took nothing off what they owe you and so is not in `discharges`.
   const paidOut = row.disposals.filter((d) => d.kind === "PAID");
 
@@ -729,8 +718,8 @@ function SettlementCard({
           only by a chevron, and every press of Offset added a line that never left again.
 
           A PAYMENT is one of these acts: mesos they sent came off what they owe exactly as an offset
-          does, dated and removable the same way. Named for the effect rather than for the offset,
-          because the count on the line has to say what is in it.
+          does, dated and removable the same way. It is an offset in the sense the step means, which
+          is what came off, and the row inside says which act it was.
 
           FOLDED, because this is the half that grows without bound. Three acts against one person
           were three near-identical rows burying the one that said what he owed. The count and the
@@ -738,7 +727,7 @@ function SettlementCard({
           when, and that is what a reader opens it for. */}
       {discharges.length > 0 && (
         <div className="ledger-entry">
-          <span className="ledger-step">came off</span>
+          <span className="ledger-step">offsets</span>
           <ul className="ledger-queue">
             <li className="ledger-drop">
               <div className="ledger-drop-head">
@@ -751,10 +740,10 @@ function SettlementCard({
                 >
                   <span className="party-row-chevron" aria-hidden="true" />
                   <span className="visually-hidden">
-                    {showOff ? `Hide the ${cameOff}` : `Show the ${cameOff}`}
+                    {showOff ? `Hide the ${offsets}` : `Show the ${offsets}`}
                   </span>
                 </button>
-                <span className="loot-name">{cameOff}</span>
+                <span className="loot-name">{offsets}</span>
                 <span className="ledger-amount">{signed(-discharged)}</span>
               </div>
 

@@ -290,14 +290,12 @@ describe("a receipt on the card", () => {
     expect(source).not.toContain('label: "received"');
   });
 
-  it("names the step for the effect, since the history is no longer offsets alone", () => {
-    expect(source).toContain('<span className="ledger-step">came off</span>');
-    expect(source).not.toContain('<span className="ledger-step">offsets</span>');
-  });
-
-  it("counts what is in the fold rather than calling a payment an offset", () => {
-    // A count that looks right and is not is the one failure this ledger exists to prevent.
-    expect(source).toContain('plural(offsetActs, "offset")} and ${plural(paidActs, "payment")}');
+  it("goes under the step this account already calls what came off the debt", () => {
+    // OFFSETS is the word, and it means anything that came off: a payment is one, so the fold
+    // counts acts and each row inside names which act it was. The step was renamed for a turn and
+    // the rename was the wrong half of the change to make.
+    expect(source).toContain('<span className="ledger-step">offsets</span>');
+    expect(source).toContain('plural(discharges.length, "offset")');
   });
 
   it("is removable where it is drawn, since this is the only screen that records one", () => {
