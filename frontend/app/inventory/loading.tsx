@@ -1,5 +1,4 @@
 import { RouteLoading } from "@/components/route-loading";
-import { DockSkeleton } from "@/components/dock-shell";
 import { CharactersSkeleton } from "@/components/loading-skeleton";
 
 // Shown from the instant a nav link is clicked until this route's own JS has mounted. Without a
@@ -7,12 +6,13 @@ import { CharactersSkeleton } from "@/components/loading-skeleton";
 // had no feedback and the new page then arrived in two visible steps (chrome, then data).
 //
 // The chrome must match app/inventory/page.tsx exactly. It renders the same skeleton the page
-// renders for its own fetch, so handing over to the page is invisible.
+// renders for its own fetch, so handing over to the page is invisible. That cuts both ways: this
+// stood a DockSkeleton long after #440 took the dropzone off the page, so every nav click flashed
+// a screenshot dock the page itself never draws.
 export default function Loading() {
   return (
     <RouteLoading shaped>
       <h1 className="page-title">Inventory</h1>
-      <DockSkeleton name="inventory" />
       <CharactersSkeleton />
     </RouteLoading>
   );

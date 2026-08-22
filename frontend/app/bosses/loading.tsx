@@ -1,8 +1,8 @@
 import { RouteLoading } from "@/components/route-loading";
 import { BossMatrix } from "@/components/boss-matrix";
-import { DockSkeleton } from "@/components/dock-shell";
 
-// See app/inventory/loading.tsx for why these boundaries exist.
+// See app/inventory/loading.tsx for why these boundaries exist, and for the dock both of them
+// stood long after the pages stopped drawing one.
 //
 // The empty arrays are deliberate, not a placeholder: BossMatrix substitutes its own
 // SKELETON_BOSSES/SKELETON_CHARACTERS when asked to load with nothing to lay out, so this is the
@@ -11,7 +11,6 @@ export default function Loading() {
   return (
     <RouteLoading shaped>
       <h1 className="page-title">Individual View</h1>
-      <DockSkeleton name="planner" picker />
       <BossMatrix loading bosses={[]} characters={[]} clearsByCharacter={{}} />
     </RouteLoading>
   );
