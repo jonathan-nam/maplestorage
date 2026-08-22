@@ -90,7 +90,7 @@ BOSS_ICONS = ROOT / "backend" / "src" / "main" / "resources" / "seed-assets" / "
 
 # The portrait paths, shipped in the frontend bundle. The art itself stays on the backend with
 # every other seed asset; this is only the list of URLs, and it exists so the browser can START
-# fetching the portraits at first render instead of after a Clerk token and an /api/bosses call.
+# fetching the portraits at first render instead of after a token and an /api/bosses call.
 # Generated, so adding a boss is still one edit to bosses.yaml.
 BOSS_ART_OUT = ROOT / "frontend" / "lib" / "boss-art.ts"
 
