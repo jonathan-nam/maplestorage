@@ -31,26 +31,6 @@ what fell, and who is owed what.
 - **Search.** Who is holding what, how many, and what each can redeem now. Eternal pieces count per
   character, never pooled and never mixed.
 
-## Reading a screenshot
-
-An input, not the point. Every count on the site can be typed or ticked by hand, and a capture is
-a faster way in for two of them.
-
-- **Inventory.** Drop a capture on the character whose page you are on and it reads the item counts.
-  It reads the HUD name too, and says so if the picture is not that character.
-- **Boss clears.** A Maple Planner capture reads what that character has cleared this period.
-
-26 of the 31 items can be read this way. The other five are Eternal fragments, which have no
-template and are typed. Parties, drops, sales and the run order are entered by hand throughout.
-
-Limits:
-
-- An unreadable stack count is dropped, never guessed.
-- A rescaled capture (remote play, display scaling) is read at its own scale. Only a downscaled one
-  is refused.
-- No vision model and no API key. Reading a capture is a deterministic OpenCV pipeline, same answer
-  every time.
-
 Running it yourself: `.devcontainer/README.md`.
 
 ## Not a Nexon product
@@ -58,7 +38,7 @@ Running it yourself: `.devcontainer/README.md`.
 SharpEyes is an unofficial fan project. It is **not affiliated with, endorsed by, or sponsored by
 Nexon**. MapleStory and all game assets are the property of Nexon.
 
-It reads screenshots you took of your own account, and it ships some of the game's art so that what
-it shows you looks like what you saw: boss portraits, item and drop icons, and the inventory count
-digits. Those are used to identify what the game already showed you, and they remain Nexon's. The
-project is free, carries no advertising, and is not sold.
+It ships some of the game's art so that what it shows you looks like what you saw: boss portraits,
+item and drop icons, and the inventory count digits. Those are used to identify what the game
+already showed you, and they remain Nexon's. The project is free, carries no advertising, and is
+not sold.
