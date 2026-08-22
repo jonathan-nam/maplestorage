@@ -235,10 +235,6 @@ export default function CharactersPage() {
     <main className="page">
       <h1 className="page-title">Inventory</h1>
 
-      {/* Outside the load states on purpose. The dock is the first thing on the page now, so
-          rendering it only once the roster lands would push the whole page down at the moment the
-          fetch returns. It also means a screenshot can be dropped while the roster is still on its
-          way, which is the same generic upload the eye offers. */}
       {state === "error" && <p>Couldn&apos;t load your characters.</p>}
 
       {/* One deliberate loading state, not the real chrome assembling itself in stages. The
@@ -294,10 +290,7 @@ export default function CharactersPage() {
                 No characters yet. <Link href="/characters">Add one</Link> to start tracking.
               </p>
             ) : (
-              <p className="finder-empty">
-                No character selected, a screenshot dropped above will be filed by the name read
-                from it. Pick a character to see their inventory.
-              </p>
+              <p className="finder-empty">Pick a character to see their inventory.</p>
             )}
           </>
         )}

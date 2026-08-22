@@ -60,9 +60,11 @@ export function DockShell({
 /**
  * The dock's shape while the route boundary is still waiting for the page's own JS.
  *
- * It is the SAME shell on the same fold state, so the handover is invisible: the dock now sits
- * above everything else on both pages, and a boundary that left it out would drop ~200px of
- * chrome in above the matrix the moment the page mounted.
+ * Unrendered, like the two docks themselves (#440). It stays for the day they go back on the page,
+ * and a boundary that left it out then would drop ~200px of chrome in above the matrix the moment
+ * the page mounted. Put it back only alongside the dock it stands for. On its own it flashes a
+ * dropzone the page never draws, which is what both boundaries did for months after #440, and
+ * what lib/dock-collapse.test.ts now refuses.
  *
  * Every height in here comes from the real classes rather than a measured number. That is the
  * lesson of the inventory window sitting 30px out of place (#77).

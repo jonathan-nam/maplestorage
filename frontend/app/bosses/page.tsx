@@ -197,9 +197,8 @@ export default function BossesPage() {
                   </div>
                 )}
 
-                {/* Editable on the live view only, for the reason the dock below is only offered
-                there: a past week carries weekly rows alone, so a tick on it would have no one
-                period to land in. */}
+                {/* Editable on the live view only: a past week carries weekly rows alone, so a
+                tick on it would have no one period to land in. */}
                 <BossMatrix
                   bosses={bosses}
                   characters={characters}

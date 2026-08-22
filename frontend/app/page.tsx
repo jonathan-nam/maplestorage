@@ -15,8 +15,8 @@ export default function Home() {
             character at a time.
           </p>
           <p>
-            Screenshot each character with their inventory open, drop the lot in, and SharpEyes
-            reads the counts and adds them up. Every character, in one view.
+            Keep each character&apos;s counts here and SharpEyes adds them up. Every character, in
+            one view.
           </p>
           <SignInButton />
         </section>
@@ -27,8 +27,7 @@ export default function Home() {
           <SharpEyesMark size={64} />
           <h1>Welcome back</h1>
           <p>
-            <Link href="/inventory">See where you stand</Link>, and drop a screenshot on whichever
-            character it belongs to.
+            <Link href="/inventory">See where you stand</Link>.
           </p>
         </section>
       </SignedIn>
