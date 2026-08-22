@@ -81,6 +81,12 @@ fun Application.configureRouting(
             vitalsRoutes()
         }
 
+        // What the browser saw. Unauthenticated for the same reason as vitals, and for one more:
+        // the failures worth reporting include the ones where authentication is what broke.
+        route("/api/errors") {
+            clientErrorRoutes()
+        }
+
         // M0's actual round-trip proof: a signed-in user's JWT verifies against
         // Clerk's JWKS, and the response value comes from a real RDS query, not
         // a hardcoded string.

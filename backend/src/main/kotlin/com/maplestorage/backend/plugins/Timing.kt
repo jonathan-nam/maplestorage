@@ -16,6 +16,18 @@ private val log = LoggerFactory.getLogger("Timing")
 
 private val START = AttributeKey<TimeSource.Monotonic.ValueTimeMark>("RequestStart")
 private val SPANS = AttributeKey<MutableList<Span>>("RequestSpans")
+private val REASON = AttributeKey<String>("FailureReason")
+
+/**
+ * Why this request is about to fail, carried onto its own log line.
+ *
+ * A status alone does not say what a user hit. `GET /api/parties 401` is sent by a browser whose
+ * token has not loaded yet, by one whose token expired, and by a probe with no header at all, and
+ * telling those apart from the log is the whole point of recording it.
+ */
+fun ApplicationCall.failing(reason: String) {
+    attributes.put(REASON, reason)
+}
 
 private data class Span(
     val name: String,
@@ -68,20 +80,33 @@ val Timing =
                 }
 
             // Slow requests get a louder level, so "the app feels slow" becomes a
-            // grep rather than a hunch.
+            // grep rather than a hunch. Failing ones get the same treatment, and for the same
+            // reason: "it errored for me" has to be answerable without the user's browser.
+            val status = call.response.status()?.value
+            val slow = total > SLOW_REQUEST_MS
+            val failed = status != null && status >= FIRST_ERROR_STATUS
             val line =
                 buildString {
+                    if (failed) append("FAIL ")
+                    if (slow) append("SLOW ")
                     append(call.request.httpMethod.value).append(' ')
                     append(call.request.path()).append(' ')
-                    append(call.response.status()?.value).append(' ')
+                    append(status).append(' ')
                     append("%.0f".format(total)).append("ms")
                     if (detail.isNotEmpty()) append(' ').append(detail)
+                    call.attributes.getOrNull(REASON)?.let { append(" reason=").append(it) }
                 }
-            if (total > SLOW_REQUEST_MS) log.warn("SLOW $line") else log.info(line)
+            when {
+                status != null && status >= FIRST_SERVER_ERROR_STATUS -> log.error(line)
+                failed || slow -> log.warn(line)
+                else -> log.info(line)
+            }
         }
     }
 
 private const val SLOW_REQUEST_MS = 500.0
+private const val FIRST_ERROR_STATUS = 400
+private const val FIRST_SERVER_ERROR_STATUS = 500
 private const val MICROS_PER_MILLI = 1000.0
 
 private fun TimeSource.Monotonic.ValueTimeMark.elapsedMillis(): Double =
