@@ -133,7 +133,7 @@
   background: var(--surface-2);
 }
 
-/* Header controls Clerk has not resolved yet: same box, so the real control fades into space that
+/* Header controls the session has not resolved yet: same box, so the real control fades into space that
    was already reserved rather than shifting the rest of the bar. See SiteHeader.
    The avatar is per-user and cannot be drawn before it is known, so it stays an empty box. The
    hamburger is identical for every signed-in user, so it is drawn: hiding it read as the icon
@@ -146,9 +146,9 @@
   visibility: hidden;
 }
 
-/* Whether to reserve at all. The inline script in RootLayout sets .has-session from Clerk's
-   __client_uat cookie before first paint; signed out there is nothing coming, so holding the space
-   would leave a gap that closes when Clerk resolves, which is the same 54px shift inverted.
+/* Whether to reserve at all. The inline script in RootLayout sets .has-session before first paint,
+   from what lib/auth-client.ts stored last time; signed out there is nothing coming, so holding the
+   space would leave a gap that closes when the session resolves, the same 54px shift inverted.
    display, not visibility: the boxes must not occupy the bar at all. */
 html:not(.has-session) .header-reserved {
   display: none;
