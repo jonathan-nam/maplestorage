@@ -1,6 +1,7 @@
 "use client";
 
 import { useAuth } from "@clerk/nextjs";
+import Link from "next/link";
 import { useDeferredValue, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 
 import { RunDraftEditor } from "@/components/run-draft-editor";
@@ -533,7 +534,19 @@ export default function RunOrderPage() {
 
   return (
     <main className="page">
-      <h1 className="page-title">Run Order</h1>
+      {/* Beside the title, not among the tabs below, for the reason Party View gives: those pick
+          what the page shows, so a link that leaves it reads as another one of them.
+
+          People, because a seat nobody has claimed is chipped under its character's name instead of
+          whose it is (see rosterFrom), and People is the page that says whose it is. */}
+      <div className="page-head">
+        <h1 className="page-title">Run Order</h1>
+        <span className="page-head-links">
+          <Link className="party-cancel" href="/bosses/people">
+            People
+          </Link>
+        </span>
+      </div>
 
       <div className="basis-row" role="group" aria-label="Where the runs come from">
         {(

@@ -31,9 +31,9 @@ export type SectionItem = {
  *
  * /characters redirects to /inventory (see next.config), so old links keep working.
  *
- * The Wallet and People are deliberately absent from the list. They are reached from Party View and
- * its editor, which is where you already are when you want them, and six entries under one heading
- * had stopped being a menu and started being a list of every page.
+ * The Wallet and People are deliberately absent from the list. They are reached from the pages that
+ * name the thing they edit, which is where you already are when you want them, and six entries
+ * under one heading had stopped being a menu and started being a list of every page.
  *
  * The Drop Log was absent for that reason too. It is listed because it stopped being a Party View
  * page: it holds what fell on bosses that have no party, and it is where those are logged. Reaching
@@ -48,9 +48,9 @@ export const SECTIONS: { group?: string; items: SectionItem[] }[] = [
     items: [
       { href: "/bosses", label: "Individual View" },
       { href: "/bosses/parties", label: "Party View" },
-      // Reached from the party editor, so it needs matching but not listing. The Wallet needs
-      // neither: it sits under /bosses/parties and so already resolves to Party View, which is the
-      // section it is part of.
+      // Reached from the party editor and from Run Order, so it needs matching but not listing.
+      // The Wallet needs neither: it sits under /bosses/parties and so already resolves to Party
+      // View, which is the section it is part of.
       { href: "/bosses/people", label: "People", hidden: true },
       { href: "/bosses/drops", label: "Drop Log" },
       { href: "/bosses/order", label: "Run Order" },
