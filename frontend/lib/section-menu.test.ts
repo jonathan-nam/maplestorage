@@ -1,4 +1,4 @@
-import { existsSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { activeHref, HREFS, MENU_HREFS, SECTIONS, sectionsFor } from "./section-menu";
@@ -121,5 +121,37 @@ describe("every destination can be shown before it has loaded", () => {
     const dir = join(__dirname, "..", "app", ...href.split("/").filter(Boolean));
     expect(existsSync(join(dir, "page.tsx"))).toBe(true);
     expect(existsSync(join(dir, "loading.tsx"))).toBe(true);
+  });
+});
+
+describe("every hidden entry has a way in", () => {
+  // A hidden entry is not on the hamburger, so a link on some other page is its ONLY door. Deleting
+  // that link breaks no build and fails no route test, it just leaves a page nothing reaches. The
+  // page's own files are excluded, or its back link would count as the way in.
+  const HIDDEN = HREFS.filter((href) => !MENU_HREFS.includes(href));
+
+  const tsxUnder = (dir: string): string[] =>
+    readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+      const path = join(dir, entry.name);
+      if (entry.isDirectory()) return tsxUnder(path);
+      return entry.name.endsWith(".tsx") ? [path] : [];
+    });
+
+  const sources = [join(__dirname, "..", "app"), join(__dirname, "..", "components")]
+    .flatMap(tsxUnder)
+    .map((path) => ({ path, text: readFileSync(path, "utf8") }));
+
+  it("has hidden entries to check", () => {
+    // The guard below passes trivially on an empty list, and the list is derived.
+    expect(HIDDEN.length).toBeGreaterThan(0);
+  });
+
+  it.each(HIDDEN)("is linked from another page: %s", (href) => {
+    const own = join(__dirname, "..", "app", ...href.split("/").filter(Boolean));
+    const linked = sources
+      .filter((file) => !file.path.startsWith(own))
+      .filter((file) => file.text.includes(`href="${href}"`))
+      .map((file) => file.path);
+    expect(linked).not.toEqual([]);
   });
 });
