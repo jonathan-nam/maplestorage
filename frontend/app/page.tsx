@@ -37,6 +37,9 @@ export default function Home() {
             reads the counts and adds them up. Every character, in one view.
           </p>
           <SignInButton />
+          <p className="hero-alt">
+            <Link href="/sign-in">or use an email and password</Link>
+          </p>
         </section>
       )}
     </main>

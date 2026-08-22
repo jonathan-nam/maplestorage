@@ -2,6 +2,7 @@ import { betterAuth } from "better-auth";
 import { jwt } from "better-auth/plugins";
 import { Pool } from "pg";
 
+import { sendPasswordReset, sendVerification } from "./email.js";
 import { env, optionalEnv } from "./env.js";
 
 /**
@@ -37,8 +38,42 @@ export const auth = betterAuth({
   // Better Auth would take `user` and leave two tables one letter apart.
   user: { modelName: "auth_user" },
   session: { modelName: "auth_session" },
-  account: { modelName: "auth_account" },
   verification: { modelName: "auth_verification" },
+
+  // A password of your own, so an account does not depend on still having the Discord one.
+  //
+  // Verification is required before a password account can sign in. That is not ceremony: an
+  // unverified address is one anybody could have typed, and the linking rule below decides who you
+  // ARE from a verified address.
+  emailAndPassword: {
+    enabled: true,
+    requireEmailVerification: true,
+    // Above the library's default of 8. A password manager makes the difference free, and this is
+    // the only credential on the account that a person chooses.
+    minPasswordLength: 12,
+    sendResetPassword: ({ user, url }) => sendPasswordReset(user.email, url),
+  },
+
+  emailVerification: {
+    sendOnSignUp: true,
+    // Straight into the app from the link. Making somebody verify and then sign in again is two
+    // steps for one intention.
+    autoSignInAfterVerification: true,
+    sendVerificationEmail: ({ user, url }) => sendVerification(user.email, url),
+  },
+
+  // Signing in with Discord as somebody who already has a password account, or the reverse, lands
+  // in the SAME account only when BOTH addresses are verified.
+  //
+  // That is Better Auth's default and it is left alone on purpose. **Do not add `trustedProviders`
+  // here.** Naming discord in it means "believe this provider's email without it being verified",
+  // and Discord hands back an unverified address for an unconfirmed account, plus a synthesised
+  // `@discord.invalid` one for phone-only accounts (see mapProfileToUser below). Trusting either
+  // would let somebody who knows your email walk into your account.
+  account: {
+    modelName: "auth_account",
+    accountLinking: { enabled: true },
+  },
 
   socialProviders: {
     discord: {
