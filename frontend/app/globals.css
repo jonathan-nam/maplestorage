@@ -4425,6 +4425,13 @@ button.link:disabled {
 
    The BORDER carries the frame. --surface-2 over the row's --surface is 6/255, near enough
    invisible on its own; see the boss-table striping note. */
+/* The drop's art and the title on one line, so the panel says what it divides before it is read. */
+.config-panel-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
 .config-panel {
   align-items: stretch;
   padding: 10px 12px;
@@ -4493,6 +4500,37 @@ button.link:disabled {
   font-size: 13px;
   padding: 6px 8px;
   width: 160px;
+}
+
+/* Who a roster box has landed on. 32px against the 96px avatar is a third, a whole ratio: see
+   lib/pixel-scaling-css.test.ts for why a box sized by eye against this art is a bug.
+
+   A WINDOW onto the sprite, not the sprite shrunk. `none` holds it at 1:1 and the box shows the
+   part the offset picks, which is the head: the avatar endpoint draws a whole standing character
+   in its 96px frame, and shrunk to a third that is a smudge with boots. A face and a hat are what
+   one character is told from another by.
+
+   -14px lifts the render so the box lands on the head rather than the empty margin above it. The
+   pose is the endpoint's own and does not vary, so this is one number and not a guess per
+   character. */
+.member-sprite {
+  width: 32px;
+  height: 32px;
+  flex: none;
+  object-fit: none;
+  object-position: center -14px;
+  image-rendering: pixelated;
+  border-radius: 4px;
+  /* The row's own 2px is for the × against its box. A face wants more air than a button does. */
+  margin-right: 4px;
+}
+
+/* A seat being typed, which is most of them most of the time. A recess rather than the dashed
+   frame RosterStrip uses: there every name is saved, so a missing sprite is a character nobody
+   could find and worth marking. Here it is just a box nobody has finished filling in. */
+.member-sprite.is-empty {
+  background: var(--surface-2);
+  border: 1px solid var(--line-soft);
 }
 
 /* The coupon a boss drops for certain, beside the party size. A fact about the boss, so it is

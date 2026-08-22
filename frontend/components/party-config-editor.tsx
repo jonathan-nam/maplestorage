@@ -40,6 +40,7 @@ export function PartyConfigEditor({
   bosses,
   dropTables,
   knownCharacters,
+  spriteFor,
   isSaving,
   adding,
   error,
@@ -55,6 +56,8 @@ export function PartyConfigEditor({
   dropTables: DropTables;
   /** Characters named anywhere already, for the datalist. Picking beats remembering a spelling. */
   knownCharacters: string[];
+  /** The sprite for a name as typed, for the roster boxes. See lib/sprite-by-name. */
+  spriteFor: (name: string) => string | null;
   /**
    * Whether THIS config's write is in flight, by its id. Fed one flag for the page, saving a single
    * config dimmed every row's buttons at once.
@@ -91,6 +94,7 @@ export function PartyConfigEditor({
           party={party}
           boss={bossByKey.get(party.bossKey) ?? null}
           drops={dropTables[party.bossKey] ?? []}
+          spriteFor={spriteFor}
           busy={isSaving(party.id)}
           onSave={(members, difficulty, minutes, looterName, shares) =>
             onSave(
@@ -246,6 +250,7 @@ function ConfigRow({
   party,
   boss,
   drops,
+  spriteFor,
   busy,
   onSave,
   onDelete,
@@ -255,6 +260,8 @@ function ConfigRow({
   boss: Boss | null;
   /** This boss's drop table, for the counts an uneven split is measured in. */
   drops: BossDrop[];
+  /** The sprite for a name as typed, for the roster boxes. See lib/sprite-by-name. */
+  spriteFor: (name: string) => string | null;
   busy: boolean;
   onSave: (
     members: string[],
@@ -427,7 +434,7 @@ function ConfigRow({
 
       <div className="config-section">
         <h4 className="loot-group-title is-config">Members</h4>
-        <RosterInputs members={members} onChange={setMembers} />
+        <RosterInputs members={members} onChange={setMembers} spriteFor={spriteFor} />
         {/* Whose character each one is, when the people list says so. Read-only here: it is an
             account-wide fact, kept on the People page rather than per config. */}
         {attributed.length > 0 && (
@@ -467,10 +474,19 @@ function ConfigRow({
         <div className="config-section config-panel">
           {/* Built from the drop's own name, not a fixed one: Chaos Kalos and every fragment mode
               divide an Eternal piece here and no coupon at all. See splitTitle for the suffix the
-              catalog name carries and this title does not want. */}
-          <h4 className="loot-group-title is-config">
-            {dividing ? splitTitle(dividing.name) : ""}
-          </h4>
+              catalog name carries and this title does not want.
+
+              The art beside it for the same reason the pool rows carry it: a coupon is recognised
+              by its sprite before its name is read. Nothing is drawn where the catalog has no art
+              for the drop, rather than a broken frame. */}
+          <div className="config-panel-head">
+            {dividing?.iconUrl && (
+              <img className="loot-icon" src={apiAssetUrl(dividing.iconUrl)} alt="" />
+            )}
+            <h4 className="loot-group-title is-config">
+              {dividing ? splitTitle(dividing.name) : ""}
+            </h4>
+          </div>
           <div className="config-vestige">
             <span className="config-share-drop">
               {/* The stack size only where it is a fact worth carrying. Most pieces fall one to a
