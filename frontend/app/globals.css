@@ -5279,6 +5279,22 @@ button.link:disabled {
   color: var(--ink-strong);
 }
 
+/* A heading with the way off the page opposite it, the shape .page-head gives a title. The gap to
+   what follows moves onto the row, because the heading's own margin would otherwise sit INSIDE the
+   flex line and be measured against a control taller than the words. */
+.night-heading-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.night-heading-row .night-heading {
+  margin-bottom: 0;
+}
+
 /* Who is on. A chip is a switch, not a label, so the off state has to look OFF rather than
    merely less bright: an absent person changes the whole plan, and reading their name in the
    list at all is what makes that easy to miss. */
