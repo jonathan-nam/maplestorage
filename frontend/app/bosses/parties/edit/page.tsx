@@ -9,6 +9,7 @@ import { PartyConfigEditor } from "@/components/party-config-editor";
 import { ApiError, apiFetch } from "@/lib/api";
 import { peek, put } from "@/lib/cache";
 import { preloadBossArt } from "@/lib/preload-boss-art";
+import { spriteByName } from "@/lib/sprite-by-name";
 import { useRowWrites } from "@/lib/use-row-writes";
 import type { Boss } from "@/types/boss";
 import type { Character } from "@/types/character";
@@ -155,6 +156,9 @@ export default function EditPartiesPage() {
       ...parties.flatMap((p) => p.members.map((m) => m.name)),
     ]),
   ).sort();
+  // The same three sources, minus the people list, which holds names and no art. Built once for
+  // the page rather than per row: a character in four parties is one lookup.
+  const sprites = spriteByName(characters, parties);
 
   return (
     <main className="page">
@@ -201,6 +205,7 @@ export default function EditPartiesPage() {
                     bosses={bosses}
                     dropTables={dropTables}
                     knownCharacters={knownCharacters}
+                    spriteFor={(name) => sprites.get(name) ?? null}
                     isSaving={isSaving}
                     adding={isSaving(ADD_PARTY)}
                     error={error}
