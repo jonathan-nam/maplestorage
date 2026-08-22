@@ -45,7 +45,7 @@ export default function PartyPage() {
   // Before anything is fetched: see lib/preload-boss-art.ts.
   preloadBossArt();
 
-  const { getToken } = useAuth();
+  const { getToken, isLoaded } = useAuth();
   const params = useParams<{ id: string }>();
   const partyId = params.id;
 
@@ -85,6 +85,8 @@ export default function PartyPage() {
   }
 
   useEffect(() => {
+    // Not before Clerk answers, or the fetch goes out as `Bearer null`. See lib/api.ts.
+    if (!isLoaded) return;
     getToken()
       .then((token) => {
         const withToken = () => Promise.resolve(token);
@@ -137,7 +139,7 @@ export default function PartyPage() {
       )
       .catch(() => setState("error"));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [partyId]);
+  }, [partyId, isLoaded]);
 
   // Every mutation refetches the pool rather than patching it in place: status is derived from the
   // sale and the payout rows server side, so the server's answer is the only one that is right.

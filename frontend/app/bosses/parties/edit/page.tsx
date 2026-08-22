@@ -34,7 +34,7 @@ export default function EditPartiesPage() {
   // Before anything is fetched: see lib/preload-boss-art.ts.
   preloadBossArt();
 
-  const { getToken } = useAuth();
+  const { getToken, isLoaded } = useAuth();
 
   const [parties, setParties] = useState<Party[]>(peek<Party[]>(PARTIES_KEY) ?? []);
   const [bosses, setBosses] = useState<Boss[]>(peek<Boss[]>(BOSSES_KEY) ?? []);
@@ -61,6 +61,8 @@ export default function EditPartiesPage() {
   }
 
   useEffect(() => {
+    // Not before Clerk answers, or the fetch goes out as `Bearer null`. See lib/api.ts.
+    if (!isLoaded) return;
     getToken()
       .then((token) => {
         const withToken = () => Promise.resolve(token);
@@ -87,7 +89,7 @@ export default function EditPartiesPage() {
       })
       .catch(() => setState((s) => (s === "loaded" ? "loaded" : "error")));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [isLoaded]);
 
   async function save(body: SavePartyBody, partyId?: string) {
     setError(null);

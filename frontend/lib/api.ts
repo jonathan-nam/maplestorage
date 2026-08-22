@@ -96,6 +96,13 @@ export async function apiFetch<T>(
   // getToken() is timed separately from the fetch on purpose. It happens BEFORE the
   // request goes out, so whatever it costs is latency the user waits through on every
   // single call, and it was completely invisible until we measured it.
+  //
+  // A null token is interpolated, not refused: `Bearer null` is what goes out. That is a 401 in
+  // 2ms, and it is why every page waits for Clerk's `isLoaded` before it fetches. Clerk session
+  // tokens live 60s, so any gap in activity leaves the next cold load racing the refresh, and a
+  // page that loses that race showed "Couldn't load your parties." over data that was fine. A
+  // refusal here instead would only move the same failure into each caller's error branch, which
+  // is the screen the wait exists to avoid. Guarded by lib/auth-gate.test.ts.
   const startedAt = performance.now();
   const token = await getToken();
   const authMs = performance.now() - startedAt;

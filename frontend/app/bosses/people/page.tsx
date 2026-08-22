@@ -17,7 +17,7 @@ const PEOPLE_KEY = "/api/people";
 // this says whose they are, once, for every party that names them. Say it here and CreedBratton is
 // Chris's everywhere he turns up.
 export default function PeoplePage() {
-  const { getToken } = useAuth();
+  const { getToken, isLoaded } = useAuth();
 
   const [people, setPeople] = useState<Person[]>(peek<Person[]>(PEOPLE_KEY) ?? []);
   const [draft, setDraft] = useState<Draft[]>([]);
@@ -32,6 +32,8 @@ export default function PeoplePage() {
     rows.map((p) => ({ id: p.id, name: p.name, characters: p.characters.join(", ") }));
 
   useEffect(() => {
+    // Not before Clerk answers, or the fetch goes out as `Bearer null`. See lib/api.ts.
+    if (!isLoaded) return;
     getToken()
       .then((token) =>
         apiFetch<Person[]>(PEOPLE_KEY, { method: "GET" }, () => Promise.resolve(token)),
@@ -44,7 +46,7 @@ export default function PeoplePage() {
       })
       .catch(() => setState((s) => (s === "loaded" ? "loaded" : "error")));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [isLoaded]);
 
   async function save() {
     const body: SavePeopleBody = {

@@ -23,7 +23,7 @@ const CHARACTERS_KEY = "/api/characters";
 // strip you managed them in. This is that page, and the carousel is now only a picker.
 
 export default function CharactersPage() {
-  const { getToken } = useAuth();
+  const { getToken, isLoaded } = useAuth();
   const settings = useAccountSettings();
 
   const seeded = peek<Character[]>(CHARACTERS_KEY);
@@ -38,6 +38,8 @@ export default function CharactersPage() {
   const [finding, setFinding] = useState(false);
 
   useEffect(() => {
+    // Not before Clerk answers, or the fetch goes out as `Bearer null`. See lib/api.ts.
+    if (!isLoaded) return;
     apiFetch<Character[]>(CHARACTERS_KEY, { method: "GET" }, getToken)
       .then((result) => {
         setCharacters(result);
@@ -46,7 +48,7 @@ export default function CharactersPage() {
       })
       .catch(() => setFailed(true));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [isLoaded]);
 
   /**
    * Shows the change, then persists it, and puts it back if the server refuses.
