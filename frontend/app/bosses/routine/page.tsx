@@ -37,7 +37,7 @@ export default function BossRoutinePage() {
   // Before anything is fetched: see lib/preload-boss-art.ts.
   preloadBossArt();
 
-  const { getToken } = useAuth();
+  const { getToken, isLoaded } = useAuth();
 
   const [bosses, setBosses] = useState<Boss[]>(peek<Boss[]>(BOSSES_KEY) ?? []);
   const [characters, setCharacters] = useState<Character[]>(
@@ -58,6 +58,8 @@ export default function BossRoutinePage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    // Not before Clerk answers, or the fetch goes out as `Bearer null`. See lib/api.ts.
+    if (!isLoaded) return;
     // One token for the whole burst, as the matrix page does: getToken() can round-trip to Clerk
     // and that cost is paid before every request goes out.
     getToken()
@@ -88,7 +90,7 @@ export default function BossRoutinePage() {
       })
       .catch(() => setState((s) => (s === "loaded" ? "loaded" : "error")));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [isLoaded]);
 
   const skipped = new Set(selected ? (view?.skipsByCharacter?.[selected] ?? []) : []);
 

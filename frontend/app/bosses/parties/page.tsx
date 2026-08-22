@@ -111,7 +111,7 @@ export default function PartiesPage() {
   // Before anything is fetched: see lib/preload-boss-art.ts.
   preloadBossArt();
 
-  const { getToken } = useAuth();
+  const { getToken, isLoaded } = useAuth();
   const settings = useAccountSettings();
 
   const seededParties = peek<Party[]>(PARTIES_KEY);
@@ -237,6 +237,8 @@ export default function PartiesPage() {
   }
 
   useEffect(() => {
+    // Not before Clerk answers, or the fetch goes out as `Bearer null`. See lib/api.ts.
+    if (!isLoaded) return;
     // One token for the whole burst, as the boss page does: getToken() can round-trip to Clerk,
     // and three calls would pay that three times.
     getToken()
@@ -312,7 +314,7 @@ export default function PartiesPage() {
       // have should leave that data up.
       .catch(() => setState((s) => (s === "loaded" ? "loaded" : "error")));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [isLoaded]);
 
   /**
    * Ticks a boss cleared, or un-ticks it.

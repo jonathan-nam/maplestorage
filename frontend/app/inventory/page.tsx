@@ -33,7 +33,7 @@ const ALL_TOKENS_KEY = "/api/characters/tokens";
 const CATALOG_KEY = "/api/tokens/catalog";
 
 export default function CharactersPage() {
-  const { getToken } = useAuth();
+  const { getToken, isLoaded } = useAuth();
 
   // The app-level "initial load" number: how long from arriving on this page to the
   // inventory actually being on screen. Web vitals measure the document (LCP, TTFB);
@@ -85,6 +85,8 @@ export default function CharactersPage() {
   );
 
   useEffect(() => {
+    // Not before Clerk answers, or the fetch goes out as `Bearer null`. See lib/api.ts.
+    if (!isLoaded) return;
     // Every character's inventory is fetched HERE, on load, alongside the roster, not lazily
     // when you click one. The page already knows you are about to look at one of these; it just
     // does not know which. Waiting to find out puts a network round-trip between the click and
@@ -126,7 +128,7 @@ export default function CharactersPage() {
       // behind data we already have should not blank the page.
       .catch(() => setState((s) => (s === "loaded" ? "loaded" : "error")));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [revision]);
+  }, [revision, isLoaded]);
 
   // The bulk load above already holds the selected character's tokens, and it re-runs on every
   // upload (via `revision`), so it is the single source of freshness. This only fetches when we
@@ -134,6 +136,8 @@ export default function CharactersPage() {
   // bulk load. Refetching data we already have was a wasted round-trip on first paint (right
   // after the bulk load seeded it) and on every selection.
   useEffect(() => {
+    // Not before Clerk answers, or the fetch goes out as `Bearer null`. See lib/api.ts.
+    if (!isLoaded) return;
     if (selectedId === null) return;
     const id = selectedId;
     if (tokensByChar[id] !== undefined) return;
@@ -149,7 +153,7 @@ export default function CharactersPage() {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedId, revision]);
+  }, [selectedId, revision, isLoaded]);
 
   /**
    * A count being stepped, before it is written. Keyed by item, and only ever for the character on

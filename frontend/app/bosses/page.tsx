@@ -28,7 +28,7 @@ export default function BossesPage() {
   // Before anything is fetched: see lib/preload-boss-art.ts.
   preloadBossArt();
 
-  const { getToken } = useAuth();
+  const { getToken, isLoaded } = useAuth();
 
   // Seeded from cache so a repeat visit paints immediately rather than flashing a loading state
   // for data it already had. The fetch below still runs and overwrites. See lib/cache.ts.
@@ -125,6 +125,8 @@ export default function BossesPage() {
   }
 
   useEffect(() => {
+    // Not before Clerk answers, or the fetch goes out as `Bearer null`. See lib/api.ts.
+    if (!isLoaded) return;
     // One token for the whole burst. getToken() can round-trip to Clerk and that cost is paid
     // before each request goes out (see lib/api.ts), so three separate calls would pay it three
     // times. Mint once and share, as the inventory page does.
@@ -148,7 +150,7 @@ export default function BossesPage() {
       // already have should not blank the page.
       .catch(() => setState((s) => (s === "loaded" ? "loaded" : "error")));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [isLoaded]);
 
   // Not "characters.length === 0": that is also true while the roster is still loading, when the
   // answer is "not yet" rather than "nobody".

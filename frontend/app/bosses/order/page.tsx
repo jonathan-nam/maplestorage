@@ -149,7 +149,7 @@ function parseDrafts(raw: string | null): DraftRun[] {
 
 export default function RunOrderPage() {
   preloadRunArt();
-  const { getToken } = useAuth();
+  const { getToken, isLoaded } = useAuth();
 
   const seededParties = peek<Party[]>(PARTIES_KEY);
   const seededBosses = peek<Boss[]>(BOSSES_KEY);
@@ -234,6 +234,8 @@ export default function RunOrderPage() {
   }
 
   useEffect(() => {
+    // Not before Clerk answers, or the fetch goes out as `Bearer null`. See lib/api.ts.
+    if (!isLoaded) return;
     let live = true;
     // One token for the burst. getToken() can round-trip to Clerk, and paying that per request is
     // latency the user waits through twice for no reason.
@@ -275,7 +277,7 @@ export default function RunOrderPage() {
     return () => {
       live = false;
     };
-  }, [getToken]);
+  }, [getToken, isLoaded]);
 
   /**
    * The list again, after a write, so what is on screen is the server's answer and not ours.

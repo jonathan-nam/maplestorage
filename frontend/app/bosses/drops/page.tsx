@@ -130,7 +130,7 @@ const PEOPLE_KEY = "/api/people";
 const VESTIGE = "vestige-of-erion";
 
 export default function DropLogPage() {
-  const { getToken } = useAuth();
+  const { getToken, isLoaded } = useAuth();
   // This page sums across every party the server hands back, which is one world's. In a Heroic
   // world the money tiles would be three true zeroes, so they go.
   const money = showsMoney(useAccountSettings()?.trades);
@@ -194,6 +194,8 @@ export default function DropLogPage() {
   }
 
   useEffect(() => {
+    // Not before Clerk answers, or the fetch goes out as `Bearer null`. See lib/api.ts.
+    if (!isLoaded) return;
     // One token for the whole burst: getToken() can round-trip to Clerk.
     getToken()
       .then((token) => {
@@ -226,7 +228,7 @@ export default function DropLogPage() {
       // The pools are never cached, so there is nothing to fall back to.
       .catch(() => setState("error"));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [isLoaded]);
 
   /**
    * Logs the drop, then reads the log back.
