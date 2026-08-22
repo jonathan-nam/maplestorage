@@ -4412,11 +4412,25 @@ button.link:disabled {
   gap: 28px;
 }
 
-/* The heading is what hangs the split off the row now, so the rule it carries elsewhere would be a
-   second mark saying the same thing. Same reason .loot-draft drops it. */
+/* The frame is what hangs the split off the row now, so the rule the block carries elsewhere would
+   be a second mark saying the same thing. Same reason .loot-draft drops it. */
 .config-row .config-vestige {
   border-left: 0;
   padding-left: 0;
+}
+
+/* The split is the one block in the row that is a small form rather than a field: a per-seat box
+   each, and a figure under each box. Framed, so those boxes cannot be read as more of the roster
+   directly above them.
+
+   The BORDER carries the frame. --surface-2 over the row's --surface is 6/255, near enough
+   invisible on its own; see the boss-table striping note. */
+.config-panel {
+  align-items: stretch;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface-2);
 }
 
 .config-boss {
