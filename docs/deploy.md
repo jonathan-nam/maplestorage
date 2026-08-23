@@ -24,9 +24,17 @@ service and Postgres. $12/month. The frontend is on Vercel's free tier.
 
 ### 1. Domain and DNS
 
-Register it at **Cloudflare Registrar**, which carries `.app` and sells at cost with no markup
-(~$14/yr, and the renewal is the same number). Registrar and DNS in one account, so there are no
-nameservers to move.
+Registered at **Namecheap** (2026-08-23). Nothing here depends on the registrar, and nothing in
+this repo depends on Cloudflare either: no code reads a Cloudflare header. DNS could be Namecheap's
+own and the deploy would work.
+
+Cloudflare is used anyway, for one record. Point Namecheap's nameservers at Cloudflare
+(*Domain List -> Manage -> Nameservers -> Custom DNS*), which is free and takes up to a few hours
+to propagate, so do it before anything that waits on DNS.
+
+What the proxy on `api.` buys, and the whole reason it is there: it caches `/token-icons/*` and
+`/digit-icons/*`, and it keeps a single 2-vCPU box off the open internet by address. The apex gets
+nothing from Cloudflare but a DNS answer, which is why it is grey.
 
 | Record | Points at | Proxy |
 | --- | --- | --- |
