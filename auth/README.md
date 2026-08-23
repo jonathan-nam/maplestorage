@@ -89,6 +89,31 @@ docker compose logs -f auth
 That fallback is local-only. `assertCanSendEmail` refuses to start a service reachable over https
 without a key, because there the same behaviour is a reset that silently never arrives.
 
+## Moving an existing account onto a new sign-in
+
+The id in `users` used to be Clerk's. Signing in with Discord mints a different one, so an account
+that existed before the swap keeps its characters, parties and ledger attached to an id nobody can
+sign in as any more. The app looks empty and nothing is actually lost.
+
+```bash
+./scripts/reassign-user.sh <old-id> <new-id>
+```
+
+Sign in once first, so the new row exists, then find the new id:
+
+```bash
+docker compose exec -T postgres psql -U maplestorage -d maplestorage \
+  -c 'select id, email from "auth_user";'
+```
+
+It moves every row in every table that references `users.id`, **read from the catalog rather than a
+list in the script**. A hand-written list is one a future table falls off, and the failure would be
+a move that reports success and silently leaves part of the account behind. It prints a per-table
+count, carries the old row's world and main character across, and runs in one transaction.
+
+It refuses rather than guesses: an old id that does not exist, or the same id twice, is an error and
+nothing is written.
+
 ## Discord
 
 Register the redirect URI in the Discord application, exactly:
