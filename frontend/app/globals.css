@@ -146,7 +146,7 @@
   background: var(--surface-2);
 }
 
-/* Header controls Clerk has not resolved yet: same box, so the real control fades into space that
+/* Header controls the session has not resolved yet: same box, so the real control fades into space that
    was already reserved rather than shifting the rest of the bar. See SiteHeader.
    The avatar is per-user and cannot be drawn before it is known, so it stays an empty box. The
    hamburger is identical for every signed-in user, so it is drawn: hiding it read as the icon
@@ -159,9 +159,9 @@
   visibility: hidden;
 }
 
-/* Whether to reserve at all. The inline script in RootLayout sets .has-session from Clerk's
-   __client_uat cookie before first paint; signed out there is nothing coming, so holding the space
-   would leave a gap that closes when Clerk resolves, which is the same 54px shift inverted.
+/* Whether to reserve at all. The inline script in RootLayout sets .has-session before first paint,
+   from what lib/auth-client.ts stored last time; signed out there is nothing coming, so holding the
+   space would leave a gap that closes when the session resolves, the same 54px shift inverted.
    display, not visibility: the boxes must not occupy the bar at all. */
 html:not(.has-session) .header-reserved {
   display: none;
@@ -6275,4 +6275,125 @@ button.ledger-drop-sale:hover:not(:disabled) {
   font-size: 12px;
   line-height: 1.5;
   text-align: center;
+}
+
+/* --- Sign in ----------------------------------------------------------------------------- */
+
+/* Discord's own blurple, not the app accent. This is the one control on the site that leads
+   somewhere else, and it should look like where it leads. */
+.sign-in-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 20px;
+  padding: 10px 18px;
+  font: inherit;
+  font-size: 14px;
+  border: 0;
+  border-radius: 8px;
+  background: #5865f2;
+  color: #fff;
+  cursor: pointer;
+}
+
+.sign-in-btn:hover {
+  background: #4752c4;
+}
+
+.sign-in-btn:disabled {
+  background: var(--surface-2);
+  color: var(--muted-2);
+  cursor: default;
+}
+
+/* --- Auth pages ---------------------------------------------------------------------------- */
+
+.auth-panel {
+  max-width: 320px;
+  margin: 48px auto;
+}
+
+.auth-panel h1 {
+  margin: 0 0 16px;
+  font-size: 18px;
+}
+
+.auth-field {
+  display: block;
+  margin-bottom: 12px;
+}
+
+.auth-field span {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.auth-field input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px 10px;
+  font: inherit;
+  font-size: 14px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface-2);
+  color: var(--ink);
+}
+
+.auth-field input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.auth-submit {
+  width: 100%;
+  margin-top: 4px;
+  padding: 9px 14px;
+  font: inherit;
+  font-size: 14px;
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.auth-submit:disabled {
+  border-color: var(--line);
+  color: var(--muted-2);
+  cursor: default;
+}
+
+.auth-error {
+  margin: 0 0 10px;
+  font-size: 12px;
+  color: var(--bad);
+}
+
+.auth-done,
+.auth-footer {
+  margin: 12px 0 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+/* The Discord button under a rule, so the two ways in read as alternatives rather than a queue. */
+.auth-alt {
+  max-width: 320px;
+  margin: 0 auto;
+  text-align: center;
+}
+
+.auth-or {
+  display: block;
+  margin: 16px 0 12px;
+  font-size: 12px;
+  color: var(--muted-2);
+}
+
+.hero-alt {
+  margin: 12px 0 0;
+  font-size: 12px;
 }

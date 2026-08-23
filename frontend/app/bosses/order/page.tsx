@@ -1,6 +1,5 @@
 "use client";
 
-import { useAuth } from "@clerk/nextjs";
 import Link from "next/link";
 import { useDeferredValue, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 
@@ -9,6 +8,7 @@ import { CopyPlan, type RunLog, type RunRotation, RunPlan } from "@/components/r
 import { pieceNote, rotatingDrops, rotationFor, takesByOwner } from "@/lib/loot-rotation";
 import type { PartyLootPool } from "@/types/loot";
 import { apiFetch, readBack } from "@/lib/api";
+import { useAuth } from "@/lib/use-auth";
 import { progressLabel } from "@/lib/boss-clears";
 import { bossLabel } from "@/lib/boss-difficulty";
 import { DEFAULT_MINUTES } from "@/lib/boss-minutes";
@@ -243,7 +243,7 @@ export default function RunOrderPage() {
     // Not before Clerk answers, or the fetch goes out as `Bearer null`. See lib/api.ts.
     if (!isLoaded) return;
     let live = true;
-    // One token for the burst. getToken() can round-trip to Clerk, and paying that per request is
+    // One token for the burst. getToken() can round-trip to auth, and paying that per request is
     // latency the user waits through twice for no reason.
     getToken()
       .then((token) => {

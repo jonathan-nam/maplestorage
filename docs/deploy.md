@@ -4,10 +4,10 @@ Production is **one Lightsail box** running `docker compose`: Caddy, the backend
 service and Postgres. $12/month. The frontend is on Vercel's free tier.
 
 ```
-                    Cloudflare (free tier, proxied)
+   DNS: Namecheap BasicDNS
                        │
-   sharpeyes.gg ───────┼──> Vercel          Next frontend   (DNS-only, grey cloud)
-   api.sharpeyes.gg ───┴──> Lightsail box                   (proxied, orange cloud)
+   sharpeyes.app ──────┼──> Vercel           Next frontend
+   api.sharpeyes.app ──┴──> Lightsail box    everything else
                                 │
                             Caddy :443      TLS, 20MB body limit, load balances
                                 │
@@ -24,17 +24,44 @@ service and Postgres. $12/month. The frontend is on Vercel's free tier.
 
 ### 1. Domain and DNS
 
-Register the domain wherever carries `.gg`, then move its nameservers to Cloudflare. Cloudflare
-Registrar does not sell `.gg`, but its DNS is free and the proxy in front of the box is the reason
-it is here at all.
+Registered at **Namecheap** (2026-08-23), on Namecheap's own **BasicDNS**. Two A records, no CDN
+and no proxy in front of anything.
 
-| Record | Points at | Proxy |
+*Domain List -> Manage -> Advanced DNS*. **Delete the two records Namecheap creates by default**
+first, a `CNAME www -> parkingpage.namecheap.com` and a URL Redirect on `@`. Left in place they
+answer for names this app also wants, and a parking page served over your own domain looks exactly
+like a deploy that failed.
+
+| Type | Host | Value |
 | --- | --- | --- |
-| `sharpeyes.gg` | Vercel | **DNS-only (grey cloud)** |
-| `api.sharpeyes.gg` | the box's static IP | proxied (orange cloud) |
+| A | `@` | the IP **Vercel shows you** when you add the domain |
+| A | `api` | the box's static IP, from `terraform output static_ip` |
 
-The apex must be **grey**. Cloudflare's proxy fights Vercel's own TLS, and the failure looks like a
-certificate error nobody can explain.
+**Do not copy an apex IP out of a blog post, this one included.** Vercel used to hand everybody
+`76.76.21.21`; newer projects draw from a pool matched to the plan, so yours may be something else
+entirely. Use whatever the Vercel dashboard prints next to the domain.
+
+An apex cannot be a CNAME (RFC 1034: nothing else may sit beside one, and an apex needs NS records),
+which is why that row is an A record while a `www` would be a CNAME to `cname.vercel-dns.com`.
+
+Cloudflare was considered and is not used. Nothing in this repo depends on it, no code reads a
+Cloudflare header, and one DNS provider is one less account. What that decision gives up is worth
+knowing rather than rediscovering:
+
+- **The icon paths lose an edge cache.** `/token-icons/*` and `/digit-icons/*` are served immutable
+  for a year (see the Caddyfile), so a returning browser still pays nothing, but a cold visitor
+  fetches them from the box instead of from somewhere near them.
+- **The box's IP is public**, and it is one 2-vCPU instance. Nothing absorbs traffic in front of it.
+
+Neither is load-bearing at this size. Putting Cloudflare back later is a nameserver change and
+turning one record orange, and the apex would have to stay **grey**: Cloudflare's proxy fights
+Vercel's own TLS there, and the failure looks like a certificate error nobody can explain.
+
+`.app` is on the HSTS preload list, so browsers refuse plain http to it before a request is even
+made. That is free https enforcement and nothing here has to change for it, with one caveat worth
+knowing before the first deploy: **keep port 80 published anyway.** Let's Encrypt's HTTP-01
+challenge starts there, and it is not a browser, so it does not consult the preload list. Closing 80
+because "nothing can use http now" is how you fail a challenge against the rate limit below.
 
 ### 2. The box
 
@@ -80,12 +107,26 @@ here and nowhere earlier.
 On Vercel, from the repo, root directory `frontend/`:
 
 ```
-NEXT_PUBLIC_API_BASE_URL=https://api.sharpeyes.gg
-NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_live_...
-CLERK_SECRET_KEY=sk_live_...
+NEXT_PUBLIC_API_BASE_URL=https://api.sharpeyes.app
+NEXT_PUBLIC_AUTH_BASE_URL=https://api.sharpeyes.app
+NEXT_PUBLIC_PASSWORD_LOGIN=false
 ```
 
-Then add both hostnames to the Clerk dashboard's allowed origins, or every request 401s.
+The last one mirrors the box's `AUTH_PASSWORD_LOGIN` and decides only what is OFFERED. The service
+decides what WORKS, so the two disagreeing hides a working form or shows a refused one, and neither
+signs the wrong person in. Change them together anyway.
+
+Both are the API hostname: Caddy serves sign-in from it under `/api/auth`, so there is no third
+name to point at anything.
+
+Then register the redirect URI in the Discord application
+(<https://discord.com/developers/applications> → *OAuth2*), exactly:
+
+```
+https://api.sharpeyes.app/api/auth/callback/discord
+```
+
+Discord matches it character for character, a trailing slash included, and refuses anything else.
 
 ### 5. Backups
 
