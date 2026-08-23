@@ -24,10 +24,10 @@
 x-backend-prod-env: &backend-prod-env
   DB_USERNAME: ${DB_USERNAME:?set it in .env on the box}
   DB_PASSWORD: ${DB_PASSWORD:?set it in .env on the box}
-  FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:?the frontend's origin, e.g. https://sharpeyes.gg}
+  FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:?the frontend's origin, e.g. https://sharpeyes.app}
   # Has to be character-for-character what the auth service puts in `iss`, which is why both read
   # the same API_DOMAIN. A trailing slash on one side and not the other is a uniform 401.
-  AUTH_ISSUER: https://${API_DOMAIN:?the API hostname, e.g. api.sharpeyes.gg}
+  AUTH_ISSUER: https://${API_DOMAIN:?the API hostname, e.g. api.sharpeyes.app}
 
 services:
   postgres:
@@ -59,11 +59,11 @@ services:
       DB_PASSWORD: ${DB_PASSWORD:?set it in .env on the box}
       # The API hostname, because Caddy serves sign-in from the same one. This lands in the token's
       # `iss` and in the OAuth redirect, so it has to be the URL a BROWSER uses, https and all.
-      AUTH_BASE_URL: https://${API_DOMAIN:?the API hostname, e.g. api.sharpeyes.gg}
+      AUTH_BASE_URL: https://${API_DOMAIN:?the API hostname, e.g. api.sharpeyes.app}
       # Scoped to the parent so the frontend on the apex and this service on api. share one session.
       # A leading dot, and never a bare subdomain, or the apex does not get the cookie.
-      AUTH_COOKIE_DOMAIN: ${AUTH_COOKIE_DOMAIN:?the parent domain with a leading dot, e.g. .sharpeyes.gg}
-      AUTH_TRUSTED_ORIGINS: ${FRONTEND_ORIGIN:?the frontend's origin, e.g. https://sharpeyes.gg}
+      AUTH_COOKIE_DOMAIN: ${AUTH_COOKIE_DOMAIN:?the parent domain with a leading dot, e.g. .sharpeyes.app}
+      AUTH_TRUSTED_ORIGINS: ${FRONTEND_ORIGIN:?the frontend's origin, e.g. https://sharpeyes.app}
       # Required on the box. Without a sender a forgotten password is a permanently lost account,
       # so the service refuses to start rather than accept sign-ups it cannot support.
       RESEND_API_KEY: ${RESEND_API_KEY:?from https://resend.com, an API key with send permission}
@@ -115,7 +115,7 @@ services:
       - caddy-data:/data
       - caddy-config:/config
     environment:
-      API_DOMAIN: ${API_DOMAIN:?the API hostname, e.g. api.sharpeyes.gg}
+      API_DOMAIN: ${API_DOMAIN:?the API hostname, e.g. api.sharpeyes.app}
     depends_on:
       - vision
 
