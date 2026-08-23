@@ -30,6 +30,16 @@ const AUTH_BASE_PATH = "/api/auth";
  */
 export const PASSWORD_LOGIN = flag("AUTH_PASSWORD_LOGIN");
 
+/**
+ * Origins allowed to call this service, used for BOTH Better Auth's own check and the CORS headers
+ * in server.ts. Deliberately one list: an origin trusted by one and refused by the other is a
+ * request that dies in the browser with nothing logged here to explain it.
+ */
+export const TRUSTED_ORIGINS = env("AUTH_TRUSTED_ORIGINS")
+  .split(",")
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
 /** IANA-reserved, so a synthesised address can never collide with or be mistaken for a real one. */
 const NO_EMAIL_DOMAIN = "discord.invalid";
 
@@ -131,10 +141,7 @@ export const auth = betterAuth({
       : { enabled: false },
   },
 
-  trustedOrigins: env("AUTH_TRUSTED_ORIGINS")
-    .split(",")
-    .map((origin) => origin.trim())
-    .filter(Boolean),
+  trustedOrigins: TRUSTED_ORIGINS,
 });
 
 /** Where the backend's JWKS_URL has to point. Exported so a test can assert the two agree. */

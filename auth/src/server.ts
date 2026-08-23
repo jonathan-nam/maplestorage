@@ -1,8 +1,8 @@
-import { createServer } from "node:http";
+import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 
 import { toNodeHandler } from "better-auth/node";
 
-import { auth, PASSWORD_LOGIN } from "./auth.js";
+import { auth, PASSWORD_LOGIN, TRUSTED_ORIGINS } from "./auth.js";
 import { assertCanSendEmail } from "./email.js";
 import { env, optionalEnv } from "./env.js";
 
@@ -13,7 +13,47 @@ if (PASSWORD_LOGIN) assertCanSendEmail();
 const port = Number(optionalEnv("PORT") ?? 3001);
 const handler = toNodeHandler(auth);
 
+/**
+ * CORS, which Better Auth does not do for us and which nothing here needed until now.
+ *
+ * The documented setup puts these routes inside the Next app, where every call is same-origin.
+ * Ours is a separate service on a separate port, so the browser preflights and then refuses. It
+ * fails as a bare "Failed to fetch" in the console with no mention of CORS, and the request never
+ * leaves the browser, so the service logs nothing at all. Curl cannot see it either: curl does not
+ * preflight. Only a browser reproduces this.
+ *
+ * The origin is ECHOED, never `*`. These requests carry the session cookie, and a wildcard is
+ * invalid with credentials: the browser rejects the response rather than the request. Same rule as
+ * the backend's Cors.kt, for the same reason.
+ */
+function applyCors(request: IncomingMessage, response: ServerResponse): boolean {
+  const origin = request.headers.origin;
+
+  if (origin && TRUSTED_ORIGINS.includes(origin)) {
+    response.setHeader("Access-Control-Allow-Origin", origin);
+    response.setHeader("Access-Control-Allow-Credentials", "true");
+    // Origin decides the response, so caches must key on it. Without this a proxy can serve one
+    // origin's allow-header to another.
+    response.setHeader("Vary", "Origin");
+  }
+
+  // The preflight itself. It never reaches the auth handler, which would 404 it: OPTIONS is not a
+  // route any of these endpoints declare.
+  if (request.method === "OPTIONS") {
+    response.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+    response.setHeader("Access-Control-Allow-Headers", "content-type, authorization");
+    response.setHeader("Access-Control-Max-Age", "86400");
+    response.writeHead(204);
+    response.end();
+    return true;
+  }
+
+  return false;
+}
+
 const server = createServer((request, response) => {
+  if (applyCors(request, response)) return;
+
   // Its own path, answered before the handler, so an orchestrator can tell "the process is up"
   // from "Discord is reachable". Compose reads this one.
   if (request.url === "/health") {
