@@ -4,10 +4,10 @@ Production is **one Lightsail box** running `docker compose`: Caddy, the backend
 service and Postgres. $12/month. The frontend is on Vercel's free tier.
 
 ```
-                    Cloudflare (free tier, proxied)
+   DNS: Namecheap BasicDNS
                        │
-   sharpeyes.app ───────┼──> Vercel          Next frontend   (DNS-only, grey cloud)
-   api.sharpeyes.app ───┴──> Lightsail box                   (proxied, orange cloud)
+   sharpeyes.app ──────┼──> Vercel           Next frontend
+   api.sharpeyes.app ──┴──> Lightsail box    everything else
                                 │
                             Caddy :443      TLS, 20MB body limit, load balances
                                 │
@@ -24,25 +24,38 @@ service and Postgres. $12/month. The frontend is on Vercel's free tier.
 
 ### 1. Domain and DNS
 
-Registered at **Namecheap** (2026-08-23). Nothing here depends on the registrar, and nothing in
-this repo depends on Cloudflare either: no code reads a Cloudflare header. DNS could be Namecheap's
-own and the deploy would work.
+Registered at **Namecheap** (2026-08-23), on Namecheap's own **BasicDNS**. Two A records, no CDN
+and no proxy in front of anything.
 
-Cloudflare is used anyway, for one record. Point Namecheap's nameservers at Cloudflare
-(*Domain List -> Manage -> Nameservers -> Custom DNS*), which is free and takes up to a few hours
-to propagate, so do it before anything that waits on DNS.
+*Domain List -> Manage -> Advanced DNS*. **Delete the two records Namecheap creates by default**
+first, a `CNAME www -> parkingpage.namecheap.com` and a URL Redirect on `@`. Left in place they
+answer for names this app also wants, and a parking page served over your own domain looks exactly
+like a deploy that failed.
 
-What the proxy on `api.` buys, and the whole reason it is there: it caches `/token-icons/*` and
-`/digit-icons/*`, and it keeps a single 2-vCPU box off the open internet by address. The apex gets
-nothing from Cloudflare but a DNS answer, which is why it is grey.
-
-| Record | Points at | Proxy |
+| Type | Host | Value |
 | --- | --- | --- |
-| `sharpeyes.app` | Vercel | **DNS-only (grey cloud)** |
-| `api.sharpeyes.app` | the box's static IP | proxied (orange cloud) |
+| A | `@` | the IP **Vercel shows you** when you add the domain |
+| A | `api` | the box's static IP, from `terraform output static_ip` |
 
-The apex must be **grey**. Cloudflare's proxy fights Vercel's own TLS, and the failure looks like a
-certificate error nobody can explain.
+**Do not copy an apex IP out of a blog post, this one included.** Vercel used to hand everybody
+`76.76.21.21`; newer projects draw from a pool matched to the plan, so yours may be something else
+entirely. Use whatever the Vercel dashboard prints next to the domain.
+
+An apex cannot be a CNAME (RFC 1034: nothing else may sit beside one, and an apex needs NS records),
+which is why that row is an A record while a `www` would be a CNAME to `cname.vercel-dns.com`.
+
+Cloudflare was considered and is not used. Nothing in this repo depends on it, no code reads a
+Cloudflare header, and one DNS provider is one less account. What that decision gives up is worth
+knowing rather than rediscovering:
+
+- **The icon paths lose an edge cache.** `/token-icons/*` and `/digit-icons/*` are served immutable
+  for a year (see the Caddyfile), so a returning browser still pays nothing, but a cold visitor
+  fetches them from the box instead of from somewhere near them.
+- **The box's IP is public**, and it is one 2-vCPU instance. Nothing absorbs traffic in front of it.
+
+Neither is load-bearing at this size. Putting Cloudflare back later is a nameserver change and
+turning one record orange, and the apex would have to stay **grey**: Cloudflare's proxy fights
+Vercel's own TLS there, and the failure looks like a certificate error nobody can explain.
 
 `.app` is on the HSTS preload list, so browsers refuse plain http to it before a request is even
 made. That is free https enforcement and nothing here has to change for it, with one caveat worth

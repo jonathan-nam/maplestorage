@@ -54,15 +54,15 @@
 
 	# The item icons and digit sprites are served unauthenticated off the JAR classpath
 	# (staticResources in plugins/Routing.kt) and never change without the filename changing. They
-	# are the only genuinely cacheable thing here, and the whole reason Cloudflare is in front.
+	# are the only genuinely cacheable thing here. No CDN sits in front, so this header is what a
+	# returning browser gets and a cold visitor pays the box. See docs/deploy.md.
 	@static path /token-icons/* /digit-icons/*
 	header @static Cache-Control "public, max-age=31536000, immutable"
 
-	# Cloudflare proxies this, so every request arrives from a Cloudflare IP and the real client is
-	# in CF-Connecting-IP. Caddy can only be told to trust those hops with a static range list
-	# (the `cloudflare` module is a third-party plugin, not in the stock image), and that list
-	# changes, so it is deliberately not pinned here. Read the client IP from CF-Connecting-IP if
-	# it ever matters; do not believe the remote address.
+	# Nothing proxies this, so the remote address IS the client. That stops being true the moment
+	# anything is put in front (a CDN, a load balancer), at which point every request arrives from
+	# one address and the real client moves into a forwarded header that has to be explicitly
+	# trusted. Do not start believing the remote address in code without re-checking this line.
 
 	log {
 		output stdout
