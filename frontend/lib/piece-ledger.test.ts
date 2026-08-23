@@ -4,6 +4,7 @@ import {
   balances,
   entitlements,
   spendOldestFirst,
+  spendSales,
   transferKey,
   transfersOf,
 } from "./piece-ledger";
@@ -182,5 +183,103 @@ describe("spending an answered count over the nights behind it", () => {
   it("spends nothing it has not got, and never reads negative", () => {
     expect(spendOldestFirst([night("a", "2026-08-13", 10)], 0).map((n) => n.pieces)).toEqual([10]);
     expect(spendOldestFirst([night("a", "2026-08-13", 10)], -5).map((n) => n.pieces)).toEqual([10]);
+  });
+});
+
+// The eligibility rule the doc above has always claimed and never enforced. Without it every sale
+// ever recorded is one undated pool, and it drains down the queue into nights that fell after it.
+describe("a sale only reaching the nights that were on the books", () => {
+  const night = (id: string, droppedOn: string, pieces: number, recordedAt?: string) => ({
+    id,
+    droppedOn,
+    pieces,
+    recordedAt,
+  });
+
+  it("does not answer a night logged after it", () => {
+    // Hard Baldrix, and the reason the row read "Yours". You sell 60 of Bro's at 04:20 and log a
+    // fresh night at 04:46: the sale cannot have been about coupons you had not picked up yet.
+    const out = spendSales(
+      [night("baldrix", "2026-08-23", 60, "2026-08-23T04:46:41Z")],
+      [{ pieces: 60, recordedAt: "2026-08-23T04:20:12Z" }],
+    );
+    expect(out[0]!.pieces).toBe(60);
+  });
+
+  it("answers a night logged before it", () => {
+    const out = spendSales(
+      [night("malefic", "2026-08-23", 60, "2026-08-23T04:17:00Z")],
+      [{ pieces: 60, recordedAt: "2026-08-23T04:20:12Z" }],
+    );
+    expect(out[0]!.pieces).toBe(0);
+  });
+
+  it("goes by the day it was LOGGED, not the day it fell", () => {
+    // droppedOn is a date somebody typed. Logging a drop, selling, and logging another is one date
+    // and three acts, and a bare day cannot put them in order.
+    const out = spendSales(
+      [
+        night("before", "2026-08-23", 30, "2026-08-23T04:17:00Z"),
+        night("after", "2026-08-23", 30, "2026-08-23T04:46:41Z"),
+      ],
+      [{ pieces: 60, recordedAt: "2026-08-23T04:20:12Z" }],
+    );
+    expect(out.map((n) => [n.id, n.pieces])).toEqual([
+      ["before", 0],
+      ["after", 30],
+    ]);
+  });
+
+  it("leaves a sale that outruns its nights stranded rather than spilling it forward", () => {
+    // The whole bug in one line. 500 sold against 30 of eligible debt used to roll on down the
+    // queue and silence every later night; now the surplus simply has nowhere to go.
+    const out = spendSales(
+      [
+        night("old", "2026-08-13", 30, "2026-08-13T00:00:00Z"),
+        night("new", "2026-08-23", 60, "2026-08-23T04:46:41Z"),
+      ],
+      [{ pieces: 500, recordedAt: "2026-08-14T00:00:00Z" }],
+    );
+    expect(out.map((n) => [n.id, n.pieces])).toEqual([
+      ["old", 0],
+      ["new", 60],
+    ]);
+  });
+
+  it("keeps a row cached from before the field eligible for everything", () => {
+    // lib/cache.ts hands back whatever shape the API had when the page last fetched. Absent has to
+    // mean what it meant when it was cached, and the next fetch corrects it.
+    const out = spendSales(
+      [night("cached", "2026-08-23", 60)],
+      [{ pieces: 60, recordedAt: "2026-08-13T00:00:00Z" }],
+    );
+    expect(out[0]!.pieces).toBe(0);
+  });
+
+  it("spends the oldest sale first, so the leftovers land where they would have", () => {
+    const nights = [
+      night("old", "2026-08-13", 30, "2026-08-13T00:00:00Z"),
+      night("new", "2026-08-20", 30, "2026-08-20T00:00:00Z"),
+    ];
+    const out = spendSales(nights, [
+      { pieces: 30, recordedAt: "2026-08-25T00:00:00Z" },
+      { pieces: 30, recordedAt: "2026-08-14T00:00:00Z" },
+    ]);
+    expect(out.map((n) => n.pieces)).toEqual([0, 0]);
+  });
+
+  it("returns every night, a covered one at zero, the way spendOldestFirst does", () => {
+    const out = spendSales(
+      [night("a", "2026-08-13", 10, "2026-08-13T00:00:00Z")],
+      [{ pieces: 50, recordedAt: "2026-08-14T00:00:00Z" }],
+    );
+    expect(out).toHaveLength(1);
+    expect(out[0]!.pieces).toBe(0);
+  });
+
+  it("spends nothing when there are no sales", () => {
+    expect(spendSales([night("a", "2026-08-13", 10, "2026-08-13T00:00:00Z")], [])[0]!.pieces).toBe(
+      10,
+    );
   });
 });

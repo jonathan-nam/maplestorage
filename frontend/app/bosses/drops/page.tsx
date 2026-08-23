@@ -73,7 +73,7 @@ import {
   alsoHeldByYou,
   couponMoney,
   answeredByHolder,
-  answeredByPair,
+  answeredSalesByPair,
   boughtByHolder,
   foldSeats,
   holderKey,
@@ -458,7 +458,7 @@ export default function DropLogPage() {
     sellable,
     dropTables,
     closures.closed,
-    answeredByPair(tranches),
+    answeredSalesByPair(tranches),
   );
   const log = forCharacter(whole, character);
   const { totals } = log;
@@ -493,7 +493,7 @@ export default function DropLogPage() {
     answeredByHolder(tranches),
     // The same pieces per creditor, which is what lets a night the sales already answered stay off
     // the queue when a later one is logged. See foldAnswered.
-    answeredByPair(tranches),
+    answeredSalesByPair(tranches),
   );
   // What other people owe you, in both units it can be owed in: pieces of yours they are holding,
   // and shares of a sale they made. Off the same two aggregations the ledger and the wallet already
@@ -559,7 +559,7 @@ export default function DropLogPage() {
     // The pieces a priced tranche already spoke for, per pair. `saleCredits` above is the money the
     // same rows came to, and passing one without the other is what had this card asking Bro for 130
     // coupons while the Sale Ledger, subtracting the 70 he had been sold, asked for 60.
-    answeredByPair(tranches),
+    answeredSalesByPair(tranches),
     // What has been decided about their money, and nothing more. An empty list means undecided,
     // which is the honest state for a sale nobody has said anything about. See V61.
     disposals,

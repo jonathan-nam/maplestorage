@@ -21,7 +21,7 @@ import {
 } from "@/lib/drop-log";
 import { useDropIcons } from "@/lib/drop-icons";
 import { NOTHING_OUTSTANDING, poolLabel, summarize } from "@/lib/loot";
-import { answeredByPair, closedByHolder } from "@/lib/vestige-ledger";
+import { answeredSalesByPair, closedByHolder } from "@/lib/vestige-ledger";
 import { otherMembers, partySizeLabel } from "@/lib/parties";
 import type { Boss } from "@/types/boss";
 import type { DropTables } from "@/types/drop";
@@ -208,7 +208,7 @@ export default function PartyPage() {
     : pools;
   const everyParty = party ? [party, ...parties.filter((p) => p.id !== party.id)] : parties;
   const log = party
-    ? buildDropLog(everyParty, everyPool, dropTables, closed, answeredByPair(tranches))
+    ? buildDropLog(everyParty, everyPool, dropTables, closed, answeredSalesByPair(tranches))
     : null;
   /** This party's own rows, which is what every figure below is about. */
   const mine = log?.entries.filter((entry) => entry.partyId === party?.id) ?? [];

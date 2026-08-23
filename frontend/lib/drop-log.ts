@@ -27,6 +27,7 @@ import {
   ranSeats,
   yourShare,
 } from "./vestige-ledger";
+import type { AnsweredSale } from "./piece-ledger";
 import type { BossDrop, DropTables } from "@/types/drop";
 import type { Loot, PartyLootPool } from "@/types/loot";
 import type { Party, PartyMember } from "@/types/party";
@@ -155,6 +156,8 @@ export type DropEntry = {
   closed: boolean;
   bossKey: string | null;
   droppedOn: string;
+  /** When it was LOGGED, which is what says a sale could have answered it. See spendSales. */
+  recordedAt?: string;
   /** The reset week it fell in, as that week's Thursday. The server's reckoning, never redone here. */
   weekStart: string;
   /** ALWAYS / HEROIC when everyone gets their own copy, so the sale is one person's, not a pool's. */
@@ -318,13 +321,17 @@ type OwedSide = { nights: DropEntry[]; figure: "owedToYou" | "owedByYou" };
  * The same spend settlement.ts makes on the same figures (see spendOldestFirst). Both screens have
  * to run it or the badge and the card disagree about which night is finished.
  */
-function spend(side: OwedSide, budget: number): void {
+function spend(side: OwedSide, budget: number, since: string | null = null): void {
   let left = budget;
   if (left <= 0) return;
   const oldest = [...side.nights].sort(
     (a, b) => a.droppedOn.localeCompare(b.droppedOn) || a.lootId.localeCompare(b.lootId),
   );
   for (const night of oldest) {
+    // A sale reaches only the nights already logged when it was made. Null is the cancellation,
+    // which is not a sale and has no day. A night with no recordedAt is a row cached from before
+    // the field and stays eligible, which is what it meant when it was cached. See spendSales.
+    if (since !== null && night.recordedAt && night.recordedAt > since) continue;
     const spent = Math.min(left, night[side.figure]);
     night[side.figure] -= spent;
     left -= spent;
@@ -332,24 +339,33 @@ function spend(side: OwedSide, budget: number): void {
   }
 }
 
-/** What a side still adds up to. */
-function totalOf(side: OwedSide): number {
-  return side.nights.reduce((sum, night) => sum + night[side.figure], 0);
+/** Each sale spent over its side, oldest sale first. The pair of spendSales for this file's shape. */
+function spendEach(side: OwedSide, sales: AnsweredSale[]): void {
+  for (const sale of [...sales].sort((a, b) => a.recordedAt.localeCompare(b.recordedAt))) {
+    spend(side, sale.pieces, sale.recordedAt);
+  }
 }
 
 /**
- * Settles each coupon relationship down to what somebody still has to do about it.
+ * Takes off each night the coupons a sale of it already answered, and nothing else.
  *
- * Two subtractions, in the order settlement.ts makes them, because a night can finish three ways
- * and a badge that only knows the first asks again for coupons that have already changed hands:
+ * ONE subtraction, and it is the only one that is about the night itself: you sold their share
+ * rather than handing it back, so their money is on their Settlement card and asking for the coupons
+ * too is one debt in two units (V56). A sale reaches a night only if the night was already logged
+ * when the sale was made, which is what stops a sale spilling forward. See spendSales.
  *
- *  - a sale that already answered them, per pile and creditor, in mesos rather than coupons (V56).
- *  - the two directions CANCELLING, because one handover settles the pair (#417). Twenty of yours
- *    in their pile against twenty of theirs in yours is a night nobody has to do anything about,
- *    and Hard Baldrix went on asking for its twenty a week after the pair had washed.
+ * The other way a night finishes is `closed`, which the entries carry already and which keeps them
+ * out of here: a finished night must not eat a budget a night still owed has a claim on.
  *
- * The third is `closed`, which the entries carry already and which keeps them out of here: a
- * finished night must not eat a budget that a night still owed has a claim on.
+ * WHAT IS DELIBERATELY NOT HERE is the two directions cancelling. One handover does settle a pair,
+ * and the Settlement Ledger nets them for exactly that reason (#417), but that is a fact about two
+ * PEOPLE and this is a fact about one RUN. Netting here answered "what do I owe Bro all told" on a
+ * row that asked "what came off this boss": Hard Baldrix on 2026-08-23 dealt 120 coupons to a duo
+ * entitled to 60 each, and the row said nothing at all, because coupons of yours Bro was holding
+ * from two other nights ten days earlier had quietly absorbed it.
+ *
+ * So the badge and the Settlement card now answer different questions on purpose, and the card is
+ * where the netted figure lives.
  *
  * Not capped anywhere: a budget larger than the nights owed simply clears them, which is a tranche
  * naming more than was ever owed. The Settlement Ledger says that out loud on its own card, and a
@@ -357,7 +373,7 @@ function totalOf(side: OwedSide): number {
  */
 function settleCouponNights(
   owed: { entry: DropEntry; other: string; yours: boolean }[],
-  answered: Map<string, number>,
+  answered: Map<string, AnsweredSale[]>,
 ): void {
   const sides = new Map<string, { byYou: OwedSide; toYou: OwedSide }>();
   for (const { entry, other, yours } of owed) {
@@ -375,13 +391,8 @@ function settleCouponNights(
   for (const [other, pair] of sides) {
     // Coupons of theirs you sold, and coupons of yours they sold. Each answers its own direction:
     // a sale out of YOUR pile says nothing about what is sitting in theirs.
-    spend(pair.byYou, answered.get(answeredKey(SELF_KEY, other)) ?? 0);
-    spend(pair.toYou, answered.get(answeredKey(other, SELF_KEY)) ?? 0);
-    // What is left of the two cancels. Netting a COUNT is safe where netting a price would not be:
-    // same coupon, same person, nothing valued.
-    const wash = Math.min(totalOf(pair.byYou), totalOf(pair.toYou));
-    spend(pair.byYou, wash);
-    spend(pair.toYou, wash);
+    spendEach(pair.byYou, answered.get(answeredKey(SELF_KEY, other)) ?? []);
+    spendEach(pair.toYou, answered.get(answeredKey(other, SELF_KEY)) ?? []);
   }
 }
 
@@ -406,7 +417,7 @@ export function buildDropLog(
    *
    * Empty is nothing sold, which is every log before V56 and every caller that has no tranches.
    */
-  answered: Map<string, number> = new Map(),
+  answered: Map<string, AnsweredSale[]> = new Map(),
 ): DropLog {
   const partyById = new Map(parties.map((p) => [p.id, p]));
   const entries: DropEntry[] = [];
@@ -453,6 +464,7 @@ export function buildDropLog(
         closed: gap !== null && closed.has(closureKeyOf(gap.holder, loot.id)),
         bossKey: loot.bossKey,
         droppedOn: loot.droppedOn,
+        recordedAt: loot.recordedAt,
         weekStart: loot.weekStart,
         perMember: loot.perMember,
         status: loot.status,
@@ -582,9 +594,24 @@ function totalsOf(entries: DropEntry[]): DropLogTotals {
  * a debt runs, and the pair has to come from a single pass: four call sites read this, and the way
  * this feature has gone wrong before is a figure added to some of them and missed on the rest.
  */
-export function couponsOutstandingByParty(entries: DropEntry[]): Map<string, CouponsOutstanding> {
+export function couponsOutstandingByParty(
+  entries: DropEntry[],
+  /**
+   * The week on screen, so a row answers for the runs under the heading it sits below.
+   *
+   * Null is the whole pool, which is what a page with no week to name shows. `>=` and not `===`, the
+   * same comparison dropsInWeek makes and for the same reason: a row dated after the week is kept
+   * rather than hidden, because nothing writes one and the honest failure is showing it.
+   *
+   * This DOES hide an older week's debt from the row. That is the point, and it is only safe because
+   * the debt is still said in three other places: the week it belongs to, the Drop Ledger, and the
+   * Sale Ledger, which is the one that nets a person's whole relationship into one figure.
+   */
+  weekStart: string | null = null,
+): Map<string, CouponsOutstanding> {
   const out = new Map<string, CouponsOutstanding>();
   for (const entry of entries) {
+    if (weekStart !== null && entry.weekStart < weekStart) continue;
     // A closed drop is not outstanding. Without this the badge read the party's ARRANGEMENT rather
     // than the ledger, so "30 coupons owed" survived every sale, payment and settlement against it.
     if (!entry.pieces || entry.closed) continue;

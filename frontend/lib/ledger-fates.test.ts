@@ -20,7 +20,7 @@ import {
   type HolderLedger,
   alsoHeldByYou,
   answeredByHolder,
-  answeredByPair,
+  answeredSalesByPair,
   holderKey,
   holderLedgers,
   keptByHolder,
@@ -103,6 +103,14 @@ const coupon = (quantity: number): Loot => ({
 
 const pool = (loot: Loot[]): PartyLootPool => ({ partyId: "pa", loot });
 
+/**
+ * One sale, as answeredSalesByPair files it, dated late enough to reach every night in here.
+ *
+ * These fixtures' nights carry no `recordedAt`, which is a row from before the field and is eligible
+ * for any sale. The eligibility rule has its own tests in piece-ledger.test.ts.
+ */
+const sold = (pieces: number, recordedAt = "2030-01-01T00:00:00Z") => [{ pieces, recordedAt }];
+
 const SELF: Holder = { kind: "SELF", personId: null, characterName: null };
 const BRO: Holder = { kind: "PERSON", personId: "p-bro", characterName: null };
 
@@ -161,7 +169,7 @@ const yourPile = (
     answeredByHolder(rows),
     // As the page builds it. Left off, every sale reached the card as pieces attributed to NOBODY,
     // so the per-creditor half of the ledger was exercised by nothing in here.
-    answeredByPair(rows),
+    answeredSalesByPair(rows),
   )[0]!;
 };
 
@@ -462,7 +470,7 @@ describe("the nights the card's queue lists", () => {
     const pile = {
       ...pileOf([night("l1", { to: "Bro" }), night("l2", { to: "Bro" })]),
       answered: 60,
-      answeredByCreditor: new Map([["person:p-bro", 60]]),
+      answeredByCreditor: new Map([["person:p-bro", sold(60)]]),
     };
     const { owing, answered } = queueOf(pile);
     expect([owing.length, answered]).toEqual([0, 2]);
@@ -475,7 +483,7 @@ describe("the nights the card's queue lists", () => {
     const pile = {
       ...pileOf([night("l1", { to: "Bro" }), night("l2", { to: "Bro" })]),
       answered: 30,
-      answeredByCreditor: new Map([["person:p-bro", 30]]),
+      answeredByCreditor: new Map([["person:p-bro", sold(30)]]),
     };
     const { owing, answered } = queueOf(pile);
     expect([owing.map((d) => d.lootId), answered]).toEqual([["l2"], 1]);
@@ -493,7 +501,7 @@ describe("the nights the card's queue lists", () => {
         night("l3", { to: "Bro", owed: 60 }),
       ]),
       answered: 130,
-      answeredByCreditor: new Map([["person:p-bro", 130]]),
+      answeredByCreditor: new Map([["person:p-bro", sold(130)]]),
     };
     expect(queueOf(before).owing).toEqual([]);
 
@@ -515,7 +523,7 @@ describe("the nights the card's queue lists", () => {
         night("oldest", { to: "Bro", owed: 30, droppedOn: "2026-08-13" }),
       ]),
       answered: 30,
-      answeredByCreditor: new Map([["person:p-bro", 30]]),
+      answeredByCreditor: new Map([["person:p-bro", sold(30)]]),
     };
     expect(queueOf(pile).owing.map((d) => d.lootId)).toEqual(["newest"]);
   });
@@ -532,7 +540,7 @@ describe("the nights the card's queue lists", () => {
     const pile = {
       ...pileOf([night("l1", { to: "Bro" }), owedZaddy]),
       answered: 300,
-      answeredByCreditor: new Map([["person:p-bro", 300]]),
+      answeredByCreditor: new Map([["person:p-bro", sold(300)]]),
     };
     expect(queueOf(pile).owing.map((d) => d.lootId)).toEqual(["l2"]);
   });
@@ -553,7 +561,7 @@ describe("the nights the card's queue lists", () => {
     const pile = {
       ...pileOf([night("l1", { to: "Bro", closed: true }), night("l2", { to: "Bro" })]),
       answered: 60,
-      answeredByCreditor: new Map([["person:p-bro", 60]]),
+      answeredByCreditor: new Map([["person:p-bro", sold(60)]]),
     };
     const { answered, owing } = queueOf(pile);
     expect([owing.length, answered]).toEqual([0, 1]);
@@ -838,7 +846,7 @@ describe("which recorded sales the card still draws a row for", () => {
   });
 
   it("keeps one whose only share is the pile's own holder, who is owed nothing", () => {
-    // The same rule answeredByPair applies. If the two disagreed, a sale could vanish from the card
+    // The same rule answeredSalesByPair applies. If the two disagreed, a sale could vanish from the card
     // while still asking on it, which is the one state neither screen can be corrected from.
     const shown = stillAsking([tranche("t1", [{ holder: SELF }])], decided(["t1", [SELF]]));
     expect(shown.map((t) => t.id)).toEqual(["t1"]);
@@ -923,7 +931,7 @@ describe("a night the answer only part covers", () => {
   });
 
   it("keeps a purchase that named nobody answering the PILE, since V50 says it answers one in full", () => {
-    // It cannot come off a night or a creditor: answeredByPair refuses to guess whose pieces they
+    // It cannot come off a night or a creditor: answeredSalesByPair refuses to guess whose pieces they
     // were, and naming one would discharge a debt against somebody who never agreed. So the header
     // falls and the rows do not, which is the safe direction for a worklist.
     const bought = yourPile(0, { pieces: 30, paid: 700 * M });

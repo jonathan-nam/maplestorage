@@ -15,7 +15,8 @@
 // apportioning, no debt is derived from these rows, so a pile that owes nobody gets the same figures
 // whatever it is told. Asking it to account for itself is work with no reader.
 
-import { spendOldestFirst } from "./piece-ledger";
+import { spendOldestFirst, spendSales } from "./piece-ledger";
+import type { AnsweredSale } from "./piece-ledger";
 import { SELF_KEY, holderKey, unaccounted } from "./vestige-ledger";
 import type { Holder, HolderLedger } from "./vestige-ledger";
 
@@ -128,7 +129,7 @@ export function heldOfYoursBy(ledgers: HolderLedger[]): HeldOfYours {
     // their Settlement card, so counting them here as coupons of yours they are still holding would
     // let one debt cancel your own a second time. The same subtraction settlement.ts makes to reach
     // `piecesAnswered.yours`, and the reason both ledgers now reduce a night alike.
-    const answered = Math.min(ledger.owedToYou, ledger.answeredByCreditor.get(SELF_KEY) ?? 0);
+    const answered = Math.min(ledger.owedToYou, piecesOf(ledger.answeredByCreditor.get(SELF_KEY)));
     const held = ledger.owedToYou - answered;
     if (held > 0) out.set(holderKey(ledger.holder), held);
   }
@@ -260,15 +261,21 @@ export function spendAnswered(
   const remaining = new Map<Night["transfers"][number], number>();
   const left = new Map<string, number>();
   for (const creditor of creditors) {
-    const credit =
-      (heldOfYours.get(creditor) ?? 0) + (ledger.answeredByCreditor.get(creditor) ?? 0);
     const owed = open.flatMap((night) =>
       night.transfers
         .filter((t) => t.toId === creditor)
-        .map((t) => ({ droppedOn: night.droppedOn, pieces: t.pieces, transfer: t })),
+        .map((t) => ({
+          droppedOn: night.droppedOn,
+          recordedAt: night.recordedAt,
+          pieces: t.pieces,
+          transfer: t,
+        })),
     );
+    // The sales first, each reaching only the nights it could have answered, then the cancellation,
+    // which is not a sale and reaches all of them. The same order settleCouponNights spends in.
+    const sold = spendSales(owed, ledger.answeredByCreditor.get(creditor) ?? []);
     let over = 0;
-    for (const row of spendOldestFirst(owed, credit)) {
+    for (const row of spendOldestFirst(sold, heldOfYours.get(creditor) ?? 0)) {
       remaining.set(row.transfer, row.pieces);
       over += row.pieces;
     }
@@ -352,8 +359,13 @@ export function outstandingOf(ledger: HolderLedger, heldOfYours: HeldOfYours = n
  */
 function unattributed(ledger: HolderLedger): number {
   let named = 0;
-  for (const pieces of ledger.answeredByCreditor.values()) named += pieces;
+  for (const sales of ledger.answeredByCreditor.values()) named += piecesOf(sales);
   return Math.max(0, ledger.answered - named);
+}
+
+/** What a run of sales comes to. The total the pair used to be stored as. See answeredSalesByPair. */
+function piecesOf(sales: AnsweredSale[] | undefined): number {
+  return (sales ?? []).reduce((sum, sale) => sum + sale.pieces, 0);
 }
 
 /**

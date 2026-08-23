@@ -11,7 +11,7 @@ import { bossLabel } from "@/lib/boss-difficulty";
 import { peek, put } from "@/lib/cache";
 import { buildDropAudit } from "@/lib/drop-audit";
 import { buildDropLog, isUntradeablePiece } from "@/lib/drop-log";
-import { answeredByPair, closedByHolder, foldSeats } from "@/lib/vestige-ledger";
+import { answeredSalesByPair, closedByHolder, foldSeats } from "@/lib/vestige-ledger";
 import type { Boss } from "@/types/boss";
 import type { DropTables } from "@/types/drop";
 import type { PartyLootPool } from "@/types/loot";
@@ -117,7 +117,7 @@ export default function DropAuditPage() {
     sellable,
     dropTables,
     closedByHolder(settlements).closed,
-    answeredByPair(tranches),
+    answeredSalesByPair(tranches),
   );
   // The people list first, so somebody is named even after their seat has left every party. Seats
   // then win, because a seat carries the name as this account spells it. Same order as the Drop Log.
