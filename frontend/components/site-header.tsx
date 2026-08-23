@@ -42,8 +42,7 @@ export function SiteHeader() {
           <SectionMenu />
         </SignedIn>
 
-        {/* Which world everything below is answering for. Beside the sections rather than by the
-            avatar: it scopes what the menu leads to, not who you are signed in as. */}
+        {/* Which world everything below is answering for. */}
         <SignedIn>
           <WorldToggle />
         </SignedIn>

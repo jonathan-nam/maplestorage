@@ -31,7 +31,7 @@ export function worldLabel(world: WorldType): string {
  * together, which is which is not in question.
  */
 export function worldShortLabel(world: WorldType): string {
-  return world === "HEROIC" ? "Reboot" : "Interactive";
+  return world === "HEROIC" ? "Heroic" : "Interactive";
 }
 
 /** The one you are not in. There are two, so this is total. */
