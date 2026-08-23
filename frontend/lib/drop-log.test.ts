@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   buildDropLog,
+  couponNote,
+  couponSide,
   foldRuns,
   consolidate,
   couponsOutstandingByParty,
@@ -875,8 +877,59 @@ describe("a piece drop counts YOUR share, not what fell", () => {
     // theirs and the row says so the other way round.
     expect(entry.owedByYou).toBe(10);
     expect(couponsOutstandingByParty(log.entries).get("pa")).toEqual({ toYou: 0, byYou: 10 });
-    // Yours, because you are holding them. Which of them you owe on is the badge's to say.
+    // This said "Yours" once, on the grounds that they are in your inventory. So is somebody else's
+    // share of them: a Hard Baldrix duo read "Yours" over 120 coupons that owed Bro 60, while the
+    // Sale Ledger asked for the 60. The whole row went quiet in the one direction.
+    expect(entry.owedTo).toBe("CreedBratton");
+    expect(couponSide(entry)).toEqual({ name: "CreedBratton", youHold: true });
+    expect(dropStatusLabel(entry)).toBe("To hand over");
+  });
+
+  it("says whose coupons are in the wrong inventory, both ways round", () => {
+    // The figure, because the row's count is your SHARE and neither direction can be read off it.
+    // You holding 40 of a 30 share is 10 of theirs, and the row said nothing at all about it.
+    const youHold = buildDropLog([pair()], [pool("pa", [arranged(2, 1)])], tables).entries[0]!;
+    expect(couponNote(youHold)).toBe("10 of CreedBratton's");
+
+    const theyHold = buildDropLog([pair()], [pool("pa", [arranged(1, 2)])], tables).entries[0]!;
+    expect(couponNote(theyHold)).toBe("CreedBratton looted");
+
+    const even = buildDropLog([pair()], [pool("pa", [arranged(1, 1, { bundles: 2 })])], tables)
+      .entries[0]!;
+    expect(couponNote(even)).toBeNull();
+  });
+
+  it("names nobody either way on a night that came out even", () => {
+    // A stack each out of two, so both of you hold exactly your share. Neither name is set, and the
+    // row says nothing about coupons changing hands: a name with no figure behind it is the party's
+    // arrangement being reported as a debt.
+    const log = buildDropLog([pair()], [pool("pa", [arranged(1, 1, { bundles: 2 })])], tables);
+    const entry = log.entries[0]!;
+
+    expect(entry.owedByYou).toBe(0);
+    expect(entry.owedToYou).toBe(0);
+    expect(entry.owedTo).toBeNull();
+    expect(entry.owedBy).toBeNull();
+    expect(couponSide(entry)).toBeNull();
     expect(dropStatusLabel(entry)).toBe("Yours");
+  });
+
+  it("keeps the direction after a sale has answered the figure", () => {
+    // Who bent down is what `owedTo` says, and no sale moves it. Read the direction off the FIGURES
+    // instead and an answered night falls through to the other name, which points the debt back at
+    // the person you already paid.
+    const log = buildDropLog(
+      [pair()],
+      [pool("pa", [arranged(3, 0)])],
+      tables,
+      new Set(),
+      new Map([[answeredKey(SELF_KEY, "person:p-chris"), 30]]),
+    );
+    const entry = log.entries[0]!;
+
+    expect(entry.owedByYou).toBe(0);
+    expect(entry.owedBy).toBeNull();
+    expect(couponSide(entry)).toEqual({ name: "Chris", youHold: true });
   });
 
   it("owes you the gap, not your whole share, when they took more than theirs", () => {

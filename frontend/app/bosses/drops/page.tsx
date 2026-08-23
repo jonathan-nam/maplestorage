@@ -47,6 +47,7 @@ import {
   type RunFold,
   type DropLine,
   consolidate,
+  couponNote,
   dropStatusLabel,
   foldNames,
   foldStatus,
@@ -1168,9 +1169,7 @@ function DropRow({
         boss?.name,
         showCharacter ? characterName : null,
         formatDropped(entry.droppedOn),
-        // The count on this row is your share, and this is who is holding it until they hand it
-        // over. Without it the row reads as pieces you already have.
-        entry.owedBy ? `${entry.owedBy} looted` : null,
+        couponNote(entry),
         // This row IS the run when it stands alone: one night, one roster, and no chevron under it
         // to say so instead.
         ranWith(entry.ranWith),
@@ -1381,7 +1380,7 @@ function RunRow({
     // Not said twice: where the label IS the date, there is no date left to put here.
     label === formatDropped(entry.droppedOn) ? null : formatDropped(entry.droppedOn),
     byBoss ? (showCharacter ? characterName : null) : null,
-    entry.owedBy ? `${entry.owedBy} looted` : null,
+    couponNote(entry),
     // Per run, because the roster is the WEEK's: a fold spanning two months is two rosters, and the
     // line above can only name their union.
     ranWith(entry.ranWith),

@@ -120,6 +120,15 @@ export type DropEntry = {
    */
   owedBy: string | null;
   /**
+   * The same fact the other way: who YOU are holding coupons for. Null when you are not.
+   *
+   * Its own field rather than a flag on `owedBy`, so the direction survives the figure being netted
+   * to nothing and neither name can be read as the other. Exactly one of the pair is ever set, and
+   * `couponSide` is how a screen reads them: taking `owedBy` alone is what left the Drop Ledger
+   * silent on the ordinary night, the one where you loot the lot and owe the party their share.
+   */
+  owedTo: string | null;
+  /**
    * How many of your share that character is still holding for you. Zero when nobody is.
    *
    * The GAP between your share and what you picked up, not the share itself. A night you looted four
@@ -136,9 +145,9 @@ export type DropEntry = {
    */
   owedByYou: number;
   /**
-   * Its books are closed, so what `owedBy` says is history. See V52.
+   * Its books are closed, so what the pair of names above say is history. See V52.
    *
-   * `owedBy` is a fact about the party's ARRANGEMENT, true from the moment the drop is logged and
+   * Either name is a fact about the party's ARRANGEMENT, true from the moment the drop is logged and
    * never after: it is `entitled - looted`, which no sale, payment or redemption moves. So without
    * this every coupon row read "Owed" for good and the party badge counted it forever, however
    * completely the ledger had been filled in.
@@ -435,6 +444,8 @@ export function buildDropLog(
         // Named only when somebody ELSE is holding some of it. Your own seat looting the lot is not
         // a debt to you, it is you having it already.
         owedBy: gap !== null && !gap.yours ? gap.by : null,
+        // And the creditor when it was your own seat that bent down for more than its share.
+        owedTo: gap !== null && gap.yours ? gap.by : null,
         owedToYou: gap !== null && !gap.yours ? gap.pieces : 0,
         owedByYou: gap !== null && gap.yours ? gap.pieces : 0,
         // The holder who owes it is the one whose books close it, so the key is theirs and not the
@@ -490,6 +501,36 @@ export function isOutstanding(entry: DropEntry): boolean {
 }
 
 /**
+ * The other side of a coupon night, and which way it runs. Null on a night that came out even.
+ *
+ * The one place `owedBy` and `owedTo` are read, so a screen cannot answer one direction and go
+ * quiet on the other. `youHold` is which inventory the surplus is in, never whose the coupons are:
+ * the two read opposite and have been crossed before.
+ */
+export function couponSide(entry: DropEntry): { name: string; youHold: boolean } | null {
+  if (entry.owedTo !== null) return { name: entry.owedTo, youHold: true };
+  if (entry.owedBy !== null) return { name: entry.owedBy, youHold: false };
+  return null;
+}
+
+/**
+ * Whose coupons are in the wrong inventory, as a row's meta says it. Null where none are.
+ *
+ * The count on the row is your SHARE, so neither direction can be read off it: coupons of yours
+ * somebody else is holding are not in your inventory, and coupons you are holding for them are not
+ * yours. That is why the figure is said here and not in the count. Which way it runs is the badge's.
+ *
+ * Who bent down stays true after the night is answered, so that name is still said with the figure
+ * gone. Not the other way round: "you looted" is not news on a log of your own drops.
+ */
+export function couponNote(entry: DropEntry): string | null {
+  const side = couponSide(entry);
+  if (side === null) return null;
+  if (!side.youHold) return `${side.name} looted`;
+  return entry.owedByYou > 0 ? `${entry.owedByYou} of ${side.name}'s` : null;
+}
+
+/**
  * What a row says its state is.
  *
  * "In the pool" off the raw status was wrong for most coupon drops: the row never sells, so it
@@ -506,7 +547,11 @@ export function dropStatusLabel(entry: DropEntry): string {
     // Off the FIGURE, never off who looted it. `owedBy` names whoever bent down, which stays true
     // after a sale has answered the night or the pair has cancelled it; what is still outstanding
     // is the count. Reading the name here said "Owed" on a night nobody has to do anything about.
-    return entry.owedToYou > 0 ? "Owed" : "Yours";
+    if (entry.owedToYou > 0) return "Owed";
+    // A night you looted the lot said "Yours" on purpose once, on the grounds that they are in your
+    // inventory. So is somebody else's share of them, which is the one thing the row had to say.
+    if (entry.owedByYou > 0) return "To hand over";
+    return "Yours";
   }
   return statusLabel(entry.status);
 }
