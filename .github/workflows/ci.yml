@@ -91,15 +91,22 @@ jobs:
           cache-dependency-path: frontend/pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
       # Nothing here type-checked until 2026-07-26, so a type error reached master with the job
-      # green: lint does not do it, and `next build` is not run. Test files are the ones that get
-      # away with it, since they are outside the build graph, and that is exactly where the one
-      # that got through was.
+      # green: lint does not do it. `next build` below now does, but only over the build graph,
+      # and test files sit outside it, which is exactly where the one that got through was.
       - run: pnpm run typecheck
       - run: pnpm run lint
       - run: pnpm exec prettier --check .
       # The redemption rules. Three ways to produce a confidently wrong number, each of which
       # looks like arithmetic. See lib/redemption.test.ts.
       - run: pnpm test
+      # Vercel is otherwise the FIRST machine to run this. The frontend is not containerised and
+      # deploys itself from a push to master, so a breakage that only a build catches would merge
+      # green and surface as a red deployment. Last, because it is the slowest step here.
+      #
+      # Deliberately no NEXT_PUBLIC_* set: the build does not need them, and leaving them unset
+      # means a page that starts fetching at build time fails this job rather than baking one
+      # user's data into prerendered HTML.
+      - run: pnpm run build
 
   auth:
     needs: changes
