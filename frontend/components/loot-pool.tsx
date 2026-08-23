@@ -1,7 +1,7 @@
 "use client";
 
 import { DropPicker } from "@/components/drop-picker";
-import { LootList } from "@/components/loot-list";
+import { LootList, type StackAssignment } from "@/components/loot-list";
 import type { PieceStatus } from "@/lib/drop-log";
 import { takenTally } from "@/lib/loot";
 import { canTrade } from "@/lib/world";
@@ -19,6 +19,7 @@ export function LootPool({
   dropTables,
   bossByKey,
   pieceStatus,
+  stacks,
   adding,
   isSaving,
   onAdd,
@@ -34,6 +35,13 @@ export function LootPool({
   bossByKey: Map<string, Boss>;
   /** What a coupon row says it is. See PieceStatus. */
   pieceStatus?: PieceStatus;
+  /**
+   * What each seat was entitled to out of a night's coupons, and what they picked up.
+   *
+   * Read here and answered on Party View, which is why it arrives without its onSaves. A gap is a
+   * debt, and a debt with nothing on screen behind it is one the other side argues with.
+   */
+  stacks?: StackAssignment;
   /** The picker's own add. Not the rows': one drop being logged does not lock the pool. */
   adding: boolean;
   /** Whether THIS drop's write is in flight, by its id. */
@@ -80,6 +88,7 @@ export function LootPool({
         dropTables={dropTables}
         bossByKey={bossByKey}
         pieceStatus={pieceStatus}
+        stacks={stacks}
         isSaving={isSaving}
         onSell={onSell}
         onUnsell={onUnsell}

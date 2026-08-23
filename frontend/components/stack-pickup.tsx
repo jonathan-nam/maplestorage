@@ -24,6 +24,8 @@ import type { Party } from "@/types/party";
 // Read-only until the panel's own Edit, and read-only it shows what was RECORDED and nothing else.
 // The boxes open on a looter or a balanced guess when nobody has said, and drawing that as a resting
 // state would put a pickup nobody entered on screen as though it had happened.
+//
+// A screen that only STATES the night passes no onSave, and read-only is all it can ever be.
 
 export function StackPickup({
   drop,
@@ -39,9 +41,10 @@ export function StackPickup({
   behind: Map<string, number>;
   editing: boolean;
   busy: boolean;
-  onSave: (lootId: string, bundles: Record<string, number>) => Promise<void>;
+  /** The night's arrangement, by seat id. Absent is read-only. */
+  onSave?: (lootId: string, bundles: Record<string, number>) => Promise<void>;
 }) {
-  if (!editing) return <PickupSummary drop={drop} />;
+  if (!editing || !onSave) return <PickupSummary drop={drop} />;
   return <PickupBoxes drop={drop} party={party} behind={behind} busy={busy} onSave={onSave} />;
 }
 

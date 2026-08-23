@@ -29,8 +29,8 @@ export type StackAssignment = {
    * fallen, filed under a heading about settings. What fell belongs to the drops above.
    */
   entitledTitle: string;
-  /** The new ratio, by seat id. */
-  onSave: (shares: Map<string, number>) => Promise<void>;
+  /** The new ratio, by seat id. Absent where the screen states the split rather than answering it. */
+  onSave?: (shares: Map<string, number>) => Promise<void>;
   /**
    * What actually got picked up, per night, for the drops that can still be said.
    *
@@ -42,7 +42,8 @@ export type StackAssignment = {
     title: string;
     drops: StackDrop[];
     behind: Map<string, number>;
-    onSave: (lootId: string, bundles: Record<string, number>) => Promise<void>;
+    /** Absent where the screen states the night rather than answering it. */
+    onSave?: (lootId: string, bundles: Record<string, number>) => Promise<void>;
   };
 };
 
@@ -66,6 +67,7 @@ export function LootList({
   splitElsewhere,
   couponRemovable,
   editing,
+  panel,
   busy,
   isSaving,
   onSell,
@@ -82,7 +84,9 @@ export function LootList({
   /**
    * Who picked up which stacks, for the coupon rows that can still be handed out.
    *
-   * Absent on the party's own page and on a past week, where the rows are read rather than answered.
+   * Absent on a past week, whose rows are history. The party's own page carries it WITHOUT the
+   * onSaves, which states the night and the deal without offering to change either: a debt nobody
+   * can explain is the one somebody argues with, and "40 took, 60 due" is the whole explanation.
    */
   stacks?: StackAssignment;
   /**
@@ -110,6 +114,14 @@ export function LootList({
    * inputs, so one press opens everything on the row that can be answered.
    */
   editing?: boolean;
+  /**
+   * These rows are a Party View row's panel rather than a page, so the two kinds are named.
+   *
+   * A panel's neighbours are headed, and its own heading is the boss. A page's pool already has
+   * "Loot pool" over it, so a "Drops" under that is the same word twice. It rode on `stacks` until
+   * the party's own page carried those too.
+   */
+  panel?: boolean;
   /** Whether the ROW's own write is in flight. The config save is the party's, not one drop's. */
   busy?: boolean;
   /** Whether THIS drop's write is in flight, by its id. */
@@ -131,10 +143,10 @@ export function LootList({
   //
   // Null where the pool is the page and holds one kind, which is the pool's own title's job. Only a
   // panel, whose neighbours are headed too, needs the word.
-  const couponTitle = headed ? "Coupons" : stacks ? "Drops" : null;
+  const couponTitle = headed ? "Coupons" : panel ? "Drops" : null;
   // Whichever kind is on its own carries the same word, so a week of one hammer and a week of one
   // stack of coupons are headed alike.
-  const sellableTitle = headed || stacks ? "Drops" : null;
+  const sellableTitle = headed || panel ? "Drops" : null;
 
   return (
     <>
