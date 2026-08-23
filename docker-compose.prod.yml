@@ -38,14 +38,13 @@ services:
       # local database and unacceptable for one holding somebody's account data.
       POSTGRES_PASSWORD: ${DB_PASSWORD:?set a real one in .env on the box}
 
-  vision:
-    image: ghcr.io/jonathan-nam/sharpeyes-vision:${IMAGE_TAG:?deploy.sh sets this. Any value works for exec/logs/ps}
-    build: !reset null
-    ports: !reset []
-    # The base file mounts ./test-fixtures so the local smoke test can POST a screenshot from
-    # inside the container. Production has no such need, and no reason to carry the images.
-    volumes: !reset []
-    restart: unless-stopped
+  # The parser is deliberately absent. Nothing in the app reaches it: the two components that
+  # posted to /api/screenshots are not mounted anywhere, and the landing copy stopped offering the
+  # feature in #474. It stays in the repo and in local development, it just does not run here.
+  #
+  # Removing it was only possible once the backend stopped living inside its network namespace.
+  # That is also why deploy.sh no longer has a branch for "the parser was replaced, so both
+  # replicas are stranded and this is the one deploy with downtime".
 
   auth:
     image: ghcr.io/jonathan-nam/sharpeyes-auth:${IMAGE_TAG:?deploy.sh sets this. Any value works for exec/logs/ps}
@@ -71,16 +70,20 @@ services:
       RESEND_API_KEY: ${RESEND_API_KEY:-}
       AUTH_EMAIL_FROM: ${AUTH_EMAIL_FROM:-}
 
-  # Replica A. Owns port 8080 inside the shared namespace, as the base file already has it.
+  # Replica A, on 8080, as the base file already has it.
+  #
+  # Nothing published to the host. Caddy reaches it over the compose network by name, so the API
+  # is not on the box's public IP at all. The base file publishes 8080 for local development, and
+  # inheriting that here would sit an unencrypted API beside Caddy on port 8080.
   backend:
     image: ghcr.io/jonathan-nam/sharpeyes-backend:${IMAGE_TAG:?deploy.sh sets this. Any value works for exec/logs/ps}
     build: !reset null
+    ports: !reset []
     restart: unless-stopped
     environment: *backend-prod-env
 
-  # Replica B, so a deploy has somewhere to send traffic while A restarts. Both replicas live in
-  # the vision container's network namespace, so they are two ports on one address, which is why
-  # Caddy's upstreams are `vision:8080 vision:8081`.
+  # Replica B, so a deploy has somewhere to send traffic while A restarts. Two containers on the
+  # compose network now, which is why Caddy's upstreams are `backend:8080 backend-b:8081`.
   #
   # `extends` rather than a second copy: it inherits the base file's environment block, so a new
   # variable there reaches both replicas. It does NOT inherit the prod overlay's own additions to
@@ -92,14 +95,13 @@ services:
       service: backend
     image: ghcr.io/jonathan-nam/sharpeyes-backend:${IMAGE_TAG:?deploy.sh sets this. Any value works for exec/logs/ps}
     build: !reset null
+    ports: !reset []
     restart: unless-stopped
     environment:
       <<: *backend-prod-env
       PORT: "8081"
     depends_on:
       postgres:
-        condition: service_healthy
-      vision:
         condition: service_healthy
 
   caddy:
@@ -119,7 +121,7 @@ services:
     environment:
       API_DOMAIN: ${API_DOMAIN:?the API hostname, e.g. api.sharpeyes.app}
     depends_on:
-      - vision
+      - backend
 
 volumes:
   caddy-data:

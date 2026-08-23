@@ -54,14 +54,16 @@ for i in $(seq 1 30); do
   sleep 10
 done
 
-# Waits for one replica to answer /health, asked from inside the vision container, which is where
-# the replicas' ports live. /health only answers once Flyway has migrated, so this waits for ready
+# Waits for one replica to answer /health, asked from inside Caddy, which is the one container that
+# is allowed to reach them. /health only answers once Flyway has migrated, so this waits for ready
 # and not merely for listening.
+#
+# This used to be asked from inside the parser's container, because that is where the replicas'
+# ports lived. They have their own now.
 await_replica() {
   local name="$1" port="$2"
   for i in $(seq 1 60); do
-    if "${COMPOSE[@]}" exec -T vision python -c \
-      "import urllib.request; urllib.request.urlopen('http://127.0.0.1:${port}/health')" 2>/dev/null; then
+    if "${COMPOSE[@]}" exec -T caddy wget -q -O /dev/null "http://${name}:${port}/health" 2>/dev/null; then
       echo "    ${name} healthy after ${i}s"
       return 0
     fi
@@ -72,29 +74,17 @@ await_replica() {
   return 1
 }
 
-# Postgres and the parser first, and note whether the parser container was replaced.
+# Postgres first.
 #
-# This is the sharpest edge in the whole file. Naming services on `up -d` limits what Compose will
-# recreate to those services, so a replaced vision container leaves both replicas holding a network
-# namespace that no longer has anything in it. Measured: they keep reporting `running`, Caddy gets
-# connection refused on both upstreams, and it never recovers on its own, because nothing about the
-# replicas changed and a later `up -d` will not touch them. Compose only handles this when invoked
-# for the WHOLE project, which is not what a rolling deploy can do.
-echo "==> postgres and vision"
-vision_before="$("${COMPOSE[@]}" ps -q vision || true)"
-"${COMPOSE[@]}" up -d postgres vision
-vision_after="$("${COMPOSE[@]}" ps -q vision || true)"
-
-if [ -n "$vision_before" ] && [ "$vision_before" != "$vision_after" ]; then
-  # Both replicas are already stranded by this point, so there is no rolling to be done and nothing
-  # to protect. Get them back as fast as possible. This is the one deploy that costs downtime.
-  echo "==> the parser was replaced, so both replicas must restart with it (this one has downtime)"
-  "${COMPOSE[@]}" up -d --no-deps --force-recreate backend backend-b
-  for replica in "${REPLICAS[@]}"; do
-    await_replica "${replica%%:*}" "${replica##*:}" || exit 1
-  done
-  ROLLED=yes
-fi
+# There used to be a branch here for the parser being replaced, and it was the sharpest edge in the
+# file: the replicas lived inside the parser's network namespace, so recreating it left them holding
+# a namespace with nothing in it. They kept reporting `running`, Caddy got connection refused on
+# both upstreams, and it never recovered on its own. It was the one deploy that cost downtime.
+#
+# The parser is not deployed any more and the replicas have their own network, so there is nothing
+# to strand and no branch to take.
+echo "==> postgres"
+"${COMPOSE[@]}" up -d postgres
 
 # Sign-in, on its own and before the replicas.
 #
@@ -107,7 +97,6 @@ echo "==> auth"
 # One replica at a time. No --force-recreate: compose leaves a replica alone when nothing about it
 # changed, and a deploy that restarts nothing is the correct outcome for a docs-only commit.
 for replica in "${REPLICAS[@]}"; do
-  [ "${ROLLED:-no}" = yes ] && break
   name="${replica%%:*}"
   port="${replica##*:}"
 

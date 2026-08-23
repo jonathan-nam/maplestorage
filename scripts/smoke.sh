@@ -12,6 +12,10 @@
 #   ./scripts/smoke.sh --keep   leave the stack running afterwards
 set -euo pipefail
 
+# The parser is behind a compose profile so production does not deploy it. This suite parses a
+# screenshot, so it very much needs it.
+export COMPOSE_PROFILES=parser
+
 cd "$(dirname "$0")/.."
 
 KEEP="${1:-}"
@@ -53,7 +57,8 @@ echo "==> checks"
 check "postgres accepts connections" \
   docker compose exec -T postgres pg_isready -U maplestorage
 
-# The vision service binds 127.0.0.1 (the ECS shape), so it is not reachable
+# The vision service publishes 8000 locally, but ask it from inside anyway: this is the check that
+# the container is serving, not that the port forward works.
 # from the host even with the port published. Probe it where it actually lives.
 check "vision service is healthy" \
   docker compose exec -T vision python -c \
@@ -71,9 +76,9 @@ check "backend is healthy" curl -fsS http://localhost:8080/health
 # 2. The wiring. This is the assertion that matters: the backend must reach the
 #    vision service over loopback, the way it will in ECS. A compose file on
 #    separate networks would pass everything above and still be wrong.
-check "backend reaches vision over 127.0.0.1 (the ECS assumption)" \
+check "backend reaches vision by service name" \
   docker compose exec -T backend sh -c \
-  'wget -qO- http://127.0.0.1:8000/health || curl -fsS http://127.0.0.1:8000/health'
+  'wget -qO- http://vision:8000/health || curl -fsS http://vision:8000/health'
 
 # 3. The actual product: a real screenshot in, the right numbers out. POSTed from
 #    inside the container, over the same loopback the backend uses.

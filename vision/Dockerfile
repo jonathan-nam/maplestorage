@@ -14,7 +14,10 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY app ./app
 
-# One worker: the parse is ~0.5s of CPU and the task is CPU-bound, so
-# concurrency buys nothing on a fractional-vCPU Fargate task.
+# One worker: the parse is ~0.5s of CPU and the task is CPU-bound, so concurrency buys nothing.
+#
+# Binds 0.0.0.0, not 127.0.0.1. It used to share a network namespace with the backend, which
+# reached it on loopback; it does not any more, so loopback would be reachable by nothing at all.
+# Not a loosening: no `ports:` are published for it outside local development.
 EXPOSE 8000
-CMD ["uvicorn", "app.main:app", "--host", "127.0.0.1", "--port", "8000", "--workers", "1"]
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]

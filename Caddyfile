@@ -19,17 +19,13 @@
 	}
 
 	handle {
-		# Both upstreams are `vision`, which reads like a typo and is not.
+		# Two replicas, and this pair is what makes a deploy cost no downtime: deploy.sh restarts one
+		# at a time, and the active health check takes the restarting one out of rotation.
 		#
-		# Neither backend replica has a network of its own: they join the vision container's namespace
-		# (`network_mode: service:vision`, mirroring how ECS co-locates them under awsvpc), because the
-		# parser binds 127.0.0.1 and is only ever called from the backend. So the replicas' ports live
-		# on the *vision* service's address, and that is where Caddy has to send traffic. Two ports on
-		# one host, not two hosts.
-		#
-		# This pair is what makes a deploy cost no downtime: deploy.sh restarts one replica at a time,
-		# and the active health check takes the restarting one out of rotation.
-		reverse_proxy vision:8080 vision:8081 {
+		# These used to both read `vision:`, because the replicas had no network of their own and lived
+		# inside the parser's namespace. The parser is no longer deployed, so they are two ordinary
+		# containers now and are addressed as such.
+		reverse_proxy backend:8080 backend-b:8081 {
 			lb_policy round_robin
 
 			# Active checks. /health only answers once Flyway has migrated and the module is built, so

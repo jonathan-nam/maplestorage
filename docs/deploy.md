@@ -1,7 +1,10 @@
 # Deploying
 
-Production is **one Lightsail box** running `docker compose`: Caddy, the backend, the vision
+Production is **one Lightsail box** running `docker compose`: Caddy, two backend replicas, the auth
 service and Postgres. $12/month. The frontend is on Vercel's free tier.
+
+The vision service is **not** deployed. Nothing in the app reaches it, so it stays in the repo and
+in local development and does not run here. See docker-compose.prod.yml.
 
 ```
    DNS: Namecheap BasicDNS
@@ -11,9 +14,9 @@ service and Postgres. $12/month. The frontend is on Vercel's free tier.
                                 │
                             Caddy :443      TLS, 20MB body limit, load balances
                                 │
-                            backend   :8080 ─┐ shared network namespace:
-                            backend-b :8081 ─┤ the replicas reach the parser on 127.0.0.1,
-                            vision    :8000 ─┘ and Caddy reaches them both at `vision:<port>`
+                            backend   :8080 ─┐ two replicas, Caddy load balances
+                            backend-b :8081 ─┤ across them one restart at a time
+                            auth      :3001 ─┘ /api/auth/*
                                 │
                             postgres + volume
                                 │  nightly pg_dump

@@ -1,6 +1,9 @@
 name: Publish images
 
-# Builds the three images the box runs and pushes them to GHCR, tagged with the commit SHA.
+# Builds the images the box runs and pushes them to GHCR, tagged with the commit SHA.
+#
+# The vision image is NOT among them: it is not deployed (see docker-compose.prod.yml). It is still
+# built and tested in ci.yml, so the code does not rot, it just is not pushed anywhere.
 #
 # Separate from ci.yml on purpose. ci.yml runs on pull requests too, and its `required-checks` gate
 # asserts over every job in `needs`; a publish job living there would either have to join that gate
@@ -26,8 +29,6 @@ jobs:
         include:
           - name: backend
             context: ./backend
-          - name: vision
-            context: ./vision
           - name: auth
             context: ./auth
     steps:
