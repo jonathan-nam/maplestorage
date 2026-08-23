@@ -1,5 +1,5 @@
 output "static_ip" {
-  description = "Point the api.<domain> A record at this. Caddy cannot get a certificate until it resolves."
+  description = "Point the api.<domain> A record at this. certbot cannot get a certificate until it resolves."
   value       = aws_lightsail_static_ip.app.ip_address
 }
 

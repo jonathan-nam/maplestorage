@@ -15,7 +15,7 @@ const handler = toNodeHandler(auth);
 
 const server = createServer((request, response) => {
   // Its own path, answered before the handler, so an orchestrator can tell "the process is up"
-  // from "Discord is reachable". Compose and Caddy both read this one.
+  // from "Discord is reachable". Compose reads this one.
   if (request.url === "/health") {
     response.writeHead(200, { "content-type": "application/json" });
     response.end(JSON.stringify({ status: "ok" }));

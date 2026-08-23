@@ -124,7 +124,7 @@ export const auth = betterAuth({
 
   // Both halves of the site sit under one registrable domain (sharpeyes.app and its subdomains), so
   // the session cookie is same-site and Safari's tracking prevention does not touch it. The apex is
-  // the frontend on Vercel; this service is behind Caddy on the box.
+  // the frontend on Vercel; this service is behind nginx on the box.
   advanced: {
     crossSubDomainCookies: optionalEnv("AUTH_COOKIE_DOMAIN")
       ? { enabled: true, domain: optionalEnv("AUTH_COOKIE_DOMAIN")! }

@@ -1,21 +1,18 @@
-# The whole stack, locally. This is the pre-production environment: it runs the
-# same two images ECS runs, wired the same way, against a real Postgres.
+# The whole stack, locally, against a real Postgres.
 #
 #   ./scripts/smoke.sh     bring it up and prove it works end to end
 #   docker compose up      just bring it up
 #   docker compose down -v bring it down and wipe the database
 #
-# Fidelity is the point. The backend joins the vision container's *network
-# namespace* (network_mode: service:vision), which is exactly what ECS does under
-# awsvpc, so the backend reaches the vision service on 127.0.0.1 here for the
-# same reason it does in production, and the vision port is not reachable from
-# outside either. A compose file that put them on separate networks and talked
-# over `http://vision:8000` would look fine and quietly fail to test the thing
-# that actually has to work.
+# The backend used to join the vision container's network namespace
+# (network_mode: service:vision) so it could reach the parser on 127.0.0.1
+# exactly as it did under ECS awsvpc. ECS is gone (see infra/README.md), so that
+# was fidelity to nothing, and it was what made the parser impossible to stop
+# deploying: the replicas had no network of their own to fall back on. Ordinary
+# service networking now, and `http://vision:8000` by name.
 #
-# Consequences of sharing the namespace, which are the same in ECS:
-#   - published ports live on the vision service, since it owns the namespace
-#   - the backend cannot declare `ports:` of its own
+# The parser is NOT deployed any more. It is here for local work and its own
+# tests; nothing in the app reaches it, see docker-compose.prod.yml.
 services:
   postgres:
     image: postgres:16
@@ -35,15 +32,20 @@ services:
 
   vision:
     build: ./vision
+    # Opt-in, and this is what keeps it off the box. Removing the service from the prod overlay
+    # would NOT have done it: overlays merge, so prod would have inherited this definition and
+    # deployed it with `build:` and port 8000 published, which is worse than before. A profile is
+    # the only thing that removes a service from `config`, `pull` and `ps` alike.
+    #
+    # Turned on by COMPOSE_PROFILES in scripts/dev-up.sh and scripts/smoke.sh. deploy.sh sets no
+    # profile, so production never sees it.
+    profiles: ["parser"]
     volumes:
-      # Dev only. The vision service binds 127.0.0.1 (as it does in ECS), so it
-      # is deliberately unreachable from the host, the smoke test POSTs a
-      # screenshot from inside the container instead, and needs the file there.
+      # Dev only. smoke.sh POSTs a screenshot from inside the container, so the
+      # file has to be there.
       - ./test-fixtures:/screenshots:ro
-    # Owns the shared namespace, so both services' ports are published here.
     ports:
-      - "8080:8080" # backend (Ktor)
-      - "8000:8000" # vision  (exposed locally only so a human can poke at it)
+      - "8000:8000" # exposed locally only so a human can poke at it
     healthcheck:
       # The same command infra/ecs.tf uses, so a health check that passes here
       # is the one that will run in production.
@@ -100,14 +102,10 @@ services:
 
   backend:
     build: ./backend
-    # Same namespace as vision -> 127.0.0.1 reaches it, exactly as under awsvpc.
-    network_mode: "service:vision"
+    ports:
+      - "8080:8080"
     depends_on:
       postgres:
-        condition: service_healthy
-      vision:
-        # Mirrors the ECS container dependency: never start the backend before
-        # the parser is up, or every upload in that window fails.
         condition: service_healthy
       auth:
         # Only so the first request does not race the key being minted. The keys are cached after
@@ -119,7 +117,8 @@ services:
       DB_NAME: maplestorage
       DB_USERNAME: maplestorage
       DB_PASSWORD: maplestorage
-      VISION_SERVICE_URL: http://127.0.0.1:8000
+      # By service name, not loopback: the two no longer share a namespace.
+      VISION_SERVICE_URL: http://vision:8000
       # Container-to-container, NOT the browser-facing URL: the backend fetches keys itself and
       # never redirects anyone here, so this stays fixed while AUTH_BASE_URL changes per host.
       AUTH_JWKS_URL: http://auth:3001/api/auth/jwks

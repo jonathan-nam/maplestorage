@@ -1,4 +1,4 @@
-# One box. It runs docker compose (caddy, backend, vision, postgres), and that is the whole
+# One box. It runs docker compose (nginx, certbot, backend x2, auth, postgres), and that is the whole
 # production environment.
 #
 # This replaced an ECS/Fargate + ALB + RDS design, which is in git history if it is ever worth
@@ -46,7 +46,10 @@ resource "aws_lightsail_static_ip_attachment" "app" {
   instance_name  = aws_lightsail_instance.app.name
 }
 
-# 80 and 443 for Caddy, 22 for deploys. Nothing else.
+# 80 and 443 for nginx, 22 for deploys. Nothing else.
+#
+# 80 stays open even though .app is HSTS preloaded and no browser will use it: Let's Encrypt's
+# HTTP-01 challenge starts there and does not consult the preload list.
 #
 # This resource is authoritative: it REPLACES Lightsail's defaults rather than adding to them.
 # That is what we want, and it is the second lock on the same door as `ports: !reset []` in

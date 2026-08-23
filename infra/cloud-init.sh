@@ -26,7 +26,8 @@ apt-get install -y \
   awscli git
 
 # Headroom, not a build requirement: images are built in CI and only pulled here. The box is 2 GB
-# and runs two backend replicas (~390 MB each, measured idle), the parser, Postgres and Caddy.
+# and runs two backend replicas (~390 MB each, measured idle), the auth service, Postgres and nginx.
+# The parser is no longer deployed, which gives some of this back.
 if [ ! -e /swapfile ]; then
   fallocate -l 2G /swapfile
   chmod 600 /swapfile

@@ -12,6 +12,10 @@
 #   Never fatal. A session has to start even when Docker is down or .env is missing. Every failure
 #   here is reported and swallowed, never propagated.
 set -uo pipefail
+
+# The parser is behind a compose profile so production does not deploy it. Local development still
+# gets it: nothing in the app calls it today, but its tests and templates are worked on here.
+export COMPOSE_PROFILES=parser
 cd "$(dirname "$0")/.." || exit 0
 
 status=()
