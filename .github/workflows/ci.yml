@@ -41,17 +41,33 @@ jobs:
         id: filter
         with:
           filters: |
+            # Editing this file has to run the jobs it defines. Without this every filter below
+            # says no to a workflow-only commit, so a change to what a job RUNS merges without
+            # that job ever running it. `next build` landed that way in #500.
+            #
+            # An anchor rather than six copies: paths-filter parses this block as YAML and
+            # flattens a referenced list into the filter naming it. It also means an unused
+            # `workflow` filter and output exist, which nothing reads.
+            workflow: &workflow
+              - '.github/workflows/ci.yml'
             backend:
+              - *workflow
+              # The reusable workflow that holds this job's actual commands.
+              - '.github/workflows/backend-verify.yml'
               - 'backend/**'
             frontend:
+              - *workflow
               - 'frontend/**'
             auth:
+              - *workflow
               - 'auth/**'
             infra:
+              - *workflow
               - 'infra/**'
             # The catalog generates the backend's seed migration and names the vision templates,
             # so a change to it must re-run both checks, not just its own.
             vision:
+              - *workflow
               - 'vision/**'
               - 'catalog/**'
               - 'test-fixtures/**'
@@ -59,6 +75,7 @@ jobs:
               # it checks are registered. Without this an art-only change skips both.
               - 'backend/src/main/resources/seed-assets/**'
             catalog:
+              - *workflow
               - 'catalog/**'
               - 'backend/src/main/resources/db/migration/R__token_catalog.sql'
               - 'backend/src/main/resources/db/migration/R__drop_catalog.sql'
