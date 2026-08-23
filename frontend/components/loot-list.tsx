@@ -42,6 +42,14 @@ export type StackAssignment = {
     title: string;
     drops: StackDrop[];
     behind: Map<string, number>;
+    /**
+     * Nights whose books are CLOSED, by loot id. Stated like any other, never editable.
+     *
+     * assignableDrops already drops a night that sold or was taken, but whether a debt is finished
+     * is a decision it cannot reach: that lives in the settlements. A settled night rewritten here
+     * would move a figure somebody has already been paid against, so it is history and reads as it.
+     */
+    locked?: Set<string>;
     /** Absent where the screen states the night rather than answering it. */
     onSave?: (lootId: string, bundles: Record<string, number>) => Promise<void>;
   };
@@ -302,8 +310,11 @@ function LootGroup({
                       drop={night}
                       party={party}
                       behind={stacks.pickup.behind}
-                      editing={editing ?? false}
-                      busy={busy ?? false}
+                      // A settled night is history, whatever the pool is doing. See pickup.locked.
+                      editing={(editing ?? false) && !stacks.pickup.locked?.has(item.id)}
+                      // The panel hands down its row's flag. A pool that is the page has one write
+                      // per drop instead, so the night being saved is the night that dims.
+                      busy={busy ?? isSaving(item.id)}
                       onSave={stacks.pickup.onSave}
                     />
                   </div>

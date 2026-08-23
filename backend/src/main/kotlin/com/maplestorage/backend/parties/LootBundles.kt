@@ -1,6 +1,7 @@
 package com.maplestorage.backend.parties
 
 import com.maplestorage.backend.db.PartyLootBundle
+import com.maplestorage.backend.db.VestigeSettlementLoot
 import com.maplestorage.backend.plugins.parseUuidParam
 import com.maplestorage.backend.plugins.principalIdAndEmail
 import com.maplestorage.backend.users.ensureUser
@@ -8,6 +9,7 @@ import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.call
 import io.ktor.server.request.receive
 import io.ktor.server.routing.RoutingContext
+import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.inList
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
@@ -19,6 +21,9 @@ import kotlin.uuid.Uuid
 // The one fact about a drop that cannot be worked out from anything else. Everyone takes
 // floor(stacks / seats) and the remainder goes to somebody, and which somebody happened in the map.
 // See V41__loot_bundles.sql.
+
+/** What a settled night answers with, said once so the route stays inside its line length. */
+private const val SETTLED_STANDS = "this drop is settled, so who picked up which stack stands"
 
 /** Which seat picked up how many stacks, per drop. An absent drop is one nobody has answered for. */
 internal fun bundlesFor(lootIds: List<Uuid>): Map<Uuid, List<LootBundleResponse>> =
@@ -66,6 +71,22 @@ internal fun addedBundles(
 }
 
 /**
+ * The books have closed over this drop, so who held what is history.
+ *
+ * A settlement is a claim about the stacks: it was made against these figures and somebody has been
+ * paid against them. Rewriting the arrangement afterwards moves a number that has already been
+ * acted on, silently, which is the failure this project exists to prevent. The same protection
+ * LootFromClear's spokenFor gives the other way a drop can be rewritten from under a closure.
+ *
+ * Refused HERE and not only hidden on the screens. A button that is not drawn is not a rule.
+ */
+internal fun settledAlready(lootId: Uuid): Boolean =
+    !VestigeSettlementLoot
+        .selectAll()
+        .where { VestigeSettlementLoot.lootId eq lootId }
+        .empty()
+
+/**
  * Records who picked up which stacks of a drop.
  *
  * No default is written here or anywhere else. The best guess is whoever is furthest behind, which
@@ -86,6 +107,7 @@ internal suspend fun RoutingContext.setBundlesRoute() {
                 !ownsParty(partyId, userId) -> null
                 loot == null -> null
                 request.bundles.keys.any { Uuid.parseOrNull(it) == null } -> "malformed memberId"
+                settledAlready(lootId) -> SETTLED_STANDS
                 bundlesRefusal(request.bundles, loot.ranThatWeek, loot.bundles) != null ->
                     bundlesRefusal(request.bundles, loot.ranThatWeek, loot.bundles)
                 else -> {

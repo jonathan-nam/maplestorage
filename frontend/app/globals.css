@@ -3658,10 +3658,23 @@ button.link:disabled {
   margin-top: 28px;
 }
 
+/* The title and the one control that opens the night's stack boxes. */
+.loot-pool-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
 .loot-pool-title {
-  margin: 0 0 12px;
+  margin: 0;
   font-size: 15px;
   color: var(--ink-strong);
+}
+
+.loot-pool-head .party-cancel {
+  margin-left: auto;
+  flex: none;
 }
 
 /* Add Drop, and Add Party on the parties page, ruled off from the list under it. A form above and a

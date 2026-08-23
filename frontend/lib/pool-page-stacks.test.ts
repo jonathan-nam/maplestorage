@@ -13,15 +13,16 @@ import type { Party, PartyMember } from "@/types/party";
 // IS the debt, and neither half of it can be worked out from the other, so the page that states the
 // figure has to be able to show the nights behind it.
 //
-// Read-only here and answered on Party View, which is why no onSave goes with it. Source tests for
-// the wiring, since there is no component render harness: the same approach as
-// stack-blocks-in-row.test.ts.
+// Stated at rest and corrected behind the pool's own Edit, except on a night whose books are
+// closed. Source tests for the wiring, since there is no component render harness: the same
+// approach as stack-blocks-in-row.test.ts.
 
 const source = (...parts: string[]) =>
   readFileSync(join(__dirname, "..", ...parts), "utf8").replace(/\s+/g, " ");
 
 const page = source("app", "bosses", "parties", "[...slug]", "page.tsx");
 const pool = source("components", "loot-pool.tsx");
+const list = source("components", "loot-list.tsx");
 
 const mine = (id: string, name: string): PartyMember => ({
   id,
@@ -142,14 +143,34 @@ describe("the pool page can show the nights behind a coupon debt", () => {
     expect(page).not.toContain("dropsInWeek");
   });
 
-  it("hands the blocks to the pool, with no way to save them", () => {
+  it("lets the night be corrected and leaves the standing split alone", () => {
     expect(page).toContain("stacks={stacks}");
     expect(pool).toContain("stacks={stacks}");
-    // Read here, answered on Party View. An onSave is what turns either block into boxes, so its
-    // absence is the whole of "read-only" and there is no second flag to fall out of step with.
+
     const built = page.slice(page.indexOf("const stacks = (() =>"), page.indexOf("const summary"));
     expect(built.length).toBeGreaterThan(0);
-    expect(built).not.toContain("onSave");
+    // Who bent down is a fact about this pool's night, so it is answered here.
+    expect(built).toContain("onSave: setBundles");
+    // The ratio is the PARTY's and belongs to its editor. Exactly one onSave in the block, so the
+    // split cannot pick one up without this failing.
+    expect(built.match(/onSave/g)).toHaveLength(1);
+    expect(page).toContain("/bundles");
+  });
+
+  it("refuses to reopen a night whose books are closed", () => {
+    // A settled drop has been paid against. Rewriting who picked up which stack would move a figure
+    // somebody has already been shown, which is the silent wrong number this repo exists to stop.
+    expect(page).toContain("locked: new Set(mine.filter((entry) => entry.closed)");
+    expect(list).toContain("editing={(editing ?? false) && !stacks.pickup.locked?.has(item.id)}");
+    // And the way in is not offered at all when every night is settled.
+    expect(pool).toContain("stacks.pickup.drops.some((drop) => !stacks.pickup.locked?.has(");
+  });
+
+  it("opens the boxes behind an Edit rather than leaving them out", () => {
+    // An unanswered night's boxes open on a GUESS (a named looter, or the balanced split). Drawn at
+    // rest that reads as a pickup somebody entered. See StackPickup.
+    expect(pool).toContain("const [editing, setEditing] = useState(false)");
+    expect(pool).toContain('{editing ? "Cancel" : "Edit"}');
   });
 
   it("draws a summary rather than boxes when nothing can be saved", () => {
