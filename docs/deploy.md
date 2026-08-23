@@ -1,7 +1,7 @@
 # Deploying
 
-Production is **one Lightsail box** running `docker compose`: Caddy, two backend replicas, the auth
-service and Postgres. $12/month. The frontend is on Vercel's free tier.
+Production is **one Lightsail box** running `docker compose`: nginx, certbot, two backend replicas,
+the auth service and Postgres. $12/month. The frontend is on Vercel's free tier.
 
 The vision service is **not** deployed. Nothing in the app reaches it, so it stays in the repo and
 in local development and does not run here. See docker-compose.prod.yml.
@@ -12,9 +12,9 @@ in local development and does not run here. See docker-compose.prod.yml.
    sharpeyes.app ──────┼──> Vercel           Next frontend
    api.sharpeyes.app ──┴──> Lightsail box    everything else
                                 │
-                            Caddy :443      TLS, 20MB body limit, load balances
+                            nginx :443      TLS, 20MB body limit, load balances
                                 │
-                            backend   :8080 ─┐ two replicas, Caddy load balances
+                            backend   :8080 ─┐ two replicas, nginx load balances
                             backend-b :8081 ─┤ across them one restart at a time
                             auth      :3001 ─┘ /api/auth/*
                                 │
@@ -52,7 +52,7 @@ Cloudflare header, and one DNS provider is one less account. What that decision 
 knowing rather than rediscovering:
 
 - **The icon paths lose an edge cache.** `/token-icons/*` and `/digit-icons/*` are served immutable
-  for a year (see the Caddyfile), so a returning browser still pays nothing, but a cold visitor
+  for a year (see nginx/templates/), so a returning browser still pays nothing, but a cold visitor
   fetches them from the box instead of from somewhere near them.
 - **The box's IP is public**, and it is one 2-vCPU instance. Nothing absorbs traffic in front of it.
 
@@ -108,7 +108,7 @@ terraform output static_ip                # -> the A record above
 >
 > Re-running `terraform apply` once the limit lifts picks up exactly where it stopped.
 
-Point DNS at that IP and let it resolve **before** starting Caddy. Let's Encrypt will not issue a
+Point DNS at that IP and let it resolve **before** starting nginx. Let's Encrypt will not issue a
 certificate for a name that does not resolve to you, and failed challenges count against a rate
 limit (5 per hostname per hour).
 
@@ -133,7 +133,7 @@ vi .env                    # every field. DB_PASSWORD: openssl rand -base64 32
 ```
 
 `deploy.sh` pulls the images CI built, starts them, and then polls `https://$API_DOMAIN/health`
-from outside, through Caddy, over TLS. A container being "up" proves nothing: the backend
+from outside, through nginx, over TLS. A container being "up" proves nothing: the backend
 crash-loops on a missing variable, and Flyway migrates on every boot, so a bad migration surfaces
 here and nowhere earlier.
 
@@ -151,7 +151,7 @@ The last one mirrors the box's `AUTH_PASSWORD_LOGIN` and decides only what is OF
 decides what WORKS, so the two disagreeing hides a working form or shows a refused one, and neither
 signs the wrong person in. Change them together anyway.
 
-Both are the API hostname: Caddy serves sign-in from it under `/api/auth`, so there is no third
+Both are the API hostname: nginx serves sign-in from it under `/api/auth`, so there is no third
 name to point at anything.
 
 Then register the redirect URI in the Discord application
@@ -183,18 +183,18 @@ ssh ubuntu@<static-ip>
 cd sharpeyes && ./deploy.sh
 ```
 
-**No downtime.** Two backend replicas sit behind Caddy, and `deploy.sh` restarts one at a time,
-waiting for each to answer `/health` before touching the next. Measured on the real images, polling
-`/health` through Caddy every 20ms across a deploy:
+**No downtime, and it works differently now.** Two backend replicas sit behind nginx, and
+`deploy.sh` restarts one at a time, waiting for each to answer `/health` before touching the next.
 
-| Deploy | Requests | Failures | Slowest request |
-| --- | --- | --- | --- |
-| backend change | 224 | 0 | 109ms |
-| parser change | 267 | 0 | 4.6s (one request) |
+The numbers that used to be here (224 requests, 0 failures) were measured through **Caddy**, whose
+active health checks pulled a restarting replica out of rotation *before* any request reached it.
+**Open-source nginx has no active health checking** — that is an nginx Plus feature. The mechanism
+is now `proxy_next_upstream`: the first request to a restarting replica fails and is retried
+against the other. The user should still see no error, but it is reactive rather than proactive and
+the old measurements do not carry over.
 
-A parser change is the worse case because both replicas live in vision's network namespace and have
-to restart with it. Caddy's `lb_try_duration` absorbs that gap rather than returning 502, so it
-costs one slow request rather than errors.
+**Re-measure before quoting numbers here again.** A figure that was true of a different proxy is
+exactly the kind of confident wrong number this project tries not to produce.
 
 Nothing is built on the box. `.github/workflows/publish-images.yml` pushes both images to GHCR
 tagged with the commit SHA, and `deploy.sh` pulls that tag. Two consequences worth knowing:
@@ -293,17 +293,20 @@ else. The static IP survives, so DNS does not change.
 - **Never publish 5432 or 8000.** `docker-compose.prod.yml` unpublishes them with `ports: !reset []`,
   which is needed because Compose *merges* `ports` across files rather than replacing them. Check it
   from off the box after any compose change: `curl --max-time 5 http://<static-ip>:5432` must fail.
-- **The vision service binds `127.0.0.1`** and the backend joins its network namespace. Put them on
-  a normal Compose network and the backend cannot reach the parser at all: uploads fail, and nothing
-  in the logs says why. This is also why Caddy proxies to `vision:8080` and not `backend:8080`.
-- **Naming `vision` in `up -d` strands both replicas, permanently.** Naming services limits what
-  Compose will recreate to those services, so a replaced vision container leaves the replicas
-  holding a namespace with nothing in it. Measured on the real stack: all five services keep
-  reporting `running`, Caddy gets connection refused on both upstreams, and it never recovers,
-  because nothing about the replicas changed and a later `up -d` will not touch them. `up -d` with
-  **no service names** does handle it, but that is not something a rolling deploy can use, so
-  `deploy.sh` compares vision's container id across the call and restarts both replicas itself when
-  it changed.
+- **Deleting a service from the prod overlay does not undeploy it.** Compose *merges* overlays, so
+  a service defined in `docker-compose.yml` and absent from `docker-compose.prod.yml` is still
+  deployed, with the base file's settings. That is how the parser nearly shipped to the box with
+  `build:` and port 8000 published, which is worse than what it replaced. It is behind a compose
+  **profile** instead. Check with
+  `docker compose -f docker-compose.yml -f docker-compose.prod.yml config --services`.
+- **certbot renewal fails silently, and the site breaks 90 days later.** This is the cost of nginx
+  over Caddy, which renewed by itself. `docker compose logs certbot` is the only thing that will
+  tell you, and nothing will prompt you to look. If https ever stops working for no apparent
+  reason, look there first.
+- **nginx renders its config at start-up, not on reload.** The template is bind-mounted and
+  `${API_DOMAIN}` is substituted by the image's entrypoint, which only runs when the container
+  starts. A changed template therefore needs the container recreated before `nginx -s reload` has
+  anything new to load; `deploy.sh` does both, in that order.
 - **Do not shrink screenshots in the browser** to speed up uploads from far away. That is the bug
   this project exists to prevent: an OCR path that resampled its own evidence away and returned
   confident wrong counts. Uploads are 1.25-3.1 MB and that is fine.

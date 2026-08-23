@@ -9,7 +9,7 @@ export const AUTH_BASE_PATH = "/api/auth";
  * The browser's half of the auth service (see auth/).
  *
  * `baseURL` is a different origin from this app in every environment: the frontend is on Vercel and
- * the auth service is behind Caddy on the box. Both sit under one registrable domain, so the
+ * the auth service is behind nginx on the box. Both sit under one registrable domain, so the
  * session cookie is same-site and Safari's tracking prevention leaves it alone.
  */
 export const authClient = createAuthClient({

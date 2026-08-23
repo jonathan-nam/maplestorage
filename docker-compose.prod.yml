@@ -2,9 +2,13 @@
 #
 #   ./deploy.sh
 #
-# Caddy is the only thing the internet can reach. It terminates TLS (certificates from Let's
-# Encrypt, obtained and renewed on its own) and load-balances across two backend replicas.
-# Everything else loses the ports the base file publishes for local development.
+# nginx is the only thing the internet can reach. It terminates TLS and load-balances across two
+# backend replicas. Everything else loses the ports the base file publishes for local development.
+#
+# The certificates are certbot's job, in two more containers: one to break the start-up cycle and
+# one to obtain and renew. Caddy did all of that by itself, in nothing. That is the trade this made
+# knowingly, and the renewal loop is the part that has to be watched, because it fails silently and
+# the consequence arrives 90 days later.
 #
 # Images are built by .github/workflows/publish-images.yml and pulled by tag, never built here. The
 # box has 2 vCPUs, and a Gradle compile on them makes the running site slow for the length of the
@@ -49,14 +53,14 @@ services:
   auth:
     image: ghcr.io/jonathan-nam/sharpeyes-auth:${IMAGE_TAG:?deploy.sh sets this. Any value works for exec/logs/ps}
     build: !reset null
-    # Reached only through Caddy, which routes /api/auth/* here. The base file publishes 3001 for
-    # local development; on the box nothing but Caddy may talk to it.
+    # Reached only through nginx, which routes /api/auth/* here. The base file publishes 3001 for
+    # local development; on the box nothing but nginx may talk to it.
     ports: !reset []
     restart: unless-stopped
     environment:
       DB_USERNAME: ${DB_USERNAME:?set it in .env on the box}
       DB_PASSWORD: ${DB_PASSWORD:?set it in .env on the box}
-      # The API hostname, because Caddy serves sign-in from the same one. This lands in the token's
+      # The API hostname, because nginx serves sign-in from the same one. This lands in the token's
       # `iss` and in the OAuth redirect, so it has to be the URL a BROWSER uses, https and all.
       AUTH_BASE_URL: https://${API_DOMAIN:?the API hostname, e.g. api.sharpeyes.app}
       # Scoped to the parent so the frontend on the apex and this service on api. share one session.
@@ -72,9 +76,9 @@ services:
 
   # Replica A, on 8080, as the base file already has it.
   #
-  # Nothing published to the host. Caddy reaches it over the compose network by name, so the API
+  # Nothing published to the host. nginx reaches it over the compose network by name, so the API
   # is not on the box's public IP at all. The base file publishes 8080 for local development, and
-  # inheriting that here would sit an unencrypted API beside Caddy on port 8080.
+  # inheriting that here would sit an unencrypted API beside nginx on port 8080.
   backend:
     image: ghcr.io/jonathan-nam/sharpeyes-backend:${IMAGE_TAG:?deploy.sh sets this. Any value works for exec/logs/ps}
     build: !reset null
@@ -83,7 +87,7 @@ services:
     environment: *backend-prod-env
 
   # Replica B, so a deploy has somewhere to send traffic while A restarts. Two containers on the
-  # compose network now, which is why Caddy's upstreams are `backend:8080 backend-b:8081`.
+  # compose network now, which is why nginx's upstream block names `backend:8080 backend-b:8081`.
   #
   # `extends` rather than a second copy: it inherits the base file's environment block, so a new
   # variable there reaches both replicas. It does NOT inherit the prod overlay's own additions to
@@ -104,25 +108,67 @@ services:
       postgres:
         condition: service_healthy
 
-  caddy:
-    image: caddy:2-alpine
+  # One-shot. Writes a self-signed placeholder if there is no certificate yet, so nginx can start
+  # and answer the challenge that gets the real one. See nginx/bootstrap-cert.sh for why the cycle
+  # needs breaking at all; Caddy did not have this problem.
+  cert-init:
+    image: certbot/certbot:latest
+    entrypoint: ["/bin/sh", "/bootstrap-cert.sh"]
+    environment:
+      API_DOMAIN: ${API_DOMAIN:?the API hostname, e.g. api.sharpeyes.app}
+    volumes:
+      - ./nginx/bootstrap-cert.sh:/bootstrap-cert.sh:ro
+      - letsencrypt:/etc/letsencrypt
+
+  nginx:
+    image: nginx:1-alpine
     restart: unless-stopped
     ports:
       - "80:80"
       - "443:443"
-      - "443:443/udp" # HTTP/3
-    volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      # Certificates live here. Lose this volume and Caddy re-requests from Let's Encrypt, which
-      # rate-limits (5 failures per account per hostname per hour), so a restart loop can lock you
-      # out of your own certificate. It is a named volume for exactly that reason.
-      - caddy-data:/data
-      - caddy-config:/config
     environment:
       API_DOMAIN: ${API_DOMAIN:?the API hostname, e.g. api.sharpeyes.app}
+    volumes:
+      # The image's own entrypoint runs envsubst over anything in templates/ before starting, which
+      # is how ${API_DOMAIN} gets into the config.
+      - ./nginx/templates:/etc/nginx/templates:ro
+      - ./nginx/proxy-common.conf:/etc/nginx/proxy-common.conf:ro
+      # Certificates live here. Lose this volume and certbot re-requests from Let's Encrypt, which
+      # rate-limits (5 failures per account per hostname per hour), so a restart loop can lock you
+      # out of your own certificate. It is a named volume for exactly that reason.
+      - letsencrypt:/etc/letsencrypt:ro
+      - certbot-webroot:/var/www/certbot:ro
+    # Reloads itself every six hours to pick up a renewed certificate. certbot cannot signal it,
+    # they are separate containers, and this is the standard way round that. The `wait $${!}` is so
+    # a `docker compose stop` is not held up for six hours by the sleep.
+    command: >-
+      /bin/sh -c 'while :; do sleep 6h & wait $${!}; nginx -s reload; done & nginx -g "daemon off;"'
     depends_on:
-      - backend
+      cert-init:
+        condition: service_completed_successfully
+      # Both, because the upstream block resolves their names at start-up and nginx refuses to
+      # start if either does not. auth is deliberately NOT here: it is reached through a variable
+      # upstream precisely so it does not have to exist first.
+      backend:
+        condition: service_started
+      backend-b:
+        condition: service_started
+
+  certbot:
+    image: certbot/certbot:latest
+    restart: unless-stopped
+    entrypoint: ["/bin/sh", "/certbot-loop.sh"]
+    environment:
+      API_DOMAIN: ${API_DOMAIN:?the API hostname, e.g. api.sharpeyes.app}
+      CERTBOT_EMAIL: ${CERTBOT_EMAIL:?an address for Let's Encrypt expiry warnings}
+    volumes:
+      - ./nginx/certbot-loop.sh:/certbot-loop.sh:ro
+      - letsencrypt:/etc/letsencrypt
+      - certbot-webroot:/var/www/certbot
+    depends_on:
+      nginx:
+        condition: service_started
 
 volumes:
-  caddy-data:
-  caddy-config:
+  letsencrypt:
+  certbot-webroot:

@@ -2,15 +2,15 @@
 #
 # Deploy, from on the box. `ssh ubuntu@<static-ip>`, then `cd sharpeyes && ./deploy.sh`.
 #
-# No downtime. Two backend replicas sit behind Caddy, and this restarts one at a time, waiting for
+# No downtime. Two backend replicas sit behind nginx, and this restarts one at a time, waiting for
 # each to answer /health before touching the next.
 #
-# Measured on the real images, polling /health through Caddy every 20ms across a deploy:
-#   backend change   224 requests, 0 failures, slowest 109ms
-#   parser change    267 requests, 0 failures, one request waited 4.6s
-# The parser is worse because both replicas share its network namespace and must restart with it.
-# Caddy's lb_try_duration absorbs that gap rather than returning 502, so it costs latency once, not
-# errors. Re-measure if the health check interval or the replica count changes.
+# The measurement that used to be quoted here (224 requests, 0 failures across a deploy) was taken
+# through Caddy, whose ACTIVE health checks pulled a restarting replica out of rotation before any
+# request reached it. Open-source nginx has no active health checking, so the mechanism is now
+# `proxy_next_upstream`: the first request to a restarting replica fails and is retried against the
+# other one. The user should still see no error, but the guarantee is weaker and the old numbers do
+# not carry over. RE-MEASURE before quoting any here again.
 set -euo pipefail
 cd "$(dirname "$0")"
 
@@ -54,7 +54,7 @@ for i in $(seq 1 30); do
   sleep 10
 done
 
-# Waits for one replica to answer /health, asked from inside Caddy, which is the one container that
+# Waits for one replica to answer /health, asked from inside nginx, which is the one container that
 # is allowed to reach them. /health only answers once Flyway has migrated, so this waits for ready
 # and not merely for listening.
 #
@@ -63,7 +63,7 @@ done
 await_replica() {
   local name="$1" port="$2"
   for i in $(seq 1 60); do
-    if "${COMPOSE[@]}" exec -T caddy wget -q -O /dev/null "http://${name}:${port}/health" 2>/dev/null; then
+    if "${COMPOSE[@]}" exec -T nginx wget -q -O /dev/null "http://${name}:${port}/health" 2>/dev/null; then
       echo "    ${name} healthy after ${i}s"
       return 0
     fi
@@ -78,7 +78,7 @@ await_replica() {
 #
 # There used to be a branch here for the parser being replaced, and it was the sharpest edge in the
 # file: the replicas lived inside the parser's network namespace, so recreating it left them holding
-# a namespace with nothing in it. They kept reporting `running`, Caddy got connection refused on
+# a namespace with nothing in it. They kept reporting `running`, the proxy got connection refused on
 # both upstreams, and it never recovered on its own. It was the one deploy that cost downtime.
 #
 # The parser is not deployed any more and the replicas have their own network, so there is nothing
@@ -103,20 +103,31 @@ for replica in "${REPLICAS[@]}"; do
   echo "==> ${name}"
   "${COMPOSE[@]}" up -d --no-deps "$name"
 
+  # Reload nginx before waiting, not after the loop. It resolves upstream addresses when it starts
+  # or reloads, and a recreated container can come back on a different one. Skip this and nginx
+  # keeps proxying to an address nothing is listening on, which looks like a replica that came up
+  # healthy and serves 502s anyway. Caddy re-resolved on its own; this is the replacement for that.
+  "${COMPOSE[@]}" exec -T nginx nginx -s reload 2>/dev/null || true
+
   if ! await_replica "$name" "$port"; then
     echo "==> the other replica is still serving. Nothing further was restarted." >&2
     exit 1
   fi
 done
 
-# Caddy last, and reloaded rather than restarted. The Caddyfile is a bind mount, so compose cannot
-# see that it changed and `up -d` would leave the old config running; restarting the container would
-# drop live connections for no reason. `caddy reload` swaps the config with neither.
-echo "==> caddy"
-"${COMPOSE[@]}" up -d --no-deps caddy
-"${COMPOSE[@]}" exec -T caddy caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile
+# nginx last, and reloaded rather than restarted. The config is a bind-mounted template, so compose
+# cannot see that it changed and `up -d` would leave the old one running; restarting the container
+# would drop live connections for no reason. `nginx -s reload` swaps it with neither.
+#
+# The template is rendered by the image's entrypoint, which only runs at START-UP, so a changed
+# template needs the container recreated before a reload has anything new to load. Hence up -d with
+# --force-recreate rather than a bare reload.
+echo "==> nginx"
+"${COMPOSE[@]}" up -d --no-deps --force-recreate nginx
+"${COMPOSE[@]}" exec -T nginx nginx -t
+"${COMPOSE[@]}" exec -T nginx nginx -s reload
 
-# The real check, made from outside, through Caddy, over TLS, against the actual hostname. A
+# The real check, made from outside, through nginx, over TLS, against the actual hostname. A
 # container that is "up" proves nothing.
 echo "==> waiting for https://${API_DOMAIN}/health"
 for i in $(seq 1 60); do
@@ -129,5 +140,5 @@ for i in $(seq 1 60); do
 done
 
 echo "==> NOT healthy after 60s. Last 40 lines:" >&2
-"${COMPOSE[@]}" logs --tail 40 backend backend-b auth caddy >&2
+"${COMPOSE[@]}" logs --tail 40 backend backend-b auth nginx certbot >&2
 exit 1

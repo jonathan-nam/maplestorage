@@ -9,7 +9,7 @@ an email and password of your own.
 
 The usual Better Auth setup puts its route handlers inside the Next app. Ours cannot: the frontend
 is on Vercel and Postgres publishes no port off the Lightsail box (`ports: !reset []`), so a handler
-running on Vercel has no database to reach. It lives here instead, on the box, and Caddy serves it
+running on Vercel has no database to reach. It lives here instead, on the box, and nginx serves it
 from the API hostname under `/api/auth`, so there is no second DNS record and no second certificate.
 
 ## How the backend trusts it

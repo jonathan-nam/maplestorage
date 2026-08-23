@@ -3,8 +3,8 @@
 Terraform for the production environment: **one Lightsail box**, a static IP, its firewall, and the
 S3 bucket the nightly `pg_dump` goes to. That is all of it, about 40 lines of resources.
 
-The box runs `docker compose -f docker-compose.yml -f docker-compose.prod.yml`: Caddy, the backend,
-the vision service and Postgres. See [`docs/deploy.md`](../docs/deploy.md) for how to stand it up
+The box runs `docker compose -f docker-compose.yml -f docker-compose.prod.yml`: nginx, certbot, two
+backend replicas, the auth service and Postgres. The vision service is deliberately not deployed. See [`docs/deploy.md`](../docs/deploy.md) for how to stand it up
 and deploy to it.
 
 ## What used to be here, and why it is gone

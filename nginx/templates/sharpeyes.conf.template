@@ -1,0 +1,104 @@
+# TLS and the only door into the box. ${API_DOMAIN} is substituted by the nginx image's own
+# envsubst step at start-up (20-envsubst-on-templates.sh), which is why this is a .template.
+#
+# Certificates come from certbot, not from nginx: see docker-compose.prod.yml and
+# nginx/bootstrap-cert.sh. That split is the cost of nginx over Caddy, which did it by itself.
+
+# Two replicas, and this pair is what makes a deploy cost no downtime: deploy.sh restarts one at a
+# time and the other keeps serving.
+#
+# Open-source nginx has NO active health checking, that is an nginx Plus feature. So unlike Caddy
+# there is nothing polling /health to take a restarting replica out of rotation ahead of time.
+# `max_fails`/`fail_timeout` mark a replica bad only AFTER a request has failed against it, and
+# `proxy_next_upstream` below is what stops that first failure reaching the user: the request is
+# retried against the other replica rather than returned as a 502.
+# NOTE these names are resolved ONCE, at start-up, and nginx will not start if they do not resolve.
+# A variable would defer that, as it does for auth below, but a variable in proxy_pass bypasses the
+# upstream block entirely and with it the load balancing this exists for. So instead:
+#
+#   - docker-compose.prod.yml makes nginx depend on both replicas, so they exist before it starts
+#   - deploy.sh reloads nginx after EACH replica restarts, because a recreated container can come
+#     back on a different address and a reload is what re-resolves it
+#
+# Getting that wrong looks like nginx serving 502s from a replica that is up and healthy.
+upstream backend_replicas {
+    server backend:8080   max_fails=1 fail_timeout=10s;
+    server backend-b:8081 max_fails=1 fail_timeout=10s;
+    keepalive 16;
+}
+
+server {
+    listen 80;
+    listen [::]:80;
+    server_name ${API_DOMAIN};
+
+    # Must stay reachable even though .app is HSTS preloaded and browsers will never come here.
+    # Let's Encrypt's HTTP-01 challenge is not a browser and does not consult the preload list.
+    location /.well-known/acme-challenge/ {
+        root /var/www/certbot;
+    }
+
+    location / {
+        return 301 https://$host$request_uri;
+    }
+}
+
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    http2 on;
+    server_name ${API_DOMAIN};
+
+    ssl_certificate     /etc/letsencrypt/live/${API_DOMAIN}/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/${API_DOMAIN}/privkey.pem;
+    ssl_protocols       TLSv1.2 TLSv1.3;
+    ssl_prefer_server_ciphers off;
+    ssl_session_cache   shared:SSL:10m;
+    ssl_session_timeout 1d;
+
+    # Docker's embedded DNS, for the variable proxy_pass below. Without this nginx has no resolver
+    # configured and a variable upstream fails at request time instead of start-up, which is worse.
+    resolver 127.0.0.11 valid=10s ipv6=off;
+
+    # The parser refuses anything larger (MAX_UPLOAD_BYTES, vision/app/main.py). Rejecting it here
+    # means a 25 MB upload fails immediately at the edge rather than after crossing the Pacific.
+    client_max_body_size 20m;
+
+    # Sign-in, on the same hostname as the API rather than a subdomain of its own: no second DNS
+    # record, no second certificate, and the session cookie is scoped to the parent domain either
+    # way. Before the catch-all below, because nginx takes the longest matching prefix.
+    location /api/auth/ {
+        # Through a VARIABLE, not a literal, and this is not style. nginx resolves a literal
+        # upstream name once, at start-up, and refuses to start at all if it does not resolve
+        # ("host not found in upstream"). A variable defers it to request time, so a restarting or
+        # briefly-absent auth container costs a 502 rather than a proxy that will not boot.
+        #
+        # 127.0.0.11 is Docker's embedded DNS. `valid=10s` caps how long a stale address is kept,
+        # which is what makes a recreated container reachable without reloading nginx.
+        set $auth_upstream http://auth:3001;
+        proxy_pass $auth_upstream;
+        include /etc/nginx/proxy-common.conf;
+    }
+
+    # The item icons and digit sprites are served unauthenticated off the JAR classpath
+    # (staticResources in plugins/Routing.kt) and never change without the filename changing. They
+    # are the only genuinely cacheable thing here. No CDN sits in front, so this header is what a
+    # returning browser gets and a cold visitor pays the box.
+    location ~ ^/(token-icons|digit-icons)/ {
+        proxy_pass http://backend_replicas;
+        include /etc/nginx/proxy-common.conf;
+        add_header Cache-Control "public, max-age=31536000, immutable" always;
+    }
+
+    location / {
+        proxy_pass http://backend_replicas;
+        include /etc/nginx/proxy-common.conf;
+
+        # Covers the window between a replica going down and nginx noticing. Without it the first
+        # request to a restarting replica is a 502 the user sees, because nothing was watching
+        # /health to remove it in advance.
+        proxy_next_upstream error timeout http_502 http_503 http_504;
+        proxy_next_upstream_tries 2;
+        proxy_next_upstream_timeout 5s;
+    }
+}

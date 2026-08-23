@@ -28,7 +28,7 @@ variable "project_name" {
 # small_3_0: $12/mo, 2 vCPU, 2 GB RAM, 60 GB SSD, 3 TB transfer, static IPv4 included.
 #
 # NOT micro_3_0 ($7, 1 GB RAM). The backend and vision containers alone were sized at 1 GiB on
-# ECS, and this box additionally carries Postgres, Caddy and the OS. The $5 saved buys an OOM kill.
+# ECS, and this box additionally carries Postgres, nginx and the OS. The $5 saved buys an OOM kill.
 #
 # NOT any *_ipv6_* bundle. Those are $2 cheaper because they have no public IPv4 address, and a
 # meaningful share of the internet still cannot reach an IPv6-only host.
