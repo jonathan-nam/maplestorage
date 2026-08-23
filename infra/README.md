@@ -21,6 +21,22 @@ revisiting, and at real traffic it would be. Two measurements retired it:
 
 This box is $12/month for 2 vCPUs, and it terminates TLS, which the ALB never did (port 80 only).
 
+## Terraform cannot see an `aws login` session
+
+Export the credentials into the shell first, every time:
+
+```bash
+eval "$(aws configure export-credentials --format env)"
+```
+
+`aws login` keeps its session under `~/.aws/login` and refers to it with `login_session` in
+`~/.aws/config`. That is an AWS CLI mechanism, so there is no `~/.aws/credentials` file, and the
+provider's Go SDK does not implement it. It also does not fail in a way that points at the cause:
+it says **"No valid credential sources found"** and spends 30 seconds timing out against the EC2
+metadata endpoint at 169.254.169.254, which reads like a network fault.
+
+The credentials are temporary, so this is per shell rather than once.
+
 ## Bootstrap the state backend first
 
 `bootstrap-state-backend.sh` creates the versioned, encrypted S3 bucket that holds Terraform state.

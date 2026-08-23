@@ -69,9 +69,41 @@ because "nothing can use http now" is how you fail a challenge against the rate 
 cd infra
 ./bootstrap-state-backend.sh              # once, ever. State holds an IAM secret key.
 terraform init -backend-config=backend.hcl
+
+# Terraform cannot see an `aws login` session. Do this in the same shell first, EVERY time,
+# because the credentials are temporary. See below.
+eval "$(aws configure export-credentials --format env)"
+
 terraform apply
 terraform output static_ip                # -> the A record above
 ```
+
+> **`aws login` and Terraform do not talk to each other.** The CLI stores the session under
+> `~/.aws/login` and points at it with `login_session` in `~/.aws/config`, which is an AWS CLI
+> feature: there is no `~/.aws/credentials`, and Terraform's provider uses the Go SDK, which knows
+> nothing about it. It does not fall back to the CLI either, it reports **"No valid credential
+> sources found"** and then spends 30 seconds timing out against the EC2 metadata endpoint, which
+> reads like a network problem rather than a credentials one.
+>
+> `aws configure export-credentials` asks the CLI to resolve whatever it is using and print it as
+> environment variables, which the provider does understand. They expire, so it is per shell, not
+> once.
+
+> **A new account cannot create a Lightsail instance at all.** The first apply on this account
+> failed with `InvalidInputException: Sorry, you've reached your maximum limit of Lightsail
+> Instances : 0`. Nothing is wrong with the config, AWS gates Lightsail until the account clears
+> whatever verification it is waiting on. Opening the Lightsail console and starting an instance by
+> hand usually triggers it; otherwise it is "try again later", or a support case.
+>
+> Everything else applies fine, which is the awkward part: the run half-succeeds and leaves a
+> **static IP attached to nothing**. Lightsail bills about $0.005/hour for that, so destroy it
+> rather than leave it waiting:
+>
+> ```bash
+> terraform destroy -target=aws_lightsail_static_ip.app
+> ```
+>
+> Re-running `terraform apply` once the limit lifts picks up exactly where it stopped.
 
 Point DNS at that IP and let it resolve **before** starting Caddy. Let's Encrypt will not issue a
 certificate for a name that does not resolve to you, and failed challenges count against a rate
