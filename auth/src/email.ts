@@ -23,8 +23,9 @@ export function assertCanSendEmail(): void {
   const https = env("AUTH_BASE_URL").startsWith("https://");
   if (https && !optionalEnv("RESEND_API_KEY")) {
     throw new Error(
-      "RESEND_API_KEY is not set, and AUTH_BASE_URL is https. Printing reset links to the log is a " +
-        "local-only fallback: in production it is a password reset that never arrives.",
+      "RESEND_API_KEY is not set, AUTH_BASE_URL is https, and AUTH_PASSWORD_LOGIN is on. Printing " +
+        "reset links to the log is a local-only fallback: in production it is a password reset that " +
+        "never arrives. Set a key, or set AUTH_PASSWORD_LOGIN=false and sign in with Discord.",
     );
   }
 }

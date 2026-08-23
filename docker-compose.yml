@@ -84,9 +84,11 @@ services:
       # service that starts, serves a JWKS, and fails every sign-in at Discord instead.
       DISCORD_CLIENT_ID: ${DISCORD_CLIENT_ID:?set it in .env, from https://discord.com/developers/applications}
       DISCORD_CLIENT_SECRET: ${DISCORD_CLIENT_SECRET:?set it in .env, from the same Discord application}
-      # Optional here and ONLY here. With no key the service prints verification and reset links to
-      # its own log instead of sending them, which is what lets local development need no mail
-      # vendor. The service refuses to start without one when AUTH_BASE_URL is https.
+      # Off by default, so Discord is the only way in and nothing here sends email. Set it to true
+      # in .env to develop against the password flow: with no RESEND_API_KEY the verification and
+      # reset links are printed to this service's log rather than sent, so no mail vendor is needed
+      # locally either. `docker compose logs -f auth`.
+      AUTH_PASSWORD_LOGIN: ${AUTH_PASSWORD_LOGIN:-false}
       RESEND_API_KEY: ${RESEND_API_KEY:-}
       AUTH_EMAIL_FROM: ${AUTH_EMAIL_FROM:-SharpEyes <onboarding@resend.dev>}
     healthcheck:

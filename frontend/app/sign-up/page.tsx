@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { useState } from "react";
 import { AuthField, AuthForm } from "@/components/auth-form";
-import { authClient } from "@/lib/auth-client";
+import { authClient, PASSWORD_LOGIN } from "@/lib/auth-client";
 
 // Matches the auth service's minPasswordLength. Stated on the field rather than only enforced,
 // because a rejected password after submitting is a rule you were not told.
@@ -13,6 +14,10 @@ export default function SignUp() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+
+  // Reachable by URL even with nothing linking here, so it answers for itself rather than
+  // rendering a form the server would refuse.
+  if (!PASSWORD_LOGIN) redirect("/");
 
   async function submit() {
     if (password.length < MIN_PASSWORD) return `Passwords are ${MIN_PASSWORD} characters or more.`;

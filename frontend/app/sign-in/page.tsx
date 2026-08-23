@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { AuthField, AuthForm } from "@/components/auth-form";
 import { SignInButton } from "@/components/sign-in-button";
-import { authClient } from "@/lib/auth-client";
+import { authClient, PASSWORD_LOGIN } from "@/lib/auth-client";
 
 export default function SignIn() {
   const router = useRouter();
@@ -25,6 +25,18 @@ export default function SignIn() {
       return "Check your email for the link, this address is not confirmed yet.";
     }
     return "That email and password do not match.";
+  }
+
+  // Discord alone, and no empty form above it, when passwords are not a way in.
+  if (!PASSWORD_LOGIN) {
+    return (
+      <main className="page">
+        <section className="auth-panel">
+          <h1>Sign in</h1>
+          <SignInButton />
+        </section>
+      </main>
+    );
   }
 
   return (

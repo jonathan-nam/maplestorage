@@ -109,7 +109,12 @@ On Vercel, from the repo, root directory `frontend/`:
 ```
 NEXT_PUBLIC_API_BASE_URL=https://api.sharpeyes.app
 NEXT_PUBLIC_AUTH_BASE_URL=https://api.sharpeyes.app
+NEXT_PUBLIC_PASSWORD_LOGIN=false
 ```
+
+The last one mirrors the box's `AUTH_PASSWORD_LOGIN` and decides only what is OFFERED. The service
+decides what WORKS, so the two disagreeing hides a working form or shows a refused one, and neither
+signs the wrong person in. Change them together anyway.
 
 Both are the API hostname: Caddy serves sign-in from it under `/api/auth`, so there is no third
 name to point at anything.
