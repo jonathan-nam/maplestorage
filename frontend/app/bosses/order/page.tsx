@@ -8,6 +8,7 @@ import { CopyPlan, type RunLog, type RunRotation, RunPlan } from "@/components/r
 import { pieceNote, rotatingDrops, rotationFor, takesByOwner } from "@/lib/loot-rotation";
 import type { PartyLootPool } from "@/types/loot";
 import { apiFetch, readBack } from "@/lib/api";
+import { useAuth } from "@/lib/use-auth";
 import { progressLabel } from "@/lib/boss-clears";
 import { bossLabel } from "@/lib/boss-difficulty";
 import { DEFAULT_MINUTES } from "@/lib/boss-minutes";

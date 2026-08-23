@@ -2,14 +2,18 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
-// A page must not fetch before Clerk has answered.
+// A page must not fetch before auth has answered.
 //
 // `getToken()` resolves null until the session is restored, and api.ts interpolates rather than
 // refuses, so the whole mount burst goes out as `Bearer null` and every call 401s. One Party View
 // load sent 45 of them and put "Couldn't load your parties." over data that was perfectly fine.
-// Clerk session tokens live 60s, so any gap in activity leaves the next cold load racing a refresh:
-// this is a race, which means it passes by luck on a warm session and is not something a per-page
+// It is a race, which means it passes by luck on a warm session and is not something a per-page
 // test would reliably catch.
+//
+// The move off Clerk did not retire this. Tokens live 15 minutes now rather than 60 seconds, and
+// lib/session-token.ts holds one rather than re-asking, so the window is narrower. Narrower is
+// exactly what makes a race worth a guard instead of a memory: it now fails rarely enough to look
+// like something else.
 //
 // Like read-back.test.ts, this guards a SHAPE across every page rather than one function, because
 // the mistake is per-page and there are ten of them.
@@ -47,7 +51,7 @@ function effectBodies(text: string): string[] {
   return bodies;
 }
 
-describe("no page fetches before Clerk has answered", () => {
+describe("no page fetches before auth has answered", () => {
   const fetchingOnMount = files.flatMap(({ file, text }) => {
     const bodies = effectBodies(text).filter(
       (body) => body.includes("getToken") || body.includes("apiFetch"),

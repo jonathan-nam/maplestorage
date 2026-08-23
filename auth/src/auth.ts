@@ -22,7 +22,7 @@ const AUTH_BASE_PATH = "/api/auth";
  *
  * Off is a real deploy, not a half-built one: Discord alone signs everybody in, and nothing here
  * sends email, so no mail vendor is needed to run. Turning it on later is this variable plus
- * RESEND_API_KEY, no code change and no migration. V66 already carries the columns it needs.
+ * RESEND_API_KEY, no code change and no migration. V67 already carries the columns it needs.
  *
  * Nobody who signed up before it was on is stranded, either. `reset-password` CREATES a credential
  * account when the user has none, so "forgot password" is also how an existing Discord user sets
