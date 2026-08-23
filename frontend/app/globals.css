@@ -123,9 +123,12 @@
 }
 
 /* Sections open from a hamburger at the far left of the header. The content itself stays on .page,
-   centred like every other page, so navigation and content no longer fight over the layout. */
+   centred like every other page, so navigation and content no longer fight over the layout.
+   The auto margin is what puts everything after it on the right edge: the world toggle, then the
+   avatar. */
 .section-menu {
   position: relative;
+  margin-right: auto;
 }
 
 .section-menu-btn {
@@ -1150,10 +1153,6 @@ button.ms-slot {
 .site-nav a.active {
   color: var(--ink);
   font-weight: 700;
-}
-
-.site-user {
-  margin-left: auto;
 }
 
 /* Covers the page from the moment a world is picked until the new one has finished loading.

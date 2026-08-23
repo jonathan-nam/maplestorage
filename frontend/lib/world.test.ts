@@ -23,7 +23,7 @@ describe("what a world can do", () => {
   it("drops the parenthetical where both names are on screen together", () => {
     // The header toggle. "Heroic (Reboot)" beside "Interactive" is a pill twice the width of its
     // neighbour, and with both names shown at once the gloss has nothing left to disambiguate.
-    expect(worldShortLabel("HEROIC")).toBe("Reboot");
+    expect(worldShortLabel("HEROIC")).toBe("Heroic");
     expect(worldShortLabel("INTERACTIVE")).toBe("Interactive");
   });
 
