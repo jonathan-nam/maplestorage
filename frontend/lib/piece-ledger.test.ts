@@ -184,6 +184,43 @@ describe("spending an answered count over the nights behind it", () => {
     expect(spendOldestFirst([night("a", "2026-08-13", 10)], 0).map((n) => n.pieces)).toEqual([10]);
     expect(spendOldestFirst([night("a", "2026-08-13", 10)], -5).map((n) => n.pieces)).toEqual([10]);
   });
+
+  it("orders one evening's nights by when they were LOGGED, not by their id", () => {
+    // Three bosses on one night share a droppedOn, so the date cannot order them. The tie used to
+    // fall to the loot id, a random uuid, and which of them kept a debt was decided by nothing:
+    // Hard Baldrix went silent while Hard Kaling still asked for 30, purely because 28760ee5 sorts
+    // before acd816fc. `recordedAt` is the order they actually happened in.
+    //
+    // The ids here run OPPOSITE to the logging order on purpose, so a spend that still reads them
+    // would give the reverse answer and fail this.
+    const evening = [
+      { lootId: "zzz", droppedOn: "2026-08-23", recordedAt: "2026-08-23T01:56:00Z", pieces: 30 },
+      { lootId: "mmm", droppedOn: "2026-08-23", recordedAt: "2026-08-23T04:17:00Z", pieces: 60 },
+      { lootId: "aaa", droppedOn: "2026-08-23", recordedAt: "2026-08-23T04:46:00Z", pieces: 60 },
+    ];
+
+    // 85 spent: the 01:56 night whole, then 55 off the 04:17 one, and the last untouched.
+    expect(spendOldestFirst(evening, 85).map((n) => [n.lootId, n.pieces])).toEqual([
+      ["zzz", 0],
+      ["mmm", 5],
+      ["aaa", 60],
+    ]);
+  });
+
+  it("puts a night with no recordedAt first, which is what a cached row meant", () => {
+    // A row from before the field is eligible for everything, so it is also the oldest.
+    const out = spendOldestFirst(
+      [
+        { lootId: "b", droppedOn: "2026-08-23", recordedAt: "2026-08-23T04:00:00Z", pieces: 10 },
+        { lootId: "a", droppedOn: "2026-08-23", pieces: 10 },
+      ],
+      10,
+    );
+    expect(out.map((n) => [n.lootId, n.pieces])).toEqual([
+      ["b", 10],
+      ["a", 0],
+    ]);
+  });
 });
 
 // The eligibility rule the doc above has always claimed and never enforced. Without it every sale

@@ -453,13 +453,7 @@ export default function DropLogPage() {
   }));
   // With the tranches, so a night whose coupons you already sold is not asked for in coupons as
   // well as in money. The same subtraction the Settlement Ledger makes below. See V56.
-  const whole = buildDropLog(
-    parties,
-    sellable,
-    dropTables,
-    closures.closed,
-    answeredSalesByPair(tranches),
-  );
+  const whole = buildDropLog(parties, sellable, dropTables, closures.closed);
   const log = forCharacter(whole, character);
   const { totals } = log;
   // Lined here rather than inside each section, so the toolbar can ask whether anything folds at

@@ -19,7 +19,7 @@ import {
   weekLabel,
 } from "./drop-log";
 import type { DropEntry } from "./drop-log";
-import { SELF_KEY, answeredKey, closedByHolder, holderOf } from "./vestige-ledger";
+import { SELF_KEY, closedByHolder, closureKeyOf, holderOf } from "./vestige-ledger";
 import { splitOf } from "./loot";
 import type { Loot, PartyLootPool } from "@/types/loot";
 import type { Party, PartyMember } from "@/types/party";
@@ -922,21 +922,15 @@ describe("a piece drop counts YOUR share, not what fell", () => {
     expect(dropStatusLabel(entry)).toBe("Yours");
   });
 
-  it("keeps the direction after a sale has answered the figure", () => {
-    // Who bent down is what `owedTo` says, and no sale moves it. Read the direction off the FIGURES
-    // instead and an answered night falls through to the other name, which points the debt back at
-    // the person you already paid.
-    const log = buildDropLog(
-      [pair()],
-      [pool("pa", [arranged(3, 0)])],
-      tables,
-      new Set(),
-      new Map([[answeredKey(SELF_KEY, "person:p-chris"), sold(30)]]),
-    );
+  it("names the side off who bent down, never off which figure is non-zero", () => {
+    // `owedTo` is set when your own seat took more than its share, and it is what couponSide reads.
+    // Reading the direction off the FIGURES instead falls through to the other name the moment one
+    // of them is zero, which points the debt at the wrong person.
+    const log = buildDropLog([pair()], [pool("pa", [arranged(3, 0)])], tables);
     const entry = log.entries[0]!;
 
-    expect(entry.owedByYou).toBe(0);
     expect(entry.owedBy).toBeNull();
+    expect(entry.owedTo).toBe("Chris");
     expect(couponSide(entry)).toEqual({ name: "Chris", youHold: true });
   });
 
@@ -971,157 +965,36 @@ describe("a piece drop counts YOUR share, not what fell", () => {
     expect(couponsOutstandingByParty(log.entries).get("pa")).toEqual({ toYou: 0, byYou: 30 });
   });
 
-  // The other way a night you looted whole finishes: you sell their share instead of handing it
-  // back, and their money is on their Settlement card. The Settlement Ledger has subtracted those
-  // coupons since V56; this side had never heard of them, so Extreme Kalos asked for two weeks of
-  // coupons that had been sold and offset a week earlier.
-  describe("coupons a sale of yours already answered", () => {
-    const CHRIS = "person:p-chris";
-    const answered = (creditor: string, pieces: number) =>
-      new Map([[answeredKey(SELF_KEY, creditor), sold(pieces)]]);
+  // A sale of their share does NOT touch the night. Selling instead of handing back turns a coupon
+  // debt into a meso one (V56), and the SALE LEDGER is the one place that nets it, out of its own
+  // holderLedgers. This side used to subtract it too, and that made a boss row's figure depend on
+  // every other party: Hard Baldrix went silent about a night looted whole because a tranche
+  // crediting Bro had drained the oldest nights, while Hard Kaling still asked for 30, and which of
+  // one evening's three nights kept its debt came down to the order their ids sorted in.
+  describe("a sale is the Sale Ledger's business, not the night's", () => {
+    it("leaves the night exactly as it fell", () => {
+      // Three stacks to you out of three: 30 of theirs in your inventory, and it stays 30 however
+      // many of them you have since sold on their behalf.
+      const log = buildDropLog([pair()], [pool("pa", [arranged(3, 0)])], tables);
 
-    it("takes them off the night, so the debt is not asked for in both units", () => {
-      const log = buildDropLog(
-        [pair()],
-        [pool("pa", [arranged(3, 0)])],
-        tables,
-        new Set(),
-        answered(CHRIS, 30),
-      );
+      expect(log.entries[0]!.owedByYou).toBe(30);
+      expect(couponsOutstandingByParty(log.entries).get("pa")).toEqual({ toYou: 0, byYou: 30 });
+    });
 
-      expect(log.entries[0]!.owedByYou).toBe(0);
+    it("takes no sales at all, so nothing account-wide can reach a boss row", () => {
+      // The signature is the guard: there is no argument left to pass a tranche through. Paired
+      // with drop-log-callers.test.ts, which checks that no call site tries.
+      expect(buildDropLog).toHaveLength(3);
+    });
+
+    it("still lets a CLOSED night finish, which is a decision about that night", () => {
+      // The one thing that does silence a run, and the difference is where the fact lives: closing
+      // the books is about this drop, a sale is about a person's whole pile.
+      const closed = new Set([closureKeyOf(SELF_KEY, "l1")]);
+      const log = buildDropLog([pair()], [pool("pa", [arranged(3, 0)])], tables, closed);
+
+      expect(log.entries[0]!.closed).toBe(true);
       expect(couponsOutstandingByParty(log.entries).has("pa")).toBe(false);
-    });
-
-    // Hard Baldrix, 2026-08-23. You sold 60 of Bro's at 04:20 and logged a fresh 120 at 04:46, and
-    // the row read "Yours" with no line about the coupons at all. The gap was found and named; what
-    // zeroed it was this subtraction, spending a sale over a night that did not exist when it was
-    // made. One undated pool of every sale ever recorded can only drain forwards.
-    it("does not let a sale answer a night that was logged after it", () => {
-      const log = buildDropLog(
-        [pair()],
-        [pool("pa", [arranged(3, 0, { recordedAt: "2026-08-23T04:46:41Z" })])],
-        tables,
-        new Set(),
-        new Map([[answeredKey(SELF_KEY, CHRIS), sold(60, "2026-08-23T04:20:12Z")]]),
-      );
-
-      expect(log.entries[0]!.owedByYou).toBe(30);
-      expect(log.entries[0]!.owedTo).toBe("Chris");
-      expect(dropStatusLabel(log.entries[0]!)).toBe("To hand over");
-      expect(couponsOutstandingByParty(log.entries).get("pa")).toEqual({ toYou: 0, byYou: 30 });
-    });
-
-    it("still answers a night that was already logged when the sale was made", () => {
-      const log = buildDropLog(
-        [pair()],
-        [pool("pa", [arranged(3, 0, { recordedAt: "2026-08-23T04:17:00Z" })])],
-        tables,
-        new Set(),
-        new Map([[answeredKey(SELF_KEY, CHRIS), sold(30, "2026-08-23T04:20:12Z")]]),
-      );
-
-      expect(log.entries[0]!.owedByYou).toBe(0);
-    });
-
-    it("leaves the part no sale spoke for", () => {
-      const log = buildDropLog(
-        [pair()],
-        [pool("pa", [arranged(3, 0)])],
-        tables,
-        new Set(),
-        answered(CHRIS, 20),
-      );
-
-      expect(log.entries[0]!.owedByYou).toBe(10);
-    });
-
-    it("spends oldest night first, the way the Settlement Ledger does", () => {
-      // Two nights of 30 owed and one night's worth sold. The older one is the one it answered, so
-      // the two screens name the same night as finished.
-      const nights = [
-        arranged(3, 0, { id: "old", droppedOn: "2026-08-14" }),
-        arranged(3, 0, { id: "new", droppedOn: "2026-08-21" }),
-      ];
-      const log = buildDropLog(
-        [pair()],
-        [pool("pa", nights)],
-        tables,
-        new Set(),
-        answered(CHRIS, 30),
-      );
-      const owed = new Map(log.entries.map((e) => [e.lootId, e.owedByYou]));
-
-      expect(owed.get("old")).toBe(0);
-      expect(owed.get("new")).toBe(30);
-      expect(couponsOutstandingByParty(log.entries).get("pa")).toEqual({ toYou: 0, byYou: 30 });
-    });
-
-    it("spends one person's budget on their own nights and nobody else's", () => {
-      // Jared's coupons are not answered by a lot of Chris's, however much of it sold. Same rule
-      // as answeredByPair, which is why the budget is keyed by pair and not by pile.
-      const jared = {
-        ...theirs("m2", "Challynnger"),
-        personId: "p-jared",
-        personName: "Jared",
-      };
-      const withJared = party("pb", [mine("m1", "Huskyxkenshi"), jared], { difficulty: "HARD" });
-      const log = buildDropLog(
-        [withJared],
-        [pool("pb", [arranged(3, 0)])],
-        tables,
-        new Set(),
-        answered(CHRIS, 30),
-      );
-
-      expect(log.entries[0]!.owedByYou).toBe(30);
-    });
-
-    it("does not spend it on a night that was already closed", () => {
-      // A closed night is finished, and letting it eat the budget would leave less for the night
-      // still owed: the debt would come out too small rather than too big.
-      const nights = [
-        arranged(3, 0, { id: "shut", droppedOn: "2026-08-14" }),
-        arranged(3, 0, { id: "open", droppedOn: "2026-08-21" }),
-      ];
-      const closed = closedByHolder([
-        {
-          holder: { kind: "SELF", personId: null, characterName: null },
-          lootIds: ["shut"],
-          unpaid: 0,
-        },
-      ]).closed;
-      const log = buildDropLog([pair()], [pool("pa", nights)], tables, closed, answered(CHRIS, 30));
-      const owed = new Map(log.entries.map((e) => [e.lootId, e.owedByYou]));
-
-      expect(owed.get("open")).toBe(0);
-    });
-
-    it("leaves alone the coupons of yours somebody ELSE is holding", () => {
-      // A sale out of YOUR pile says nothing about theirs. The budget is keyed on your pile, and
-      // this night is not in it.
-      const log = buildDropLog(
-        [pair()],
-        [pool("pa", [arranged(0, 3)])],
-        tables,
-        new Set(),
-        answered(CHRIS, 30),
-      );
-
-      expect(log.entries[0]!.owedToYou).toBe(30);
-    });
-
-    it("answers the other direction off THEIR pile, where they sold yours", () => {
-      // The mirror, and keyed the other way round: their pile, you the creditor.
-      const log = buildDropLog(
-        [pair()],
-        [pool("pa", [arranged(0, 3)])],
-        tables,
-        new Set(),
-        new Map([[answeredKey(CHRIS, SELF_KEY), sold(30)]]),
-      );
-
-      expect(log.entries[0]!.owedToYou).toBe(0);
     });
   });
 
@@ -1272,30 +1145,6 @@ describe("a piece drop counts YOUR share, not what fell", () => {
       });
       // And a page with no week to name still shows the pool whole.
       expect(couponsOutstandingByParty(log.entries).get("pa")).toEqual({ toYou: 10, byYou: 30 });
-    });
-
-    it("lets a sale answer its own side without touching the other", () => {
-      // A sale out of YOUR pile says nothing about what is sitting in theirs. It clears the 30 you
-      // owed and leaves the 10 of yours they are holding exactly where it was: those are two
-      // different piles, and one is not evidence about the other.
-      const theirs10 = theirNight({ id: "old", droppedOn: "2026-08-13" });
-      const yours30 = coupons({
-        id: "mid",
-        droppedOn: "2026-08-14",
-        bundles: 3,
-        bundlesBy: [{ memberId: "m1", bundles: 3 }],
-      });
-      const log = buildDropLog(
-        [pair(), other()],
-        [pool("pa", [yours30]), pool("pb", [theirs10])],
-        tables,
-        new Set(),
-        new Map([[answeredKey(SELF_KEY, CHRIS), sold(30)]]),
-      );
-      const out = couponsOutstandingByParty(log.entries);
-
-      expect(out.get("pb")).toEqual({ toYou: 10, byYou: 0 });
-      expect(out.has("pa")).toBe(false);
     });
   });
 

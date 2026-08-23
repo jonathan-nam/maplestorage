@@ -11,12 +11,12 @@ import { bossLabel } from "@/lib/boss-difficulty";
 import { peek, put } from "@/lib/cache";
 import { buildDropAudit } from "@/lib/drop-audit";
 import { buildDropLog, isUntradeablePiece } from "@/lib/drop-log";
-import { answeredSalesByPair, closedByHolder, foldSeats } from "@/lib/vestige-ledger";
+import { closedByHolder, foldSeats } from "@/lib/vestige-ledger";
 import type { Boss } from "@/types/boss";
 import type { DropTables } from "@/types/drop";
 import type { PartyLootPool } from "@/types/loot";
 import type { Party, Person } from "@/types/party";
-import type { SettlementDebt, VestigeSettlement, VestigeTranche } from "@/types/vestige";
+import type { SettlementDebt, VestigeSettlement } from "@/types/vestige";
 
 // What happened to one drop. Reached from the Settled tab and from an offset on the Settlement
 // Ledger, both of which name a drop and used to open the party it fell in.
@@ -34,7 +34,6 @@ const PARTIES_KEY = "/api/parties?solo=include&retired=include";
 const POOLS_KEY = "/api/parties/loot";
 const BOSSES_KEY = "/api/bosses";
 const DROPS_KEY = "/api/bosses/drops";
-const TRANCHES_KEY = "/api/vestige-tranches";
 const SETTLEMENTS_KEY = "/api/vestige-settlements";
 const DEBTS_KEY = "/api/settlement-debts";
 const PEOPLE_KEY = "/api/people";
@@ -48,7 +47,6 @@ export default function DropAuditPage() {
   const [pools, setPools] = useState<PartyLootPool[]>([]);
   const [bosses, setBosses] = useState<Boss[]>(peek<Boss[]>(BOSSES_KEY) ?? []);
   const [dropTables, setDropTables] = useState<DropTables>(peek<DropTables>(DROPS_KEY) ?? {});
-  const [tranches, setTranches] = useState<VestigeTranche[]>([]);
   const [settlements, setSettlements] = useState<VestigeSettlement[]>([]);
   const [debts, setDebts] = useState<SettlementDebt[]>([]);
   const [people, setPeople] = useState<Person[]>(peek<Person[]>(PEOPLE_KEY) ?? []);
@@ -66,7 +64,6 @@ export default function DropAuditPage() {
           apiFetch<PartyLootPool[]>(POOLS_KEY, { method: "GET" }, withToken),
           apiFetch<Boss[]>(BOSSES_KEY, { method: "GET" }, withToken),
           apiFetch<DropTables>(DROPS_KEY, { method: "GET" }, withToken),
-          apiFetch<VestigeTranche[]>(TRANCHES_KEY, { method: "GET" }, withToken),
           apiFetch<VestigeSettlement[]>(SETTLEMENTS_KEY, { method: "GET" }, withToken),
           apiFetch<SettlementDebt[]>(DEBTS_KEY, { method: "GET" }, withToken),
           // Only to NAME an act. Somebody an offset or a settlement names may have no seat left.
@@ -79,7 +76,6 @@ export default function DropAuditPage() {
           poolResult,
           bossResult,
           dropResult,
-          trancheResult,
           settlementResult,
           debtResult,
           peopleResult,
@@ -88,7 +84,6 @@ export default function DropAuditPage() {
           setPools(poolResult);
           setBosses(bossResult);
           setDropTables(dropResult);
-          setTranches(trancheResult);
           setSettlements(settlementResult);
           setDebts(debtResult);
           if (peopleResult) {
@@ -112,13 +107,7 @@ export default function DropAuditPage() {
     ...pool,
     loot: pool.loot.filter((row) => !isUntradeablePiece(row, dropTables)),
   }));
-  const log = buildDropLog(
-    parties,
-    sellable,
-    dropTables,
-    closedByHolder(settlements).closed,
-    answeredSalesByPair(tranches),
-  );
+  const log = buildDropLog(parties, sellable, dropTables, closedByHolder(settlements).closed);
   // The people list first, so somebody is named even after their seat has left every party. Seats
   // then win, because a seat carries the name as this account spells it. Same order as the Drop Log.
   const holderNames = new Map<string, string>();
