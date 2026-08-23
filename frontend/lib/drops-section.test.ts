@@ -21,7 +21,10 @@ const page = source("app", "bosses", "parties", "page.tsx");
 
 describe("the week's coupons are drops, not configuration", () => {
   it("heads them with what they are, whether or not the boxes are on screen", () => {
-    expect(list).toContain('const couponTitle = headed ? "Coupons" : stacks ? "Drops" : null');
+    expect(list).toContain('const couponTitle = headed ? "Coupons" : panel ? "Drops" : null');
+    // On the PANEL, not on `stacks`. The two were the same thing until the party's own page carried
+    // the stack blocks too, and heading its pool "Drops" under "Loot pool" is the same word twice.
+    expect(list).not.toContain('stacks ? "Drops"');
   });
 
   it("states the deal under the drop it is read against, once", () => {

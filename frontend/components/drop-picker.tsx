@@ -28,8 +28,12 @@ export type StackDraft = {
   behind: Map<string, number>;
   pickupTitle: string;
   entitledTitle: string;
-  /** The standing split's own write, which is the party's and lands on its own button. */
-  onSaveShares: (shares: Map<string, number>) => Promise<void>;
+  /**
+   * The standing split's own write, which is the party's and lands on its own button.
+   *
+   * Absent where the screen states the split rather than answering it, which draws it read-only.
+   */
+  onSaveShares?: (shares: Map<string, number>) => Promise<void>;
 };
 
 // Log a drop. Carried by the party's loot pool, by a row on Party View and by the Drop Log's own

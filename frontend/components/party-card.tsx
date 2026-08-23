@@ -446,6 +446,7 @@ export function PartyCard({
               // the split and the week's pickup with it. The pool's own page still corrects one.
               couponRemovable={false}
               editing={editing}
+              panel
               busy={busy}
               isSaving={pool.isSaving}
               onSell={pool.onSell}

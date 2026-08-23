@@ -21,7 +21,8 @@ import {
 // takes four stacks and I take two".
 //
 // Read-only until the panel's own Edit, which is the one that already swaps the roster for its
-// inputs: one press opens everything on the row that can be answered.
+// inputs: one press opens everything on the row that can be answered. A screen that only STATES the
+// split passes no onSave, and read-only is all it can ever be.
 
 export function StackAssign({
   config,
@@ -32,10 +33,10 @@ export function StackAssign({
   config: ShareConfig;
   editing: boolean;
   busy: boolean;
-  /** The new ratio, by seat id. The page turns it into the party's own save. */
-  onSave: (shares: Map<string, number>) => Promise<void>;
+  /** The new ratio, by seat id. The page turns it into the party's own save. Absent is read-only. */
+  onSave?: (shares: Map<string, number>) => Promise<void>;
 }) {
-  if (!editing) return <ShareSummary config={config} />;
+  if (!editing || !onSave) return <ShareSummary config={config} />;
   return <ShareBoxes config={config} busy={busy} onSave={onSave} />;
 }
 

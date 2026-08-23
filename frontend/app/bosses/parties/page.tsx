@@ -658,6 +658,9 @@ export default function PartiesPage() {
           dropsInWeek(lootByParty.get(party.id) ?? [], view?.currentWeekStart ?? null).shown,
           VESTIGE,
         ),
+        // A settled night is history. The server refuses to rewrite one either way (see
+        // settledAlready), so without this the boxes would open on a save that cannot land.
+        locked: new Set(log.entries.filter((entry) => entry.closed).map((entry) => entry.lootId)),
         behind,
         onSave: (lootId: string, bundles: Record<string, number>) =>
           writeDrop(party, lootId, "/bundles", {

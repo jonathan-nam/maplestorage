@@ -1,7 +1,8 @@
 "use client";
 
+import { useState } from "react";
 import { DropPicker } from "@/components/drop-picker";
-import { LootList } from "@/components/loot-list";
+import { LootList, type StackAssignment } from "@/components/loot-list";
 import type { PieceStatus } from "@/lib/drop-log";
 import { takenTally } from "@/lib/loot";
 import { canTrade } from "@/lib/world";
@@ -19,6 +20,7 @@ export function LootPool({
   dropTables,
   bossByKey,
   pieceStatus,
+  stacks,
   adding,
   isSaving,
   onAdd,
@@ -34,6 +36,14 @@ export function LootPool({
   bossByKey: Map<string, Boss>;
   /** What a coupon row says it is. See PieceStatus. */
   pieceStatus?: PieceStatus;
+  /**
+   * What each seat was entitled to out of a night's coupons, and what they picked up.
+   *
+   * A gap between the two is a debt, and a debt with nothing on screen behind it is one the other
+   * side argues with. The night's pickup is correctable here (see the Edit below); the standing
+   * split is not, because it is the party's rather than this pool's and arrives with no onSave.
+   */
+  stacks?: StackAssignment;
   /** The picker's own add. Not the rows': one drop being logged does not lock the pool. */
   adding: boolean;
   /** Whether THIS drop's write is in flight, by its id. */
@@ -45,9 +55,35 @@ export function LootPool({
   onSetPaid: (lootId: string, memberId: string, paid: boolean) => void;
   onDelete: (lootId: string) => void;
 }) {
+  /**
+   * Whether the night's stack boxes take typing. Party View's own model, and for its own reason.
+   *
+   * Not always-on. An unanswered night's boxes OPEN on a guess (a named looter, or the balanced
+   * split), so leaving them out would draw a pickup nobody entered as though it had happened. At
+   * rest the night states what was recorded and nothing else. See StackPickup.
+   */
+  const [editing, setEditing] = useState(false);
+  // Offered only where something can actually be answered. A pool whose coupon nights have all
+  // settled is history, and an Edit over it is a button that opens nothing.
+  const correctable = Boolean(
+    stacks?.pickup.onSave &&
+    stacks.pickup.drops.some((drop) => !stacks.pickup.locked?.has(drop.lootId)),
+  );
+
   return (
     <section className="loot-pool">
-      <h2 className="loot-pool-title">Loot pool</h2>
+      <div className="loot-pool-head">
+        <h2 className="loot-pool-title">Loot pool</h2>
+        {correctable && (
+          <button
+            type="button"
+            className="party-cancel"
+            onClick={() => setEditing((open) => !open)}
+          >
+            {editing ? "Cancel" : "Edit"}
+          </button>
+        )}
+      </div>
 
       <DropPicker
         bossKey={party.bossKey}
@@ -80,6 +116,8 @@ export function LootPool({
         dropTables={dropTables}
         bossByKey={bossByKey}
         pieceStatus={pieceStatus}
+        stacks={stacks}
+        editing={editing}
         isSaving={isSaving}
         onSell={onSell}
         onUnsell={onUnsell}

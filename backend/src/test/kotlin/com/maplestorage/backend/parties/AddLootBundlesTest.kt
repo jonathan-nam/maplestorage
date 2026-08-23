@@ -5,6 +5,8 @@ import com.maplestorage.backend.db.Characters
 import com.maplestorage.backend.db.Party
 import com.maplestorage.backend.db.Person
 import com.maplestorage.backend.db.Screenshots
+import com.maplestorage.backend.db.VestigeSettlement
+import com.maplestorage.backend.db.VestigeSettlementLoot
 import com.maplestorage.backend.users.WORLD_INTERACTIVE
 import com.maplestorage.backend.users.ensureUser
 import kotlinx.datetime.LocalDate
@@ -60,6 +62,7 @@ class AddLootBundlesTest {
         // the predicate would be true of every row. See PartyLootTest.
         val owners = listOf(userId)
         transaction {
+            VestigeSettlement.deleteWhere { VestigeSettlement.userId inList owners }
             Party.deleteWhere { Party.userId inList owners }
             Person.deleteWhere { Person.userId inList owners }
             Characters.deleteWhere { Characters.userId inList owners }
@@ -177,5 +180,43 @@ class AddLootBundlesTest {
             transaction { addedBundles(addCoupons(partyId), partyId, mapOf("not-a-uuid" to 3)) }
         }
         assertEquals(0, transaction { lootFor(partyId).size })
+    }
+
+    @Test
+    fun `a night whose books have closed is no longer answerable`() {
+        transaction {
+            val party = trio()
+            val partyId = Uuid.parse(party.id)
+            val lootId = addCoupons(partyId)
+
+            // Open, so the arrangement is still a question somebody can answer.
+            assertEquals(false, settledAlready(lootId))
+
+            closeBooksOver(lootId)
+
+            // The settlement was made against who held what. Changing that afterwards would move a
+            // figure somebody has already been paid against.
+            assertTrue(settledAlready(lootId))
+        }
+    }
+
+    /** One act of closing a holder's books over a drop, as VestigeSettlementRoutes files it. */
+    private fun closeBooksOver(lootId: Uuid) {
+        val settlementId = Uuid.random()
+        val now = Clock.System.now()
+        val owner = userId
+        VestigeSettlement.insert {
+            it[VestigeSettlement.id] = settlementId
+            it[VestigeSettlement.userId] = owner
+            it[holderKind] = "CHARACTER"
+            it[characterName] = "steve"
+            it[unpaid] = 0
+            it[settledAt] = now
+            it[createdAt] = now
+        }
+        VestigeSettlementLoot.insert {
+            it[VestigeSettlementLoot.settlementId] = settlementId
+            it[VestigeSettlementLoot.lootId] = lootId
+        }
     }
 }

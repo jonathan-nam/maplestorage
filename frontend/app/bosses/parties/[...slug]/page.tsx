@@ -21,6 +21,8 @@ import {
 } from "@/lib/drop-log";
 import { useDropIcons } from "@/lib/drop-icons";
 import { NOTHING_OUTSTANDING, poolLabel, summarize } from "@/lib/loot";
+import { assignableDrops } from "@/lib/vestige-pickup";
+import { shareConfig } from "@/lib/vestige-stacks";
 import { answeredSalesByPair, closedByHolder } from "@/lib/vestige-ledger";
 import { otherMembers, partySizeLabel } from "@/lib/parties";
 import type { Boss } from "@/types/boss";
@@ -41,6 +43,8 @@ const TRANCHES_KEY = "/api/vestige-tranches";
 // key as the Drop Log, so the two cannot disagree about what is owed. See partiesFor.
 const PARTIES_KEY = "/api/parties?solo=include&retired=include";
 const POOLS_KEY = "/api/parties/loot";
+// The one drop whose nights are stated seat by seat here. Party View's own constant, same key.
+const VESTIGE = "vestige-of-erion";
 // Rows are keyed by their drop's id while they save. The picker is not a row, so it takes a name of
 // its own. See lib/use-row-writes.ts.
 const ADD_DROP = "add-drop";
@@ -188,6 +192,13 @@ export default function PartyPage() {
       body: JSON.stringify({ paid }),
     });
   const remove = (lootId: string) => mutate(lootId, `${lootUrl()}/${lootId}`, { method: "DELETE" });
+  // Who bent down for which stack, on one night. The same route Party View's panel writes, so a
+  // correction made here and one made there cannot come out differently.
+  const setBundles = (lootId: string, bundles: Record<string, number>) =>
+    mutate(lootId, `${lootUrl()}/${lootId}/bundles`, {
+      method: "PUT",
+      body: JSON.stringify({ bundles }),
+    });
 
   const bossByKey = new Map(bosses.map((b) => [b.bossKey, b]));
   // Counted from the rows on screen rather than from the party's stored counters, which were read
@@ -216,6 +227,51 @@ export default function PartyPage() {
   // its own row, so the raw status read "In the pool" on every vestige stack this party ever dropped.
   // The same reading Party View's panels use, from the same place.
   const pieceStatus = party ? pieceStatusByParty(mine).get(party.id) : undefined;
+  /**
+   * What each seat was entitled to out of this party's coupon nights, and what they picked up.
+   *
+   * The gap between the two IS the debt the line above states, and until this was here the page
+   * gave the figure with nothing behind it: "20 coupons owed" over a list of nights that each
+   * looked the same. Both halves, per night, because neither follows from the other.
+   *
+   * The WHOLE pool, unlike Party View's, which is a row about one week. This page is where a debt
+   * older than tonight is gone through, so narrowing it would hide the night being asked about.
+   *
+   * The night's pickup is correctable behind the pool's own Edit, and a SETTLED night is not: its
+   * books are closed and the figures behind them have been paid against. The standing split carries
+   * no onSave at all, because it is the party's rather than this pool's and belongs to its editor.
+   */
+  const stacks = (() => {
+    if (!party) return undefined;
+    const config = shareConfig(
+      dropTables[party.bossKey],
+      party.difficulty,
+      party.worldType,
+      VESTIGE,
+      party.members,
+    );
+    if (!config) return undefined;
+    return {
+      dropKey: VESTIGE,
+      config,
+      entitledTitle: "Entitled each week",
+      pickup: {
+        // Not "Looted this week": these rows are the whole pool, and most of them are not this week.
+        title: "Looted",
+        drops: assignableDrops(party, loot, VESTIGE),
+        // Off the ledger's own notion of finished, which is the settlements and not this party's
+        // arrangement. Same reading the row's "Settled" label comes from, so a night cannot be
+        // history in one place and a box to type in two lines below it.
+        locked: new Set(mine.filter((entry) => entry.closed).map((entry) => entry.lootId)),
+        // The odd stack rotates against every party's nights at once, which is the Party View
+        // reckoning. Empty here opens an unanswered night's boxes on the balanced split instead of
+        // on whoever is furthest behind account-wide: a worse first guess, never a stored one, and
+        // nothing is written until the button is pressed.
+        behind: new Map<string, number>(),
+        onSave: setBundles,
+      },
+    };
+  })();
   const summary = summarize(loot);
   const poolLine = poolLabel(
     {
@@ -293,6 +349,7 @@ export default function PartyPage() {
             <LootPool
               party={party}
               pieceStatus={pieceStatus}
+              stacks={stacks}
               loot={loot}
               dropTables={dropTables}
               bossByKey={bossByKey}
