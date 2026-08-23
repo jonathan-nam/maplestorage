@@ -37,6 +37,45 @@ jobs:
       auth: ${{ steps.filter.outputs.auth }}
     steps:
       - uses: actions/checkout@v4
+
+      # This repo is public, so a tracked .env is the one mistake that cannot be undone by a
+      # revert. The .gitignore block is not enforcement: `git add -f` walks past it, and so does a
+      # pattern that stops matching. Both checks live in this job because it is the only one that
+      # always runs, and a PR that adds a .env touches none of the paths the others filter on.
+      - name: No secret files committed
+        run: |
+          # Anchored on purpose: an unanchored `\.env` also matches a stray .envrc, and a check
+          # that cries wolf gets weakened rather than obeyed.
+          leaked=$(git ls-files \
+            | grep -E '(^|/)(\.env|terraform\.tfvars|backend\.hcl)(\.[^/]*)?$|(^|/)\.clerk/' \
+            | grep -v '\.example$' || true)
+          if [ -n "$leaked" ]; then
+            echo "::error::secret-carrying files are tracked in a PUBLIC repo:"
+            echo "$leaked"
+            exit 1
+          fi
+          echo "no secret-carrying files tracked"
+
+      - name: Env files stay gitignored
+        run: |
+          for f in .env .env.prod .env.local .env.production backend/.env backend/.env.prod \
+                   frontend/.env.local frontend/.env.production auth/.env auth/.env.prod \
+                   vision/.env infra/terraform.tfvars infra/backend.hcl; do
+            if ! git check-ignore -q "$f"; then
+              echo "::error::$f is not gitignored"
+              exit 1
+            fi
+          done
+          # The negation that keeps the templates committable. Lose it and the deploy runbook's
+          # first step stops working, which is the failure that argues for weakening the rule above.
+          for f in .env.prod.example backend/.env.example frontend/.env.local.example; do
+            if git check-ignore -q --no-index "$f"; then
+              echo "::error::$f is gitignored but must stay committable"
+              exit 1
+            fi
+          done
+          echo "env ignore rules hold"
+
       - uses: dorny/paths-filter@v3
         id: filter
         with:

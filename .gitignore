@@ -21,7 +21,6 @@ node_modules
 .pnpm-store/
 frontend/.next/
 frontend/out/
-frontend/.env*.local
 frontend/tsconfig.tsbuildinfo
 
 # Kotlin / Gradle (gradle-wrapper.jar is intentionally NOT ignored -- commit
@@ -31,7 +30,6 @@ backend/.gradle/
 backend/build/
 # Kotlin's incremental build cache, written beside the source tree by `gradlew run`.
 backend/.kotlin/
-backend/.env
 
 # IDE
 .idea/
@@ -52,8 +50,18 @@ __pycache__/
 *.pyc
 symbol-candidates.png
 
-# local auth config for docker compose
+# Environment files, anywhere in the tree. This repo is public and the root .env is the PROD one
+# on the box: AUTH_SECRET, the Discord client secret and the S3 backup keys (see .env.prod.example).
+#
+# The bare name alone left `.env.prod` committable, which is the name `.env.prod.example` invites
+# you to copy it to. So match every suffix and negate the examples back in. Pinned by the
+# "No secret files committed" step in ci.yml, which also catches a `git add -f`.
 .env
+.env.*
+!.env*.example
+
+# Clerk's local config, which can carry a secret key. Repo-wide, not just frontend/.
+.clerk/
 
 # Dev database dumps. This repo is public and a dump carries the account and Discord rows of whoever
 # took it, so a dump must never be committable by an absent-minded `git add -A`.
