@@ -28,7 +28,7 @@ import {
   ownShareOf,
   transfersOf,
 } from "./piece-ledger";
-import type { PieceTransfer } from "./piece-ledger";
+import type { AnsweredSale, PieceTransfer } from "./piece-ledger";
 import type { Loot, PartyLootPool } from "@/types/loot";
 import type { Party, PartyMember } from "@/types/party";
 
@@ -54,6 +54,8 @@ export type OutstandingDrop = {
    * sale cannot have come off a night that fell after it, and the week alone cannot tell them apart.
    */
   droppedOn: string;
+  /** When it was LOGGED, which is what says a sale could have answered it. See spendSales. */
+  recordedAt?: string;
   /** Whose pile the pieces are in. The tranche tally is theirs, so the queue is split by it. */
   holder: Holder;
   /** What to call them on screen. */
@@ -123,8 +125,11 @@ export type HolderLedger = {
    * `answered` is the pile's total and cannot retire a night: which nights are finished is a question
    * per creditor, and spending one person's sold coupons on a night owed to another is the
    * cross-person netting `owes` already refuses. See queueOf.
+   *
+   * One entry per SALE, not a total: the spend needs the day each was made, so a sale cannot answer
+   * a night that was not on the books yet. See spendSales.
    */
-  answeredByCreditor: Map<string, number>;
+  answeredByCreditor: Map<string, AnsweredSale[]>;
   /**
    * Every drop under this holder has had its books closed, so the card is done. See V52.
    *
@@ -149,6 +154,8 @@ export type HolderLedger = {
     weekStart: string;
     /** The day it fell. What a debt is answered in the order of, never what it is drawn in. */
     droppedOn: string;
+    /** When it was LOGGED, which is what says a sale could have answered it. See spendSales. */
+    recordedAt?: string;
     /** Which of this holder's characters looted it. */
     looterName: string;
     pieces: number;
@@ -695,6 +702,7 @@ export function outstanding(
           partyId: pool.partyId,
           bossKey: loot.bossKey,
           droppedOn: loot.droppedOn,
+          recordedAt: loot.recordedAt,
           holder: holder.holder,
           holderName: holder.name,
           looterName: pile.by,
@@ -770,6 +778,7 @@ export function alsoHeldByYou(
         partyId: pool.partyId,
         bossKey: loot.bossKey,
         droppedOn: loot.droppedOn,
+        recordedAt: loot.recordedAt,
         holder: mine.holder,
         holderName: mine.name,
         looterName: pile.by,
@@ -826,12 +835,13 @@ export function holderLedgers(
   /** Pieces each pile has answered for with money rather than coupons. Absent is none. See V56. */
   answeredByHolder: Map<string, number> = new Map(),
   /**
-   * The same pieces per (pile, creditor), which is what retires a night. See answeredByPair.
+   * The same pieces per (pile, creditor), a sale at a time, which is what retires a night. See
+   * answeredSalesByPair.
    *
    * Absent leaves every night on the queue while any of the pile is outstanding, which is what this
    * did before a night could be retired at all.
    */
-  answeredByPair: Map<string, number> = new Map(),
+  answeredByPair: Map<string, AnsweredSale[]> = new Map(),
 ): HolderLedger[] {
   const byHolder = new Map<string, OutstandingDrop[]>();
   for (const d of drops) {
@@ -859,6 +869,7 @@ export function holderLedgers(
       bossKey: d.bossKey,
       weekStart: d.drop.weekStart,
       droppedOn: d.droppedOn,
+      recordedAt: d.recordedAt,
       looterName: d.looterName,
       // What is in THIS pile. The whole drop would count somebody else's stacks as theirs.
       pieces: heldOf(d.drop),
@@ -898,7 +909,7 @@ export function holderLedgers(
       answeredByCreditor: new Map(
         [...new Set(drops.flatMap((d) => d.transfers.map((t) => t.toId)))].map((creditor) => [
           creditor,
-          answeredByPair.get(answeredKey(key, creditor)) ?? 0,
+          answeredByPair.get(answeredKey(key, creditor)) ?? [],
         ]),
       ),
       accounted: soldPieces + kept + bought.pieces,
@@ -1060,6 +1071,27 @@ export function answeredKey(pile: string, creditor: string): string {
  */
 export function answeredByPair(rows: TrancheRow[]): Map<string, number> {
   const out = new Map<string, number>();
+  for (const [key, sales] of answeredSalesByPair(rows)) {
+    out.set(
+      key,
+      sales.reduce((sum, sale) => sum + sale.pieces, 0),
+    );
+  }
+  return out;
+}
+
+/**
+ * The same attribution, one entry per SALE rather than summed, so each carries the day it was made.
+ *
+ * A sum cannot say when it was earned, and the spend needs to know: a sale only answers nights that
+ * were already on the books when it was recorded. Summing first and spending after is what let a
+ * sale from last week answer a night logged tonight. See spendSales.
+ *
+ * A row with no soldAt is one cached from before the field. It sorts first and reaches every night,
+ * which is what it did when it was cached.
+ */
+export function answeredSalesByPair(rows: TrancheRow[]): Map<string, AnsweredSale[]> {
+  const out = new Map<string, AnsweredSale[]>();
   for (const row of rows) {
     if (row.amount === null) continue;
     const pile = holderKey(row.holder);
@@ -1073,7 +1105,9 @@ export function answeredByPair(rows: TrancheRow[]): Map<string, number> {
       const pieces = Math.min(share.pieces, left);
       left -= pieces;
       const key = answeredKey(pile, creditor);
-      out.set(key, (out.get(key) ?? 0) + pieces);
+      const sales = out.get(key) ?? [];
+      sales.push({ pieces, recordedAt: row.soldAt ?? "" });
+      out.set(key, sales);
     }
   }
   return out;

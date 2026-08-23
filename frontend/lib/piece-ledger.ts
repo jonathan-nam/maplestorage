@@ -255,3 +255,47 @@ export function spendOldestFirst<T extends { pieces: number; droppedOn: string }
   }
   return nights.map((night) => ({ ...night, pieces: owed.get(night) ?? night.pieces }));
 }
+
+/** One sale's coupons, with the moment it was recorded. See spendSales. */
+export type AnsweredSale = {
+  pieces: number;
+  /** The tranche's soldAt, which is stamped by the server and has no edit path. */
+  recordedAt: string;
+};
+
+/**
+ * Sales spent over nights, each sale reaching only the nights already on the books when it was made.
+ *
+ * The eligibility rule spendOldestFirst's doc has always claimed and never enforced: a sale cannot
+ * have come off a night that had not happened yet. Without it every sale ever recorded is one
+ * undated pool, re-spent from scratch on each render, and it drains down the queue into nights that
+ * fell after it. A night you logged tonight then reads as already answered by a sale from last week,
+ * which is silence where a debt should be.
+ *
+ * Against `recordedAt` and never `droppedOn`, because droppedOn is a date somebody typed: logging a
+ * drop, selling, and logging another drop is one date and three acts, and the day cannot order them.
+ * A night with no recordedAt is a row cached from before the field, and stays eligible for
+ * everything, which is what it meant when it was cached.
+ *
+ * Oldest sale first, so an older sale takes the older nights and the leftovers land where they would
+ * have anyway. Every night is RETURNED at what it still owes, for the reason spendOldestFirst says.
+ */
+export function spendSales<
+  T extends { pieces: number; droppedOn: string; recordedAt?: string | null },
+>(nights: T[], sales: AnsweredSale[]): T[] {
+  const owed = new Map<T, number>(nights.map((night) => [night, night.pieces]));
+  const oldest = [...nights].sort((a, b) => a.droppedOn.localeCompare(b.droppedOn));
+  for (const sale of [...sales].sort((a, b) => a.recordedAt.localeCompare(b.recordedAt))) {
+    let left = Math.max(0, sale.pieces);
+    for (const night of oldest) {
+      if (left <= 0) break;
+      // A row cached from before the field has no recordedAt, and stays eligible for everything:
+      // that is what it meant when it was cached, and the next fetch corrects it.
+      if (night.recordedAt && night.recordedAt > sale.recordedAt) continue;
+      const spent = Math.min(left, owed.get(night)!);
+      left -= spent;
+      owed.set(night, owed.get(night)! - spent);
+    }
+  }
+  return nights.map((night) => ({ ...night, pieces: owed.get(night) ?? night.pieces }));
+}

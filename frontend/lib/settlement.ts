@@ -19,7 +19,8 @@
 // No total is computed here. The shares are lib/wallet.ts's, the pieces and the sale splits are
 // lib/vestige-ledger.ts's, and a second copy of any of them would be a second answer.
 
-import { spendOldestFirst } from "./piece-ledger";
+import { spendOldestFirst, spendSales } from "./piece-ledger";
+import type { AnsweredSale } from "./piece-ledger";
 import { SELF_KEY, answeredKey, holderFromKey, holderKey } from "./vestige-ledger";
 import type { CouponSale, Holder, HolderLedger, SaleCredit } from "./vestige-ledger";
 import type { Wallet, WalletLine } from "./wallet";
@@ -33,6 +34,8 @@ export type HeldOfYours = {
   weekStart: string;
   /** The day it fell, which is the order a debt is answered in. See spendOldestFirst. */
   droppedOn: string;
+  /** When it was LOGGED, which is what says a sale could have answered it. See spendSales. */
+  recordedAt?: string;
   /**
    * Pieces this person is owed off this night, never the size of the pile holding them.
    *
@@ -269,7 +272,7 @@ export function buildSettlement(
    * priced tranche came to; this brings the PIECES it spoke for. With only the first, a sale of
    * somebody's coupons put its money on this card and left the coupons on it as well.
    */
-  answered: Map<string, number> = new Map(),
+  answered: Map<string, AnsweredSale[]> = new Map(),
   /**
    * What has been decided about the money a sale of their coupons left in your hands. See V61.
    *
@@ -304,6 +307,7 @@ export function buildSettlement(
           bossKey: drop.bossKey,
           weekStart: drop.weekStart,
           droppedOn: drop.droppedOn,
+          recordedAt: drop.recordedAt,
           pieces: transfer.pieces,
           looterName: drop.looterName,
           // A different PERSON, not merely a second transfer: one night can owe one person twice,
@@ -320,14 +324,14 @@ export function buildSettlement(
   // Capped at what is owed, and per person: a tranche naming more than the nights ever owed them is
   // one somebody mistyped, and it must not spill onto the next person's card. See V56.
   for (const [key, row] of out) {
-    const paid = answered.get(answeredKey(SELF_KEY, key)) ?? 0;
-    row.piecesAnswered.theirs = Math.min(row.piecesYouOwe, paid);
+    // The nights first, each sale reaching only the ones already logged when it was made, then the
+    // headline off what they actually absorbed. That way round because the two must agree: taking
+    // the tranche total for the headline and letting the nights absorb less is a panel listing six
+    // nights and 180 coupons under a headline of 50. See spendSales.
+    const spent = spendSales(row.owedDrops, answered.get(answeredKey(SELF_KEY, key)) ?? []);
+    row.piecesAnswered.theirs = row.piecesYouOwe - spent.reduce((sum, d) => sum + d.pieces, 0);
     row.piecesYouOwe -= row.piecesAnswered.theirs;
-    // And off the nights themselves, oldest first, so the list adds up to the count above it. It
-    // used to be left gross on the reasoning that a tranche names a person and never a boss: true,
-    // and what it cost was a panel listing six nights and 180 coupons under a headline of 50, with
-    // five of them already sold for. See spendOldestFirst.
-    row.owedDrops = spendOldestFirst(row.owedDrops, row.piecesAnswered.theirs);
+    row.owedDrops = spent;
   }
 
   // The pieces. Your own pile is not a debt to you, and a closed one is finished.
@@ -343,6 +347,7 @@ export function buildSettlement(
         bossKey: d.bossKey,
         weekStart: d.weekStart,
         droppedOn: d.droppedOn,
+        recordedAt: d.recordedAt,
         pieces: d.transfers
           .filter((t) => t.toId === SELF_KEY)
           .reduce((sum, t) => sum + t.pieces, 0),
@@ -357,12 +362,15 @@ export function buildSettlement(
     const row = rowFor(holderKey(ledger.holder), ledger.holderName);
     // The mirror of the subtraction above: coupons of yours THEY sold out of their own pile and said
     // were yours. `soldOfYours` carries what those fetched, so the count stops here too.
-    const paid = answered.get(answeredKey(holderKey(ledger.holder), SELF_KEY)) ?? 0;
-    row.piecesAnswered.yours = Math.min(ledger.owedToYou, paid);
+    const spent = spendSales(
+      drops,
+      answered.get(answeredKey(holderKey(ledger.holder), SELF_KEY)) ?? [],
+    );
+    // The same subtraction as the other direction, and read the same way round, so neither list can
+    // state a total the card contradicts.
+    row.piecesAnswered.yours = ledger.owedToYou - spent.reduce((sum, d) => sum + d.pieces, 0);
     row.pieces = ledger.owedToYou - row.piecesAnswered.yours;
-    // The same subtraction as the other direction, over the same nights, so neither list can state a
-    // total the card contradicts.
-    row.drops = spendOldestFirst(drops, row.piecesAnswered.yours);
+    row.drops = spent;
   }
 
   // The shares, NETTED: what they owe you less what you owe them, per person. One transfer of the

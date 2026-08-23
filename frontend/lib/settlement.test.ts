@@ -18,6 +18,7 @@ import {
   receivedSinceClosing,
   saleCredits,
 } from "./vestige-ledger";
+import type { AnsweredSale } from "./piece-ledger";
 import type { CouponSale, Holder, HolderLedger } from "./vestige-ledger";
 import type { Counterparty, Wallet, WalletLine } from "./wallet";
 import type { ProceedsDisposal, SettlementDebt } from "@/types/vestige";
@@ -48,6 +49,14 @@ const ledger = (holder: Holder, name: string, over: Partial<HolderLedger> = {}):
   drops: [],
   ...over,
 });
+
+/**
+ * One sale, as answeredSalesByPair files it, dated late enough to reach every night in here.
+ *
+ * These fixtures' nights carry no `recordedAt`, which is a row from before the field and is eligible
+ * for any sale. The eligibility rule has its own tests in piece-ledger.test.ts.
+ */
+const sold = (pieces: number, recordedAt = "2030-01-01T00:00:00Z") => [{ pieces, recordedAt }];
 
 /** One boss row under a holder, owing you `pieces`. */
 const owing = (lootId: string, bossKey: string, pieces: number, closed = false) => ({
@@ -198,7 +207,7 @@ describe("what one person owes you", () => {
       new Map(),
       new Map(),
       new Set(),
-      new Map([[answeredKey("self", "person:p-bro"), 10]]),
+      new Map([[answeredKey("self", "person:p-bro"), sold(10)]]),
     );
     expect(row!.piecesNet).toBe(30);
     expect(row!.owedDrops.map((d) => d.pieces)).toEqual([0, 30]);
@@ -1382,7 +1391,7 @@ describe("them keeping coupons of yours, at a price", () => {
       new Map(),
       new Map(),
       new Set(),
-      new Map([[answeredKey("person:p-bro", "self"), 20]]),
+      new Map([[answeredKey("person:p-bro", "self"), sold(20)]]),
     );
     expect([row!.pieces, row!.piecesAnswered.yours]).toEqual([0, 20]);
     expect(row!.parts.soldOfYours).toBe(400 * M);
@@ -1509,11 +1518,11 @@ describe("pieces a sale has already answered for", () => {
       }),
       ledger(BRO, "Bro", { owedToYou: 20, drops: [owing("l6", "baldrix", 20)] }),
     ],
-    answered: new Map([[answeredKey("self", "person:p-bro"), 70]]),
+    answered: new Map([[answeredKey("self", "person:p-bro"), sold(70)]]),
   });
 
   /** The card, with everything between the wallet and the answered map left empty. */
-  const cardFor = (ledgers: HolderLedger[], answered: Map<string, number>) =>
+  const cardFor = (ledgers: HolderLedger[], answered: Map<string, AnsweredSale[]>) =>
     buildSettlement(ledgers, wallet([]), [], new Map(), new Map(), new Map(), new Set(), answered);
 
   it("takes them off what you owe, so both ledgers give one answer", () => {
@@ -1551,7 +1560,7 @@ describe("pieces a sale has already answered for", () => {
         ledger(SELF, "you", { drops: [holdingOf("l1", "kaling", 10)] }),
         ledger(BRO, "Bro", { owedToYou: 20, drops: [owing("l2", "baldrix", 20)] }),
       ],
-      new Map([[answeredKey("self", "person:p-bro"), 10]]),
+      new Map([[answeredKey("self", "person:p-bro"), sold(10)]]),
     );
     expect(row!.piecesAnswered.yours).toBe(0);
     expect(row!.drops.map((d) => d.pieces)).toEqual([20]);
@@ -1592,7 +1601,7 @@ describe("pieces a sale has already answered for", () => {
       new Map(),
       new Map(),
       new Set(["person:p-bro"]),
-      new Map([[answeredKey("self", "person:p-bro"), 130]]),
+      new Map([[answeredKey("self", "person:p-bro"), sold(130)]]),
     );
     expect([row!.piecesYouOwe, row!.pieces, row!.piecesNet]).toEqual([0, 0, 0]);
     expect(row!.piecesAnswered.theirs).toBe(130);
@@ -1604,7 +1613,9 @@ describe("pieces a sale has already answered for", () => {
     // The same night unpinned. Every coupon sold or cancelled and no money on it, so it goes the way
     // every other card with nothing on it goes, and comes straight back on the next night.
     const { ledgers } = theNight();
-    expect(cardFor(ledgers, new Map([[answeredKey("self", "person:p-bro"), 130]]))).toEqual([]);
+    expect(cardFor(ledgers, new Map([[answeredKey("self", "person:p-bro"), sold(130)]]))).toEqual(
+      [],
+    );
   });
 
   it("caps at what is owed, so a mistyped tranche cannot answer for more", () => {
@@ -1619,7 +1630,7 @@ describe("pieces a sale has already answered for", () => {
       new Map(),
       new Map(),
       new Set(),
-      new Map([[answeredKey("self", "person:p-bro"), 500]]),
+      new Map([[answeredKey("self", "person:p-bro"), sold(500)]]),
     );
     expect([row!.piecesYouOwe, row!.piecesAnswered.theirs]).toEqual([0, 20]);
   });
@@ -1627,7 +1638,7 @@ describe("pieces a sale has already answered for", () => {
   it("drops the card when the pieces were the whole of it and money settled them", () => {
     const rows = cardFor(
       [ledger(SELF, "you", { drops: [holdingOf("l1", "kaling", 20)] })],
-      new Map([[answeredKey("self", "person:p-bro"), 20]]),
+      new Map([[answeredKey("self", "person:p-bro"), sold(20)]]),
     );
     expect(rows).toEqual([]);
   });
@@ -1656,7 +1667,7 @@ describe("pieces a sale has already answered for", () => {
           ],
         }),
       ],
-      new Map([[answeredKey("self", "person:p-bro"), 40]]),
+      new Map([[answeredKey("self", "person:p-bro"), sold(40)]]),
     );
     const byName = new Map(rows.map((r) => [r.name, r]));
     expect(byName.get("Zaddy")!.piecesYouOwe).toBe(30);
@@ -1668,7 +1679,7 @@ describe("pieces a sale has already answered for", () => {
     // count they came off stops asking as well.
     const [row] = cardFor(
       [ledger(BRO, "Bro", { owedToYou: 80, drops: [owing("l1", "first-adversary", 80)] })],
-      new Map([[answeredKey("person:p-bro", "self"), 50]]),
+      new Map([[answeredKey("person:p-bro", "self"), sold(50)]]),
     );
     expect([row!.pieces, row!.piecesAnswered.yours, row!.piecesNet]).toEqual([30, 50, -30]);
   });

@@ -25,7 +25,7 @@ import { peek, put } from "@/lib/cache";
 import { buildDropLog, couponsOutstandingByParty, pieceStatusByParty } from "@/lib/drop-log";
 import { dropsInWeek, NOTHING_OUTSTANDING } from "@/lib/loot";
 import {
-  answeredByPair,
+  answeredSalesByPair,
   closedByHolder,
   outstanding,
   runningBalance,
@@ -562,9 +562,18 @@ export default function PartiesPage() {
     pools,
     dropTables,
     closedByHolder(settlements).closed,
-    answeredByPair(tranches),
+    answeredSalesByPair(tranches),
   );
-  const couponsOut = couponsOutstandingByParty(log.entries);
+  // Narrowed to the week on screen, the same way the panel below each row is. A row sits under a
+  // heading about one week, so summing a season of runs into it answers a question nobody asked:
+  // Hard Baldrix read "20 coupons owed" off a run ten days before the one being looked at.
+  // `weekStart ?? currentWeekStart` is the week ON SCREEN, which is what weekLabel heads the page
+  // with. currentWeekStart alone is the live one, and would answer for tonight under a heading
+  // about a week in August.
+  const couponsOut = couponsOutstandingByParty(
+    log.entries,
+    view ? (view.weekStart ?? view.currentWeekStart) : null,
+  );
   // What each COUPON row in a panel says it is, off the same entries the badge above it is counted
   // from, so the two cannot disagree about a stack of vestiges.
   const pieceStatus = pieceStatusByParty(log.entries);

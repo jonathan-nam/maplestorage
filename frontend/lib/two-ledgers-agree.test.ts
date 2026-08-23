@@ -14,7 +14,7 @@ import {
   type Holder,
   type HolderLedger,
   answeredByHolder,
-  answeredByPair,
+  answeredSalesByPair,
   boughtByHolder,
   holderLedgers,
   keptByHolder,
@@ -141,7 +141,7 @@ const bothPiles = (theirs: number) => {
     undefined,
     undefined,
     answeredByHolder(rows),
-    answeredByPair(rows),
+    answeredSalesByPair(rows),
   );
   return { ledgers, rows };
 };
@@ -160,7 +160,7 @@ const saleLedgerSays = (ledgers: HolderLedger[], lootId: string, creditor: strin
 /** What the Settlement Ledger's card says the same night still owes the same person. */
 const settlementLedgerSays = (
   ledgers: HolderLedger[],
-  rows: Parameters<typeof answeredByPair>[0],
+  rows: Parameters<typeof answeredSalesByPair>[0],
   lootId: string,
   creditor: string,
 ) => {
@@ -172,7 +172,7 @@ const settlementLedgerSays = (
     new Map(),
     new Map(),
     new Set([creditor]),
-    answeredByPair(rows),
+    answeredSalesByPair(rows),
   );
   return (row?.owedDrops ?? [])
     .filter((d) => d.lootId === lootId)

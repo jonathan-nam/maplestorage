@@ -45,6 +45,14 @@ export type Loot = {
   // again, so a seat's tally is how many they have taken and never a share of anything.
   takenByMemberId: string | null;
   soldAt: string | null;
+  // When the drop was LOGGED. Not droppedOn, which is a date the user picks: two drops logged either
+  // side of a sale on the same evening are one date and two of these, and telling them apart is the
+  // whole point. See spendSales.
+  //
+  // OPTIONAL for the reason sharesThatWeek is: lib/cache.ts hands back whatever shape the API had
+  // when the page last fetched. Absent reads as "recorded before everything", which is what those
+  // rows meant when they were cached, and is corrected by the next fetch.
+  recordedAt?: string;
   // Who is owed, pinned when the drop sold. Empty before that.
   payouts: LootPayout[];
   // Seat ids of who ran the week this drop FELL in. Who may be named as its seller and who a sale

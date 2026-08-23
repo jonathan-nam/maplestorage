@@ -60,6 +60,10 @@ data class LootResponse(
     // same time as a sale. Nothing is owed off it: the item cannot move again. See V49.
     val takenByMemberId: String? = null,
     val soldAt: String?,
+    // When the drop was LOGGED, which is not droppedOn: that is a date the user picks, and this is a
+    // timestamp nobody can set. A coupon sale can only have answered nights already on the books when
+    // it was recorded, and a bare date cannot separate two acts on the same evening. See spendSales.
+    val recordedAt: String,
     // Who is owed, as pinned when the drop sold. Empty until then.
     val payouts: List<LootPayoutResponse>,
     // Seat ids of who ran the week this drop FELL in. Who a sale may name as its seller and who it
