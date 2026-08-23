@@ -1,12 +1,17 @@
 "use client";
 
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { useState } from "react";
 import { AuthField, AuthForm } from "@/components/auth-form";
-import { authClient } from "@/lib/auth-client";
+import { authClient, PASSWORD_LOGIN } from "@/lib/auth-client";
 
 export default function ForgotPassword() {
   const [email, setEmail] = useState("");
+
+  // Reachable by URL even with nothing linking here, so it answers for itself rather than
+  // rendering a form the server would refuse.
+  if (!PASSWORD_LOGIN) redirect("/");
 
   async function submit() {
     const { error } = await authClient.requestPasswordReset({

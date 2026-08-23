@@ -1,10 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { redirect, useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
 import { AuthField, AuthForm } from "@/components/auth-form";
-import { authClient } from "@/lib/auth-client";
+import { authClient, PASSWORD_LOGIN } from "@/lib/auth-client";
 
 const MIN_PASSWORD = 12;
 
@@ -53,6 +53,10 @@ function ResetForm() {
 }
 
 export default function ResetPassword() {
+  // Reachable by URL even with nothing linking here, so it answers for itself rather than
+  // rendering a form the server would refuse.
+  if (!PASSWORD_LOGIN) redirect("/");
+
   return (
     <main className="page">
       {/* useSearchParams needs one, or the build refuses to prerender this route. */}

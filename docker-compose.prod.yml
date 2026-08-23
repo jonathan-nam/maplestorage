@@ -64,10 +64,12 @@ services:
       # A leading dot, and never a bare subdomain, or the apex does not get the cookie.
       AUTH_COOKIE_DOMAIN: ${AUTH_COOKIE_DOMAIN:?the parent domain with a leading dot, e.g. .sharpeyes.app}
       AUTH_TRUSTED_ORIGINS: ${FRONTEND_ORIGIN:?the frontend's origin, e.g. https://sharpeyes.app}
-      # Required on the box. Without a sender a forgotten password is a permanently lost account,
-      # so the service refuses to start rather than accept sign-ups it cannot support.
-      RESEND_API_KEY: ${RESEND_API_KEY:?from https://resend.com, an API key with send permission}
-      AUTH_EMAIL_FROM: ${AUTH_EMAIL_FROM:?the From address, on a domain verified in Resend}
+      # Discord only until this is true. Turning it on REQUIRES a mail sender and the service
+      # refuses to start without one: a password nobody can reset is an account that can be lost
+      # for good. Nothing else changes, and no migration is needed, V66 already has the columns.
+      AUTH_PASSWORD_LOGIN: ${AUTH_PASSWORD_LOGIN:-false}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      AUTH_EMAIL_FROM: ${AUTH_EMAIL_FROM:-}
 
   # Replica A. Owns port 8080 inside the shared namespace, as the base file already has it.
   backend:

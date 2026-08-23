@@ -17,3 +17,13 @@ export function env(name: string): string {
 export function optionalEnv(name: string): string | undefined {
   return process.env[name] || undefined;
 }
+
+/**
+ * A flag that has to say so.
+ *
+ * `Boolean(process.env.X)` is true for the string "false", which is the kind of bug that turns a
+ * feature off in one environment and leaves it on in another with nothing to see.
+ */
+export function flag(name: string): boolean {
+  return optionalEnv(name)?.toLowerCase() === "true";
+}

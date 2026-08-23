@@ -45,3 +45,13 @@ export function rememberSession(present: boolean): void {
     // for one paint, which is what this is for, not something it can break.
   }
 }
+
+/**
+ * Whether an email and password is offered alongside Discord.
+ *
+ * Mirrors the auth service's own AUTH_PASSWORD_LOGIN. The two are separate variables in separate
+ * deployments and could disagree; the service is the one that decides, and this only decides what
+ * is shown. Wrong in one direction hides a working feature, wrong in the other offers a form that
+ * the server refuses. Neither can sign the wrong person in.
+ */
+export const PASSWORD_LOGIN = process.env.NEXT_PUBLIC_PASSWORD_LOGIN === "true";

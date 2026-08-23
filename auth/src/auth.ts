@@ -3,7 +3,7 @@ import { jwt } from "better-auth/plugins";
 import { Pool } from "pg";
 
 import { sendPasswordReset, sendVerification } from "./email.js";
-import { env, optionalEnv } from "./env.js";
+import { env, flag, optionalEnv } from "./env.js";
 
 /**
  * Identity for SharpEyes: who you are, and a token the Ktor backend can check.
@@ -16,6 +16,19 @@ import { env, optionalEnv } from "./env.js";
  */
 
 const AUTH_BASE_PATH = "/api/auth";
+
+/**
+ * Whether an email and password is a way in, alongside Discord.
+ *
+ * Off is a real deploy, not a half-built one: Discord alone signs everybody in, and nothing here
+ * sends email, so no mail vendor is needed to run. Turning it on later is this variable plus
+ * RESEND_API_KEY, no code change and no migration. V66 already carries the columns it needs.
+ *
+ * Nobody who signed up before it was on is stranded, either. `reset-password` CREATES a credential
+ * account when the user has none, so "forgot password" is also how an existing Discord user sets
+ * one for the first time.
+ */
+export const PASSWORD_LOGIN = flag("AUTH_PASSWORD_LOGIN");
 
 /** IANA-reserved, so a synthesised address can never collide with or be mistaken for a real one. */
 const NO_EMAIL_DOMAIN = "discord.invalid";
@@ -46,7 +59,7 @@ export const auth = betterAuth({
   // unverified address is one anybody could have typed, and the linking rule below decides who you
   // ARE from a verified address.
   emailAndPassword: {
-    enabled: true,
+    enabled: PASSWORD_LOGIN,
     requireEmailVerification: true,
     // Above the library's default of 8. A password manager makes the difference free, and this is
     // the only credential on the account that a person chooses.
