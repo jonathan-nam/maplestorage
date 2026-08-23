@@ -1406,7 +1406,12 @@ img.user-avatar-img {
   text-align: center;
 }
 
-.hero svg {
+/* DIRECT child only. As a descendant selector this also matched the Discord mark inside the
+   sign-in button, where `margin-bottom: 20px` made the flex item's margin box 40px tall, so
+   `align-items: center` centred the margin box and left the glyph riding the top, and `auto` side
+   margins ate the free space. It read as an icon pinned to the top-left of a button whose text was
+   centred. The only svg the hero itself means is the mark. */
+.hero > svg {
   margin: 0 auto 20px;
 }
 

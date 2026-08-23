@@ -42,9 +42,14 @@
   // every ephemeral port it notices a process bind -- Gradle daemons, language
   // servers, test harnesses -- and leaves the rows behind after the process exits,
   // so the Ports panel fills with dead entries nobody can interpret.
-  "forwardPorts": [3000, 8080, 5432],
+  "forwardPorts": [3000, 3001, 8080, 5432],
   "portsAttributes": {
     "3000": { "label": "frontend (Next.js)", "onAutoForward": "notify" },
+    // Sign-in happens in the BROWSER, which runs on the host, not in this container. Without
+    // this the auth service is reachable from inside (curl, the backend) and not from outside,
+    // and clicking "Sign in with Discord" fails as a bare "Failed to fetch" with nothing in the
+    // service's log, because the request never leaves the browser.
+    "3001": { "label": "auth (Better Auth)", "onAutoForward": "silent" },
     "8080": { "label": "backend (Ktor)", "onAutoForward": "silent" },
     "5432": { "label": "postgres", "onAutoForward": "silent" }
   },
