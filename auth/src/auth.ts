@@ -109,7 +109,7 @@ export const auth = betterAuth({
     }),
   ],
 
-  // Both halves of the site sit under one registrable domain (sharpeyes.gg and its subdomains), so
+  // Both halves of the site sit under one registrable domain (sharpeyes.app and its subdomains), so
   // the session cookie is same-site and Safari's tracking prevention does not touch it. The apex is
   // the frontend on Vercel; this service is behind Caddy on the box.
   advanced: {

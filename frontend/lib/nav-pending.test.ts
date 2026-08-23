@@ -8,10 +8,10 @@ const click = (over: Partial<Click> = {}): Click => ({
   ctrlKey: false,
   shiftKey: false,
   altKey: false,
-  href: "https://sharpeyes.gg/bosses/parties",
+  href: "https://sharpeyes.app/bosses/parties",
   target: null,
   download: false,
-  origin: "https://sharpeyes.gg",
+  origin: "https://sharpeyes.app",
   pathname: "/bosses",
   ...over,
 });
@@ -24,7 +24,7 @@ describe("clicks that are a page leaving", () => {
   it("is one for the pages reached from Party View", () => {
     // The ones that had no feedback at all before this existed.
     for (const href of ["/bosses/parties/abc-123", "/bosses/drops", "/bosses/parties/edit"]) {
-      expect(startsNavigation(click({ href: `https://sharpeyes.gg${href}` }))).toBe(true);
+      expect(startsNavigation(click({ href: `https://sharpeyes.app${href}` }))).toBe(true);
     }
   });
 });
@@ -36,13 +36,13 @@ describe("clicks that are not", () => {
 
   it("ignores the page it is already on", () => {
     // Nothing is fetched to replace it, so a bar would be claiming a wait that is not happening.
-    expect(startsNavigation(click({ href: "https://sharpeyes.gg/bosses" }))).toBe(false);
+    expect(startsNavigation(click({ href: "https://sharpeyes.app/bosses" }))).toBe(false);
   });
 
   it("ignores a hash or a query on the current page", () => {
     // Same pathname, so it is a move WITHIN the page however different the URL looks.
-    expect(startsNavigation(click({ href: "https://sharpeyes.gg/bosses#top" }))).toBe(false);
-    expect(startsNavigation(click({ href: "https://sharpeyes.gg/bosses?week=2026-08-03" }))).toBe(
+    expect(startsNavigation(click({ href: "https://sharpeyes.app/bosses#top" }))).toBe(false);
+    expect(startsNavigation(click({ href: "https://sharpeyes.app/bosses?week=2026-08-03" }))).toBe(
       false,
     );
   });

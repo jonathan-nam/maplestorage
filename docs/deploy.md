@@ -6,8 +6,8 @@ service and Postgres. $12/month. The frontend is on Vercel's free tier.
 ```
                     Cloudflare (free tier, proxied)
                        │
-   sharpeyes.gg ───────┼──> Vercel          Next frontend   (DNS-only, grey cloud)
-   api.sharpeyes.gg ───┴──> Lightsail box                   (proxied, orange cloud)
+   sharpeyes.app ───────┼──> Vercel          Next frontend   (DNS-only, grey cloud)
+   api.sharpeyes.app ───┴──> Lightsail box                   (proxied, orange cloud)
                                 │
                             Caddy :443      TLS, 20MB body limit, load balances
                                 │
@@ -24,17 +24,23 @@ service and Postgres. $12/month. The frontend is on Vercel's free tier.
 
 ### 1. Domain and DNS
 
-Register the domain wherever carries `.gg`, then move its nameservers to Cloudflare. Cloudflare
-Registrar does not sell `.gg`, but its DNS is free and the proxy in front of the box is the reason
-it is here at all.
+Register it at **Cloudflare Registrar**, which carries `.app` and sells at cost with no markup
+(~$14/yr, and the renewal is the same number). Registrar and DNS in one account, so there are no
+nameservers to move.
 
 | Record | Points at | Proxy |
 | --- | --- | --- |
-| `sharpeyes.gg` | Vercel | **DNS-only (grey cloud)** |
-| `api.sharpeyes.gg` | the box's static IP | proxied (orange cloud) |
+| `sharpeyes.app` | Vercel | **DNS-only (grey cloud)** |
+| `api.sharpeyes.app` | the box's static IP | proxied (orange cloud) |
 
 The apex must be **grey**. Cloudflare's proxy fights Vercel's own TLS, and the failure looks like a
 certificate error nobody can explain.
+
+`.app` is on the HSTS preload list, so browsers refuse plain http to it before a request is even
+made. That is free https enforcement and nothing here has to change for it, with one caveat worth
+knowing before the first deploy: **keep port 80 published anyway.** Let's Encrypt's HTTP-01
+challenge starts there, and it is not a browser, so it does not consult the preload list. Closing 80
+because "nothing can use http now" is how you fail a challenge against the rate limit below.
 
 ### 2. The box
 
@@ -80,8 +86,8 @@ here and nowhere earlier.
 On Vercel, from the repo, root directory `frontend/`:
 
 ```
-NEXT_PUBLIC_API_BASE_URL=https://api.sharpeyes.gg
-NEXT_PUBLIC_AUTH_BASE_URL=https://api.sharpeyes.gg
+NEXT_PUBLIC_API_BASE_URL=https://api.sharpeyes.app
+NEXT_PUBLIC_AUTH_BASE_URL=https://api.sharpeyes.app
 ```
 
 Both are the API hostname: Caddy serves sign-in from it under `/api/auth`, so there is no third
@@ -91,7 +97,7 @@ Then register the redirect URI in the Discord application
 (<https://discord.com/developers/applications> → *OAuth2*), exactly:
 
 ```
-https://api.sharpeyes.gg/api/auth/callback/discord
+https://api.sharpeyes.app/api/auth/callback/discord
 ```
 
 Discord matches it character for character, a trailing slash included, and refuses anything else.

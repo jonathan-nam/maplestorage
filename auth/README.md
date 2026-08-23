@@ -94,7 +94,7 @@ without a key, because there the same behaviour is a reset that silently never a
 Register the redirect URI in the Discord application, exactly:
 
 - dev: `http://localhost:3001/api/auth/callback/discord`
-- prod: `https://api.sharpeyes.gg/api/auth/callback/discord`
+- prod: `https://api.sharpeyes.app/api/auth/callback/discord`
 
 Discord matches it character for character, a trailing slash included.
 
