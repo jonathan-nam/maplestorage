@@ -15,6 +15,7 @@
 
 import { splitOf } from "./loot";
 import { holderKey } from "./vestige-ledger";
+import { couponSide, dropStatusLabel } from "./drop-log";
 import type { DropEntry } from "./drop-log";
 import type { Boss } from "@/types/boss";
 import type { WorldType } from "./world";
@@ -116,6 +117,13 @@ export type DropAudit = {
   boss: string | null;
   /** Raw, not a label: the badge wants a class off it as well as words. See statusLabel. */
   status: string;
+  /**
+   * What the badge SAYS, which is the Drop Ledger's own label so the two screens cannot disagree.
+   *
+   * Off the raw status this page read "In the pool" on every coupon night, and a coupon night never
+   * sells, so it never left. See dropStatusLabel.
+   */
+  stage: string;
   /** The reset week it fell in, as that week's Thursday. The server's reckoning. */
   weekStart: string;
   /** Whose config it fell on. Null when that character has no seat left to name it. */
@@ -188,14 +196,19 @@ export function buildDropAudit(
   // Which hands the coupons are in. Off the log's own reading of the arrangement, never re-divided
   // here: `owedToYou` is the GAP between a share and what was picked up, and the whole share is a
   // different number. See DropEntry.
-  if (entry.owedBy !== null && (entry.owedToYou > 0 || entry.owedByYou > 0)) {
+  //
+  // Through couponSide, so BOTH directions get the row. Read off `owedBy` alone, the night you loot
+  // the lot had no line here at all, which is the night this page is most often opened on.
+  const side = couponSide(entry);
+  if (side !== null && (entry.owedToYou > 0 || entry.owedByYou > 0)) {
     events.push({
       kind: "HELD",
       key: "held",
       at: null,
-      other: entry.owedBy,
+      other: side.name,
       pieces: entry.owedToYou > 0 ? entry.owedToYou : entry.owedByYou,
-      yours: entry.owedToYou > 0,
+      // Whose they are, which is the opposite of who is holding them. See AuditEvent.
+      yours: !side.youHold,
     });
   }
 
@@ -288,6 +301,7 @@ export function buildDropAudit(
     yours: entry.yours,
     boss: bossName,
     status: entry.status,
+    stage: dropStatusLabel(entry),
     weekStart: entry.weekStart,
     // The seat the config is built on, which is the one seat of yours that is always there. Read off
     // `seats` rather than `members`: a week you sat out still has the character whose config it is.

@@ -2,7 +2,7 @@ import Link from "next/link";
 import { apiAssetUrl } from "@/lib/api";
 import { formatWeekStart } from "@/lib/boss-clears";
 import { formatMesos } from "@/lib/drop-split";
-import { formatDroppedWithYear, statusLabel } from "@/lib/loot";
+import { formatDroppedWithYear } from "@/lib/loot";
 import { worldLabel } from "@/lib/world";
 import type { AuditEvent, DropAudit } from "@/lib/drop-audit";
 
@@ -154,9 +154,7 @@ export function DropAuditView({ audit }: { audit: DropAudit }) {
         )}
         {/* Where the drop stands now. The list says what happened; without this the reader works
             that out by finding the last row and knowing which acts end a drop. */}
-        <span className={`loot-status is-${audit.status.toLowerCase()}`}>
-          {statusLabel(audit.status)}
-        </span>
+        <span className={`loot-status is-${audit.status.toLowerCase()}`}>{audit.stage}</span>
       </h1>
       <p className="audit-meta">{meta.filter(Boolean).join(" · ")}</p>
 

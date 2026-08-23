@@ -336,6 +336,29 @@ describe("a coupon night", () => {
     ]);
   });
 
+  // The same night the other way round, which is the ordinary one: you bend down for all three
+  // stacks. Read off `owedBy` alone this page drew no HELD row at all, and headed itself "In the
+  // pool" over 30 coupons that were Bro's.
+  const yourNight = (over: Partial<Loot> = {}) =>
+    night({ bundlesBy: [{ memberId: "m1", bundles: 3 }], ...over });
+
+  it("says so where it is YOU holding somebody else's share", () => {
+    const held = auditOf([yourNight()])!.events.find((e) => e.kind === "HELD")!;
+    expect(held.kind === "HELD" && [held.other, held.pieces, held.yours]).toEqual([
+      "Bro",
+      30,
+      false,
+    ]);
+  });
+
+  it("heads itself with what is left to do, in the Drop Ledger's own words", () => {
+    // A coupon night never sells, so its raw status is PENDING for ever and "In the pool" was a
+    // permanent label that said nothing. The badge on the row that links here says these.
+    expect(auditOf([yourNight()])!.stage).toBe("To hand over");
+    expect(auditOf([night()])!.stage).toBe("Owed");
+    expect(auditOf([drop()])!.stage).toBe("Settled");
+  });
+
   it("states no price, however much its coupons later sold for", () => {
     // Pieces sell in lots that name no night, and the machinery that apportioned a lot back over
     // the nights it covered was deleted on purpose. See lib/piece-ledger.ts.
