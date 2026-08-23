@@ -221,6 +221,35 @@ export function transferKey(transfer: { fromId: string; toId: string }): string 
 }
 
 /**
+ * The order a debt is answered in, and the ONE order every spend in the app runs in.
+ *
+ * Three keys, and the middle one is the point. `droppedOn` is a date somebody TYPED, so an evening's
+ * three bosses all carry the same one and it cannot order them; `recordedAt` is stamped by the
+ * server when the drop was logged, which is the order the nights actually happened in.
+ *
+ * Without it the tie fell to `lootId`, a random uuid, so which of one evening's nights kept a debt
+ * was decided by nothing anybody chose: three nights fell on 2026-08-23, a sale covered 85 of the
+ * 150 they owed, and Hard Baldrix went silent while Hard Kaling still asked for 30, purely because
+ * 28760ee5 sorts before acd816fc. Worse, the two spends disagreed: this file broke the tie on input
+ * order and drop-log.ts broke it on the id, so the party badge and the Settlement card could pick
+ * different nights out of the same evening.
+ *
+ * Absent `recordedAt` is a row cached from before the field and sorts first, which is what it meant
+ * when it was cached. `lootId` stays as the last resort, so two rows stamped in the same millisecond
+ * keep one order across renders rather than moving on a refresh.
+ */
+export function oldestNightFirst(
+  a: { droppedOn: string; recordedAt?: string | null; lootId?: string },
+  b: { droppedOn: string; recordedAt?: string | null; lootId?: string },
+): number {
+  return (
+    a.droppedOn.localeCompare(b.droppedOn) ||
+    (a.recordedAt ?? "").localeCompare(b.recordedAt ?? "") ||
+    (a.lootId ?? "").localeCompare(b.lootId ?? "")
+  );
+}
+
+/**
  * A credit spent over nights, oldest first, leaving what each still owes.
  *
  * A pair's debt is one running count and the nights behind it are a queue, so a sale that answered
@@ -242,13 +271,12 @@ export function transferKey(transfer: { fromId: string; toId: string }): string 
  * The credit is one CREDITOR's. Spending Bro's answered coupons on a night Jared is owed is the
  * cross-person netting this app refuses everywhere else.
  */
-export function spendOldestFirst<T extends { pieces: number; droppedOn: string }>(
-  nights: T[],
-  credit: number,
-): T[] {
+export function spendOldestFirst<
+  T extends { pieces: number; droppedOn: string; recordedAt?: string | null; lootId?: string },
+>(nights: T[], credit: number): T[] {
   let left = Math.max(0, credit);
   const owed = new Map<T, number>();
-  for (const night of [...nights].sort((a, b) => a.droppedOn.localeCompare(b.droppedOn))) {
+  for (const night of [...nights].sort(oldestNightFirst)) {
     const spent = Math.min(left, night.pieces);
     left -= spent;
     owed.set(night, night.pieces - spent);
@@ -281,10 +309,10 @@ export type AnsweredSale = {
  * have anyway. Every night is RETURNED at what it still owes, for the reason spendOldestFirst says.
  */
 export function spendSales<
-  T extends { pieces: number; droppedOn: string; recordedAt?: string | null },
+  T extends { pieces: number; droppedOn: string; recordedAt?: string | null; lootId?: string },
 >(nights: T[], sales: AnsweredSale[]): T[] {
   const owed = new Map<T, number>(nights.map((night) => [night, night.pieces]));
-  const oldest = [...nights].sort((a, b) => a.droppedOn.localeCompare(b.droppedOn));
+  const oldest = [...nights].sort(oldestNightFirst);
   for (const sale of [...sales].sort((a, b) => a.recordedAt.localeCompare(b.recordedAt))) {
     let left = Math.max(0, sale.pieces);
     for (const night of oldest) {

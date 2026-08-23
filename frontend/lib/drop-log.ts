@@ -19,15 +19,7 @@
 import { formatWeekStart } from "./boss-clears";
 import { splitOf, statusLabel } from "./loot";
 import type { CouponsOutstanding } from "./loot";
-import {
-  SELF_KEY,
-  answeredKey,
-  closureKeyOf,
-  couponGapOf,
-  ranSeats,
-  yourShare,
-} from "./vestige-ledger";
-import type { AnsweredSale } from "./piece-ledger";
+import { closureKeyOf, couponGapOf, ranSeats, yourShare } from "./vestige-ledger";
 import type { BossDrop, DropTables } from "@/types/drop";
 import type { Loot, PartyLootPool } from "@/types/loot";
 import type { Party, PartyMember } from "@/types/party";
@@ -130,12 +122,19 @@ export type DropEntry = {
    */
   owedTo: string | null;
   /**
-   * How many of your share that character is still holding for you. Zero when nobody is.
+   * How many of your share that character is holding for you. Zero when nobody is.
    *
    * The GAP between your share and what you picked up, not the share itself. A night you looted four
    * stacks of six on owes you nothing even though a partner was there, and reading `yours` as the
    * debt said "90 coupons owed" on an Extreme Kalos whose arrangement had you holding 120 of 180.
    * See couponGapOf.
+   *
+   * A fact about THIS NIGHT, and nothing else moves it. This file used to spend it down by the
+   * coupons you had since sold on that person's behalf, which is an account-wide fact: a boss row's
+   * figure then depended on every other party, so Hard Baldrix went silent about a night you looted
+   * whole because a tranche crediting Bro had drained the oldest nights, and the row contradicted
+   * the "120 took, 60 due" printed directly under it. Selling their share does turn a coupon debt
+   * into a meso one (V56), and the SALE LEDGER is the one place that nets it. Nothing else should.
    */
   owedToYou: number;
   /**
@@ -308,94 +307,6 @@ function ranWith(loot: Loot, party: Party): string[] {
     .map((seat) => seat.name);
 }
 
-/** One side of a coupon relationship: the nights running one way, and the figure they carry. */
-type OwedSide = { nights: DropEntry[]; figure: "owedToYou" | "owedByYou" };
-
-/**
- * Spends a budget of coupons across nights, oldest first, and says what is left of it.
- *
- * Oldest first, then the id, so two nights of the same day are spent in a fixed order. Without the
- * tie-break the credit falls on whichever pool the server listed first, and a badge that moves
- * between two parties on a refresh is a figure nobody can act on.
- *
- * The same spend settlement.ts makes on the same figures (see spendOldestFirst). Both screens have
- * to run it or the badge and the card disagree about which night is finished.
- */
-function spend(side: OwedSide, budget: number, since: string | null = null): void {
-  let left = budget;
-  if (left <= 0) return;
-  const oldest = [...side.nights].sort(
-    (a, b) => a.droppedOn.localeCompare(b.droppedOn) || a.lootId.localeCompare(b.lootId),
-  );
-  for (const night of oldest) {
-    // A sale reaches only the nights already logged when it was made. Null is the cancellation,
-    // which is not a sale and has no day. A night with no recordedAt is a row cached from before
-    // the field and stays eligible, which is what it meant when it was cached. See spendSales.
-    if (since !== null && night.recordedAt && night.recordedAt > since) continue;
-    const spent = Math.min(left, night[side.figure]);
-    night[side.figure] -= spent;
-    left -= spent;
-    if (left <= 0) break;
-  }
-}
-
-/** Each sale spent over its side, oldest sale first. The pair of spendSales for this file's shape. */
-function spendEach(side: OwedSide, sales: AnsweredSale[]): void {
-  for (const sale of [...sales].sort((a, b) => a.recordedAt.localeCompare(b.recordedAt))) {
-    spend(side, sale.pieces, sale.recordedAt);
-  }
-}
-
-/**
- * Takes off each night the coupons a sale of it already answered, and nothing else.
- *
- * ONE subtraction, and it is the only one that is about the night itself: you sold their share
- * rather than handing it back, so their money is on their Settlement card and asking for the coupons
- * too is one debt in two units (V56). A sale reaches a night only if the night was already logged
- * when the sale was made, which is what stops a sale spilling forward. See spendSales.
- *
- * The other way a night finishes is `closed`, which the entries carry already and which keeps them
- * out of here: a finished night must not eat a budget a night still owed has a claim on.
- *
- * WHAT IS DELIBERATELY NOT HERE is the two directions cancelling. One handover does settle a pair,
- * and the Settlement Ledger nets them for exactly that reason (#417), but that is a fact about two
- * PEOPLE and this is a fact about one RUN. Netting here answered "what do I owe Bro all told" on a
- * row that asked "what came off this boss": Hard Baldrix on 2026-08-23 dealt 120 coupons to a duo
- * entitled to 60 each, and the row said nothing at all, because coupons of yours Bro was holding
- * from two other nights ten days earlier had quietly absorbed it.
- *
- * So the badge and the Settlement card now answer different questions on purpose, and the card is
- * where the netted figure lives.
- *
- * Not capped anywhere: a budget larger than the nights owed simply clears them, which is a tranche
- * naming more than was ever owed. The Settlement Ledger says that out loud on its own card, and a
- * party badge is the wrong place to say it twice.
- */
-function settleCouponNights(
-  owed: { entry: DropEntry; other: string; yours: boolean }[],
-  answered: Map<string, AnsweredSale[]>,
-): void {
-  const sides = new Map<string, { byYou: OwedSide; toYou: OwedSide }>();
-  for (const { entry, other, yours } of owed) {
-    const pair =
-      sides.get(other) ??
-      sides
-        .set(other, {
-          byYou: { nights: [], figure: "owedByYou" },
-          toYou: { nights: [], figure: "owedToYou" },
-        })
-        .get(other)!;
-    (yours ? pair.byYou : pair.toYou).nights.push(entry);
-  }
-
-  for (const [other, pair] of sides) {
-    // Coupons of theirs you sold, and coupons of yours they sold. Each answers its own direction:
-    // a sale out of YOUR pile says nothing about what is sitting in theirs.
-    spendEach(pair.byYou, answered.get(answeredKey(SELF_KEY, other)) ?? []);
-    spendEach(pair.toYou, answered.get(answeredKey(other, SELF_KEY)) ?? []);
-  }
-}
-
 export function buildDropLog(
   parties: Party[],
   pools: PartyLootPool[],
@@ -408,22 +319,9 @@ export function buildDropLog(
    * no way to reach one. Empty is nothing closed, which is every log before V52.
    */
   closed: Set<string> = new Set(),
-  /**
-   * Coupons a sale of yours already spoke for, per (pile, creditor), from answeredByPair(). See V56.
-   *
-   * The other way a night you looted whole finishes: you sell their share rather than hand it back,
-   * and their money is on their Settlement card. Asking for the coupons as well is the same debt in
-   * both units at once, which is what the Settlement Ledger subtracts and this had no idea about.
-   *
-   * Empty is nothing sold, which is every log before V56 and every caller that has no tranches.
-   */
-  answered: Map<string, AnsweredSale[]> = new Map(),
 ): DropLog {
   const partyById = new Map(parties.map((p) => [p.id, p]));
   const entries: DropEntry[] = [];
-  /** Every night with a coupon debt on it, and who the other side of it is. See settleCouponNights. */
-  const owed: { entry: DropEntry; other: string; yours: boolean }[] = [];
-
   for (const pool of pools) {
     const party = partyById.get(pool.partyId);
     if (!party) continue;
@@ -482,13 +380,8 @@ export function buildDropLog(
         unreadable,
       };
       entries.push(entry);
-      // Only the open ones. A closed night is finished, and letting it soak up a subtraction
-      // would leave less of it for a night that is still owed.
-      if (gap !== null && !entry.closed) owed.push({ entry, other: gap.byKey, yours: gap.yours });
     }
   }
-
-  settleCouponNights(owed, answered);
 
   // Newest first, and stable on the id so two drops logged the same day keep one order.
   entries.sort(
@@ -584,11 +477,24 @@ function totalsOf(entries: DropEntry[]): DropLogTotals {
 }
 
 /**
- * Coupons in the wrong hands, per party, in both directions.
+ * Coupons in the wrong hands out of THIS BOSS's own nights, in both directions.
  *
- * The party rows' own figure, off the same entries the Drop Log counts, so the badge and the log
- * cannot disagree about what is outstanding. A party absent from the map is square, which is every
- * party whose coupons went where they belong on the night.
+ * Off `owedToYou`/`owedByYou`, which is entitled against looted and nothing else. A boss row asks what
+ * came off this boss, so it is answered from this boss's stacks and adds up to the "120 took, 60
+ * due" on the cards beneath it.
+ *
+ * It used to read the LEDGER pair, which is the same gap spent down by coupons already sold on that
+ * person's behalf. Those sales are account-wide, so a row's figure moved for reasons nowhere near
+ * it: Hard Baldrix said nothing about a night you looted whole because a tranche crediting Bro had
+ * drained the oldest nights, while Hard Kaling still asked for 30, and which of one evening's three
+ * nights kept its debt came down to the order their ids happened to sort in.
+ *
+ * What this deliberately does NOT do is net the money back out. Selling their share turns a coupon
+ * debt into a meso one (V56) and the Settlement Ledger is where that lands, so a person's netted
+ * position is still one figure in one place. This is the other question, asked per boss.
+ *
+ * A CLOSED night is still excluded. Closing the books is a decision about that night rather than a
+ * sale somewhere else, which is exactly the difference this function now draws.
  *
  * Both directions in ONE map, rather than a second function beside this one. The row says which way
  * a debt runs, and the pair has to come from a single pass: four call sites read this, and the way

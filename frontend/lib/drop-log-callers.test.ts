@@ -4,7 +4,8 @@ import { describe, expect, it } from "vitest";
 
 // buildDropLog decides whether a coupon is still owed, and it can only be right if it is handed the
 // settlements: `owedBy` is `entitled - looted`, fixed when the drop was logged, so without them a
-// closed debt reads as owed for ever. See V52.
+// closed debt reads as owed for ever. See V52. The SALES are the other way round and must not be
+// passed at all: see the second guard below.
 //
 // This is a guard against the mistake rather than the mistake: the closures were added to two call
 // sites and missed on a third, twice, because each one names its arguments differently and a search
@@ -60,12 +61,16 @@ describe("every caller of buildDropLog hands it the settlements", () => {
     expect(args).toMatch(/closed|closures/);
   });
 
-  // The same guard for the other half of "this night is finished". A closure is a decision somebody
-  // made; a tranche is a sale that answered the coupons with money. Miss either and the badge asks
-  // for a debt that is not owed, which is how this one was found: two weeks of Extreme Kalos coupons
-  // billed again a week after they were sold and offset. See V56.
-  it.each(calls)("passes the answered tranches in $file", ({ args }) => {
-    expect(args).toMatch(/answeredByPair|answered/);
+  // And the opposite guard on the sales, which used to be passed here too.
+  //
+  // A closure is a decision about ONE NIGHT, so it belongs in the log. A tranche is a sale, and
+  // subtracting it here made every boss row's figure depend on every other party: Hard Baldrix went
+  // silent about a night looted whole because a sale crediting Bro had drained the oldest nights,
+  // and the row contradicted the "120 took, 60 due" printed under it. Selling their share does turn
+  // a coupon debt into a meso one (V56); the SALE LEDGER is the one place that nets it, out of its
+  // own holderLedgers, and it never went through here.
+  it.each(calls)("does not net the sales in $file", ({ args }) => {
+    expect(args).not.toMatch(/answered|tranche/i);
   });
 });
 
