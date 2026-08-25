@@ -44,6 +44,67 @@ describe("what the picker may offer", () => {
   it("is empty for a boss with no table, rather than throwing", () => {
     expect(pickableDrops(undefined, "INTERACTIVE")).toEqual([]);
   });
+
+  it("keeps a counted drop off the modes it does not fall at", () => {
+    // Kalos gives the fragment on Normal and the token on Chaos and Extreme, so an Extreme run
+    // that offers the fragment is offering to log one that cannot happen.
+    const fragment = drop({
+      dropKey: "kalos-fragment",
+      pieces: { INTERACTIVE: { NORMAL: 3 }, HEROIC: { NORMAL: 2 } },
+    });
+    const token = drop({
+      dropKey: "kalos-token",
+      pieces: { INTERACTIVE: { CHAOS: 5, EXTREME: 14 }, HEROIC: { CHAOS: 2, EXTREME: 3 } },
+    });
+    const table = [drop(), fragment, token];
+
+    expect(pickableDrops(table, "INTERACTIVE", "EXTREME").map((d) => d.dropKey)).toEqual([
+      "grindstone",
+      "kalos-token",
+    ]);
+    expect(pickableDrops(table, "HEROIC", "NORMAL").map((d) => d.dropKey)).toEqual([
+      "grindstone",
+      "kalos-fragment",
+    ]);
+  });
+
+  it("keeps an uncounted drop on every mode", () => {
+    // A table is per boss, not per (boss, difficulty). Nothing in the catalog says which modes a
+    // grindstone falls at, and a filter that guessed would hide a drop that cannot be entered
+    // any other way. This is the Grindstone of Life on Kaling.
+    const table = [drop()];
+    for (const mode of ["EASY", "NORMAL", "HARD", "CHAOS", "EXTREME"]) {
+      expect(pickableDrops(table, "INTERACTIVE", mode)).toHaveLength(1);
+    }
+  });
+
+  it("narrows nothing when nobody has said which mode", () => {
+    const table = [drop(), drop({ dropKey: "coupon", pieces: { INTERACTIVE: { EXTREME: 480 } } })];
+    expect(pickableDrops(table, "INTERACTIVE")).toHaveLength(2);
+    expect(pickableDrops(table, "INTERACTIVE", null)).toHaveLength(2);
+  });
+
+  it("reads the mode against the party's OWN world", () => {
+    // A count of zero never reaches the catalog, so a drop that falls in one world and not the
+    // other is missing that (world, mode) pair rather than carrying a zero there.
+    const table = [drop({ dropKey: "coupon", pieces: { INTERACTIVE: { HARD: 6 }, HEROIC: {} } })];
+    expect(pickableDrops(table, "INTERACTIVE", "HARD")).toHaveLength(1);
+    expect(pickableDrops(table, "INTERACTIVE", "NORMAL")).toHaveLength(0);
+  });
+
+  it("offers a drop in a world it has no figures for at all", () => {
+    // Not the same as a mode missing from a world that HAS figures: here the catalog says nothing
+    // about the pair, and silence is not a refusal.
+    const table = [drop({ dropKey: "coupon", pieces: { INTERACTIVE: { EXTREME: 480 } } })];
+    expect(pickableDrops(table, "HEROIC", "NORMAL")).toHaveLength(1);
+  });
+
+  it("survives an answer from before amounts existed", () => {
+    // pieces absent rather than empty, which is what a cached older response looks like.
+    const older = { ...drop() } as Partial<BossDrop>;
+    delete older.pieces;
+    expect(pickableDrops([older as BossDrop], "INTERACTIVE", "EXTREME")).toHaveLength(1);
+  });
 });
 
 describe("how an option reads", () => {

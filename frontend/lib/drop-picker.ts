@@ -1,9 +1,8 @@
 // What a drop picker may offer, and what it posts.
 //
-// Held apart from the component because two screens carry the picker now (the party's loot pool
-// and a row on Party View), and the world filter is the one rule here that can produce a wrong
-// pool: offering an Interactive-only drop in a Heroic world is offering to log one that cannot
-// happen.
+// Held apart from the component because four screens carry the picker now, and the two filters here
+// are the rules that can produce a wrong pool: offering an Interactive-only drop in a Heroic world,
+// or a Kalos fragment on Extreme, is offering to log one that cannot happen.
 
 import { dropExistsIn, isPerMember } from "./world";
 import type { BossDrop } from "@/types/drop";
@@ -13,16 +12,51 @@ import type { WorldType } from "./world";
 /** "Type it instead". Not a drop key, so nothing in the catalog can collide with it. */
 export const OTHER = "__other__";
 
-/** Only what drops where this party plays. See dropExistsIn. */
-export function pickableDrops(table: BossDrop[] | undefined, world: WorldType): BossDrop[] {
-  return (table ?? []).filter((drop) => dropExistsIn(drop.worlds, world));
+/**
+ * Whether this drop falls at this mode.
+ *
+ * A boss's table is per boss, not per (boss, difficulty), so most rows have nothing to answer with
+ * and stay on the list: an option nobody picks costs nothing, and one that is missing is a drop
+ * that cannot be entered at all. See the note above `tables` in catalog/drops.yaml.
+ *
+ * The counted rows are the exception, and they are the ones people get wrong. `pieces` carries a
+ * figure for exactly the (world, difficulty) pairs the drop falls at, since build.py drops a zero
+ * rather than seeding it, so Kalos's fragment is on Normal and not on Extreme. Only that world's
+ * own map is read: a world with no figures at all is the catalog saying nothing about the pair,
+ * which is not a claim that nothing drops.
+ */
+export function dropsAtDifficulty(
+  drop: BossDrop,
+  difficulty: string | null | undefined,
+  world: WorldType,
+): boolean {
+  if (!difficulty) return true;
+  const counted = drop.pieces?.[world];
+  if (!counted || Object.keys(counted).length === 0) return true;
+  return (counted[difficulty] ?? 0) > 0;
+}
+
+/**
+ * Only what drops where this party plays, at the mode it runs. See dropExistsIn and
+ * dropsAtDifficulty.
+ *
+ * No difficulty narrows nothing, for a caller with no config to read one off.
+ */
+export function pickableDrops(
+  table: BossDrop[] | undefined,
+  world: WorldType,
+  difficulty?: string | null,
+): BossDrop[] {
+  return (table ?? []).filter(
+    (drop) => dropExistsIn(drop.worlds, world) && dropsAtDifficulty(drop, difficulty, world),
+  );
 }
 
 /**
  * What the count box opens with, as text, or empty when nothing is known.
  *
  * Empty rather than a guess in three cases: a drop the tables carry no amount for, a difficulty that
- * drops none of it, and a caller with no difficulty to read (the Drop Log never asks for one). A
+ * drops none of it, and a caller with no difficulty to read (a config nobody has set a mode on). A
  * filled-in number is one people accept without looking, so it comes only from the catalog's own
  * figure for that exact pair.
  */
