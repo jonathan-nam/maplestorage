@@ -21,6 +21,10 @@ import type { Party } from "@/types/party";
 // The pool is still not asked for or sent. A boss may have no pool at all yet, and which one it is
 // follows from the character and the boss.
 //
+// The mode is not asked for either, and is read off that same pool: the drop is going into it, so
+// what it may be and how many fell are the config's own answers, the same ones the pool page gives.
+// A config nobody has set a mode on narrows nothing and fills nothing.
+//
 // One case that resolution does not speak for itself: a RETIRED config still holds the pair's slot,
 // so the drop lands in it and divides by the roster it had when it came off the lists. That is a
 // party you were told you no longer run, splitting a drop with people who may not have been there,
@@ -70,6 +74,7 @@ export function LogDrop({
         bossKey={chosen}
         worldType={character.worldType}
         table={dropTables[chosen]}
+        difficulty={pool?.difficulty}
         busy={busy}
         lead={
           <>

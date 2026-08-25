@@ -62,8 +62,9 @@ export function DropPicker({
   /** Which boss this drop is for. Empty until a caller that asks has an answer. */
   bossKey: string;
   /**
-   * The mode this party runs, which decides how many pieces a stacking drop arrives in. Absent, or
-   * null where nobody has said, fills nothing: see defaultQuantity.
+   * The mode this party runs. It decides what the list may offer, since a boss's counted drops
+   * change with the mode (see pickableDrops), and how many pieces a stacking drop arrives in.
+   * Absent, or null where nobody has said, narrows nothing and fills nothing.
    */
   difficulty?: string | null;
   /** Whose world the drop fell in. Narrowing the table to it is pickableDrops' job, not a caller's. */
@@ -102,7 +103,7 @@ export function DropPicker({
   // the submit sends are one value instead of two that have to be kept level.
   const [boxes, setBoxes] = useState<Record<string, string>>({});
 
-  const drops = pickableDrops(table, worldType);
+  const drops = pickableDrops(table, worldType, difficulty);
   const body = addDropBody(bossKey, dropKey, customName, quantity);
 
   // The night about to be logged, when the picked drop is the one that stacks. Rebuilt from the
@@ -211,8 +212,12 @@ export function DropPicker({
       </form>
 
       {/* The "only drops in Interactive worlds" note that used to sit here is gone: the list is
-          now narrowed to this party's world, so anything still on it does drop here. */}
-      {drops.length === 0 && bossKey !== "" && (
+          now narrowed to this party's world and mode, so anything still on it does drop here.
+
+          On the TABLE rather than on what survived the filters, so the sentence stays true: a boss
+          whose table is all counted rows could narrow down to nothing at some mode, and that is not
+          a boss with no table. */}
+      {(table?.length ?? 0) === 0 && bossKey !== "" && (
         <p className="party-hint">
           No drop table recorded for this boss yet, so pick “something else” and type it.
         </p>
