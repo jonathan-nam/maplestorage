@@ -2,7 +2,6 @@ package com.sharpeyes.backend.parties
 
 import com.sharpeyes.backend.bosses.bossClearedOn
 import com.sharpeyes.backend.db.Party
-import com.sharpeyes.backend.db.PartyMember
 import com.sharpeyes.backend.db.PartyWeekSeat
 import kotlinx.datetime.LocalDate
 import org.jetbrains.exposed.v1.core.and
@@ -242,19 +241,23 @@ internal fun openSoloParty(
 }
 
 /**
- * Spells out every week this pool already has a drop in, as the seats it has right now.
+ * Spells out every week this pool already has a drop in, as the roster that week already reads.
  *
  * Called before any roster rewrite that could reach back over a night already played: adopting a
  * solo pool, and reviving a retired config. See takeOverParty.
+ *
+ * Through rosterFor, which is the same rule freezeWeeksAlreadyWritten pins by and for the reason
+ * stated there: a seat that has left was not on a night after it left, and writing it in invents a
+ * partner. Every seat ROW was read here instead, so the pin changed the very weeks it exists to hold
+ * still. One solo night came out of it a duo, halving the share and asking for coupons for good.
  */
 internal fun pinWeeksAlreadyDropped(partyId: Uuid) {
-    val seats = PartyMember.selectAll().where { PartyMember.partyId eq partyId }.map { it[PartyMember.id] }
     val spelledOut = weeksSpelledOutFor(partyId)
     weeksDroppedIn(partyId)
         .distinct()
         .filterNot { it in spelledOut }
         .forEach { week ->
-            seats.forEach { seatId ->
+            rosterFor(partyId, week).forEach { seatId ->
                 PartyWeekSeat.insert {
                     it[PartyWeekSeat.partyId] = partyId
                     it[weekStart] = week

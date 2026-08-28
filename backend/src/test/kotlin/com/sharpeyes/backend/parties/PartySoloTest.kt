@@ -41,6 +41,10 @@ class PartySoloTest {
     /** The Thursday `dropped` falls after. Reset is Thursday 00:00 UTC. */
     private val weekOf20Jul = LocalDate.parse("2026-07-16")
 
+    /** A night the week after, for telling a week somebody was on from one they had already left. */
+    private val droppedLater = LocalDate.parse("2026-07-27")
+    private val weekOf27Jul = LocalDate.parse("2026-07-23")
+
     @BeforeTest
     fun migrate() {
         val jdbcUrl = "jdbc:postgresql://${Env.dbHost}:${Env.dbPort}/${Env.dbName}"
@@ -374,6 +378,42 @@ class PartySoloTest {
             // split can be read beside it.
             assertNull(setSoloDifficulty(userId, characterId, bossId, "WEEKLY", "NORMAL", now))
             assertEquals("HARD", findParty(partyId, userId)!!.difficulty)
+        }
+    }
+
+    @Test
+    fun `a night run alone after they left is not handed them back by the pin`() {
+        transaction {
+            val characterId = character()
+            val bossId = bossIdForKey("limbo")!!
+            val now = Clock.System.now()
+            val request =
+                SavePartyRequest(characterId.toString(), "limbo", listOf("Steve"), difficulty = "HARD")
+            val partyId = createParty(userId, characterId, bossId, request, now)
+            addLoot(partyId, LootedDrop(dropIdForKey("grindstone-of-faith")!!), bossId, dropped, now)
+            retireOrDeleteParty(partyId, userId, now)
+            // Steve stops standing here. His seat stays, because the July night points at it.
+            setSoloDifficulty(userId, characterId, bossId, "WEEKLY", "HARD", now)
+            val mine = findParty(partyId, userId)!!.members.single().id
+
+            // A later night, run alone. It spells out no roster of its own, so it already reads the
+            // standing one, which is a seat of one.
+            addLoot(partyId, LootedDrop(dropIdForKey("grindstone-of-faith")!!), bossId, droppedLater, now)
+            assertEquals(listOf(Uuid.parse(mine)), rosterFor(partyId, weekOf27Jul))
+
+            adoptSoloParty(
+                userId,
+                partyId,
+                SavePartyRequest(characterId.toString(), "limbo", listOf("Alex")),
+                now,
+            )
+
+            // The claim: the pin holds every week where it already was. The duo night keeps both,
+            // and the night run alone stays alone. Reading every seat ROW instead put Steve back on
+            // a week he had already left, which halves the share and asks for the difference for
+            // good: the drop divides two ways, and the second seat was never there.
+            assertEquals(2, rosterFor(partyId, weekOf20Jul).size)
+            assertEquals(listOf(Uuid.parse(mine)), rosterFor(partyId, weekOf27Jul))
         }
     }
 
