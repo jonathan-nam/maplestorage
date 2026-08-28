@@ -336,4 +336,18 @@ describe("what the figures on the card are counted in", () => {
     // And nothing is left on the type to invite it back.
     expect(settlement).not.toMatch(/^\s*nights\??:/m);
   });
+
+  it("spaces a row for a chevron only in the list that has chevrons", () => {
+    // `.party-row-toggle` is 18px and `.ledger-drop-head` adds its own 10px gap, so an empty frame
+    // is 28px of indent. Under `offsets` some rows fold and some do not, and the frame is what keeps
+    // that column straight. Under `owed` nothing folds, so the frame put the one row wearing it, a
+    // typed debt, 28px right of the parts stacked above it.
+    const entered = source.slice(source.indexOf("function EnteredRow("));
+    expect(entered).not.toContain("party-row-toggle");
+    const discharge = source.slice(
+      source.indexOf("function DischargeRow("),
+      source.indexOf("function PieceNights("),
+    );
+    expect(discharge).toContain("party-row-toggle is-empty");
+  });
 });
