@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useDeferredValue, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 
+import type { StackDraft } from "@/components/drop-picker";
 import { RunDraftEditor } from "@/components/run-draft-editor";
 import { CopyPlan, type RunLog, type RunRotation, RunPlan } from "@/components/run-plan";
 import { pieceNote, rotatingDrops, rotationFor, takesByOwner } from "@/lib/loot-rotation";
@@ -36,6 +37,8 @@ import {
 } from "@/lib/boss-run-plan";
 import { peek, put } from "@/lib/cache";
 import { runningThisPeriod } from "@/lib/parties";
+import { closedByHolder, outstanding, runningBalance, stillOpen } from "@/lib/vestige-ledger";
+import { shareConfig } from "@/lib/vestige-stacks";
 import { preloadRunArt } from "@/lib/preload-boss-art";
 import { controlsKey } from "@/lib/run-order-submit";
 import { useDropIcons } from "@/lib/drop-icons";
@@ -47,7 +50,8 @@ import { useWhoIsOn } from "@/lib/who-is-on";
 import type { Boss } from "@/types/boss";
 import type { DropTables } from "@/types/drop";
 import type { AddLootBody } from "@/types/loot";
-import type { Party } from "@/types/party";
+import type { Party, SavePartyBody } from "@/types/party";
+import type { VestigeSettlement } from "@/types/vestige";
 
 const BOSSES_KEY = "/api/bosses";
 const PARTIES_KEY = "/api/parties";
@@ -55,7 +59,18 @@ const PARTIES_KEY = "/api/parties";
 // Party View and the party page, so all three share one cached copy.
 const DROPS_KEY = "/api/bosses/drops";
 const POOLS_KEY = "/api/parties/loot";
+// Every config there has ever been, solo and retired included, for the coupon balance alone. A debt
+// does not stop being owed for having been arranged on a config that has since come off the list,
+// and reading the night's list instead would rotate the odd stack against half the account. Same
+// key as Party View, so the two share one cached copy and cannot suggest different pickups.
+const LEDGER_PARTIES_KEY = "/api/parties?solo=include&retired=include";
+// What stops that balance counting a night somebody has already closed. See V52.
+const SETTLEMENTS_KEY = "/api/vestige-settlements";
 const DRAFT_KEY = "sharpeyes.run-order.drafts";
+
+// The stacking drop the picker's two blocks are for. One key, because one item behaves this way: a
+// boss drops it in bundles that do not divide by looting alone. See lib/piece-ledger.ts.
+const VESTIGE = "vestige-of-erion";
 
 /** The windows people actually block out. Anything else goes in the box beside them. */
 const PRESETS = [60, 90, 120, 180, 240];
@@ -162,6 +177,14 @@ export default function RunOrderPage() {
   // Only for the loot rotation, which is read off what each week's pickups were. Nothing else on
   // this page needs the pools, so losing them costs a line on some rows and nothing else.
   const [pools, setPools] = useState<PartyLootPool[]>(peek<PartyLootPool[]>(POOLS_KEY) ?? []);
+  // Both only for the coupon balance behind the stack boxes. Empty is a balanced first guess rather
+  // than a wrong one: see `behind`.
+  const [ledgerParties, setLedgerParties] = useState<Party[]>(
+    peek<Party[]>(LEDGER_PARTIES_KEY) ?? [],
+  );
+  const [settlements, setSettlements] = useState<VestigeSettlement[]>(
+    peek<VestigeSettlement[]>(SETTLEMENTS_KEY) ?? [],
+  );
   const [state, setState] = useState<LoadState>(seededParties ? "loaded" : "loading");
 
   // A run in the night links to its party, which draws its seats. See lib/seat-sprites.ts.
@@ -254,12 +277,18 @@ export default function RunOrderPage() {
           // Optional, as it is on Party View: losing it costs a row's drop picker, and a night you
           // cannot log a drop from still tells you what to run and in what order.
           apiFetch<DropTables>(DROPS_KEY, { method: "GET" }, withToken).catch(() => null),
-          // Optional for the same reason: it only feeds the rotation, and a night still tells you
-          // what to run without it.
+          // Optional for the same reason: it feeds the rotation and the stack boxes, and a night
+          // still tells you what to run without it.
           apiFetch<PartyLootPool[]>(POOLS_KEY, { method: "GET" }, withToken).catch(() => null),
+          // Optional, both, and only for the coupon balance the stack boxes open on. Losing either
+          // opens them on the even split instead of on whoever is furthest behind.
+          apiFetch<Party[]>(LEDGER_PARTIES_KEY, { method: "GET" }, withToken).catch(() => null),
+          apiFetch<VestigeSettlement[]>(SETTLEMENTS_KEY, { method: "GET" }, withToken).catch(
+            () => null,
+          ),
         ]);
       })
-      .then(([nextParties, nextBosses, nextDrops, nextPools]) => {
+      .then(([nextParties, nextBosses, nextDrops, nextPools, nextLedger, nextSettlements]) => {
         if (!live) return;
         setParties(nextParties);
         setBosses(nextBosses);
@@ -272,6 +301,14 @@ export default function RunOrderPage() {
         if (nextPools) {
           setPools(nextPools);
           put(POOLS_KEY, nextPools);
+        }
+        if (nextLedger) {
+          setLedgerParties(nextLedger);
+          put(LEDGER_PARTIES_KEY, nextLedger);
+        }
+        if (nextSettlements) {
+          setSettlements(nextSettlements);
+          put(SETTLEMENTS_KEY, nextSettlements);
         }
         setState("loaded");
       })
@@ -295,6 +332,25 @@ export default function RunOrderPage() {
     const refreshed = await apiFetch<Party[]>(PARTIES_KEY, { method: "GET" }, getToken);
     setParties(refreshed);
     put(PARTIES_KEY, refreshed);
+  }
+
+  /**
+   * Both lists a logged drop moves: the counts on each config, and the pools the rotation and the
+   * stack boxes are read off.
+   *
+   * The pools matter on this page in particular, because it is where a whole night is logged one
+   * run after another: without this, the second run's boxes would open on a balance taken before
+   * the first run's coupons were picked up.
+   */
+  async function refetchAfterDrop() {
+    const [refreshed, poolResult] = await Promise.all([
+      apiFetch<Party[]>(PARTIES_KEY, { method: "GET" }, getToken),
+      apiFetch<PartyLootPool[]>(POOLS_KEY, { method: "GET" }, getToken),
+    ]);
+    setParties(refreshed);
+    put(PARTIES_KEY, refreshed);
+    setPools(poolResult);
+    put(POOLS_KEY, poolResult);
   }
 
   /**
@@ -336,7 +392,57 @@ export default function RunOrderPage() {
         getToken,
       );
       // The drop is in from here, so a failed refetch is the plan going stale. See StaleAfterWrite.
-      await readBack(refetchParties);
+      await readBack(refetchAfterDrop);
+    });
+  }
+
+  /**
+   * The party's standing coupon split, saved from the run's own picker.
+   *
+   * The whole config goes back, because that is what PUT /api/parties/{id} takes, and every other
+   * field is passed through as it stands. Seats are named by CHARACTER NAME: the body names them
+   * that way, since a party being created has no seat ids yet.
+   *
+   * Not pinned into the night: a split is the standing deal and says nothing about whether the boss
+   * was run. Throws on failure, which is what lets the boxes show the server's reason.
+   */
+  async function saveShares(party: Party, shares: Map<string, number>) {
+    const byName = new Map(party.members.map((member) => [member.id, member.name]));
+    const named: Record<string, number> = {};
+    for (const [seatId, count] of shares) {
+      const name = byName.get(seatId);
+      if (name) named[name] = count;
+    }
+    await write(party.id, async () => {
+      await apiFetch<Party>(
+        `${PARTIES_KEY}/${party.id}`,
+        {
+          method: "PUT",
+          body: JSON.stringify({
+            characterId: party.characterId,
+            bossKey: party.bossKey,
+            members: party.members
+              .filter((member) => member.characterId !== party.characterId)
+              .map((member) => member.name),
+            difficulty: party.difficulty,
+            minutes: party.minutes,
+            looterName: party.seats.find((seat) => seat.id === party.looterMemberId)?.name ?? null,
+            shares: named,
+          } satisfies SavePartyBody),
+        },
+        getToken,
+      );
+      // Both lists: the night's, which is what the plan is drawn from, and the ledger's, which the
+      // stack boxes rotate against. A split saved here moves what each seat is entitled to, so a
+      // ledger left stale would suggest the next pickup against the old deal.
+      const [refreshed, ledger] = await Promise.all([
+        apiFetch<Party[]>(PARTIES_KEY, { method: "GET" }, getToken),
+        apiFetch<Party[]>(LEDGER_PARTIES_KEY, { method: "GET" }, getToken),
+      ]);
+      setParties(refreshed);
+      put(PARTIES_KEY, refreshed);
+      setLedgerParties(ledger);
+      put(LEDGER_PARTIES_KEY, ledger);
     });
   }
 
@@ -501,6 +607,51 @@ export default function RunOrderPage() {
   const haveDropTables = Object.keys(dropTables).length > 0;
 
   /**
+   * How far ahead or behind each holder is across every coupon night already answered, so the odd
+   * stack rotates instead of landing on the same person every week.
+   *
+   * Account-wide and net of what has been settled, which is Party View's reckoning: the two screens
+   * both open the same boxes, and a different suggestion on each is one night answered two ways. A
+   * closed debt was compensated, and would otherwise suggest against its holder for ever. See V52.
+   *
+   * Empty where either list failed to load, which opens the boxes on the balanced split. A worse
+   * first guess, never a stored one: nothing is written until the button is pressed.
+   */
+  const behind = useMemo(() => {
+    const bossOrder = new Map(bosses.map((boss, i) => [boss.bossKey, i]));
+    const closed = closedByHolder(settlements).closed;
+    return runningBalance(stillOpen(outstanding(ledgerParties, pools, VESTIGE, bossOrder), closed));
+  }, [bosses, ledgerParties, pools, settlements]);
+
+  /**
+   * The two coupon blocks this run's picker carries: what each seat is entitled to each week, and
+   * who picked up which stacks of the night being logged.
+   *
+   * Off the CATALOG rather than off a logged drop, which is what makes them answerable HERE: the
+   * drop does not exist until this form creates one, and the pickup goes out with it in the same
+   * request. Undefined where there is nothing to divide, which is most bosses.
+   */
+  const stacksFor = (party: Party): StackDraft | undefined => {
+    const config = shareConfig(
+      dropTables[party.bossKey],
+      party.difficulty,
+      party.worldType,
+      VESTIGE,
+      party.members,
+    );
+    if (!config) return undefined;
+    return {
+      dropKey: VESTIGE,
+      config,
+      party,
+      behind,
+      pickupTitle: "Looted this week",
+      entitledTitle: "Entitled each week",
+      onSaveShares: (shares: Map<string, number>) => saveShares(party, shares),
+    };
+  };
+
+  /**
    * Whose turn it is on this run's pieces, or null where the row should say nothing.
    *
    * Null in every case but the one worth drawing: a boss with no pooled piece at this mode, a world
@@ -545,6 +696,7 @@ export default function RunOrderPage() {
         busy: isSaving,
         onToggleClear: toggleClear,
         onAddDrop: haveDropTables ? addDrop : undefined,
+        stacksOf: haveDropTables ? stacksFor : undefined,
       }
     : undefined;
 
