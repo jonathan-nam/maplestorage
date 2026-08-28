@@ -722,8 +722,14 @@ export type PairSettlement = {
   yours: string[];
   /** Nights left open because the same night owes somebody else. A count, said on the card. */
   shared: number;
-  /** Bosses the act finishes, both sides together. What the button says before it runs. */
-  bosses: number;
+  /**
+   * Nights the act finishes, both sides together. What the button says before it runs.
+   *
+   * NIGHTS, not bosses, which is what it used to be called on screen. The same boss run two weeks
+   * running is two of these, so a card listing eleven rows in each pile said "closes 22 bosses" and
+   * no page in the app had 22 bosses on it.
+   */
+  nights: number;
   offered: boolean;
 };
 
@@ -752,7 +758,7 @@ export function settleThePair(row: Settlement): PairSettlement {
     theirs: lootIds,
     yours,
     shared,
-    bosses: lootIds.length + yours.length,
+    nights: lootIds.length + yours.length,
     offered: lootIds.length + yours.length > 0,
   };
 }

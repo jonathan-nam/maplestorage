@@ -309,3 +309,26 @@ describe("a receipt on the card", () => {
     expect(page).toContain("paymentsSinceClosing(payments, settlements)");
   });
 });
+
+// One card, one unit, and one word for what the pair button closes.
+describe("what the figures on the card are counted in", () => {
+  it("draws a share PRE-FEE, the unit the net and the Offset are already in", () => {
+    // `pay` is what the sender lists, `nets` is what survives the receiver's 5%. The header's net is
+    // built from `pay` on both sides and offsetOf sums `pay`, so a line drawn in `nets` put a
+    // 703,703,488 offset directly under the 668,518,313 share it was made of. The party page this
+    // row links to leads with `pay` too, and carries the fee underneath.
+    expect(source).toContain('signed(line.direction === "owe" ? -line.pay : line.pay)');
+    expect(source).toContain('formatMesos(line.direction === "owe" ? -line.pay : line.pay, true)');
+    // No figure on this card comes off the fee, so `nets` is not read here at all.
+    expect(source).not.toContain("line.nets");
+  });
+
+  it("counts what closing the pair covers in NIGHTS, not bosses", () => {
+    // settleThePair counts drop rows across both piles, so the same boss two weeks running is two of
+    // them. Eleven rows in each pile read as "closes 22 bosses", and no screen in the app has 22
+    // bosses on it. "nights" is the word the arrangement screens already use.
+    expect(source).toContain('`closes ${pair.nights} ${pair.nights === 1 ? "night" : "nights"}`');
+    expect(source).not.toContain('"boss" : "bosses"');
+    expect(settlement).toContain("nights: lootIds.length + yours.length,");
+  });
+});

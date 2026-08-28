@@ -295,7 +295,7 @@ function SettlementCard({
       const boss = bossByKey.get(line.bossKey ?? "");
       const party = partyById.get(line.partyId);
       const where = boss ? bossLabel(boss.name, party?.difficulty ?? null) : "Unknown boss";
-      const mesos = formatMesos(line.direction === "owe" ? -line.nets : line.nets, true);
+      const mesos = formatMesos(line.direction === "owe" ? -line.pay : line.pay, true);
       return `${line.name} \u00b7 ${where} \u00b7 ${line.theirs}: ${mesos}`;
     })
     .join("\n");
@@ -629,15 +629,19 @@ function SettlementCard({
                       {boss ? bossLabel(boss.name, party?.difficulty ?? null) : "Unknown boss"} ·{" "}
                       {line.theirs}
                     </span>
+                    {/* `pay`, not `nets`: every other figure on this card is pre-fee, so a line
+                        drawn net of it disagreed with the Offset button sitting under it by the 5%.
+                        A 703,703,488 offset was listed as a 668,518,313 share. See settlement-figure
+                        for the whole card's unit. */}
                     <span className="ledger-amount">
-                      {signed(line.direction === "owe" ? -line.nets : line.nets)}
+                      {signed(line.direction === "owe" ? -line.pay : line.pay)}
                     </span>
                   </div>
                 </li>
               );
             })}
           </ul>
-          {/* What it will do, beside the button that does it, the way Mark settled names the bosses
+          {/* What it will do, beside the button that does it, the way Mark settled names the nights
               it closes. One act now covers shares in both directions, so the count is the thing
               worth saying before it runs. Reversible from the party page, share by share.
 
@@ -952,7 +956,7 @@ function SettlementCard({
               </button>
             )}
             <span className="ledger-progress">
-              {pair.offered && `closes ${pair.bosses} ${pair.bosses === 1 ? "boss" : "bosses"}`}
+              {pair.offered && `closes ${pair.nights} ${pair.nights === 1 ? "night" : "nights"}`}
               {/* A night owing a third person cannot be closed for one of them, so it stays open and
                   is said. Silence here would be the count quietly going short. */}
               {pair.shared > 0 &&
