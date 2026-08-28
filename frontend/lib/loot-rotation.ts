@@ -240,6 +240,16 @@ export function rotationFor(
 }
 
 /**
+ * The balance as suggestArrangement takes it: by holder, positive is short.
+ *
+ * What the pickup boxes open a piece night on, so the arrangement they suggest and the turn drawn
+ * above them are the same reckoning rather than two that agree until one of them changes.
+ */
+export function behindByHolder(rotation: Rotation): Map<string, number> {
+  return new Map(rotation.holders.map((h) => [h.key, h.behind]));
+}
+
+/**
  * This week's turns keyed by WHOSE they are, for a grid with a column per person.
  *
  * Run Order draws people, not seats: two characters of one person share a column, and their turns

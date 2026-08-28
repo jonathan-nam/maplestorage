@@ -16,7 +16,20 @@ import type { Rotation } from "@/lib/loot-rotation";
 // week's exact share of five pieces between six people is five sixths, and rounding it to "2 behind"
 // would put a figure on screen that nobody told us. It orders this list and stays there.
 
-export function LootRotation({ rotation }: { rotation: Rotation }) {
+export function LootRotation({
+  rotation,
+  answered,
+}: {
+  rotation: Rotation;
+  /**
+   * This week's night is already recorded, so the turn drawn below is the one after it.
+   *
+   * The balance counts every week answered for, tonight's included, so answering it moves the
+   * rotation on the spot. Saying "this week" over the turn that answer produced would tell you to
+   * undo what you had just entered.
+   */
+  answered: boolean;
+}) {
   return (
     <div className="loot-config-card">
       <header className="loot-head">
@@ -31,7 +44,9 @@ export function LootRotation({ rotation }: { rotation: Rotation }) {
           <span className="loot-name">{rotation.name}</span>
           {/* The verb earns its place. Without it these read as what already fell, which is what the
               rows above the block are, and the two numbers would be indistinguishable. */}
-          <span className="loot-meta">Loot {rotation.quantity} this week</span>
+          <span className="loot-meta">
+            Loot {rotation.quantity} {answered ? "next week" : "this week"}
+          </span>
         </div>
       </header>
       <div className="config-shares">

@@ -101,20 +101,21 @@ describe("a coupon night can be answered from the run it is logged on", () => {
   });
 
   it("opens the boxes with the odd stack on whoever is furthest behind", () => {
-    const night = draftDrop(config!, 120)!;
-    const behind = new Map([[holderKey(holderOf(theirs)), 40]]);
+    // Who is behind is the DRAFT's, not the boxes': a night carries the balance it was drawn
+    // against, so the two cannot be paired up wrongly at the call site.
+    const behindThem = draftDrop(config!, 120, new Map([[holderKey(holderOf(theirs)), 40]]))!;
+    const behindMe = draftDrop(config!, 120, new Map([[holderKey(holderOf(mine)), 40]]))!;
 
     // Three stacks, 1.5 each: both floor to one and the third rotates rather than always landing
     // on the same person.
-    expect(draftBoxes(night, party, behind)).toEqual({ m1: "1", m2: "2" });
-    expect(draftBoxes(night, party, new Map([[holderKey(holderOf(mine)), 40]]))).toEqual({
-      m1: "2",
-      m2: "1",
-    });
+    expect(draftBoxes(behindThem, party)).toEqual({ m1: "1", m2: "2" });
+    expect(draftBoxes(behindMe, party)).toEqual({ m1: "2", m2: "1" });
   });
 
   it("sends what was typed, and holds the drop back when it does not add up", () => {
-    const night = draftDrop(config!, 120)!;
+    // Nobody behind: what this asks is whether the typed boxes add up, which the balance the night
+    // was drawn against has no part in.
+    const night = draftDrop(config!, 120, new Map())!;
 
     expect(draftStacks(night, { m1: "1", m2: "2" })).toEqual({ m1: 1, m2: 2 });
     // Null takes the Add Drop button with it. The server refuses a part-answered arrangement, and

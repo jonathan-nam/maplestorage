@@ -26,7 +26,7 @@ import { buildDropLog, couponsOutstandingByParty, pieceStatusByParty } from "@/l
 import { dropsInWeek, NOTHING_OUTSTANDING } from "@/lib/loot";
 import { closedByHolder, outstanding, runningBalance, stillOpen } from "@/lib/vestige-ledger";
 import { assignableDrops } from "@/lib/vestige-pickup";
-import { rotatingDrops, rotationFor } from "@/lib/loot-rotation";
+import { behindByHolder, rotatingDrops, rotationFor } from "@/lib/loot-rotation";
 import { shareConfig } from "@/lib/vestige-stacks";
 import {
   byBoss,
@@ -624,6 +624,7 @@ export default function PartiesPage() {
       // before the row exists and the panel can stand down while it does.
       dropKey: VESTIGE,
       config,
+      behind,
       onSave: (shares: Map<string, number>) => saveShares(party, shares),
       // What actually got picked up, per night. Off the rows the panel is already showing, so the
       // boxes cannot cover a different set of drops from the ones above them.
@@ -632,18 +633,47 @@ export default function PartiesPage() {
         drops: assignableDrops(
           party,
           dropsInWeek(lootByParty.get(party.id) ?? [], view?.currentWeekStart ?? null).shown,
-          VESTIGE,
+          { dropKey: VESTIGE, tradeable: true, behind },
         ),
         // A settled night is history. The server refuses to rewrite one either way (see
         // settledAlready), so without this the boxes would open on a save that cannot land.
         locked: new Set(log.entries.filter((entry) => entry.closed).map((entry) => entry.lootId)),
-        behind,
         onSave: (lootId: string, bundles: Record<string, number>) =>
           writeDrop(party, lootId, "/bundles", {
             method: "PUT",
             body: JSON.stringify({ bundles }),
           }),
       },
+    };
+  };
+
+  /**
+   * Who picked up which stacks of the rotating piece, on this week's night of it.
+   *
+   * The write the rotation reads. Nothing else produces one: the Drop Ledger leaves pieces out
+   * entirely, and the coupon's boxes only ever covered the coupon, so every rotation on the account
+   * was drawn off zero answered weeks and broke its tie by seat order instead.
+   *
+   * Its own block rather than a second drop in `stacksFor`, which needs a coupon config and so has
+   * none on Chaos Kalos or Normal Kaling, both of which rotate a piece.
+   *
+   * No `locked`: a settlement is a coupon's, and a piece has none to close.
+   */
+  const piecePickupFor = (party: Party) => {
+    const rotation = rotationOf(party);
+    if (!rotation) return undefined;
+    return {
+      title: "Looted this week",
+      drops: assignableDrops(
+        party,
+        dropsInWeek(lootByParty.get(party.id) ?? [], view?.currentWeekStart ?? null).shown,
+        { dropKey: rotation.dropKey, tradeable: false, behind: behindByHolder(rotation) },
+      ),
+      onSave: (lootId: string, bundles: Record<string, number>) =>
+        writeDrop(party, lootId, "/bundles", {
+          method: "PUT",
+          body: JSON.stringify({ bundles }),
+        }),
     };
   };
 
@@ -794,6 +824,7 @@ export default function PartiesPage() {
         pool={poolFor(party)}
         stacks={stacksFor(party)}
         rotation={rotationOf(party)}
+        piecePickup={piecePickupFor(party)}
         onSaveRoster={history ? undefined : (members) => saveRoster(party, members)}
         onTakeOff={history ? undefined : () => setSkipped(party, true)}
         heading={
@@ -1037,6 +1068,7 @@ export default function PartiesPage() {
                         pool={poolFor(party)}
                         stacks={stacksFor(party)}
                         rotation={rotationOf(party)}
+                        piecePickup={piecePickupFor(party)}
                         onSaveRoster={history ? undefined : (members) => saveRoster(party, members)}
                         onTakeOff={history ? undefined : () => setSkipped(party, true)}
                         heading={

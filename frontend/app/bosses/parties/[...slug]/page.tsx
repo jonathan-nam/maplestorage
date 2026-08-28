@@ -22,6 +22,7 @@ import {
 import { useDropIcons } from "@/lib/drop-icons";
 import { NOTHING_OUTSTANDING, poolLabel, summarize } from "@/lib/loot";
 import { assignableDrops } from "@/lib/vestige-pickup";
+import { behindByHolder, rotatingDrops, rotationFor } from "@/lib/loot-rotation";
 import { shareConfig } from "@/lib/vestige-stacks";
 import { closedByHolder } from "@/lib/vestige-ledger";
 import { ownMember, partySizeLabel } from "@/lib/parties";
@@ -232,21 +233,63 @@ export default function PartyPage() {
       dropKey: VESTIGE,
       config,
       entitledTitle: "Entitled each week",
+      // See the pickup's own note: this page reckons a night against nothing rather than against
+      // the account-wide balance Party View has in hand.
+      behind: new Map<string, number>(),
       pickup: {
         // Not "Looted this week": these rows are the whole pool, and most of them are not this week.
         title: "Looted",
-        drops: assignableDrops(party, loot, VESTIGE),
-        // Off the ledger's own notion of finished, which is the settlements and not this party's
-        // arrangement. Same reading the row's "Settled" label comes from, so a night cannot be
-        // history in one place and a box to type in two lines below it.
-        locked: new Set(mine.filter((entry) => entry.closed).map((entry) => entry.lootId)),
         // The odd stack rotates against every party's nights at once, which is the Party View
         // reckoning. Empty here opens an unanswered night's boxes on the balanced split instead of
         // on whoever is furthest behind account-wide: a worse first guess, never a stored one, and
         // nothing is written until the button is pressed.
-        behind: new Map<string, number>(),
+        drops: assignableDrops(party, loot, {
+          dropKey: VESTIGE,
+          tradeable: true,
+          behind: new Map<string, number>(),
+        }),
+        // Off the ledger's own notion of finished, which is the settlements and not this party's
+        // arrangement. Same reading the row's "Settled" label comes from, so a night cannot be
+        // history in one place and a box to type in two lines below it.
+        locked: new Set(mine.filter((entry) => entry.closed).map((entry) => entry.lootId)),
         onSave: setBundles,
       },
+    };
+  })();
+
+  /**
+   * Who picked up which stacks of the rotating piece, over this party's whole pool.
+   *
+   * The write the rotation reads, and nothing else on the account produces one: the Drop Ledger
+   * leaves pieces out, and the coupon's boxes only ever covered the coupon.
+   *
+   * Its own block for the reason Party View's is: `stacks` needs a coupon config, and Chaos Kalos
+   * and Normal Kaling rotate a piece while dropping no coupon at all.
+   *
+   * The whole pool, unlike Party View's week, so a night older than tonight can still be answered.
+   * That is what seeds a rotation nobody has ever recorded a week of.
+   */
+  const piecePickup = (() => {
+    if (!party) return undefined;
+    const drop = rotatingDrops(party, dropTables)[0];
+    if (!drop) return undefined;
+    const mode = party.difficulty ?? "";
+    const rotation = rotationFor(
+      party,
+      loot,
+      drop,
+      drop.pieces?.[party.worldType]?.[mode] ?? 0,
+      drop.bundles?.[party.worldType]?.[mode] ?? 0,
+    );
+    if (!rotation) return undefined;
+    return {
+      title: "Looted",
+      drops: assignableDrops(party, loot, {
+        dropKey: drop.dropKey,
+        tradeable: false,
+        behind: behindByHolder(rotation),
+      }),
+      onSave: setBundles,
     };
   })();
   const summary = summarize(loot);
@@ -340,6 +383,7 @@ export default function PartyPage() {
               party={party}
               pieceStatus={pieceStatus}
               stacks={stacks}
+              piecePickup={piecePickup}
               loot={loot}
               dropTables={dropTables}
               bossByKey={bossByKey}

@@ -101,14 +101,13 @@ const night = (id: string, droppedOn: string, by: Record<string, number>): Loot 
   bundlesBy: Object.entries(by).map(([memberId, bundles]) => ({ memberId, bundles })),
 });
 
+/** The coupon, as the boxes now ask for a drop: which one, and how a shortfall in it reads. */
+const COUPON = { dropKey: "vestige-of-erion", tradeable: true, behind: new Map<string, number>() };
+
 describe("the pool page can show the nights behind a coupon debt", () => {
   it("states both halves of the night that made the debt", () => {
     // The one that produced "20 coupons owed": two stacks to Bro, one to you, 1.5 each was the deal.
-    const drops = assignableDrops(
-      party,
-      [night("l1", "2026-08-13", { m1: 1, m2: 2 })],
-      "vestige-of-erion",
-    );
+    const drops = assignableDrops(party, [night("l1", "2026-08-13", { m1: 1, m2: 2 })], COUPON);
     const tallies = pieceTallies(drops[0]!, drops[0]!.counts);
 
     expect(tallies.get(holderKey(holderOf(husky)))).toEqual({ took: 40, due: 60 });
@@ -117,11 +116,7 @@ describe("the pool page can show the nights behind a coupon debt", () => {
 
   it("states the night that runs the other way too", () => {
     // The same page has to show the week you looted the lot, or it only ever explains one direction.
-    const drops = assignableDrops(
-      party,
-      [night("l2", "2026-08-23", { m1: 3 })],
-      "vestige-of-erion",
-    );
+    const drops = assignableDrops(party, [night("l2", "2026-08-23", { m1: 3 })], COUPON);
     const tallies = pieceTallies(drops[0]!, drops[0]!.counts);
 
     expect(tallies.get(holderKey(holderOf(husky)))).toEqual({ took: 120, due: 60 });
@@ -131,7 +126,7 @@ describe("the pool page can show the nights behind a coupon debt", () => {
   it("says nothing about who took what on a night nobody answered for", () => {
     // `due` stands either way; `took` is exactly what an unanswered night cannot say. Drawing the
     // suggestion at rest would put a pickup nobody entered on screen as though it had happened.
-    const drops = assignableDrops(party, [night("l3", "2026-08-23", {})], "vestige-of-erion");
+    const drops = assignableDrops(party, [night("l3", "2026-08-23", {})], COUPON);
 
     expect(drops[0]!.recorded).toBe(false);
     expect(drops[0]!.counts).toEqual({});
@@ -140,7 +135,7 @@ describe("the pool page can show the nights behind a coupon debt", () => {
   it("covers the whole pool, not one week", () => {
     // Party View's row is about the week on screen. This page is where a debt older than tonight is
     // gone through, so narrowing here would hide the very night being asked about.
-    expect(page).toContain("drops: assignableDrops(party, loot, VESTIGE)");
+    expect(page).toContain("assignableDrops(party, loot, {");
     expect(page).not.toContain("dropsInWeek");
   });
 
@@ -148,7 +143,10 @@ describe("the pool page can show the nights behind a coupon debt", () => {
     expect(page).toContain("stacks={stacks}");
     expect(pool).toContain("stacks={stacks}");
 
-    const built = page.slice(page.indexOf("const stacks = (() =>"), page.indexOf("const summary"));
+    const built = page.slice(
+      page.indexOf("const stacks = (() =>"),
+      page.indexOf("const piecePickup"),
+    );
     expect(built.length).toBeGreaterThan(0);
     // Who bent down is a fact about this pool's night, so it is answered here.
     expect(built).toContain("onSave: setBundles");
@@ -162,9 +160,9 @@ describe("the pool page can show the nights behind a coupon debt", () => {
     // A settled drop has been paid against. Rewriting who picked up which stack would move a figure
     // somebody has already been shown, which is the silent wrong number this repo exists to stop.
     expect(page).toContain("locked: new Set(mine.filter((entry) => entry.closed)");
-    expect(list).toContain("editing={(editing ?? false) && !stacks.pickup.locked?.has(item.id)}");
+    expect(list).toContain("!found.pickup.locked?.has(item.id)");
     // And the way in is not offered at all when every night is settled.
-    expect(pool).toContain("stacks.pickup.drops.some((drop) => !stacks.pickup.locked?.has(");
+    expect(pool).toContain("pickup.drops.some((drop) => !pickup.locked?.has(drop.lootId))");
   });
 
   it("opens the boxes behind an Edit rather than leaving them out", () => {

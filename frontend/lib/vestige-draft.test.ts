@@ -26,33 +26,36 @@ const config: ShareConfig = {
   seats: [seat("a", "Rune"), seat("b", "Steve"), seat("c", "Bob")],
 };
 
+/** Nobody is ahead or behind, so the boxes open on the plain balanced split. */
+const NO_BALANCE = new Map<string, number>();
+
 describe("draftDrop", () => {
   it("reads the stacks off the catalog, not off the quantity typed", () => {
     // Half the usual haul still falls in three stacks. It is the SIZE that changes, which is how
     // the server derives it too: the count is per boss and mode, and quantity is what fell.
-    const half = draftDrop(config, 30)!;
+    const half = draftDrop(config, 30, NO_BALANCE)!;
     expect(half.bundles).toBe(3);
     expect(half.size).toBe(10);
-    expect(draftDrop(config, 60)!.size).toBe(20);
+    expect(draftDrop(config, 60, NO_BALANCE)!.size).toBe(20);
   });
 
   it("has no loot id, because the row it is about does not exist yet", () => {
-    expect(draftDrop(config, 60)!.lootId).toBe("");
-    expect(draftDrop(config, 60)!.recorded).toBe(false);
+    expect(draftDrop(config, 60, NO_BALANCE)!.lootId).toBe("");
+    expect(draftDrop(config, 60, NO_BALANCE)!.recorded).toBe(false);
   });
 
   it("refuses a night there is nothing to hand out on", () => {
     // One stack cannot be shared however anybody agreed. Same ground assignableDrops leaves it out.
-    expect(draftDrop({ ...config, bundles: 1 }, 60)).toBeNull();
+    expect(draftDrop({ ...config, bundles: 1 }, 60, NO_BALANCE)).toBeNull();
     // One holder has nobody to hand to.
-    expect(draftDrop({ ...config, seats: [seat("a", "Rune")] }, 60)).toBeNull();
+    expect(draftDrop({ ...config, seats: [seat("a", "Rune")] }, 60, NO_BALANCE)).toBeNull();
     // Nothing fell.
-    expect(draftDrop(config, 0)).toBeNull();
+    expect(draftDrop(config, 0, NO_BALANCE)).toBeNull();
   });
 });
 
 describe("draftStacks", () => {
-  const drop = draftDrop(config, 60)!;
+  const drop = draftDrop(config, 60, NO_BALANCE)!;
 
   it("sends the arrangement when every stack is placed", () => {
     expect(draftStacks(drop, { a: "1", b: "1", c: "1" })).toEqual({ a: 1, b: 1, c: 1 });

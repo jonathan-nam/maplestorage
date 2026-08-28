@@ -58,7 +58,7 @@ describe("the week's coupons are drops, not configuration", () => {
     expect(list.match(/loot-config-card/g)).toHaveLength(1);
     // The rotation is a config card too, and frames ITSELF: the drop heads it, with its own art, so
     // a title of ours above the drop would put the instruction over the thing it is about.
-    expect(list).toContain("{rotation && <LootRotation rotation={rotation} />}");
+    expect(list).toContain("{rotation && ( <LootRotation rotation={rotation}");
     expect(source("components", "loot-rotation.tsx")).toContain(
       '<div className="loot-config-card"> <header className="loot-head">',
     );
