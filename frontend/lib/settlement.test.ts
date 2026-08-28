@@ -25,6 +25,10 @@ import type { ProceedsDisposal, SettlementDebt } from "@/types/vestige";
 
 const M = 1_000_000;
 
+// The nights one handover closes, both piles. Counted here rather than returned by settleThePair:
+// the card lists them and no longer says how many, so a count on the type had no reader.
+const closes = (pair: ReturnType<typeof settleThePair>) => pair.theirs.length + pair.yours.length;
+
 const SELF: Holder = { kind: "SELF", personId: null, characterName: null };
 const BRO: Holder = { kind: "PERSON", personId: "p-bro", characterName: null };
 const JARED: Holder = { kind: "PERSON", personId: "p-jared", characterName: null };
@@ -226,7 +230,7 @@ describe("what one person owes you", () => {
       wallet([counterparty("person:p-bro", "Bro", [line("l3", 900 * M)])]),
     );
     expect([row!.pieces, row!.piecesYouOwe, row!.piecesNet]).toEqual([0, 0, 0]);
-    expect(settleThePair(row!).bosses).toBe(2);
+    expect(closes(settleThePair(row!))).toBe(2);
   });
 
   it("nets the two directions into the one count that changes hands", () => {
@@ -1429,7 +1433,7 @@ describe("closing the coupon books with one person", () => {
     ]);
     const pair = settleThePair(row);
     expect([pair.theirs, pair.yours]).toEqual([["l3"], ["l1", "l2"]]);
-    expect([pair.bosses, pair.shared, pair.offered]).toEqual([3, 0, true]);
+    expect([closes(pair), pair.shared, pair.offered]).toEqual([3, 0, true]);
   });
 
   it("is offered when the debt runs only one way, which is most weeks", () => {
@@ -1454,17 +1458,17 @@ describe("closing the coupon books with one person", () => {
     ]);
     const pair = settleThePair(row);
     expect(pair.yours).toEqual(["l1"]);
-    expect([pair.bosses, pair.shared]).toEqual([1, 1]);
+    expect([closes(pair), pair.shared]).toEqual([1, 1]);
   });
 
   it("is refused outright when every night is shared", () => {
     const pair = settleThePair(card([ledger(SELF, "you", { drops: [owingTwo("l1", "kalos")] })]));
-    expect([pair.bosses, pair.shared, pair.offered]).toEqual([0, 1, false]);
+    expect([closes(pair), pair.shared, pair.offered]).toEqual([0, 1, false]);
   });
 
   it("counts one night once, however many transfers of it they are owed", () => {
     // Two transfers to one person off one drop is one drop and one closure. Naming it twice would
-    // have the button claim to close two bosses and post a duplicate loot id.
+    // have the button claim to close two nights and post a duplicate loot id.
     const twice = {
       ...holdingOf("l1", "kaling", 20),
       transfers: [
@@ -1473,7 +1477,7 @@ describe("closing the coupon books with one person", () => {
       ],
     };
     const pair = settleThePair(card([ledger(SELF, "you", { drops: [twice] })]));
-    expect([pair.yours, pair.bosses]).toEqual([["l1"], 1]);
+    expect([pair.yours, closes(pair)]).toEqual([["l1"], 1]);
   });
 
   it("has nothing to close on a card held open by money alone", () => {
@@ -1584,7 +1588,7 @@ describe("pieces a sale has already answered for", () => {
     const { ledgers, answered } = theNight();
     const [row] = cardFor(ledgers, answered);
     expect(row!.owedDrops.some((d) => d.pieces === 0)).toBe(true);
-    expect(settleThePair(row!).bosses).toBe(6);
+    expect(closes(settleThePair(row!))).toBe(6);
   });
 
   it("squares to nothing once every coupon has been sold or netted", () => {
@@ -1606,7 +1610,7 @@ describe("pieces a sale has already answered for", () => {
     expect([row!.piecesYouOwe, row!.pieces, row!.piecesNet]).toEqual([0, 0, 0]);
     expect(row!.piecesAnswered.theirs).toBe(130);
     // Six nights to close still: the coupons are square, the books are not.
-    expect(settleThePair(row!).bosses).toBe(6);
+    expect(closes(settleThePair(row!))).toBe(6);
   });
 
   it("drops the card once nothing is outstanding in either unit", () => {

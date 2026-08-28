@@ -295,7 +295,7 @@ function SettlementCard({
       const boss = bossByKey.get(line.bossKey ?? "");
       const party = partyById.get(line.partyId);
       const where = boss ? bossLabel(boss.name, party?.difficulty ?? null) : "Unknown boss";
-      const mesos = formatMesos(line.direction === "owe" ? -line.nets : line.nets, true);
+      const mesos = formatMesos(line.direction === "owe" ? -line.pay : line.pay, true);
       return `${line.name} \u00b7 ${where} \u00b7 ${line.theirs}: ${mesos}`;
     })
     .join("\n");
@@ -629,17 +629,21 @@ function SettlementCard({
                       {boss ? bossLabel(boss.name, party?.difficulty ?? null) : "Unknown boss"} ·{" "}
                       {line.theirs}
                     </span>
+                    {/* `pay`, not `nets`: every other figure on this card is pre-fee, so a line
+                        drawn net of it disagreed with the Offset button sitting under it by the 5%.
+                        A 703,703,488 offset was listed as a 668,518,313 share. See settlement-figure
+                        for the whole card's unit. */}
                     <span className="ledger-amount">
-                      {signed(line.direction === "owe" ? -line.nets : line.nets)}
+                      {signed(line.direction === "owe" ? -line.pay : line.pay)}
                     </span>
                   </div>
                 </li>
               );
             })}
           </ul>
-          {/* What it will do, beside the button that does it, the way Mark settled names the bosses
-              it closes. One act now covers shares in both directions, so the count is the thing
-              worth saying before it runs. Reversible from the party page, share by share.
+          {/* What it will do, beside the button that does it. One act now covers shares in both
+              directions, so what it will record is worth saying before it runs. Reversible from the
+              party page, share by share.
 
               A share you OWE says so instead of counting. Settling one declares the money has
               already gone, which takes it OUT of the netting above and puts what they owe you back
@@ -951,13 +955,17 @@ function SettlementCard({
                 Mark settled
               </button>
             )}
-            <span className="ledger-progress">
-              {pair.offered && `closes ${pair.bosses} ${pair.bosses === 1 ? "boss" : "bosses"}`}
-              {/* A night owing a third person cannot be closed for one of them, so it stays open and
-                  is said. Silence here would be the count quietly going short. */}
-              {pair.shared > 0 &&
-                `${pair.offered ? ", " : ""}${pair.shared} shared with others, not closed here`}
-            </span>
+            {/* Only the nights it will NOT close. The ones it will are the rows directly above, so
+                counting them back read as a second fact and matched nothing else on the card: 22
+                was eleven rows in each pile, and no screen in this app has 22 of anything else.
+
+                A night owing a third person cannot be closed for one of them, so it stays open and
+                is said. Silence there would be the count quietly going short. */}
+            {pair.shared > 0 && (
+              <span className="ledger-progress">
+                {`${pair.shared} shared with others, not closed here`}
+              </span>
+            )}
           </span>
         </div>
       )}

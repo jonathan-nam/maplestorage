@@ -309,3 +309,31 @@ describe("a receipt on the card", () => {
     expect(page).toContain("paymentsSinceClosing(payments, settlements)");
   });
 });
+
+// One card, one unit, and one word for what the pair button closes.
+describe("what the figures on the card are counted in", () => {
+  it("draws a share PRE-FEE, the unit the net and the Offset are already in", () => {
+    // `pay` is what the sender lists, `nets` is what survives the receiver's 5%. The header's net is
+    // built from `pay` on both sides and offsetOf sums `pay`, so a line drawn in `nets` put a
+    // 703,703,488 offset directly under the 668,518,313 share it was made of. The party page this
+    // row links to leads with `pay` too, and carries the fee underneath.
+    expect(source).toContain('signed(line.direction === "owe" ? -line.pay : line.pay)');
+    expect(source).toContain('formatMesos(line.direction === "owe" ? -line.pay : line.pay, true)');
+    // No figure on this card comes off the fee, so `nets` is not read here at all.
+    expect(source).not.toContain("line.nets");
+  });
+
+  it("says only what closing the pair will NOT cover, never a count of what it will", () => {
+    // "closes 22 bosses" counted drop rows across both coupon piles and sat directly under the two
+    // lists holding those rows: the wrong unit (one boss run two weeks running is two nights) and a
+    // restatement of the lists at once, with nothing on the card to check 22 against. The lists ARE
+    // the answer, so the count goes rather than gets reworded.
+    expect(source).not.toContain('"boss" : "bosses"');
+    expect(source).not.toContain("pair.nights");
+    expect(source).not.toContain("closes ${");
+    // What no list says stays: a night owing a third person is drawn and cannot be closed here.
+    expect(source).toContain("${pair.shared} shared with others, not closed here");
+    // And nothing is left on the type to invite it back.
+    expect(settlement).not.toMatch(/^\s*nights\??:/m);
+  });
+});
