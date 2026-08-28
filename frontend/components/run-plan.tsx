@@ -2,7 +2,7 @@
 
 import { Fragment, type RefObject, useEffect, useRef, useState } from "react";
 
-import { DropPicker } from "@/components/drop-picker";
+import { DropPicker, type StackDraft } from "@/components/drop-picker";
 import { SAVED_BUT_STALE, StaleAfterWrite, apiAssetUrl } from "@/lib/api";
 import { BOSS_ART_2X } from "@/lib/boss-art";
 import { clearStateLabel, nextClear } from "@/lib/boss-clears";
@@ -75,6 +75,15 @@ export type RunLog = {
   onToggleClear: (party: Party, cleared: boolean) => void;
   /** Omitted where the catalog's tables never loaded, which a picker cannot do without. */
   onAddDrop?: (party: Party, body: AddLootBody) => Promise<void>;
+  /**
+   * The coupon blocks this config's picker carries: who is entitled to what each week, and who
+   * picked up which stacks on the night being logged.
+   *
+   * Undefined where there is nothing to divide, which is most bosses. Passed straight to the
+   * picker, the same route Party View's row takes, so a night answered here and one answered there
+   * are one arrangement.
+   */
+  stacksOf?: (party: Party) => StackDraft | undefined;
 };
 
 /**
@@ -448,6 +457,7 @@ export function RunPlan({
                         table={log.dropTable(party.bossKey)}
                         difficulty={party.difficulty}
                         busy={log.busy(party.id)}
+                        draft={log.stacksOf?.(party)}
                         onAdd={async (body) => {
                           setAddError(null);
                           try {
