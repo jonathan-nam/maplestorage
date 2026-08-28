@@ -323,12 +323,17 @@ describe("what the figures on the card are counted in", () => {
     expect(source).not.toContain("line.nets");
   });
 
-  it("counts what closing the pair covers in NIGHTS, not bosses", () => {
-    // settleThePair counts drop rows across both piles, so the same boss two weeks running is two of
-    // them. Eleven rows in each pile read as "closes 22 bosses", and no screen in the app has 22
-    // bosses on it. "nights" is the word the arrangement screens already use.
-    expect(source).toContain('`closes ${pair.nights} ${pair.nights === 1 ? "night" : "nights"}`');
+  it("says only what closing the pair will NOT cover, never a count of what it will", () => {
+    // "closes 22 bosses" counted drop rows across both coupon piles and sat directly under the two
+    // lists holding those rows: the wrong unit (one boss run two weeks running is two nights) and a
+    // restatement of the lists at once, with nothing on the card to check 22 against. The lists ARE
+    // the answer, so the count goes rather than gets reworded.
     expect(source).not.toContain('"boss" : "bosses"');
-    expect(settlement).toContain("nights: lootIds.length + yours.length,");
+    expect(source).not.toContain("pair.nights");
+    expect(source).not.toContain("closes ${");
+    // What no list says stays: a night owing a third person is drawn and cannot be closed here.
+    expect(source).toContain("${pair.shared} shared with others, not closed here");
+    // And nothing is left on the type to invite it back.
+    expect(settlement).not.toMatch(/^\s*nights\??:/m);
   });
 });

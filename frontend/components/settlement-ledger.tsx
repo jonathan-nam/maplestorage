@@ -641,9 +641,9 @@ function SettlementCard({
               );
             })}
           </ul>
-          {/* What it will do, beside the button that does it, the way Mark settled names the nights
-              it closes. One act now covers shares in both directions, so the count is the thing
-              worth saying before it runs. Reversible from the party page, share by share.
+          {/* What it will do, beside the button that does it. One act now covers shares in both
+              directions, so what it will record is worth saying before it runs. Reversible from the
+              party page, share by share.
 
               A share you OWE says so instead of counting. Settling one declares the money has
               already gone, which takes it OUT of the netting above and puts what they owe you back
@@ -955,13 +955,17 @@ function SettlementCard({
                 Mark settled
               </button>
             )}
-            <span className="ledger-progress">
-              {pair.offered && `closes ${pair.nights} ${pair.nights === 1 ? "night" : "nights"}`}
-              {/* A night owing a third person cannot be closed for one of them, so it stays open and
-                  is said. Silence here would be the count quietly going short. */}
-              {pair.shared > 0 &&
-                `${pair.offered ? ", " : ""}${pair.shared} shared with others, not closed here`}
-            </span>
+            {/* Only the nights it will NOT close. The ones it will are the rows directly above, so
+                counting them back read as a second fact and matched nothing else on the card: 22
+                was eleven rows in each pile, and no screen in this app has 22 of anything else.
+
+                A night owing a third person cannot be closed for one of them, so it stays open and
+                is said. Silence there would be the count quietly going short. */}
+            {pair.shared > 0 && (
+              <span className="ledger-progress">
+                {`${pair.shared} shared with others, not closed here`}
+              </span>
+            )}
           </span>
         </div>
       )}

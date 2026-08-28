@@ -723,13 +723,14 @@ export type PairSettlement = {
   /** Nights left open because the same night owes somebody else. A count, said on the card. */
   shared: number;
   /**
-   * Nights the act finishes, both sides together. What the button says before it runs.
+   * Whether there is anything for one handover to close. `theirs` and `yours` are what it closes.
    *
-   * NIGHTS, not bosses, which is what it used to be called on screen. The same boss run two weeks
-   * running is two of these, so a card listing eleven rows in each pile said "closes 22 bosses" and
-   * no page in the app had 22 bosses on it.
+   * There is deliberately no COUNT of them here. It was drawn beside the button as "closes 22
+   * bosses", which was wrong twice over: they are nights, so the same boss two weeks running is two
+   * of them, and the nights themselves are listed directly above the button, so the number restated
+   * a list nobody could match it against. A field kept for no reader is a field that gets rendered
+   * again.
    */
-  nights: number;
   offered: boolean;
 };
 
@@ -758,7 +759,6 @@ export function settleThePair(row: Settlement): PairSettlement {
     theirs: lootIds,
     yours,
     shared,
-    nights: lootIds.length + yours.length,
     offered: lootIds.length + yours.length > 0,
   };
 }
