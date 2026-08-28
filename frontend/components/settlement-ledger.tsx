@@ -1239,8 +1239,9 @@ function EnteredRow({
   return (
     <li className="ledger-drop">
       <div className="ledger-drop-head">
-        {/* The frame is kept so a typed row lines up with a folded one, as a drop row does. */}
-        <span className="party-row-toggle is-empty" aria-hidden="true" />
+        {/* No empty toggle frame. It was kept to line this up with a folded row, but the folds are
+            all under `offsets` and nothing in THIS list has one, so the frame indented the only row
+            wearing it by 28px (18px of toggle and the head's 10px gap) past the parts above it. */}
         <span className="loot-name">{entry.note ?? "entered"}</span>
         <span className="ledger-amount">{signed(entry.amount)}</span>
         <button
