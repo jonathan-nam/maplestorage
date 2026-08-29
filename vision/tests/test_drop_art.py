@@ -46,9 +46,10 @@ CONTENT_CAP = int(
     re.search(r"^ICON_CONTENT = (\d+)", (ROOT / "catalog" / "build.py").read_text(), re.M).group(1)
 )
 
-# Cut before the cap was asked of a hand cut, and both are over it. Removing a name here is the
-# whole fix; the entry exists so the exception is visible rather than silent.
-OVERSIZE = {"vestige-of-erion", "eternal-armor-of-radiance-box"}
+# The one icon the cap is wrong for. Its chest is pixel-identical to the five mirror boxes and is
+# pinned to them below, so scaling its bbox to fit would shrink that chest under the set. What
+# spills past the cap is the glow the mirror boxes do not have.
+OVERSIZE = {"eternal-armor-of-radiance-box"}
 
 
 def _icon(key: str) -> np.ndarray:
