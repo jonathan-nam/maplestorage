@@ -20,11 +20,14 @@ function Row() {
   return (
     <li className="droplog-row">
       <div className="droplog-row-head">
-        <span className="party-row-toggle is-empty" aria-hidden="true" />
         <span className="loot-icon skeleton" />
         <span className="droplog-title">
-          <span className="loot-name">
-            <span className="skeleton sk-line" style={{ width: "132px" }} />
+          {/* No chevron held beside it. It hangs off the name of a row that folds, so it takes no
+              column of its own and there is nothing here to reserve. */}
+          <span className="droplog-name-line">
+            <span className="loot-name">
+              <span className="skeleton sk-line" style={{ width: "132px" }} />
+            </span>
           </span>
           <span className="loot-meta">
             <span className="skeleton sk-line" style={{ width: "190px" }} />

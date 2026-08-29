@@ -1258,22 +1258,6 @@ function DropRow({
   return (
     <li className={`droplog-row status-${entry.status.toLowerCase()}${open ? " is-open" : ""}`}>
       <div className="droplog-row-head">
-        {line.folded ? (
-          <button
-            type="button"
-            className="party-row-toggle"
-            aria-expanded={open}
-            aria-controls={panelId}
-            onClick={() => setOpen((o) => !o)}
-          >
-            <span className="party-row-chevron" aria-hidden="true" />
-            <span className="visually-hidden">{open ? `Hide ${runs}` : `Show ${runs}`}</span>
-          </button>
-        ) : (
-          // The frame is kept so one drop's row lines up with a folded one's.
-          <span className="party-row-toggle is-empty" aria-hidden="true" />
-        )}
-
         {line.iconUrl ? (
           <img className="loot-icon" src={apiAssetUrl(line.iconUrl)} alt="" />
         ) : (
@@ -1283,22 +1267,36 @@ function DropRow({
         )}
 
         <span className="droplog-title">
-          {/* A fold's pieces came off several runs, so its name links to none of them: it would
-              open whichever run happened to be first, which is one out of eleven. The runs below
-              carry the links. */}
-          {line.folded ? (
-            <span className="loot-name">
-              {line.name}
-              <span className="loot-count"> x{line.yours}</span>
-            </span>
-          ) : (
-            // The drop's own history, not its party's: this row IS one drop, and the party it fell
-            // in is every drop that boss ever gave you. The way back to the party is on that page.
-            <Link href={`/bosses/drops/${entry.lootId}`} className="loot-name">
-              {line.name}
-              {line.yours > 1 && <span className="loot-count"> x{line.yours}</span>}
-            </Link>
-          )}
+          <span className="droplog-name-line">
+            {/* A fold's pieces came off several runs, so its name links to none of them: it would
+                open whichever run happened to be first, which is one out of eleven. The runs below
+                carry the links. What it has instead is the chevron. */}
+            {line.folded ? (
+              <>
+                <span className="loot-name">
+                  {line.name}
+                  <span className="loot-count"> x{line.yours}</span>
+                </span>
+                <button
+                  type="button"
+                  className="party-row-toggle"
+                  aria-expanded={open}
+                  aria-controls={panelId}
+                  onClick={() => setOpen((o) => !o)}
+                >
+                  <span className="party-row-chevron" aria-hidden="true" />
+                  <span className="visually-hidden">{open ? `Hide ${runs}` : `Show ${runs}`}</span>
+                </button>
+              </>
+            ) : (
+              // The drop's own history, not its party's: this row IS one drop, and the party it fell
+              // in is every drop that boss ever gave you. The way back to the party is on that page.
+              <Link href={`/bosses/drops/${entry.lootId}`} className="loot-name">
+                {line.name}
+                {line.yours > 1 && <span className="loot-count"> x{line.yours}</span>}
+              </Link>
+            )}
+          </span>
           {/* A fold says none of this, so the element is not drawn empty either. */}
           {meta.length > 0 && <span className="loot-meta">{meta.join(" · ")}</span>}
         </span>
@@ -1381,24 +1379,27 @@ function RunGroup({
   return (
     <li className={`droplog-character${open ? " is-open" : ""}`}>
       <div className="droplog-character-head">
-        <button
-          type="button"
-          className="party-row-toggle"
-          aria-expanded={open}
-          aria-controls={panelId}
-          onClick={() => setOpen((o) => !o)}
-        >
-          <span className="party-row-chevron" aria-hidden="true" />
-          <span className="visually-hidden">
-            {open ? `Hide ${name}'s ${runs}` : `Show ${name}'s ${runs}`}
+        {/* The same pairing the drop's own row uses, so a chevron sits the same distance from the
+            name it opens at both levels. The name links nowhere: these runs are several parties,
+            and picking one of them to be the destination is picking whichever happened to be
+            first. The runs carry the links. */}
+        <span className="droplog-name-line">
+          <span className="loot-name">
+            {name}
+            <span className="loot-count"> x{fold.yours}</span>
           </span>
-        </button>
-
-        {/* The name links nowhere: these runs are several parties, and picking one of them to be
-            the destination is picking whichever happened to be first. The runs carry the links. */}
-        <span className="loot-name">
-          {name}
-          <span className="loot-count"> x{fold.yours}</span>
+          <button
+            type="button"
+            className="party-row-toggle"
+            aria-expanded={open}
+            aria-controls={panelId}
+            onClick={() => setOpen((o) => !o)}
+          >
+            <span className="party-row-chevron" aria-hidden="true" />
+            <span className="visually-hidden">
+              {open ? `Hide ${name}'s ${runs}` : `Show ${name}'s ${runs}`}
+            </span>
+          </button>
         </span>
 
         <Stage
