@@ -67,11 +67,29 @@ describe("the Drop Log tab marks", () => {
     expect(ours).toBe(theirs);
   });
 
-  // The grindstone is a catalog drop as well as a tab mark. The script reads its id out of
-  // drops.yaml so the two cannot name different sprites; this checks it never grows a hardcoded one.
-  it("takes the drop's sprite id from the catalog rather than repeating it", () => {
-    expect(script).toMatch(/fromCatalog: "grindstone-of-life"/);
+  // A mark that is also a catalog drop takes its id out of drops.yaml, so the two cannot name
+  // different sprites. Read the key from the script rather than naming it here, or this becomes a
+  // second place to edit whenever the drop changes, which is the drift it exists to prevent.
+  it("takes a drop mark's sprite id from the catalog rather than repeating it", () => {
+    const keys = [...script.matchAll(/fromCatalog: "([\w-]+)"/g)].map((m) => m[1]!);
+    expect(keys.length, "no mark reads its id from the catalog").toBeGreaterThan(0);
     const yaml = readFileSync(join(ROOT, "..", "catalog", "drops.yaml"), "utf8");
-    expect(yaml).toMatch(/- key: grindstone-of-life\n(?:\s+\w+:.*\n)*?\s+icon_id: \d+/);
+    for (const key of keys) {
+      expect(
+        yaml,
+        `build-tab-marks.mjs asks the catalog for ${key}, which drops.yaml has no icon_id for`,
+      ).toMatch(new RegExp(`- key: ${key}\\n(?:\\s+\\w+:.*\\n)*?\\s+icon_id: \\d+`));
+    }
+  });
+
+  // Scaling is the failure this whole file guards. It has shipped twice: a 46px canvas drawn into a
+  // 23px box, then a 32px canvas holding art that is 34px. The generator refuses to resize at all
+  // now, so a sprite that does not fit is an error rather than a quietly softened mark.
+  it("has a generator that refuses to scale rather than shrinking art to fit", () => {
+    expect(
+      script,
+      "build-tab-marks.mjs resizes again; art must fit the canvas or fail",
+    ).not.toMatch(/\.resize\(|lanczos/);
+    expect(script).toMatch(/larger than MARK_CANVAS/);
   });
 });

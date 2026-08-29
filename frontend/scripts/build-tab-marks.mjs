@@ -1,10 +1,12 @@
 // The Drop Log's tab marks, as static art.
 //
-// All three are the game's own item sprites, normalised the way catalog/build.py normalises an icon
-// (trim to the art, cap the longer side, never enlarge, centre on a square canvas) but onto a 32px
-// canvas rather than the catalog's 46px one. The tab draws them 1:1 at 32px, so nothing is thrown
-// away. Drawing the catalog's 46px canvas in the tab instead means halving it, which is what made
-// the owl an unreadable smudge: 13x16px of pale art. See MARK_CANVAS below.
+// All three are the game's own item sprites, trimmed to their art and centred on a square canvas
+// that the tab draws 1:1. Nothing here is ever scaled: a sprite bigger than the canvas is an error,
+// not something to quietly shrink. Both ways of getting that wrong have now shipped. First a 46px
+// canvas was drawn into a 23px box, which halved every mark and made the owl an unreadable 13x16px
+// smudge. Then the canvas was 32 while Grindstone of Life's art is 34x33, so it was resampled 0.941x
+// and went soft, which is what a fractional scale does to pixel art and is why
+// pixel-scaling-css.test.ts refuses it everywhere else.
 //
 // The grindstone is also a catalog drop, and its id is read from catalog/drops.yaml rather than
 // written twice. This file decides the SIZE, the catalog decides WHICH SPRITE.
@@ -30,16 +32,19 @@ const DROPS_YAML = join(HERE, "..", "..", "catalog", "drops.yaml");
 // to build.py's.
 const ICON_VERSION = 268;
 
-// Not the catalog's 46. A tab mark is drawn at its canvas size, so the canvas IS the drawn size,
-// and 46 would make a 54px chip. 32 is the sprites' own size, so every one of them lands 1:1.
-const MARK_CANVAS = 32;
-const MARK_CONTENT = 32;
+// Not the catalog's 46. A tab mark is drawn at its canvas size, so the canvas IS the drawn size.
+// 34 is the largest sprite in the set below, which is what lets every one of them sit 1:1. Raising
+// it grows every chip in the strip, so raise it deliberately when a mark needs it, and never as a
+// way of making one fit.
+const MARK_CANVAS = 34;
 
 const URL_FOR = (id) => `https://maplestory.io/api/GMS/${ICON_VERSION}/item/${id}/icon`;
 
 const MARKS = [
-  // What fell. A catalog drop, so its id comes from the catalog.
-  { key: "grindstone-of-life", fromCatalog: "grindstone-of-life" },
+  // What fell. A catalog drop, so its id comes from the catalog. Grindstone of FAITH and not of
+  // Life: Life's art is soft glow with no hard edge and reads as a smear at this size, where
+  // Faith's white outline survives.
+  { key: "grindstone-of-faith", fromCatalog: "grindstone-of-faith" },
   // A sale is in mesos, and this is what mesos look like as a pile rather than a number.
   { key: "money-sack", id: 4031138, name: "Money Sack" },
   // The Free Market search owl: the game's own mark for dealing with another player, which is what
@@ -55,24 +60,19 @@ async function catalogIconId(key) {
   return Number(block[1]);
 }
 
-async function normalise(buf) {
-  const trimmed = await sharp(buf)
+/** Trim to the art and centre it. Refuses to scale, which is the whole point of this file. */
+async function place(buf, key) {
+  const art = await sharp(buf)
     .ensureAlpha()
     .trim({ threshold: 0 })
     .toBuffer({ resolveWithObject: true });
-  const { width, height } = trimmed.info;
-  const longest = Math.max(width, height);
-  let art = trimmed.data;
-  if (longest > MARK_CONTENT) {
-    const scale = MARK_CONTENT / longest;
-    art = await sharp(trimmed.data)
-      .resize({
-        width: Math.max(1, Math.round(width * scale)),
-        height: Math.max(1, Math.round(height * scale)),
-        kernel: "lanczos3",
-        fit: "fill",
-      })
-      .toBuffer();
+  const { width, height } = art.info;
+  if (width > MARK_CANVAS || height > MARK_CANVAS) {
+    throw new Error(
+      `${key} is ${width}x${height}, larger than MARK_CANVAS ${MARK_CANVAS}. Raise the canvas ` +
+        `(every chip in the strip grows with it) rather than letting the art be scaled: a ` +
+        `fractional downscale is what made Grindstone of Life soft.`,
+    );
   }
   return sharp({
     create: {
@@ -82,7 +82,7 @@ async function normalise(buf) {
       background: { r: 0, g: 0, b: 0, alpha: 0 },
     },
   })
-    .composite([{ input: art, gravity: "centre" }])
+    .composite([{ input: art.data, gravity: "centre" }])
     .png()
     .toBuffer();
 }
@@ -92,7 +92,7 @@ for (const mark of MARKS) {
   const id = mark.id ?? (await catalogIconId(mark.fromCatalog));
   const res = await fetch(URL_FOR(id));
   if (!res.ok) throw new Error(`${mark.key} (${id}): ${res.status} from the mirror`);
-  const png = await normalise(Buffer.from(await res.arrayBuffer()));
+  const png = await place(Buffer.from(await res.arrayBuffer()), mark.key);
   const { width, height } = await sharp(png).metadata();
   if (width !== MARK_CANVAS || height !== MARK_CANVAS) {
     throw new Error(`${mark.key} came out ${width}x${height}, not ${MARK_CANVAS}x${MARK_CANVAS}`);
