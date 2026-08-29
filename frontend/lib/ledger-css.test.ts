@@ -37,7 +37,9 @@ describe("the progress line", () => {
 describe("the step labels", () => {
   it("are quieter than the rows they introduce", () => {
     const rule = css.match(/^\.ledger-step \{([^}]*)\}/m);
-    expect(rule?.[1]).toContain("text-transform: uppercase");
+    // Muted and a step below body. This used to be carried by uppercase too, which went with the
+    // rest of the app's tiny caps; colour and size are what hold the label under its rows now.
+    expect(rule?.[1]).toContain("font-size: var(--text-sm)");
     expect(rule?.[1]).toContain("var(--muted)");
   });
 });

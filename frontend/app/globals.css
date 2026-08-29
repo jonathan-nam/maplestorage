@@ -25,6 +25,15 @@
      overflowed the column by 2px; any more and the search bar overhung the window. */
   --measure: 794px;
 
+  /* Four steps and nothing between them. Reaching for a fifth size is a design decision, not a
+     nudge, so it has to be made here where all four are visible at once. The inventory window is
+     the one exemption: it replicates the game client at a measured 12/18, which is not ours to
+     round. */
+  --text-sm: 11px;
+  --text-base: 13px;
+  --text-lg: 15px;
+  --text-xl: 20px;
+
   --bg: #111;
   --surface: #1a1a1a;
   --surface-2: #202020;
@@ -81,7 +90,7 @@
    this says which one you are on. */
 .page-title {
   margin: 0 0 20px;
-  font-size: 20px;
+  font-size: var(--text-xl);
   color: var(--ink-strong);
 }
 
@@ -226,15 +235,13 @@ html:not(.has-session) .header-reserved {
   margin: 0 0 2px;
   padding: 2px 10px;
   color: var(--muted-2);
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
+  font-size: var(--text-sm);
 }
 
 .section-menu-panel a {
   text-decoration: none;
   color: var(--muted);
-  font-size: 15px;
+  font-size: var(--text-lg);
   padding: 7px 10px;
   border-radius: 6px;
 }
@@ -462,7 +469,7 @@ body {
   background: var(--bg);
   color: var(--ink);
   font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
-  font-size: 13px;
+  font-size: var(--text-base);
   line-height: 1.5;
 }
 
@@ -477,7 +484,7 @@ a:hover {
 
 .hint {
   color: var(--muted-2);
-  font-size: 11px;
+  font-size: var(--text-sm);
   font-style: italic;
   margin: 10px 0 0;
 }
@@ -514,7 +521,7 @@ a:hover {
   background: none;
   padding: 2px;
   line-height: 1;
-  font-size: 16px;
+  font-size: var(--text-lg);
   cursor: pointer;
   color: var(--warn);
 }
@@ -567,7 +574,7 @@ a:hover {
 }
 
 .char-tile.is-compact .tile-name {
-  font-size: 12px;
+  font-size: var(--text-base);
   /* A long IGN must not widen the tile, or the strip pages by a stride that no longer matches. */
   max-width: 100%;
   overflow: hidden;
@@ -581,7 +588,7 @@ a:hover {
 }
 
 .tile-name {
-  font-weight: 700;
+  font-weight: 600;
   color: var(--ink);
 }
 
@@ -608,7 +615,7 @@ a:hover {
 .tile-level,
 .tile-job {
   color: var(--muted-2);
-  font-size: 12px;
+  font-size: var(--text-base);
 }
 
 .tile-job {
@@ -623,7 +630,7 @@ a:hover {
   background: none;
   padding: 0 2px;
   color: var(--muted-2);
-  font-size: 15px;
+  font-size: var(--text-lg);
   line-height: 1;
   cursor: pointer;
 }
@@ -719,8 +726,7 @@ a:hover {
 .ms-title {
   color: #ddfe01;
   font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
+  font-weight: 600;
 }
 
 .ms-title-sub {
@@ -767,7 +773,7 @@ a:hover {
 
 .ms-tab.active {
   background: var(--ms-accent);
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .ms-grid {
@@ -1050,7 +1056,7 @@ button.ms-slot {
   border: 1px solid #3a3a3a;
   background: transparent;
   color: #ddd;
-  font-size: 20px;
+  font-size: var(--text-xl);
   line-height: 1;
   cursor: pointer;
 }
@@ -1110,8 +1116,7 @@ button.ms-slot {
    which is #202020 in dark and #f7f9fa in light: invisible against the page in both. */
 .brand-name {
   color: var(--ink);
-  font-weight: 700;
-  letter-spacing: 0.02em;
+  font-weight: 600;
 }
 
 .brand:hover .brand-name {
@@ -1131,7 +1136,7 @@ button.ms-slot {
 }
 
 /* Reserve the BOLD width, always, so becoming active does not resize the link.
-   Bold glyphs are wider than regular ones, so `font-weight: 700` on .active made the nav text
+   Bold glyphs are wider than regular ones, so `font-weight: 600` on .active made the nav text
    physically grow when you navigated to that page, and the label visibly shifted under the cursor.
    This lays an invisible bold copy of the label in the same box (zero height, so it costs no
    vertical space) and lets it set the width. The link is then the same size in both states, and
@@ -1141,7 +1146,7 @@ button.ms-slot {
   display: block;
   height: 0;
   overflow: hidden;
-  font-weight: 700;
+  font-weight: 600;
   visibility: hidden;
   pointer-events: none;
 }
@@ -1152,7 +1157,7 @@ button.ms-slot {
 
 .site-nav a.active {
   color: var(--ink);
-  font-weight: 700;
+  font-weight: 600;
 }
 
 /* Covers the page from the moment a world is picked until the new one has finished loading.
@@ -1216,7 +1221,7 @@ html.switching-world .world-veil {
   background: none;
   color: var(--muted);
   font: inherit;
-  font-size: 12px;
+  font-size: var(--text-base);
   white-space: nowrap;
   cursor: pointer;
 }
@@ -1305,7 +1310,7 @@ img.user-avatar-img {
   background: none;
   color: var(--ink);
   font: inherit;
-  font-size: 14px;
+  font-size: var(--text-lg);
   padding: 7px 10px;
   border-radius: 6px;
   cursor: pointer;
@@ -1335,10 +1340,8 @@ img.user-avatar-img {
    single heading over the whole page says what every row already carries. */
 .character-world {
   margin: 22px 0 6px;
-  font-size: 12px;
+  font-size: var(--text-base);
   font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
   color: var(--muted);
 }
 
@@ -1417,7 +1420,7 @@ img.user-avatar-img {
 
 .hero h1 {
   margin: 0 0 12px;
-  font-size: 20px;
+  font-size: var(--text-xl);
 }
 
 .hero p {
@@ -1441,9 +1444,7 @@ img.user-avatar-img {
 .ms-section-head h3 {
   margin: 0;
   font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  font-weight: 600;
   color: var(--ms-muted);
 }
 
@@ -1617,7 +1618,7 @@ img.user-avatar-img {
   padding: 0 3px;
   border-radius: 6px;
   font-size: 9px;
-  font-weight: 700;
+  font-weight: 600;
   line-height: 13px;
   font-variant-numeric: tabular-nums;
   color: #fff;
@@ -1694,13 +1695,13 @@ img.user-avatar-img {
 .finder-suggest-label mark {
   background: none;
   color: var(--ink-strong);
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .finder-suggest-sub {
   margin-left: auto;
   color: var(--muted-2);
-  font-size: 11px;
+  font-size: var(--text-sm);
 }
 
 /* --- Capture dock ----------------------------------------------------------------------- */
@@ -1716,7 +1717,7 @@ img.user-avatar-img {
 
 .counts-section-head {
   margin: 0 0 6px;
-  font-size: 12px;
+  font-size: var(--text-base);
   color: var(--muted);
 }
 
@@ -1730,7 +1731,7 @@ img.user-avatar-img {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  font-size: 12px;
+  font-size: var(--text-base);
   color: var(--ink);
 }
 
@@ -1779,7 +1780,7 @@ img.user-avatar-img {
   background: none;
   color: var(--ink);
   font: inherit;
-  font-size: 15px;
+  font-size: var(--text-lg);
   font-weight: 600;
   cursor: pointer;
 }
@@ -1796,7 +1797,7 @@ img.user-avatar-img {
 /* The fold is the only control on this row, so the caret is sized to be seen rather than found:
    16px at full ink, not 11px of grey. */
 .dock-caret {
-  font-size: 16px;
+  font-size: var(--text-lg);
   line-height: 1;
   color: var(--ink);
   transition:
@@ -1834,10 +1835,10 @@ img.user-avatar-img {
 }
 .dock-drop-main {
   font-weight: 600;
-  font-size: 14px;
+  font-size: var(--text-lg);
 }
 .dock-drop-sub {
-  font-size: 12px;
+  font-size: var(--text-base);
   color: var(--muted);
 }
 
@@ -1927,7 +1928,7 @@ img.user-avatar-img {
   min-width: 0;
 }
 .capture-status {
-  font-size: 13px;
+  font-size: var(--text-base);
   font-weight: 600;
 }
 .capture-status.good {
@@ -1943,7 +1944,7 @@ img.user-avatar-img {
   color: var(--muted);
 }
 .capture-file {
-  font-size: 11px;
+  font-size: var(--text-sm);
   color: var(--muted-2);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1958,7 +1959,7 @@ img.user-avatar-img {
   flex: none;
 }
 .capture-spinner {
-  font-size: 12px;
+  font-size: var(--text-base);
   color: var(--muted);
 }
 
@@ -2013,7 +2014,7 @@ button.link {
   background: none;
   padding: 2px 4px;
   font: inherit;
-  font-size: 12px;
+  font-size: var(--text-base);
   color: var(--accent);
   cursor: pointer;
   text-decoration: underline;
@@ -2039,7 +2040,7 @@ button.link:disabled {
 }
 .capture-preview-note {
   margin: 8px 0 0;
-  font-size: 12px;
+  font-size: var(--text-base);
   color: var(--muted);
 }
 .capture-preview.pending .capture-preview-note {
@@ -2073,7 +2074,7 @@ button.link:disabled {
 .finder-input {
   flex: 1;
   font: inherit;
-  font-size: 14px;
+  font-size: var(--text-lg);
   /* Right padding clears the overlaid button (see .finder-clear). */
   padding: 9px 52px 9px 12px;
   border-radius: 8px;
@@ -2110,7 +2111,7 @@ button.link:disabled {
 
 .finder-summary {
   margin: 0 0 10px;
-  font-size: 13px;
+  font-size: var(--text-base);
   color: var(--muted);
   font-variant-numeric: tabular-nums;
 }
@@ -2142,10 +2143,10 @@ button.link:disabled {
   border-bottom: 1px solid var(--line-soft);
 }
 .finder-name {
-  font-weight: 700;
+  font-weight: 600;
 }
 .finder-ready {
-  font-size: 11px;
+  font-size: var(--text-sm);
   color: var(--accent);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
@@ -2156,7 +2157,7 @@ button.link:disabled {
 }
 .finder-total {
   margin-left: auto;
-  font-weight: 700;
+  font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
 
@@ -2189,12 +2190,12 @@ button.link:disabled {
 }
 .finder-item-qty {
   margin-left: auto;
-  font-weight: 700;
+  font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
 .finder-item-note {
   flex: none;
-  font-size: 11px;
+  font-size: var(--text-sm);
   color: var(--muted-2);
   font-variant-numeric: tabular-nums;
 }
@@ -2217,7 +2218,7 @@ button.link:disabled {
   background: var(--surface);
   color: var(--muted);
   font: inherit;
-  font-size: 12px;
+  font-size: var(--text-base);
   line-height: 1;
   cursor: pointer;
   opacity: 0.7;
@@ -2227,7 +2228,7 @@ button.link:disabled {
     border-color 0.12s;
 }
 .dock-eye > span[aria-hidden] {
-  font-size: 15px;
+  font-size: var(--text-lg);
   line-height: 1;
   filter: grayscale(1);
 }
@@ -2300,7 +2301,7 @@ button.link:disabled {
   );
   table-layout: fixed;
   border-collapse: collapse;
-  font-size: 13px;
+  font-size: var(--text-base);
 }
 
 /* Half a column of names and a 48px sprite, so a phone still gets two characters on screen rather
@@ -2347,7 +2348,7 @@ button.link:disabled {
   padding: 6px 8px;
   border-bottom: 1px solid var(--line);
   color: var(--muted);
-  font-weight: 500;
+  font-weight: 400;
   text-align: center;
   white-space: nowrap;
 }
@@ -2389,17 +2390,14 @@ button.link:disabled {
 .boss-cadence {
   padding: 12px 8px 4px;
   color: var(--muted-2);
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
+  font-size: var(--text-sm);
+  font-weight: 600;
   text-align: left;
 }
 
 .boss-period {
   margin-left: 8px;
   font-weight: 400;
-  letter-spacing: 0;
-  text-transform: none;
 }
 
 /* Cadence, then the band's progress beside it. Flexed on this inner span and not on the <th>, for
@@ -2416,8 +2414,6 @@ button.link:disabled {
   gap: 8px;
   color: var(--muted);
   font-weight: 400;
-  letter-spacing: 0;
-  text-transform: none;
   white-space: nowrap;
 }
 
@@ -2444,16 +2440,14 @@ button.link:disabled {
 .boss-progress-row .boss-name {
   border-top: 1px solid var(--line);
   color: var(--muted);
-  font-size: 11px;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  font-size: var(--text-sm);
 }
 
 .boss-progress-cell {
   padding: 5px 8px;
   border-top: 1px solid var(--line);
   color: var(--ink);
-  font-size: 12px;
+  font-size: var(--text-base);
   text-align: center;
   white-space: nowrap;
   /* The counts are read as a column of figures, so the digits have to share a width or 8/12 and
@@ -2616,7 +2610,7 @@ button.link:disabled {
   gap: 6px;
   margin: 14px 0 0;
   color: var(--muted-2);
-  font-size: 11px;
+  font-size: var(--text-sm);
 }
 
 /* The same marks the cells draw, at the same weight. */
@@ -2653,7 +2647,7 @@ button.link:disabled {
    button: it goes somewhere, and the matrix has no mode for it to put the page into. */
 .boss-routine-link {
   color: var(--muted);
-  font-size: 13px;
+  font-size: var(--text-base);
 }
 
 /* One character's routine: a checklist of the catalog, grouped by cadence like the matrix. */
@@ -2664,7 +2658,7 @@ button.link:disabled {
 .routine-count {
   margin: 0 0 12px;
   color: var(--muted-2);
-  font-size: 13px;
+  font-size: var(--text-base);
 }
 
 .routine-group {
@@ -2674,9 +2668,8 @@ button.link:disabled {
 .routine-cadence {
   margin: 0 0 6px;
   color: var(--muted-2);
-  font-size: 11px;
+  font-size: var(--text-sm);
   font-weight: 400;
-  letter-spacing: 0.08em;
 }
 
 .routine-list {
@@ -2725,19 +2718,19 @@ button.link:disabled {
 }
 
 .routine-name {
-  font-size: 14px;
+  font-size: var(--text-lg);
 }
 
 .routine-locked {
   margin-left: auto;
   color: var(--muted-2);
-  font-size: 11px;
+  font-size: var(--text-sm);
 }
 
 .routine-error {
   margin: 10px 0 0;
   color: var(--ink);
-  font-size: 13px;
+  font-size: var(--text-base);
 }
 
 /* Week picker on the left, reset clocks on the right, above the table. They wrap onto two lines on
@@ -2763,7 +2756,7 @@ button.link:disabled {
   border-radius: 6px;
   background: var(--surface);
   color: var(--ink);
-  font-size: 14px;
+  font-size: var(--text-lg);
   line-height: 1.4;
   cursor: pointer;
 }
@@ -2784,7 +2777,7 @@ button.link:disabled {
 .week-label {
   min-width: 150px;
   color: var(--ink);
-  font-size: 13px;
+  font-size: var(--text-base);
   text-align: center;
 }
 
@@ -2795,7 +2788,7 @@ button.link:disabled {
   border-radius: 6px;
   background: transparent;
   color: var(--muted);
-  font-size: 12px;
+  font-size: var(--text-base);
   cursor: pointer;
 }
 
@@ -2809,7 +2802,7 @@ button.link:disabled {
   align-items: baseline;
   gap: 12px;
   margin: 0;
-  font-size: 12px;
+  font-size: var(--text-base);
 }
 
 .reset-lead,
@@ -2822,7 +2815,7 @@ button.link:disabled {
 /* Weekly is the one that matters for 16 of the 19 bosses, so it is the one that reads first. */
 .reset-lead .reset-value {
   color: var(--ink);
-  font-size: 13px;
+  font-size: var(--text-base);
   font-weight: 600;
 }
 
@@ -2842,8 +2835,7 @@ button.link:disabled {
 
 .reset-zone {
   color: var(--muted-2);
-  font-size: 11px;
-  letter-spacing: 0.06em;
+  font-size: var(--text-sm);
   cursor: help;
 }
 
@@ -2851,7 +2843,7 @@ button.link:disabled {
 .boss-empty-week {
   margin: 8px 0 0;
   color: var(--muted-2);
-  font-size: 11px;
+  font-size: var(--text-sm);
 }
 
 .boss-empty-week {
@@ -2942,7 +2934,7 @@ button.link:disabled {
 .planner-refused {
   margin: 8px 0 0;
   color: var(--warn);
-  font-size: 12px;
+  font-size: var(--text-base);
   font-weight: 600;
 }
 
@@ -2953,7 +2945,7 @@ button.link:disabled {
   margin: 0;
   padding: 0;
   list-style: none;
-  font-size: 12px;
+  font-size: var(--text-base);
 }
 
 .planner-clears li {
@@ -2977,7 +2969,7 @@ button.link:disabled {
 .planner-caveat {
   margin: 6px 0 0;
   color: var(--warn);
-  font-size: 12px;
+  font-size: var(--text-base);
 }
 
 /* Drop split
@@ -2996,7 +2988,7 @@ button.link:disabled {
   border: 0;
   padding: 0;
   margin: 0;
-  font-size: 13px;
+  font-size: var(--text-base);
   color: var(--muted);
 }
 
@@ -3007,7 +2999,7 @@ button.link:disabled {
 
 .split-input {
   font: inherit;
-  font-size: 14px;
+  font-size: var(--text-lg);
   padding: 9px 12px;
   border-radius: 8px;
   border: 1px solid var(--line);
@@ -3044,20 +3036,20 @@ button.link:disabled {
 
 .split-method-label {
   color: var(--ink-strong);
-  font-size: 14px;
+  font-size: var(--text-lg);
 }
 
 /* Second row, under the radio rather than beside it. */
 .split-method-hint {
   grid-column: 2;
   color: var(--muted-2);
-  font-size: 11px;
+  font-size: var(--text-sm);
   line-height: 1.4;
 }
 
 .split-hint {
   color: var(--muted-2);
-  font-size: 11px;
+  font-size: var(--text-sm);
   line-height: 1.4;
 }
 
@@ -3071,7 +3063,7 @@ button.link:disabled {
   background: none;
   color: var(--accent);
   font: inherit;
-  font-size: 11px;
+  font-size: var(--text-sm);
   cursor: pointer;
   text-decoration: underline;
 }
@@ -3080,17 +3072,15 @@ button.link:disabled {
   width: 100%;
   border-collapse: collapse;
   margin-bottom: 16px;
-  font-size: 13px;
+  font-size: var(--text-base);
   font-variant-numeric: tabular-nums;
 }
 
 .split-table th {
   text-align: right;
-  font-weight: normal;
+  font-weight: 400;
   color: var(--muted-2);
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
+  font-size: var(--text-sm);
   padding: 0 0 6px;
 }
 .split-table th:first-child,
@@ -3138,10 +3128,8 @@ button.link:disabled {
 
 /* Reserved, not hidden: revealing it on hover would reflow the row under the cursor. */
 .copy-mark {
-  font-size: 10px;
+  font-size: var(--text-sm);
   color: var(--muted-2);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
   opacity: 0;
   transition: opacity 0.1s ease;
 }
@@ -3213,7 +3201,7 @@ button.link:disabled {
 .split-math > summary {
   cursor: pointer;
   color: var(--accent);
-  font-size: 12px;
+  font-size: var(--text-base);
   list-style: none;
 }
 .split-math > summary::-webkit-details-marker {
@@ -3236,7 +3224,7 @@ button.link:disabled {
   flex-direction: column;
   gap: 5px;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 12px;
+  font-size: var(--text-base);
 }
 
 .math-steps li {
@@ -3261,14 +3249,14 @@ button.link:disabled {
   margin: 22px 0 0;
   max-width: 60ch;
   color: var(--muted-2);
-  font-size: 11px;
+  font-size: var(--text-sm);
   line-height: 1.6;
 }
 
 .split-error {
   margin: 16px 0 0;
   color: var(--warn);
-  font-size: 13px;
+  font-size: var(--text-base);
 }
 
 .split-result {
@@ -3281,7 +3269,7 @@ button.link:disabled {
 
 .split-headline {
   margin: 0 0 14px;
-  font-size: 15px;
+  font-size: var(--text-lg);
   color: var(--ink);
 }
 .split-headline strong {
@@ -3294,7 +3282,7 @@ button.link:disabled {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  font-size: 13px;
+  font-size: var(--text-base);
 }
 
 .split-lines > div {
@@ -3322,7 +3310,7 @@ button.link:disabled {
 .split-note {
   margin: 14px 0 0;
   color: var(--warn);
-  font-size: 12px;
+  font-size: var(--text-base);
   line-height: 1.5;
 }
 
@@ -3367,7 +3355,7 @@ button.link:disabled {
 
 /* The name carries the banner, so it is not the 15px a heading over a list needed. */
 .party-banner .party-group-name {
-  font-size: 17px;
+  font-size: var(--text-lg);
   overflow-wrap: anywhere;
 }
 
@@ -3390,7 +3378,7 @@ button.link:disabled {
   margin-left: auto;
   flex: none;
   color: var(--muted-2);
-  font-size: 12px;
+  font-size: var(--text-base);
 }
 
 .party-group-head {
@@ -3404,7 +3392,7 @@ button.link:disabled {
 
 .party-group-name {
   margin: 0;
-  font-size: 15px;
+  font-size: var(--text-lg);
   color: var(--ink-strong);
 }
 
@@ -3443,29 +3431,24 @@ button.link:disabled {
 
 .party-card-name {
   margin: 0;
-  font-size: 14px;
+  font-size: var(--text-lg);
   color: var(--ink-strong);
 }
 
 .party-card-size {
   color: var(--muted);
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+  font-size: var(--text-sm);
 }
 
 /* The size label's shape, in the caveat colour: a retired config is not an error, it is a fact
    about the page you are on. Only the party's own page draws one, since no list carries them. */
 .party-card-retired {
   color: var(--warn);
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+  font-size: var(--text-sm);
 }
 
 .party-mvp {
-  font-size: 10px;
-  letter-spacing: 0.04em;
+  font-size: var(--text-sm);
   color: var(--good);
 }
 
@@ -3482,7 +3465,7 @@ button.link:disabled {
   padding: 10px 14px;
   border: 1px solid var(--warn);
   border-radius: 8px;
-  font-size: 13px;
+  font-size: var(--text-base);
   color: var(--ink);
 }
 
@@ -3491,7 +3474,7 @@ button.link:disabled {
 .party-delete,
 .party-add-seat {
   font: inherit;
-  font-size: 13px;
+  font-size: var(--text-base);
   padding: 8px 14px;
   border-radius: 8px;
   border: 1px solid var(--line);
@@ -3547,9 +3530,7 @@ button.link:disabled {
 .party-field-label {
   padding: 0;
   color: var(--muted);
-  font-size: 12px;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+  font-size: var(--text-base);
 }
 
 .party-seat {
@@ -3563,13 +3544,13 @@ button.link:disabled {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  font-size: 12px;
+  font-size: var(--text-base);
   color: var(--muted);
 }
 
 .party-seat-remove {
   font: inherit;
-  font-size: 16px;
+  font-size: var(--text-lg);
   line-height: 1;
   width: 28px;
   height: 28px;
@@ -3601,7 +3582,7 @@ button.link:disabled {
   padding: 5px 10px;
   border: 1px solid var(--line);
   border-radius: 999px;
-  font-size: 12px;
+  font-size: var(--text-base);
   color: var(--muted);
   cursor: pointer;
 }
@@ -3614,14 +3595,14 @@ button.link:disabled {
 .party-hint {
   margin: 0;
   color: var(--muted-2);
-  font-size: 12px;
+  font-size: var(--text-base);
 }
 
 /* The loot pool. One card per drop, taken from "in the pool" to "settled". Every figure in a row
    comes from splitOf() (lib/loot.ts), which calls the same splitDrop() the Split Utility does. */
 .loot-back {
   margin: 0 0 8px;
-  font-size: 13px;
+  font-size: var(--text-base);
 }
 
 .loot-back a {
@@ -3644,7 +3625,7 @@ button.link:disabled {
 
 .party-loot-summary {
   margin: 0;
-  font-size: 12px;
+  font-size: var(--text-base);
   color: var(--warn);
 }
 
@@ -3668,7 +3649,7 @@ button.link:disabled {
 
 .loot-pool-title {
   margin: 0;
-  font-size: 15px;
+  font-size: var(--text-lg);
   color: var(--ink-strong);
 }
 
@@ -3691,10 +3672,8 @@ button.link:disabled {
    the heading for the whole thing. */
 .loot-group-title {
   margin: 16px 0 6px;
-  font-size: 12px;
-  font-weight: 500;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  font-size: var(--text-base);
+  font-weight: 600;
   color: var(--muted);
 }
 
@@ -3874,7 +3853,7 @@ button.link:disabled {
   margin-left: auto;
   padding-left: 4px;
   color: var(--muted-2);
-  font-size: 10px;
+  font-size: var(--text-sm);
 }
 
 .loot-list {
@@ -3924,12 +3903,12 @@ button.link:disabled {
 
 .loot-name {
   color: var(--ink-strong);
-  font-size: 14px;
+  font-size: var(--text-lg);
 }
 
 .loot-meta {
   color: var(--muted);
-  font-size: 12px;
+  font-size: var(--text-base);
 }
 
 .loot-status {
@@ -3937,10 +3916,8 @@ button.link:disabled {
   padding: 3px 9px;
   border-radius: 999px;
   border: 1px solid var(--line);
-  font-size: 11px;
+  font-size: var(--text-sm);
   color: var(--muted);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
 }
 
 .loot-status.is-sold {
@@ -3959,7 +3936,7 @@ button.link:disabled {
   border-left: 2px solid var(--warn);
   background: var(--surface-2);
   color: var(--ink);
-  font-size: 12px;
+  font-size: var(--text-base);
   line-height: 1.5;
 }
 
@@ -3984,13 +3961,13 @@ button.link:disabled {
 
 .loot-parsed {
   color: var(--muted);
-  font-size: 12px;
+  font-size: var(--text-base);
   font-variant-numeric: tabular-nums;
 }
 
 .loot-sold-line {
   margin: 0;
-  font-size: 13px;
+  font-size: var(--text-base);
   color: var(--ink);
   line-height: 1.6;
 }
@@ -4019,7 +3996,7 @@ button.link:disabled {
   border: 1px solid var(--line);
   border-radius: 6px;
   color: var(--muted);
-  font-size: 13px;
+  font-size: var(--text-base);
 }
 
 /* Fewest taken, so whoever is up reads off the tally instead of off a sentence explaining it.
@@ -4036,7 +4013,7 @@ button.link:disabled {
 .loot-taken-by {
   align-self: center;
   color: var(--ink-strong);
-  font-size: 13px;
+  font-size: var(--text-base);
 }
 
 .loot-shares {
@@ -4055,7 +4032,7 @@ button.link:disabled {
   gap: 10px;
   padding-top: 6px;
   border-top: 1px solid var(--line-soft);
-  font-size: 13px;
+  font-size: var(--text-base);
 }
 
 .loot-shares > li.is-paid {
@@ -4073,7 +4050,7 @@ button.link:disabled {
 
 .loot-share-nets {
   color: var(--muted);
-  font-size: 12px;
+  font-size: var(--text-base);
   font-variant-numeric: tabular-nums;
 }
 
@@ -4102,7 +4079,7 @@ button.link:disabled {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-size: 12px;
+  font-size: var(--text-base);
   color: var(--muted);
 }
 
@@ -4116,7 +4093,7 @@ button.link:disabled {
 
 /* Your own character on the roster line: the config, so it is named rather than typed. */
 .config-own-name {
-  font-size: 13px;
+  font-size: var(--text-base);
   padding: 6px 8px;
   color: var(--ink-strong);
 }
@@ -4128,7 +4105,7 @@ button.link:disabled {
 
 .loot-paid {
   font: inherit;
-  font-size: 12px;
+  font-size: var(--text-base);
   margin-left: auto;
   padding: 4px 10px;
   border-radius: 999px;
@@ -4195,7 +4172,7 @@ button.link:disabled {
 
 .grid-table {
   border-collapse: collapse;
-  font-size: 13px;
+  font-size: var(--text-base);
 }
 
 .grid-table {
@@ -4223,7 +4200,7 @@ button.link:disabled {
 .grid-row-name,
 .grid-person-name {
   width: 100%;
-  font-size: 13px;
+  font-size: var(--text-base);
   padding: 5px 8px;
 }
 
@@ -4233,7 +4210,7 @@ button.link:disabled {
 
 .grid-cell-label {
   width: 100%;
-  font-size: 13px;
+  font-size: var(--text-base);
   padding: 5px 8px;
 }
 
@@ -4242,7 +4219,7 @@ button.link:disabled {
 .grid-cell-ign {
   width: 100%;
   margin-top: 4px;
-  font-size: 11px;
+  font-size: var(--text-sm);
   padding: 3px 8px;
   color: var(--muted);
   background: var(--surface-2);
@@ -4257,7 +4234,7 @@ button.link:disabled {
   align-items: center;
   gap: 4px;
   margin-top: 4px;
-  font-size: 11px;
+  font-size: var(--text-sm);
   color: var(--muted);
 }
 
@@ -4266,7 +4243,7 @@ button.link:disabled {
   top: 4px;
   right: 4px;
   font: inherit;
-  font-size: 13px;
+  font-size: var(--text-base);
   line-height: 1;
   padding: 2px 5px;
   border: 0;
@@ -4292,7 +4269,7 @@ button.link:disabled {
   align-items: center;
   gap: 4px;
   margin-top: 6px;
-  font-size: 11px;
+  font-size: var(--text-sm);
   color: var(--muted);
 }
 
@@ -4308,7 +4285,7 @@ button.link:disabled {
 
 .grid-boss-remove {
   font: inherit;
-  font-size: 12px;
+  font-size: var(--text-base);
   line-height: 1;
   padding: 0 2px;
   border: 0;
@@ -4322,7 +4299,7 @@ button.link:disabled {
 }
 
 .grid-boss-add {
-  font-size: 11px;
+  font-size: var(--text-sm);
   padding: 3px 6px;
 }
 
@@ -4336,7 +4313,7 @@ button.link:disabled {
 
 .grid-problem {
   color: var(--warn);
-  font-size: 12px;
+  font-size: var(--text-base);
 }
 
 /* The Parties page's own controls: how to list them, and the way to the editor. */
@@ -4367,7 +4344,7 @@ button.link:disabled {
   padding: 6px 12px;
   border: 1px solid var(--line);
   border-radius: 999px;
-  font-size: 12px;
+  font-size: var(--text-base);
   color: var(--muted);
   cursor: pointer;
 }
@@ -4459,12 +4436,12 @@ button.link:disabled {
 
 .config-boss {
   margin: 0;
-  font-size: 14px;
+  font-size: var(--text-lg);
   color: var(--ink-strong);
 }
 
 .config-label {
-  font-size: 12px;
+  font-size: var(--text-base);
   padding: 5px 8px;
   max-width: 180px;
 }
@@ -4472,7 +4449,7 @@ button.link:disabled {
 /* Narrow on purpose: the widest option is "Extreme", and a full-width select beside the boss
    name reads as the more important of the two. */
 .config-difficulty {
-  font-size: 12px;
+  font-size: var(--text-base);
   padding: 5px 8px;
   max-width: 130px;
 }
@@ -4486,13 +4463,13 @@ button.link:disabled {
 }
 
 .config-minutes-input {
-  font-size: 12px;
+  font-size: var(--text-base);
   padding: 5px 8px;
   width: 74px;
 }
 
 .config-minutes-unit {
-  font-size: 12px;
+  font-size: var(--text-base);
   color: var(--muted-2);
 }
 
@@ -4514,7 +4491,7 @@ button.link:disabled {
 }
 
 .config-member .split-input {
-  font-size: 13px;
+  font-size: var(--text-base);
   padding: 6px 8px;
   width: 160px;
 }
@@ -4584,7 +4561,7 @@ button.link:disabled {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-size: 12px;
+  font-size: var(--text-base);
   color: var(--muted);
 }
 
@@ -4597,7 +4574,7 @@ button.link:disabled {
    than the boxes: both are derived from what was typed, not more things to type. */
 .config-share-stacks,
 .config-share-drop {
-  font-size: 11px;
+  font-size: var(--text-sm);
   color: var(--muted);
 }
 
@@ -4621,12 +4598,12 @@ button.link:disabled {
 }
 
 .config-looter-label {
-  font-size: 12px;
+  font-size: var(--text-base);
   color: var(--muted);
 }
 
 .config-looter .split-input {
-  font-size: 13px;
+  font-size: var(--text-base);
   padding: 6px 8px;
 }
 
@@ -4648,14 +4625,14 @@ button.link:disabled {
 
 .person-name {
   width: 160px;
-  font-size: 13px;
+  font-size: var(--text-base);
   padding: 7px 10px;
 }
 
 .person-characters {
   flex: 1;
   min-width: 240px;
-  font-size: 13px;
+  font-size: var(--text-base);
   padding: 7px 10px;
 }
 
@@ -4665,15 +4642,13 @@ button.link:disabled {
 .party-clear {
   align-self: flex-start;
   font: inherit;
-  font-size: 11px;
+  font-size: var(--text-sm);
   padding: 3px 10px;
   border-radius: 999px;
   border: 1px solid var(--line);
   background: var(--surface-2);
   color: var(--muted);
   cursor: pointer;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
 }
 
 /* Ordered by brightness, and by brightness only. Three palettes were tried on these states and on
@@ -4746,7 +4721,7 @@ button.link:disabled {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 11px;
+  font-size: var(--text-sm);
   color: var(--ink);
 }
 
@@ -4759,15 +4734,14 @@ button.link:disabled {
 }
 
 .roster-person {
-  font-size: 10px;
+  font-size: var(--text-sm);
   color: var(--muted-2);
 }
 
 /* Not in the usual party. Sits where the owner's name would, and is picked out because it is the
    one thing on the tile that says this week is not like the others. */
 .roster-guest {
-  font-size: 10px;
-  letter-spacing: 0.04em;
+  font-size: var(--text-sm);
   color: var(--accent);
 }
 
@@ -4835,7 +4809,7 @@ button.link:disabled {
 
 .party-row-name {
   margin: 0;
-  font-size: 14px;
+  font-size: var(--text-lg);
   color: var(--ink-strong);
 }
 
@@ -4843,14 +4817,12 @@ button.link:disabled {
    can run the same boss at different ones. Filed by character it is part of the name instead. */
 .party-difficulty {
   color: var(--muted);
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+  font-size: var(--text-sm);
 }
 
 .party-row-label {
   color: var(--muted);
-  font-size: 12px;
+  font-size: var(--text-base);
 }
 
 /* Right of everything on the same line, which is the point: the eye runs down one column of
@@ -4898,7 +4870,7 @@ button.link:disabled {
    cannot be read as the whole pool, not to ask for anything. */
 .party-loot-earlier {
   align-self: flex-start;
-  font-size: 12px;
+  font-size: var(--text-base);
   color: var(--muted);
 }
 
@@ -4964,12 +4936,12 @@ button.link:disabled {
 
 .stat-label {
   color: var(--muted);
-  font-size: 12px;
+  font-size: var(--text-base);
 }
 
 .stat-value {
   color: var(--ink-strong);
-  font-size: 18px;
+  font-size: var(--text-xl);
   /* Tabular, so the three totals line up digit for digit and can be compared by length. */
   font-variant-numeric: tabular-nums;
 }
@@ -4986,7 +4958,7 @@ button.link:disabled {
  * landed in inventories and NOT the prices as typed. See lib/drop-log.ts. */
 .stat-note {
   color: var(--muted-2);
-  font-size: 11px;
+  font-size: var(--text-sm);
   line-height: 1.4;
 }
 
@@ -5002,7 +4974,7 @@ button.link:disabled {
    character row, and it is the one control on the card that changes nothing about the money. */
 .ledger-pin {
   font: inherit;
-  font-size: 15px;
+  font-size: var(--text-lg);
   line-height: 1;
   padding: 2px 4px;
   border: 0;
@@ -5025,7 +4997,7 @@ button.link:disabled {
    them put -139,548,023 in red for being unsettled while it was also a credit against the debt
    above it, so one number read as a problem and as progress at once. The sign carries them. */
 .ledger-amount {
-  font-size: 14px;
+  font-size: var(--text-lg);
   font-variant-numeric: tabular-nums;
 }
 
@@ -5051,7 +5023,7 @@ button.link:disabled {
   flex-direction: column;
   gap: 8px;
   color: var(--muted);
-  font-size: 12px;
+  font-size: var(--text-base);
   line-height: 1.5;
 }
 
@@ -5073,7 +5045,7 @@ button.link:disabled {
 
 .droplog-group-total {
   color: var(--good);
-  font-size: 14px;
+  font-size: var(--text-lg);
   font-variant-numeric: tabular-nums;
 }
 
@@ -5133,11 +5105,10 @@ button.link:disabled {
 
 .droplog-character-head .loot-name {
   color: var(--ink-strong);
-  font-size: 12px;
+  font-size: var(--text-base);
   /* Weight rather than size: at 13px it was the boss names' own register, and a heading that
      matches its rows is a row. */
   font-weight: 600;
-  letter-spacing: 0.02em;
 }
 
 /* The nights under a character. No rule and no second indent step: the chevron column already
@@ -5157,7 +5128,7 @@ button.link:disabled {
 .droplog-run .loot-name {
   color: var(--ink-strong);
   text-decoration: none;
-  font-size: 13px;
+  font-size: var(--text-base);
 }
 
 .droplog-run .loot-name:hover {
@@ -5210,7 +5181,7 @@ button.link:disabled {
 
 .droplog-take {
   color: var(--good);
-  font-size: 14px;
+  font-size: var(--text-lg);
   font-variant-numeric: tabular-nums;
 }
 
@@ -5250,7 +5221,7 @@ button.link:disabled {
 .audit-meta {
   margin: -14px 0 20px;
   color: var(--muted);
-  font-size: 12px;
+  font-size: var(--text-base);
 }
 
 /* One drop's history, oldest first. A row is an act: when it happened, what it was, and the figure
@@ -5274,7 +5245,7 @@ button.link:disabled {
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--surface);
-  font-size: 13px;
+  font-size: var(--text-base);
 }
 
 /* No date: an act nobody recorded a day for, or one that has not happened yet. Set back like a
@@ -5291,7 +5262,7 @@ button.link:disabled {
   flex: none;
   width: 88px;
   color: var(--muted);
-  font-size: 12px;
+  font-size: var(--text-base);
   font-variant-numeric: tabular-nums;
 }
 
@@ -5310,7 +5281,7 @@ button.link:disabled {
 }
 
 .audit-detail .loot-name {
-  font-size: 13px;
+  font-size: var(--text-base);
   text-decoration: none;
 }
 
@@ -5377,7 +5348,7 @@ button.link:disabled {
 
 .night-heading {
   margin: 0 0 8px;
-  font-size: 13px;
+  font-size: var(--text-base);
   font-weight: 600;
   color: var(--ink-strong);
 }
@@ -5416,7 +5387,7 @@ button.link:disabled {
   border-radius: 999px;
   background: var(--surface);
   color: var(--muted-2);
-  font-size: 12px;
+  font-size: var(--text-base);
   cursor: pointer;
 }
 
@@ -5446,7 +5417,7 @@ button.link:disabled {
   border-radius: 0 999px 999px 0;
   background: var(--surface);
   color: var(--muted-2);
-  font-size: 10px;
+  font-size: var(--text-sm);
   line-height: 18px;
   cursor: pointer;
 }
@@ -5504,7 +5475,7 @@ button.link:disabled {
 
 .night-detail-who {
   color: var(--ink-strong);
-  font-size: 12px;
+  font-size: var(--text-base);
   font-weight: 600;
 }
 
@@ -5516,7 +5487,7 @@ button.link:disabled {
 .night-now {
   margin-left: auto;
   color: var(--muted-2);
-  font-size: 12px;
+  font-size: var(--text-base);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
@@ -5538,7 +5509,7 @@ button.link:disabled {
   align-items: center;
   gap: 6px;
   color: var(--muted);
-  font-size: 12px;
+  font-size: var(--text-base);
 }
 
 .night-custom .split-input {
@@ -5554,7 +5525,7 @@ button.link:disabled {
   gap: 6px;
   margin-top: 10px;
   color: var(--muted);
-  font-size: 12px;
+  font-size: var(--text-base);
   cursor: pointer;
 }
 
@@ -5601,7 +5572,7 @@ button.link:disabled {
 
 .night-progress {
   color: var(--muted);
-  font-size: 12px;
+  font-size: var(--text-base);
   font-variant-numeric: tabular-nums;
 }
 
@@ -5622,7 +5593,7 @@ button.link:disabled {
 .run-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 13px;
+  font-size: var(--text-base);
 }
 
 .run-col-head,
@@ -5630,7 +5601,7 @@ button.link:disabled {
   padding: 6px 8px;
   border-bottom: 1px solid var(--line);
   color: var(--muted);
-  font-weight: 500;
+  font-weight: 400;
   text-align: center;
   white-space: nowrap;
 }
@@ -5674,10 +5645,9 @@ button.link:disabled {
 
 .run-tick-at {
   color: var(--muted);
-  font-size: 11px;
+  font-size: var(--text-sm);
   font-variant-numeric: tabular-nums;
-  font-weight: 500;
-  letter-spacing: 0.02em;
+  font-weight: 400;
 }
 
 .run-tick:hover {
@@ -5690,7 +5660,7 @@ button.link:disabled {
   padding: 5px 8px;
   border-top: 1px dashed var(--line);
   color: var(--muted-2);
-  font-size: 12px;
+  font-size: var(--text-base);
 }
 
 .run-wait:hover {
@@ -5763,12 +5733,12 @@ button.link:disabled {
 
 .run-boss-name {
   color: var(--ink-strong);
-  font-size: 13px;
+  font-size: var(--text-base);
 }
 
 .run-boss-minutes {
   color: var(--muted-2);
-  font-size: 11px;
+  font-size: var(--text-sm);
   font-variant-numeric: tabular-nums;
 }
 
@@ -5793,7 +5763,7 @@ button.link:disabled {
   padding: 0 5px;
   border: 1px solid var(--line);
   border-radius: 999px;
-  font-size: 11px;
+  font-size: var(--text-sm);
   color: var(--muted);
 }
 
@@ -5811,7 +5781,7 @@ button.link:disabled {
 }
 
 .run-swap {
-  font-size: 11px;
+  font-size: var(--text-sm);
 }
 
 /* The same pill the arrangement view's boss chips carry, and the same reason: beside a boss name
@@ -5821,7 +5791,7 @@ button.link:disabled {
   padding: 0 5px;
   border-radius: 999px;
   background: var(--surface);
-  font-size: 10px;
+  font-size: var(--text-sm);
   white-space: nowrap;
 }
 
@@ -5841,7 +5811,7 @@ button.link:disabled {
 .run-clear-head {
   border-bottom: 1px solid var(--line);
   color: var(--muted);
-  font-weight: 500;
+  font-weight: 400;
 }
 
 .run-clear-cell {
@@ -5857,7 +5827,7 @@ button.link:disabled {
   background: none;
   color: transparent;
   font: inherit;
-  font-size: 14px;
+  font-size: var(--text-lg);
   line-height: 1;
   cursor: pointer;
 }
@@ -5910,7 +5880,7 @@ button.link:disabled {
   margin: 0;
   padding: 0;
   list-style: none;
-  font-size: 12px;
+  font-size: var(--text-base);
 }
 
 .night-leftovers li {
@@ -5984,7 +5954,7 @@ button.link:disabled {
 .ledger-tally {
   margin-left: auto;
   color: var(--muted);
-  font-size: 12px;
+  font-size: var(--text-base);
   font-variant-numeric: tabular-nums;
 }
 
@@ -6013,7 +5983,7 @@ button.link:disabled {
 /* A pile whose books are closed. Said rather than hidden: these bosses drop vestiges on every clear, so
    the card is a fixture and a missing one would only raise the question this answers. */
 .ledger-done {
-  font-size: 12px;
+  font-size: var(--text-base);
   color: var(--muted);
   font-variant-numeric: tabular-nums;
 }
@@ -6032,9 +6002,7 @@ button.link:disabled {
    what came back for them. A label, not a heading: the card is one thing with two stages, not two
    sections, so it sits in the flow rather than boxing them off. */
 .ledger-step {
-  font-size: 10px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  font-size: var(--text-sm);
   color: var(--muted);
 }
 
@@ -6047,7 +6015,7 @@ button.link:disabled {
 /* The card's one instruction, and it is a count. Sits directly above the control it is about, so the
    number and the box that changes it read as one thing rather than as a note about it. */
 .ledger-progress {
-  font-size: 12px;
+  font-size: var(--text-base);
   color: var(--muted);
   font-variant-numeric: tabular-nums;
 }
@@ -6064,7 +6032,7 @@ button.link:disabled {
 /* The disposition picker carries the vocabulary the three separate boxes used to, so it needs room for
    an option like "they took mine, at a price". Same treatment as the looter select on a party config. */
 .ledger-sale select.split-input {
-  font-size: 13px;
+  font-size: var(--text-base);
   padding: 6px 8px;
 }
 
@@ -6088,7 +6056,7 @@ button.link:disabled {
   flex-wrap: wrap;
   gap: 8px;
   color: var(--muted);
-  font-size: 12px;
+  font-size: var(--text-base);
   font-variant-numeric: tabular-nums;
 }
 
@@ -6106,7 +6074,7 @@ button.link:disabled {
 button.ledger-drop-sale {
   padding: 0 0 0 2px;
   color: var(--muted);
-  font-size: 13px;
+  font-size: var(--text-base);
   line-height: 1;
   text-decoration: none;
 }
@@ -6246,7 +6214,7 @@ button.ledger-drop-sale:hover:not(:disabled) {
 .lot-row-amount {
   margin-left: auto;
   color: var(--good);
-  font-size: 13px;
+  font-size: var(--text-base);
   font-variant-numeric: tabular-nums;
 }
 
@@ -6269,7 +6237,7 @@ button.ledger-drop-sale:hover:not(:disabled) {
   border-radius: 999px;
   background: var(--surface-2);
   font: inherit;
-  font-size: 12px;
+  font-size: var(--text-base);
   color: var(--ink-strong);
   cursor: pointer;
 }
@@ -6290,7 +6258,7 @@ button.ledger-drop-sale:hover:not(:disabled) {
   margin: 56px auto 24px;
   padding: 0 8px;
   color: var(--muted-2);
-  font-size: 12px;
+  font-size: var(--text-base);
   line-height: 1.5;
   text-align: center;
 }
@@ -6306,7 +6274,7 @@ button.ledger-drop-sale:hover:not(:disabled) {
   margin-top: 20px;
   padding: 10px 18px;
   font: inherit;
-  font-size: 14px;
+  font-size: var(--text-lg);
   border: 0;
   border-radius: 8px;
   background: #5865f2;
@@ -6333,7 +6301,7 @@ button.ledger-drop-sale:hover:not(:disabled) {
 
 .auth-panel h1 {
   margin: 0 0 16px;
-  font-size: 18px;
+  font-size: var(--text-xl);
 }
 
 .auth-field {
@@ -6344,7 +6312,7 @@ button.ledger-drop-sale:hover:not(:disabled) {
 .auth-field span {
   display: block;
   margin-bottom: 4px;
-  font-size: 12px;
+  font-size: var(--text-base);
   color: var(--muted);
 }
 
@@ -6353,7 +6321,7 @@ button.ledger-drop-sale:hover:not(:disabled) {
   box-sizing: border-box;
   padding: 8px 10px;
   font: inherit;
-  font-size: 14px;
+  font-size: var(--text-lg);
   border: 1px solid var(--line);
   border-radius: 6px;
   background: var(--surface-2);
@@ -6370,7 +6338,7 @@ button.ledger-drop-sale:hover:not(:disabled) {
   margin-top: 4px;
   padding: 9px 14px;
   font: inherit;
-  font-size: 14px;
+  font-size: var(--text-lg);
   border: 1px solid var(--accent);
   border-radius: 8px;
   background: var(--surface);
@@ -6386,14 +6354,14 @@ button.ledger-drop-sale:hover:not(:disabled) {
 
 .auth-error {
   margin: 0 0 10px;
-  font-size: 12px;
+  font-size: var(--text-base);
   color: var(--bad);
 }
 
 .auth-done,
 .auth-footer {
   margin: 12px 0 0;
-  font-size: 12px;
+  font-size: var(--text-base);
   color: var(--muted);
 }
 
@@ -6407,11 +6375,11 @@ button.ledger-drop-sale:hover:not(:disabled) {
 .auth-or {
   display: block;
   margin: 16px 0 12px;
-  font-size: 12px;
+  font-size: var(--text-base);
   color: var(--muted-2);
 }
 
 .hero-alt {
   margin: 12px 0 0;
-  font-size: 12px;
+  font-size: var(--text-base);
 }
