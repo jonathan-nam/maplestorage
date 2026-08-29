@@ -26,6 +26,7 @@ const NATURAL: Record<string, number> = {
   ".ms-slot > img": 46, // item icon canvas
   ".loot-icon": 46,
   ".ledger-drop-head.is-oneline .loot-icon": 46, // 0.7x, smoothed
+  ".loot-shares .loot-icon": 46, // half, in an offset's own list of nights
   ".counts-icon": 46,
   ".finder-suggest-row img": 46,
   ".drop-select-icon": 46,

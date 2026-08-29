@@ -4039,6 +4039,12 @@ button.link:disabled {
   color: var(--muted);
 }
 
+/* Half the canvas exactly, so the art still lands on whole pixels two folds into a card. */
+.loot-shares .loot-icon {
+  width: 23px;
+  height: 23px;
+}
+
 .loot-share-name {
   min-width: 90px;
   color: var(--ink-strong);

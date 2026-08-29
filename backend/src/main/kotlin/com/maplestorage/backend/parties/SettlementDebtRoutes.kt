@@ -24,6 +24,7 @@ import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import kotlin.time.Clock
+import kotlin.time.Instant
 import kotlin.uuid.Uuid
 
 // What somebody owes you that no drop accounts for: /api/settlement-debts.
@@ -70,6 +71,14 @@ data class AddSettlementDebtRequest(
     val note: String? = null,
     /** Only an offset names any. Absent is a debt somebody typed, which discharges no share. */
     val payouts: List<SettlementDebtPayoutRow> = emptyList(),
+    /**
+     * When the act happened, where that is not now.
+     *
+     * Only splitting an old offset into its shares sends one. Those rows are the SAME act as the
+     * entry they replace, so re-dating them to the day of the split would move a history entry to
+     * today and lose the one fact that tells two offsets against one person apart.
+     */
+    val incurredAt: String? = null,
 )
 
 fun Route.settlementDebtRoutes() {
@@ -94,8 +103,12 @@ private suspend fun RoutingContext.addDebtRoute() {
     val holder = request.holder.normalised()
     val note = request.note?.trim()?.takeIf { it.isNotEmpty() }
 
-    val refusal = debtRefusal(holder, request.amount, note)
+    val refusal = debtRefusal(holder, request.amount, note, request.incurredAt)
     if (refusal != null) return call.respond(HttpStatusCode.BadRequest, refusal)
+
+    // Already proved parseable by debtRefusal, which refuses rather than falling back to now(): a
+    // split that silently re-dates the rows it writes is the act quietly becoming three acts.
+    val incurred = request.incurredAt?.let { Instant.parse(it) }
 
     val payouts =
         request.payouts.map { Uuid.parseOrNull(it.lootId) to Uuid.parseOrNull(it.memberId) }
@@ -120,7 +133,8 @@ private suspend fun RoutingContext.addDebtRoute() {
                 it[characterName] = holder.characterName
                 it[amount] = request.amount
                 it[SettlementDebt.note] = note
-                it[incurredAt] = now
+                // The act's own day, not the day the row was written. See AddSettlementDebtRequest.
+                it[incurredAt] = incurred ?: now
                 it[createdAt] = now
             }
             // Whatever the offset discharged. Not checked against the payout rows themselves: the
@@ -168,6 +182,8 @@ internal fun debtRefusal(
     holder: VestigeHolder,
     amount: Long,
     note: String?,
+    /** Absent is now, which is every debt but a split of an older one. */
+    incurredAt: String? = null,
 ): String? =
     when {
         holder.kind !in setOf("PERSON", "CHARACTER") ->
@@ -185,6 +201,8 @@ internal fun debtRefusal(
         amount < -MAX_AMOUNT || amount > MAX_AMOUNT ->
             "amount must be between -$MAX_AMOUNT and $MAX_AMOUNT"
         note != null && note.length > MAX_NOTE -> "note must be at most $MAX_NOTE characters"
+        incurredAt != null && runCatching { Instant.parse(incurredAt) }.isFailure ->
+            "incurredAt is not a timestamp"
         else -> null
     }
 

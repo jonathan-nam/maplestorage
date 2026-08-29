@@ -8,10 +8,13 @@ import {
   moneyRows,
   offsetOf,
   owedByYouShares,
+  splittableDebts,
   settleThePair,
   sharesOf,
   yourPiles,
+  shareKey,
 } from "./settlement";
+import type { OffsetShare } from "./settlement";
 import {
   answeredKey,
   paymentsSinceClosing,
@@ -1729,5 +1732,82 @@ describe("pieces a sale has already answered for", () => {
       new Map([[answeredKey("person:p-bro", "self"), sold(50)]]),
     );
     expect([row!.pieces, row!.piecesAnswered.yours, row!.piecesNet]).toEqual([30, 50, -30]);
+  });
+});
+
+describe("splitting an offset written before one-row-per-share", () => {
+  const share = (lootId: string, memberId: string, amount: number): OffsetShare => ({
+    key: shareKey(lootId, memberId),
+    lootId,
+    memberId,
+    item: "Grindstone of Faith",
+    iconUrl: null,
+    boss: "Lotus",
+    members: ["Bro"],
+    on: "2026-08-28",
+    share: amount,
+    sale: null,
+    partyId: "p1",
+  });
+
+  const resolved = (...shares: OffsetShare[]) => new Map(shares.map((s) => [s.key, s]));
+
+  const entry = (id: string, amount: number, payouts: number): SettlementDebt => ({
+    id,
+    holder: BRO,
+    amount,
+    note: "offset against Bro",
+    payouts: Array.from({ length: payouts }, (_, i) => ({ lootId: `l${i}`, memberId: `m${i}` })),
+    incurredAt: "2026-08-29T15:14:30Z",
+  });
+
+  const THREE = resolved(
+    share("l0", "m0", 1_933_333_333),
+    share("l1", "m1", 372_222_222),
+    share("l2", "m2", 3_296_549_809),
+  );
+
+  it("gives one part per share when they reconstruct the entry exactly", () => {
+    const [split, ...rest] = splittableDebts([entry("d1", -5_602_105_364, 3)], THREE);
+    expect(rest).toEqual([]);
+    expect(split!.parts).toEqual([
+      { lootId: "l0", memberId: "m0", amount: 1_933_333_333 },
+      { lootId: "l1", memberId: "m1", amount: 372_222_222 },
+      { lootId: "l2", memberId: "m2", amount: 3_296_549_809 },
+    ]);
+  });
+
+  it("REFUSES when the shares no longer add up to what came off", () => {
+    // A roster that moved since divides the same lot a different way. Rows summing to something
+    // other than the act is the wrong number this ledger exists to prevent, and the entry it would
+    // replace is the only record of the real figure.
+    const off = resolved(share("l0", "m0", 1), share("l1", "m1", 2));
+    expect(splittableDebts([entry("d1", -5_602_105_364, 2)], off)).toEqual([]);
+  });
+
+  it("REFUSES while a share is still unresolved", () => {
+    // A deleted night, or pools that have not arrived yet. This runs on every render, so "not yet"
+    // and "never" have to end the same way: a partial split writes some of the act and drops the
+    // rest, and there is no second pass that would notice.
+    expect(splittableDebts([entry("d1", -500, 2)], resolved(share("l0", "m0", 500)))).toEqual([]);
+    expect(splittableDebts([entry("d1", -500, 2)], new Map())).toEqual([]);
+  });
+
+  it("REFUSES once another entry already names one of the shares", () => {
+    // What a split looks like when its rows landed and the delete behind them did not. Splitting
+    // again would write three more rows off the same act, and the figure would walk further from
+    // the truth on every load. A share is discharged once or the ledger is wrong.
+    const half = entry("d2", -1_933_333_333, 1);
+    expect(splittableDebts([entry("d1", -5_602_105_364, 3), half], THREE)).toEqual([]);
+  });
+
+  it("is not offered on an entry that is already one share", () => {
+    expect(splittableDebts([entry("d1", -500, 1)], resolved(share("l0", "m0", 500)))).toEqual([]);
+  });
+
+  it("is not offered on a debt somebody TYPED, which discharges nothing", () => {
+    // Positive is theirs to pay. It names no shares, and splitting a hand-entered figure would be
+    // inventing rows for an act that never covered any.
+    expect(splittableDebts([entry("d1", 5_602_105_364, 3)], THREE)).toEqual([]);
   });
 });

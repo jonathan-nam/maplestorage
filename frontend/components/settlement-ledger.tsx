@@ -380,8 +380,10 @@ function SettlementCard({
           // of the nights behind a figure is a figure that no longer adds up.
           key: shareKey(share.lootId, share.memberId),
           // Empty rather than the id it was keyed by: there is nothing at the other end of a link
-          // to a drop that is gone, so the row names it and goes nowhere.
+          // to a drop that is gone, so the row names it and goes nowhere. It is also what stops a
+          // deleted night being split back out into a row. See splittableOffset.
           lootId: "",
+          memberId: share.memberId,
           item: "A drop that has been deleted",
           iconUrl: null,
           boss: "",
@@ -1109,6 +1111,14 @@ function DischargeRow({
         <ul className="loot-shares" id={panelId}>
           {shares.map((share) => (
             <li key={share.key}>
+              {/* The art the rest of the account reads drops by. The row above carries it, and a
+                  list of drops that drops the icons is the one place on this card you cannot tell
+                  two grindstones apart at a glance. */}
+              {share.iconUrl ? (
+                <img className="loot-icon" src={apiAssetUrl(share.iconUrl)} alt="" />
+              ) : (
+                <span className="loot-icon" aria-hidden="true" />
+              )}
               <span className="loot-share-name">
                 {share.lootId ? (
                   <Link href={`/bosses/drops/${share.lootId}`} className="loot-name">
