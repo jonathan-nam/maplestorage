@@ -111,21 +111,22 @@ describe("the MapleStory face", () => {
     expect(body?.body).toMatch(/sans-serif/);
   });
 
-  it("never claims the digits", () => {
-    // The whole reason the app can wear this face. Maplestory's figures have four different
-    // advances, so a column of mesos walks sideways as the numbers change. Dropping U+30-39 from
-    // the range hands the digits back to the system stack, which is tabular. Removing this line
-    // silently un-aligns every number in the app, which is why it is a test and not a comment.
+  it("draws the digits as well, which is the deliberate part", () => {
+    // The face was briefly held off U+30-39 so the figures came from the system stack, which is
+    // tabular. One face everywhere was chosen over that, knowing the cost: Maplestory has four
+    // different digit advances (60px against 90px over ten glyphs) and no `tnum` to switch on, so
+    // `font-variant-numeric: tabular-nums` cannot rescue it. A number that changes in place moves
+    // the text beside it. Re-adding a unicode-range here would reverse a decision, not fix a bug.
     const faces = rules().filter((r) => r.selector.includes("@font-face"));
     expect(faces.length).toBeGreaterThan(0);
     for (const face of faces) {
-      expect(face.body).toContain("unicode-range: U+0-2F, U+3A-10FFFF");
+      expect(face.body).not.toMatch(/unicode-range/);
     }
   });
 
   it("is served as distributed, because the licence says so", () => {
     // Nexon allow free commercial use and web embedding, and forbid modifying the file. That is
-    // what rules out subsetting the 480KB down to Latin, and why the digits go in CSS instead.
+    // what rules out subsetting the 480KB down to the Latin this app actually draws.
     for (const face of rules().filter((r) => r.selector.includes("@font-face"))) {
       expect(face.body).toMatch(/Maplestory-(Light|Bold)\.woff2/);
     }
@@ -136,5 +137,22 @@ describe("the MapleStory face", () => {
     // game with the wrong voice, which is the mistake the slate shell made.
     const win = rules().find((r) => r.selector === ".ms-window");
     expect(win?.body).toMatch(/font-family:\s*Arial/);
+  });
+
+  it("keeps the face out of the window entirely, figures included", () => {
+    // The window's numbers are the one place the ragged digits would land on the game's own
+    // furniture, and the counts in the slots are digit IMAGES besides. Everything in here either
+    // says Arial or inherits it. Naming Maplestory on any of them re-dresses the replica.
+    const inside = rules().filter((r) => /\.ms-|\.sk-/.test(r.selector));
+    expect(inside.length).toBeGreaterThan(0);
+    for (const rule of inside) {
+      expect(rule.body).not.toContain("Maplestory");
+    }
+    const families = inside
+      .filter((r) => r.body.includes("font-family"))
+      .map((r) => (r.body.match(/font-family:\s*([^;]+)/) ?? [])[1]?.trim());
+    for (const fam of families) {
+      expect(fam === "inherit" || fam?.startsWith("Arial")).toBe(true);
+    }
   });
 });

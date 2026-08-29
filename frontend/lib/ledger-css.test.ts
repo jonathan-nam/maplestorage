@@ -22,10 +22,13 @@ describe("the disposition picker", () => {
   });
 });
 
-// The instruction is a count above the control it is about. Muted and tabular, so a changing number
-// does not shift the box beneath it.
+// The instruction is a count above the control it is about.
 describe("the progress line", () => {
-  it("is tabular, so the digits do not jitter as it counts", () => {
+  // This asked for tabular figures and used to get them. Maplestory has none and no `tnum` to turn
+  // on, so the declaration is inert and the count DOES shift as it changes. It stays because it is
+  // still the right ask and costs nothing the day the face changes. The test asserts the ask, not
+  // an alignment the app can no longer promise, which is the whole difference.
+  it("still asks for tabular figures, though the face does not answer", () => {
     const rule = css.match(/^\.ledger-progress \{([^}]*)\}/m);
     expect(rule?.[1]).toContain("font-variant-numeric: tabular-nums");
   });
