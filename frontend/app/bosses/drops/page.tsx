@@ -12,7 +12,7 @@ import { LogDrop } from "@/components/log-drop";
 import { LotSale } from "@/components/lot-sale";
 import { PieceLedger } from "@/components/piece-ledger";
 import { RowSale } from "@/components/row-sale";
-import { MARK_DROP, SectionMark } from "@/components/section-mark";
+import { SectionMark } from "@/components/section-mark";
 import { StackArrangement } from "@/components/stack-arrangement";
 import { SettledView } from "@/components/settled-view";
 import { buildSettledLog, orphansOf, settledTotals } from "@/lib/settled-log";
@@ -687,13 +687,11 @@ export default function DropLogPage() {
   // Whether the sale boxes will draw anything, which decides with the coupon piles whether there is
   // a Record Sale section at all. A heading over no cards is a heading over nothing.
   const anythingToPrice = money && (lots.length > 0 || alone.length > 0);
-  // A drop's sprite, off whichever boss table carries it. Every table names the same drop.
-  const catalogIcon = (key: string) =>
+  // The coupon's sprite, off whichever boss table carries it. Every table names the same drop.
+  const vestigeIcon =
     Object.values(dropTables)
       .flat()
-      .find((drop) => drop.dropKey === key)?.iconUrl ?? null;
-  const vestigeIcon = catalogIcon(VESTIGE);
-  const markIcon = catalogIcon(MARK_DROP);
+      .find((drop) => drop.dropKey === VESTIGE)?.iconUrl ?? null;
 
   // What fell, and what it was sold for, one at a time. Both halves are entered into rather than
   // read, so they stay on one page: a drop and the sale that prices it are the same evening's work.
@@ -771,7 +769,7 @@ export default function DropLogPage() {
                     aria-pressed={shown === s.key}
                     onClick={() => setSection(s.key)}
                   >
-                    <SectionMark section={s.key} art={markIcon} />
+                    <SectionMark section={s.key} />
                     {s.label}
                   </button>
                 ))}
