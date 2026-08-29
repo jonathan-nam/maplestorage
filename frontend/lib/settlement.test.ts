@@ -1763,13 +1763,13 @@ describe("splitting an offset written before one-row-per-share", () => {
   it("gives one part per share when they reconstruct the entry exactly", () => {
     const parts = splittableOffset(act(5_602_105_364, 3), [
       share("l0", "m0", 1_933_333_333),
-      share("l1", "m1", 3_807_660_920),
-      share("l2", "m2", -138_888_889),
+      share("l1", "m1", 372_222_222),
+      share("l2", "m2", 3_296_549_809),
     ]);
     expect(parts).toEqual([
       { lootId: "l0", memberId: "m0", amount: 1_933_333_333 },
-      { lootId: "l1", memberId: "m1", amount: 3_807_660_920 },
-      { lootId: "l2", memberId: "m2", amount: -138_888_889 },
+      { lootId: "l1", memberId: "m1", amount: 372_222_222 },
+      { lootId: "l2", memberId: "m2", amount: 3_296_549_809 },
     ]);
   });
 
