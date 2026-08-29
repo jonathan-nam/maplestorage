@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { apiAssetUrl } from "@/lib/api";
 import { formatWeekStart } from "@/lib/boss-clears";
 import { bossLabel } from "@/lib/boss-difficulty";
@@ -192,6 +192,7 @@ function HolderCard({
   // so it stays drawn either way, and this is only whether the boxes are out.
   const [entering, setEntering] = useState(forEntry);
   const entryRef = useRef<HTMLInputElement>(null);
+  const hintId = useId();
 
   // On mount only, which is the click that drew this card: focus is what ties the two together, and
   // taking it back later would move the cursor out from under somebody mid-type.
@@ -334,7 +335,38 @@ function HolderCard({
             The pieces and the money were one flat list of chips, so "195 kept" and "4.86b paid" read as
             the same kind of thing when one is what became of the coupons and the other is what came
             back for them. See V50 and V51. */}
-        <span className="ledger-step">pieces</span>
+        <span className="ledger-step ledger-step-hinted">
+          pieces
+          {/* Explaining a control, which this app does not do, allowed here because the box opens on
+              the debt: nothing says a larger sale is taken until one has been typed, so the split was
+              being done by hand. In a bubble rather than under the form, where three lines of it
+              crowded the boxes it was about. Only where there IS a debt, since the form also opens on
+              a pile owing nobody and "the quantity owed" would name nothing. */}
+          {outstanding > 0 && (
+            <span className="ledger-hint">
+              <button type="button" className="ledger-hint-mark" aria-describedby={hintId}>
+                <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+                  <circle cx="8" cy="8" r="6.5" fill="none" stroke="currentColor" />
+                  <circle cx="8" cy="4.9" r="0.95" fill="currentColor" />
+                  <path
+                    d="M8 7.4v4.2"
+                    stroke="currentColor"
+                    strokeWidth="1.4"
+                    strokeLinecap="round"
+                  />
+                </svg>
+                <span className="visually-hidden">What can go in the pieces box</span>
+              </button>
+              {/* Drawn whether or not it is on screen, so aria-describedby has something to read and
+                  the hint reaches somebody who cannot hover for it. */}
+              <span id={hintId} role="tooltip" className="ledger-hint-bubble">
+                To assist with calculation, you may optionally enter the whole sale beyond the
+                quantity owed. The sale amount for the pieces you owe will be automatically
+                calculated.
+              </span>
+            </span>
+          )}
+        </span>
         {/* Only the miscount. What is still owed is the header's, and it moves as the debt is
             answered, so "0 of 40 pieces accounted for" under "owes 40 pieces" was the same fact
             twice. More entered than the pile holds is a different fact and still speaks: a card that
@@ -451,15 +483,6 @@ function HolderCard({
             >
               Record a sale
             </button>
-          </span>
-        )}
-        {/* Explaining a control, which this app does not do, allowed here because the box opens on the
-            debt: nothing says a larger sale is taken until one has been typed, so the split was being
-            done by hand. Only where there IS a debt, since the form also opens on a pile owing nobody. */}
-        {outstanding > 0 && (
-          <span className="ledger-progress">
-            To assist with calculation, you may optionally enter the whole sale beyond the quantity
-            owed. The sale amount for the pieces you owe will be automatically calculated.
           </span>
         )}
         {/* What the sale pays out, worked out rather than asked for. The one place a coupon debt gets
