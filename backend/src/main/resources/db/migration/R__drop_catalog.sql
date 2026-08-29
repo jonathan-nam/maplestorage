@@ -13,7 +13,7 @@ FROM (VALUES
     ('oath-of-death', 'Oath of Death', 'oath-of-death.png', NULL, NULL, 1, FALSE, FALSE, 1),
     ('immortal-legacy', 'Immortal Legacy', 'immortal-legacy.png', NULL, NULL, 1, FALSE, FALSE, 2),
     ('blissful-nightmare', 'Blissful Nightmare', 'blissful-nightmare.png', NULL, NULL, 1, FALSE, FALSE, 3),
-    ('original-sin-of-pride', 'Original Sin of Pride', NULL, NULL, NULL, 1, FALSE, FALSE, 4),
+    ('original-sin-of-pride', 'Original Sin of Pride', 'original-sin-of-pride.png', NULL, NULL, 1, FALSE, FALSE, 4),
     ('exceptional-hammer-face', 'Exceptional Hammer (Face Acc)', 'exceptional-hammer-face.png', NULL, NULL, 1, FALSE, FALSE, 5),
     ('exceptional-hammer-eye', 'Exceptional Hammer (Eye Acc)', 'exceptional-hammer-eye.png', NULL, NULL, 1, FALSE, FALSE, 6),
     ('exceptional-hammer-earrings', 'Exceptional Hammer (Earrings)', 'exceptional-hammer-earrings.png', NULL, NULL, 1, FALSE, FALSE, 7),

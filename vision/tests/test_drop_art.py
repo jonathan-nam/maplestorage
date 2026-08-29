@@ -39,6 +39,11 @@ CUT_BOX_2 = "eternal-twisted-armor-box"
 DONOR = "eternal-armor-of-oaths-box"
 
 GLOW_CUT = "blissful-nightmare"
+# Cut off a capture with a framed panel behind it. The panel's tan header and its two bevel
+# shades, which the sprite uses nowhere. Its fringe browns are deliberately absent: the sprite has
+# an enclosed #776644 pixel of its own, so those are shared and would prove nothing.
+FRAMED_CUT = "original-sin-of-pride"
+FRAME_COLOURS = [0xCCBB99, 0xEEDDBB, 0xAAAA88]
 
 # Read rather than repeated: it is the cap _normalize_icon applies to everything off the mirror,
 # and a hand cut never passes through that function.
@@ -118,3 +123,12 @@ def test_every_drop_icon_sits_inside_the_content_cap(icon):
     # for the ones that never went through it.
     ys, xs = np.where(_alpha(icon) > 0)
     assert max(xs.max() + 1 - xs.min(), ys.max() + 1 - ys.min()) <= CONTENT_CAP
+
+
+@pytest.mark.parametrize("colour", FRAME_COLOURS)
+def test_the_framed_cut_left_none_of_its_frame_behind(colour):
+    # The separation is by palette, since the sprite has no outline against the panel to key on.
+    # A re-cut that keeps any of the frame shows up as one of its flat colours reappearing.
+    icon = _icon(FRAMED_CUT)
+    bgr = np.array([colour & 255, (colour >> 8) & 255, (colour >> 16) & 255])
+    assert not (np.all(icon[:, :, :3] == bgr, axis=2) & (icon[:, :, 3] > 0)).any()

@@ -110,11 +110,17 @@ drops:
   - key: blissful-nightmare
     name: Blissful Nightmare
     art: cut
-  # The one drop here still drawn blank. Its capture has a light card behind it, and a sprite
-  # flattened over a light background cannot be keyed back off one: the edge pixels are part card
-  # by construction. Wants a capture on black, which is what the other two v270 cuts had.
+  # v270 as well, and its capture has a framed panel behind it, which is not the dead end it looks.
+  # Nothing in the overlap is BLENDED: every pixel there is on the 4-bit grid the sprite's palette
+  # uses, and the 53 that are not sit clear of the panel in the glow over black. So the sprite is
+  # opaque wherever it covers the panel and the two palettes separate exactly.
+  #
+  # 85 pixels along that join are decided by palette rather than by an outline, 22 of them near
+  # white, so the pale edge of the face could be a pixel short. Judge it against the game before
+  # trusting it that far.
   - key: original-sin-of-pride
     name: Original Sin of Pride
+    art: cut
 
   # --- Exceptional Hammers, one slot per boss ----------------------------------------
   - key: exceptional-hammer-face
