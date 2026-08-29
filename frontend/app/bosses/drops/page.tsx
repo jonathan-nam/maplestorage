@@ -4,7 +4,7 @@ import { DropLogSkeleton } from "@/components/drop-log-skeleton";
 import { PageSwap } from "@/components/page-swap";
 import { useAuth } from "@/lib/use-auth";
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { AddSettlement } from "@/components/add-settlement";
 import { SettlementLedger } from "@/components/settlement-ledger";
 import { SettlementSummary } from "@/components/settlement-summary";
@@ -126,6 +126,14 @@ const TRANCHES_KEY = "/api/vestige-tranches";
 const PAYMENTS_KEY = "/api/vestige-payments";
 const SETTLEMENTS_KEY = "/api/vestige-settlements";
 const DEBTS_KEY = "/api/settlement-debts";
+
+/**
+ * Offsets this tab has already tried to split, so a remount does not start one again.
+ *
+ * Module scope on purpose: see the comment on its use. A second tab has its own, which is why the
+ * server refuses a share that is already discharged rather than trusting this.
+ */
+const SPLIT_ATTEMPTED = new Set<string>();
 const DISPOSALS_KEY = "/api/proceeds-disposals";
 const PEOPLE_KEY = "/api/people";
 
@@ -553,14 +561,19 @@ export default function DropLogPage() {
    * is a split whose rows landed and whose delete did not.
    */
   const pendingSplits = splittableDebts(debts, offsetShares);
-  // Once per entry per load, set BEFORE the first write. The old entry is still splittable between
-  // its rows landing and its own delete, so without this the next render would write them again.
-  const splitting = useRef(new Set<string>());
+  // Once per entry per TAB, set BEFORE the first write. The old entry is still splittable between its
+  // rows landing and its own delete, so without this the next render would write them again.
+  //
+  // Module scope, not a ref: a ref is recreated when the component remounts, and StrictMode remounts
+  // it on purpose. That is how one night got recorded twice. The second pass came back with a fresh
+  // guard AND the debts the page had first fetched, so it could not see the row the first pass had
+  // already written. Nothing here can be the last word on it, because two tabs share neither: the
+  // index in V68 is. See splittableDebts.
   const splitKey = pendingSplits.map((s) => s.debt.id).join(",");
   useEffect(() => {
-    const todo = pendingSplits.filter((s) => !splitting.current.has(s.debt.id));
+    const todo = pendingSplits.filter((s) => !SPLIT_ATTEMPTED.has(s.debt.id));
     if (todo.length === 0) return;
-    for (const s of todo) splitting.current.add(s.debt.id);
+    for (const s of todo) SPLIT_ATTEMPTED.add(s.debt.id);
     void (async () => {
       for (const { debt, parts } of todo) {
         // The rows FIRST, the entry they replace last. A failure part way then counts the offset
