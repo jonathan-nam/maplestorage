@@ -992,22 +992,33 @@ export default function DropLogPage() {
                       setBusy(false);
                     }
                   }}
-                  // Two writes, and the ORDER matters. Settling first leaves the figure 139m too high
-                  // if the offset then fails, which is visible and fixable with the box on the card.
-                  // The other way round nets the same share twice, which is not visible at all.
-                  onOffsetShares={async (holder: Holder, amount, name, payouts) => {
-                    await settleShares(payouts);
-                    await debtWrite(DEBTS_KEY, {
-                      method: "POST",
-                      body: JSON.stringify({
-                        holder,
-                        amount: -amount,
-                        note: `offset against ${name}`,
-                        // The very rows the settle above just marked paid, so the adjustment can name
-                        // what discharged it a month later. See V58.
-                        payouts,
-                      }),
-                    });
+                  // The ORDER matters. Settling first leaves the figure 139m too high if the offset
+                  // then fails, which is visible and fixable with the box on the card. The other way
+                  // round nets the same share twice, which is not visible at all.
+                  //
+                  // ONE ROW PER SHARE, so the history reads as the drops it was rather than as a
+                  // figure naming nobody, and one can be taken back without the others. Sequential,
+                  // like every paired write on this page: each answers with the whole debt list and
+                  // the last answer wins, so racing them would redraw the card from whichever landed
+                  // second. A failure part way leaves the shares settled and some of them not yet
+                  // offset, which is the direction that shows on the card.
+                  onOffsetShares={async (holder: Holder, name, parts) => {
+                    await settleShares(parts.map(({ lootId, memberId }) => ({ lootId, memberId })));
+                    for (const part of parts) {
+                      await debtWrite(DEBTS_KEY, {
+                        method: "POST",
+                        body: JSON.stringify({
+                          holder,
+                          amount: -part.amount,
+                          // Invisible on the card, which names the drop itself once an entry has one
+                          // share behind it. It is what the debt row says on its own.
+                          note: `offset against ${name}`,
+                          // The very row the settle above just marked paid, so the adjustment can name
+                          // what discharged it a month later. See V58.
+                          payouts: [{ lootId: part.lootId, memberId: part.memberId }],
+                        }),
+                      });
+                    }
                   }}
                 />
 
