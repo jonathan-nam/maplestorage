@@ -3240,8 +3240,8 @@ button.link:disabled {
    builds. Drawn at 32, which is 1:1: these were halved into a 23px box before, and 13x16px of pale
    art is not a mark anybody can see. Keep this in step with the script's MARK_CANVAS. */
 .tab-art {
-  width: 32px;
-  height: 32px;
+  width: 34px;
+  height: 34px;
   flex: none;
   image-rendering: pixelated;
 }

@@ -28,7 +28,7 @@ const NATURAL: Record<string, number> = {
   ".ledger-drop-head.is-oneline .loot-icon": 46, // 0.7x, smoothed
   ".loot-shares .loot-icon": 46, // half, in an offset's own list of nights
   ".counts-icon": 46,
-  ".tab-art": 32, // the Drop Log stage tabs, drawn 1:1 (see build-tab-marks.mjs MARK_CANVAS)
+  ".tab-art": 34, // the Drop Log stage tabs, drawn 1:1 (see build-tab-marks.mjs MARK_CANVAS)
   ".finder-suggest-row img": 46,
   ".drop-select-icon": 46,
   ".drop-select > .drop-select-icon": 46, // half size in the closed field

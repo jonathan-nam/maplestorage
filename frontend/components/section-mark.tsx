@@ -11,7 +11,7 @@ import type { DropSectionKey } from "@/lib/drop-sections";
  * apart at the far end of the row.
  */
 const MARK_ART: Partial<Record<DropSectionKey, string>> = {
-  drops: "/marks/grindstone-of-life.png",
+  drops: "/marks/grindstone-of-faith.png",
   sales: "/marks/money-sack.png",
   settlement: "/marks/owl-of-minerva.png",
 };
