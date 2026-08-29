@@ -40,6 +40,24 @@ import kotlin.uuid.Uuid
 // which is how a share you owe is settled when the two of you agree it comes off the larger sum
 // rather than money crossing. See V57 for why marking the share paid alone could not say that.
 
+/**
+ * What the insert transaction decided.
+ *
+ * Three outcomes, not two: a retry that lost a race is an ordinary thing for the split in #516 to do
+ * and must not read as "personId is not somebody on your people list". A sentinel value was the first
+ * shape of this and was wrong, since `emptyList()` is a singleton in Kotlin and would have matched a
+ * legitimately empty answer by identity.
+ */
+private sealed interface DebtWrite {
+    data class Wrote(
+        val debts: List<SettlementDebtResponse>,
+    ) : DebtWrite
+
+    data object NotYourPerson : DebtWrite
+
+    data object AlreadyDischarged : DebtWrite
+}
+
 /** The most one entry can be. A typo guard, matching MAX_AMOUNT on a payment. */
 private const val MAX_AMOUNT = 1_000_000_000_000L
 
@@ -121,7 +139,9 @@ private suspend fun RoutingContext.addDebtRoute() {
             ensureUser(userId, email)
             val person = holder.personId?.let { runCatching { Uuid.parse(it) }.getOrNull() }
             // Scoped to the account, the check the foreign key does not make. See ownsPerson.
-            if (holder.kind == "PERSON" && !ownsPerson(userId, person)) return@transaction null
+            if (holder.kind == "PERSON" && !ownsPerson(userId, person)) {
+                return@transaction DebtWrite.NotYourPerson
+            }
 
             val now = Clock.System.now()
             val newDebtId = Uuid.random()
@@ -137,23 +157,28 @@ private suspend fun RoutingContext.addDebtRoute() {
                 it[incurredAt] = incurred ?: now
                 it[createdAt] = now
             }
+            val shares = payouts.map { it.first!! to it.second!! }
+            if (anyDischarged(shares)) return@transaction DebtWrite.AlreadyDischarged
+
             // Whatever the offset discharged. Not checked against the payout rows themselves: the
             // settle that marked them paid ran first and is the one that had to prove they exist, and
             // a second check here would refuse a row that write had already accepted.
-            for (share in payouts.map { it.first!! to it.second!! }) {
+            for (share in shares) {
                 SettlementDebtPayout.insert {
                     it[debtId] = newDebtId
                     it[lootId] = share.first
                     it[memberId] = share.second
                 }
             }
-            debtsFor(userId)
+            DebtWrite.Wrote(debtsFor(userId))
         }
     // The whole list, like a tranche or a payment: what a person owes you is read off all of it.
-    if (result == null) {
-        call.respond(HttpStatusCode.BadRequest, "personId is not somebody on your people list")
-    } else {
-        call.respond(HttpStatusCode.Created, result)
+    when (result) {
+        is DebtWrite.AlreadyDischarged ->
+            call.respond(HttpStatusCode.Conflict, "one of those shares is already discharged")
+        is DebtWrite.NotYourPerson ->
+            call.respond(HttpStatusCode.BadRequest, "personId is not somebody on your people list")
+        is DebtWrite.Wrote -> call.respond(HttpStatusCode.Created, result.debts)
     }
 }
 
@@ -170,6 +195,27 @@ private suspend fun RoutingContext.deleteDebtRoute() {
             if (gone) debtsFor(userId) else null
         }
     if (rows == null) call.respond(HttpStatusCode.NotFound) else call.respond(rows)
+}
+
+/**
+ * Whether any of these shares has already been discharged by some other entry.
+ *
+ * A share is discharged ONCE. V68 makes this an index too, so a race that gets past the check still
+ * cannot write the row; this is here to answer with a sentence rather than a constraint violation.
+ * See V68 for the wrong number it guards.
+ *
+ * The pairs are checked in Kotlin rather than as a SQL row-value list: the two `inList`s alone would
+ * also match a share built from one row's loot and another's member, which is a refusal nobody could
+ * explain. Must run inside a transaction.
+ */
+private fun anyDischarged(shares: List<Pair<Uuid, Uuid>>): Boolean {
+    if (shares.isEmpty()) return false
+    return SettlementDebtPayout
+        .selectAll()
+        .where {
+            (SettlementDebtPayout.lootId inList shares.map { it.first }) and
+                (SettlementDebtPayout.memberId inList shares.map { it.second })
+        }.any { it[SettlementDebtPayout.lootId] to it[SettlementDebtPayout.memberId] in shares }
 }
 
 /**

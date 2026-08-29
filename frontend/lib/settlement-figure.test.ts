@@ -121,6 +121,12 @@ describe("what the card says a person owes", () => {
     );
     expect(posts).toBeGreaterThan(-1);
     expect(del).toBeGreaterThan(posts);
+    // The guard cannot live in a ref. StrictMode remounts on purpose, a remount makes a fresh one,
+    // and the second pass then re-ran the split against the debts the page first fetched and wrote
+    // one night twice. Module scope holds across a remount; V68 holds across a second tab.
+    expect(page).toContain("const SPLIT_ATTEMPTED = new Set<string>();");
+    expect(page).toContain("SPLIT_ATTEMPTED.add(s.debt.id)");
+    expect(page).not.toContain("splitting.current");
     // No button, and nothing that reads like one.
     expect(source).not.toContain("Record as");
     expect(source).not.toContain("onSplitOffset");
