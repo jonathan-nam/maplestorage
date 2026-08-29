@@ -104,10 +104,15 @@ drops:
     name: Immortal Legacy
     icon_id: 1143471
   # No icon_id, for the reason given on eternal-armor-of-radiance-box: GMS v268 predates
-  # Malefic Star.
+  # Malefic Star. Cut from a capture taken on black, which a glow is already premultiplied against,
+  # so the halo divides back out and only the solid core is left opaque. The downscale to
+  # ICON_CONTENT is done in that same space: resampling straight RGBA is what bleeds a glow.
   - key: blissful-nightmare
     name: Blissful Nightmare
-  # Same again, one version later: the mirror stops at v268 and Jupiter is v270.
+    art: cut
+  # The one drop here still drawn blank. Its capture has a light card behind it, and a sprite
+  # flattened over a light background cannot be keyed back off one: the edge pixels are part card
+  # by construction. Wants a capture on black, which is what the other two v270 cuts had.
   - key: original-sin-of-pride
     name: Original Sin of Pride
 
@@ -171,9 +176,12 @@ drops:
     name: Eternal Armor of Radiance Box
     art: cut
     fungible: true
-  # v270, and no capture to cut from either, so this one is drawn blank.
+  # v270, and cut the same way as the box above. What the black hid here is not the outline but
+  # the drop shadow, which is semi-transparent, so the alpha is the oaths box's: five of this
+  # one's pixels fall outside that silhouette and the rest of it is the same chest.
   - key: eternal-twisted-armor-box
     name: Eternal Twisted Armor Box
+    art: cut
     fungible: true
 
   # --- Selection and ring boxes ------------------------------------------------------
