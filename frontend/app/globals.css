@@ -474,11 +474,45 @@ html {
   scrollbar-gutter: stable;
 }
 
+/* Nexon's own MapleStory face (메이플스토리체), free for commercial use and for web embedding, but
+   not to be modified or sold. The files are served exactly as distributed.
+
+   It draws the digits too, which is a decision and not an oversight. The face has no tabular
+   figures and no `tnum` to turn on: its ten digits have four different advances, 60px against
+   90px over ten of them, so a figure that changes in place moves the text beside it and a column
+   of them is ragged. `font-variant-numeric: tabular-nums` is inert against this file. That was
+   accepted to have one face across the whole app. Anything that must line up has to be given a
+   fixed width or right-aligned, because the font will not do it.
+
+   It ships Light and Bold only. The ranges map the app's 400 onto Light and 600 onto Bold so
+   neither weight is ever synthesized. */
+@font-face {
+  font-family: "Maplestory";
+  src: url("/fonts/Maplestory-Light.woff2") format("woff2");
+  font-weight: 300 400;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Maplestory";
+  src: url("/fonts/Maplestory-Bold.woff2") format("woff2");
+  font-weight: 600 700;
+  font-display: swap;
+}
+
 body {
   margin: 0;
   background: var(--bg);
   color: var(--ink);
-  font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+  /* One face for everything, figures included. The stack behind it is only for what Maplestory
+     does not carry, not for the digits: see the @font-face note on what that costs. */
+  font-family:
+    "Maplestory",
+    -apple-system,
+    "Segoe UI",
+    Helvetica,
+    Arial,
+    sans-serif;
   font-size: var(--text-base);
   line-height: 1.5;
 }

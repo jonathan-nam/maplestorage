@@ -48,8 +48,13 @@ describe("the type scale", () => {
 describe("bolding", () => {
   it("is one weight, not a gradient of four", () => {
     // 600 and 700 were both in use for the same job, picked per rule rather than per meaning.
+    // @font-face is excluded: its font-weight names the range a FILE covers, not a weight the UI
+    // asks for, and Maplestory ships Light and Bold rather than 400 and 600.
     const weights = new Set(
-      [...code.matchAll(/font-weight:\s*([^;]+);/g)].map((m) => (m[1] ?? "").trim()),
+      rules()
+        .filter((r) => !r.selector.includes("@font-face"))
+        .flatMap((r) => [...r.body.matchAll(/font-weight:\s*([^;]+);/g)])
+        .map((m) => (m[1] ?? "").trim()),
     );
     expect([...weights].sort()).toEqual(["400", "600"]);
   });
@@ -96,5 +101,58 @@ describe("the corner scale", () => {
       ".party-clear",
       ".run-pool",
     ]);
+  });
+});
+
+describe("the MapleStory face", () => {
+  it("dresses the UI, with the system stack still under it", () => {
+    const body = rules().find((r) => r.selector === "body");
+    expect(body?.body).toMatch(/font-family:\s*"Maplestory",/);
+    expect(body?.body).toMatch(/sans-serif/);
+  });
+
+  it("draws the digits as well, which is the deliberate part", () => {
+    // The face was briefly held off U+30-39 so the figures came from the system stack, which is
+    // tabular. One face everywhere was chosen over that, knowing the cost: Maplestory has four
+    // different digit advances (60px against 90px over ten glyphs) and no `tnum` to switch on, so
+    // `font-variant-numeric: tabular-nums` cannot rescue it. A number that changes in place moves
+    // the text beside it. Re-adding a unicode-range here would reverse a decision, not fix a bug.
+    const faces = rules().filter((r) => r.selector.includes("@font-face"));
+    expect(faces.length).toBeGreaterThan(0);
+    for (const face of faces) {
+      expect(face.body).not.toMatch(/unicode-range/);
+    }
+  });
+
+  it("is served as distributed, because the licence says so", () => {
+    // Nexon allow free commercial use and web embedding, and forbid modifying the file. That is
+    // what rules out subsetting the 480KB down to the Latin this app actually draws.
+    for (const face of rules().filter((r) => r.selector.includes("@font-face"))) {
+      expect(face.body).toMatch(/Maplestory-(Light|Bold)\.woff2/);
+    }
+  });
+
+  it("leaves the game window in Arial", () => {
+    // The client draws its own window in Arial. Dressing it in the brand face would be quoting the
+    // game with the wrong voice, which is the mistake the slate shell made.
+    const win = rules().find((r) => r.selector === ".ms-window");
+    expect(win?.body).toMatch(/font-family:\s*Arial/);
+  });
+
+  it("keeps the face out of the window entirely, figures included", () => {
+    // The window's numbers are the one place the ragged digits would land on the game's own
+    // furniture, and the counts in the slots are digit IMAGES besides. Everything in here either
+    // says Arial or inherits it. Naming Maplestory on any of them re-dresses the replica.
+    const inside = rules().filter((r) => /\.ms-|\.sk-/.test(r.selector));
+    expect(inside.length).toBeGreaterThan(0);
+    for (const rule of inside) {
+      expect(rule.body).not.toContain("Maplestory");
+    }
+    const families = inside
+      .filter((r) => r.body.includes("font-family"))
+      .map((r) => (r.body.match(/font-family:\s*([^;]+)/) ?? [])[1]?.trim());
+    for (const fam of families) {
+      expect(fam === "inherit" || fam?.startsWith("Arial")).toBe(true);
+    }
   });
 });
