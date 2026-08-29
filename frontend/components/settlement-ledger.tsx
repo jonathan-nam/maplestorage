@@ -13,7 +13,6 @@ import {
   moneyRows,
   offsetOf,
   owedByYouShares,
-  splittableOffset,
   settleThePair,
   shareKey,
   sharesOf,
@@ -86,7 +85,6 @@ export function SettlementLedger({
   onSettleShares,
   onPin,
   onOffsetShares,
-  onSplitOffset,
 }: {
   rows: Settlement[];
   bossByKey: Map<string, Boss>;
@@ -129,8 +127,6 @@ export function SettlementLedger({
   onPin: (row: Settlement, pinned: boolean) => Promise<void>;
   /** Marks the shares paid AND records the offset, so the net does not move. See V57. */
   onOffsetShares: (holder: Holder, name: string, parts: OffsetPart[]) => Promise<void>;
-  /** Rewrites one pre-#514 offset as the shares it covered. See splittableOffset. */
-  onSplitOffset: (act: Discharge, parts: OffsetPart[]) => Promise<void>;
 }) {
   if (rows.length === 0) return null;
   return (
@@ -158,7 +154,6 @@ export function SettlementLedger({
           onSettleShares={onSettleShares}
           onPin={onPin}
           onOffsetShares={onOffsetShares}
-          onSplitOffset={onSplitOffset}
         />
       ))}
     </>
@@ -186,7 +181,6 @@ function SettlementCard({
   onSettleShares,
   onPin,
   onOffsetShares,
-  onSplitOffset,
 }: {
   row: Settlement;
   bossByKey: Map<string, Boss>;
@@ -229,8 +223,6 @@ function SettlementCard({
   onPin: (row: Settlement, pinned: boolean) => Promise<void>;
   /** Marks the shares paid AND records the offset, so the net does not move. See V57. */
   onOffsetShares: (holder: Holder, name: string, parts: OffsetPart[]) => Promise<void>;
-  /** Rewrites one pre-#514 offset as the shares it covered. See splittableOffset. */
-  onSplitOffset: (act: Discharge, parts: OffsetPart[]) => Promise<void>;
 }) {
   const [got, setGot] = useState("");
   const [owed, setOwed] = useState("");
@@ -763,7 +755,6 @@ function SettlementCard({
                       act={act}
                       name={row.name}
                       shares={nightsBehind(act.payouts)}
-                      onSplit={onSplitOffset}
                       iconUrl={iconUrl}
                       busy={busy}
                       signed={signed}
@@ -996,7 +987,6 @@ function DischargeRow({
   busy,
   signed,
   onRemove,
-  onSplit,
 }: {
   act: Discharge;
   name: string;
@@ -1006,8 +996,6 @@ function DischargeRow({
   busy: boolean;
   signed: (mesos: number) => string;
   onRemove: () => void;
-  /** Only ever offered on an entry written before #514. See splittableOffset. */
-  onSplit: (act: Discharge, parts: OffsetPart[]) => Promise<void>;
 }) {
   const [open, setOpen] = useState(false);
   const one = shares.length === 1 ? shares[0]! : null;
@@ -1017,9 +1005,6 @@ function DischargeRow({
   // Anything the row cannot hold on one line. A single night or a single sale IS the row, so only a
   // group of either opens.
   const folds = shares.length > 1 || act.sales.length > 1;
-  // Null on everything written since #514, which is already one row per share, and on an old entry
-  // whose shares no longer reconstruct it.
-  const splitInto = splittableOffset(act, shares);
   // The drop's own art where there is one drop, and the coupon's where the act is coupons: every
   // piece of a sale is one, so there is no other sprite it could be.
   const art = one?.iconUrl ?? (pieces > 0 ? iconUrl : null);
@@ -1126,6 +1111,14 @@ function DischargeRow({
         <ul className="loot-shares" id={panelId}>
           {shares.map((share) => (
             <li key={share.key}>
+              {/* The art the rest of the account reads drops by. The row above carries it, and a
+                  list of drops that drops the icons is the one place on this card you cannot tell
+                  two grindstones apart at a glance. */}
+              {share.iconUrl ? (
+                <img className="loot-icon" src={apiAssetUrl(share.iconUrl)} alt="" />
+              ) : (
+                <span className="loot-icon" aria-hidden="true" />
+              )}
               <span className="loot-share-name">
                 {share.lootId ? (
                   <Link href={`/bosses/drops/${share.lootId}`} className="loot-name">
@@ -1141,20 +1134,6 @@ function DischargeRow({
               <span className="ledger-amount">{signed(-share.share)}</span>
             </li>
           ))}
-          {/* The act these rows already are, recorded as them. One press wrote one entry over every
-              share before #514, so this is the only way an old one becomes the rows above. */}
-          {splitInto && (
-            <li className="ledger-split-act">
-              <button
-                type="button"
-                className="party-save"
-                disabled={busy}
-                onClick={() => void onSplit(act, splitInto)}
-              >
-                {`Record as ${splitInto.length} rows`}
-              </button>
-            </li>
-          )}
           {/* Keyed by position: a tranche's id is not carried this far, and it has nothing to say
               here that its pieces and its day do not. */}
           {act.sales.map((sale, i) => (

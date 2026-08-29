@@ -4,7 +4,7 @@ import { DropLogSkeleton } from "@/components/drop-log-skeleton";
 import { PageSwap } from "@/components/page-swap";
 import { useAuth } from "@/lib/use-auth";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AddSettlement } from "@/components/add-settlement";
 import { SettlementLedger } from "@/components/settlement-ledger";
 import { SettlementSummary } from "@/components/settlement-summary";
@@ -26,12 +26,14 @@ import {
 import { bossLabel } from "@/lib/boss-difficulty";
 import { peek, put } from "@/lib/cache";
 import {
+  type OffsetPart,
   type OffsetShare,
   buildSettlement,
   decidedSales,
   keptOfYours,
   settlementTotals,
   shareKey,
+  splitOfDebt,
   yourPiles,
 } from "@/lib/settlement";
 import { heldOfYoursBy, stillAsking, worthDrawing } from "@/lib/ledger-fates";
@@ -538,6 +540,57 @@ export default function DropLogPage() {
       }
     }
   }
+  /**
+   * Offsets written before #514 as one entry over several shares, recorded as the rows they were.
+   *
+   * No control and nothing to press: they are not a decision anybody is making now, they are the
+   * same act in the shape it should have been written in, and asking somebody to click through their
+   * own history one entry at a time is asking them to do the migration by hand.
+   *
+   * `splitOfDebt` refuses unless the shares reconstruct the entry EXACTLY, so a night that has been
+   * deleted or a roster that has moved leaves the entry alone rather than rewriting it into rows that
+   * do not add up. It also refuses while the pools are still arriving, which is what makes running
+   * this on every render safe: an unresolved share is not a split yet.
+   */
+  const pendingSplits = debts
+    .map((debt) => ({ debt, parts: splitOfDebt(debt, offsetShares) }))
+    .filter((s): s is { debt: SettlementDebt; parts: OffsetPart[] } => s.parts !== null);
+  // Once per entry per load, set BEFORE the first write. The old entry is still splittable between
+  // its rows landing and its own delete, so without this the next render would write them again.
+  const splitting = useRef(new Set<string>());
+  const splitKey = pendingSplits.map((s) => s.debt.id).join(",");
+  useEffect(() => {
+    const todo = pendingSplits.filter((s) => !splitting.current.has(s.debt.id));
+    if (todo.length === 0) return;
+    for (const s of todo) splitting.current.add(s.debt.id);
+    void (async () => {
+      for (const { debt, parts } of todo) {
+        // The rows FIRST, the entry they replace last. A failure part way then counts the offset
+        // twice, which is visible on the card and undone with an ×. The other order loses the act
+        // and its payout links with nothing left to rebuild them from.
+        //
+        // Each row carries the ORIGINAL date, so this does not move a history entry to today. See
+        // AddSettlementDebtRequest.incurredAt.
+        for (const part of parts) {
+          await debtWrite(DEBTS_KEY, {
+            method: "POST",
+            body: JSON.stringify({
+              holder: debt.holder,
+              amount: -part.amount,
+              note: debt.note ?? undefined,
+              payouts: [{ lootId: part.lootId, memberId: part.memberId }],
+              incurredAt: debt.incurredAt,
+            }),
+          });
+        }
+        await debtWrite(`${DEBTS_KEY}/${debt.id}`, { method: "DELETE" });
+      }
+    })();
+    // Keyed by WHICH entries are splittable, not by the arrays: `offsetShares` and `pendingSplits`
+    // are rebuilt every render, so depending on them would re-enter on every keystroke.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [splitKey]);
+
   // What sales of somebody else's coupons came to. Held rather than passed inline: the Sale Ledger's
   // fold reads the same figures, and two calls is two lists to fall out of step. See decidedSales.
   const credits = saleCredits(tranches);
@@ -1020,30 +1073,6 @@ export default function DropLogPage() {
                         }),
                       });
                     }
-                  }}
-                  // The rows FIRST, the entry they replace last. A failure part way then leaves the
-                  // offset counted twice, which is six rows where there were four and is undone with
-                  // an ×. The other order loses the act and its payout links with nothing left to
-                  // rebuild them from, which is the half of V58 that cannot be typed back in.
-                  //
-                  // Each row carries the ORIGINAL date, so a split does not move a history entry to
-                  // today. See AddSettlementDebtRequest.incurredAt.
-                  onSplitOffset={async (act, parts) => {
-                    const holder = debts.find((d) => d.id === act.id)?.holder;
-                    if (!holder) return;
-                    for (const part of parts) {
-                      await debtWrite(DEBTS_KEY, {
-                        method: "POST",
-                        body: JSON.stringify({
-                          holder,
-                          amount: -part.amount,
-                          note: act.label,
-                          payouts: [{ lootId: part.lootId, memberId: part.memberId }],
-                          incurredAt: act.at,
-                        }),
-                      });
-                    }
-                    await debtWrite(`${DEBTS_KEY}/${act.id}`, { method: "DELETE" });
                   }}
                 />
 

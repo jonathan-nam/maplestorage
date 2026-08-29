@@ -4062,10 +4062,10 @@ button.link:disabled {
   color: var(--muted);
 }
 
-/* The act, under the rows it is about to become. No rule above it: it is not one of them. */
-.ledger-split-act {
-  border-top: 0 !important;
-  padding-top: 2px !important;
+/* Half the canvas exactly, so the art still lands on whole pixels two folds into a card. */
+.loot-shares .loot-icon {
+  width: 23px;
+  height: 23px;
 }
 
 .loot-share-name {

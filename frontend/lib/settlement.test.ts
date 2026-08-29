@@ -8,13 +8,13 @@ import {
   moneyRows,
   offsetOf,
   owedByYouShares,
-  splittableOffset,
+  splitOfDebt,
   settleThePair,
   sharesOf,
   yourPiles,
   shareKey,
 } from "./settlement";
-import type { Discharge, OffsetShare } from "./settlement";
+import type { OffsetShare } from "./settlement";
 import {
   answeredKey,
   paymentsSinceClosing,
@@ -1750,22 +1750,26 @@ describe("splitting an offset written before one-row-per-share", () => {
     partyId: "p1",
   });
 
-  const act = (amount: number, payouts: number): Discharge => ({
+  const resolved = (...shares: OffsetShare[]) => new Map(shares.map((s) => [s.key, s]));
+
+  const entry = (amount: number, payouts: number): SettlementDebt => ({
     id: "d1",
-    source: "DEBT",
+    holder: BRO,
     amount,
-    label: "offset against Bro",
-    at: "2026-08-29T15:14:30Z",
+    note: "offset against Bro",
     payouts: Array.from({ length: payouts }, (_, i) => ({ lootId: `l${i}`, memberId: `m${i}` })),
-    sales: [],
+    incurredAt: "2026-08-29T15:14:30Z",
   });
 
   it("gives one part per share when they reconstruct the entry exactly", () => {
-    const parts = splittableOffset(act(5_602_105_364, 3), [
-      share("l0", "m0", 1_933_333_333),
-      share("l1", "m1", 372_222_222),
-      share("l2", "m2", 3_296_549_809),
-    ]);
+    const parts = splitOfDebt(
+      entry(-5_602_105_364, 3),
+      resolved(
+        share("l0", "m0", 1_933_333_333),
+        share("l1", "m1", 372_222_222),
+        share("l2", "m2", 3_296_549_809),
+      ),
+    );
     expect(parts).toEqual([
       { lootId: "l0", memberId: "m0", amount: 1_933_333_333 },
       { lootId: "l1", memberId: "m1", amount: 372_222_222 },
@@ -1774,28 +1778,34 @@ describe("splitting an offset written before one-row-per-share", () => {
   });
 
   it("REFUSES when the shares no longer add up to what came off", () => {
-    // A roster that moved since divides the same lot a different way. Three rows summing to
-    // something other than the act is the wrong number this ledger exists to prevent, and the
-    // entry it would replace is the only record of the real figure.
+    // A roster that moved since divides the same lot a different way. Rows summing to something
+    // other than the act is the wrong number this ledger exists to prevent, and the entry it would
+    // replace is the only record of the real figure.
     expect(
-      splittableOffset(act(5_602_105_364, 2), [share("l0", "m0", 1), share("l1", "m1", 2)]),
+      splitOfDebt(entry(-5_602_105_364, 2), resolved(share("l0", "m0", 1), share("l1", "m1", 2))),
     ).toBe(null);
   });
 
-  it("REFUSES when one of the nights has been deleted", () => {
-    // The placeholder carries no lootId and no figure, so splitting would write a row against a
-    // drop that is gone for an amount nobody can check.
-    const gone = { ...share("", "m1", 0), item: "A drop that has been deleted" };
-    expect(splittableOffset(act(500, 2), [share("l0", "m0", 500), gone])).toBe(null);
+  it("REFUSES while a share is still unresolved", () => {
+    // A deleted night, or pools that have not arrived yet. This runs on every render, so "not yet"
+    // and "never" have to end the same way: a partial split writes some of the act and drops the
+    // rest, and there is no second pass that would notice.
+    expect(splitOfDebt(entry(-500, 2), resolved(share("l0", "m0", 500)))).toBe(null);
+    expect(splitOfDebt(entry(-500, 2), new Map())).toBe(null);
   });
 
   it("is not offered on an entry that is already one share", () => {
-    expect(splittableOffset(act(500, 1), [share("l0", "m0", 500)])).toBe(null);
+    expect(splitOfDebt(entry(-500, 1), resolved(share("l0", "m0", 500)))).toBe(null);
   });
 
-  it("is not offered on a payment or on a decision about coupon money", () => {
-    const shares = [share("l0", "m0", 300), share("l1", "m1", 200)];
-    expect(splittableOffset({ ...act(500, 2), source: "PAYMENT" }, shares)).toBe(null);
-    expect(splittableOffset({ ...act(500, 2), source: "PROCEEDS" }, shares)).toBe(null);
+  it("is not offered on a debt somebody TYPED, which discharges nothing", () => {
+    // Positive is theirs to pay. It names no shares, and splitting a hand-entered figure would be
+    // inventing rows for an act that never covered any.
+    expect(
+      splitOfDebt(
+        entry(5_602_105_364, 2),
+        resolved(share("l0", "m0", 300), share("l1", "m1", 200)),
+      ),
+    ).toBe(null);
   });
 });

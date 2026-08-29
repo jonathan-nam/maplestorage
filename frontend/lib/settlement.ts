@@ -808,29 +808,36 @@ export type OffsetShare = {
 };
 
 /**
- * The rows an old offset would become, or null where it cannot be told.
+ * The rows an old offset should have been, or null where it cannot be told.
  *
  * One press used to write ONE entry over every share it covered, so entries from before #514 name
- * three drops and show one figure. The parts are recoverable: the payouts are stored (V58) and each
- * share is `splitOf` over the drop's own party, which is the same arithmetic the fold already draws.
+ * several drops and show one figure. The parts are recoverable: the payouts are stored (V58) and each
+ * share is `splitOf` over the drop's own party, which is the same arithmetic the card already draws.
  *
- * REFUSED unless they add up to the entry exactly. A roster that has moved since, or a drop that has
- * been deleted, gives shares that no longer reconstruct the act, and three rows summing to something
- * other than what came off is the plausible wrong number this ledger exists to prevent. Refusing
- * leaves the entry exactly as it is, which is the outcome the fold already handles.
+ * REFUSED unless they add up to the entry EXACTLY. A roster that has moved since, or a night that has
+ * been deleted, gives shares that no longer reconstruct the act, and rows summing to something other
+ * than what came off is the plausible wrong number this ledger exists to prevent. Refusing leaves the
+ * entry as it is, which the fold already handles.
  *
- * Only a DEBT can be split. A payment and a decision about coupon money have no shares behind them.
+ * Off the stored debt rather than a built row, because this decides a WRITE and nothing about it
+ * should depend on what happens to be on screen.
  */
-export function splittableOffset(act: Discharge, shares: OffsetShare[]): OffsetPart[] | null {
-  if (act.source !== "DEBT" || shares.length < 2) return null;
-  // A share whose drop is gone resolves to the placeholder, which carries no lootId and no figure.
-  if (shares.some((share) => share.lootId === "")) return null;
-  if (shares.reduce((sum, share) => sum + share.share, 0) !== act.amount) return null;
-  return shares.map((share) => ({
-    lootId: share.lootId,
-    memberId: share.memberId,
-    amount: share.share,
-  }));
+export function splitOfDebt(
+  debt: SettlementDebt,
+  offsetShares: Map<string, OffsetShare>,
+): OffsetPart[] | null {
+  // An offset is negative, and covers more than one share only if it was written before #514.
+  if (debt.amount >= 0 || debt.payouts.length < 2) return null;
+  const parts: OffsetPart[] = [];
+  for (const payout of debt.payouts) {
+    const share = offsetShares.get(shareKey(payout.lootId, payout.memberId));
+    // Unresolved is a drop that has been deleted, or a pool that has not arrived yet. Neither is a
+    // figure, and a partial split would write some of the act and drop the rest.
+    if (!share) return null;
+    parts.push({ lootId: payout.lootId, memberId: payout.memberId, amount: share.share });
+  }
+  if (parts.reduce((sum, part) => sum + part.amount, 0) !== -debt.amount) return null;
+  return parts;
 }
 
 /** How a resolved share is keyed. One drop owes several people, so both halves are needed. */

@@ -107,6 +107,35 @@ describe("what the card says a person owes", () => {
     expect(settlement).toContain("parts.reduce((sum, part) => sum + part.amount, 0)");
   });
 
+  it("splits an old offset with NO control, since it is not a decision anybody is making", () => {
+    // Asking somebody to click through their own history one entry at a time is asking them to do
+    // the migration by hand. The guard refuses on an unresolved share, which is what makes running
+    // it on every render safe: pools that have not arrived are not a split yet.
+    expect(page).toContain("const pendingSplits = debts");
+    expect(page).toContain("splitOfDebt(debt, offsetShares)");
+    expect(settlement).toContain("if (!share) return null;");
+    expect(settlement).toContain("!== -debt.amount) return null;");
+    // The rows first, the entry they replace last. See the comment there for which way fails safely.
+    const posts = page.indexOf("incurredAt: debt.incurredAt");
+    const del = page.indexOf(
+      `await debtWrite(\`\${DEBTS_KEY}/\${debt.id}\`, { method: "DELETE" })`,
+    );
+    expect(posts).toBeGreaterThan(-1);
+    expect(del).toBeGreaterThan(posts);
+    // No button, and nothing that reads like one.
+    expect(source).not.toContain("Record as");
+    expect(source).not.toContain("onSplitOffset");
+  });
+
+  it("carries the drop's art into the nights an offset covered", () => {
+    // The row above has it, and a list of drops with the icons dropped is the one place on this
+    // card two grindstones cannot be told apart at a glance.
+    expect(source).toContain(
+      '<img className="loot-icon" src={apiAssetUrl(share.iconUrl)} alt="" />',
+    );
+    expect(css).toContain(".loot-shares .loot-icon");
+  });
+
   it("puts the DROP on the offset's own row, not a note and a count", () => {
     // Every offset written since one-row-per-share covers one share, and the entries written before
     // it keep the fold. A middle row reading "offset against Bro · 1 share" cost a second click to
