@@ -3246,14 +3246,16 @@ button.link:disabled {
   image-rendering: pixelated;
 }
 
-/* The three stages with no drop of their own. Drawn rather than borrowed: sized off the label
-   instead of a sprite canvas, so they sit smaller than the art beside them. */
+/* The three stages with no drop of their own. Drawn rather than borrowed, and sized off the label
+   instead of a sprite canvas. One weight for all three: the check carried its own heavier stroke
+   and read as a fourth icon set. Only the colour varies below. See SectionMark for the live area
+   the paths are drawn to. */
 .tab-glyph {
   width: 18px;
   height: 18px;
   flex: none;
   fill: none;
-  stroke-width: 1.7;
+  stroke-width: 1.8;
   stroke-linecap: round;
   stroke-linejoin: round;
 }
@@ -3263,9 +3265,6 @@ button.link:disabled {
 }
 .tab-glyph.is-between {
   stroke: var(--accent);
-}
-.tab-glyph.is-done {
-  stroke-width: 2;
 }
 
 /* How many rows a tab would show. Quiet: the label is what is being read, the number is the

@@ -8,6 +8,11 @@ import { apiAssetUrl } from "@/lib/api";
  */
 export const MARK_DROP = "whisper-of-the-source";
 
+// Every glyph below is drawn to the same live area: 14 of the 16 viewBox, filled on whichever axis
+// the shape is longest on, which puts 15.8px of ink beside the sprite's 16.0px. Drawn by eye first,
+// and the eye was out by 27%: the dollar sign came to 17.2px against the check's 13.5px. Measure a
+// redrawn one rather than nudging it. The weight is the sheet's, once, for all three.
+
 /**
  * The mark a stage's tab wears, ahead of its label.
  *
@@ -27,22 +32,22 @@ export function SectionMark({ section, art }: { section: DropSectionKey; art?: s
     case "sales":
       return (
         <svg className="tab-glyph is-money" viewBox="0 0 16 16" aria-hidden="true">
-          <path d="M8 1.2v13.6" />
-          <path d="M11.8 4.4C11.8 2.9 10.1 2 8 2S4.2 2.9 4.2 4.7c0 1.8 1.6 2.4 3.8 3s3.8 1.3 3.8 3.1S10.1 14 8 14s-3.8-.9-3.8-2.5" />
+          <path d="M8 1.9v12.2" />
+          <path d="M11.4 4.6C11.4 3.3 10 2.6 8 2.6S4.6 3.4 4.6 4.9c0 1.5 1.4 2.1 3.4 2.6s3.4 1.1 3.4 2.6S10 13.4 8 13.4s-3.4-.8-3.4-2.1" />
         </svg>
       );
     // Both ways: the card nets what you are owed against what you owe.
     case "settlement":
       return (
         <svg className="tab-glyph is-between" viewBox="0 0 16 16" aria-hidden="true">
-          <path d="M2.4 5.5h10.2M10 3l2.8 2.5L10 8" />
-          <path d="M13.6 10.5H3.4M6 8l-2.8 2.5L6 13" />
+          <path d="M1.9 5.8h12.2M11.2 2.9l2.9 2.9-2.9 2.9" />
+          <path d="M14.1 10.2H1.9M4.8 7.3L1.9 10.2l2.9 2.9" />
         </svg>
       );
     case "settled":
       return (
         <svg className="tab-glyph is-done" viewBox="0 0 16 16" aria-hidden="true">
-          <path d="M3 8.4l3.4 3.4L13 4.6" />
+          <path d="M1.9 8.7l4.2 4.2L14.1 4.9" />
         </svg>
       );
   }
