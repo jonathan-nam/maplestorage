@@ -474,11 +474,43 @@ html {
   scrollbar-gutter: stable;
 }
 
+/* Nexon's own MapleStory face (메이플스토리체), free for commercial use and for web embedding, but
+   not to be modified or sold. The files are served exactly as distributed, which is why the digits
+   are dropped in CSS below rather than subset out of the file.
+
+   It ships Light and Bold only. The ranges map the app's 400 onto Light and 600 onto Bold so
+   neither weight is ever synthesized. */
+@font-face {
+  font-family: "Maplestory";
+  src: url("/fonts/Maplestory-Light.woff2") format("woff2");
+  font-weight: 300 400;
+  font-display: swap;
+  unicode-range: U+0-2F, U+3A-10FFFF;
+}
+
+@font-face {
+  font-family: "Maplestory";
+  src: url("/fonts/Maplestory-Bold.woff2") format("woff2");
+  font-weight: 600 700;
+  font-display: swap;
+  unicode-range: U+0-2F, U+3A-10FFFF;
+}
+
 body {
   margin: 0;
   background: var(--bg);
   color: var(--ink);
-  font-family: -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+  /* The digits are the gap in the range above (U+30-39), so they come from the system stack, which
+     is tabular. Maplestory's are not: four different advances, 50% between the widest and the
+     narrowest, which walks a column of mesos left and right as the figures change. This app exists
+     to not misreport a number, so the face gets the words and not the figures. */
+  font-family:
+    "Maplestory",
+    -apple-system,
+    "Segoe UI",
+    Helvetica,
+    Arial,
+    sans-serif;
   font-size: var(--text-base);
   line-height: 1.5;
 }

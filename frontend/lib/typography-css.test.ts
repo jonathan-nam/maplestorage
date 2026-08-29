@@ -48,8 +48,13 @@ describe("the type scale", () => {
 describe("bolding", () => {
   it("is one weight, not a gradient of four", () => {
     // 600 and 700 were both in use for the same job, picked per rule rather than per meaning.
+    // @font-face is excluded: its font-weight names the range a FILE covers, not a weight the UI
+    // asks for, and Maplestory ships Light and Bold rather than 400 and 600.
     const weights = new Set(
-      [...code.matchAll(/font-weight:\s*([^;]+);/g)].map((m) => (m[1] ?? "").trim()),
+      rules()
+        .filter((r) => !r.selector.includes("@font-face"))
+        .flatMap((r) => [...r.body.matchAll(/font-weight:\s*([^;]+);/g)])
+        .map((m) => (m[1] ?? "").trim()),
     );
     expect([...weights].sort()).toEqual(["400", "600"]);
   });
@@ -96,5 +101,40 @@ describe("the corner scale", () => {
       ".party-clear",
       ".run-pool",
     ]);
+  });
+});
+
+describe("the MapleStory face", () => {
+  it("dresses the UI, with the system stack still under it", () => {
+    const body = rules().find((r) => r.selector === "body");
+    expect(body?.body).toMatch(/font-family:\s*"Maplestory",/);
+    expect(body?.body).toMatch(/sans-serif/);
+  });
+
+  it("never claims the digits", () => {
+    // The whole reason the app can wear this face. Maplestory's figures have four different
+    // advances, so a column of mesos walks sideways as the numbers change. Dropping U+30-39 from
+    // the range hands the digits back to the system stack, which is tabular. Removing this line
+    // silently un-aligns every number in the app, which is why it is a test and not a comment.
+    const faces = rules().filter((r) => r.selector.includes("@font-face"));
+    expect(faces.length).toBeGreaterThan(0);
+    for (const face of faces) {
+      expect(face.body).toContain("unicode-range: U+0-2F, U+3A-10FFFF");
+    }
+  });
+
+  it("is served as distributed, because the licence says so", () => {
+    // Nexon allow free commercial use and web embedding, and forbid modifying the file. That is
+    // what rules out subsetting the 480KB down to Latin, and why the digits go in CSS instead.
+    for (const face of rules().filter((r) => r.selector.includes("@font-face"))) {
+      expect(face.body).toMatch(/Maplestory-(Light|Bold)\.woff2/);
+    }
+  });
+
+  it("leaves the game window in Arial", () => {
+    // The client draws its own window in Arial. Dressing it in the brand face would be quoting the
+    // game with the wrong voice, which is the mistake the slate shell made.
+    const win = rules().find((r) => r.selector === ".ms-window");
+    expect(win?.body).toMatch(/font-family:\s*Arial/);
   });
 });
