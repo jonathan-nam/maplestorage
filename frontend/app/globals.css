@@ -517,6 +517,18 @@ body {
   line-height: 1.5;
 }
 
+/* A control does not inherit a font. This was being handled one rule at a time and 29 had been
+   missed, which was invisible while the page and the UA both drew a system sans. Maplestory on the
+   body made the misses read as a different app: the Drop/Sale/Collection tabs, the week stepper and
+   the row toggles all kept the UA face. Type selectors, so any class that wants its own size still
+   wins. */
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
 a {
   color: var(--ink);
   text-decoration: underline;

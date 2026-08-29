@@ -155,4 +155,20 @@ describe("the MapleStory face", () => {
       expect(fam === "inherit" || fam?.startsWith("Arial")).toBe(true);
     }
   });
+
+  it("reaches the controls, which do not inherit a font on their own", () => {
+    // A button, input, select and textarea each take the UA font unless told otherwise. That was
+    // being done a rule at a time and 29 were missed, invisibly, while the page font and the UA
+    // font were both a system sans. The Drop/Sale/Collection tabs are `.basis-tab` buttons and
+    // rendered in the wrong face the moment the body stopped being one.
+    const reset = rules().find(
+      (r) =>
+        /(^|,)\s*button\s*(,|$)/.test(r.selector) &&
+        ["input", "select", "textarea"].every((t) =>
+          new RegExp(`(^|,)\\s*${t}\\s*(,|$)`).test(r.selector),
+        ),
+    );
+    expect(reset, "no button/input/select/textarea font reset").toBeDefined();
+    expect(reset?.body).toMatch(/font:\s*inherit/);
+  });
 });
