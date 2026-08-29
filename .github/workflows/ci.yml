@@ -97,6 +97,10 @@ jobs:
             frontend:
               - *workflow
               - 'frontend/**'
+              # The Drop Log's tab is marked with a catalog drop, and lib/section-mark.test.ts is
+              # what holds the key to one that still exists. It reads this file, so a change to it
+              # has to run this job.
+              - 'catalog/drops.yaml'
             auth:
               - *workflow
               - 'auth/**'

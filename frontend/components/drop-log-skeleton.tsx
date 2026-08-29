@@ -1,3 +1,4 @@
+import { SectionMark } from "@/components/section-mark";
 import { dropSections } from "@/lib/drop-sections";
 
 // The Drop Log's loading state: the page's own chrome, not a line of text where a page will be.
@@ -54,6 +55,8 @@ export function DropLogSkeleton() {
             className={i === 0 ? "basis-tab active" : "basis-tab"}
             disabled
           >
+            {/* No art: the tables it comes from are what is still loading. The box is held. */}
+            <SectionMark section={s.key} />
             {s.label}
           </button>
         ))}

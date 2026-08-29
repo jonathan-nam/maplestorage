@@ -3236,6 +3236,37 @@ button.link:disabled {
   color: var(--ink-strong);
 }
 
+/* A stage's mark. Half of the 46px drop canvas, so it is 1:1 on a 2x screen and an exact half on
+   a 1x one. The box is drawn empty while the tables are still loading, because a mark appearing
+   later is a tab that grows under the reader. See SectionMark. */
+.tab-art {
+  width: 23px;
+  height: 23px;
+  flex: none;
+  image-rendering: pixelated;
+}
+
+/* The three stages with no drop of their own. Drawn rather than borrowed, and sized off the label
+   instead of a sprite canvas. One weight for all three: the check carried its own heavier stroke
+   and read as a fourth icon set. Only the colour varies below. See SectionMark for the live area
+   the paths are drawn to. */
+.tab-glyph {
+  width: 18px;
+  height: 18px;
+  flex: none;
+  fill: none;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.tab-glyph.is-money,
+.tab-glyph.is-done {
+  stroke: var(--good);
+}
+.tab-glyph.is-between {
+  stroke: var(--accent);
+}
+
 /* How many rows a tab would show. Quiet: the label is what is being read, the number is the
    answer to "is it worth switching to". */
 .basis-tab .tab-count {
