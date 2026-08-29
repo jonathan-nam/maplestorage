@@ -12,7 +12,8 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "marks": "node scripts/build-tab-marks.mjs"
   },
   "dependencies": {
     "better-auth": "1.7.0",
@@ -29,6 +30,7 @@
     "eslint-config-next": "^16.2.10",
     "eslint-config-prettier": "^9.1.0",
     "prettier": "^3.4.2",
+    "sharp": "^0.35.4",
     "typescript": "^5.7.2",
     "vitest": "^3.2.7"
   }
