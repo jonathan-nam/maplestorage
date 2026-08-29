@@ -453,6 +453,15 @@ function HolderCard({
             </button>
           </span>
         )}
+        {/* Explaining a control, which this app does not do, allowed here because the box opens on the
+            debt: nothing says a larger sale is taken until one has been typed, so the split was being
+            done by hand. Only where there IS a debt, since the form also opens on a pile owing nobody. */}
+        {outstanding > 0 && (
+          <span className="ledger-progress">
+            To assist with calculation, you may optionally enter the whole sale beyond the quantity
+            owed. The sale amount for the pieces you owe will be automatically calculated.
+          </span>
+        )}
         {/* What the sale pays out, worked out rather than asked for. The one place a coupon debt gets
             a price, and it only can here: these pieces were in YOUR inventory, so the figure being
             divided is one you just typed. What somebody else sold at is still not asked for, and
