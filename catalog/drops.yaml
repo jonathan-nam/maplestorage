@@ -92,7 +92,7 @@
 
 drops:
   # --- Brilliant Boss Set, one accessory per boss -------------------------------------
-  # Four pieces, in release order. Each drops from one boss and nowhere else, so a boss has at
+  # Five pieces, in release order. Each drops from one boss and nowhere else, so a boss has at
   # most one of them.
   - key: whisper-of-the-source
     name: Whisper of the Source
@@ -104,9 +104,17 @@ drops:
     name: Immortal Legacy
     icon_id: 1143471
   # No icon_id, for the reason given on eternal-armor-of-radiance-box: GMS v268 predates
-  # Malefic Star.
+  # Malefic Star. Cut from a capture taken on black, which a glow is already premultiplied against,
+  # so the halo divides back out and only the solid core is left opaque. The downscale to
+  # ICON_CONTENT is done in that same space: resampling straight RGBA is what bleeds a glow.
   - key: blissful-nightmare
     name: Blissful Nightmare
+    art: cut
+  # The one drop here still drawn blank. Its capture has a light card behind it, and a sprite
+  # flattened over a light background cannot be keyed back off one: the edge pixels are part card
+  # by construction. Wants a capture on black, which is what the other two v270 cuts had.
+  - key: original-sin-of-pride
+    name: Original Sin of Pride
 
   # --- Exceptional Hammers, one slot per boss ----------------------------------------
   - key: exceptional-hammer-face
@@ -168,6 +176,13 @@ drops:
     name: Eternal Armor of Radiance Box
     art: cut
     fungible: true
+  # v270, and cut the same way as the box above. What the black hid here is not the outline but
+  # the drop shadow, which is semi-transparent, so the alpha is the oaths box's: five of this
+  # one's pixels fall outside that silhouette and the rest of it is the same chest.
+  - key: eternal-twisted-armor-box
+    name: Eternal Twisted Armor Box
+    art: cut
+    fungible: true
 
   # --- Selection and ring boxes ------------------------------------------------------
   - key: mitras-rage-selection-box
@@ -208,10 +223,10 @@ drops:
   # un-multiply recovers them, and every version was either boxed in grey or wrong in colour. If this
   # ever needs replacing, replace it with a sprite and not a capture.
   #
-  # It is stored centred on the 46x46 canvas, unscaled. It shipped as a bare 37x37 file, which the
-  # 46px CSS box then stretched 1.243x, so it read 1.44x larger than every icon beside it. Centre a
-  # replacement the same way and do not rescale it: 42% of its pixels are semi-transparent, so a
-  # resample bleeds the transparent black and magenta into the glow.
+  # It is stored centred on the 46x46 canvas and scaled to ICON_CONTENT, which its 37x37 sprite was
+  # 16% over. Scale a replacement PREMULTIPLIED: 42% of these pixels are semi-transparent and the
+  # transparent ones carry black and magenta, which a straight RGBA resample bleeds into the glow.
+  # Multiplying by alpha first zeroes them, so they contribute nothing.
   - key: vestige-of-erion
     name: Vestige of Erion Coupon
     art: cut
@@ -352,9 +367,12 @@ tables:
       count:
         NORMAL: { interactive: 6, heroic: 2 }
 
-  # Jupiter's table starts here and holds only this. The rest of what it drops is not recorded
-  # yet, which the drop table page says rather than showing an empty one.
   jupiter:
+    - original-sin-of-pride
+    - grindstone-of-life
+    - eternal-twisted-armor-box
+    - ring-of-restraint-4
+    - continuous-ring-4
     - key: vestige-of-erion
       pieces:
         NORMAL: { total: 45, bundles: 3 }
