@@ -37,7 +37,7 @@ function endedWith(row: SettledRecord): string | null {
   return row.settledOn ? `paid out ${formatDropped(row.settledOn.slice(0, 10))}` : "paid out";
 }
 
-/** The nights behind a fold, indented past the chevron the way the Drop Log's runs are. */
+/** The nights behind a fold, indented one step the way the Drop Log's runs are. */
 function SettledNights({
   records,
   bossByKey,
@@ -106,22 +106,6 @@ function SettledRow({
   return (
     <li className={`droplog-row${open ? " is-open" : ""}`}>
       <div className="droplog-row-head">
-        {line.folded ? (
-          <button
-            type="button"
-            className="party-row-toggle"
-            aria-expanded={open}
-            aria-controls={panelId}
-            onClick={() => setOpen((o) => !o)}
-          >
-            <span className="party-row-chevron" aria-hidden="true" />
-            <span className="visually-hidden">{open ? `Hide ${nights}` : `Show ${nights}`}</span>
-          </button>
-        ) : (
-          // The frame is kept so one row lines up with a folded one, as the Drop Log's does.
-          <span className="party-row-toggle is-empty" aria-hidden="true" />
-        )}
-
         {row.iconUrl ? (
           <img className="loot-icon" src={apiAssetUrl(row.iconUrl)} alt="" />
         ) : (
@@ -129,16 +113,33 @@ function SettledRow({
         )}
 
         <span className="droplog-title">
-          {/* A fold stands for several drops, so its name links to none of them: it would open
-              whichever happened to be first. The nights below carry the links. */}
-          {line.folded ? (
-            <span className="loot-name">{row.name}</span>
-          ) : (
-            <Link href={`/bosses/drops/${row.lootId}`} className="loot-name">
-              {row.name}
-              {row.quantity > 1 && <span className="loot-count"> x{row.quantity}</span>}
-            </Link>
-          )}
+          <span className="droplog-name-line">
+            {/* A fold stands for several drops, so its name links to none of them: it would open
+                whichever happened to be first. The nights below carry the links, and the chevron
+                beside the name is what opens onto them. */}
+            {line.folded ? (
+              <>
+                <span className="loot-name">{row.name}</span>
+                <button
+                  type="button"
+                  className="party-row-toggle"
+                  aria-expanded={open}
+                  aria-controls={panelId}
+                  onClick={() => setOpen((o) => !o)}
+                >
+                  <span className="party-row-chevron" aria-hidden="true" />
+                  <span className="visually-hidden">
+                    {open ? `Hide ${nights}` : `Show ${nights}`}
+                  </span>
+                </button>
+              </>
+            ) : (
+              <Link href={`/bosses/drops/${row.lootId}`} className="loot-name">
+                {row.name}
+                {row.quantity > 1 && <span className="loot-count"> x{row.quantity}</span>}
+              </Link>
+            )}
+          </span>
           <span className="loot-meta">{meta.join(" · ")}</span>
         </span>
 

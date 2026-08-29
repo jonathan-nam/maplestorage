@@ -5147,9 +5147,9 @@ button.link:disabled {
   gap: 10px;
 }
 
-/* The runs behind a fold, newest first, indented past the chevron and its gap (18 + 10) so they
-   start where the drop's icon does. Aligning them with the drop's NAME instead put them 84px in,
-   which was more empty gutter than nesting. */
+/* The runs behind a fold, newest first. One step in, which is all the indent has to be: it used to
+   be measured off a chevron column standing left of the icon, and there is no such column now.
+   Aligning them with the drop's NAME instead is 56px, and takes the second level to 84. */
 .droplog-runs {
   list-style: none;
   margin: 0;
@@ -5183,8 +5183,8 @@ button.link:disabled {
   font-weight: 600;
 }
 
-/* The nights under a character. No rule and no second indent step: the chevron column already
-   nests them, and a border here boxed every character off as a card of its own. */
+/* The nights under a character. No rule: a border here boxed every character off as a card of its
+   own. The step is the same one the level above takes, so the two levels read as one ladder. */
 .droplog-runs.is-nested {
   padding: 0 0 0 28px;
   border-top: 0;
@@ -5221,6 +5221,21 @@ button.link:disabled {
   gap: 2px;
   min-width: 0;
   flex: 1;
+}
+
+/* The drop's name and, where it folds, the chevron that opens it. A row of its own inside the
+   title's column, because the chevron belongs beside the NAME: given a column at the row's edge it
+   pushed the 46px art 39px in, on every row, most of which have nothing to open. Hanging it off the
+   name means there is no column to reserve and nothing to line up, so a row that does not fold
+   draws nothing at all. `width: max-content` keeps the line off the row's spare width, or the
+   chevron lands wherever the status chip stops. */
+.droplog-name-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  max-width: 100%;
+  width: max-content;
 }
 
 /* One line, cut with an ellipsis. The meta is a joined string, so `display: block` is what makes
@@ -5370,6 +5385,9 @@ button.link:disabled {
   justify-content: center;
   width: 18px;
   height: 18px;
+  /* In the Drop Log it sits beside a name that shrinks under pressure. A chevron squashed narrower
+     than its own triangle is a control that looks broken. */
+  flex: none;
   padding: 0;
   border: 0;
   border-radius: var(--radius-sm);
@@ -5382,7 +5400,9 @@ button.link:disabled {
   color: var(--ink-strong);
 }
 
-/* Solo: nothing to open, but the width is kept so the headings stay in one column. */
+/* Nothing to open, but the width is kept so the headings stay in one column. Only where the chevron
+   HAS a column: a Drop Log row hangs its own off the drop's name, and draws none when it does not
+   fold. */
 .party-row-toggle.is-empty {
   cursor: default;
 }
