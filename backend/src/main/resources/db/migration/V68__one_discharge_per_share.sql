@@ -13,6 +13,12 @@
 --
 -- Loot and member are already scoped to an account through the party that owns them, so a global
 -- index is per-user without saying so.
+--
+-- On a database that already holds a double discharge this REFUSES TO APPLY, and the backend will
+-- not start until somebody looks. That is the intended behaviour: which of the two entries is the
+-- real one is a question about money, and a migration that picked one and deleted the other would
+-- be answering it silently. Find them with
+--   SELECT loot_id, member_id FROM settlement_debt_payout GROUP BY 1, 2 HAVING count(*) > 1;
 CREATE UNIQUE INDEX idx_settlement_debt_payout_one_discharge
     ON settlement_debt_payout (loot_id, member_id);
 
