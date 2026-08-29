@@ -34,6 +34,16 @@
   --text-lg: 15px;
   --text-xl: 20px;
 
+  /* Three steps and a pill. There are two container sizes because a corner nested inside another
+     has to be the smaller one, so md is what sits in lg, not a second opinion about lg. The pill
+     is for a state you scan for, never for a label or a count. The inventory window keeps its own
+     corners for the reason the type scale gives, and .sk-slot goes with it: a placeholder that
+     does not match the slot replacing it is a flicker, not a saving. */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-pill: 999px;
+
   --bg: #111;
   --surface: #1a1a1a;
   --surface-2: #202020;
@@ -147,7 +157,7 @@
   background: none;
   color: var(--ink);
   padding: 6px;
-  border-radius: 7px;
+  border-radius: var(--radius-lg);
   cursor: pointer;
 }
 
@@ -211,7 +221,7 @@ html:not(.has-session) .header-reserved {
   padding: 6px;
   background: var(--surface);
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--radius-lg);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
 }
 
@@ -243,7 +253,7 @@ html:not(.has-session) .header-reserved {
   color: var(--muted);
   font-size: var(--text-lg);
   padding: 7px 10px;
-  border-radius: 6px;
+  border-radius: var(--radius-md);
 }
 
 .section-menu-panel a:hover {
@@ -1210,14 +1220,14 @@ html.switching-world .world-veil {
   gap: 2px;
   padding: 2px;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--radius-lg);
   background: var(--surface);
 }
 
 .world-tab {
   padding: 3px 10px;
   border: 0;
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   background: none;
   color: var(--muted);
   font: inherit;
@@ -1299,7 +1309,7 @@ img.user-avatar-img {
   padding: 6px;
   background: var(--surface);
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--radius-lg);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
 }
 
@@ -1312,7 +1322,7 @@ img.user-avatar-img {
   font: inherit;
   font-size: var(--text-lg);
   padding: 7px 10px;
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   cursor: pointer;
   text-decoration: none;
 }
@@ -1482,7 +1492,7 @@ img.user-avatar-img {
   position: relative;
   overflow: hidden;
   background: var(--surface-2);
-  border-radius: 6px;
+  border-radius: var(--radius-md);
 }
 
 .skeleton::after,
@@ -1509,7 +1519,7 @@ img.user-avatar-img {
 /* Search bar placeholder: .finder-input's height (14px line + 9px*2 pad + 1px*2 border) and radius. */
 .sk-search {
   height: 39px;
-  border-radius: 8px;
+  border-radius: var(--radius-lg);
 }
 
 /* Carousel placeholders reuse .char-tile itself, so width, padding and the whole text stack come
@@ -1548,7 +1558,7 @@ img.user-avatar-img {
   display: inline-block;
   vertical-align: middle;
   height: 11px;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
 }
 
 /* Inventory placeholder: stacked section blocks, matching a loaded inventory. Each grid mirrors
@@ -1581,7 +1591,7 @@ img.user-avatar-img {
   position: relative;
   overflow: hidden;
   height: 9px;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   background: var(--ms-slot-edge);
 }
 
@@ -1648,7 +1658,7 @@ img.user-avatar-img {
   padding: 4px;
   list-style: none;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--radius-lg);
   background: var(--surface);
   box-shadow: 0 8px 24px rgb(0 0 0 / 35%);
 }
@@ -1663,7 +1673,7 @@ img.user-avatar-img {
   align-items: center;
   gap: 8px;
   padding: 5px 8px;
-  border-radius: 5px;
+  border-radius: var(--radius-md);
   cursor: pointer;
 }
 
@@ -1776,7 +1786,7 @@ img.user-avatar-img {
   margin-left: -6px;
   padding: 4px 8px 4px 6px;
   border: 0;
-  border-radius: 8px;
+  border-radius: var(--radius-lg);
   background: none;
   color: var(--ink);
   font: inherit;
@@ -1821,7 +1831,7 @@ img.user-avatar-img {
   align-items: center;
   padding: 18px;
   border: 2px dashed var(--line);
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   background: var(--surface-2);
   cursor: pointer;
   transition:
@@ -1886,7 +1896,7 @@ img.user-avatar-img {
 .capture {
   margin-top: 10px;
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   background: var(--surface);
   overflow: hidden;
 }
@@ -1917,7 +1927,7 @@ img.user-avatar-img {
   width: 56px;
   height: 36px;
   object-fit: cover;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   background: var(--surface-2);
   flex: none;
 }
@@ -2077,7 +2087,7 @@ button.link:disabled {
   font-size: var(--text-lg);
   /* Right padding clears the overlaid button (see .finder-clear). */
   padding: 9px 52px 9px 12px;
-  border-radius: 8px;
+  border-radius: var(--radius-lg);
   border: 1px solid var(--line);
   background: var(--surface);
   color: var(--ink);
@@ -2119,7 +2129,7 @@ button.link:disabled {
 .finder-empty {
   margin: 0;
   padding: 22px;
-  border-radius: 8px;
+  border-radius: var(--radius-lg);
   background: var(--surface);
   border: 1px solid var(--line);
   color: var(--muted);
@@ -2128,7 +2138,7 @@ button.link:disabled {
 
 .finder-row {
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   background: var(--surface);
   margin-bottom: 8px;
   overflow: hidden;
@@ -2214,7 +2224,7 @@ button.link:disabled {
   gap: 7px;
   padding: 6px 12px;
   border: 1px solid var(--line);
-  border-radius: 999px;
+  border-radius: var(--radius-sm);
   background: var(--surface);
   color: var(--muted);
   font: inherit;
@@ -2381,7 +2391,7 @@ button.link:disabled {
    space; see the note in boss-matrix.tsx. */
 .boss-char-sprite.is-empty {
   border: 1px dashed var(--line);
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   opacity: 0.5;
 }
 
@@ -2423,7 +2433,7 @@ button.link:disabled {
 .boss-progress-bar {
   width: 56px;
   height: 3px;
-  border-radius: 2px;
+  border-radius: var(--radius-sm);
   background: var(--surface-2);
   overflow: hidden;
 }
@@ -2431,7 +2441,7 @@ button.link:disabled {
 .boss-progress-bar > span {
   display: block;
   height: 100%;
-  border-radius: 2px;
+  border-radius: var(--radius-sm);
   background: var(--accent);
 }
 
@@ -2469,7 +2479,7 @@ button.link:disabled {
    inventory window 30px out of place (#77). */
 .boss-portrait.is-empty {
   background: var(--surface-2);
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
 }
 
 /* 180px of name plus the portrait and its gap. Widened rather than letting the art eat into the
@@ -2635,7 +2645,7 @@ button.link:disabled {
 .boss-key.is-pending {
   height: 12px;
   border: 1px dashed var(--line);
-  border-radius: 2px;
+  border-radius: var(--radius-sm);
 }
 
 .boss-key.is-unseen,
@@ -2753,7 +2763,7 @@ button.link:disabled {
 .week-step {
   padding: 2px 8px;
   border: 1px solid var(--line);
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   background: var(--surface);
   color: var(--ink);
   font-size: var(--text-lg);
@@ -2785,7 +2795,7 @@ button.link:disabled {
   margin-left: 4px;
   padding: 2px 8px;
   border: 1px solid var(--line);
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   background: transparent;
   color: var(--muted);
   font-size: var(--text-base);
@@ -2856,7 +2866,7 @@ button.link:disabled {
   display: inline-block;
   width: 12px;
   height: 12px;
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
 }
 
 /* Matches .boss-char-sprite exactly, or the header row changes height when the roster lands. */
@@ -2865,7 +2875,7 @@ button.link:disabled {
   width: 96px;
   height: 112px;
   margin: 0 auto 2px;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
 }
 
 /* Available to any component: text for a screen reader, no pixels. The matrix
@@ -3001,7 +3011,7 @@ button.link:disabled {
   font: inherit;
   font-size: var(--text-lg);
   padding: 9px 12px;
-  border-radius: 8px;
+  border-radius: var(--radius-lg);
   border: 1px solid var(--line);
   background: var(--surface);
   color: var(--ink);
@@ -3026,7 +3036,7 @@ button.link:disabled {
   gap: 2px 8px;
   padding: 10px 12px;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--radius-lg);
   background: var(--surface);
   cursor: pointer;
 }
@@ -3108,7 +3118,7 @@ button.link:disabled {
   padding: 1px 5px;
   margin: -1px -5px;
   border: 1px solid transparent;
-  border-radius: 5px;
+  border-radius: var(--radius-md);
   background: none;
   color: inherit;
   font: inherit;
@@ -3170,7 +3180,7 @@ button.link:disabled {
   white-space: nowrap;
   padding: 3px 9px;
   border: 1px solid var(--line);
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   background: var(--surface);
   color: var(--muted);
   cursor: pointer;
@@ -3263,7 +3273,7 @@ button.link:disabled {
   margin-top: 24px;
   padding: 18px;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--radius-lg);
   background: var(--surface);
 }
 
@@ -3331,7 +3341,7 @@ button.link:disabled {
   margin-bottom: 10px;
   padding: 6px 14px;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--radius-lg);
   background: var(--surface);
 }
 
@@ -3349,7 +3359,7 @@ button.link:disabled {
 
 .party-banner-sprite.is-empty {
   border: 1px dashed var(--line);
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   opacity: 0.5;
 }
 
@@ -3410,7 +3420,7 @@ button.link:disabled {
   gap: 10px;
   padding: 14px;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--radius-lg);
   background: var(--surface);
 }
 
@@ -3464,7 +3474,7 @@ button.link:disabled {
   margin-top: 16px;
   padding: 10px 14px;
   border: 1px solid var(--warn);
-  border-radius: 8px;
+  border-radius: var(--radius-lg);
   font-size: var(--text-base);
   color: var(--ink);
 }
@@ -3476,7 +3486,7 @@ button.link:disabled {
   font: inherit;
   font-size: var(--text-base);
   padding: 8px 14px;
-  border-radius: 8px;
+  border-radius: var(--radius-lg);
   border: 1px solid var(--line);
   background: var(--surface);
   color: var(--ink);
@@ -3514,7 +3524,7 @@ button.link:disabled {
   margin: 16px 0 8px;
   padding: 18px;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--radius-lg);
   background: var(--surface);
 }
 
@@ -3554,7 +3564,7 @@ button.link:disabled {
   line-height: 1;
   width: 28px;
   height: 28px;
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   border: 1px solid var(--line);
   background: var(--surface);
   color: var(--muted);
@@ -3581,7 +3591,7 @@ button.link:disabled {
   gap: 6px;
   padding: 5px 10px;
   border: 1px solid var(--line);
-  border-radius: 999px;
+  border-radius: var(--radius-sm);
   font-size: var(--text-base);
   color: var(--muted);
   cursor: pointer;
@@ -3704,7 +3714,7 @@ button.link:disabled {
   flex-basis: 100%;
   padding: 12px;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--radius-lg);
   background: var(--surface);
 }
 
@@ -3745,7 +3755,7 @@ button.link:disabled {
   gap: 10px;
   padding: 12px;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--radius-lg);
   background: var(--surface);
 }
 
@@ -3790,7 +3800,7 @@ button.link:disabled {
   overflow-y: auto;
   list-style: none;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--radius-lg);
   background: var(--surface);
   box-shadow: 0 8px 24px rgb(0 0 0 / 35%);
 }
@@ -3800,7 +3810,7 @@ button.link:disabled {
   align-items: center;
   gap: 8px;
   padding: 2px 8px;
-  border-radius: 5px;
+  border-radius: var(--radius-md);
   cursor: pointer;
 }
 
@@ -3868,7 +3878,7 @@ button.link:disabled {
   gap: 10px;
   padding: 14px;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--radius-lg);
   background: var(--surface);
 }
 
@@ -3914,7 +3924,7 @@ button.link:disabled {
 .loot-status {
   flex: none;
   padding: 3px 9px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   border: 1px solid var(--line);
   font-size: var(--text-sm);
   color: var(--muted);
@@ -3994,7 +4004,7 @@ button.link:disabled {
   gap: 6px;
   padding: 3px 9px;
   border: 1px solid var(--line);
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   color: var(--muted);
   font-size: var(--text-base);
 }
@@ -4114,7 +4124,7 @@ button.link:disabled {
   font-size: var(--text-base);
   margin-left: auto;
   padding: 4px 10px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   border: 1px solid var(--line);
   background: var(--surface);
   color: var(--muted);
@@ -4148,7 +4158,7 @@ button.link:disabled {
   height: 26px;
   flex: none;
   image-rendering: pixelated;
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
 }
 
 .boss-portrait.is-small {
@@ -4253,7 +4263,7 @@ button.link:disabled {
   line-height: 1;
   padding: 2px 5px;
   border: 0;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   background: transparent;
   color: var(--muted-2);
   cursor: pointer;
@@ -4285,7 +4295,7 @@ button.link:disabled {
   gap: 4px;
   padding: 2px 4px 2px 2px;
   border: 1px solid var(--line);
-  border-radius: 999px;
+  border-radius: var(--radius-sm);
   color: var(--ink);
 }
 
@@ -4349,7 +4359,7 @@ button.link:disabled {
   gap: 6px;
   padding: 6px 12px;
   border: 1px solid var(--line);
-  border-radius: 999px;
+  border-radius: var(--radius-sm);
   font-size: var(--text-base);
   color: var(--muted);
   cursor: pointer;
@@ -4377,7 +4387,7 @@ button.link:disabled {
   gap: 14px;
   padding: 12px 14px;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--radius-lg);
   background: var(--surface);
 }
 
@@ -4436,7 +4446,7 @@ button.link:disabled {
   align-items: stretch;
   padding: 10px 12px;
   border: 1px solid var(--line);
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   background: var(--surface-2);
 }
 
@@ -4520,7 +4530,7 @@ button.link:disabled {
   object-fit: none;
   object-position: center -14px;
   image-rendering: pixelated;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   /* The row's own 2px is for the × against its box. A face wants more air than a button does. */
   margin-right: 4px;
 }
@@ -4650,7 +4660,7 @@ button.link:disabled {
   font: inherit;
   font-size: var(--text-sm);
   padding: 3px 10px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   border: 1px solid var(--line);
   background: var(--surface-2);
   color: var(--muted);
@@ -4718,7 +4728,7 @@ button.link:disabled {
    five does not go ragged around the one character nobody could find. */
 .roster-sprite.is-empty {
   border: 1px dashed var(--line);
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   opacity: 0.5;
 }
 
@@ -4767,7 +4777,7 @@ button.link:disabled {
   gap: 0;
   padding: 10px 14px;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--radius-lg);
   background: var(--surface);
 }
 
@@ -4936,7 +4946,7 @@ button.link:disabled {
   gap: 4px;
   padding: 12px;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--radius-lg);
   background: var(--surface);
 }
 
@@ -5071,7 +5081,7 @@ button.link:disabled {
   gap: 8px;
   padding: 8px 10px;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--radius-lg);
   background: var(--surface);
 }
 
@@ -5249,7 +5259,7 @@ button.link:disabled {
   gap: 10px;
   padding: 8px 10px;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--radius-lg);
   background: var(--surface);
   font-size: var(--text-base);
 }
@@ -5306,7 +5316,7 @@ button.link:disabled {
   height: 18px;
   padding: 0;
   border: 0;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   background: none;
   color: var(--muted);
   cursor: pointer;
@@ -5390,7 +5400,7 @@ button.link:disabled {
 .night-person {
   padding: 4px 11px;
   border: 1px solid var(--line);
-  border-radius: 999px;
+  border-radius: var(--radius-sm);
   background: var(--surface);
   color: var(--muted-2);
   font-size: var(--text-base);
@@ -5475,7 +5485,7 @@ button.link:disabled {
   margin-top: 8px;
   padding: 10px 12px;
   border: 1px solid var(--line);
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   background: var(--surface);
 }
 
@@ -5768,7 +5778,7 @@ button.link:disabled {
   margin-left: 6px;
   padding: 0 5px;
   border: 1px solid var(--line);
-  border-radius: 999px;
+  border-radius: var(--radius-sm);
   font-size: var(--text-sm);
   color: var(--muted);
 }
@@ -5795,7 +5805,7 @@ button.link:disabled {
    Guardian" onto a second line and made a one-line run two lines tall. */
 .run-pool {
   padding: 0 5px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: var(--surface);
   font-size: var(--text-sm);
   white-space: nowrap;
@@ -5912,7 +5922,7 @@ button.link:disabled {
 .run-draft {
   padding: 12px;
   border: 1px solid var(--line-soft);
-  border-radius: 8px;
+  border-radius: var(--radius-lg);
   background: var(--surface);
 }
 
@@ -5947,7 +5957,7 @@ button.link:disabled {
   margin-bottom: 16px;
   padding: 14px;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--radius-lg);
   background: var(--surface);
 }
 
@@ -6072,7 +6082,7 @@ button.link:disabled {
   gap: 4px;
   padding: 2px 6px;
   border: 1px solid var(--line-soft);
-  border-radius: 999px;
+  border-radius: var(--radius-sm);
 }
 
 /* Element-qualified to beat button.link's own colour, which is an underlined accent: this one is
@@ -6204,7 +6214,7 @@ button.ledger-drop-sale:hover:not(:disabled) {
   flex: 1;
   min-width: 90px;
   height: 4px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: var(--surface-2);
   overflow: hidden;
 }
@@ -6240,7 +6250,7 @@ button.ledger-drop-sale:hover:not(:disabled) {
   min-width: 72px;
   padding: 3px 10px;
   border: 1px solid var(--accent);
-  border-radius: 999px;
+  border-radius: var(--radius-sm);
   background: var(--surface-2);
   font: inherit;
   font-size: var(--text-base);
@@ -6282,7 +6292,7 @@ button.ledger-drop-sale:hover:not(:disabled) {
   font: inherit;
   font-size: var(--text-lg);
   border: 0;
-  border-radius: 8px;
+  border-radius: var(--radius-lg);
   background: #5865f2;
   color: #fff;
   cursor: pointer;
@@ -6329,7 +6339,7 @@ button.ledger-drop-sale:hover:not(:disabled) {
   font: inherit;
   font-size: var(--text-lg);
   border: 1px solid var(--line);
-  border-radius: 6px;
+  border-radius: var(--radius-md);
   background: var(--surface-2);
   color: var(--ink);
 }
@@ -6346,7 +6356,7 @@ button.ledger-drop-sale:hover:not(:disabled) {
   font: inherit;
   font-size: var(--text-lg);
   border: 1px solid var(--accent);
-  border-radius: 8px;
+  border-radius: var(--radius-lg);
   background: var(--surface);
   color: var(--ink);
   cursor: pointer;

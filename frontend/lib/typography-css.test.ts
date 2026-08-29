@@ -65,3 +65,36 @@ describe("the tiny-caps header", () => {
     expect(code).not.toMatch(/letter-spacing:/);
   });
 });
+
+describe("the corner scale", () => {
+  it("defines three steps and a pill", () => {
+    const defined = [...code.matchAll(/--radius-([a-z]+):/g)].map((m) => m[1]);
+    expect(defined.sort()).toEqual(["lg", "md", "pill", "sm"]);
+  });
+
+  it("is the only source of a single-value radius, outside the game window", () => {
+    // Same exemption as the type scale, plus .sk-slot: it is the placeholder for .ms-slot, and a
+    // placeholder whose corner does not match the slot replacing it is a flicker, not a saving.
+    const raw = rules()
+      .filter((r) => !/\.ms-|\.sk-slot/.test(r.selector))
+      .filter((r) => /border-radius:\s*\d+px;/.test(r.body))
+      .map((r) => r.selector);
+    expect(raw).toEqual([]);
+  });
+
+  it("keeps the pill for states, not for labels and counts", () => {
+    // A pill is a claim that the thing is a status you scan a column for. Eight chips were wearing
+    // one to mean "this is a chip", which is what the shape stopped being able to say.
+    const pills = rules()
+      .filter((r) => r.body.includes("var(--radius-pill)"))
+      .map((r) => r.selector)
+      .sort();
+    expect(pills).toEqual([
+      ".ledger-bar",
+      ".loot-paid",
+      ".loot-status",
+      ".party-clear",
+      ".run-pool",
+    ]);
+  });
+});
