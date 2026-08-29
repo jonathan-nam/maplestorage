@@ -818,12 +818,6 @@ export default function PartiesPage() {
         <h1 className="page-title">Party View</h1>
         {state === "loaded" && (
           <span className="page-head-links">
-            {/* Kept even though the Drop Log is on the menu now: it is one click from the parties
-                whose drops it holds, and that is where it is wanted. It also absorbed the Wallet,
-                so what a person owes you is one page away rather than two pages apart. */}
-            <Link className="party-cancel" href="/bosses/drops">
-              Drop Log
-            </Link>
             <Link className="party-cancel" href="/bosses/parties/edit">
               Edit parties
             </Link>
