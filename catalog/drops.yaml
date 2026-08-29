@@ -92,7 +92,7 @@
 
 drops:
   # --- Brilliant Boss Set, one accessory per boss -------------------------------------
-  # Four pieces, in release order. Each drops from one boss and nowhere else, so a boss has at
+  # Five pieces, in release order. Each drops from one boss and nowhere else, so a boss has at
   # most one of them.
   - key: whisper-of-the-source
     name: Whisper of the Source
@@ -107,6 +107,9 @@ drops:
   # Malefic Star.
   - key: blissful-nightmare
     name: Blissful Nightmare
+  # Same again, one version later: the mirror stops at v268 and Jupiter is v270.
+  - key: original-sin-of-pride
+    name: Original Sin of Pride
 
   # --- Exceptional Hammers, one slot per boss ----------------------------------------
   - key: exceptional-hammer-face
@@ -167,6 +170,10 @@ drops:
   - key: eternal-armor-of-radiance-box
     name: Eternal Armor of Radiance Box
     art: cut
+    fungible: true
+  # v270, and no capture to cut from either, so this one is drawn blank.
+  - key: eternal-twisted-armor-box
+    name: Eternal Twisted Armor Box
     fungible: true
 
   # --- Selection and ring boxes ------------------------------------------------------
@@ -352,9 +359,12 @@ tables:
       count:
         NORMAL: { interactive: 6, heroic: 2 }
 
-  # Jupiter's table starts here and holds only this. The rest of what it drops is not recorded
-  # yet, which the drop table page says rather than showing an empty one.
   jupiter:
+    - original-sin-of-pride
+    - grindstone-of-life
+    - eternal-twisted-armor-box
+    - ring-of-restraint-4
+    - continuous-ring-4
     - key: vestige-of-erion
       pieces:
         NORMAL: { total: 45, bundles: 3 }
