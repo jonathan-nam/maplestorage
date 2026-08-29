@@ -96,10 +96,22 @@ describe("what the card says a person owes", () => {
     expect(source).toContain("function DischargeRow(");
   });
 
+  it("records an offset one row per share, so the history names the drops", () => {
+    // A press covering three nights wrote ONE entry: 5.6b against "offset against Bro", with which
+    // three of them a fold down from a figure that named none. The rows are what the act was.
+    expect(page).toContain("for (const part of parts) {");
+    expect(page).toContain("amount: -part.amount,");
+    expect(page).toContain("payouts: [{ lootId: part.lootId, memberId: part.memberId }],");
+    // Off the same parts the button quoted a total from, so the rows cannot come to a different sum.
+    expect(source).toContain("onOffsetShares(row.holder, row.name, offset.parts)");
+    expect(settlement).toContain("parts.reduce((sum, part) => sum + part.amount, 0)");
+  });
+
   it("puts the DROP on the offset's own row, not a note and a count", () => {
-    // Almost every offset covers one share, so a middle row reading "offset against Bro · 1 share"
-    // cost a second click to reach the only fact anybody wanted: which drop that was. Where there
-    // is one share, its drop IS the row, with the art the rest of the account reads drops by.
+    // Every offset written since one-row-per-share covers one share, and the entries written before
+    // it keep the fold. A middle row reading "offset against Bro · 1 share" cost a second click to
+    // reach the only fact anybody wanted: which drop that was. Where there is one share, its drop IS
+    // the row, with the art the rest of the account reads drops by.
     expect(source).toContain("const one = shares.length === 1 ? shares[0]! : null;");
     expect(source).toContain("const art = one?.iconUrl ?? (pieces > 0 ? iconUrl : null);");
     expect(source).toContain("apiAssetUrl(art)");

@@ -841,9 +841,26 @@ export function owedByYouShares(row: Settlement): { lootId: string; memberId: st
     .map((line) => ({ lootId: line.lootId, memberId: line.payeeId }));
 }
 
+/** One share an offset will discharge, and the row it will be recorded as. See V57. */
+export type OffsetPart = {
+  lootId: string;
+  memberId: string;
+  /** This seat's share, pre-fee, which is the figure its own ledger row carries. */
+  amount: number;
+};
+
 /** What discharging the shares you owe against what they owe you would come to. See V57. */
 export type Offset = {
-  /** Mesos of shares it discharges, which is all of them or none. */
+  /**
+   * The shares it discharges, one row each.
+   *
+   * The act covers all of them or none, but it is RECORDED share by share: an offset over three
+   * nights was one entry reading "offset against Bro" and 5.6b, and which three was a fold down
+   * from a figure that named nothing. One row per share reads the way a single-share offset already
+   * did, and takes one back without taking the other two with it.
+   */
+  parts: OffsetPart[];
+  /** Mesos of shares it discharges, which is all of them or none. Sums `parts`. */
   amount: number;
   /**
    * What it has to come off: everything on their side EXCEPT the shares it discharges.
@@ -874,11 +891,15 @@ export type Offset = {
  * remainder stays yours in mesos, which the net was already saying and the button now says too.
  */
 export function offsetOf(row: Settlement): Offset {
-  const amount = row.lines
+  const parts: OffsetPart[] = row.lines
     .filter((line) => line.direction === "owe")
-    .reduce((sum, line) => sum + line.pay, 0);
+    .map((line) => ({ lootId: line.lootId, memberId: line.payeeId, amount: line.pay }));
+  // Off the parts, never alongside them: the button says one figure and writes the other, so working
+  // them out separately is how a row list stops adding up to the total above it.
+  const amount = parts.reduce((sum, part) => sum + part.amount, 0);
   const toComeOff = row.mesos - row.owedByYou + amount;
   return {
+    parts,
     amount,
     toComeOff,
     leftOwing: Math.max(0, amount - toComeOff),

@@ -945,6 +945,7 @@ describe("discharging what you owe against what they owe you", () => {
     expect(row.mesos).toBe(1_500 * M);
     const offset = offsetOf(row);
     expect(offset).toEqual({
+      parts: [{ lootId: "l1", memberId: "payee-l1", amount: 500 * M }],
       amount: 500 * M,
       toComeOff: 2_000 * M,
       leftOwing: 0,
@@ -963,6 +964,7 @@ describe("discharging what you owe against what they owe you", () => {
     const row = card(500 * M, 800 * M);
     expect([row.mesos, row.owedByYou]).toEqual([0, 300 * M]);
     expect(offsetOf(row)).toEqual({
+      parts: [{ lootId: "l1", memberId: "payee-l1", amount: 800 * M }],
       amount: 800 * M,
       toComeOff: 500 * M,
       leftOwing: 300 * M,
@@ -979,11 +981,52 @@ describe("discharging what you owe against what they owe you", () => {
   it("is refused when they owe you nothing, which is not an offset but a debt of yours", () => {
     const row = card(0, 800 * M);
     expect(offsetOf(row)).toEqual({
+      parts: [{ lootId: "l1", memberId: "payee-l1", amount: 800 * M }],
       amount: 800 * M,
       toComeOff: 0,
       leftOwing: 800 * M,
       offered: false,
     });
+  });
+
+  it("names every share it covers, each with its own figure", () => {
+    // What the ledger writes a row from. Three nights against Bro were ONE entry reading 5.6b and
+    // "offset against Bro", with which three a fold down from a figure that named none of them.
+    const row = buildSettlement(
+      [],
+      wallet([
+        counterparty("person:p-bro", "Bro", [
+          line("l1", 1_933 * M, "owe"),
+          line("l2", 372 * M, "owe"),
+          line("l3", 861 * M, "owe"),
+        ]),
+      ]),
+      [debt(9_000 * M)],
+    )[0]!;
+    const offset = offsetOf(row);
+    expect(offset.parts).toEqual([
+      { lootId: "l1", memberId: "payee-l1", amount: 1_933 * M },
+      { lootId: "l2", memberId: "payee-l2", amount: 372 * M },
+      { lootId: "l3", memberId: "payee-l3", amount: 861 * M },
+    ]);
+    // The button says one figure and the rows say three. They are the same act, so they add up.
+    expect(offset.parts.reduce((sum, part) => sum + part.amount, 0)).toBe(offset.amount);
+  });
+
+  it("leaves a share they owe YOU out of the parts, the way it leaves it out of the amount", () => {
+    // Handed every line it would write an offset row against money nobody has sent. See
+    // owedByYouShares for the same trap one act along.
+    const row = buildSettlement(
+      [],
+      wallet([
+        counterparty("person:p-bro", "Bro", [
+          line("l1", 500 * M, "owe"),
+          line("l2", 700 * M, "owed"),
+        ]),
+      ]),
+      [],
+    )[0]!;
+    expect(offsetOf(row).parts).toEqual([{ lootId: "l1", memberId: "payee-l1", amount: 500 * M }]);
   });
 
   it("is refused when no share of yours is outstanding", () => {

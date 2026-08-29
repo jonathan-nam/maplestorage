@@ -8,6 +8,7 @@ import {
   type Discharge,
   type HeldOfYours,
   type Settlement,
+  type OffsetPart,
   type OffsetShare,
   moneyRows,
   offsetOf,
@@ -125,12 +126,7 @@ export function SettlementLedger({
   /** Keeps this person's card drawn with nothing outstanding, or stops. See V59. */
   onPin: (row: Settlement, pinned: boolean) => Promise<void>;
   /** Marks the shares paid AND records the offset, so the net does not move. See V57. */
-  onOffsetShares: (
-    holder: Holder,
-    amount: number,
-    name: string,
-    payouts: { lootId: string; memberId: string }[],
-  ) => Promise<void>;
+  onOffsetShares: (holder: Holder, name: string, parts: OffsetPart[]) => Promise<void>;
 }) {
   if (rows.length === 0) return null;
   return (
@@ -226,12 +222,7 @@ function SettlementCard({
   /** Keeps this person's card drawn with nothing outstanding, or stops. See V59. */
   onPin: (row: Settlement, pinned: boolean) => Promise<void>;
   /** Marks the shares paid AND records the offset, so the net does not move. See V57. */
-  onOffsetShares: (
-    holder: Holder,
-    amount: number,
-    name: string,
-    payouts: { lootId: string; memberId: string }[],
-  ) => Promise<void>;
+  onOffsetShares: (holder: Holder, name: string, parts: OffsetPart[]) => Promise<void>;
 }) {
   const [got, setGot] = useState("");
   const [owed, setOwed] = useState("");
@@ -662,12 +653,7 @@ function SettlementCard({
                 type="button"
                 className="party-save"
                 disabled={busy}
-                onClick={() =>
-                  void write(
-                    onOffsetShares(row.holder, offset.amount, row.name, owedByYouShares(row)),
-                    null,
-                  )
-                }
+                onClick={() => void write(onOffsetShares(row.holder, row.name, offset.parts), null)}
               >
                 Offset
               </button>
@@ -981,11 +967,12 @@ const dayOf = (at: string) => formatDropped(at.slice(0, 10));
 /**
  * One act that came off, read the way every other drop row on this account is read.
  *
- * Almost every offset covers ONE share, so the act row used to be a free-text note and a count with
- * the night itself a second fold down: two clicks to reach "which drop was that", and the middle row
- * saying nothing but "offset against Bro". Where there is one share, its drop IS the row.
+ * An offset covers ONE share, so the act row used to be a free-text note and a count with the night
+ * itself a second fold down: two clicks to reach "which drop was that", and the middle row saying
+ * nothing but "offset against Bro". Where there is one share, its drop IS the row.
  *
- * Several shares keep the fold, because then the act really is a group and no single night names it.
+ * Several shares still fold, for the entries written while one press wrote one entry over all of
+ * them. Offset records a row per share now, so nothing new arrives in that shape.
  * A coupon sale has no night, a tranche naming a person and never a boss, so it opens onto the sales
  * instead: what was sold, for what, and when. It reached the card as the bare word "coupon sale"
  * beside 2.41b, and nothing anywhere said that was 130 coupons over two nights.
