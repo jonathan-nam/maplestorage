@@ -296,25 +296,17 @@ export function spendAnswered(
 }
 
 /**
- * What the card's queue lists, and what it says as a count instead.
+ * The three fates of an open night, of which only `owing` is drawn.
  *
- * Only the nights that owe somebody get a row. A night that divided the way it fell is finished when
- * it is logged: nothing is derived from what became of those coupons, so its row carried a boss, a
- * looter, a week and no question. Those are the majority of any pile, so drawn they WERE the queue,
- * and the handful of rows with a debt under them were lost in it.
- *
- * A night whose debt has been ANSWERED is counted too. Its coupons were sold and priced, the money
- * is on somebody's Settlement card, and there is nothing left here to act on or to read: five rows
- * of those sat under a header already saying nothing was outstanding. Same "already dealt with" as
- * a closed boss, and they were the only kind still drawn.
+ * A night that divided the way it fell is finished when it is logged, and one whose debt has been
+ * ANSWERED has its money on somebody's Settlement card. Neither leaves anything here to act on, and
+ * drawn they WERE the queue: the handful of rows with a debt under them were lost among them.
+ * `clean` and `answered` are kept because they are how the tests pin which fate a night took.
  *
  * Answered NIGHT BY NIGHT, oldest first. See foldAnswered for why, and for the order.
  *
- * No absence is silent. A count that changed still gets said, so both go on screen as counts.
- *
- * A CLOSED night is not among them any more, and that is the one absence with somewhere else to be:
- * the Settled View names the act that closed it, who with, and what it wrote off, which is more than
- * the count here ever said. Two places saying it is two places to disagree. See lib/settled-log.ts.
+ * A CLOSED night is none of the three. It is the Settled View's, which names the act that closed it,
+ * who with, and what it wrote off. See lib/settled-log.ts.
  */
 export function queueOf(
   ledger: HolderLedger,
