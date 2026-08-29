@@ -8,10 +8,13 @@ import {
   moneyRows,
   offsetOf,
   owedByYouShares,
+  splittableOffset,
   settleThePair,
   sharesOf,
   yourPiles,
+  shareKey,
 } from "./settlement";
+import type { Discharge, OffsetShare } from "./settlement";
 import {
   answeredKey,
   paymentsSinceClosing,
@@ -1729,5 +1732,70 @@ describe("pieces a sale has already answered for", () => {
       new Map([[answeredKey("person:p-bro", "self"), sold(50)]]),
     );
     expect([row!.pieces, row!.piecesAnswered.yours, row!.piecesNet]).toEqual([30, 50, -30]);
+  });
+});
+
+describe("splitting an offset written before one-row-per-share", () => {
+  const share = (lootId: string, memberId: string, amount: number): OffsetShare => ({
+    key: shareKey(lootId, memberId),
+    lootId,
+    memberId,
+    item: "Grindstone of Faith",
+    iconUrl: null,
+    boss: "Lotus",
+    members: ["Bro"],
+    on: "2026-08-28",
+    share: amount,
+    sale: null,
+    partyId: "p1",
+  });
+
+  const act = (amount: number, payouts: number): Discharge => ({
+    id: "d1",
+    source: "DEBT",
+    amount,
+    label: "offset against Bro",
+    at: "2026-08-29T15:14:30Z",
+    payouts: Array.from({ length: payouts }, (_, i) => ({ lootId: `l${i}`, memberId: `m${i}` })),
+    sales: [],
+  });
+
+  it("gives one part per share when they reconstruct the entry exactly", () => {
+    const parts = splittableOffset(act(5_602_105_364, 3), [
+      share("l0", "m0", 1_933_333_333),
+      share("l1", "m1", 3_807_660_920),
+      share("l2", "m2", -138_888_889),
+    ]);
+    expect(parts).toEqual([
+      { lootId: "l0", memberId: "m0", amount: 1_933_333_333 },
+      { lootId: "l1", memberId: "m1", amount: 3_807_660_920 },
+      { lootId: "l2", memberId: "m2", amount: -138_888_889 },
+    ]);
+  });
+
+  it("REFUSES when the shares no longer add up to what came off", () => {
+    // A roster that moved since divides the same lot a different way. Three rows summing to
+    // something other than the act is the wrong number this ledger exists to prevent, and the
+    // entry it would replace is the only record of the real figure.
+    expect(
+      splittableOffset(act(5_602_105_364, 2), [share("l0", "m0", 1), share("l1", "m1", 2)]),
+    ).toBe(null);
+  });
+
+  it("REFUSES when one of the nights has been deleted", () => {
+    // The placeholder carries no lootId and no figure, so splitting would write a row against a
+    // drop that is gone for an amount nobody can check.
+    const gone = { ...share("", "m1", 0), item: "A drop that has been deleted" };
+    expect(splittableOffset(act(500, 2), [share("l0", "m0", 500), gone])).toBe(null);
+  });
+
+  it("is not offered on an entry that is already one share", () => {
+    expect(splittableOffset(act(500, 1), [share("l0", "m0", 500)])).toBe(null);
+  });
+
+  it("is not offered on a payment or on a decision about coupon money", () => {
+    const shares = [share("l0", "m0", 300), share("l1", "m1", 200)];
+    expect(splittableOffset({ ...act(500, 2), source: "PAYMENT" }, shares)).toBe(null);
+    expect(splittableOffset({ ...act(500, 2), source: "PROCEEDS" }, shares)).toBe(null);
   });
 });

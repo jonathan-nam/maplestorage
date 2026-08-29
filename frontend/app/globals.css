@@ -4062,6 +4062,12 @@ button.link:disabled {
   color: var(--muted);
 }
 
+/* The act, under the rows it is about to become. No rule above it: it is not one of them. */
+.ledger-split-act {
+  border-top: 0 !important;
+  padding-top: 2px !important;
+}
+
 .loot-share-name {
   min-width: 90px;
   color: var(--ink-strong);

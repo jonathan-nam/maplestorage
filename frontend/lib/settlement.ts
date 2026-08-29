@@ -784,6 +784,8 @@ export type OffsetShare = {
   key: string;
   /** The drop itself, which is what the row opens: its own history, not its party's. */
   lootId: string;
+  /** The seat the share belongs to, so a resolved share can name its own payout row again. */
+  memberId: string;
   /** What fell. Leads the row: the boss alone says which night, never which thing. */
   item: string;
   /** Its art, so the row is read the way every other drop row on this account is. */
@@ -804,6 +806,32 @@ export type OffsetShare = {
   sale: number | null;
   partyId: string;
 };
+
+/**
+ * The rows an old offset would become, or null where it cannot be told.
+ *
+ * One press used to write ONE entry over every share it covered, so entries from before #514 name
+ * three drops and show one figure. The parts are recoverable: the payouts are stored (V58) and each
+ * share is `splitOf` over the drop's own party, which is the same arithmetic the fold already draws.
+ *
+ * REFUSED unless they add up to the entry exactly. A roster that has moved since, or a drop that has
+ * been deleted, gives shares that no longer reconstruct the act, and three rows summing to something
+ * other than what came off is the plausible wrong number this ledger exists to prevent. Refusing
+ * leaves the entry exactly as it is, which is the outcome the fold already handles.
+ *
+ * Only a DEBT can be split. A payment and a decision about coupon money have no shares behind them.
+ */
+export function splittableOffset(act: Discharge, shares: OffsetShare[]): OffsetPart[] | null {
+  if (act.source !== "DEBT" || shares.length < 2) return null;
+  // A share whose drop is gone resolves to the placeholder, which carries no lootId and no figure.
+  if (shares.some((share) => share.lootId === "")) return null;
+  if (shares.reduce((sum, share) => sum + share.share, 0) !== act.amount) return null;
+  return shares.map((share) => ({
+    lootId: share.lootId,
+    memberId: share.memberId,
+    amount: share.share,
+  }));
+}
 
 /** How a resolved share is keyed. One drop owes several people, so both halves are needed. */
 export function shareKey(lootId: string, memberId: string): string {

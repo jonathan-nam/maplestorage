@@ -522,6 +522,7 @@ export default function DropLogPage() {
           offsetShares.set(shareKey(loot.id, share.memberId), {
             key: shareKey(loot.id, share.memberId),
             lootId: loot.id,
+            memberId: share.memberId,
             item: loot.name,
             iconUrl: loot.iconUrl,
             boss: boss ? bossLabel(boss.name, party.difficulty) : "Unknown boss",
@@ -1019,6 +1020,30 @@ export default function DropLogPage() {
                         }),
                       });
                     }
+                  }}
+                  // The rows FIRST, the entry they replace last. A failure part way then leaves the
+                  // offset counted twice, which is six rows where there were four and is undone with
+                  // an ×. The other order loses the act and its payout links with nothing left to
+                  // rebuild them from, which is the half of V58 that cannot be typed back in.
+                  //
+                  // Each row carries the ORIGINAL date, so a split does not move a history entry to
+                  // today. See AddSettlementDebtRequest.incurredAt.
+                  onSplitOffset={async (act, parts) => {
+                    const holder = debts.find((d) => d.id === act.id)?.holder;
+                    if (!holder) return;
+                    for (const part of parts) {
+                      await debtWrite(DEBTS_KEY, {
+                        method: "POST",
+                        body: JSON.stringify({
+                          holder,
+                          amount: -part.amount,
+                          note: act.label,
+                          payouts: [{ lootId: part.lootId, memberId: part.memberId }],
+                          incurredAt: act.at,
+                        }),
+                      });
+                    }
+                    await debtWrite(`${DEBTS_KEY}/${act.id}`, { method: "DELETE" });
                   }}
                 />
 

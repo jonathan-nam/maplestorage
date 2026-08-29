@@ -109,4 +109,15 @@ class SettlementBalanceTest {
         assertTrue(debtRefusal(bro, 1, "x".repeat(121))!!.contains("120"))
         assertNull(debtRefusal(bro, 1, "x".repeat(120)))
     }
+
+    @Test
+    fun `a debt may carry the day the act happened, and an unreadable one is refused`() {
+        // Splitting an old offset into its shares sends the entry's own date. Falling back to now()
+        // on a date it could not read would move a history entry to today and say nothing, which is
+        // the same silent re-dating the field exists to prevent.
+        assertNull(debtRefusal(bro, -139_548_023, null, "2026-08-29T15:14:30.258803Z"))
+        assertNull(debtRefusal(bro, -139_548_023, null, null))
+        assertTrue(debtRefusal(bro, 1, null, "29 August")!!.contains("timestamp"))
+        assertTrue(debtRefusal(bro, 1, null, "")!!.contains("timestamp"))
+    }
 }
