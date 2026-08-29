@@ -26,14 +26,13 @@ import {
 import { bossLabel } from "@/lib/boss-difficulty";
 import { peek, put } from "@/lib/cache";
 import {
-  type OffsetPart,
   type OffsetShare,
   buildSettlement,
   decidedSales,
   keptOfYours,
   settlementTotals,
   shareKey,
-  splitOfDebt,
+  splittableDebts,
   yourPiles,
 } from "@/lib/settlement";
 import { heldOfYoursBy, stillAsking, worthDrawing } from "@/lib/ledger-fates";
@@ -547,14 +546,13 @@ export default function DropLogPage() {
    * same act in the shape it should have been written in, and asking somebody to click through their
    * own history one entry at a time is asking them to do the migration by hand.
    *
-   * `splitOfDebt` refuses unless the shares reconstruct the entry EXACTLY, so a night that has been
-   * deleted or a roster that has moved leaves the entry alone rather than rewriting it into rows that
-   * do not add up. It also refuses while the pools are still arriving, which is what makes running
-   * this on every render safe: an unresolved share is not a split yet.
+   * `splittableDebts` refuses unless the shares reconstruct the entry EXACTLY, so a night that has
+   * been deleted or a roster that has moved leaves the entry alone rather than rewriting it into rows
+   * that do not add up. It also refuses while the pools are still arriving, which is what makes
+   * running this on every render safe, and where another entry already names one of the shares, which
+   * is a split whose rows landed and whose delete did not.
    */
-  const pendingSplits = debts
-    .map((debt) => ({ debt, parts: splitOfDebt(debt, offsetShares) }))
-    .filter((s): s is { debt: SettlementDebt; parts: OffsetPart[] } => s.parts !== null);
+  const pendingSplits = splittableDebts(debts, offsetShares);
   // Once per entry per load, set BEFORE the first write. The old entry is still splittable between
   // its rows landing and its own delete, so without this the next render would write them again.
   const splitting = useRef(new Set<string>());

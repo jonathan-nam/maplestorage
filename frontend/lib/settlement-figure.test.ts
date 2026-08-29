@@ -111,10 +111,9 @@ describe("what the card says a person owes", () => {
     // Asking somebody to click through their own history one entry at a time is asking them to do
     // the migration by hand. The guard refuses on an unresolved share, which is what makes running
     // it on every render safe: pools that have not arrived are not a split yet.
-    expect(page).toContain("const pendingSplits = debts");
-    expect(page).toContain("splitOfDebt(debt, offsetShares)");
-    expect(settlement).toContain("if (!share) return null;");
-    expect(settlement).toContain("!== -debt.amount) return null;");
+    expect(page).toContain("const pendingSplits = splittableDebts(debts, offsetShares);");
+    expect(settlement).toContain("if (!share || (claims.get(key) ?? 0) > 1) {");
+    expect(settlement).toContain("!== -debt.amount) continue;");
     // The rows first, the entry they replace last. See the comment there for which way fails safely.
     const posts = page.indexOf("incurredAt: debt.incurredAt");
     const del = page.indexOf(
