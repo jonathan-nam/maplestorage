@@ -3236,13 +3236,12 @@ button.link:disabled {
   color: var(--ink-strong);
 }
 
-/* A stage's mark, every one of them a game sprite on the same 46px canvas: the catalog's for the
-   drop, scripts/build-tab-marks.mjs's for the other two. Half of 46, so it is 1:1 on a 2x screen
-   and an exact half on a 1x one. The box is drawn empty while the tables are still loading, because
-   a mark appearing later is a tab that grows under the reader. See SectionMark. */
+/* A stage's mark, every one of them a game sprite on the 32px canvas scripts/build-tab-marks.mjs
+   builds. Drawn at 32, which is 1:1: these were halved into a 23px box before, and 13x16px of pale
+   art is not a mark anybody can see. Keep this in step with the script's MARK_CANVAS. */
 .tab-art {
-  width: 23px;
-  height: 23px;
+  width: 32px;
+  height: 32px;
   flex: none;
   image-rendering: pixelated;
 }
