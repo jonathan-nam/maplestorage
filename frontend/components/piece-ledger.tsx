@@ -274,8 +274,8 @@ function HolderCard({
   /** What to call the tranche being entered, in the two places a message names it. */
   const noun = fate === "BOUGHT" ? "purchase" : "sale";
 
-  // The nights with a debt on them, and the two kinds the queue counts instead. See queueOf.
-  const { owing, clean: cleanCount, answered: answeredCount } = queueOf(ledger, heldOfYours);
+  // The nights with a debt on them. See queueOf.
+  const { owing } = queueOf(ledger, heldOfYours);
 
   /** Keeps what was typed when the server refuses it, so a rejected sale can be corrected. */
   async function write(action: Promise<void>, clear: "entry" | "paid" | null) {
@@ -533,22 +533,9 @@ function HolderCard({
       </div>
 
       <ul className="ledger-queue">
-        {/* A closed boss used to be counted here. It is the Settled View's now, one row per act, with
-            who it was closed with and what it wrote off: strictly more than this line said, and said
-            in one place instead of two. See lib/settled-log.ts. */}
-        {/* The nights that owed nobody, in a count. See queueOf. */}
-        {cleanCount > 0 && (
-          <li className="ledger-progress">
-            {`${cleanCount} night${cleanCount === 1 ? "" : "s"} split clean`}
-          </li>
-        )}
-        {/* The nights whose debt has been answered with money. A count for the same reason the two
-            above are: nothing on them is outstanding, so there is nothing to act on. See queueOf. */}
-        {answeredCount > 0 && (
-          <li className="ledger-progress">
-            {`${answeredCount} night${answeredCount === 1 ? "" : "s"} answered`}
-          </li>
-        )}
+        {/* Only the nights with something outstanding. One that split clean or was answered has
+            nothing left to act on, and a closed one is the Settled View's, one row per act with who
+            it was closed with and what it wrote off. See queueOf and lib/settled-log.ts. */}
         {owing.map((drop) => {
           const boss = bossByKey.get(drop.bossKey ?? "");
           const party = partyById.get(drop.partyId);
