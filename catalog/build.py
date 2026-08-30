@@ -847,7 +847,7 @@ def fetch_icons(items: list[dict]) -> None:
             continue
         version = it.get("icon_version", ICON_VERSION)
         url = ICON_URL.format(version=version, icon_id=icon_id)
-        req = urllib.request.Request(url, headers={"User-Agent": "maplestorage-build"})
+        req = urllib.request.Request(url, headers={"User-Agent": "sharpeyes-build"})
         try:
             with urllib.request.urlopen(req, timeout=30) as r:
                 data = r.read()
@@ -1009,7 +1009,7 @@ def fetch_drop_icons(drops: list[dict]) -> None:
             continue
         version = d.get("icon_version", ICON_VERSION)
         url = ICON_URL.format(version=version, icon_id=icon_id)
-        req = urllib.request.Request(url, headers={"User-Agent": "maplestorage-build"})
+        req = urllib.request.Request(url, headers={"User-Agent": "sharpeyes-build"})
         try:
             with urllib.request.urlopen(req, timeout=30) as r:
                 data = r.read()

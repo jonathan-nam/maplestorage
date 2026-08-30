@@ -16,11 +16,11 @@ plugins {
     id("io.gitlab.arturbosch.detekt") version "1.23.7"
 }
 
-group = "com.maplestorage"
+group = "com.sharpeyes"
 version = "0.1.0"
 
 application {
-    mainClass.set("com.maplestorage.backend.ApplicationKt")
+    mainClass.set("com.sharpeyes.backend.ApplicationKt")
 }
 
 repositories {

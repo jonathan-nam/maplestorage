@@ -38,7 +38,7 @@ services:
     ports: !reset []
     restart: unless-stopped
     environment:
-      # The base file's password is the literal "maplestorage", which is correct for a throwaway
+      # The base file's password is the literal "sharpeyes", which is correct for a throwaway
       # local database and unacceptable for one holding somebody's account data.
       POSTGRES_PASSWORD: ${DB_PASSWORD:?set a real one in .env on the box}
 

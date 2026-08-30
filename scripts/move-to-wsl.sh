@@ -3,8 +3,8 @@
 #
 # RUN THIS FROM A WSL TERMINAL ON WINDOWS -- not from inside the dev container.
 #
-#     find /mnt/c/Users -maxdepth 5 -type d -name maplestorage 2>/dev/null   # find it
-#     bash /mnt/c/.../maplestorage/scripts/move-to-wsl.sh
+#     find /mnt/c/Users -maxdepth 5 -type d -name sharpeyes 2>/dev/null   # find it
+#     bash /mnt/c/.../sharpeyes/scripts/move-to-wsl.sh
 #
 # Why:
 #
@@ -34,7 +34,7 @@ if [[ -f /.dockerenv ]]; then
 fi
 
 SRC="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-DEST="${1:-$HOME/projects/maplestorage}"
+DEST="${1:-$HOME/projects/sharpeyes}"
 
 if [[ "$SRC" != /mnt/* ]]; then
     echo "Source is already on the Linux filesystem ($SRC) -- nothing to do." >&2
@@ -85,7 +85,7 @@ Next:
   2.  VS Code: "Reopen in Container".
   3.  Inside the new container, confirm the fix:
 
-          stat -f -c %T /workspaces/maplestorage      # want ext4/overlay, NOT v9fs
+          stat -f -c %T /workspaces/sharpeyes      # want ext4/overlay, NOT v9fs
 
       Then hot reload works and you can stop hard-refreshing.
 

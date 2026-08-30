@@ -12,7 +12,7 @@ cd "$(dirname "$0")"
 
 REGION="${AWS_REGION:-us-east-1}"
 ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text)"
-BUCKET="maplestorage-tfstate-${ACCOUNT_ID}"
+BUCKET="sharpeyes-tfstate-${ACCOUNT_ID}"
 
 echo "Region:  $REGION"
 echo "Bucket:  $BUCKET"

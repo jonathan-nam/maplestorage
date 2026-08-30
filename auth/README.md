@@ -102,7 +102,7 @@ sign in as any more. The app looks empty and nothing is actually lost.
 Sign in once first, so the new row exists, then find the new id:
 
 ```bash
-docker compose exec -T postgres psql -U maplestorage -d maplestorage \
+docker compose exec -T postgres psql -U sharpeyes -d sharpeyes \
   -c 'select id, email from "auth_user";'
 ```
 

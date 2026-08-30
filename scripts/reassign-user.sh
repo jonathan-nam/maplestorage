@@ -17,7 +17,7 @@ if [ $# -ne 2 ]; then
   echo "usage: $0 <old-user-id> <new-user-id>" >&2
   echo >&2
   echo "The new id is the one the auth service minted. Find it after signing in once:" >&2
-  echo "  docker compose exec -T postgres psql -U maplestorage -d maplestorage \\" >&2
+  echo "  docker compose exec -T postgres psql -U sharpeyes -d sharpeyes \\" >&2
   echo "    -c 'select id, email from \"auth_user\";'" >&2
   exit 1
 fi
@@ -26,7 +26,7 @@ OLD="$1"
 NEW="$2"
 cd "$(dirname "$0")/.."
 
-PSQL=(docker compose exec -T postgres psql -U maplestorage -d maplestorage)
+PSQL=(docker compose exec -T postgres psql -U sharpeyes -d sharpeyes)
 
 counts() {
   "${PSQL[@]}" -qtA -v id="$1" <<'SQL'

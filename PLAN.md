@@ -5,7 +5,7 @@
 >
 > For what the app actually does, read `README.md`. For the UI, `WEB-UI-SPEC.md`.
 
-# MapleStorage. Grandis Token Tracker
+# SharpEyes. Grandis Token Tracker
 
 ## Context
 
@@ -71,7 +71,7 @@ JPEG *compression* is still applied and is safe as long as the pixel grid is unt
 A dedicated monorepo (this repo), not loose files in a general workspace:
 
 ```
-maplestorage/
+sharpeyes/
   backend/        # Ktor project (Exposed, Flyway, Dockerfile)
   vision/         # Python/OpenCV screenshot parser. Runs as a 2nd container in the backend's ECS task
   frontend/       # Next.js project (Vercel deploys from this subdir)

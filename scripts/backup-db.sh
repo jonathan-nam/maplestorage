@@ -15,7 +15,7 @@ cd "$(dirname "$0")/.."
 source .env
 : "${BACKUP_BUCKET:?set it in .env}"
 : "${DB_USERNAME:?}"
-: "${DB_NAME:=maplestorage}"
+: "${DB_NAME:=sharpeyes}"
 
 COMPOSE=(docker compose -f docker-compose.yml -f docker-compose.prod.yml)
 

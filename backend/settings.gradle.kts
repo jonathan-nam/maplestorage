@@ -1,1 +1,1 @@
-rootProject.name = "maplestorage-backend"
+rootProject.name = "sharpeyes-backend"

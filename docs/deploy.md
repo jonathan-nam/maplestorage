@@ -270,11 +270,11 @@ aws s3 cp s3://sharpeyes-backups-<account-id>/sharpeyes-<stamp>.sql.gz .
 # On the box, into a scratch database first:
 gunzip -c sharpeyes-<stamp>.sql.gz | \
   docker compose -f docker-compose.yml -f docker-compose.prod.yml exec -T postgres \
-  psql -U maplestorage -d postgres -c 'CREATE DATABASE restore_check;' -d restore_check
+  psql -U sharpeyes -d postgres -c 'CREATE DATABASE restore_check;' -d restore_check
 
 # Compare. If these disagree, the backup is not a backup.
-docker compose ... exec -T postgres psql -U maplestorage -d maplestorage   -c 'select count(*) from character_token;'
-docker compose ... exec -T postgres psql -U maplestorage -d restore_check  -c 'select count(*) from character_token;'
+docker compose ... exec -T postgres psql -U sharpeyes -d sharpeyes   -c 'select count(*) from character_token;'
+docker compose ... exec -T postgres psql -U sharpeyes -d restore_check  -c 'select count(*) from character_token;'
 ```
 
 ## Rebuilding after the box dies

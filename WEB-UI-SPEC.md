@@ -132,7 +132,8 @@ on screen comes from the same function, so two numbers on one page cannot contra
 ## Open
 
 - **The chest mark.** MapleStory's Storage Room is a chest openable from any town, which is exactly
-  what the app is, so the chest is the mark and the name stays MapleStorage. The current 16x16
+  what the app is. The name is SharpEyes now, so whether a chest is still the mark is itself open.
+  The current 16x16
   pixel-art chest reads as generic pixel art rather than Maple: the client's UI is soft, rounded and
   anti-aliased. Undecided between redrawing it soft, commissioning one, or using the game's own icon
   and accepting the IP question knowingly. No Nexon art currently ships.

@@ -17,15 +17,15 @@ services:
   postgres:
     image: postgres:16
     environment:
-      POSTGRES_DB: maplestorage
-      POSTGRES_USER: maplestorage
-      POSTGRES_PASSWORD: maplestorage
+      POSTGRES_DB: sharpeyes
+      POSTGRES_USER: sharpeyes
+      POSTGRES_PASSWORD: sharpeyes
     ports:
       - "5432:5432"
     volumes:
-      - maplestorage-db-data:/var/lib/postgresql/data
+      - sharpeyes-db-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U maplestorage"]
+      test: ["CMD-SHELL", "pg_isready -U sharpeyes"]
       interval: 5s
       timeout: 3s
       retries: 10
@@ -71,9 +71,9 @@ services:
     environment:
       DB_HOST: postgres
       DB_PORT: "5432"
-      DB_NAME: maplestorage
-      DB_USERNAME: maplestorage
-      DB_PASSWORD: maplestorage
+      DB_NAME: sharpeyes
+      DB_USERNAME: sharpeyes
+      DB_PASSWORD: sharpeyes
       # Where the browser reaches this service. It goes in the token's `iss` and in every OAuth
       # redirect, so a wrong value here is a sign-in that lands somewhere that does not exist.
       AUTH_BASE_URL: ${AUTH_BASE_URL:-http://localhost:3001}
@@ -114,9 +114,9 @@ services:
     environment:
       DB_HOST: postgres
       DB_PORT: "5432"
-      DB_NAME: maplestorage
-      DB_USERNAME: maplestorage
-      DB_PASSWORD: maplestorage
+      DB_NAME: sharpeyes
+      DB_USERNAME: sharpeyes
+      DB_PASSWORD: sharpeyes
       # By service name, not loopback: the two no longer share a namespace.
       VISION_SERVICE_URL: http://vision:8000
       # Container-to-container, NOT the browser-facing URL: the backend fetches keys itself and
@@ -129,4 +129,4 @@ services:
       FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:-http://localhost:3000}
 
 volumes:
-  maplestorage-db-data:
+  sharpeyes-db-data:
