@@ -38,7 +38,7 @@ describe("a person's lane reserves one whole card", () => {
     px(".roster-sprite", "height") +
     px(".person-grip", "height") +
     px(".person-grip", "margin-bottom") +
-    paddingY(".person-chip") +
+    paddingY(".person-card") +
     2; // the card's 1px border, top and bottom
 
   const reserved = px(".person-chips", "min-height");

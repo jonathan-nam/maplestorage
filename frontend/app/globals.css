@@ -4788,7 +4788,10 @@ button.link:disabled {
 
 /* No sprite found, or the lookup has not run. The frame still occupies its space so a party of
    five does not go ragged around the one character nobody could find. */
+/* Border-box, or the dashed edge makes this frame 2px taller than the sprite it stands in for, and
+   a card holding one sits proud of the card beside it holding real art. */
 .roster-sprite.is-empty {
+  box-sizing: border-box;
   border: 1px dashed var(--line);
   border-radius: var(--radius-sm);
   opacity: 0.5;
@@ -4848,10 +4851,9 @@ button.link:disabled {
   background: var(--surface);
 }
 
-/* One card per character, and the whole card is the handle. The edge is what says a chip is a thing
-   you can pick up, which a sprite floating on the page did not. Border-box because there is no
-   global reset: without it the padding pushes the card past .roster-tile's 112px stride. */
-.person-chip {
+/* Every card in a lane is the same box, whichever of the three it is. Border-box because there is
+   no global reset: without it the padding pushes the card past .roster-tile's 112px stride. */
+.person-card {
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
@@ -4863,11 +4865,17 @@ button.link:disabled {
   background: var(--surface);
   font: inherit;
   color: inherit;
-  cursor: grab;
+  text-align: center;
 }
 
-.person-chip .roster-name {
+.person-card .roster-name {
   max-width: 100%;
+}
+
+/* A character. The whole card is the handle, which the edge is what says: a sprite floating on the
+   page did not. */
+.person-chip {
+  cursor: grab;
 }
 
 /* Two columns of three dots, the grab handle everything draggable wears. Faint at rest so a row of
@@ -4904,19 +4912,45 @@ button.link:disabled {
   color: var(--accent);
 }
 
-/* Not a character: the row about to receive the one you are holding. Only on screen for the length
-   of a pickup, and dashed so it cannot be mistaken for a card with somebody on it. */
-.person-target {
+/* The two cards that are not a character: where the one you are holding can go, and where a name
+   the parties have never seen is typed. Dashed, so neither is mistaken for somebody. */
+.person-target,
+.person-add {
   border-style: dashed;
   background: none;
 }
 
-.person-target .person-grip {
+.person-target .person-grip,
+.person-add .person-grip {
   visibility: hidden;
 }
 
-.person-target .roster-name {
+.person-target .roster-name,
+.person-add .roster-name {
   color: var(--muted);
+}
+
+.person-add:hover:not(:disabled) {
+  border-color: var(--muted-2);
+  color: var(--ink);
+}
+
+/* The + fills the frame a sprite would have, because the frame IS what it is offering to fill. */
+.person-add-mark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--text-xl);
+  color: var(--muted);
+}
+
+/* Sits where the name does on a character's card, and border-box so its own padding does not push
+   it out through the card's edge. */
+.person-add-input {
+  box-sizing: border-box;
+  width: 100%;
+  font-size: var(--text-sm);
+  padding: 2px 4px;
 }
 
 /* The rule is the whole separation between the people and the pile nobody owns yet. Both halves
@@ -4925,10 +4959,6 @@ button.link:disabled {
   margin-top: 24px;
   padding-top: 20px;
   border-top: 1px solid var(--line-soft);
-}
-
-.people-pool-more {
-  margin: 8px 0 20px;
 }
 
 /* On the header line, hard right: the row is wide now, and a state that floats in the middle of
