@@ -95,6 +95,7 @@ const drop = (over: Partial<Loot> = {}): Loot => {
     perMember: null,
     bossKey: "limbo",
     quantity: 1,
+    difficulty: null,
     droppedOn,
     weekStart: weekStartOf(droppedOn),
     status: "SOLD",
@@ -1483,5 +1484,27 @@ describe("an untradeable piece divides, but is owed to nobody", () => {
 
     expect(isPieceDrop(tokens(), at, tableWith(true))).toBe(false);
     expect(isCouponDrop(tokens(), at, tableWith(false))).toBe(false);
+  });
+
+  it("reads the mode the drop FELL at, not the one the party runs now", () => {
+    // The party has moved to Normal, which the table gives no amount for. The night that already
+    // happened was Hard and the row says so, so it goes on dividing.
+    //
+    // Reading the party here let an edit re-decide what a logged stack WAS: moving a Kalos party
+    // from Extreme to Chaos, which drops no coupon at all, took 540 logged coupons out of the piece
+    // maths with nothing on screen saying so. Reported 2026-08-30.
+    const movedOn = party("pa", [mine("m1", "Huskyxkenshi"), theirs("m2", "CreedBratton")], {
+      difficulty: "NORMAL",
+    });
+
+    expect(isPieceDrop(tokens({ difficulty: "HARD" }), movedOn, tableWith(true))).toBe(true);
+
+    // And the row's own mode is what is read, not merely a truthy override: a stack that really did
+    // fall on Normal still does not divide, whatever the party says now.
+    const stillHard = party("pa", [mine("m1", "Huskyxkenshi"), theirs("m2", "CreedBratton")], {
+      difficulty: "HARD",
+    });
+
+    expect(isPieceDrop(tokens({ difficulty: "NORMAL" }), stillHard, tableWith(true))).toBe(false);
   });
 });

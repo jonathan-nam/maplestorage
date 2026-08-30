@@ -37,6 +37,15 @@ internal fun addLoot(
     fromClear: Boolean = false,
 ): Uuid {
     val lootId = Uuid.random()
+    // The mode the config runs TODAY, stamped on the row now so a later edit cannot re-attribute it.
+    // Read here rather than passed in: every caller would otherwise have to look it up, and one that
+    // forgot would file a drop the config could still rewrite. See V69__loot_difficulty.sql.
+    val mode =
+        Party
+            .selectAll()
+            .where { Party.id eq partyId }
+            .firstOrNull()
+            ?.get(Party.difficulty)
     PartyLoot.insert {
         it[id] = lootId
         it[PartyLoot.partyId] = partyId
@@ -46,6 +55,7 @@ internal fun addLoot(
         it[quantity] = item.quantity
         it[PartyLoot.fromClear] = fromClear
         it[PartyLoot.droppedOn] = droppedOn
+        it[difficulty] = mode
         it[createdAt] = now
         it[updatedAt] = now
     }

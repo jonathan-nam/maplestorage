@@ -84,6 +84,7 @@ const night = (id: string, droppedOn: string, by: Record<string, number>): Loot 
   perMember: null,
   bossKey: "baldrix",
   quantity: 120,
+  difficulty: null,
   droppedOn,
   weekStart: droppedOn,
   status: "PENDING",

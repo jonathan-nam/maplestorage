@@ -22,6 +22,10 @@ export type Loot = {
   // How many of it fell. 1 for a drop that is one item; a stack of coupons is one row with its
   // count, which is what a night that will not divide evenly leaves one member holding.
   quantity: number;
+  // The mode it FELL at, which the party's may no longer be: a config's difficulty is editable and
+  // rewriting it must not re-decide what an already logged stack was. isPieceDrop reads this first.
+  // Null for a row the V69 backfill could not place, which reads through the party instead.
+  difficulty: string | null;
   droppedOn: string;
   // The reset week droppedOn falls in, as that week's Thursday. The server's, so the Drop Log's
   // weeks are the same ones the clears matrix steps through. See BossPeriod.kt.

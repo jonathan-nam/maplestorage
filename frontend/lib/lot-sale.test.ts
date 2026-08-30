@@ -79,6 +79,7 @@ const drop = (
   perMember: null,
   bossKey: "limbo",
   quantity: 1,
+  difficulty: null,
   droppedOn,
   weekStart: droppedOn,
   status: "PENDING",

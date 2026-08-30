@@ -103,6 +103,7 @@ const coupon = (
   perMember: null,
   bossKey,
   quantity,
+  difficulty: null,
   droppedOn: weekStart,
   weekStart,
   status: "PENDING",
