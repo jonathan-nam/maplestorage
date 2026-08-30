@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { MAX_COUNT } from "./count-stepper";
 
 // Four sizes and two weights, pinned. The scale is only worth having if a fifth size costs
 // something, and a stylesheet this size drifts a px at a time with nobody noticing. These tests are
@@ -132,28 +133,41 @@ describe("the MapleStory face", () => {
     }
   });
 
-  it("leaves the game window in Arial", () => {
-    // The client draws its own window in Arial. Dressing it in the brand face would be quoting the
-    // game with the wrong voice, which is the mistake the slate shell made.
+  it("dresses the game window too, Arial having been the odd one out", () => {
+    // The client draws its own window in Arial and this replica copied that. It left the one screen
+    // dressed as MapleStory as the only one not in MapleStory's face, so the window inherits body
+    // now and the face is declared once in the file.
     const win = rules().find((r) => r.selector === ".ms-window");
-    expect(win?.body).toMatch(/font-family:\s*Arial/);
+    expect(win, "no .ms-window rule").toBeDefined();
+    expect(win?.body).not.toMatch(/font-family/);
   });
 
-  it("keeps the face out of the window entirely, figures included", () => {
-    // The window's numbers are the one place the ragged digits would land on the game's own
-    // furniture, and the counts in the slots are digit IMAGES besides. Everything in here either
-    // says Arial or inherits it. Naming Maplestory on any of them re-dresses the replica.
+  it("is not opted out of anywhere inside that window", () => {
+    // Every rule in here either names no family or says inherit. Naming Arial on one of them puts
+    // part of the replica back in a different face from the rest of it.
     const inside = rules().filter((r) => /\.ms-|\.sk-/.test(r.selector));
     expect(inside.length).toBeGreaterThan(0);
     for (const rule of inside) {
-      expect(rule.body).not.toContain("Maplestory");
+      expect(rule.body).not.toContain("Arial");
     }
     const families = inside
       .filter((r) => r.body.includes("font-family"))
       .map((r) => (r.body.match(/font-family:\s*([^;]+)/) ?? [])[1]?.trim());
     for (const fam of families) {
-      expect(fam === "inherit" || fam?.startsWith("Arial")).toBe(true);
+      expect(fam).toBe("inherit");
     }
+  });
+
+  it("leaves the count box room for MAX_COUNT in the widest digit", () => {
+    // What the ragged advances above cost inside the window. 1ch is the advance of "0", which is
+    // the widest digit in this face, so Nch bounds any N-digit value. The box was a fixed 52px,
+    // sized to Arial's tabular 6.7px digits, and 1000000 in this face overflowed it and lost its
+    // last 0: a million reading as 100000 is the failure this app exists to prevent. Held in ch so
+    // it cannot go stale the way a px measurement does.
+    const input = rules().find((r) => r.selector === ".ms-count-input");
+    const width = (input?.body.match(/width:\s*([\d.]+)ch/) ?? [])[1];
+    expect(width, ".ms-count-input width is not in ch").toBeDefined();
+    expect(Number(width)).toBeGreaterThanOrEqual(String(MAX_COUNT).length);
   });
 
   it("reaches the controls, which do not inherit a font on their own", () => {
