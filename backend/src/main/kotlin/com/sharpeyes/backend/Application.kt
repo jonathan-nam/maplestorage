@@ -21,8 +21,8 @@ import io.ktor.server.engine.embeddedServer
 import io.ktor.server.netty.Netty
 
 fun main() {
-    // 8080 everywhere it is deployed (ECS and docker-compose both publish that), so the env var
-    // exists for one case: running a branch beside the already-running dev stack to look at it.
+    // 8080 unless PORT says otherwise. The box's second replica sets 8081, and so does a branch
+    // run beside the already-running dev stack to look at it.
     embeddedServer(Netty, port = Env.port, host = "0.0.0.0", module = Application::module)
         .start(wait = true)
 }
@@ -38,9 +38,8 @@ fun Application.module() {
     val nexonHttpClient = createNexonHttpClient()
     monitor.subscribe(ApplicationStopped) { nexonHttpClient.close() }
 
-    // Screenshots are parsed by the co-located OpenCV vision service (a second
-    // container in the same ECS task): no third-party call, no metering, and the
-    // same answer every time for the same bytes.
+    // Screenshots are parsed by the OpenCV vision service: no third-party call, no metering,
+    // and the same answer every time for the same bytes.
     val visionHttpClient = createVisionHttpClient()
     monitor.subscribe(ApplicationStopped) { visionHttpClient.close() }
     val screenshotParser = VisionServiceClient(visionHttpClient, Env.visionServiceUrl)

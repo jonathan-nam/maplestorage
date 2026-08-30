@@ -333,20 +333,6 @@ started by rediscovering it.
 For how to sign in on a **new machine** (and why each machine should have its own AWS access
 key), see *Starting from a fresh clone* above.
 
-## Rebuilding the vision service breaks the backend
-
-The backend shares the vision container's network namespace (`network_mode:
-service:vision`, deliberately, it mirrors how ECS co-locates them). Rebuilding vision
-*recreates* that container, and the backend's networking goes with it: uploads start
-failing with "Upload failed, check your connection".
-
-**Always restart the backend after rebuilding vision:**
-
-```bash
-docker compose up -d --build vision
-docker compose up -d --force-recreate backend
-```
-
 ## It froze, and Docker Desktop won't stop it
 
 Symptom: the container locks up after a while, you get an HTTP 500, Docker Desktop's

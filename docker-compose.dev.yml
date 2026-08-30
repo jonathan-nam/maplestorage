@@ -2,7 +2,7 @@
 #
 # Deliberately NOT named docker-compose.override.yml. Compose auto-loads that name, so smoke.sh
 # and a bare `docker compose up` would silently get a bind-mounted dev container instead of the
-# image ECS runs, and running the same images ECS runs is the entire point of docker-compose.yml.
+# built image, and running the same images production runs is the point of docker-compose.yml.
 # Applied only by scripts/dev-up.sh, which passes both files explicitly.
 #
 # The backend is not covered: it is a compiled Kotlin binary, so reloading it needs a Gradle

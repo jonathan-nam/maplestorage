@@ -68,9 +68,9 @@ fun Application.configureRouting(
         // and live in the database, not in the jar. Public for the same reason as the art above.
         spriteRoutes()
 
-        // Unauthenticated on purpose, this is what the ALB target group polls
-        // (see infra/alb.tf's health_check block). No DB touch here: a slow or
-        // briefly-unavailable RDS shouldn't flip the target group unhealthy.
+        // Unauthenticated on purpose: deploy.sh polls it through nginx to decide when a restarted
+        // replica may take traffic. It answers only once Flyway has migrated, which is the signal
+        // a rolling deploy waits on, and it touches no table, so a slow query cannot stall one.
         get("/health") {
             call.respond(mapOf("status" to "ok"))
         }
@@ -88,7 +88,7 @@ fun Application.configureRouting(
         }
 
         // M0's actual round-trip proof: a signed-in user's JWT verifies against
-        // the auth service's JWKS, and the response value comes from a real RDS query, not
+        // the auth service's JWKS, and the response value comes from a real database query, not
         // a hardcoded string.
         authenticate(SESSION_AUTH) {
             get("/api/ping") {

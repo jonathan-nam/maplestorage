@@ -21,10 +21,9 @@ import org.slf4j.LoggerFactory
 
 private val log = LoggerFactory.getLogger(VisionServiceClient::class.java)
 
-// The vision service is a second container in the same ECS task, so this is a
-// loopback call. There is no network to be slow or flaky, and no retry logic
-// worth writing. A parse is ~0.3s of CPU; the timeout only exists to stop a
-// wedged vision container from holding a request thread forever.
+// The vision service sits on the same host, one compose network hop away, so there is little
+// to be slow or flaky and no retry logic worth writing. A parse is ~0.3s of CPU; the timeout
+// only exists to stop a wedged vision container from holding a request thread forever.
 private const val PARSE_TIMEOUT_MS = 15_000L
 
 // Recorded against each screenshot in place of a model id. Cost accounting
@@ -81,8 +80,8 @@ private data class VisionError(
  * Parses screenshots by calling the co-located OpenCV vision service, rather
  * than a vision model.
  *
- * The service runs as a second container in the same ECS task (see `vision/`),
- * so this is a loopback call: one deployable, two processes.
+ * The service (see `vision/`) is a container beside this one, reached by name. It is not
+ * deployed to production, so in prod this path is unreachable and nothing calls it.
  *
  * The parse is deterministic: no third-party call, no metering, same answer every
  * time for the same bytes.

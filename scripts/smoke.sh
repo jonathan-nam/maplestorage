@@ -74,8 +74,8 @@ echo -e "\r\033[K\c"
 check "backend is healthy" curl -fsS http://localhost:8080/health
 
 # 2. The wiring. This is the assertion that matters: the backend must reach the
-#    vision service over loopback, the way it will in ECS. A compose file on
-#    separate networks would pass everything above and still be wrong.
+#    vision service by name on the compose network. A compose file on separate
+#    networks would pass everything above and still be wrong.
 check "backend reaches vision by service name" \
   docker compose exec -T backend sh -c \
   'wget -qO- http://vision:8000/health || curl -fsS http://vision:8000/health'
