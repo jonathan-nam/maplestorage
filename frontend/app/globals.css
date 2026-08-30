@@ -6248,6 +6248,15 @@ button.ledger-drop-sale:hover:not(:disabled) {
   color: var(--warn);
 }
 
+/* Waiting for the second click. `--bad` is what .party-delete already means by delete, and it is
+   the one colour the button cannot reach on hover, so armed and hovered stay tellable apart. The
+   left gap is the word's, an × does not need it. */
+button.ledger-drop-sale.is-armed,
+button.ledger-drop-sale.is-armed:hover:not(:disabled) {
+  padding-left: 10px;
+  color: var(--bad);
+}
+
 .ledger-queue {
   display: flex;
   flex-direction: column;
