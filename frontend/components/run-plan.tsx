@@ -308,26 +308,6 @@ export function RunPlan({
                     {/* Flexed on an inner span: display:flex on a table cell takes it out of the
                     table layout and the columns stop aligning. */}
                     <span className="run-boss-inner">
-                      {/* Same chevron as a party row, in the same place, because it opens the same
-                          picker onto the same pool. Absent with no config behind the row, and the
-                          width is not held open for it: every row of an account night has one. */}
-                      {party && onAddDrop && (
-                        <button
-                          type="button"
-                          className="party-row-toggle"
-                          aria-expanded={open}
-                          aria-controls={`run-panel-${planned.run.id}`}
-                          onClick={() => {
-                            setOpened(open ? null : planned.run.id);
-                            setAddError(null);
-                          }}
-                        >
-                          <span className="party-row-chevron" aria-hidden="true" />
-                          <span className="visually-hidden">
-                            {open ? "Hide what dropped" : "Add a drop"}
-                          </span>
-                        </button>
-                      )}
                       {BOSS_ART_2X[planned.run.bossKey] ? (
                         <img
                           className="run-art"
@@ -368,6 +348,29 @@ export function RunPlan({
                           </span>
                         )}
                       </span>
+
+                      {/* After the boss, not in front of its portrait, which is where the Drop Log
+                          puts one now. In front it took 28px off the art on rows that have a config
+                          and none on rows that do not, so one list started its portraits in two
+                          different places. Still absent with no config behind the row: there is
+                          nothing to add a drop to. */}
+                      {party && onAddDrop && (
+                        <button
+                          type="button"
+                          className="party-row-toggle"
+                          aria-expanded={open}
+                          aria-controls={`run-panel-${planned.run.id}`}
+                          onClick={() => {
+                            setOpened(open ? null : planned.run.id);
+                            setAddError(null);
+                          }}
+                        >
+                          <span className="party-row-chevron" aria-hidden="true" />
+                          <span className="visually-hidden">
+                            {open ? "Hide what dropped" : "Add a drop"}
+                          </span>
+                        </button>
+                      )}
                     </span>
                   </th>
 

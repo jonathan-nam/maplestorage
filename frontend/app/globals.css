@@ -5400,9 +5400,10 @@ button.link:disabled {
   color: var(--ink-strong);
 }
 
-/* Nothing to open, but the width is kept so the headings stay in one column. Only where the chevron
-   HAS a column: a Drop Log row hangs its own off the drop's name, and draws none when it does not
-   fold. */
+/* Nothing to open, but the width is kept so the headings stay in one column. A party row is the one
+   place left that has such a column, and it leads with a heading rather than with art. Every row
+   that leads with art hangs its chevron off the NAME instead and draws none at all when it does not
+   fold: the Drop Log, the Settled View, the Settlement Ledger's acts, Run Order. */
 .party-row-toggle.is-empty {
   cursor: default;
 }
@@ -5949,8 +5950,9 @@ button.link:disabled {
 }
 
 /* What a run opens to: the drop picker, on a row across the table because a form laid out inside
-   one column of a grid is laid out by that column. Indented past the chevron so it hangs under the
-   boss rather than under the arrow that opened it, as the party row's panel is. */
+   one column of a grid is laid out by that column. One step in from the cell's own 8px, the same
+   28px step the Drop Log's runs take, so it reads as hanging off the row above it. It used to be
+   measured off a chevron column standing left of the portrait, and there is no such column now. */
 .run-panel td {
   padding: 4px 8px 10px 36px;
 }
