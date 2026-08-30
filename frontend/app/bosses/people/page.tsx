@@ -1,47 +1,68 @@
 "use client";
 
 import { PageSwap } from "@/components/page-swap";
+import { PeopleBoard } from "@/components/people-board";
 import { useAuth } from "@/lib/use-auth";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { ApiError, apiFetch } from "@/lib/api";
 import { peek, put } from "@/lib/cache";
-import type { Person, SavePeopleBody } from "@/types/party";
+import { type PersonDraft, unclaimed } from "@/lib/people-board";
+import { spriteByName } from "@/lib/sprite-by-name";
+import type { Character } from "@/types/character";
+import type { Party, Person, SavePeopleBody } from "@/types/party";
 
 type LoadState = "loading" | "loaded" | "error";
-type Draft = { id?: string; name: string; characters: string };
 
 const PEOPLE_KEY = "/api/people";
+const PARTIES_KEY = "/api/parties";
+const CHARACTERS_KEY = "/api/characters";
 
 // Who plays which character. Kept apart from the parties on purpose: a party names characters, and
 // this says whose they are, once, for every party that names them. Say it here and CreedBratton is
 // Chris's everywhere he turns up.
+//
+// The characters are the sprites they are in every other roster, because that is what makes the
+// unclaimed pile readable: a column of unfamiliar names is the thing you cannot sort, and a column
+// of faces is. Parties are fetched for the seats and for their art, own characters for the art of
+// yours, which is the newer of the two. See lib/sprite-by-name.ts.
 export default function PeoplePage() {
   const { getToken, isLoaded } = useAuth();
 
   const [people, setPeople] = useState<Person[]>(peek<Person[]>(PEOPLE_KEY) ?? []);
-  const [draft, setDraft] = useState<Draft[]>([]);
+  const [parties, setParties] = useState<Party[]>(peek<Party[]>(PARTIES_KEY) ?? []);
+  const [characters, setCharacters] = useState<Character[]>(
+    peek<Character[]>(CHARACTERS_KEY) ?? [],
+  );
+  const [draft, setDraft] = useState<PersonDraft[]>([]);
   const [state, setState] = useState<LoadState>("loading");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showOneOffs, setShowOneOffs] = useState(false);
 
-  // Characters are edited as one comma-separated line per person, because that is how they are
-  // read out loud ("Jared plays Premial, Lynn and Corsair") and a row of inputs per character is a
-  // lot of furniture for a list you touch twice a year.
-  const toDraft = (rows: Person[]): Draft[] =>
-    rows.map((p) => ({ id: p.id, name: p.name, characters: p.characters.join(", ") }));
+  const toDraft = (rows: Person[]): PersonDraft[] =>
+    rows.map((p) => ({ id: p.id, name: p.name, characters: [...p.characters] }));
 
   useEffect(() => {
     // Not before Clerk answers, or the fetch goes out as `Bearer null`. See lib/api.ts.
     if (!isLoaded) return;
     getToken()
-      .then((token) =>
-        apiFetch<Person[]>(PEOPLE_KEY, { method: "GET" }, () => Promise.resolve(token)),
-      )
-      .then((result) => {
-        setPeople(result);
-        setDraft(toDraft(result));
-        put(PEOPLE_KEY, result);
+      .then((token) => {
+        const withToken = () => Promise.resolve(token);
+        return Promise.all([
+          apiFetch<Person[]>(PEOPLE_KEY, { method: "GET" }, withToken),
+          apiFetch<Party[]>(PARTIES_KEY, { method: "GET" }, withToken),
+          apiFetch<Character[]>(CHARACTERS_KEY, { method: "GET" }, withToken),
+        ]);
+      })
+      .then(([peopleResult, partyResult, characterResult]) => {
+        setPeople(peopleResult);
+        setDraft(toDraft(peopleResult));
+        setParties(partyResult);
+        setCharacters(characterResult);
+        put(PEOPLE_KEY, peopleResult);
+        put(PARTIES_KEY, partyResult);
+        put(CHARACTERS_KEY, characterResult);
         setState("loaded");
       })
       .catch(() => setState((s) => (s === "loaded" ? "loaded" : "error")));
@@ -55,10 +76,7 @@ export default function PeoplePage() {
         .map((row) => ({
           ...(row.id ? { id: row.id } : {}),
           name: row.name.trim(),
-          characters: row.characters
-            .split(",")
-            .map((c) => c.trim())
-            .filter((c) => c !== ""),
+          characters: row.characters,
         })),
     };
     setBusy(true);
@@ -82,6 +100,10 @@ export default function PeoplePage() {
   }
 
   const dirty = JSON.stringify(draft) !== JSON.stringify(toDraft(people));
+  const sprites = spriteByName(characters, parties);
+  // Against the DRAFT, not the saved list: a character dragged onto somebody has to leave the pile
+  // as it is dropped, before anything is saved.
+  const { regular, oneOff } = unclaimed(parties, draft);
 
   return (
     <main className="page">
@@ -97,52 +119,26 @@ export default function PeoplePage() {
       >
         {state === "loaded" && (
           <>
-            <div className="people-list">
-              {draft.map((row, index) => (
-                // A saved person keys on their id; a new row has only its slot.
-                <div className="person-row" key={row.id ?? `new-${index}`}>
-                  <input
-                    className="split-input person-name"
-                    value={row.name}
-                    onChange={(e) =>
-                      setDraft(
-                        draft.map((r, i) => (i === index ? { ...r, name: e.target.value } : r)),
-                      )
-                    }
-                    placeholder="Jared"
-                    aria-label="Person's name"
-                    maxLength={40}
-                  />
-                  <input
-                    className="split-input person-characters"
-                    value={row.characters}
-                    onChange={(e) =>
-                      setDraft(
-                        draft.map((r, i) =>
-                          i === index ? { ...r, characters: e.target.value } : r,
-                        ),
-                      )
-                    }
-                    placeholder="Premial, Lynn, Corsair"
-                    aria-label={`Characters ${row.name || "this person"} plays`}
-                  />
-                  <button
-                    type="button"
-                    className="party-delete"
-                    disabled={busy}
-                    onClick={() => setDraft(draft.filter((_, i) => i !== index))}
-                  >
-                    Remove
-                  </button>
-                </div>
-              ))}
-            </div>
+            <PeopleBoard
+              people={draft}
+              unassigned={showOneOffs ? [...regular, ...oneOff] : regular}
+              hidden={showOneOffs ? 0 : oneOff.length}
+              showHidden={showOneOffs}
+              spriteFor={(name) => sprites.get(name) ?? null}
+              busy={busy}
+              onChange={setDraft}
+              onRename={(index, name) =>
+                setDraft(draft.map((r, i) => (i === index ? { ...r, name } : r)))
+              }
+              onRemove={(index) => setDraft(draft.filter((_, i) => i !== index))}
+              onShowHidden={setShowOneOffs}
+            />
 
             <div className="loot-actions">
               <button
                 type="button"
                 className="party-add-seat"
-                onClick={() => setDraft([...draft, { name: "", characters: "" }])}
+                onClick={() => setDraft([...draft, { name: "", characters: [] }])}
               >
                 + Person
               </button>

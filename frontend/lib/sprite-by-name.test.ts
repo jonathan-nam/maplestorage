@@ -53,6 +53,12 @@ const character = (name: string, spriteImgUrl: string | null): Character => ({
 });
 
 describe("spriteByName", () => {
+  it("finds a seat that has since left the party", () => {
+    const gone = seat("Lynn", "/sprites/lynn.png");
+    const parties = [{ ...config("p1", [seat("Nightwalk", null)]), seats: [gone] }];
+    expect(spriteByName([], parties).get("Lynn")).toBe("/sprites/lynn.png");
+  });
+
   it("finds the people you run with, who are only ever seats", () => {
     const parties = [config("p1", [seat("Nightwalk", "/sprites/nw.png")])];
     expect(spriteByName([], parties).get("Nightwalk")).toBe("/sprites/nw.png");

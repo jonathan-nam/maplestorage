@@ -18,8 +18,10 @@ import type { Party } from "@/types/party";
 export function spriteByName(characters: Character[], parties: Party[]): Map<string, string> {
   const sprites = new Map<string, string>();
   for (const party of parties) {
-    for (const member of party.members) {
-      if (member.spriteImgUrl) sprites.set(member.name, member.spriteImgUrl);
+    // Every seat, not the week's roster: somebody who has left the party is still drawn on the
+    // People page, and reading `members` would leave them the one chip with no art.
+    for (const seat of party.seats) {
+      if (seat.spriteImgUrl) sprites.set(seat.name, seat.spriteImgUrl);
     }
   }
   // After the seats, not before: your own character's sprite is the one refreshed on your roster

@@ -4679,8 +4679,8 @@ button.link:disabled {
   padding: 6px 8px;
 }
 
-/* The People page: one line per person, their characters as a comma-separated list, because that
-   is how they are said out loud and a row of inputs per character is furniture. */
+/* The People page: one line per person, their characters as the sprites they are. A pile of
+   unclaimed names is the thing you cannot sort; a pile of faces is. */
 .people-list {
   display: flex;
   flex-direction: column;
@@ -4697,13 +4697,6 @@ button.link:disabled {
 
 .person-name {
   width: 160px;
-  font-size: var(--text-base);
-  padding: 7px 10px;
-}
-
-.person-characters {
-  flex: 1;
-  min-width: 240px;
   font-size: var(--text-base);
   padding: 7px 10px;
 }
@@ -4815,6 +4808,73 @@ button.link:disabled {
 .roster-guest {
   font-size: var(--text-sm);
   color: var(--accent);
+}
+
+/* Where a person's characters sit, and where one is dropped. After .roster-strip, whose padding it
+   overrides. Kept at its full height empty, so a row with nobody in it is still a target: the frame
+   IS the instruction, which is why no sentence tells you to drag. */
+.person-chips {
+  flex: 1;
+  min-width: 240px;
+  min-height: 140px;
+  align-content: flex-start;
+  padding: 6px;
+  border: 1px dashed var(--line-soft);
+  border-radius: var(--radius-md);
+}
+
+.people-board.is-picking .person-chips {
+  border-color: var(--line);
+}
+
+.person-chips.is-target {
+  border-color: var(--accent);
+  border-style: solid;
+  background: var(--surface);
+}
+
+/* A bare button around one roster tile, so a chip is one target and not a card with things on it. */
+.person-chip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  cursor: grab;
+}
+
+.person-chip:disabled {
+  cursor: default;
+}
+
+.person-chip.is-picked {
+  cursor: grabbing;
+}
+
+.person-chip.is-picked .roster-name {
+  color: var(--accent);
+}
+
+/* Not a character: the row about to receive the one you are holding. Only on screen for the length
+   of a pickup, and the only way to place one from the keyboard. */
+.person-target .roster-name {
+  color: var(--muted);
+}
+
+/* The rule is the whole separation between the people and the pile nobody owns yet. Both halves
+   are rows of the same tile, so without it they read as one list. */
+.people-pool-title {
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid var(--line-soft);
+}
+
+.people-pool-more {
+  margin: 8px 0 20px;
 }
 
 /* On the header line, hard right: the row is wide now, and a state that floats in the middle of
