@@ -744,11 +744,9 @@ a:hover {
     inset 0 0 0 1px var(--chrome-edge-light),
     0 4px 14px rgb(0 0 0 / 45%);
   color: #2f353e;
-  /* The client draws this window's text in Arial, which Windows renders unsmoothed at this size.
-     A browser will always antialias it, so this buys the letterforms and the 18/12 rhythm, not
-     the crispness. A pixel webfont would buy the crispness and cost integer-only sizing and
-     working browser zoom, which is a bad trade in an app built on not misreading a number. */
-  font-family: Arial, Helvetica, sans-serif;
+  /* The app's own face, inherited from body, not the client's. This declared Arial to match what
+     the client draws its windows in, which left the one screen dressed as MapleStory as the only
+     one not in Nexon's MapleStory face. The 12/18 below is still the client's measured rhythm. */
   font-size: 12px;
   line-height: 18px;
   outline: none;
@@ -891,10 +889,10 @@ a:hover {
 
 /* Editing one item's count, in a popup over the slot you clicked.
 
-   Dressed as the window it opens over: the client's Arial 12/18 and the --ms-* palette, not the
-   dark shell's surface and ink. It is drawn ON the game's own window, and in the shell's colours it
-   read as a different app's dialog sitting on top of it. The shell's chrome edges do the framing,
-   the same pair the window itself uses.
+   Dressed as the window it opens over: its 12/18 and the --ms-* palette, not the dark shell's
+   surface and ink. It is drawn ON the game's own window, and in the shell's colours it read as a
+   different app's dialog sitting on top of it. The shell's chrome edges do the framing, the same
+   pair the window itself uses.
 
    FIXED rather than absolute: .ms-window sets overflow-x: auto, and an element that clips one axis
    clips both, so an absolutely positioned popup over the first row was cut off by the window it was
@@ -918,7 +916,6 @@ a:hover {
     inset 0 0 0 1px var(--chrome-edge-light),
     0 3px 10px rgb(0 0 0 / 40%);
   color: var(--ms-ink);
-  font-family: Arial, Helvetica, sans-serif;
   font-size: 12px;
   line-height: 18px;
 }
@@ -936,10 +933,14 @@ a:hover {
   gap: 4px;
 }
 
-/* The count reads like the one under the slot's own icon: same family, same ink, boxed like a
-   slot rather than like one of the dark shell's fields. */
+/* The count reads like the one under the slot's own icon: same ink, boxed like a slot rather than
+   like one of the dark shell's fields. */
 .ms-count-input {
-  width: 52px;
+  /* 1ch is the advance of "0", the widest digit in this face, so 7ch bounds MAX_COUNT's 7 digits
+     and the 8th is slack. This was a fixed 52px, sized to Arial's tabular digits, and 1000000 in
+     this face overflowed it and lost its last 0: a million reading as 100000 is the failure this
+     app exists to prevent. In ch rather than px so it cannot rot when the face changes. */
+  width: 8ch;
   padding: 1px 4px;
   border: 1px solid var(--ms-slot-edge);
   border-radius: 3px;

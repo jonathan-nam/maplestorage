@@ -21,9 +21,9 @@ import { deferredWrite } from "@/lib/deferred-write";
 // copy cost a third of the popup's height to repeat what was under it. Shrinking that copy was not
 // an option: these are pixel sprites and rescaling one is the bug drop-icon-canvas already fixed.
 //
-// Dressed as the window it opens over, in the client's own Arial 12/18 and the --ms-* palette. It
-// is drawn ON the game's window, so the dark shell's surface and ink read as a different app's
-// dialog sitting on top of it.
+// Dressed as the window it opens over, in its 12/18 and the --ms-* palette. It is drawn ON the
+// game's window, so the dark shell's surface and ink read as a different app's dialog sitting on
+// top of it.
 
 export function CountPopup({
   name,
