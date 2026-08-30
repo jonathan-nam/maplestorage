@@ -9,6 +9,7 @@ import { CharacterPicker } from "@/components/character-picker";
 import { ApiError, apiFetch } from "@/lib/api";
 import { nextSkips } from "@/lib/boss-clears";
 import { peek, put } from "@/lib/cache";
+import { partiedBossKeys } from "@/lib/parties";
 import { preloadBossArt } from "@/lib/preload-boss-art";
 import { useRowWrites } from "@/lib/use-row-writes";
 import type { Boss, BossClearsView } from "@/types/boss";
@@ -160,14 +161,8 @@ export default function BossRoutinePage() {
 
   const character = characters.find((c) => c.id === selected) ?? null;
   // A party config for this character and boss already says they run it, so the box is locked
-  // rather than refused after the fact. See BossRoutineEditor.
-  //
-  // Solo pools are not that claim, and are excluded: one is a pool holding what fell on a boss run
-  // alone, and locking a row over it would leave nothing to "remove first". Same line setBossRoutine
-  // draws on the server.
-  const lockedBossKeys = new Set(
-    parties.filter((p) => p.characterId === selected && !p.solo).map((p) => p.bossKey),
-  );
+  // rather than refused after the fact. See partiedBossKeys and BossRoutineEditor.
+  const lockedBossKeys = partiedBossKeys(parties, selected ?? "");
   const soloDifficulty = new Map(
     parties
       .filter((p) => p.characterId === selected && p.solo)

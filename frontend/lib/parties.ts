@@ -212,6 +212,32 @@ export function standingParties(parties: Party[]): Party[] {
 }
 
 /**
+ * A one-off whose period has passed: one night that is over, still holding the pair's slot.
+ *
+ * Not a boss this character runs, so nothing that asks "what does this character run" counts it.
+ * Mirrors isSpentOneOff in PartySkip.kt.
+ */
+export function isSpentOneOff(party: Party): boolean {
+  return party.oneOff && party.skippedThisPeriod;
+}
+
+/**
+ * The bosses whose routine box cannot be un-ticked, because a party config already says this
+ * character runs them.
+ *
+ * Two kinds of config are not that claim. A solo pool holds what fell on a boss run alone, and a
+ * spent one-off holds one night that is over. Locking a row over either would leave nothing to
+ * "remove first", so the box would never come back. Same line partiedNames draws on the server.
+ */
+export function partiedBossKeys(parties: Party[], characterId: string): Set<string> {
+  return new Set(
+    parties
+      .filter((p) => p.characterId === characterId && !p.solo && !isSpentOneOff(p))
+      .map((p) => p.bossKey),
+  );
+}
+
+/**
  * The bosses this character can still be given a party for.
  *
  * Everything with no config, plus the one-offs whose period has passed. Those still hold the pair's
@@ -227,9 +253,7 @@ export function standingParties(parties: Party[]): Party[] {
  */
 export function bossesWithoutConfig(parties: Party[], bosses: Boss[], characterId: string): Boss[] {
   const taken = new Set(
-    parties
-      .filter((p) => p.characterId === characterId && !(p.oneOff && p.skippedThisPeriod))
-      .map((p) => p.bossKey),
+    parties.filter((p) => p.characterId === characterId && !isSpentOneOff(p)).map((p) => p.bossKey),
   );
   return bosses.filter((boss) => !taken.has(boss.bossKey));
 }

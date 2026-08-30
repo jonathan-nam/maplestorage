@@ -4,6 +4,7 @@ import com.sharpeyes.backend.db.BossCatalog
 import com.sharpeyes.backend.db.CharacterBossSkip
 import com.sharpeyes.backend.db.Characters
 import com.sharpeyes.backend.db.Party
+import com.sharpeyes.backend.parties.isSpentOneOff
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.inList
@@ -74,7 +75,7 @@ internal fun setBossRoutine(
         routineTargets(userId, characterId, skippedBossKeys.distinct())
             ?: return RoutineRefusal.Unknown
 
-    val partied = partiedNames(characterId, bosses)
+    val partied = partiedNames(characterId, bosses, now)
     val refusal = if (partied.isEmpty()) null else RoutineRefusal.HasParty(partied)
     if (refusal == null) replaceSkips(characterId, bosses.map { it.id }, now)
     return refusal
@@ -115,13 +116,15 @@ private fun routineTargets(
 /**
  * The ones a party config already says this character runs, by name, for the refusal message.
  *
- * Solo configs do not count. One is a pool holding what fell on a boss this character ran once,
- * not a standing arrangement, and there is nothing to "remove first": the routine editor locks
- * bosses that have a party, and it reads the same list this skips.
+ * Two kinds of config are not that claim and do not count, the same two takesOverConfig fills in
+ * rather than refuses. A solo pool holds what fell on a boss run alone. A spent one-off holds one
+ * night that is over. Neither is a standing arrangement, and neither leaves anything to "remove
+ * first": the routine editor locks bosses that have a party, and it reads the same list this skips.
  */
 private fun partiedNames(
     characterId: Uuid,
     bosses: List<RoutineBoss>,
+    now: Instant,
 ): List<String> {
     val ids = bosses.map { it.id }
     val partied =
@@ -132,7 +135,8 @@ private fun partiedNames(
                     (Party.bossCatalogId inList ids) and
                     (Party.solo eq false) and
                     (Party.standing eq true)
-            }.map { it[Party.bossCatalogId] }
+            }.filterNot { isSpentOneOff(it[Party.id], now) }
+            .map { it[Party.bossCatalogId] }
             .toSet()
     return bosses.filter { it.id in partied }.map { it.name }
 }
