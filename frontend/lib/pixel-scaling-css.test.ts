@@ -41,7 +41,7 @@ const NATURAL: Record<string, number> = {
   ".character-row-sprite": 96,
   ".boss-char-sprite": 96,
   ".roster-sprite": 96,
-  ".member-sprite": 96, // a third, cropped to the head by the roster boxes
+  ".member-sprite": 96, // the whole render, 1:1, above a roster box
   ".party-banner-sprite": 96,
   ".seat-sprite": 96,
 };
