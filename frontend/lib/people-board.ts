@@ -24,20 +24,20 @@ export function isRegular(name: string, parties: Party[]): boolean {
 }
 
 /**
- * Every character in a party that nobody has been given, split by whether they are a regular.
+ * The characters this page offers to attribute: a regular in some party, that nobody holds yet.
  *
- * Your own are never in it. This pile asks "whose is this?", and for a character on your account
- * that is not a question: it is already answered by it being on your account.
+ * Two kinds are left out for good, neither of them a question this page can answer.
  *
- * Both ways of knowing, because either alone leaves gaps. `mine` is your roster by name, which
- * covers a character whose seats predate the link; `seat.characterId` covers one added to a party
- * since, whose name you may have spelled differently on the roster page.
+ * Your own, because for a character on your account "whose is this?" is already answered by it
+ * being on your account. Known both ways, since either alone leaves a gap: `mine` is your roster by
+ * name, which covers a seat predating the link, and `seat.characterId` covers a character added to
+ * a party since, whose name you may have spelled differently on the roster page.
+ *
+ * And one-offs, because a guest who turned up once is not somebody you keep a person for. They are
+ * not offered and not counted: this is not a pile with something held back from it, it is the pile
+ * of people worth naming. Type a name in if you want one anyway.
  */
-export function unclaimed(
-  parties: Party[],
-  people: PersonDraft[],
-  mine: string[] = [],
-): { regular: string[]; oneOff: string[] } {
+export function unclaimed(parties: Party[], people: PersonDraft[], mine: string[] = []): string[] {
   const claimed = new Set(people.flatMap((person) => person.characters.map(key)));
   const yours = new Set(mine.map(key));
   for (const party of parties) {
@@ -57,11 +57,9 @@ export function unclaimed(
       names.set(seatKey, seat.name);
     }
   }
-  const sorted = [...names.values()].sort((a, b) => a.localeCompare(b));
-  return {
-    regular: sorted.filter((name) => isRegular(name, parties)),
-    oneOff: sorted.filter((name) => !isRegular(name, parties)),
-  };
+  return [...names.values()]
+    .filter((name) => isRegular(name, parties))
+    .sort((a, b) => a.localeCompare(b));
 }
 
 /**

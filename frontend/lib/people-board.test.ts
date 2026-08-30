@@ -81,50 +81,48 @@ describe("unclaimed", () => {
   ];
 
   it("leaves out whoever a person already holds", () => {
-    const { regular } = unclaimed(parties, [person("Jared", ["Premial"])]);
-    expect(regular).toEqual(["mechyfechy"]);
+    expect(unclaimed(parties, [person("Jared", ["Premial"])])).toEqual(["mechyfechy"]);
   });
 
-  it("puts a guest under one-off rather than dropping them", () => {
-    const { regular, oneOff } = unclaimed(parties, []);
-    expect(regular).toEqual(["mechyfechy", "Premial"]);
-    expect(oneOff).toEqual(["Dwight"]);
+  it("does not offer a guest at all", () => {
+    expect(unclaimed(parties, [])).toEqual(["mechyfechy", "Premial"]);
+  });
+
+  it("does not offer a seat in a one-off party", () => {
+    const once = party([seat("Pug")], { id: "pa-3", oneOff: true });
+    expect(unclaimed([...parties, once], [])).not.toContain("Pug");
   });
 
   it("names a character once however many parties they are in", () => {
-    const { regular } = unclaimed(parties, []);
-    expect(regular.filter((n) => n === "mechyfechy")).toHaveLength(1);
+    expect(unclaimed(parties, []).filter((n) => n === "mechyfechy")).toHaveLength(1);
   });
 
   it("leaves out a character claimed under a different case", () => {
-    const { regular, oneOff } = unclaimed(parties, [person("Jared", ["premial"])]);
-    expect([...regular, ...oneOff]).not.toContain("Premial");
+    expect(unclaimed(parties, [person("Jared", ["premial"])])).not.toContain("Premial");
   });
 
   it("reads every seat, not just the week's roster", () => {
     const departed = party([seat("mechyfechy")], { seats: [seat("mechyfechy"), seat("Lynn")] });
-    expect(unclaimed([departed], []).regular).toContain("Lynn");
+    expect(unclaimed([departed], [])).toContain("Lynn");
   });
 
   it("leaves out a character on your own roster", () => {
-    const { regular, oneOff } = unclaimed(parties, [], ["mechyfechy"]);
-    expect([...regular, ...oneOff]).not.toContain("mechyfechy");
-    expect(regular).toEqual(["Premial"]);
+    expect(unclaimed(parties, [], ["mechyfechy"])).toEqual(["Premial"]);
   });
 
   it("leaves out your own character however it is spelled on the roster", () => {
-    expect(unclaimed(parties, [], ["MECHYFECHY"]).regular).not.toContain("mechyfechy");
+    expect(unclaimed(parties, [], ["MECHYFECHY"])).not.toContain("mechyfechy");
   });
 
   // The seat says so itself, which is the answer for a character added to a party since.
   it("leaves out a seat marked as one of yours even with no roster passed", () => {
     const own = party([seat("Nightwalk", false, "char-9"), seat("Premial")]);
-    expect(unclaimed([own], []).regular).toEqual(["Premial"]);
+    expect(unclaimed([own], [])).toEqual(["Premial"]);
   });
 
   it("still shows your own character on the person who was given them", () => {
     const held = [person("Jared", ["mechyfechy"])];
-    expect(unclaimed(parties, held, ["mechyfechy"]).regular).toEqual(["Premial"]);
+    expect(unclaimed(parties, held, ["mechyfechy"])).toEqual(["Premial"]);
   });
 });
 

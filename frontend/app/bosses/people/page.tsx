@@ -38,7 +38,6 @@ export default function PeoplePage() {
   const [state, setState] = useState<LoadState>("loading");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [showOneOffs, setShowOneOffs] = useState(false);
 
   const toDraft = (rows: Person[]): PersonDraft[] =>
     rows.map((p) => ({ id: p.id, name: p.name, characters: [...p.characters] }));
@@ -101,13 +100,15 @@ export default function PeoplePage() {
 
   const dirty = JSON.stringify(draft) !== JSON.stringify(toDraft(people));
   const sprites = spriteByName(characters, parties);
+  const mine = characters.map((c) => c.name);
   // Against the DRAFT, not the saved list: a character dragged onto somebody has to leave the pile
   // as it is dropped, before anything is saved.
-  const { regular, oneOff } = unclaimed(
-    parties,
-    draft,
-    characters.map((c) => c.name),
-  );
+  const unassigned = unclaimed(parties, draft, mine);
+  // Every character named anywhere, for the add box to complete against. The same three sources the
+  // party editor uses, so a name typed here matches the one a roster already holds.
+  const knownCharacters = Array.from(
+    new Set([...mine, ...draft.flatMap((p) => p.characters), ...unassigned]),
+  ).sort();
 
   return (
     <main className="page">
@@ -125,9 +126,8 @@ export default function PeoplePage() {
           <>
             <PeopleBoard
               people={draft}
-              unassigned={showOneOffs ? [...regular, ...oneOff] : regular}
-              hidden={showOneOffs ? 0 : oneOff.length}
-              showHidden={showOneOffs}
+              unassigned={unassigned}
+              knownCharacters={knownCharacters}
               spriteFor={(name) => sprites.get(name) ?? null}
               busy={busy}
               onChange={setDraft}
@@ -135,7 +135,6 @@ export default function PeoplePage() {
                 setDraft(draft.map((r, i) => (i === index ? { ...r, name } : r)))
               }
               onRemove={(index) => setDraft(draft.filter((_, i) => i !== index))}
-              onShowHidden={setShowOneOffs}
             />
 
             <div className="loot-actions">

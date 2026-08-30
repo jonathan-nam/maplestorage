@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
+import { KNOWN_CHARACTERS_ID, KnownCharacters } from "@/components/known-characters";
 import { spriteUrl } from "@/lib/api";
 import { type PersonDraft, claim } from "@/lib/people-board";
 
@@ -13,41 +14,56 @@ const DRAG_TYPE = "application/x-character";
  * A character moves by being dragged onto whoever plays them. The same move is a click on the chip
  * and then a click on the target, which is also the only way it works from the keyboard: the
  * targets are drawn as buttons for the length of the pickup and are not there otherwise.
+ *
+ * The pile below holds the characters worth attributing. A character no party has recorded yet is
+ * typed into a person's own lane, because a person is the only place this page can keep one: an
+ * unattributed name has nowhere to be stored and would not survive the reload.
  */
 export function PeopleBoard({
   people,
   unassigned,
-  hidden,
-  showHidden,
+  knownCharacters,
   spriteFor,
   busy,
   onChange,
   onRename,
   onRemove,
-  onShowHidden,
 }: {
   people: PersonDraft[];
   unassigned: string[];
-  /** One-off characters kept out of the pool, counted so the page does not quietly drop them. */
-  hidden: number;
-  showHidden: boolean;
+  /** Every character name the app knows, for the add box to complete against. */
+  knownCharacters: string[];
   spriteFor: (name: string) => string | null;
   busy: boolean;
   onChange: (people: PersonDraft[]) => void;
   onRename: (index: number, name: string) => void;
   onRemove: (index: number) => void;
-  onShowHidden: (show: boolean) => void;
 }) {
   // The character being moved by clicks. Drags carry their own name on the dataTransfer, so this
   // stays null throughout one and the "give it to" buttons never appear mid-drag.
   const [picked, setPicked] = useState<string | null>(null);
-  // Which zone the pointer is over, null being the pool. Undefined is no drag in progress.
+  // Which zone the pointer is over, null being the pile. Undefined is no drag in progress.
   const [over, setOver] = useState<number | null | undefined>(undefined);
+  // Which person's lane has its add box open. What is typed lives in the box itself.
+  const [adding, setAdding] = useState<number | null>(null);
+
+  function pick(name: string) {
+    // A lane cannot be typing and receiving at once: both want the last card in the row.
+    setAdding(null);
+    setPicked(name);
+  }
 
   function place(name: string, personIndex: number | null) {
     setPicked(null);
     setOver(undefined);
     onChange(claim(people, name, personIndex));
+  }
+
+  /** Whatever is in the add box goes to that person. Blank is how you back out. */
+  function commitAdd(personIndex: number, typed: string) {
+    const name = typed.trim();
+    setAdding(null);
+    if (name !== "") onChange(claim(people, name, personIndex));
   }
 
   function zoneProps(personIndex: number | null) {
@@ -75,6 +91,8 @@ export function PeopleBoard({
 
   return (
     <div className={`people-board${picked !== null ? " is-picking" : ""}`}>
+      <KnownCharacters names={knownCharacters} />
+
       <div className="people-list">
         {people.map((row, index) => (
           // A saved person keys on their id; a new row has only its slot.
@@ -95,7 +113,7 @@ export function PeopleBoard({
                   sprite={spriteFor(name)}
                   picked={picked === name}
                   busy={busy}
-                  onPick={() => setPicked(name)}
+                  onPick={() => pick(name)}
                 />
               ))}
               {picked !== null && !row.characters.includes(picked) && (
@@ -103,6 +121,16 @@ export function PeopleBoard({
                   label={row.name.trim() === "" ? "This row" : row.name}
                   description={`Give ${picked} to ${row.name.trim() === "" ? "this row" : row.name}`}
                 />
+              )}
+              {picked === null && adding === index && (
+                <AddBox
+                  person={row.name}
+                  onCommit={(name) => commitAdd(index, name)}
+                  onCancel={() => setAdding(null)}
+                />
+              )}
+              {picked === null && adding !== index && (
+                <AddCard person={row.name} busy={busy} onOpen={() => setAdding(index)} />
               )}
             </ul>
             <button
@@ -126,23 +154,13 @@ export function PeopleBoard({
             sprite={spriteFor(name)}
             picked={picked === name}
             busy={busy}
-            onPick={() => setPicked(name)}
+            onPick={() => pick(name)}
           />
         ))}
         {picked !== null && !unassigned.includes(picked) && (
           <Target label="Unassign" description={`Take ${picked} off everybody`} />
         )}
       </ul>
-
-      {(hidden > 0 || showHidden) && (
-        <button
-          type="button"
-          className="party-cancel people-pool-more"
-          onClick={() => onShowHidden(!showHidden)}
-        >
-          {showHidden ? "Hide one-offs" : `${hidden} one-off${hidden === 1 ? "" : "s"} hidden`}
-        </button>
-      )}
     </div>
   );
 }
@@ -165,7 +183,7 @@ function Chip({
     <li className="roster-tile">
       <button
         type="button"
-        className={`person-chip${picked ? " is-picked" : ""}`}
+        className={`person-card person-chip${picked ? " is-picked" : ""}`}
         draggable={!busy}
         aria-pressed={picked}
         disabled={busy}
@@ -200,12 +218,84 @@ function Chip({
 function Target({ label, description }: { label: string; description: string }) {
   return (
     <li className="roster-tile">
-      <button type="button" className="person-chip person-target" aria-label={description}>
+      <button type="button" className="person-card person-target" aria-label={description}>
         {/* Holds the grip's space so this sits level with the cards beside it. Nothing to grab. */}
         <span className="person-grip" aria-hidden="true" />
         <span className="roster-sprite is-empty" aria-hidden="true" />
         <span className="roster-name">{label}</span>
       </button>
+    </li>
+  );
+}
+
+/** The last card in a person's lane: a character no party has recorded for them yet. */
+function AddCard({ person, busy, onOpen }: { person: string; busy: boolean; onOpen: () => void }) {
+  return (
+    <li className="roster-tile">
+      <button
+        type="button"
+        className="person-card person-add"
+        disabled={busy}
+        aria-label={`Add a character for ${person.trim() === "" ? "this row" : person}`}
+        onClick={onOpen}
+      >
+        <span className="person-grip" aria-hidden="true" />
+        <span className="roster-sprite is-empty person-add-mark" aria-hidden="true">
+          +
+        </span>
+        <span className="roster-name">Character</span>
+      </button>
+    </li>
+  );
+}
+
+/**
+ * The same card with a name box in it.
+ *
+ * Blur commits rather than cancels: what is typed is one short name, and losing it to a stray click
+ * is the worse of the two ways to be wrong. Escape is the way to back out.
+ *
+ * The name is held here rather than by the board, and the flag is what keeps Escape from committing
+ * anyway: closing the box takes the focus out of it, and the blur that follows would otherwise
+ * write the very value that was just discarded.
+ */
+function AddBox({
+  person,
+  onCommit,
+  onCancel,
+}: {
+  person: string;
+  onCommit: (name: string) => void;
+  onCancel: () => void;
+}) {
+  const [value, setValue] = useState("");
+  const cancelled = useRef(false);
+
+  return (
+    <li className="roster-tile">
+      <div className="person-card person-add is-typing">
+        <span className="person-grip" aria-hidden="true" />
+        <span className="roster-sprite is-empty" aria-hidden="true" />
+        <input
+          className="split-input person-add-input"
+          value={value}
+          list={KNOWN_CHARACTERS_ID}
+          autoFocus
+          maxLength={40}
+          aria-label={`Character ${person.trim() === "" ? "this row" : person} plays`}
+          onChange={(e) => setValue(e.target.value)}
+          onBlur={() => {
+            if (!cancelled.current) onCommit(value);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") onCommit(value);
+            if (e.key === "Escape") {
+              cancelled.current = true;
+              onCancel();
+            }
+          }}
+        />
+      </div>
     </li>
   );
 }
