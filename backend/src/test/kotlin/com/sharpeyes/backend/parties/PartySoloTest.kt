@@ -19,9 +19,11 @@ import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlin.time.Clock
+import kotlin.time.Duration.Companion.days
 import kotlin.uuid.Uuid
 
 /**
@@ -312,6 +314,66 @@ class PartySoloTest {
             assertEquals(listOf(characterId.toString()), findParty(partyId, userId)!!.members.map { it.characterId })
             // The night it was a duo still has both, which is what the pin is for.
             assertEquals(2, rosterFor(partyId, weekOf20Jul).size)
+        }
+    }
+
+    @Test
+    fun `a boss whose one-off period has passed can be given a mode as one run alone`() {
+        transaction {
+            val characterId = character()
+            val bossId = bossIdForKey("limbo")!!
+            val night = Clock.System.now()
+            val request =
+                SavePartyRequest(
+                    characterId.toString(),
+                    "limbo",
+                    listOf("Steve"),
+                    difficulty = "HARD",
+                    oneOff = true,
+                )
+            val partyId = createParty(userId, characterId, bossId, request, night)
+            addLoot(partyId, LootedDrop(dropIdForKey("grindstone-of-faith")!!), bossId, dropped, night)
+            // A week on, so the night it was armed for is over. The config still holds the pair's
+            // slot, and a party needs somebody else in it, so refusing here left the boss with no
+            // way to say it is run alone now.
+            val later = night.plus(7.days)
+
+            assertEquals(partyId, setSoloDifficulty(userId, characterId, bossId, "WEEKLY", "NORMAL", later))
+
+            val pool = findParty(partyId, userId)!!
+            assertTrue(pool.solo)
+            // A pool is on every period, unlike the night this was.
+            assertFalse(pool.oneOff)
+            assertEquals("NORMAL", pool.difficulty)
+            // One seat from now on, so what a clear files divides by one.
+            assertEquals(listOf(characterId.toString()), pool.members.map { it.characterId })
+            // Steve is off the roster, not out of it. The night they ran keeps both, or selling
+            // that grindstone later would read the roster as it stands now and owe nobody a share.
+            assertEquals(2, pool.seats.size)
+            assertEquals(2, rosterFor(partyId, weekOf20Jul).size)
+        }
+    }
+
+    @Test
+    fun `a one-off still on its own period keeps its mode on the party`() {
+        transaction {
+            val characterId = character()
+            val bossId = bossIdForKey("limbo")!!
+            val now = Clock.System.now()
+            val request =
+                SavePartyRequest(
+                    characterId.toString(),
+                    "limbo",
+                    listOf("Steve"),
+                    difficulty = "HARD",
+                    oneOff = true,
+                )
+            val partyId = createParty(userId, characterId, bossId, request, now)
+
+            // This period it IS who they run it with, so the mode stays where the roster and the
+            // split can be read beside it.
+            assertNull(setSoloDifficulty(userId, characterId, bossId, "WEEKLY", "NORMAL", now))
+            assertEquals("HARD", findParty(partyId, userId)!!.difficulty)
         }
     }
 
