@@ -105,11 +105,12 @@ internal fun poolFor(
  * ticked does not leave this week's coupons missing until the reset, and Chaos corrected to Extreme
  * leaves one row of 180 rather than two.
  *
- * Null when the pair is held by a STANDING party. That config carries the mode already, beside the
+ * Null when the pair is held by a party that is on. That config carries the mode already, beside the
  * roster and the split it is read with, and writing one here would edit a party through a door that
  * sees neither.
  *
- * A RETIRED one is not that claim, so it is taken back as the pool it now is. See soloAgain.
+ * A RETIRED config and a SPENT ONE-OFF are not that claim, so each is taken back as the pool it now
+ * is. See soloAgain.
  */
 internal fun setSoloDifficulty(
     userId: String,
@@ -120,10 +121,14 @@ internal fun setSoloDifficulty(
     now: Instant,
 ): Uuid? {
     val held = partyIdFor(characterId, bossCatalogId)
-    val retired = held != null && isRetiredParty(held)
-    if (held != null && !retired && !isSoloParty(held)) return null
+    // The pair's slot can be held by a config that is not a party anybody set up, and then there is
+    // no other door out: a party needs somebody else in it. The same three takesOverConfig fills in
+    // rather than refuses. A solo pool is already this. A retired config and a spent one-off both
+    // claim nothing about now, so they are taken back as the pool this makes them.
+    val takeBack = held != null && !isSoloParty(held) && (isRetiredParty(held) || isSpentOneOff(held, now))
+    if (held != null && !isSoloParty(held) && !takeBack) return null
     val partyId = held ?: createSoloParty(userId, characterId, bossCatalogId, now)
-    if (retired) soloAgain(userId, partyId, characterId, reset, now)
+    if (takeBack) soloAgain(userId, partyId, characterId, reset, now)
     Party.update({ Party.id eq partyId }) {
         it[Party.difficulty] = difficulty
         it[updatedAt] = now
