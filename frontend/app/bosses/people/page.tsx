@@ -103,7 +103,11 @@ export default function PeoplePage() {
   const sprites = spriteByName(characters, parties);
   // Against the DRAFT, not the saved list: a character dragged onto somebody has to leave the pile
   // as it is dropped, before anything is saved.
-  const { regular, oneOff } = unclaimed(parties, draft);
+  const { regular, oneOff } = unclaimed(
+    parties,
+    draft,
+    characters.map((c) => c.name),
+  );
 
   return (
     <main className="page">
@@ -147,11 +151,6 @@ export default function PeoplePage() {
               </button>
               {error && <span className="split-error">{error}</span>}
             </div>
-
-            <p className="party-hint">
-              Removing somebody leaves every party exactly as it is. It only takes back who their
-              characters belong to.
-            </p>
           </>
         )}
       </PageSwap>
