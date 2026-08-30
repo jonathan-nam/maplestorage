@@ -13,6 +13,13 @@
 #
 # The parser is NOT deployed any more. It is here for local work and its own
 # tests; nothing in the app reaches it, see docker-compose.prod.yml.
+
+# Pinned, not derived from the directory. Compose names volumes and containers after the project,
+# and the project defaults to whatever the checkout is called, so renaming or cloning the directory
+# silently re-keys the database volume and brings the stack up on an empty one. The box already
+# runs from a directory called sharpeyes, so this is what it was resolving to there anyway.
+name: sharpeyes
+
 services:
   postgres:
     image: postgres:16
