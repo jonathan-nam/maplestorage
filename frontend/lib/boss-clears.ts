@@ -206,6 +206,11 @@ export function formatPeriod(iso: string): string {
   return `${day} ${MONTHS[month - 1]}`;
 }
 
+/** MONTHLY -> Monthly. The cadence is the backend's enum, and the screen is not shouting it. */
+export function cadenceLabel(cadence: string): string {
+  return cadence.charAt(0) + cadence.slice(1).toLowerCase();
+}
+
 const MONTH_NAMES = [
   "January",
   "February",

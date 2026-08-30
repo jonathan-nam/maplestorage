@@ -2,6 +2,7 @@
 
 import { DifficultySelect } from "@/components/difficulty-select";
 import { apiAssetUrl } from "@/lib/api";
+import { cadenceLabel } from "@/lib/boss-clears";
 import { hasGuaranteedDrop } from "@/lib/parties";
 import type { Boss } from "@/types/boss";
 import type { DropTables } from "@/types/drop";
@@ -68,7 +69,7 @@ export function BossRoutineEditor({
 
       {cadences.map((cadence) => (
         <div key={cadence} className="routine-group">
-          <h2 className="routine-cadence">{cadence}</h2>
+          <h2 className="routine-cadence">{cadenceLabel(cadence)}</h2>
           <ul className="routine-list">
             {bosses
               .filter((boss) => boss.reset === cadence)

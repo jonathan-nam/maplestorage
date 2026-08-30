@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
+  cadenceLabel,
   cellState,
   cellStateLabel,
   clearOfCell,
@@ -318,6 +319,14 @@ describe("formatPeriod", () => {
     expect(formatPeriod("")).toBe("");
     expect(formatPeriod("not-a-date")).toBe("not-a-date");
     expect(formatPeriod("2026-13-01")).toBe("2026-13-01");
+  });
+});
+
+describe("cadenceLabel", () => {
+  it("says the cadence without shouting it", () => {
+    expect(cadenceLabel("WEEKLY")).toBe("Weekly");
+    expect(cadenceLabel("MONTHLY")).toBe("Monthly");
+    expect(cadenceLabel("DAILY")).toBe("Daily");
   });
 });
 
