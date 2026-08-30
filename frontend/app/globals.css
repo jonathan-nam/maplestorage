@@ -2481,7 +2481,7 @@ button.link:disabled {
 
 /* Each band's count, under the heads and above the rows it counts. It scrolls away with them: the
    heads are what is held, being the thing a mark cannot be read without. */
-.boss-progress-pin {
+.boss-band-totals {
   /* ONE grid over both bands, not a grid per band. Sized per band, the label and count columns
      took their own widths and the two bars came out different lengths, which is a difference that
      means nothing: what a bar says is its fill, and two of them are read against each other. */
@@ -2499,17 +2499,17 @@ button.link:disabled {
 /* No box of its own: its three children are laid out by the grid above, which is what puts the two
    bands on one set of columns. The bar takes the middle one, so it ends on the same edge as the
    table below whatever the labels either side measure. */
-.boss-pin-band {
+.boss-band-row {
   display: contents;
 }
 
-.boss-pin-cadence {
+.boss-band-name {
   color: var(--muted-2);
   font-weight: 600;
   white-space: nowrap;
 }
 
-.boss-pin-count {
+.boss-band-count {
   white-space: nowrap;
   /* Two bands under each other, so 6/17 and 12/17 have to line up. */
   font-variant-numeric: tabular-nums;
