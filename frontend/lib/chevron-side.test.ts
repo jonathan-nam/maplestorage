@@ -30,6 +30,10 @@ function body(source: string, name: string): string {
 // A name is not a column, so there is nothing to reserve and nothing to align: a row that does not
 // fold draws no chevron at all. In Run Order that also ends a raggedness, since a row with no config
 // behind it never had the column and started its portrait 28px left of its neighbours'.
+//
+// The Settlement Ledger's `offsets` heading followed, though it leads with a count rather than art
+// and so pushed nothing aside: standing one step left of every act it opens onto, it read as a
+// second column down a card that no longer has one.
 describe("a chevron hangs off the name in every list that leads with art", () => {
   const leadsWithArt = [
     ["the Drop Log's row", body(page, "DropRow"), "loot-icon"],
@@ -88,6 +92,20 @@ describe("a chevron hangs off the name in every list that leads with art", () =>
     const at = css.indexOf(".ledger-drop-head.is-oneline .ledger-when {");
     expect(at, "the -4px pull is gone").toBeGreaterThan(-1);
     expect(css.slice(at, css.indexOf("}", at))).toMatch(/margin-left:\s*-4px/);
+  });
+
+  // The heading over the acts, which is the last chevron on this card that stood in front of its
+  // row. It opens onto rows that carry theirs after the name, so in front it was a step out of line
+  // with everything under it.
+  it("puts the offsets heading's chevron after its count", () => {
+    const at = ledger.indexOf('className="ledger-step">offsets<');
+    expect(at, "the offsets step is gone").toBeGreaterThan(-1);
+    // Up to the close of `.ledger-drop-head`, which is the first one after the marker.
+    const head = ledger.slice(at, ledger.indexOf("</div>", at));
+    expect(head).toContain("party-row-toggle");
+    expect(head.indexOf("loot-name"), "the chevron is back in front of the count").toBeLessThan(
+      head.indexOf("party-row-toggle"),
+    );
   });
 
   // Not an app-wide move, and the exception is the point: a party row is a heading with no art in
