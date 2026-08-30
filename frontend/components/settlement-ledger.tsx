@@ -1049,28 +1049,6 @@ function DischargeRow({
       {/* ONE LINE. The row is a history entry and a history is scanned, so what it must hold is the
           figure, the art, what fell and the day it came off. Everything else is the title above. */}
       <div className="ledger-drop-head is-oneline" title={behind || undefined}>
-        {folds ? (
-          <button
-            type="button"
-            className="party-row-toggle"
-            aria-expanded={open}
-            aria-controls={panelId}
-            onClick={() => setOpen((o) => !o)}
-          >
-            <span className="party-row-chevron" aria-hidden="true" />
-            {/* Named, because a screen reader gets no chevron and no count off the row: whichever
-                list is behind this one is what opening it reads out. */}
-            <span className="visually-hidden">
-              {`${open ? "Hide" : "Show"} the ${
-                shares.length > 1 ? `${shares.length} nights` : `${act.sales.length} sales`
-              }`}
-            </span>
-          </button>
-        ) : (
-          // The frame is kept so a single-night row lines up with a folded one.
-          <span className="party-row-toggle is-empty" aria-hidden="true" />
-        )}
-
         {art ? (
           <img className="loot-icon" src={apiAssetUrl(art)} alt="" />
         ) : (
@@ -1094,6 +1072,29 @@ function DischargeRow({
             said there was a title. NOT the day the drop fell, which is a different fact and stays
             on hover: one column cannot mean two things down one list. */}
         <span className="loot-meta ledger-when">{dayOf(act.at)}</span>
+
+        {/* After what it is and when, not in front of the art. Given a column of its own at the
+            row's edge it held 28px open on every row in the list, and only some of them fold. It
+            goes after the date rather than between it and the name, which are drawn tight together
+            on purpose. */}
+        {folds && (
+          <button
+            type="button"
+            className="party-row-toggle"
+            aria-expanded={open}
+            aria-controls={panelId}
+            onClick={() => setOpen((o) => !o)}
+          >
+            <span className="party-row-chevron" aria-hidden="true" />
+            {/* Named, because a screen reader gets no chevron and no count off the row: whichever
+                list is behind this one is what opening it reads out. */}
+            <span className="visually-hidden">
+              {`${open ? "Hide" : "Show"} the ${
+                shares.length > 1 ? `${shares.length} nights` : `${act.sales.length} sales`
+              }`}
+            </span>
+          </button>
+        )}
 
         <span className="ledger-amount">{signed(-act.amount)}</span>
         <button

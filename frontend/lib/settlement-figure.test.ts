@@ -159,7 +159,7 @@ describe("what the card says a person owes", () => {
     // Several nights, or several sales, and no single one names the act, so the count stands and
     // opens. One of either IS the row.
     expect(source).toContain("const folds = shares.length > 1 || act.sales.length > 1;");
-    expect(source).toContain("folds ? (");
+    expect(source).toContain("{folds && (");
     expect(source).toContain("party-row-chevron");
   });
 
@@ -248,11 +248,11 @@ describe("what the card says a person owes", () => {
   });
 
   it("keeps a hand-entered debt a plain row, since it discharges no share", () => {
-    // The chevron frame is still drawn, so a typed row lines up with a folded one. No fold on it at
-    // all any more: an entry that names a share is a discharge and is drawn under `offsets`, so
-    // what is left in the owed list names nothing and never had anything to open.
-    expect(source).toContain('<span className="party-row-toggle is-empty"');
+    // No fold on it at all: an entry that names a share is a discharge and is drawn under `offsets`,
+    // so what is left in the owed list names nothing and never had anything to open.
     expect(source).toContain("function EnteredRow(");
+    const entered = source.slice(source.indexOf("function EnteredRow("));
+    expect(entered).not.toContain("party-row-chevron");
   });
   it("keeps the summary to totals, since the cards are the per-person list", () => {
     // A line per person went here and came straight back out: the cards below say the same thing, at
@@ -383,17 +383,21 @@ describe("what the figures on the card are counted in", () => {
     expect(settlement).not.toMatch(/^\s*nights\??:/m);
   });
 
-  it("spaces a row for a chevron only in the list that has chevrons", () => {
+  it("spaces no row for a chevron, in either list", () => {
     // `.party-row-toggle` is 18px and `.ledger-drop-head` adds its own 10px gap, so an empty frame
-    // is 28px of indent. Under `offsets` some rows fold and some do not, and the frame is what keeps
-    // that column straight. Under `owed` nothing folds, so the frame put the one row wearing it, a
-    // typed debt, 28px right of the parts stacked above it.
+    // is 28px of indent. `owed` lost its frame first, being a list where nothing folds at all: it
+    // put the one row wearing it, a typed debt, 28px right of the parts stacked above it. Under
+    // `offsets` some rows fold and some do not, and the frame kept that column straight at the cost
+    // of holding 28px in front of a 32px icon on every row of the list. The chevron hangs off the
+    // act's date now, so there is no column to keep straight and no frame anywhere on this card.
     const entered = source.slice(source.indexOf("function EnteredRow("));
     expect(entered).not.toContain("party-row-toggle");
     const discharge = source.slice(
       source.indexOf("function DischargeRow("),
       source.indexOf("function PieceNights("),
     );
-    expect(discharge).toContain("party-row-toggle is-empty");
+    expect(discharge).not.toContain("is-empty");
+    // Art first, which is the whole point of moving it.
+    expect(discharge.indexOf("loot-icon")).toBeLessThan(discharge.indexOf("party-row-toggle"));
   });
 });
