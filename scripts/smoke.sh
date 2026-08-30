@@ -55,7 +55,7 @@ echo "==> checks"
 
 # 1. Each service is up on its own terms.
 check "postgres accepts connections" \
-  docker compose exec -T postgres pg_isready -U maplestorage
+  docker compose exec -T postgres pg_isready -U sharpeyes
 
 # The vision service publishes 8000 locally, but ask it from inside anyway: this is the check that
 # the container is serving, not that the port forward works.
@@ -116,7 +116,7 @@ fi
 
 # 4. The migrations ran -- an empty schema means Flyway never fired.
 check "database schema was migrated" \
-  docker compose exec -T postgres psql -U maplestorage -d maplestorage \
+  docker compose exec -T postgres psql -U sharpeyes -d sharpeyes \
   -c "select 1 from token_catalog limit 1"
 
 echo

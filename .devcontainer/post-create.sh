@@ -83,7 +83,7 @@ fi
 # WATCHPACK_POLLING, CHOKIDAR_USEPOLLING and TURBOPACK_FORCE_POLLING were each tried and
 # each failed. The same mount is also ~18x slower for small writes (577ms vs 31ms for 300
 # files), which is most of the waiting in a working session.
-fs="$(stat -f -c %T /workspaces/maplestorage 2>/dev/null || echo unknown)"
+fs="$(stat -f -c %T /workspaces/sharpeyes 2>/dev/null || echo unknown)"
 if [ "$fs" = "v9fs" ] || [ "$fs" = "9p" ]; then
   cat <<'WARN'
 

@@ -4,5 +4,5 @@
 #
 #   terraform init -backend-config=backend.hcl -migrate-state
 
-bucket = "maplestorage-tfstate-123456789012"
+bucket = "sharpeyes-tfstate-123456789012"
 region = "us-east-1"

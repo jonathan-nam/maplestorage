@@ -117,7 +117,7 @@ nothing is metered.
 ### 6. Open in the container
 
 VS Code → **Reopen in Container** (on Windows, first connect to WSL: `Ctrl+Shift+P` →
-*WSL: Connect to WSL using Distro…* → Ubuntu, then open `~/projects/maplestorage`).
+*WSL: Connect to WSL using Distro…* → Ubuntu, then open `~/projects/sharpeyes`).
 
 The first build takes a few minutes. When it finishes, `post-create.sh` prints:
 
@@ -190,10 +190,10 @@ and it is written to be run by hand too, so turning Claude off costs you nothing
 automatic invocation. It is idempotent: running it against a live stack is a no-op.
 
 ```bash
-cd /workspaces/maplestorage && ./scripts/dev-up.sh
+cd /workspaces/sharpeyes && ./scripts/dev-up.sh
 ```
 
-It prints one JSON line, e.g. `{"systemMessage":"MapleStorage: postgres/vision/backend up,
+It prints one JSON line, e.g. `{"systemMessage":"SharpEyes: postgres/vision/backend up,
 frontend already on :3000."}`. That is the hook's output format, not an error.
 
 ### From a powered-off machine
@@ -257,7 +257,7 @@ fuser -k 3000/tcp              # stop the dev server
 >
 > ```bash
 > mkdir -p dev-snapshots
-> docker compose exec -T postgres pg_dump -U maplestorage maplestorage > dev-snapshots/local.sql
+> docker compose exec -T postgres pg_dump -U sharpeyes sharpeyes > dev-snapshots/local.sql
 > ```
 
 Unpushed work does not leave this environment. The repo is a container volume, not a mount of a
@@ -285,18 +285,18 @@ Fix it from a **WSL terminal on Windows** (not from inside the container, the fi
 it needs to write to is the one the container cannot see):
 
 ```bash
-find /mnt/c/Users -maxdepth 5 -type d -name maplestorage   # locate it
-bash /mnt/c/.../maplestorage/scripts/move-to-wsl.sh        # copies to ~/projects
+find /mnt/c/Users -maxdepth 5 -type d -name sharpeyes   # locate it
+bash /mnt/c/.../sharpeyes/scripts/move-to-wsl.sh        # copies to ~/projects
 ```
 
-Then `cd ~/projects/maplestorage && code .` and *Reopen in Container*. It **copies** rather
+Then `cd ~/projects/sharpeyes && code .` and *Reopen in Container*. It **copies** rather
 than clones, so your `.env` files and uncommitted work come with it, and it leaves the
 original alone until you delete it yourself.
 
 Confirm inside the new container:
 
 ```bash
-stat -f -c %T /workspaces/maplestorage    # want ext4/overlayfs, NOT v9fs
+stat -f -c %T /workspaces/sharpeyes    # want ext4/overlayfs, NOT v9fs
 ```
 
 `post-create.sh` prints a loud warning if you are still on 9p.

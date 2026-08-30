@@ -19,9 +19,9 @@ jobs:
       postgres:
         image: postgres:16
         env:
-          POSTGRES_DB: maplestorage
-          POSTGRES_USER: maplestorage
-          POSTGRES_PASSWORD: maplestorage
+          POSTGRES_DB: sharpeyes
+          POSTGRES_USER: sharpeyes
+          POSTGRES_PASSWORD: sharpeyes
         ports:
           - 5432:5432
         options: >-
@@ -44,7 +44,7 @@ jobs:
         env:
           DB_HOST: localhost
           DB_PORT: "5432"
-          DB_NAME: maplestorage
-          DB_USERNAME: maplestorage
-          DB_PASSWORD: maplestorage
+          DB_NAME: sharpeyes
+          DB_USERNAME: sharpeyes
+          DB_PASSWORD: sharpeyes
         run: ./gradlew ktlintCheck detekt test --no-daemon

@@ -28,8 +28,8 @@ RUN ./gradlew installDist --no-daemon
 FROM eclipse-temurin:21-jre AS runtime
 WORKDIR /app
 RUN useradd --system --create-home appuser
-COPY --from=build /app/build/install/maplestorage-backend ./
+COPY --from=build /app/build/install/sharpeyes-backend ./
 USER appuser
 
 EXPOSE 8080
-ENTRYPOINT ["./bin/maplestorage-backend"]
+ENTRYPOINT ["./bin/sharpeyes-backend"]

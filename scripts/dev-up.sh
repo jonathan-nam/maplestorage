@@ -48,7 +48,7 @@ else
   status+=("frontend starting on :3000 (/tmp/next.log)")
 fi
 
-printf '{"systemMessage":"MapleStorage: %s."}\n' "$(
+printf '{"systemMessage":"SharpEyes: %s."}\n' "$(
   IFS=';'
   echo "${status[*]}" | sed 's/;/, /g'
 )"

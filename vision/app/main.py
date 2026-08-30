@@ -55,7 +55,7 @@ TOKENS = load_templates()
 FONT = load_font()
 STATE_GLYPHS = load_state_glyphs()
 
-app = FastAPI(title="maplestorage-vision")
+app = FastAPI(title="sharpeyes-vision")
 
 
 class DetectedToken(BaseModel):

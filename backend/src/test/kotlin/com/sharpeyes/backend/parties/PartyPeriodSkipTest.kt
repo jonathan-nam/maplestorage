@@ -1,0 +1,509 @@
+package com.sharpeyes.backend.parties
+
+import com.sharpeyes.backend.bosses.periodStartFor
+import com.sharpeyes.backend.bosses.weekOf
+import com.sharpeyes.backend.config.Env
+import com.sharpeyes.backend.db.BossCatalog
+import com.sharpeyes.backend.db.Characters
+import com.sharpeyes.backend.db.Party
+import com.sharpeyes.backend.users.WORLD_INTERACTIVE
+import com.sharpeyes.backend.users.ensureUser
+import kotlinx.datetime.DateTimeUnit
+import kotlinx.datetime.LocalDate
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.plus
+import kotlinx.datetime.toLocalDateTime
+import org.flywaydb.core.Flyway
+import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.core.inList
+import org.jetbrains.exposed.v1.jdbc.Database
+import org.jetbrains.exposed.v1.jdbc.deleteWhere
+import org.jetbrains.exposed.v1.jdbc.insert
+import org.jetbrains.exposed.v1.jdbc.selectAll
+import org.jetbrains.exposed.v1.jdbc.transactions.transaction
+import kotlin.test.AfterTest
+import kotlin.test.BeforeTest
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
+import kotlin.time.Clock
+import kotlin.uuid.Uuid
+
+/**
+ * A period the party is not running, against a real Postgres.
+ *
+ * The claim worth a database is that a week off costs a STANDING party nothing but the week. The
+ * config, its seats and its pool all survive it, the next period runs as usual with nobody saying
+ * so, and the period a mark is filed under is the BOSS's, so the Black Mage is taken off its month
+ * rather than off one Thursday inside it.
+ *
+ * A one-off is the asymmetry: it is a night rather than an arrangement, so the same button takes the
+ * night's drops with it and the config after them. Both halves are worth a database, because what
+ * they turn on is a cascade and a period boundary.
+ */
+class PartyPeriodSkipTest {
+    private val userId = "user_test_period_skip"
+
+    private fun todayUtc() =
+        Clock.System
+            .now()
+            .toLocalDateTime(TimeZone.UTC)
+            .date
+
+    private fun thisWeek() = weekOf(todayUtc())
+
+    @BeforeTest
+    fun migrate() {
+        val jdbcUrl = "jdbc:postgresql://${Env.dbHost}:${Env.dbPort}/${Env.dbName}"
+        Flyway
+            .configure()
+            .dataSource(jdbcUrl, Env.dbUsername, Env.dbPassword)
+            .load()
+            .migrate()
+        Database.connect(
+            url = jdbcUrl,
+            driver = "org.postgresql.Driver",
+            user = Env.dbUsername,
+            password = Env.dbPassword,
+        )
+    }
+
+    @AfterTest
+    fun cleanUp() {
+        // Held in a local: inside deleteWhere {} the TABLE is the receiver, so a bare `userId`
+        // binds to the COLUMN and the predicate is true of every row. See PartyLootTest.
+        val owners = listOf(userId)
+        transaction {
+            Party.deleteWhere { Party.userId inList owners }
+            Characters.deleteWhere { Characters.userId inList owners }
+        }
+    }
+
+    private fun mine(named: String = "Rune"): Uuid {
+        ensureUser(userId, "$userId@example.com")
+        val id = Uuid.random()
+        val now = Clock.System.now()
+        val owner = userId
+        Characters.insert {
+            it[Characters.id] = id
+            it[Characters.userId] = owner
+            it[Characters.name] = named
+            it[Characters.worldType] = WORLD_INTERACTIVE
+            it[createdAt] = now
+            it[updatedAt] = now
+            it[position] = 0
+        }
+        return id
+    }
+
+    private fun partyOn(
+        characterId: Uuid,
+        bossKey: String,
+        oneOff: Boolean = false,
+        members: List<String> = listOf("Steve", "Bob"),
+    ): PartyResponse {
+        val now = Clock.System.now()
+        val request = SavePartyRequest(characterId.toString(), bossKey, members, oneOff = oneOff)
+        val id = createParty(userId, characterId, bossIdForKey(bossKey)!!, request, now)
+        return findParty(id, userId)!!
+    }
+
+    private fun resetOf(bossKey: String): String =
+        BossCatalog
+            .selectAll()
+            .where { BossCatalog.bossKey eq bossKey }
+            .first()[BossCatalog.reset]
+
+    /** The period the app is in for this boss, which is the only one that may be written. */
+    private fun periodOfBoss(bossKey: String): LocalDate = periodStartFor(resetOf(bossKey), Clock.System.now())
+
+    private fun takeOff(
+        party: PartyResponse,
+        skipped: Boolean = true,
+    ) = setRunsInPeriod(
+        Uuid.parse(party.id),
+        oneOff = party.oneOff,
+        periodOfBoss(party.bossKey),
+        runs = !skipped,
+        now = Clock.System.now(),
+    )
+
+    /**
+     * Delete on the row, both halves of it, in the order setSkipRoute runs them.
+     *
+     * The mark alone is takeOff, and it is not what the button does any more: for a one-off the
+     * night goes too. Answers true when the config went with it.
+     */
+    private fun deleteRow(party: PartyResponse): Boolean {
+        takeOff(party)
+        return party.oneOff &&
+            retractNight(Uuid.parse(party.id), resetOf(party.bossKey), periodOfBoss(party.bossKey))
+    }
+
+    private fun grindstoneOn(
+        party: PartyResponse,
+        droppedOn: LocalDate,
+    ) = addLoot(
+        Uuid.parse(party.id),
+        LootedDrop(dropIdForKey("grindstone-of-faith")!!),
+        bossIdForKey("limbo"),
+        droppedOn,
+        Clock.System.now(),
+    )
+
+    @Test
+    fun `a period nobody has said anything about runs as usual`() {
+        transaction {
+            val party = partyOn(mine(), "limbo")
+            assertFalse(party.skippedThisPeriod)
+            assertFalse(partiesFor(userId).first { it.id == party.id }.skippedThisPeriod)
+        }
+    }
+
+    @Test
+    fun `a boss taken off says so, on the list as well as on the row`() {
+        transaction {
+            val party = partyOn(mine(), "limbo")
+            takeOff(party)
+
+            assertTrue(findParty(Uuid.parse(party.id), userId)!!.skippedThisPeriod)
+            assertTrue(partiesFor(userId).first { it.id == party.id }.skippedThisPeriod)
+        }
+    }
+
+    @Test
+    fun `a week off keeps a STANDING config, its seats and its pool`() {
+        transaction {
+            val party = partyOn(mine(), "limbo")
+            grindstoneOn(party, todayUtc())
+            assertFalse(deleteRow(party))
+
+            // The failure this guards: saying "not this week" by deleting the config, which takes
+            // the seats and a drop somebody is still owed a share of with it. Through deleteRow
+            // rather than the mark alone, because a one-off IS deleted that way now and the whole
+            // claim here is that a standing party is not.
+            val after = findParty(Uuid.parse(party.id), userId)!!
+            assertEquals(3, after.seats.size)
+            assertEquals(3, after.members.size)
+            assertEquals(1, after.pendingLoot)
+        }
+    }
+
+    @Test
+    fun `putting it back is a deletion, so the next period runs without being told to`() {
+        transaction {
+            val party = partyOn(mine(), "limbo")
+            takeOff(party)
+            takeOff(party, skipped = false)
+
+            assertFalse(findParty(Uuid.parse(party.id), userId)!!.skippedThisPeriod)
+            // Not a row saying false: a stored false would have to be cleared every period, and the
+            // period that forgot to would read as taken off.
+            assertTrue(runsInPeriod(Uuid.parse(party.id), oneOff = false, periodOfBoss("limbo")))
+        }
+    }
+
+    @Test
+    fun `a week taken off leaves the next week alone`() {
+        transaction {
+            val party = partyOn(mine(), "limbo")
+            takeOff(party)
+
+            val next = partiesFor(userId, thisWeek().plus(DAYS_IN_WEEK, DateTimeUnit.DAY))
+            assertFalse(next.first { it.id == party.id }.skippedThisPeriod)
+        }
+    }
+
+    @Test
+    fun `saying it twice says it once`() {
+        transaction {
+            val party = partyOn(mine(), "limbo")
+            takeOff(party)
+            takeOff(party)
+
+            assertTrue(findParty(Uuid.parse(party.id), userId)!!.skippedThisPeriod)
+        }
+    }
+
+    @Test
+    fun `the period a mark is filed under is the boss's own`() {
+        transaction {
+            val character = mine()
+            val monthly = partyOn(character, "black-mage")
+            val weekly = partyOn(character, "limbo")
+
+            // The failure this guards: one date for every boss. The Black Mage sits in a month-long
+            // period, so a mark filed under this Thursday would read as not-taken-off for most of
+            // the month, and boss_clear, which IS filed by month, would disagree with it.
+            assertEquals(thisWeek(), periodOfBoss("limbo"))
+            assertEquals(periodStartFor("MONTHLY", Clock.System.now()), periodOfBoss("black-mage"))
+
+            takeOff(monthly)
+            assertFalse(runsInPeriod(Uuid.parse(monthly.id), oneOff = false, periodOfBoss("black-mage")))
+            assertTrue(findParty(Uuid.parse(monthly.id), userId)!!.skippedThisPeriod)
+            assertFalse(findParty(Uuid.parse(weekly.id), userId)!!.skippedThisPeriod)
+        }
+    }
+
+    @Test
+    fun `one config taken off leaves the others on`() {
+        transaction {
+            val character = mine()
+            val off = partyOn(character, "limbo")
+            val on = partyOn(character, "kalos-the-guardian")
+            takeOff(off)
+
+            val list = partiesFor(userId).associateBy { it.id }
+            assertTrue(list[off.id]!!.skippedThisPeriod)
+            assertFalse(list[on.id]!!.skippedThisPeriod)
+        }
+    }
+
+    @Test
+    fun `a one-off is on the period it was made in`() {
+        transaction {
+            val party = partyOn(mine(), "limbo", oneOff = true)
+            assertTrue(party.oneOff)
+            // The failure this guards: a config whose default is off, created without arming the
+            // period it was made for, so adding it does nothing you can see.
+            assertFalse(party.skippedThisPeriod)
+            assertFalse(partiesFor(userId).first { it.id == party.id }.skippedThisPeriod)
+        }
+    }
+
+    @Test
+    fun `a one-off is gone next period with nobody saying so`() {
+        transaction {
+            val party = partyOn(mine(), "limbo", oneOff = true)
+
+            val next = partiesFor(userId, thisWeek().plus(DAYS_IN_WEEK, DateTimeUnit.DAY))
+            assertTrue(next.first { it.id == party.id }.skippedThisPeriod)
+        }
+    }
+
+    @Test
+    fun `a standing party is NOT gone next period, which is the difference between the two`() {
+        transaction {
+            val party = partyOn(mine(), "limbo")
+
+            val next = partiesFor(userId, thisWeek().plus(DAYS_IN_WEEK, DateTimeUnit.DAY))
+            assertFalse(next.first { it.id == party.id }.skippedThisPeriod)
+        }
+    }
+
+    @Test
+    fun `a one-off whose period has passed holds nobody's seat on that boss`() {
+        transaction {
+            val tonight = mine()
+            val other = mine("Blaze")
+            val limbo = bossIdForKey("limbo")!!
+            val night = partyOn(tonight, "limbo", oneOff = true, members = listOf("Steve"))
+
+            fun check() =
+                validateBossRoster(userId, limbo, exclude = null, rosterOf(other, listOf("Steve")), Clock.System.now())
+
+            // On its own period a one-off holds its seats like anything else: two configs running
+            // Steve on Limbo this week is the clear that cannot happen twice.
+            assertEquals("Steve is already in your Rune party for this boss", check())
+
+            // The period passes, and the night stops holding him. Refusing here named a config that
+            // is not on the edit page to be changed, so there was nothing the user could do: the
+            // only way out was deleting a night that had already happened. Reported 2026-08-14.
+            takeOff(night)
+            assertNull(check())
+
+            // The pair still cannot be on at once, because arming it again comes back through the
+            // same rule with the new party in the way. Both doors: saving the config over again,
+            // and the toggle that puts a night back on without writing one (see setSkipRoute).
+            val other2 = mine("Kestrel")
+            partyOn(other2, "limbo", members = listOf("Steve"))
+            assertEquals(
+                "Steve is already in your Kestrel party for this boss",
+                validateSavedParty(
+                    userId,
+                    Uuid.parse(night.id),
+                    SavePartyRequest(tonight.toString(), "limbo", listOf("Steve"), oneOff = true),
+                    Clock.System.now(),
+                ),
+            )
+            assertEquals(
+                "Steve is already in your Kestrel party for this boss",
+                validateBossRoster(
+                    userId,
+                    limbo,
+                    exclude = Uuid.parse(night.id),
+                    standingRosterOf(Uuid.parse(night.id)),
+                    Clock.System.now(),
+                ),
+            )
+        }
+    }
+
+    @Test
+    fun `running the same boss again arms the config it already has, rather than a second one`() {
+        transaction {
+            val character = mine()
+            val first = partyOn(character, "limbo", oneOff = true)
+            // Its period passes, which is a config that exists and is off.
+            takeOff(first)
+            assertTrue(findParty(Uuid.parse(first.id), userId)!!.skippedThisPeriod)
+
+            // The failure this guards: a second config for the pair, which idx_party_character_boss
+            // refuses outright, and which would give partyIdFor two pools to put a drop in.
+            val again =
+                SavePartyRequest(character.toString(), "limbo", listOf("Steve", "Cara"), oneOff = true)
+            takeOverParty(userId, Uuid.parse(first.id), again, Clock.System.now())
+
+            val back = findParty(Uuid.parse(first.id), userId)!!
+            assertFalse(back.skippedThisPeriod)
+            assertEquals(1, partiesFor(userId).count { it.bossKey == "limbo" })
+            assertTrue(back.members.any { it.name == "Cara" })
+        }
+    }
+
+    @Test
+    fun `a one-off still on its week becomes standing when it is asked for as a party`() {
+        transaction {
+            val character = mine()
+            val tonight = partyOn(character, "limbo", oneOff = true)
+            val request =
+                SavePartyRequest(character.toString(), "limbo", listOf("Steve", "Bob"), oneOff = false)
+
+            // The failure this guards: the edit page does not list one-offs, so refusing here would
+            // answer with "that character already has a party for this boss" about a row it does not
+            // show. Nothing about the night is lost, the config it already has is converted.
+            assertTrue(takesOverConfig(Uuid.parse(tonight.id), request, Clock.System.now()))
+            takeOverParty(userId, Uuid.parse(tonight.id), request, Clock.System.now())
+
+            val now = findParty(Uuid.parse(tonight.id), userId)!!
+            assertFalse(now.oneOff)
+            assertFalse(now.skippedThisPeriod)
+            // And standing means next period too, which is the whole difference.
+            val next = partiesFor(userId, thisWeek().plus(DAYS_IN_WEEK, DateTimeUnit.DAY))
+            assertFalse(next.first { it.id == tonight.id }.skippedThisPeriod)
+        }
+    }
+
+    @Test
+    fun `a one-off still on its week is NOT taken over by another one-off`() {
+        transaction {
+            val character = mine()
+            val tonight = partyOn(character, "limbo", oneOff = true)
+            val again =
+                SavePartyRequest(character.toString(), "limbo", listOf("Cara"), oneOff = true)
+
+            // Adding tonight's boss again tonight is not a second night, it is a mistake, and the
+            // roster already on the config is what a take-over would overwrite. Party View does not
+            // offer the boss either, so this is the stale-list case and a refusal is the answer.
+            assertFalse(takesOverConfig(Uuid.parse(tonight.id), again, Clock.System.now()))
+        }
+    }
+
+    @Test
+    fun `a one-off keeps its pool after its period passes`() {
+        transaction {
+            val party = partyOn(mine(), "limbo", oneOff = true)
+            grindstoneOn(party, todayUtc())
+
+            // A period PASSING is the absence of a mark for the next one, not the removal of this
+            // one's. Deleting the row is a different act and takes the night with it, so simulating
+            // the calendar with that button would have tested the opposite of the claim here.
+            val next = partiesFor(userId, thisWeek().plus(DAYS_IN_WEEK, DateTimeUnit.DAY))
+            val after = next.first { it.id == party.id }
+
+            // A drop somebody is still owed a share of does not evaporate because the night is over.
+            // The config stays listed and off, rather than being dropped from the list, which is
+            // what keeps the wallet able to name the party the share is owed by.
+            assertTrue(after.skippedThisPeriod)
+            assertEquals(3, after.seats.size)
+            assertEquals(1, lootFor(Uuid.parse(party.id)).size)
+        }
+    }
+
+    @Test
+    fun `deleting a one-off takes the night's drops with it`() {
+        transaction {
+            val party = partyOn(mine(), "limbo", oneOff = true)
+            grindstoneOn(party, todayUtc())
+            addLoot(
+                Uuid.parse(party.id),
+                LootedDrop(dropIdForKey("vestige-of-erion")!!, quantity = 60),
+                bossIdForKey("limbo"),
+                todayUtc(),
+                Clock.System.now(),
+                fromClear = true,
+            )
+
+            // The failure this guards: Delete takes the row off Party View and leaves the coupons
+            // in the Sale Ledger, which reads pools without the run marks. 60 of them sat under a
+            // Hard Limbo that was gone from every page that could have explained them.
+            assertTrue(deleteRow(party))
+            assertEquals(0, lootFor(Uuid.parse(party.id)).size)
+            assertNull(findParty(Uuid.parse(party.id), userId))
+        }
+    }
+
+    @Test
+    fun `deleting a one-off takes a SOLD drop and its payouts too`() {
+        transaction {
+            val party = partyOn(mine(), "limbo", oneOff = true)
+            val lootId = grindstoneOn(party, todayUtc())
+            val seller = party.members.first { it.name == "Rune" }
+            sellLoot(
+                lootId,
+                SellLootRequest(9_500_000_000, "LISTED", "FAIR", seller.id),
+                Uuid.parse(seller.id),
+                Uuid.parse(party.id),
+                Clock.System.now(),
+            )
+
+            // Deliberate, and the one thing here that costs something: the money owed off that sale
+            // goes with the night. Deleting a drop one at a time already does this (see deleteLoot),
+            // and a night that did not happen cannot have sold anything. Pinned so the decision
+            // cannot drift into a silent half-delete that leaves payouts pointing at nothing.
+            assertTrue(deleteRow(party))
+            assertNull(findParty(Uuid.parse(party.id), userId))
+        }
+    }
+
+    @Test
+    fun `deleting a one-off leaves an earlier night alone, and the config with it`() {
+        transaction {
+            val party = partyOn(mine(), "limbo", oneOff = true)
+            val lastWeek = grindstoneOn(party, todayUtc().plus(-DAYS_IN_WEEK, DateTimeUnit.DAY))
+            grindstoneOn(party, todayUtc())
+
+            // The same config is armed again rather than duplicated, so one one-off can hold two
+            // nights. Only the one being deleted goes, and the config outlives it because something
+            // still points at it.
+            assertFalse(deleteRow(party))
+            assertEquals(listOf(lastWeek.toString()), lootFor(Uuid.parse(party.id)).map { it.id })
+            assertNotNull(findParty(Uuid.parse(party.id), userId))
+        }
+    }
+
+    @Test
+    fun `putting a deleted one-off back gives an empty pool`() {
+        transaction {
+            val character = mine()
+            val party = partyOn(character, "limbo", oneOff = true)
+            grindstoneOn(party, todayUtc())
+            assertTrue(deleteRow(party))
+
+            // Re-adding is a new night, not the old one restored: nothing here can know which of the
+            // drops that were there fell on the night being put back, so it asks rather than guesses.
+            val again = SavePartyRequest(character.toString(), "limbo", listOf("Cara"), oneOff = true)
+            val back = createParty(userId, character, bossIdForKey("limbo")!!, again, Clock.System.now())
+
+            assertFalse(findParty(back, userId)!!.skippedThisPeriod)
+            assertEquals(0, lootFor(back).size)
+        }
+    }
+
+    private companion object {
+        const val DAYS_IN_WEEK = 7
+    }
+}
