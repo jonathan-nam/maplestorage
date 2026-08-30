@@ -182,10 +182,9 @@ export function BossMatrix({
       // between the two events.
       onMouseLeave={() => setHoveredColumn(null)}
     >
-      {/* The column heads are a table of their own so that the bands below them can be held at the
-          top of the window: a sticky element sticks to the nearest scrolling box, and the marks
-          have to sit in one of those to scroll sideways past four characters. Split, only the marks
-          are inside it.
+      {/* The column heads are a table of their own so that they can be held at the top of the
+          window: a sticky element sticks to the nearest scrolling box, and the marks have to sit in
+          one of those to scroll sideways past four characters. Split, only the marks are inside it.
 
           The two tables agree on their columns because they are the same table: same class, same
           fixed layout, and the widths follow from --boss-name-col and the column count, which the
@@ -231,11 +230,8 @@ export function BossMatrix({
         </table>
       </div>
 
-      {/* The band headers, held at the top of the window while their rows scroll past. The weekly
-          band is seventeen rows deep, so its count was off screen exactly while the marks it counts
-          were being read.
-
-          Weekly leads though the table leads with monthly, being the band the week is spent in. */}
+      {/* Each band's count, under the heads and above the rows it counts. Weekly leads though the
+          table leads with monthly, being the band the week is spent in. */}
       <div className="boss-progress-pin">
         {[...bands]
           .sort((a, b) => PIN_ORDER.indexOf(a.cadence) - PIN_ORDER.indexOf(b.cadence))

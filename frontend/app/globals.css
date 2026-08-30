@@ -2462,22 +2462,26 @@ button.link:disabled {
   width: var(--boss-name-col);
 }
 
-/* The column heads, in a box of their own so the bands below them can be sticky. Clipped rather
-   than scrollable: it is dragged to match the marks by hand (see boss-matrix.tsx), and a second
-   scrollbar under the sprites would be a control that moves the same thing twice. */
+/* The column heads, held at the top of the window. A mark is only an answer once you know whose
+   column it is, and seventeen rows put the sprite that says so off screen.
+
+   Being in a box of their own is what allows it: .boss-matrix scrolls sideways, and a sticky child
+   sticks to its own scrollport rather than to the window. Opaque and above the sticky name column
+   (z-index 1), since the rows pass beneath it.
+
+   Clipped rather than scrollable: it is dragged to match the marks by hand (see boss-matrix.tsx),
+   and a second scrollbar under the sprites would be a control that moves the same thing twice. */
 .boss-matrix-head {
-  overflow-x: hidden;
-}
-
-/* Each band's period and count, held at the top of the window while the band's rows scroll under
-   it. It sits outside .boss-matrix, which is what makes the sticky work at all: that box scrolls
-   sideways, and a sticky child sticks to its own scrollport rather than to the window.
-
-   Opaque and above the sticky name column (z-index 1), since the rows pass beneath it. */
-.boss-progress-pin {
   position: sticky;
   top: 0;
   z-index: 2;
+  overflow-x: hidden;
+  background: var(--bg);
+}
+
+/* Each band's count, under the heads and above the rows it counts. It scrolls away with them: the
+   heads are what is held, being the thing a mark cannot be read without. */
+.boss-progress-pin {
   /* ONE grid over both bands, not a grid per band. Sized per band, the label and count columns
      took their own widths and the two bars came out different lengths, which is a difference that
      means nothing: what a bar says is its fill, and two of them are read against each other. */
@@ -2487,7 +2491,6 @@ button.link:disabled {
   gap: 6px 12px;
   /* Less below than above: what follows is the band label, which brings its own. */
   padding: 10px 0 6px;
-  background: var(--bg);
   border-bottom: 1px solid var(--line);
   color: var(--muted);
   font-size: var(--text-sm);
