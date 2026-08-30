@@ -406,6 +406,11 @@ object PartyLoot : Table("party_loot") {
     // with the count on it. See V34__loot_quantity_and_shares.sql.
     val quantity = integer("quantity")
 
+    // The mode it FELL at, which the config's own may no longer be: editing a party's difficulty
+    // must not re-attribute what its pool already holds. Null is "not said" and reads through the
+    // config, as every row did before V69__loot_difficulty.sql.
+    val difficulty = text("difficulty").nullable()
+
     // The app added this row from a clear rather than a human logging it, so un-ticking that clear
     // may take it back. See V37__loot_from_clear.sql.
     val fromClear = bool("from_clear")

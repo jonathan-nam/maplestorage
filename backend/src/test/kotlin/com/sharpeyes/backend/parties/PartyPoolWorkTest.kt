@@ -3,6 +3,7 @@ package com.sharpeyes.backend.parties
 import com.sharpeyes.backend.config.Env
 import com.sharpeyes.backend.db.Characters
 import com.sharpeyes.backend.db.Party
+import com.sharpeyes.backend.db.PartyLoot
 import com.sharpeyes.backend.db.PartyMember
 import com.sharpeyes.backend.db.Person
 import com.sharpeyes.backend.db.Screenshots
@@ -126,6 +127,95 @@ class PartyPoolWorkTest {
                 now,
             )
             assertEquals(1, pending())
+        }
+    }
+
+    @Test
+    fun `editing the mode does not re-decide what a drop already logged WAS`() {
+        transaction {
+            ensureUser(userId, "$userId@example.com")
+            val mine = Uuid.random()
+            val now = Clock.System.now()
+            val owner = userId
+            Characters.insert {
+                it[Characters.id] = mine
+                it[Characters.userId] = owner
+                it[Characters.name] = "Kestrel"
+                it[Characters.worldType] = WORLD_INTERACTIVE
+                it[createdAt] = now
+                it[updatedAt] = now
+                it[position] = 0
+            }
+            // HARD, the only Limbo mode the coupon falls at. Normal has no amount for it at all,
+            // which is what lets the edit below erase what the drop already was.
+            val request =
+                SavePartyRequest(mine.toString(), "limbo", listOf("Steve"), difficulty = "HARD")
+            val partyId = createParty(userId, mine, bossIdForKey("limbo")!!, request, now)
+            val lootId =
+                addLoot(
+                    partyId,
+                    LootedDrop(dropIdForKey("vestige-of-erion")!!),
+                    bossIdForKey("limbo"),
+                    dropped,
+                    now,
+                )
+
+            val fellAt = {
+                PartyLoot.selectAll().where { PartyLoot.id eq lootId }.first()[PartyLoot.difficulty]
+            }
+            val pending = { lootCountsFor(listOf(partyId), week = null)[partyId]!!.pending }
+
+            // Stamped as it goes in, rather than left to be read off a column that can move.
+            assertEquals("HARD", fellAt())
+            assertEquals(0, pending())
+
+            // The party moves to Normal, which drops no coupon at all. A night already logged is not
+            // up for reinterpretation. Reading the config here took the coupons out of the piece
+            // maths and put the row back in the pool as ordinary work, saying nothing. Reported
+            // 2026-08-30 as 540 vestiges showing under a Chaos Kalos run.
+            saveParty(userId, partyId, request.copy(difficulty = "NORMAL"), now)
+
+            assertEquals("HARD", fellAt())
+            assertEquals(0, pending())
+        }
+    }
+
+    @Test
+    fun `a drop with no mode of its own still reads through the config`() {
+        transaction {
+            ensureUser(userId, "$userId@example.com")
+            val mine = Uuid.random()
+            val now = Clock.System.now()
+            val owner = userId
+            Characters.insert {
+                it[Characters.id] = mine
+                it[Characters.userId] = owner
+                it[Characters.name] = "Rune"
+                it[Characters.worldType] = WORLD_INTERACTIVE
+                it[createdAt] = now
+                it[updatedAt] = now
+                it[position] = 0
+            }
+            val request =
+                SavePartyRequest(mine.toString(), "limbo", listOf("Steve"), difficulty = "HARD")
+            val partyId = createParty(userId, mine, bossIdForKey("limbo")!!, request, now)
+            val lootId =
+                addLoot(
+                    partyId,
+                    LootedDrop(dropIdForKey("vestige-of-erion")!!),
+                    bossIdForKey("limbo"),
+                    dropped,
+                    now,
+                )
+
+            // A row from before V69 that the backfill could not place: its count matched no single
+            // mode, so it was left unsaid rather than guessed at.
+            PartyLoot.update({ PartyLoot.id eq lootId }) { it[difficulty] = null }
+
+            // It goes on reading through the config, which is what every row did before the column
+            // existed. Without the fallback the migration would itself take those drops out of the
+            // piece maths, which is the bug it is fixing.
+            assertEquals(0, lootCountsFor(listOf(partyId), week = null)[partyId]!!.pending)
         }
     }
 }

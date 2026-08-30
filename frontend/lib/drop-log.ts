@@ -38,21 +38,28 @@ function catalogDrop(loot: Loot, dropTables: DropTables): BossDrop | null {
 /**
  * True when this row is a stack of pieces the party divides by COUNT.
  *
- * Read off the catalog's own table for the boss and the mode the party runs, which is the one place
- * that knows: vestige coupons divide, a ring does not, and the row itself cannot tell you which it
- * is holding. A boss with no amount for its difficulty is not a piece drop, so its count is left
- * exactly as it was entered.
+ * Read off the catalog's own table for the boss and the mode the drop FELL at, which is the one
+ * place that knows: vestige coupons divide, a ring does not, and the row itself cannot tell you
+ * which it is holding. A boss with no amount for that mode is not a piece drop, so its count is
+ * left exactly as it was entered.
  *
- * Read against the party's WORLD as well as its mode, because the count is per world: a boss can
- * drop a divisible pile on Interactive and one item each on Heroic.
+ * The drop's own mode, and the party's only where the row has none. A config's difficulty is
+ * editable, so reading it here let an edit re-decide what an already logged stack WAS: moving a
+ * Kalos party from Extreme to Chaos, which drops no coupon at all, silently took 540 logged coupons
+ * out of the piece maths. The backend keeps the same rule in one place, see fellAt.
+ *
+ * Read against the party's WORLD as well as the mode, because the count is per world: a boss can
+ * drop a divisible pile on Interactive and one item each on Heroic. The world is the character's
+ * and does not move.
  *
  * This is DIVISIBILITY only. Whether the pieces can then be moved between members is a second
  * question, and isCouponDrop is the one that asks it.
  */
 export function isPieceDrop(loot: Loot, party: Party, dropTables: DropTables): boolean {
-  if (party.difficulty === null) return false;
+  const fellAt = loot.difficulty ?? party.difficulty;
+  if (fellAt === null) return false;
   const inWorld = catalogDrop(loot, dropTables)?.pieces?.[party.worldType];
-  return (inWorld?.[party.difficulty] ?? 0) > 0;
+  return (inWorld?.[fellAt] ?? 0) > 0;
 }
 
 /**

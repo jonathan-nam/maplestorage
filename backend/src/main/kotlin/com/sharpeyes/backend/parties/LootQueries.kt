@@ -69,7 +69,7 @@ private fun lootWithCatalog() =
         .join(BossDropAmount, JoinType.LEFT) {
             (BossDropAmount.bossCatalogId eq PartyLoot.bossCatalogId) and
                 (BossDropAmount.dropCatalogId eq PartyLoot.dropCatalogId) and
-                (BossDropAmount.difficulty eq Party.difficulty) and
+                (BossDropAmount.difficulty eq fellAt()) and
                 (BossDropAmount.world eq amountWorld[Characters.worldType])
         }
 
@@ -254,6 +254,7 @@ private fun ResultRow.toLootResponse(
         perMember = this.getOrNull(DropCatalog.perMember),
         bossKey = this.getOrNull(BossCatalog.bossKey),
         quantity = this[PartyLoot.quantity],
+        difficulty = this[PartyLoot.difficulty],
         droppedOn = this[PartyLoot.droppedOn].toString(),
         weekStart = weekOf(this[PartyLoot.droppedOn]).toString(),
         status = statusOf(sold, takenBy != null, payouts),

@@ -62,6 +62,7 @@ const coupon = (over: Partial<Loot> = {}): Loot => ({
   perMember: null,
   bossKey: "limbo",
   quantity: 180,
+  difficulty: null,
   droppedOn: WEEK,
   weekStart: WEEK,
   status: "PENDING",

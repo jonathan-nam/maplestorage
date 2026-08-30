@@ -92,6 +92,7 @@ const coupon = (id: string, quantity: number, droppedOn: string): Loot => ({
   perMember: null,
   bossKey: "limbo",
   quantity,
+  difficulty: null,
   droppedOn,
   weekStart: "2026-08-06",
   status: "PENDING",

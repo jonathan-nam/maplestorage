@@ -40,6 +40,10 @@ data class LootResponse(
     // How many of it fell. 1 for a drop that is one item; a stack of coupons is one row with its
     // count, which is what a night that will not divide evenly leaves one member holding.
     val quantity: Int = 1,
+    // The mode it FELL at, which the config's may no longer be. isPieceDrop reads this before the
+    // party's, so editing a party's difficulty cannot re-decide whether a logged stack divides.
+    // Null for a row from before V69__loot_difficulty.sql that the backfill could not place.
+    val difficulty: String? = null,
     val droppedOn: String,
     // The reset week droppedOn falls in, as that week's Thursday. Sent rather than derived on the
     // client so the week a drop is filed under is the same one ranThatWeek was read against, and

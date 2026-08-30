@@ -99,6 +99,7 @@ const coupon = (): Loot => ({
   perMember: null,
   bossKey: "limbo",
   quantity: 240,
+  difficulty: null,
   droppedOn: "2026-08-25",
   weekStart: "2026-08-20",
   status: "PENDING",
