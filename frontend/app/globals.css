@@ -2443,18 +2443,17 @@ button.link:disabled {
 }
 
 /* The cadence band. A row of its own rather than a caption per boss: it is the
-   answer to "which period is this?" for everything beneath it. */
+   answer to "which period is this?" for everything beneath it.
+
+   Tight against the rows it heads. It used to carry the band's period and count and was padded
+   like a heading; what is left is one word, and 12px above it read as a gap in the table rather
+   than as a label on the rows under it. */
 .boss-cadence {
-  padding: 12px 8px 4px;
+  padding: 6px 8px 2px;
   color: var(--muted-2);
   font-size: var(--text-sm);
   font-weight: 600;
   text-align: left;
-}
-
-.boss-period {
-  margin-left: 8px;
-  font-weight: 400;
 }
 
 /* The names' column, declared on the table's <col> so that both tables lay out from the same
@@ -2479,23 +2478,26 @@ button.link:disabled {
   position: sticky;
   top: 0;
   z-index: 2;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 10px 0;
-  background: var(--bg);
-  border-bottom: 1px solid var(--line);
-}
-
-/* The bar takes the middle column, so it ends on the same edge as the table below it whatever the
-   two labels measure. */
-.boss-pin-band {
+  /* ONE grid over both bands, not a grid per band. Sized per band, the label and count columns
+     took their own widths and the two bars came out different lengths, which is a difference that
+     means nothing: what a bar says is its fill, and two of them are read against each other. */
   display: grid;
   grid-template-columns: max-content 1fr max-content;
   align-items: center;
-  gap: 12px;
+  gap: 6px 12px;
+  /* Less below than above: what follows is the band label, which brings its own. */
+  padding: 10px 0 6px;
+  background: var(--bg);
+  border-bottom: 1px solid var(--line);
   color: var(--muted);
   font-size: var(--text-sm);
+}
+
+/* No box of its own: its three children are laid out by the grid above, which is what puts the two
+   bands on one set of columns. The bar takes the middle one, so it ends on the same edge as the
+   table below whatever the labels either side measure. */
+.boss-pin-band {
+  display: contents;
 }
 
 .boss-pin-cadence {
