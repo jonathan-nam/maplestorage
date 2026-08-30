@@ -69,6 +69,8 @@ internal suspend fun RoutingContext.logDropRoute() {
                                 exclude = null,
                                 rosterOf(characterId, emptyList()),
                                 now,
+                                // A solo pool is a config that stays, not a night. See createSoloParty.
+                                oneOff = false,
                             )
                         }
                     if (clash != null) {

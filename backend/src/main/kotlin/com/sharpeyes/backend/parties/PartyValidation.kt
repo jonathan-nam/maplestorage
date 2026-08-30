@@ -1,6 +1,7 @@
 package com.sharpeyes.backend.parties
 
 import com.sharpeyes.backend.bosses.periodOf
+import com.sharpeyes.backend.bosses.periodStartFor
 import com.sharpeyes.backend.db.BossCatalog
 import com.sharpeyes.backend.db.Characters
 import com.sharpeyes.backend.db.Party
@@ -65,6 +66,7 @@ internal fun validateNewParty(
                     exclude = null,
                     rosterOf(characterId, request.members),
                     now,
+                    request.oneOff,
                 )
     }
 }
@@ -76,6 +78,10 @@ internal fun validateNewParty(
  * so a payload naming another one must not widen which difficulties are allowed, nor move the seat
  * the roster rule is looking for.
  *
+ * [oneOff] is which kind the config will be once this is written, which the caller knows and this
+ * cannot: the takeover path is free to make a standing config a one-off, and an ordinary edit
+ * cannot, so reading either the request or the row would be wrong down one of the two.
+ *
  * Must run inside a transaction.
  */
 internal fun validateSavedParty(
@@ -83,6 +89,7 @@ internal fun validateSavedParty(
     partyId: Uuid,
     request: SavePartyRequest,
     now: Instant,
+    oneOff: Boolean,
 ): String? {
     val bossCatalogId = bossIdOfParty(partyId)
     return bossCatalogId?.let { validateDifficulty(it, request.difficulty) }
@@ -97,6 +104,7 @@ internal fun validateSavedParty(
                 exclude = partyId,
                 rosterOf(characterIdOfParty(partyId), request.members),
                 now,
+                oneOff,
             )
         }
 }
@@ -228,12 +236,20 @@ internal fun validateDifficulty(
  * not running the boss with anybody. Counting one refused a roster over somebody the party no
  * longer has, naming a config the user could look straight at and not find them in.
  *
- * A one-off whose period has passed holds nobody either. It is a night that already happened rather
- * than an arrangement, so nothing it names is going to run the boss again, and the pair it would
- * refuse is one the app cannot do anything about: the config is not on the edit page to be changed.
- * A STANDING config skipped this week still holds, which is the difference between not running once
- * and not running again. Both ways of arming a spent one-off again come back through this rule
- * (takeOverParty and setSkipRoute), so the two can still never be on at the same time.
+ * Which of the others count depends on what is being written, because the two are only in each
+ * other's way in a period they would both run. A STANDING config runs in every period from here on,
+ * so anything that has not stopped for good competes with it: a one-off whose period has passed
+ * holds nobody, and a config merely skipped this week still does. That is the difference between
+ * not running once and not running again.
+ *
+ * [oneOff] is a single night, so only its own period is asked about, and a config skipped in that
+ * period is not running the boss then. Same fact as validateWeekRoster's, read against the period
+ * rather than the week: a party taken off for the week is one its members were free to run the boss
+ * with somebody else. Without it, taking a party off this week and running its boss with a different
+ * pair the same week was refused, and the only way through was retiring the standing config.
+ *
+ * Both ways of arming a spent one-off again come back through this rule (takeOverParty and
+ * setSkipRoute), so the two can still never be on at the same time.
  *
  * Must run inside a transaction.
  */
@@ -243,8 +259,13 @@ internal fun validateBossRoster(
     exclude: Uuid?,
     roster: List<String>,
     now: Instant,
+    oneOff: Boolean,
 ): String? {
     val wanted = roster.map { it.trim().lowercase() }.toSet()
+    // The one period a one-off runs in, or null for a config that runs in all of them. A boss whose
+    // reset cannot be read leaves it null, which asks the stricter question rather than guessing a
+    // period and letting a real clash through.
+    val period = if (oneOff) bossResetOf(bossCatalogId)?.let { periodStartFor(it, now) } else null
 
     // Every seat this account already has on this boss. Compared in Kotlin rather than SQL: it is a
     // handful of rows per boss, and the case-folding then matches validateMembers' rather than
@@ -266,7 +287,16 @@ internal fun validateBossRoster(
                 }.filter { exclude == null || it[Party.id] != exclude }
                 .filter { it[PartyMember.name].trim().lowercase() in wanted }
                 // Last, and on the matches only: it is a query per row, and there are usually none.
-                .firstOrNull { !isSpentOneOff(it[Party.id], now) }
+                // Every candidate is on the same boss, hence the same cadence, so the one period
+                // answers for all of them.
+                .firstOrNull {
+                    val other = it[Party.id]
+                    if (period == null) {
+                        !isSpentOneOff(other, now)
+                    } else {
+                        runsInPeriod(other, isOneOff(other), period)
+                    }
+                }
         }
 
     return clash?.let {

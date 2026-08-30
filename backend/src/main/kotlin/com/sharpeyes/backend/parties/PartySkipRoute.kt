@@ -64,16 +64,23 @@ internal suspend fun RoutingContext.setSkipRoute() {
                     // somebody in it may have joined another party for this boss since. Putting it
                     // back on is the only door into that pair that does not write a config, so the
                     // rule is kept here too rather than let two of your parties run one clear.
+                    val oneOff = isOneOff(partyId)
                     val clash =
                         if (request.skipped) {
                             null
                         } else {
-                            validateBossRoster(userId, bossId, exclude = partyId, standingRosterOf(partyId), now)
+                            validateBossRoster(
+                                userId,
+                                bossId,
+                                exclude = partyId,
+                                standingRosterOf(partyId),
+                                now,
+                                oneOff,
+                            )
                         }
                     if (clash != null) {
                         clash
                     } else {
-                        val oneOff = isOneOff(partyId)
                         val period = periodShown(reset, week = null, now = now)
                         setRunsInPeriod(partyId, oneOff, period, runs = !request.skipped, now = now)
                         if (oneOff && request.skipped && retractNight(partyId, reset, period)) {

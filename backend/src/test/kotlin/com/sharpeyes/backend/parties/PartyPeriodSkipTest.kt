@@ -303,7 +303,14 @@ class PartyPeriodSkipTest {
             val night = partyOn(tonight, "limbo", oneOff = true, members = listOf("Steve"))
 
             fun check() =
-                validateBossRoster(userId, limbo, exclude = null, rosterOf(other, listOf("Steve")), Clock.System.now())
+                validateBossRoster(
+                    userId,
+                    limbo,
+                    exclude = null,
+                    rosterOf(other, listOf("Steve")),
+                    Clock.System.now(),
+                    oneOff = false,
+                )
 
             // On its own period a one-off holds its seats like anything else: two configs running
             // Steve on Limbo this week is the clear that cannot happen twice.
@@ -327,6 +334,7 @@ class PartyPeriodSkipTest {
                     Uuid.parse(night.id),
                     SavePartyRequest(tonight.toString(), "limbo", listOf("Steve"), oneOff = true),
                     Clock.System.now(),
+                    oneOff = true,
                 ),
             )
             assertEquals(
@@ -337,8 +345,61 @@ class PartyPeriodSkipTest {
                     exclude = Uuid.parse(night.id),
                     standingRosterOf(Uuid.parse(night.id)),
                     Clock.System.now(),
+                    oneOff = true,
                 ),
             )
+        }
+    }
+
+    @Test
+    fun `a party taken off this week frees its seats for a ONE-OFF that week`() {
+        transaction {
+            val warrior = mine("warrior2020")
+            val acorn = mine("acornacorn")
+            val kalos = bossIdForKey("kalos-the-guardian")!!
+            val standing = partyOn(warrior, "kalos-the-guardian", members = listOf("iPhone69C"))
+            val held = "iPhone69C is already in your warrior2020 party for this boss"
+
+            fun check(oneOff: Boolean) =
+                validateBossRoster(
+                    userId,
+                    kalos,
+                    exclude = null,
+                    rosterOf(acorn, listOf("iPhone69C")),
+                    Clock.System.now(),
+                    oneOff = oneOff,
+                )
+
+            // While the party is on it holds iPhone69C's clear, whichever kind is being written.
+            assertEquals(held, check(oneOff = true))
+            assertEquals(held, check(oneOff = false))
+
+            // Taken off this week it is not running the boss this week, so a night that week is
+            // free to. Reported 2026-08-30: the row's Delete button writes exactly this mark, and
+            // the refusal named a party the user had just watched leave the page.
+            takeOff(standing)
+            assertNull(check(oneOff = true))
+
+            // A STANDING config is still refused, because it runs next week too and next week the
+            // party in its way is back. That is the difference between not running once and not
+            // running again, and it is the half of the rule this must not have widened.
+            assertEquals(held, check(oneOff = false))
+
+            // And the pair still cannot be on at once: putting the standing party back while the
+            // night is armed comes back through the same rule, from the other end.
+            val night = partyOn(acorn, "kalos-the-guardian", oneOff = true, members = listOf("iPhone69C"))
+            assertEquals(
+                "iPhone69C is already in your acornacorn party for this boss",
+                validateBossRoster(
+                    userId,
+                    kalos,
+                    exclude = Uuid.parse(standing.id),
+                    standingRosterOf(Uuid.parse(standing.id)),
+                    Clock.System.now(),
+                    oneOff = false,
+                ),
+            )
+            assertNotNull(night)
         }
     }
 

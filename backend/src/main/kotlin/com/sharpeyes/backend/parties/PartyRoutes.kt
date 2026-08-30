@@ -151,7 +151,8 @@ private suspend fun RoutingContext.createPartyRoute(
                 }
             val takeOver = held?.takeIf { takesOverConfig(it, request, now) }
             if (takeOver != null) {
-                val problem = validateSavedParty(userId, takeOver, request, now)
+                // The request's kind, not the row's: takeOverParty writes request.oneOff over it.
+                val problem = validateSavedParty(userId, takeOver, request, now, request.oneOff)
                 if (problem != null) {
                     problem
                 } else {
@@ -186,7 +187,9 @@ private suspend fun RoutingContext.savePartyRoute(
             if (!ownsParty(partyId, userId)) {
                 null
             } else {
-                val problem = validateSavedParty(userId, partyId, request, now)
+                // The row's kind, not the request's: oneOff is read at create only, so an edit
+                // leaves it as it was.
+                val problem = validateSavedParty(userId, partyId, request, now, isOneOff(partyId))
                 if (problem != null) {
                     problem
                 } else {
