@@ -7,7 +7,7 @@ import io.ktor.server.application.Application
 import io.ktor.server.application.install
 import io.ktor.server.plugins.cors.routing.CORS
 
-// Two separate deployables (Vercel frontend, ECS-hosted backend) means the
+// Two separate deployables (Vercel frontend, the backend on its own box) means the
 // browser's fetch calls in backend-status.tsx are cross-origin by default,
 // this is what makes them not get blocked. FRONTEND_ORIGIN is deliberately a
 // single exact origin, not a wildcard, since credentials (the session bearer

@@ -54,8 +54,7 @@ services:
     ports:
       - "8000:8000" # exposed locally only so a human can poke at it
     healthcheck:
-      # The same command infra/ecs.tf uses, so a health check that passes here
-      # is the one that will run in production.
+      # Plain urllib rather than curl, which the slim python image does not carry.
       test:
         [
           "CMD-SHELL",

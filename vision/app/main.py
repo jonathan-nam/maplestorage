@@ -1,7 +1,7 @@
 """Screenshot parsing service.
 
-Runs as a second container in the same ECS task as the Ktor backend, which calls it over
-loopback, one deployable, two processes. It replaced a Claude-vision call: the parse is a
+Runs as its own container beside the Ktor backend, which calls it by name on the compose
+network. It replaced a Claude-vision call: the parse is a
 deterministic OpenCV pipeline (see app/cv/), so it costs no tokens, makes no network call, and
 returns the same answer every time. Nothing about the vision LLM survives; the backend now
 speaks to this service directly.

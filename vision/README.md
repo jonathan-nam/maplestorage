@@ -2,16 +2,9 @@
 
 Parses MapleStory inventory screenshots into token counts with classical CV.
 
-Runs as a **second container in the same ECS task** as the backend, which calls
-it over `127.0.0.1:8000`. Containers in a task share a lifecycle and a network
-namespace, so this is one deployable with two processes: no ALB, no service
-discovery, no network hop, one deploy.
-
-(You will see this pattern called a "sidecar". Strictly that name is for a
-container handling a *cross-cutting* concern, a log shipper, a metrics agent, a
-proxy. This one does core domain work: the backend cannot parse a screenshot
-without it. It is a functional dependency that happens to be co-located, so the
-docs here just call it the vision service.)
+Runs as its own container beside the backend, which calls it at `http://vision:8000`.
+It is behind the `parser` compose profile and is **not deployed to production**, so it
+exists for local work and its own tests. See docker-compose.prod.yml for why.
 
 It replaces the Claude-vision call for token counts. The parse is deterministic
 OpenCV (`app/cv/`, ported from `spikes/inventory-cv`): no tokens, no network

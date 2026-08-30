@@ -8,8 +8,9 @@ import io.ktor.server.application.ApplicationStopped
 import org.flywaydb.core.Flyway
 import org.jetbrains.exposed.v1.jdbc.Database
 
-// RDS's db.t3.micro has a low max_connections ceiling. Keep the pool small
-// rather than defaulting to Hikari's own default of 10.
+// Postgres is a container sharing a 2 GB box with nginx, the auth service and two backend
+// replicas, and each replica holds its own pool. Keep it small rather than taking Hikari's
+// default of 10 twice over.
 private const val MAX_POOL_SIZE = 5
 
 fun Application.configureDatabase() {

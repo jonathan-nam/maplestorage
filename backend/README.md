@@ -2,9 +2,8 @@
 
 Ktor + Exposed + Flyway, running against Postgres.
 
-Screenshots are parsed by the **vision service** (`../vision/`), which runs as a
-second container in the same ECS task and is reached over `127.0.0.1`. See
-`services/VisionServiceClient.kt`.
+Screenshots are parsed by the **vision service** (`../vision/`), reached by name on the
+compose network. It is not deployed to production. See `services/VisionServiceClient.kt`.
 
 ## Local dev
 
