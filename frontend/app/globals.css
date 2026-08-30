@@ -2443,9 +2443,13 @@ button.link:disabled {
 }
 
 /* The cadence band. A row of its own rather than a caption per boss: it is the
-   answer to "which period is this?" for everything beneath it. */
+   answer to "which period is this?" for everything beneath it.
+
+   Tight against the rows it heads. It used to carry the band's period and count and was padded
+   like a heading; what is left is one word, and 12px above it read as a gap in the table rather
+   than as a label on the rows under it. */
 .boss-cadence {
-  padding: 12px 8px 4px;
+  padding: 6px 8px 2px;
   color: var(--muted-2);
   font-size: var(--text-sm);
   font-weight: 600;
@@ -2482,7 +2486,8 @@ button.link:disabled {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  padding: 10px 0;
+  /* Less below than above: what follows is the band label, which brings its own. */
+  padding: 10px 0 6px;
   background: var(--bg);
   border-bottom: 1px solid var(--line);
 }
