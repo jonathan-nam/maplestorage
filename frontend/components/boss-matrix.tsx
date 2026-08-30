@@ -9,7 +9,6 @@ import {
   cellStateLabel,
   clearOfCell,
   clearProgress,
-  formatPeriod,
   indexClears,
   indexSkips,
   nextClear,
@@ -117,18 +116,6 @@ export function BossMatrix({
   }
   const skipsBy = indexSkips(skipsByCharacter ?? {});
 
-  // The period each cadence is currently in, taken from the data rather than recomputed. The reset
-  // boundary lives in the backend (bosses/BossPeriod.kt); working it out again here would be a
-  // second copy of the one number in this feature that must not be wrong.
-  const periodByCadence = new Map<string, string>();
-  for (const clears of Object.values(clearsByCharacter)) {
-    for (const clear of clears) {
-      const boss = bosses.find((b) => b.bossKey === clear.bossKey);
-      if (boss && !periodByCadence.has(boss.reset))
-        periodByCadence.set(boss.reset, clear.periodStart);
-    }
-  }
-
   // A past week can only answer for weekly bosses. Seven daily periods sit inside one week, so
   // there is no single "was Zakum cleared that week" to put in a cell, and a week can straddle two
   // months. Drawing one of several true answers as if it were the only one is the confident wrong
@@ -162,7 +149,6 @@ export function BossMatrix({
     return {
       cadence,
       inCadence,
-      period: periodByCadence.get(cadence) ?? null,
       // Summed over the roster, so the denominator is one per character per boss they run and not
       // the number of bosses. The week's work is a run, and a boss six characters run is six of
       // them.
@@ -253,14 +239,9 @@ export function BossMatrix({
       <div className="boss-progress-pin">
         {[...bands]
           .sort((a, b) => PIN_ORDER.indexOf(a.cadence) - PIN_ORDER.indexOf(b.cadence))
-          .map(({ cadence, period, progress }) => (
+          .map(({ cadence, progress }) => (
             <div key={cadence} className="boss-pin-band">
-              <span className="boss-pin-cadence">
-                {cadenceLabel(cadence)}
-                {!loading && period && (
-                  <span className="boss-period">since {formatPeriod(period)}</span>
-                )}
-              </span>
+              <span className="boss-pin-cadence">{cadenceLabel(cadence)}</span>
               {/* Never the bar alone. It is a second reading of the number beside it, so a
                   proportion nobody can state (a past week) keeps the space and draws no track:
                   an empty track is a bar reading zero. The figures are withheld while loading for
@@ -292,9 +273,9 @@ export function BossMatrix({
           {bands.map(({ cadence, inCadence }) => {
             return (
               <tbody key={cadence}>
-                {/* The name alone: the band's period and its count are on the pinned header, and
-                  saying either twice would be one of them going stale. What is left is the mark
-                  between one band and the next, which the table still has to carry. */}
+                {/* The name alone: the band's count is on the pinned header, and saying it twice
+                  would be one of the two going stale. What is left is the mark between one band
+                  and the next, which the table still has to carry. */}
                 <tr className="boss-cadence-row">
                   <th className="boss-cadence" scope="colgroup" colSpan={columns.length + 1}>
                     {cadenceLabel(cadence)}
