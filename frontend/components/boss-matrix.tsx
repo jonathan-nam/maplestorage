@@ -1,9 +1,10 @@
 "use client";
 
-import { type CSSProperties, useState } from "react";
+import { type CSSProperties, useRef, useState } from "react";
 
 import { apiAssetUrl, spriteUrl } from "@/lib/api";
 import {
+  cadenceLabel,
   cellState,
   cellStateLabel,
   clearOfCell,
@@ -34,6 +35,10 @@ import type { Character } from "@/types/character";
 // dailies: the list is filtered to the cadences actually present, so it costs nothing and is what
 // this would need if they ever come back.
 const CADENCE_ORDER = ["MONTHLY", "WEEKLY", "DAILY"];
+
+// The pinned header reads the other way up. The table follows the planner, which puts the rarest
+// reset first; the header is read at a glance, and the glance is nearly always at the week.
+const PIN_ORDER = ["WEEKLY", "MONTHLY", "DAILY"];
 
 // On a cold load neither the catalog nor the roster has arrived, so the loading state has nothing
 // real to lay out. These stand in: the shape is right (one monthly and a run of weeklies, which is
@@ -99,6 +104,10 @@ export function BossMatrix({
   // rows away, so reading a mark still means tracing a column by eye. CSS can do a row on its own
   // and cannot do a column, hence the state.
   const [hoveredColumn, setHoveredColumn] = useState<string | null>(null);
+
+  // The column heads scroll sideways with the marks, being a separate table now. See the split
+  // below the return.
+  const headRef = useRef<HTMLDivElement>(null);
   const colClass = (characterId: string) => (hoveredColumn === characterId ? " is-col-hover" : "");
 
   // Indexed per character; see lib/boss-clears.ts for why the four cell states are four.
@@ -146,9 +155,40 @@ export function BossMatrix({
       cellState(byCharacter.get(characterId), boss.bossKey, skipsBy.get(characterId)),
     );
 
+  // One band, computed once. The header above the table and the rows inside it are two readings of
+  // the same figures, so neither may work them out for itself.
+  const bands = cadences.map((cadence) => {
+    const inCadence = rows.filter((boss) => boss.reset === cadence);
+    return {
+      cadence,
+      inCadence,
+      period: periodByCadence.get(cadence) ?? null,
+      // Summed over the roster, so the denominator is one per character per boss they run and not
+      // the number of bosses. The week's work is a run, and a boss six characters run is six of
+      // them.
+      progress: clearProgress(
+        columns.flatMap((character) => statesOf(character.id, inCadence)),
+        routineKnown,
+      ),
+    };
+  });
+
+  // Both tables lay their columns out from these rather than from their first row, which is what
+  // keeps the split head over the marks it heads. A fixed layout reads its widths off the first
+  // row, and the body's first row is a band header spanning every column: measured, that put the
+  // names at 152px under a 214px head.
+  const columnWidths = (
+    <colgroup>
+      <col className="boss-name-col" />
+      {columns.map((character) => (
+        <col key={character.id} />
+      ))}
+    </colgroup>
+  );
+
   return (
     <div
-      className="boss-matrix"
+      className="boss-matrix-wrap"
       style={{ "--boss-span": span, "--boss-cols": roster } as CSSProperties}
       role="status"
       aria-label={loading ? "Loading boss clears" : undefined}
@@ -156,232 +196,261 @@ export function BossMatrix({
       // between the two events.
       onMouseLeave={() => setHoveredColumn(null)}
     >
-      <table className="boss-table">
-        <thead>
-          <tr>
-            <th className="boss-col-head" scope="col">
-              Boss
-            </th>
-            {columns.map((character) => (
-              <th
-                key={character.id}
-                className={`boss-char-head${colClass(character.id)}`}
-                scope="col"
-                title={character.name}
-                onMouseEnter={() => setHoveredColumn(character.id)}
-              >
-                {/* The slot is drawn whether or not there is a sprite, so a roster where only some
-                    characters have one does not end up with ragged column heads. */}
-                {loading ? (
-                  <span className="skeleton sk-face" />
-                ) : character.spriteImgUrl ? (
-                  <img
-                    className="boss-char-sprite"
-                    src={spriteUrl(character.spriteImgUrl)}
-                    alt=""
-                  />
-                ) : (
-                  <span className="boss-char-sprite is-empty" aria-hidden="true" />
-                )}
-                {loading ? <span className="skeleton sk-line" /> : character.name}
+      {/* The column heads are a table of their own so that the bands below them can be held at the
+          top of the window: a sticky element sticks to the nearest scrolling box, and the marks
+          have to sit in one of those to scroll sideways past four characters. Split, only the marks
+          are inside it.
+
+          The two tables agree on their columns because they are the same table: same class, same
+          fixed layout, and the widths follow from --boss-name-col and the column count, which the
+          wrapper sets for both. Nothing measures anything.
+
+          What the split costs is the header association between a mark and its column. Every cell
+          already says "Lotus cleared by Alice" for a reader that is not looking at the column (see
+          `said` below), so what is lost is a second copy of what the cells carry. */}
+      <div className="boss-matrix-head" ref={headRef}>
+        <table className="boss-table">
+          {columnWidths}
+          <thead>
+            <tr>
+              <th className="boss-col-head" scope="col">
+                Boss
               </th>
-            ))}
-          </tr>
-        </thead>
-
-        {cadences.map((cadence) => {
-          const inCadence = rows.filter((boss) => boss.reset === cadence);
-          // Summed over the roster, so the denominator is one per character per boss they run and
-          // not the number of bosses. The week's work is a run, and a boss six characters run is
-          // six of them.
-          const rosterProgress = clearProgress(
-            columns.flatMap((character) => statesOf(character.id, inCadence)),
-            routineKnown,
-          );
-          return (
-            <tbody key={cadence}>
-              <tr className="boss-cadence-row">
-                <th className="boss-cadence" scope="colgroup" colSpan={columns.length + 1}>
-                  {/* Flexed on an inner span for the reason .boss-name-inner is: display:flex on a
-                      cell takes it out of the table layout. */}
-                  <span className="boss-cadence-inner">
-                    <span>
-                      {cadence}
-                      {periodByCadence.has(cadence) && (
-                        <span className="boss-period">
-                          since {formatPeriod(periodByCadence.get(cadence)!)}
-                        </span>
-                      )}
-                    </span>
-                    {/* Withheld while loading rather than drawn at 0: the skeleton's rows are
-                        invented (see SKELETON_BOSSES), so a figure over them would be a real-looking
-                        count of nothing. */}
-                    {!loading && (
-                      <span className="boss-cadence-progress">
-                        {/* Never the bar alone. It is a second reading of the number beside it, so
-                            a proportion nobody can state (a past week) simply has no bar. */}
-                        {rosterProgress.total ? (
-                          <span className="boss-progress-bar" aria-hidden="true">
-                            <span
-                              style={{
-                                width: `${(rosterProgress.cleared / rosterProgress.total) * 100}%`,
-                              }}
-                            />
-                          </span>
-                        ) : null}
-                        {progressLabel(rosterProgress)}
-                      </span>
-                    )}
-                  </span>
+              {columns.map((character) => (
+                <th
+                  key={character.id}
+                  className={`boss-char-head${colClass(character.id)}`}
+                  scope="col"
+                  title={character.name}
+                  onMouseEnter={() => setHoveredColumn(character.id)}
+                >
+                  {/* The slot is drawn whether or not there is a sprite, so a roster where only some
+                    characters have one does not end up with ragged column heads. */}
+                  {loading ? (
+                    <span className="skeleton sk-face" />
+                  ) : character.spriteImgUrl ? (
+                    <img
+                      className="boss-char-sprite"
+                      src={spriteUrl(character.spriteImgUrl)}
+                      alt=""
+                    />
+                  ) : (
+                    <span className="boss-char-sprite is-empty" aria-hidden="true" />
+                  )}
+                  {loading ? <span className="skeleton sk-line" /> : character.name}
                 </th>
-              </tr>
+              ))}
+            </tr>
+          </thead>
+        </table>
+      </div>
 
-              {inCadence.map((boss) => (
-                <tr
-                  key={boss.bossKey}
-                  // Nothing left to do on this boss, so the row steps back. Two ways to get there
-                  // and they are not the same fact: everyone who runs it is done, or nobody runs
-                  // it at all. See rowFullyCleared for why an unreported character counts as
-                  // neither.
-                  className={
-                    loading
-                      ? undefined
-                      : rowNobodyRuns(
-                            columns.map((c) => c.id),
-                            boss.bossKey,
-                            skipsBy,
-                          )
-                        ? "is-row-unrun"
-                        : rowFullyCleared(
-                              byCharacter,
+      {/* The band headers, held at the top of the window while their rows scroll past. The weekly
+          band is seventeen rows deep, so its count was off screen exactly while the marks it counts
+          were being read.
+
+          Weekly leads though the table leads with monthly, being the band the week is spent in. */}
+      <div className="boss-progress-pin">
+        {[...bands]
+          .sort((a, b) => PIN_ORDER.indexOf(a.cadence) - PIN_ORDER.indexOf(b.cadence))
+          .map(({ cadence, period, progress }) => (
+            <div key={cadence} className="boss-pin-band">
+              <span className="boss-pin-cadence">
+                {cadenceLabel(cadence)}
+                {!loading && period && (
+                  <span className="boss-period">since {formatPeriod(period)}</span>
+                )}
+              </span>
+              {/* Never the bar alone. It is a second reading of the number beside it, so a
+                  proportion nobody can state (a past week) keeps the space and draws no track:
+                  an empty track is a bar reading zero. The figures are withheld while loading for
+                  the same reason, the skeleton's rows being invented (see SKELETON_BOSSES). */}
+              {!loading && progress.total ? (
+                <span className="boss-progress-bar" aria-hidden="true">
+                  <span style={{ width: `${(progress.cleared / progress.total) * 100}%` }} />
+                </span>
+              ) : (
+                <span aria-hidden="true" />
+              )}
+              <span className="boss-pin-count">
+                {loading ? <span className="skeleton sk-line" /> : progressLabel(progress)}
+              </span>
+            </div>
+          ))}
+      </div>
+
+      {/* The heads above are dragged along by hand. They are in a box of their own now, so the
+          browser no longer scrolls the two together. */}
+      <div
+        className="boss-matrix"
+        onScroll={(event) => {
+          if (headRef.current) headRef.current.scrollLeft = event.currentTarget.scrollLeft;
+        }}
+      >
+        <table className="boss-table">
+          {columnWidths}
+          {bands.map(({ cadence, inCadence }) => {
+            return (
+              <tbody key={cadence}>
+                {/* The name alone: the band's period and its count are on the pinned header, and
+                  saying either twice would be one of them going stale. What is left is the mark
+                  between one band and the next, which the table still has to carry. */}
+                <tr className="boss-cadence-row">
+                  <th className="boss-cadence" scope="colgroup" colSpan={columns.length + 1}>
+                    {cadenceLabel(cadence)}
+                  </th>
+                </tr>
+
+                {inCadence.map((boss) => (
+                  <tr
+                    key={boss.bossKey}
+                    // Nothing left to do on this boss, so the row steps back. Two ways to get there
+                    // and they are not the same fact: everyone who runs it is done, or nobody runs
+                    // it at all. See rowFullyCleared for why an unreported character counts as
+                    // neither.
+                    className={
+                      loading
+                        ? undefined
+                        : rowNobodyRuns(
                               columns.map((c) => c.id),
                               boss.bossKey,
                               skipsBy,
                             )
-                          ? "is-row-cleared"
-                          : undefined
-                  }
-                >
-                  <th className="boss-name" scope="row">
-                    {/* Flexed on an inner span, not on the th: display:flex on a table cell takes
+                          ? "is-row-unrun"
+                          : rowFullyCleared(
+                                byCharacter,
+                                columns.map((c) => c.id),
+                                boss.bossKey,
+                                skipsBy,
+                              )
+                            ? "is-row-cleared"
+                            : undefined
+                    }
+                  >
+                    <th className="boss-name" scope="row">
+                      {/* Flexed on an inner span, not on the th: display:flex on a table cell takes
                         it out of the table layout and the column stops aligning. */}
-                    <span className="boss-name-inner">
-                      {/* The game's own portrait, cut from a planner capture, so a row is
+                      <span className="boss-name-inner">
+                        {/* The game's own portrait, cut from a planner capture, so a row is
                           recognisable before the name is read. The frame is drawn either way, so
                           the loading state and a boss with no art keep the column's width. */}
-                      {!loading && boss.iconUrl ? (
-                        <img className="boss-portrait" src={apiAssetUrl(boss.iconUrl)} alt="" />
-                      ) : (
-                        <span className="boss-portrait is-empty" aria-hidden="true" />
-                      )}
-                      {loading ? <span className="skeleton sk-line" /> : boss.name}
-                    </span>
-                  </th>
-                  {columns.map((character) => {
-                    if (loading) {
+                        {!loading && boss.iconUrl ? (
+                          <img className="boss-portrait" src={apiAssetUrl(boss.iconUrl)} alt="" />
+                        ) : (
+                          <span className="boss-portrait is-empty" aria-hidden="true" />
+                        )}
+                        {loading ? <span className="skeleton sk-line" /> : boss.name}
+                      </span>
+                    </th>
+                    {columns.map((character) => {
+                      if (loading) {
+                        return (
+                          <td
+                            key={character.id}
+                            className={`boss-cell${colClass(character.id)}`}
+                            onMouseEnter={() => setHoveredColumn(character.id)}
+                          >
+                            <span className="skeleton sk-cell" />
+                          </td>
+                        );
+                      }
+                      const state = cellState(
+                        byCharacter.get(character.id),
+                        boss.bossKey,
+                        skipsBy.get(character.id),
+                      );
+                      // Decorative; `said` is what a screen reader gets, and "not reported" is
+                      // deliberately not "not cleared". Not-cleared is the empty one of the four:
+                      // it is the only state you find by the gap it leaves, and the others have to
+                      // be marks so that gap means something.
+                      const mark =
+                        state === "cleared"
+                          ? "✓"
+                          : state === "unseen"
+                            ? "–"
+                            : state === "skipped"
+                              ? "·"
+                              : "";
+                      const said =
+                        state === "cleared" || state === "pending"
+                          ? `${boss.name} ${cellStateLabel(state)} by ${character.name}`
+                          : `${boss.name}, ${character.name} ${cellStateLabel(state)}`;
+
+                      // A boss this character does not run has no clear to tick, so the cell is a
+                      // mark and not a control. Which bosses they run is answered on the routine
+                      // page, where the whole set is visible at once.
+                      const clickable = !!onToggle && state !== "skipped";
+                      const title = state === "cleared" ? "Mark not cleared" : "Mark cleared";
                       return (
                         <td
                           key={character.id}
-                          className={`boss-cell${colClass(character.id)}`}
+                          // is-editable moves the cell's padding onto the button, so the click
+                          // target is the whole cell rather than the glyph in the middle of it.
+                          className={`boss-cell is-${state}${clickable ? " is-editable" : ""}${colClass(character.id)}`}
                           onMouseEnter={() => setHoveredColumn(character.id)}
                         >
-                          <span className="skeleton sk-cell" />
+                          {clickable ? (
+                            // The cell IS the control, rather than a mark with a control beside it:
+                            // 16 bosses by a roster's worth of columns leaves no room for a second
+                            // thing per cell, and the mark is already what you are aiming at.
+                            <button
+                              type="button"
+                              className="boss-mark"
+                              disabled={busy}
+                              title={title}
+                              onClick={() =>
+                                onToggle!(character.id, boss.bossKey, nextClear(clearOfCell(state)))
+                              }
+                            >
+                              <span aria-hidden="true">{mark}</span>
+                              <span className="visually-hidden">{said}</span>
+                            </button>
+                          ) : (
+                            <>
+                              <span aria-hidden="true">{mark}</span>
+                              <span className="visually-hidden">{said}</span>
+                            </>
+                          )}
                         </td>
                       );
-                    }
-                    const state = cellState(
-                      byCharacter.get(character.id),
-                      boss.bossKey,
-                      skipsBy.get(character.id),
-                    );
-                    // Decorative; `said` is what a screen reader gets, and "not reported" is
-                    // deliberately not "not cleared". Not-cleared is the empty one of the four:
-                    // it is the only state you find by the gap it leaves, and the others have to
-                    // be marks so that gap means something.
-                    const mark =
-                      state === "cleared"
-                        ? "✓"
-                        : state === "unseen"
-                          ? "–"
-                          : state === "skipped"
-                            ? "·"
-                            : "";
-                    const said =
-                      state === "cleared" || state === "pending"
-                        ? `${boss.name} ${cellStateLabel(state)} by ${character.name}`
-                        : `${boss.name}, ${character.name} ${cellStateLabel(state)}`;
+                    })}
+                  </tr>
+                ))}
 
-                    // A boss this character does not run has no clear to tick, so the cell is a
-                    // mark and not a control. Which bosses they run is answered on the routine
-                    // page, where the whole set is visible at once.
-                    const clickable = !!onToggle && state !== "skipped";
-                    const title = state === "cleared" ? "Mark not cleared" : "Mark cleared";
-                    return (
-                      <td
-                        key={character.id}
-                        // is-editable moves the cell's padding onto the button, so the click
-                        // target is the whole cell rather than the glyph in the middle of it.
-                        className={`boss-cell is-${state}${clickable ? " is-editable" : ""}${colClass(character.id)}`}
-                        onMouseEnter={() => setHoveredColumn(character.id)}
-                      >
-                        {clickable ? (
-                          // The cell IS the control, rather than a mark with a control beside it:
-                          // 16 bosses by a roster's worth of columns leaves no room for a second
-                          // thing per cell, and the mark is already what you are aiming at.
-                          <button
-                            type="button"
-                            className="boss-mark"
-                            disabled={busy}
-                            title={title}
-                            onClick={() =>
-                              onToggle!(character.id, boss.bossKey, nextClear(clearOfCell(state)))
-                            }
-                          >
-                            <span aria-hidden="true">{mark}</span>
-                            <span className="visually-hidden">{said}</span>
-                          </button>
-                        ) : (
-                          <>
-                            <span aria-hidden="true">{mark}</span>
-                            <span className="visually-hidden">{said}</span>
-                          </>
-                        )}
-                      </td>
-                    );
-                  })}
-                </tr>
-              ))}
-
-              {/* Under the columns rather than beside the names: the question it answers is "who
+                {/* Under the columns rather than beside the names: the question it answers is "who
                   still has work", and that is read down a character, not across a boss. */}
-              {!loading && (
-                <tr className="boss-progress-row">
-                  <th className="boss-name" scope="row">
-                    Cleared
-                  </th>
-                  {columns.map((character) => {
-                    const progress = clearProgress(statesOf(character.id, inCadence), routineKnown);
-                    return (
-                      <td
-                        key={character.id}
-                        className={`boss-progress-cell${colClass(character.id)}`}
-                        onMouseEnter={() => setHoveredColumn(character.id)}
-                      >
-                        <span aria-hidden="true">{progressMark(progress)}</span>
-                        {/* "8/12" is only an answer once you know whose column it is, and a
+                {!loading && (
+                  <tr className="boss-progress-row">
+                    <th className="boss-name" scope="row">
+                      Cleared
+                    </th>
+                    {columns.map((character) => {
+                      const progress = clearProgress(
+                        statesOf(character.id, inCadence),
+                        routineKnown,
+                      );
+                      return (
+                        <td
+                          key={character.id}
+                          className={`boss-progress-cell${colClass(character.id)}`}
+                          onMouseEnter={() => setHoveredColumn(character.id)}
+                        >
+                          <span aria-hidden="true">{progressMark(progress)}</span>
+                          {/* "8/12" is only an answer once you know whose column it is, and a
                             screen reader is not reading the column. */}
-                        <span className="visually-hidden">
-                          {character.name} {progressLabel(progress)}
-                        </span>
-                      </td>
-                    );
-                  })}
-                </tr>
-              )}
-            </tbody>
-          );
-        })}
-      </table>
+                          <span className="visually-hidden">
+                            {character.name} {progressLabel(progress)}
+                          </span>
+                        </td>
+                      );
+                    })}
+                  </tr>
+                )}
+              </tbody>
+            );
+          })}
+        </table>
+      </div>
 
       {!loading && historyWeek && cadences.length === 0 && (
         <p className="boss-empty-week">No planner was captured this week.</p>
