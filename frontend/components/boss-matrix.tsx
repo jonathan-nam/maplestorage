@@ -1,6 +1,6 @@
 "use client";
 
-import { type CSSProperties, useState } from "react";
+import { type CSSProperties, useRef, useState } from "react";
 
 import { apiAssetUrl, spriteUrl } from "@/lib/api";
 import {
@@ -104,6 +104,10 @@ export function BossMatrix({
   // rows away, so reading a mark still means tracing a column by eye. CSS can do a row on its own
   // and cannot do a column, hence the state.
   const [hoveredColumn, setHoveredColumn] = useState<string | null>(null);
+
+  // The column heads scroll sideways with the marks, being a separate table now. See the split
+  // below the return.
+  const headRef = useRef<HTMLDivElement>(null);
   const colClass = (characterId: string) => (hoveredColumn === characterId ? " is-col-hover" : "");
 
   // Indexed per character; see lib/boss-clears.ts for why the four cell states are four.
@@ -169,6 +173,19 @@ export function BossMatrix({
     };
   });
 
+  // Both tables lay their columns out from these rather than from their first row, which is what
+  // keeps the split head over the marks it heads. A fixed layout reads its widths off the first
+  // row, and the body's first row is a band header spanning every column: measured, that put the
+  // names at 152px under a 214px head.
+  const columnWidths = (
+    <colgroup>
+      <col className="boss-name-col" />
+      {columns.map((character) => (
+        <col key={character.id} />
+      ))}
+    </colgroup>
+  );
+
   return (
     <div
       className="boss-matrix-wrap"
@@ -179,44 +196,21 @@ export function BossMatrix({
       // between the two events.
       onMouseLeave={() => setHoveredColumn(null)}
     >
-      {/* The band headers, held at the top of the window while their rows scroll past. The weekly
-          band is seventeen rows deep, so its count was off screen exactly while the marks it counts
-          were being read.
+      {/* The column heads are a table of their own so that the bands below them can be held at the
+          top of the window: a sticky element sticks to the nearest scrolling box, and the marks
+          have to sit in one of those to scroll sideways past four characters. Split, only the marks
+          are inside it.
 
-          Outside .boss-matrix rather than in the band row, because that box scrolls sideways: a
-          sticky child of it sticks to that box and not to the window. Weekly leads though the table
-          leads with monthly, being the band the week is actually spent in. */}
-      <div className="boss-progress-pin">
-        {[...bands]
-          .sort((a, b) => PIN_ORDER.indexOf(a.cadence) - PIN_ORDER.indexOf(b.cadence))
-          .map(({ cadence, period, progress }) => (
-            <div key={cadence} className="boss-pin-band">
-              <span className="boss-pin-cadence">
-                {cadenceLabel(cadence)}
-                {!loading && period && (
-                  <span className="boss-period">since {formatPeriod(period)}</span>
-                )}
-              </span>
-              {/* Never the bar alone. It is a second reading of the number beside it, so a
-                  proportion nobody can state (a past week) keeps the space and draws no track:
-                  an empty track is a bar reading zero. The figures are withheld while loading for
-                  the same reason, the skeleton's rows being invented (see SKELETON_BOSSES). */}
-              {!loading && progress.total ? (
-                <span className="boss-progress-bar" aria-hidden="true">
-                  <span style={{ width: `${(progress.cleared / progress.total) * 100}%` }} />
-                </span>
-              ) : (
-                <span aria-hidden="true" />
-              )}
-              <span className="boss-pin-count">
-                {loading ? <span className="skeleton sk-line" /> : progressLabel(progress)}
-              </span>
-            </div>
-          ))}
-      </div>
+          The two tables agree on their columns because they are the same table: same class, same
+          fixed layout, and the widths follow from --boss-name-col and the column count, which the
+          wrapper sets for both. Nothing measures anything.
 
-      <div className="boss-matrix">
+          What the split costs is the header association between a mark and its column. Every cell
+          already says "Lotus cleared by Alice" for a reader that is not looking at the column (see
+          `said` below), so what is lost is a second copy of what the cells carry. */}
+      <div className="boss-matrix-head" ref={headRef}>
         <table className="boss-table">
+          {columnWidths}
           <thead>
             <tr>
               <th className="boss-col-head" scope="col">
@@ -248,7 +242,53 @@ export function BossMatrix({
               ))}
             </tr>
           </thead>
+        </table>
+      </div>
 
+      {/* The band headers, held at the top of the window while their rows scroll past. The weekly
+          band is seventeen rows deep, so its count was off screen exactly while the marks it counts
+          were being read.
+
+          Weekly leads though the table leads with monthly, being the band the week is spent in. */}
+      <div className="boss-progress-pin">
+        {[...bands]
+          .sort((a, b) => PIN_ORDER.indexOf(a.cadence) - PIN_ORDER.indexOf(b.cadence))
+          .map(({ cadence, period, progress }) => (
+            <div key={cadence} className="boss-pin-band">
+              <span className="boss-pin-cadence">
+                {cadenceLabel(cadence)}
+                {!loading && period && (
+                  <span className="boss-period">since {formatPeriod(period)}</span>
+                )}
+              </span>
+              {/* Never the bar alone. It is a second reading of the number beside it, so a
+                  proportion nobody can state (a past week) keeps the space and draws no track:
+                  an empty track is a bar reading zero. The figures are withheld while loading for
+                  the same reason, the skeleton's rows being invented (see SKELETON_BOSSES). */}
+              {!loading && progress.total ? (
+                <span className="boss-progress-bar" aria-hidden="true">
+                  <span style={{ width: `${(progress.cleared / progress.total) * 100}%` }} />
+                </span>
+              ) : (
+                <span aria-hidden="true" />
+              )}
+              <span className="boss-pin-count">
+                {loading ? <span className="skeleton sk-line" /> : progressLabel(progress)}
+              </span>
+            </div>
+          ))}
+      </div>
+
+      {/* The heads above are dragged along by hand. They are in a box of their own now, so the
+          browser no longer scrolls the two together. */}
+      <div
+        className="boss-matrix"
+        onScroll={(event) => {
+          if (headRef.current) headRef.current.scrollLeft = event.currentTarget.scrollLeft;
+        }}
+      >
+        <table className="boss-table">
+          {columnWidths}
           {bands.map(({ cadence, inCadence }) => {
             return (
               <tbody key={cadence}>
