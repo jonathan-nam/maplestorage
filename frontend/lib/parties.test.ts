@@ -12,6 +12,7 @@ import {
   isCleared,
   knownCharacterNames,
   otherMembers,
+  partiedBossKeys,
   partySizeLabel,
   runningThisPeriod,
   standingMembers,
@@ -407,5 +408,42 @@ describe("guaranteedDrop", () => {
     // across a deploy gets a drop with no `pieces` at all rather than an empty one.
     const old = { ...grindstone, pieces: undefined } as unknown as typeof grindstone;
     expect(hasGuaranteedDrop([old])).toBe(false);
+  });
+});
+
+describe("partiedBossKeys", () => {
+  it("locks a boss this character has a standing party for", () => {
+    const party = config("p1", "char-1", "limbo", ["CreedBratton"]);
+
+    expect(Array.from(partiedBossKeys([party], "char-1"))).toEqual(["limbo"]);
+    // Another character of yours runs it alone until somebody says otherwise.
+    expect(Array.from(partiedBossKeys([party], "char-2"))).toEqual([]);
+  });
+
+  it("does not lock a solo pool", () => {
+    // A pool holding what fell on a boss run alone is not a party, and there would be nothing to
+    // remove first: the box would never come back.
+    const pool = { ...config("p1", "char-1", "limbo", []), solo: true };
+
+    expect(Array.from(partiedBossKeys([pool], "char-1"))).toEqual([]);
+  });
+
+  it("does not lock a one-off whose period has passed", () => {
+    // One night with people who are not who this character runs the boss with. The config stays
+    // for its pool and its week, but the boss is soloed again now, so the box has to untick.
+    const spent = {
+      ...config("p1", "char-1", "baldrix", ["Bryants", "CreedBratton"]),
+      oneOff: true,
+      skippedThisPeriod: true,
+    };
+
+    expect(Array.from(partiedBossKeys([spent], "char-1"))).toEqual([]);
+  });
+
+  it("locks a one-off that is on this period", () => {
+    // Armed for the period the page is showing, so this period it IS who they run it with.
+    const live = { ...config("p1", "char-1", "jupiter", ["Bryants"]), oneOff: true };
+
+    expect(Array.from(partiedBossKeys([live], "char-1"))).toEqual(["jupiter"]);
   });
 });

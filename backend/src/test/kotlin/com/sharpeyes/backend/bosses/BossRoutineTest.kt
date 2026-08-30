@@ -226,6 +226,72 @@ class BossRoutineTest {
         }
 
     @Test
+    fun `lets a boss be unticked once its one-off period has passed`() =
+        transaction {
+            // A night with two friends is not who this character runs Baldrix with. The config stays
+            // for its pool and the week it ran, so refusing here would lock the box on the strength
+            // of one night and leave nothing to remove first.
+            val character = addCharacter(userOneId, "Once")
+            createParty(
+                userOneId,
+                character,
+                bossId("jupiter"),
+                SavePartyRequest(
+                    characterId = character.toString(),
+                    bossKey = "jupiter",
+                    members = listOf("Bryants", "CreedBratton"),
+                    oneOff = true,
+                ),
+                midWeek,
+            )
+
+            assertNull(setBossRoutine(userOneId, character, listOf("jupiter"), nextWeek))
+            assertEquals(listOf("jupiter"), skipsOf(userOneId, character))
+        }
+
+    @Test
+    fun `still refuses while the one-off's own period is on`() =
+        transaction {
+            // This period it IS who they run it with, and the roster is on screen to say so.
+            val character = addCharacter(userOneId, "Tonight")
+            createParty(
+                userOneId,
+                character,
+                bossId("jupiter"),
+                SavePartyRequest(
+                    characterId = character.toString(),
+                    bossKey = "jupiter",
+                    members = listOf("Bryants"),
+                    oneOff = true,
+                ),
+                midWeek,
+            )
+
+            assertIs<RoutineRefusal.HasParty>(setBossRoutine(userOneId, character, listOf("jupiter"), midWeek))
+            assertEquals(emptyList(), skipsOf(userOneId, character))
+        }
+
+    @Test
+    fun `a solo pool is not a party and does not lock the box`() =
+        transaction {
+            // The pool a drop on a boss run alone lands in. Nobody set it up, and deleting it to
+            // untick the boss would take what fell with it.
+            val character = addCharacter(userOneId, "Alone")
+            Party.insert {
+                it[id] = Uuid.random()
+                it[userId] = userOneId
+                it[characterId] = character
+                it[bossCatalogId] = bossId("jupiter")
+                it[solo] = true
+                it[createdAt] = midWeek
+                it[updatedAt] = midWeek
+            }
+
+            assertNull(setBossRoutine(userOneId, character, listOf("jupiter"), midWeek))
+            assertEquals(listOf("jupiter"), skipsOf(userOneId, character))
+        }
+
+    @Test
     fun `a refused save writes nothing at all, not even the part that was fine`() =
         transaction {
             // Half-applying would leave the page showing a routine nobody described.
