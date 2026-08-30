@@ -45,5 +45,6 @@ internal fun revivesCleanly(
         exclude = partyId,
         standingRosterOf(partyId),
         now,
+        isOneOff(partyId),
     ) == null
 }

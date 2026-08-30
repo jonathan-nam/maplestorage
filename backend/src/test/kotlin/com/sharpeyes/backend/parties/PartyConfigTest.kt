@@ -391,7 +391,14 @@ class PartyConfigTest {
             config(userOneId, mech, "limbo", listOf("CreedBratton", "iPhone69C"))
 
             fun check(members: List<String>) =
-                validateBossRoster(userOneId, limbo, exclude = null, rosterOf(warrior, members), Clock.System.now())
+                validateBossRoster(
+                    userOneId,
+                    limbo,
+                    exclude = null,
+                    rosterOf(warrior, members),
+                    Clock.System.now(),
+                    oneOff = false,
+                )
 
             // A character clears a boss once a week, so lending iPhone69C to a second Limbo party
             // states a night that cannot happen. Refused where it is written, not dropped later.
@@ -414,10 +421,19 @@ class PartyConfigTest {
             // Another boss is another clear.
             val lotus = bossIdForKey("lotus")!!
             assertNull(
-                validateBossRoster(userOneId, lotus, null, rosterOf(warrior, listOf("iPhone69C")), Clock.System.now()),
+                validateBossRoster(
+                    userOneId,
+                    lotus,
+                    null,
+                    rosterOf(warrior, listOf("iPhone69C")),
+                    Clock.System.now(),
+                    oneOff = false,
+                ),
             )
             // And another account's configs are not competition.
-            assertNull(validateBossRoster(userTwoId, limbo, null, listOf("iPhone69C"), Clock.System.now()))
+            assertNull(
+                validateBossRoster(userTwoId, limbo, null, listOf("iPhone69C"), Clock.System.now(), oneOff = false),
+            )
         }
     }
 
@@ -438,13 +454,27 @@ class PartyConfigTest {
             // So she is free to run the boss with somebody else. Counting the retired seat refused
             // this, naming a config the user could look straight at and not find her in.
             assertNull(
-                validateBossRoster(userOneId, kalos, null, rosterOf(mech, listOf("Freeballynn")), Clock.System.now()),
+                validateBossRoster(
+                    userOneId,
+                    kalos,
+                    null,
+                    rosterOf(mech, listOf("Freeballynn")),
+                    Clock.System.now(),
+                    oneOff = false,
+                ),
             )
 
             // Somebody still in that roster is still competition, which is the rule's whole point.
             assertEquals(
                 "iPhone69C is already in your warrior2020 party for this boss",
-                validateBossRoster(userOneId, kalos, null, rosterOf(mech, listOf("iPhone69C")), Clock.System.now()),
+                validateBossRoster(
+                    userOneId,
+                    kalos,
+                    null,
+                    rosterOf(mech, listOf("iPhone69C")),
+                    Clock.System.now(),
+                    oneOff = false,
+                ),
             )
         }
     }
@@ -465,6 +495,7 @@ class PartyConfigTest {
                     exclude = Uuid.parse(party.id),
                     rosterOf(mech, listOf("CreedBratton")),
                     Clock.System.now(),
+                    oneOff = false,
                 ),
             )
         }
