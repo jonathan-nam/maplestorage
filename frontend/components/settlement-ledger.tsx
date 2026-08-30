@@ -585,15 +585,11 @@ function SettlementCard({
                 {got.note
                   ? `${formatMesos(got.amount, true)} paid \u00b7 ${got.note}`
                   : `${formatMesos(got.amount, true)} paid`}
-                <button
-                  type="button"
-                  className="link ledger-drop-sale"
-                  disabled={busy}
-                  onClick={() => void write(onRemovePayment(got.id), null)}
-                  aria-label={`Remove the ${formatMesos(got.amount, true)} payment`}
-                >
-                  ×
-                </button>
+                <ArmedRemove
+                  busy={busy}
+                  label={`Remove the ${formatMesos(got.amount, true)} payment`}
+                  onRemove={() => void write(onRemovePayment(got.id), null)}
+                />
               </span>
             ))}
           </span>
@@ -1211,6 +1207,53 @@ function PieceNights({
 }
 
 /**
+ * A discard that takes two clicks.
+ *
+ * What it removes under `owed` is the one thing on this card nothing else recorded: a debt and a
+ * receipt are typed, with a note and a day, and neither can be derived back. The card's other
+ * discards undo an act whose own drop or sale still holds it, so those stay one click.
+ *
+ * Armed in place rather than behind a dialog, because the row is one line and a modal over a list
+ * of cards is heavier than what it guards. Blur disarms, so a click anywhere else leaves nothing
+ * armed behind it, and the WORD changes: hover already paints the button red, so colour alone
+ * could not have said which state it was in.
+ */
+function ArmedRemove({
+  label,
+  busy,
+  onRemove,
+}: {
+  label: string;
+  busy: boolean;
+  onRemove: () => void;
+}) {
+  const [armed, setArmed] = useState(false);
+
+  return (
+    <button
+      type="button"
+      className={armed ? "link ledger-drop-sale is-armed" : "link ledger-drop-sale"}
+      disabled={busy}
+      onClick={() => {
+        if (!armed) {
+          setArmed(true);
+          return;
+        }
+        setArmed(false);
+        onRemove();
+      }}
+      onBlur={() => setArmed(false)}
+      onKeyDown={(e) => {
+        if (e.key === "Escape") setArmed(false);
+      }}
+      aria-label={armed ? `Confirm: ${label}` : label}
+    >
+      {armed ? "Remove?" : "×"}
+    </button>
+  );
+}
+
+/**
  * One entered adjustment, opening onto the shares it discharged.
  *
  * A hand-typed debt names none and draws as a plain row. An OFFSET names as many as it covered, and
@@ -1245,15 +1288,11 @@ function EnteredRow({
             wearing it by 28px (18px of toggle and the head's 10px gap) past the parts above it. */}
         <span className="loot-name">{entry.note ?? "entered"}</span>
         <span className="ledger-amount">{signed(entry.amount)}</span>
-        <button
-          type="button"
-          className="link ledger-drop-sale"
-          disabled={busy}
-          onClick={onRemove}
-          aria-label={`Remove ${formatMesos(entry.amount, true)} against ${name}`}
-        >
-          ×
-        </button>
+        <ArmedRemove
+          busy={busy}
+          label={`Remove ${formatMesos(entry.amount, true)} against ${name}`}
+          onRemove={onRemove}
+        />
       </div>
     </li>
   );
