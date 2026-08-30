@@ -27,30 +27,32 @@ export function RosterInputs({
   spriteFor?: (name: string) => string | null;
 }) {
   return (
-    <div className="config-members">
+    <div className={`config-members${spriteFor ? " has-sprites" : ""}`}>
       {members.map((member, index) => (
         // Positions in a list of text: there is nothing else to key on until it is saved.
         <span className="config-member" key={index}>
           {spriteFor && <MemberSprite sprite={spriteFor(member.trim())} />}
-          <input
-            className="split-input"
-            value={member}
-            list={KNOWN_CHARACTERS_ID}
-            onChange={(e) => onChange(members.map((m, i) => (i === index ? e.target.value : m)))}
-            placeholder="character"
-            aria-label={`Member ${index + 1}`}
-            maxLength={40}
-          />
-          {members.length > 1 && (
-            <button
-              type="button"
-              className="grid-boss-remove"
-              aria-label={`Remove member ${index + 1}`}
-              onClick={() => onChange(members.filter((_, i) => i !== index))}
-            >
-              &times;
-            </button>
-          )}
+          <span className="config-member-box">
+            <input
+              className="split-input"
+              value={member}
+              list={KNOWN_CHARACTERS_ID}
+              onChange={(e) => onChange(members.map((m, i) => (i === index ? e.target.value : m)))}
+              placeholder="character"
+              aria-label={`Member ${index + 1}`}
+              maxLength={40}
+            />
+            {members.length > 1 && (
+              <button
+                type="button"
+                className="grid-boss-remove"
+                aria-label={`Remove member ${index + 1}`}
+                onClick={() => onChange(members.filter((_, i) => i !== index))}
+              >
+                &times;
+              </button>
+            )}
+          </span>
         </span>
       ))}
       {members.length < MAX_PARTY - 1 && (
@@ -63,10 +65,10 @@ export function RosterInputs({
 }
 
 /**
- * Who a box has landed on, beside the box.
+ * Who a box has landed on, above the box.
  *
- * The frame is drawn either way, so a roster does not jump sideways as each name resolves and the
- * boxes stay in a column. Empty is the ordinary state of a seat being typed, so it is a plain
+ * The frame is drawn either way, so a roster does not jump about as each name resolves and the
+ * boxes stay in a line. Empty is the ordinary state of a seat being typed, so it is a plain
  * recess and not the dashed "missing" frame RosterStrip draws: there, every name is saved and one
  * without a sprite really is a character nobody could find.
  */

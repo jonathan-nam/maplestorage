@@ -4562,40 +4562,52 @@ button.link:disabled {
   gap: 2px;
 }
 
+.config-member-box {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+/* With sprites a seat is a tile: the character, then the box that names them. Bottom-aligned so
+   the boxes line up with the "+ Member" button and with a seat whose name has no sprite yet. */
+.config-members.has-sprites {
+  align-items: flex-end;
+  gap: 12px;
+}
+
+.config-members.has-sprites .config-member {
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
 .config-member .split-input {
   font-size: var(--text-base);
   padding: 6px 8px;
   width: 160px;
 }
 
-/* Who a roster box has landed on. 32px against the 96px avatar is a third, a whole ratio: see
-   lib/pixel-scaling-css.test.ts for why a box sized by eye against this art is a bug.
+/* Who a roster box has landed on. 96px is the Nexon render's own size, so this is 1:1, the same
+   art drawn the same way as .roster-sprite on Party View.
 
-   A WINDOW onto the sprite, not the sprite shrunk. `none` holds it at 1:1 and the box shows the
-   part the offset picks, which is the head: the avatar endpoint draws a whole standing character
-   in its 96px frame, and shrunk to a third that is a smudge with boots. A face and a hat are what
-   one character is told from another by.
-
-   -14px lifts the render so the box lands on the head rather than the empty margin above it. The
-   pose is the endpoint's own and does not vary, so this is one number and not a guess per
-   character. */
+   It was a 32px window onto the head. A third of the render is a face a few pixels across, and two
+   characters in the same hat came out the same picture, which is the one thing a sprite beside a
+   name box is here to settle. */
 .member-sprite {
-  width: 32px;
-  height: 32px;
+  width: 96px;
+  height: 112px;
   flex: none;
-  object-fit: none;
-  object-position: center -14px;
+  object-fit: contain;
+  object-position: center bottom;
   image-rendering: pixelated;
   border-radius: var(--radius-sm);
-  /* The row's own 2px is for the × against its box. A face wants more air than a button does. */
-  margin-right: 4px;
 }
 
-/* A seat being typed, which is most of them most of the time. A recess rather than the dashed
-   frame RosterStrip uses: there every name is saved, so a missing sprite is a character nobody
-   could find and worth marking. Here it is just a box nobody has finished filling in. */
+/* A seat being typed, which is most of them most of the time. An outline and no fill: at a whole
+   sprite's size a filled recess is a slab, and the empty seats then carry more of the row than the
+   characters do. Not the dashed frame RosterStrip uses either, which marks a saved name nobody
+   could be found for. */
 .member-sprite.is-empty {
-  background: var(--surface-2);
   border: 1px solid var(--line-soft);
 }
 
