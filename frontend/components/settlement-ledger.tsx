@@ -727,6 +727,10 @@ function SettlementCard({
           <ul className="ledger-queue">
             <li className="ledger-drop">
               <div className="ledger-drop-head">
+                {/* After the count, the way the acts under it carry theirs. This row leads with a
+                    heading rather than art, so a chevron in front of it pushed nothing aside, but
+                    it sat one step left of every row it opens onto and read as a second column. */}
+                <span className="loot-name">{offsets}</span>
                 <button
                   type="button"
                   className="party-row-toggle"
@@ -739,7 +743,6 @@ function SettlementCard({
                     {showOff ? `Hide the ${offsets}` : `Show the ${offsets}`}
                   </span>
                 </button>
-                <span className="loot-name">{offsets}</span>
                 <span className="ledger-amount">{signed(-discharged)}</span>
               </div>
 
