@@ -23,19 +23,37 @@ export function isRegular(name: string, parties: Party[]): boolean {
   );
 }
 
-/** Every character in a party that nobody has been given, split by whether they are a regular. */
+/**
+ * Every character in a party that nobody has been given, split by whether they are a regular.
+ *
+ * Your own are never in it. This pile asks "whose is this?", and for a character on your account
+ * that is not a question: it is already answered by it being on your account.
+ *
+ * Both ways of knowing, because either alone leaves gaps. `mine` is your roster by name, which
+ * covers a character whose seats predate the link; `seat.characterId` covers one added to a party
+ * since, whose name you may have spelled differently on the roster page.
+ */
 export function unclaimed(
   parties: Party[],
   people: PersonDraft[],
+  mine: string[] = [],
 ): { regular: string[]; oneOff: string[] } {
   const claimed = new Set(people.flatMap((person) => person.characters.map(key)));
+  const yours = new Set(mine.map(key));
+  for (const party of parties) {
+    for (const seat of party.seats) {
+      if (seat.characterId) yours.add(key(seat.name));
+    }
+  }
   // Every seat a config has ever had, not just this week's roster: somebody who has left the party
   // is still owed their share, and whose character they were is still worth saying.
   const names = new Map<string, string>();
   for (const party of parties) {
     for (const seat of party.seats) {
       const seatKey = key(seat.name);
-      if (seatKey === "" || claimed.has(seatKey) || names.has(seatKey)) continue;
+      if (seatKey === "" || claimed.has(seatKey) || yours.has(seatKey) || names.has(seatKey)) {
+        continue;
+      }
       names.set(seatKey, seat.name);
     }
   }

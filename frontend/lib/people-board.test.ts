@@ -2,12 +2,12 @@ import { describe, expect, it } from "vitest";
 import { type PersonDraft, claim, isRegular, unclaimed } from "./people-board";
 import type { Party, PartyMember } from "@/types/party";
 
-const seat = (name: string, guest = false): PartyMember => ({
+const seat = (name: string, guest = false, characterId: string | null = null): PartyMember => ({
   id: `m-${name}`,
   name,
   personId: null,
   personName: null,
-  characterId: null,
+  characterId,
   spriteImgUrl: null,
   guest,
   shares: 1,
@@ -104,6 +104,27 @@ describe("unclaimed", () => {
   it("reads every seat, not just the week's roster", () => {
     const departed = party([seat("mechyfechy")], { seats: [seat("mechyfechy"), seat("Lynn")] });
     expect(unclaimed([departed], []).regular).toContain("Lynn");
+  });
+
+  it("leaves out a character on your own roster", () => {
+    const { regular, oneOff } = unclaimed(parties, [], ["mechyfechy"]);
+    expect([...regular, ...oneOff]).not.toContain("mechyfechy");
+    expect(regular).toEqual(["Premial"]);
+  });
+
+  it("leaves out your own character however it is spelled on the roster", () => {
+    expect(unclaimed(parties, [], ["MECHYFECHY"]).regular).not.toContain("mechyfechy");
+  });
+
+  // The seat says so itself, which is the answer for a character added to a party since.
+  it("leaves out a seat marked as one of yours even with no roster passed", () => {
+    const own = party([seat("Nightwalk", false, "char-9"), seat("Premial")]);
+    expect(unclaimed([own], []).regular).toEqual(["Premial"]);
+  });
+
+  it("still shows your own character on the person who was given them", () => {
+    const held = [person("Jared", ["mechyfechy"])];
+    expect(unclaimed(parties, held, ["mechyfechy"]).regular).toEqual(["Premial"]);
   });
 });
 

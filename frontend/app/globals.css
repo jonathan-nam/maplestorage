@@ -4829,7 +4829,9 @@ button.link:disabled {
 .person-chips {
   flex: 1;
   min-width: 240px;
-  min-height: 140px;
+  /* One card tall, so a person with nobody yet does not sit shorter than the row above them. The
+     card measured 157px on the real page; people-lane-css.test.ts pins it against its own parts. */
+  min-height: 157px;
   align-content: flex-start;
   padding: 6px;
   border: 1px dashed var(--line-soft);
@@ -4846,18 +4848,46 @@ button.link:disabled {
   background: var(--surface);
 }
 
-/* A bare button around one roster tile, so a chip is one target and not a card with things on it. */
+/* One card per character, and the whole card is the handle. The edge is what says a chip is a thing
+   you can pick up, which a sprite floating on the page did not. Border-box because there is no
+   global reset: without it the padding pushes the card past .roster-tile's 112px stride. */
 .person-chip {
+  box-sizing: border-box;
   display: flex;
   flex-direction: column;
   align-items: center;
   width: 100%;
-  padding: 0;
-  border: 0;
-  background: none;
+  padding: 6px 4px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface);
   font: inherit;
   color: inherit;
   cursor: grab;
+}
+
+.person-chip .roster-name {
+  max-width: 100%;
+}
+
+/* Two columns of three dots, the grab handle everything draggable wears. Faint at rest so a row of
+   cards is still a row of characters, full strength under the pointer. */
+.person-grip {
+  width: 8px;
+  height: 12px;
+  margin-bottom: 2px;
+  background-image: radial-gradient(var(--muted-2) 1px, transparent 1px);
+  background-size: 4px 4px;
+  opacity: 0.4;
+}
+
+.person-chip:hover:not(:disabled) .person-grip,
+.person-chip.is-picked .person-grip {
+  opacity: 1;
+}
+
+.person-chip:hover:not(:disabled) {
+  border-color: var(--muted-2);
 }
 
 .person-chip:disabled {
@@ -4865,6 +4895,8 @@ button.link:disabled {
 }
 
 .person-chip.is-picked {
+  border-color: var(--accent);
+  background: var(--surface-2);
   cursor: grabbing;
 }
 
@@ -4873,7 +4905,16 @@ button.link:disabled {
 }
 
 /* Not a character: the row about to receive the one you are holding. Only on screen for the length
-   of a pickup, and the only way to place one from the keyboard. */
+   of a pickup, and dashed so it cannot be mistaken for a card with somebody on it. */
+.person-target {
+  border-style: dashed;
+  background: none;
+}
+
+.person-target .person-grip {
+  visibility: hidden;
+}
+
 .person-target .roster-name {
   color: var(--muted);
 }

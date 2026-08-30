@@ -175,6 +175,9 @@ function Chip({
         }}
         onClick={onPick}
       >
+        {/* The whole card is the handle, so this says so rather than being one. A cursor alone
+            only tells you once you are already over it, and never on a touch screen. */}
+        <span className="person-grip" aria-hidden="true" />
         {sprite ? (
           <img className="roster-sprite" src={spriteUrl(sprite)} alt="" />
         ) : (
@@ -198,6 +201,8 @@ function Target({ label, description }: { label: string; description: string }) 
   return (
     <li className="roster-tile">
       <button type="button" className="person-chip person-target" aria-label={description}>
+        {/* Holds the grip's space so this sits level with the cards beside it. Nothing to grab. */}
+        <span className="person-grip" aria-hidden="true" />
         <span className="roster-sprite is-empty" aria-hidden="true" />
         <span className="roster-name">{label}</span>
       </button>
