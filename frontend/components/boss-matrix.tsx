@@ -35,9 +35,9 @@ import type { Character } from "@/types/character";
 // this would need if they ever come back.
 const CADENCE_ORDER = ["MONTHLY", "WEEKLY", "DAILY"];
 
-// The pinned header reads the other way up. The table follows the planner, which puts the rarest
-// reset first; the header is read at a glance, and the glance is nearly always at the week.
-const PIN_ORDER = ["WEEKLY", "MONTHLY", "DAILY"];
+// The totals read the other way up from the table. The table follows the planner, which puts the
+// rarest reset first; the totals are read at a glance, and the glance is nearly always at the week.
+const TOTALS_ORDER = ["WEEKLY", "MONTHLY", "DAILY"];
 
 // On a cold load neither the catalog nor the roster has arrived, so the loading state has nothing
 // real to lay out. These stand in: the shape is right (one monthly and a run of weeklies, which is
@@ -142,7 +142,7 @@ export function BossMatrix({
       cellState(byCharacter.get(characterId), boss.bossKey, skipsBy.get(characterId)),
     );
 
-  // One band, computed once. The header above the table and the rows inside it are two readings of
+  // One band, computed once. The totals above the table and the rows inside it are two readings of
   // the same figures, so neither may work them out for itself.
   const bands = cadences.map((cadence) => {
     const inCadence = rows.filter((boss) => boss.reset === cadence);
@@ -182,10 +182,9 @@ export function BossMatrix({
       // between the two events.
       onMouseLeave={() => setHoveredColumn(null)}
     >
-      {/* The column heads are a table of their own so that the bands below them can be held at the
-          top of the window: a sticky element sticks to the nearest scrolling box, and the marks
-          have to sit in one of those to scroll sideways past four characters. Split, only the marks
-          are inside it.
+      {/* The column heads are a table of their own so that they can be held at the top of the
+          window: a sticky element sticks to the nearest scrolling box, and the marks have to sit in
+          one of those to scroll sideways past four characters. Split, only the marks are inside it.
 
           The two tables agree on their columns because they are the same table: same class, same
           fixed layout, and the widths follow from --boss-name-col and the column count, which the
@@ -231,17 +230,14 @@ export function BossMatrix({
         </table>
       </div>
 
-      {/* The band headers, held at the top of the window while their rows scroll past. The weekly
-          band is seventeen rows deep, so its count was off screen exactly while the marks it counts
-          were being read.
-
-          Weekly leads though the table leads with monthly, being the band the week is spent in. */}
-      <div className="boss-progress-pin">
+      {/* Each band's count, under the heads and above the rows it counts. Weekly leads though the
+          table leads with monthly, being the band the week is spent in. */}
+      <div className="boss-band-totals">
         {[...bands]
-          .sort((a, b) => PIN_ORDER.indexOf(a.cadence) - PIN_ORDER.indexOf(b.cadence))
+          .sort((a, b) => TOTALS_ORDER.indexOf(a.cadence) - TOTALS_ORDER.indexOf(b.cadence))
           .map(({ cadence, progress }) => (
-            <div key={cadence} className="boss-pin-band">
-              <span className="boss-pin-cadence">{cadenceLabel(cadence)}</span>
+            <div key={cadence} className="boss-band-row">
+              <span className="boss-band-name">{cadenceLabel(cadence)}</span>
               {/* Never the bar alone. It is a second reading of the number beside it, so a
                   proportion nobody can state (a past week) keeps the space and draws no track:
                   an empty track is a bar reading zero. The figures are withheld while loading for
@@ -253,7 +249,7 @@ export function BossMatrix({
               ) : (
                 <span aria-hidden="true" />
               )}
-              <span className="boss-pin-count">
+              <span className="boss-band-count">
                 {loading ? <span className="skeleton sk-line" /> : progressLabel(progress)}
               </span>
             </div>
@@ -273,7 +269,7 @@ export function BossMatrix({
           {bands.map(({ cadence, inCadence }) => {
             return (
               <tbody key={cadence}>
-                {/* The name alone: the band's count is on the pinned header, and saying it twice
+                {/* The name alone: the band's count is in the totals above, and saying it twice
                   would be one of the two going stale. What is left is the mark between one band
                   and the next, which the table still has to carry. */}
                 <tr className="boss-cadence-row">
