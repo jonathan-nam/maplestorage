@@ -172,11 +172,21 @@ export function clearProgress(states: CellState[], routineKnown: boolean): Clear
   return { cleared, total: states.filter((s) => s !== "skipped").length };
 }
 
-/** "8/12 cleared", said in full, for a heading that has room for the words. */
+/** "8/12 cleared", said in full, where there is room for the word. */
 export function progressLabel(p: ClearProgress): string {
   if (p.total === null) return `${p.cleared} cleared`;
   if (p.total === 0) return "none to run";
   return `${p.cleared}/${p.total} cleared`;
+}
+
+/**
+ * "8/12" for a band, which has its bar for the reading and its name on the line above.
+ *
+ * An empty band keeps its words. `·` is a cell's glyph, read against a column head that a band
+ * total does not have.
+ */
+export function bandCount(p: ClearProgress): string {
+  return p.total === 0 ? progressLabel(p) : progressMark(p);
 }
 
 /**
