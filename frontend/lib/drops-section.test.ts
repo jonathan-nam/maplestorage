@@ -20,8 +20,12 @@ const list = source("components", "loot-list.tsx");
 const page = source("app", "bosses", "parties", "page.tsx");
 
 describe("the week's coupons are drops, not configuration", () => {
-  it("heads them with what they are, whether or not the boxes are on screen", () => {
-    expect(list).toContain('const couponTitle = headed ? "Coupons" : panel ? "Drops" : null');
+  it("leaves them under the drops heading rather than under one of their own", () => {
+    // They took a "Coupons" heading of their own, which is the opposite of what the report asked
+    // for: a second word under "Drops" made them a separate kind of thing rather than that night's
+    // biggest drop. "Drops" heads the lot.
+    expect(list).toContain('const couponTitle = !headed && panel ? "Drops" : null');
+    expect(list).not.toContain('"Coupons"');
     // On the PANEL, not on `stacks`. The two were the same thing until the party's own page carried
     // the stack blocks too, and heading its pool "Drops" under "Loot pool" is the same word twice.
     expect(list).not.toContain('stacks ? "Drops"');
