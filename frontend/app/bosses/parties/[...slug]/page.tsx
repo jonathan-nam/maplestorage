@@ -24,7 +24,7 @@ import { NOTHING_OUTSTANDING, poolLabel, summarize } from "@/lib/loot";
 import { assignableDrops } from "@/lib/vestige-pickup";
 import { shareConfig } from "@/lib/vestige-stacks";
 import { closedByHolder } from "@/lib/vestige-ledger";
-import { otherMembers, partySizeLabel } from "@/lib/parties";
+import { ownMember, partySizeLabel } from "@/lib/parties";
 import type { Boss } from "@/types/boss";
 import type { DropTables } from "@/types/drop";
 import type { AddLootBody, Loot, PartyLootPool, SellLootBody } from "@/types/loot";
@@ -284,9 +284,21 @@ export default function PartyPage() {
       >
         {state === "loaded" && party && (
           <>
-            {/* The boss and the roster ARE the title: there is nothing else it could be called. A
-              solo pool has no roster to name, and "with" trailing off into nothing was what the
-              same line drew for it. */}
+            {/* The character, the boss and the mode. Not the roster.
+
+              What a config IS, in the order the URL says it: the character and the boss are the two
+              halves that can never be edited, and the mode belongs with them because the pool is
+              filtered by it (see ranAtThisMode). Several of your characters can run the same boss,
+              so without the name the title does not say which config this is.
+
+              It used to read "Chaos Kalos the Guardian with iPhone69C", naming the roster as it
+              stands today. The pool under it is a season of nights and who ran each is that night's
+              own fact (party_week_seat, and ranSeats divides by it), so the title promised a list
+              filtered by those members and delivered one filtered by the mode.
+
+              The character leads rather than trails, so it cannot be read as one more member: the
+              strip directly below lists the roster, and a name on the end of this line is exactly
+              the ambiguity just taken out of it. */}
             <h1 className="page-title">
               {/* The one place the page says which boss this is. Everything under it (the picker, the
                 rows) belongs to the same boss, so it is said here or it is not said. */}
@@ -297,11 +309,12 @@ export default function PartyPage() {
                   alt=""
                 />
               )}
-              {bossLabel(bossByKey.get(party.bossKey)?.name ?? party.bossKey, party.difficulty)}
-              {!party.solo &&
-                ` with ${otherMembers(party)
-                  .map((m) => m.name)
-                  .join(", ")}`}
+              {[
+                ownMember(party)?.name,
+                bossLabel(bossByKey.get(party.bossKey)?.name ?? party.bossKey, party.difficulty),
+              ]
+                .filter((part): part is string => Boolean(part))
+                .join(" · ")}
             </h1>
             <div className="party-card-head">
               {/* Your own character among them, unlike the strips on Party View, which put it in the

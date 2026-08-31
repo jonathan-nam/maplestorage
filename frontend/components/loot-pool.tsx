@@ -4,7 +4,7 @@ import { useState } from "react";
 import { DropPicker } from "@/components/drop-picker";
 import { LootList, type StackAssignment } from "@/components/loot-list";
 import { StackAssign } from "@/components/stack-assign";
-import { nightLabel, poolNights } from "@/lib/pool-nights";
+import { nightLabel, poolNights, ranAtThisMode } from "@/lib/pool-nights";
 import type { PieceStatus } from "@/lib/drop-log";
 import { takenTally } from "@/lib/loot";
 import { canTrade } from "@/lib/world";
@@ -65,7 +65,20 @@ export function LootPool({
    * rest the night states what was recorded and nothing else. See StackPickup.
    */
   const [editing, setEditing] = useState(false);
+  /**
+   * Whether the nights run under a different arrangement are on screen.
+   *
+   * Shut by default, which is the whole point: this page is one configuration, and a one-off takes
+   * over the row its pair already has, so the pool it inherits can be somebody else's night at
+   * another mode. Openable because those rows are still real and still the only place some of them
+   * can be acted on: a drop from a hidden night can hold an unpaid share, and a pool row is where
+   * it is marked paid.
+   */
+  const [showingOthers, setShowingOthers] = useState(false);
   const nights = poolNights(loot, party);
+  const here = nights.filter((night) => ranAtThisMode(night, party));
+  const others = nights.filter((night) => !ranAtThisMode(night, party));
+  const hidden = others.reduce((count, night) => count + night.loot.length, 0);
   // Offered only where something can actually be answered. A pool whose coupon nights have all
   // settled is history, and an Edit over it is a button that opens nothing.
   const correctable = Boolean(
@@ -97,7 +110,11 @@ export function LootPool({
         onAdd={onAdd}
       />
 
-      {loot.length === 0 && <p className="finder-empty">Nothing in the pool yet.</p>}
+      {/* Nothing of THIS config's. A pool holding only other arrangements' nights is not empty, and
+          saying it was would be the screen disagreeing with the line under it. */}
+      {here.length === 0 && hidden === 0 && (
+        <p className="finder-empty">Nothing in the pool yet.</p>
+      )}
 
       {/* The running count, in a world where nothing sells. Not shown where drops become mesos:
           there the pot divides and who physically held the item is not what makes it fair.
@@ -113,67 +130,85 @@ export function LootPool({
         </ul>
       )}
 
-      {/* One night, or the pool as the nights it was logged on.
+      {/* THIS config's nights. One of them is just the pool, and heading it would say in a line
+          what the page says already; more than one and each carries the night it was run on.
 
-          A pool that has only ever been one night is just the pool, and heading it would be saying
-          in a line what the page already says. More than one and the heading above is describing an
-          arrangement the older rows were not run under: the config's mode and roster are today's,
-          and a one-off takes over the row rather than making its own, so a Chaos night sat over
-          Extreme coupons three former members had looted. See poolNights. */}
-      {nights.length <= 1 ? (
-        <LootList
-          party={party}
-          loot={loot}
-          dropTables={dropTables}
-          bossByKey={bossByKey}
-          pieceStatus={pieceStatus}
-          stacks={stacks}
-          editing={editing}
-          isSaving={isSaving}
-          onSell={onSell}
-          onUnsell={onUnsell}
-          onSetTaken={onSetTaken}
-          onSetPaid={onSetPaid}
-          onDelete={onDelete}
-        />
-      ) : (
-        <>
-          {nights.map((night) => (
-            <div className="loot-night" key={night.weekStart}>
-              <h3 className="loot-night-title">{nightLabel(night, party)}</h3>
-              <LootList
-                party={party}
-                loot={night.loot}
-                dropTables={dropTables}
-                bossByKey={bossByKey}
-                pieceStatus={pieceStatus}
-                stacks={stacks}
-                // The deal is the PARTY's, not a night's, so it is drawn once below rather than
-                // restated under every night that happens to hold coupons. Same reason LootGroup
-                // draws it on the last row only.
-                splitElsewhere
-                editing={editing}
-                isSaving={isSaving}
-                onSell={onSell}
-                onUnsell={onUnsell}
-                onSetTaken={onSetTaken}
-                onSetPaid={onSetPaid}
-                onDelete={onDelete}
-              />
-            </div>
-          ))}
-          {stacks && (
-            <div className="loot-config-card">
-              <h3 className="loot-group-title is-config">{stacks.entitledTitle}</h3>
-              <StackAssign
-                config={stacks.config}
-                editing={editing}
-                busy={false}
-                onSave={stacks.onSave}
-              />
-            </div>
-          )}
-        </>
+          What is NOT here is a night run at another MODE. Extreme Kalos and Chaos Kalos share a row
+          only because a config is one per (character, boss) and a one-off takes over the row its
+          pair already has, so this pool held 540 Extreme coupons under a Chaos heading, on a boss
+          that drops none at Chaos. See ranAtThisMode. */}
+      {here.map((night) => (
+        <div className="loot-night" key={night.weekStart}>
+          {here.length > 1 && <h3 className="loot-night-title">{nightLabel(night, party)}</h3>}
+          <LootList
+            party={party}
+            loot={night.loot}
+            dropTables={dropTables}
+            bossByKey={bossByKey}
+            pieceStatus={pieceStatus}
+            stacks={stacks}
+            // The deal is the PARTY's, not a night's, so it is drawn once below rather than restated
+            // under every night that happens to hold coupons. Same reason LootGroup draws it on the
+            // last row only.
+            splitElsewhere
+            editing={editing}
+            isSaving={isSaving}
+            onSell={onSell}
+            onUnsell={onUnsell}
+            onSetTaken={onSetTaken}
+            onSetPaid={onSetPaid}
+            onDelete={onDelete}
+          />
+        </div>
+      ))}
+
+      {stacks && here.length > 0 && (
+        <div className="loot-config-card">
+          <h3 className="loot-group-title is-config">{stacks.entitledTitle}</h3>
+          <StackAssign
+            config={stacks.config}
+            editing={editing}
+            busy={false}
+            onSave={stacks.onSave}
+          />
+        </div>
+      )}
+
+      {/* Said, not silently dropped. The count is the rule this page cannot break: a screen may
+          narrow what it draws, and may not lose rows without saying so. Openable because some of
+          them can still be acted on and a pool row is the only place to do it. */}
+      {hidden > 0 && (
+        <div className="loot-elsewhere">
+          <button
+            type="button"
+            className="party-cancel"
+            onClick={() => setShowingOthers((open) => !open)}
+          >
+            {showingOthers ? "Hide" : `${hidden} on other nights`}
+          </button>
+          {showingOthers &&
+            others.map((night) => (
+              <div className="loot-night" key={night.weekStart}>
+                <h3 className="loot-night-title">{nightLabel(night, party)}</h3>
+                <LootList
+                  party={party}
+                  loot={night.loot}
+                  dropTables={dropTables}
+                  bossByKey={bossByKey}
+                  pieceStatus={pieceStatus}
+                  stacks={stacks}
+                  splitElsewhere
+                  editing={editing}
+                  isSaving={isSaving}
+                  onSell={onSell}
+                  onUnsell={onUnsell}
+                  onSetTaken={onSetTaken}
+                  onSetPaid={onSetPaid}
+                  onDelete={onDelete}
+                />
+              </div>
+            ))}
+        </div>
       )}
     </section>
   );

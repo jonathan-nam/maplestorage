@@ -82,3 +82,21 @@ export function nightLabel(night: PoolNight, party: Party): string {
     .filter((part): part is string => part !== null)
     .join(" · ");
 }
+
+/**
+ * Whether this night was run at the mode the config carries now.
+ *
+ * The MODE alone, not the roster. Extreme Kalos and Chaos Kalos are different content that share a
+ * row only because a config is one per (character, boss) and a one-off takes over the row its pair
+ * already has: a Chaos party cannot have produced an Extreme night's coupons, so showing them
+ * together was the page claiming a drop it could not make. A roster that differs is the ordinary
+ * case of somebody missing a week, and it is already answered without hiding anything, by heading
+ * each night with who ran it and by dividing each drop through ranSeats.
+ *
+ * A night with NO mode recorded matches. It contradicts nothing, and it is most of the history:
+ * every drop logged before V69 carries none, tonight's included where it was logged first. Reading
+ * a silence as a mismatch would hide the very night the page is about.
+ */
+export function ranAtThisMode(night: PoolNight, party: Party): boolean {
+  return night.difficulty === null || night.difficulty === party.difficulty;
+}

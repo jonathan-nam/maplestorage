@@ -3776,6 +3776,15 @@ button.link:disabled {
   margin-bottom: 26px;
 }
 
+/* The nights this configuration did not run, behind their own count. Ruled off because what is
+   under it is a different arrangement, not more of the pool above: the line is the boundary the
+   heading no longer has to describe. */
+.loot-elsewhere {
+  margin-top: 26px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+}
+
 /* One night in a pool that spans several. Only drawn when there is more than one, so its presence
    is itself the fact that this pool is not all one arrangement. Louder than .loot-group-title,
    which names a half of ONE night ("Drops", "Coupons") and now sits under this. */

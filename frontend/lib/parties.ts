@@ -19,6 +19,16 @@ export function otherMembers(party: Party) {
 }
 
 /**
+ * Your own character's seat, which is the half of a config that can never be edited.
+ *
+ * `seats` and not `members`, so a week your character sat out still answers: this is the config's
+ * own identity rather than one week's roster, and it is what the slug is built from.
+ */
+export function ownMember(party: Party) {
+  return party.seats.find((s) => s.characterId === party.characterId) ?? null;
+}
+
+/**
  * The others in the party ITSELF, rather than in the week being shown.
  *
  * What the config editor edits. `members` is one week's roster, and a week that has been written
