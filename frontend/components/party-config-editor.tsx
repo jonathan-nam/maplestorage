@@ -43,7 +43,8 @@ export function PartyConfigEditor({
   spriteFor,
   isSaving,
   adding,
-  error,
+  errorFor,
+  addError,
   onSave,
   onDelete,
   onPutBack,
@@ -65,7 +66,17 @@ export function PartyConfigEditor({
   isSaving: (partyId: string) => boolean;
   /** The add form's own write. Adding one party does not lock the rows above it. */
   adding: boolean;
-  error: string | null;
+  /**
+   * Why THIS config's write was refused, by its id.
+   *
+   * Per row for the same reason `isSaving` is. One message for the page rendered after the LAST
+   * row, so a refusal named the row you were on and appeared below the ones you were not: measured
+   * at 382px under the clicked Save button, editing the sixth of seven parties in a 757px viewport.
+   * Off screen, so the save read as having done nothing.
+   */
+  errorFor: (partyId: string) => string | null;
+  /** The add form's own refusal. */
+  addError: string | null;
   onSave: (body: SavePartyBody, partyId?: string) => void;
   onDelete: (party: Party) => void;
   /** Puts a boss back on the period Party View took it off. Only that direction lives here. */
@@ -96,6 +107,7 @@ export function PartyConfigEditor({
           drops={dropTables[party.bossKey] ?? []}
           spriteFor={spriteFor}
           busy={isSaving(party.id)}
+          error={errorFor(party.id)}
           onSave={(members, difficulty, minutes, looterName, shares) =>
             onSave(
               {
@@ -114,8 +126,6 @@ export function PartyConfigEditor({
           onPutBack={() => onPutBack(party)}
         />
       ))}
-
-      {error && <p className="split-error">{error}</p>}
 
       <div className="loot-actions">
         <select
@@ -144,6 +154,7 @@ export function PartyConfigEditor({
           knownCharacters={knownCharacters}
         />
       </div>
+      {addError && <p className="split-error">{addError}</p>}
     </section>
   );
 }
@@ -252,6 +263,7 @@ function ConfigRow({
   drops,
   spriteFor,
   busy,
+  error,
   onSave,
   onDelete,
   onPutBack,
@@ -263,6 +275,8 @@ function ConfigRow({
   /** The sprite for a name as typed, for the roster boxes. See lib/sprite-by-name. */
   spriteFor: (name: string) => string | null;
   busy: boolean;
+  /** Why this row's last write was refused. Shown under its own buttons, not the page's. */
+  error: string | null;
   onSave: (
     members: string[],
     difficulty: string | null,
@@ -586,6 +600,7 @@ function ConfigRow({
           </button>
         </div>
       )}
+      {error && <p className="split-error">{error}</p>}
     </article>
   );
 }

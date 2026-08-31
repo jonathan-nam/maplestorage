@@ -49,7 +49,12 @@ export default function EditPartiesPage() {
   // Per config, so saving one row does not grey out every other row's buttons. One write at a time
   // still, because each one refetches the list. See lib/use-row-writes.ts.
   const { isSaving, write } = useRowWrites();
-  const [error, setError] = useState<string | null>(null);
+  // Keyed the same way the in-flight writes are, so a refusal reaches the row it is about. Why it
+  // has to be per row: see errorFor in components/party-config-editor.tsx.
+  const [failure, setFailure] = useState<{ key: string; message: string } | null>(null);
+  const errorFor = (key: string) => (failure?.key === key ? failure.message : null);
+  const failed = (key: string, e: unknown, fallback: string) =>
+    setFailure({ key, message: e instanceof ApiError ? e.body : fallback });
 
   async function loadParties(token?: string | null) {
     const result = await apiFetch<Party[]>(
@@ -93,9 +98,10 @@ export default function EditPartiesPage() {
   }, [isLoaded]);
 
   async function save(body: SavePartyBody, partyId?: string) {
-    setError(null);
+    const key = partyId ?? ADD_PARTY;
+    setFailure(null);
     try {
-      await write(partyId ?? ADD_PARTY, async () => {
+      await write(key, async () => {
         await apiFetch<Party>(
           partyId ? `${PARTIES_KEY}/${partyId}` : PARTIES_KEY,
           { method: partyId ? "PUT" : "POST", body: JSON.stringify(body) },
@@ -107,7 +113,7 @@ export default function EditPartiesPage() {
     } catch (e) {
       // The backend refuses with the reason in the body (see validateNewParty). Showing it beats
       // "something went wrong" for the one thing the user can actually fix.
-      setError(e instanceof ApiError ? e.body : "Couldn't save that party.");
+      failed(key, e, "Couldn't save that party.");
     }
   }
 
@@ -119,7 +125,7 @@ export default function EditPartiesPage() {
    * the row still is.
    */
   async function putBack(party: Party) {
-    setError(null);
+    setFailure(null);
     try {
       await write(party.id, async () => {
         await apiFetch<Party>(
@@ -130,19 +136,19 @@ export default function EditPartiesPage() {
         await loadParties();
       });
     } catch (e) {
-      setError(e instanceof ApiError ? e.body : "Couldn't put that boss back.");
+      failed(party.id, e, "Couldn't put that boss back.");
     }
   }
 
   async function remove(party: Party) {
-    setError(null);
+    setFailure(null);
     try {
       await write(party.id, async () => {
         await apiFetch<void>(`${PARTIES_KEY}/${party.id}`, { method: "DELETE" }, getToken);
         await loadParties();
       });
     } catch (e) {
-      setError(e instanceof ApiError ? e.body : "Couldn't remove that party.");
+      failed(party.id, e, "Couldn't remove that party.");
     }
   }
 
@@ -193,7 +199,7 @@ export default function EditPartiesPage() {
                   selectedId={selected}
                   onSelect={(id) => {
                     setSelected(id);
-                    setError(null);
+                    setFailure(null);
                   }}
                 />
 
@@ -208,7 +214,8 @@ export default function EditPartiesPage() {
                     spriteFor={(name) => sprites.get(name) ?? null}
                     isSaving={isSaving}
                     adding={isSaving(ADD_PARTY)}
-                    error={error}
+                    errorFor={errorFor}
+                    addError={errorFor(ADD_PARTY)}
                     onSave={save}
                     onDelete={remove}
                     onPutBack={putBack}

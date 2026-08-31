@@ -2,6 +2,7 @@ package com.sharpeyes.backend.parties
 
 import com.sharpeyes.backend.bosses.parseWeekParam
 import com.sharpeyes.backend.db.BossCatalog
+import com.sharpeyes.backend.plugins.failing
 import com.sharpeyes.backend.plugins.parseUuidParam
 import com.sharpeyes.backend.plugins.principalIdAndEmail
 import com.sharpeyes.backend.services.NexonLookupService
@@ -326,7 +327,13 @@ internal suspend fun RoutingContext.respondToSave(
 ) {
     when (outcome) {
         null -> call.respond(HttpStatusCode.NotFound)
-        is String -> call.respond(HttpStatusCode.BadRequest, outcome)
+        is String -> {
+            // The refusal is the whole content of this response, so the log has to carry it too.
+            // Without it a refused save is a bare "FAIL PUT /api/parties/:id 400", which says a
+            // roster was rejected and not which name or which other party.
+            call.failing(outcome)
+            call.respond(HttpStatusCode.BadRequest, outcome)
+        }
         is PartyResponse -> call.respond(onSuccess, outcome)
         else -> call.respond(HttpStatusCode.InternalServerError)
     }
