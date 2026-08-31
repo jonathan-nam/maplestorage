@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { nightLabel, poolNights } from "./pool-nights";
+import { nightLabel, poolNights, ranAtThisMode } from "./pool-nights";
 import type { Loot } from "@/types/loot";
 import type { Party, PartyMember } from "@/types/party";
 
@@ -164,5 +164,47 @@ describe("nightLabel", () => {
       at,
     );
     expect(nightLabel(alone[0]!, at)).toBe("August 13 · Hard");
+  });
+});
+
+describe("ranAtThisMode", () => {
+  const tonight = party([me, phone], "CHAOS");
+  const night = (over: Partial<Loot>) => poolNights([drop("l1", "2026-08-13", over)], tonight)[0]!;
+
+  it("keeps a night run at this mode", () => {
+    expect(ranAtThisMode(night({ difficulty: "CHAOS", ranThatWeek: ["m1", "m4"] }), tonight)).toBe(
+      true,
+    );
+  });
+
+  it("drops a night run at another mode", () => {
+    // The reported case, both ways round. Chaos Kalos drops no vestige at all, so an Extreme
+    // night's coupons under this page's heading were 540 of something this config cannot produce.
+    expect(ranAtThisMode(night({ difficulty: "EXTREME" }), tonight)).toBe(false);
+    expect(ranAtThisMode(night({ difficulty: "EXTREME" }), party([me, phone], "EXTREME"))).toBe(
+      true,
+    );
+    expect(ranAtThisMode(night({ difficulty: "CHAOS" }), party([me, phone], "EXTREME"))).toBe(
+      false,
+    );
+  });
+
+  it("keeps a night run at this mode with different people", () => {
+    // Deliberately NOT filtered on the roster. Somebody missing a week is the ordinary case, and it
+    // is already answered without hiding a thing: the night is headed with who ran it, and ranSeats
+    // divides the drop by them. Hiding it would fragment a pool over an absence.
+    expect(
+      ranAtThisMode(night({ difficulty: "CHAOS", ranThatWeek: ["m1", "m2", "m3"] }), tonight),
+    ).toBe(true);
+    expect(ranAtThisMode(night({ difficulty: "CHAOS", ranThatWeek: ["m1"] }), tonight)).toBe(true);
+  });
+
+  it("keeps a night that never recorded a mode", () => {
+    // Every drop logged before V69 carries none, tonight's armour box included where it was logged
+    // first. A silence contradicts nothing, and reading it as a mismatch would hide the very night
+    // the page is about.
+    expect(ranAtThisMode(night({ ranThatWeek: ["m1", "m4"] }), tonight)).toBe(true);
+    // Including on a config that has no mode of its own to compare against.
+    expect(ranAtThisMode(night({}), party([me, phone], null))).toBe(true);
   });
 });
