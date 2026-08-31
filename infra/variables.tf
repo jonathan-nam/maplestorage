@@ -27,8 +27,11 @@ variable "project_name" {
 
 # small_3_0: $12/mo, 2 vCPU, 2 GB RAM, 60 GB SSD, 3 TB transfer, static IPv4 included.
 #
-# NOT micro_3_0 ($7, 1 GB RAM). The backend and vision containers alone were sized at 1 GiB on
-# ECS, and this box additionally carries Postgres, nginx and the OS. The $5 saved buys an OOM kill.
+# NOT micro_3_0 ($7, 1 GB RAM). Two backend replicas at the ~390 MB each that cloud-init.sh
+# records, plus auth, Postgres, nginx and the OS, does not fit in 1 GB. Nothing sets -Xmx anywhere,
+# so each JVM takes 25% of the box: halving the bundle halves both replicas' heap ceiling as well as
+# the headroom around them. Do not re-derive that 390 MB on a dev host, a bigger host raises the
+# ceiling and the number with it.
 #
 # NOT any *_ipv6_* bundle. Those are $2 cheaper because they have no public IPv4 address, and a
 # meaningful share of the internet still cannot reach an IPv6-only host.
