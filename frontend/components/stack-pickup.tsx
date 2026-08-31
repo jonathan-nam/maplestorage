@@ -4,6 +4,7 @@ import { useState } from "react";
 import { holderKey, holderOf } from "@/lib/vestige-ledger";
 import {
   type StackDrop,
+  type Tally,
   assignedStacks,
   draftUnanswered,
   openingCounts,
@@ -30,22 +31,31 @@ import type { Party } from "@/types/party";
 export function StackPickup({
   drop,
   party,
-  behind,
   editing,
   busy,
   onSave,
 }: {
   drop: StackDrop;
   party: Party;
-  /** Each holder's position across what is already recorded, so the odd stack rotates. */
-  behind: Map<string, number>;
   editing: boolean;
   busy: boolean;
   /** The night's arrangement, by seat id. Absent is read-only. */
   onSave?: (lootId: string, bundles: Record<string, number>) => Promise<void>;
 }) {
   if (!editing || !onSave) return <PickupSummary drop={drop} />;
-  return <PickupBoxes drop={drop} party={party} behind={behind} busy={busy} onSave={onSave} />;
+  return <PickupBoxes drop={drop} party={party} busy={busy} onSave={onSave} />;
+}
+
+/**
+ * What one seat's stacks come to, in pieces.
+ *
+ * "took, due" only where the gap between them is a DEBT. Seven Eternal pieces across two people is
+ * 3.5 each, which nobody can be handed and nobody can be short of: what is true of a piece night is
+ * how many somebody picked up, and the turn that moves is the rotation block's to state.
+ */
+function tallyLabel(drop: StackDrop, tally: Tally): string {
+  if (!drop.tradeable) return String(tally.took);
+  return `${tally.took} took, ${tally.due} due`;
 }
 
 /** What the night says at rest: who took what, or that nobody has said. */
@@ -61,9 +71,11 @@ function PickupSummary({ drop }: { drop: StackDrop }) {
           <span className="config-share" key={seat.id}>
             {seat.name}
             {/* Only what is known. With nothing recorded, what anybody took is exactly what this
-                screen cannot say, and what they are due is true either way. */}
+                screen cannot say, and what they are due is true either way. On a PIECE night it is
+                not: 3.5 of a ring is a share nobody can hold. pickupStated keeps that night off
+                screen, and this says nothing rather than trusting it to. */}
             <span className="config-share-stacks">
-              {drop.recorded ? `${tally.took} took, ${tally.due} due` : `${tally.due} due`}
+              {drop.recorded ? tallyLabel(drop, tally) : drop.tradeable ? `${tally.due} due` : ""}
             </span>
           </span>
         );
@@ -75,13 +87,11 @@ function PickupSummary({ drop }: { drop: StackDrop }) {
 function PickupBoxes({
   drop,
   party,
-  behind,
   busy,
   onSave,
 }: {
   drop: StackDrop;
   party: Party;
-  behind: Map<string, number>;
   busy: boolean;
   onSave: (lootId: string, bundles: Record<string, number>) => Promise<void>;
 }) {
@@ -89,7 +99,7 @@ function PickupBoxes({
   // something nobody meant.
   const [boxes, setBoxes] = useState<Record<string, string>>(() =>
     Object.fromEntries(
-      Object.entries(openingCounts(drop, party, behind)).map(([id, n]) => [id, String(n)]),
+      Object.entries(openingCounts(drop, party)).map(([id, n]) => [id, String(n)]),
     ),
   );
   const [refusal, setRefusal] = useState<string | null>(null);
@@ -129,9 +139,7 @@ function PickupBoxes({
                 aria-label={`Stacks ${seat.name} picked up`}
                 disabled={busy}
               />
-              <span className="config-share-stacks">
-                {tally ? `${tally.took} took, ${tally.due} due` : ""}
-              </span>
+              <span className="config-share-stacks">{tally ? tallyLabel(drop, tally) : ""}</span>
             </label>
           );
         })}
@@ -209,9 +217,7 @@ export function StackPickupDraft({
                 aria-label={`Stacks ${seat.name} picked up`}
                 disabled={busy}
               />
-              <span className="config-share-stacks">
-                {tally ? `${tally.took} took, ${tally.due} due` : ""}
-              </span>
+              <span className="config-share-stacks">{tally ? tallyLabel(drop, tally) : ""}</span>
             </label>
           );
         })}

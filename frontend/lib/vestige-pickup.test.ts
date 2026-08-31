@@ -80,12 +80,24 @@ const coupon = (over: Partial<Loot> = {}): Loot => ({
   ...over,
 });
 
+/**
+ * The coupon, as the boxes now ask for a drop.
+ *
+ * `behind` rides on the night rather than beside it, so a panel listing coupon nights and piece
+ * nights together cannot open one against the other's balance. See StackDrop.behind.
+ */
+const asCoupon = (behind: Map<string, number> = new Map()) => ({
+  dropKey: VESTIGE,
+  tradeable: true,
+  behind,
+});
+
 /** Your character and two strangers, on a boss that drops 180 in 3 stacks of 60. */
 const trio = () => [seat("m1", "Husky", { mine: true }), seat("m2", "Rune"), seat("m3", "Bob")];
 
 describe("which nights can be handed out", () => {
   it("takes this week's coupon drop, with its stack size worked out", () => {
-    const [drop] = assignableDrops(party(trio()), [coupon()], VESTIGE);
+    const [drop] = assignableDrops(party(trio()), [coupon()], asCoupon());
 
     expect(drop!.bundles).toBe(3);
     expect(drop!.size).toBe(60);
@@ -104,18 +116,18 @@ describe("which nights can be handed out", () => {
       coupon({ id: "d", takenByMemberId: "m1" }),
     ];
 
-    expect(assignableDrops(p, cases, VESTIGE)).toEqual([]);
+    expect(assignableDrops(p, cases, asCoupon())).toEqual([]);
   });
 
   it("leaves out a night with nothing to hand out", () => {
     const p = party(trio());
     // One stack cannot be shared however anybody agreed.
-    expect(assignableDrops(p, [coupon({ bundles: 1 })], VESTIGE)).toEqual([]);
+    expect(assignableDrops(p, [coupon({ bundles: 1 })], asCoupon())).toEqual([]);
 
     // And a party that folds to ONE person: three characters, one human, nothing owed to anybody.
     const mine = [seat("m1", "Husky", { mine: true }), seat("m2", "morebuff12", { mine: true })];
     const solo = party(mine);
-    expect(assignableDrops(solo, [coupon({ ranThatWeek: ["m1", "m2"] })], VESTIGE)).toEqual([]);
+    expect(assignableDrops(solo, [coupon({ ranThatWeek: ["m1", "m2"] })], asCoupon())).toEqual([]);
   });
 
   it("reads an arrangement naming somebody the week no longer has as unsaid", () => {
@@ -130,7 +142,7 @@ describe("which nights can be handed out", () => {
       ],
     });
 
-    const [drop] = assignableDrops(p, [stale], VESTIGE);
+    const [drop] = assignableDrops(p, [stale], asCoupon());
     expect(drop!.recorded).toBe(false);
     expect(drop!.counts).toEqual({});
   });
@@ -138,7 +150,7 @@ describe("which nights can be handed out", () => {
 
 describe("where the boxes open", () => {
   const drop = (over: Partial<Loot> = {}) =>
-    assignableDrops(party(trio()), [coupon(over)], VESTIGE)[0]!;
+    assignableDrops(party(trio()), [coupon(over)], asCoupon())[0]!;
 
   it("shows the arrangement recorded, so a wrong one is corrected rather than re-guessed", () => {
     const saved = drop({
@@ -148,12 +160,12 @@ describe("where the boxes open", () => {
       ],
     });
 
-    expect(openingCounts(saved, party(trio()), new Map())).toEqual({ m1: 2, m2: 1 });
+    expect(openingCounts(saved, party(trio()))).toEqual({ m1: 2, m2: 1 });
   });
 
   it("opens on the agreed looter holding the lot when nothing is recorded", () => {
     const p = party(trio(), { looterMemberId: "m2" });
-    expect(openingCounts(drop(), p, new Map())).toEqual({ m2: 3 });
+    expect(openingCounts(drop(), p)).toEqual({ m2: 3 });
   });
 
   it("ignores a looter who sat the week out", () => {
@@ -164,16 +176,16 @@ describe("where the boxes open", () => {
     const p = party(trio(), { looterMemberId: "m3" });
     const night = drop({ ranThatWeek: ["m1", "m2"] });
 
-    expect(openingCounts(night, p, new Map())).toEqual({ m1: 2, m2: 1 });
+    expect(openingCounts(night, p)).toEqual({ m1: 2, m2: 1 });
   });
 
   it("otherwise opens balanced, a stack each", () => {
-    expect(openingCounts(drop(), party(trio()), new Map())).toEqual({ m1: 1, m2: 1, m3: 1 });
+    expect(openingCounts(drop(), party(trio()))).toEqual({ m1: 1, m2: 1, m3: 1 });
   });
 });
 
 describe("what the boxes come to", () => {
-  const drop = () => assignableDrops(party(trio()), [coupon()], VESTIGE)[0]!;
+  const drop = () => assignableDrops(party(trio()), [coupon()], asCoupon())[0]!;
 
   it("sums the stacks placed, which is the only rule the server enforces", () => {
     expect(assignedStacks({ m1: 2, m2: 1, m3: 0 })).toBe(3);
@@ -202,7 +214,7 @@ describe("what the boxes come to", () => {
       seat("m2", "CreedBratton", { person: "p-bro" }),
       seat("m3", "Freeballynn", { person: "p-bro" }),
     ];
-    const night = assignableDrops(party(seats), [coupon()], VESTIGE)[0]!;
+    const night = assignableDrops(party(seats), [coupon()], asCoupon())[0]!;
 
     const even = pieceTallies(night, { m1: 1, m2: 1, m3: 1 });
     expect(even.get("self")).toEqual({ took: 60, due: 60 });

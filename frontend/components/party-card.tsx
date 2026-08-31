@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { type ReactNode, useState } from "react";
 import { DropPicker } from "@/components/drop-picker";
-import { LootList, type StackAssignment } from "@/components/loot-list";
+import { LootList, type NightPickup, type StackAssignment } from "@/components/loot-list";
 import type { Rotation } from "@/lib/loot-rotation";
 import { RosterInputs } from "@/components/roster-inputs";
 import { RosterStrip } from "@/components/roster-strip";
@@ -52,6 +52,7 @@ export function PartyCard({
   onTakeOff,
   stacks,
   rotation,
+  piecePickup,
 }: {
   party: Party;
   heading: ReactNode;
@@ -145,6 +146,13 @@ export function PartyCard({
    * the weeks already answered for. Nothing here is written.
    */
   rotation?: Rotation | null;
+  /**
+   * Who picked up which stacks of that piece, on this week's night of it.
+   *
+   * Beside `rotation` rather than inside it: that one is read off every week already answered, and
+   * this is how a week gets answered in the first place. See LootList.
+   */
+  piecePickup?: NightPickup;
   /**
    * Takes this boss off the period, leaving the config standing.
    *
@@ -400,7 +408,7 @@ export function PartyCard({
                     dropKey: stacks.dropKey,
                     config: stacks.config,
                     party,
-                    behind: stacks.pickup.behind,
+                    behind: stacks.behind,
                     pickupTitle: stacks.pickup.title,
                     entitledTitle: stacks.entitledTitle,
                     onSaveShares: stacks.onSave,
@@ -441,6 +449,7 @@ export function PartyCard({
               pieceStatus={pool.pieceStatus}
               stacks={stacks}
               rotation={rotation}
+              piecePickup={piecePickup}
               splitElsewhere={Boolean(stacks) && picked === stacks?.dropKey}
               // The stack is what the config under it is about, so removing it from here would take
               // the split and the week's pickup with it. The pool's own page still corrects one.

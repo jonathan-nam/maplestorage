@@ -109,7 +109,9 @@ export function DropPicker({
   // The night about to be logged, when the picked drop is the one that stacks. Rebuilt from the
   // count as typed, so changing it re-reads the stacks against what actually fell.
   const night =
-    draft && dropKey === draft.dropKey ? draftDrop(draft.config, body?.quantity ?? 0) : null;
+    draft && dropKey === draft.dropKey
+      ? draftDrop(draft.config, body?.quantity ?? 0, draft.behind)
+      : null;
   const stacks = night ? draftStacks(night, boxes) : null;
   // An arrangement that does not add up is not sent at all: the server refuses one, and refusing it
   // now takes the DROP down with it, so the form holds it back rather than losing both.
@@ -161,9 +163,9 @@ export function DropPicker({
             // other drop. A suggestion, not an answer: emptying them logs the night unanswered.
             const opening =
               draft && picked === draft.dropKey
-                ? draftDrop(draft.config, Number(count) || 0)
+                ? draftDrop(draft.config, Number(count) || 0, draft.behind)
                 : null;
-            setBoxes(opening ? draftBoxes(opening, draft!.party, draft!.behind) : {});
+            setBoxes(opening ? draftBoxes(opening, draft!.party) : {});
           }}
         />
 

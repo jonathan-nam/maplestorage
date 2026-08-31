@@ -15,13 +15,16 @@
 // recorded and five of them were never even asked about, which is what that assumption costs.
 //
 // What is written is party_loot_bundle (V41). Every figure anybody is owed follows from it on read.
+//
+// Not only coupons any more. An Eternal piece is picked up stack by stack the same way, and the
+// same boxes record it, but the gap it leaves is a TURN rather than a debt: see StackDrop.tradeable.
 
 import { foldSeats, holderKey, holderOf, ranSeats, suggestArrangement } from "./vestige-ledger";
 import type { ShareConfig } from "./vestige-stacks";
 import type { Loot } from "@/types/loot";
 import type { Party, PartyMember } from "@/types/party";
 
-/** One night's coupons, ready to be handed out. */
+/** One night's stacks, ready to be handed out. */
 export type StackDrop = {
   lootId: string;
   /** What FELL, never a share. See V40. */
@@ -42,6 +45,33 @@ export type StackDrop = {
   recorded: boolean;
   /** The stacks each seat is recorded as picking up. Empty when nobody has said. */
   counts: Record<string, number>;
+  /**
+   * Each holder's running position on THIS drop, so the odd stack rotates instead of landing on the
+   * same seat every week. See openingCounts.
+   *
+   * Carried by the night rather than passed beside it, because one panel now lists nights of two
+   * kinds and each keeps its own balance: a coupon's runs across every party and is settled, a
+   * piece's runs within this one and never is. Paired here so concatenating the two lists cannot
+   * open a night against the other one's map.
+   */
+  behind: Map<string, number>;
+  /**
+   * Whether what is short here can be handed over afterwards.
+   *
+   * False for an Eternal piece, whose shortfall is a turn to loot next week: see isCouponDrop. It
+   * changes what the boxes may say, since "3.5 due" is a claim nobody can act on when the pieces
+   * cannot move.
+   */
+  tradeable: boolean;
+};
+
+/** Which drop a night is being handed out for, and how a shortfall in it reads. */
+export type PickupDrop = {
+  dropKey: string;
+  /** See StackDrop.tradeable. */
+  tradeable: boolean;
+  /** See StackDrop.behind. */
+  behind: Map<string, number>;
 };
 
 /**
@@ -53,20 +83,22 @@ export type StackDrop = {
  *
  * Left out, each for its own reason:
  *
- *  - a drop that is not this coupon.
+ *  - a drop that is not the one asked for.
  *  - one already sold or taken, whose payouts were pinned from the roster that ran it.
- *  - one that falls in a single stack, which cannot be shared however anybody agreed.
+ *  - a night of one COUPON stack, which cannot be shared however anybody agreed. A night of one
+ *    PIECE is kept: Easy Kaling drops a single fragment, and whose it was this week is the only
+ *    thing that stops it being theirs again next week.
  *  - a night that folds to ONE holder. One person's three characters took three stacks and all
  *    three are still theirs, so there is nothing to hand out and no debt to get wrong.
  */
-export function assignableDrops(party: Party, loot: Loot[], dropKey: string): StackDrop[] {
+export function assignableDrops(party: Party, loot: Loot[], drop: PickupDrop): StackDrop[] {
   const drops: StackDrop[] = [];
 
   for (const row of loot) {
-    if (row.dropKey !== dropKey || row.quantity < 1) continue;
+    if (row.dropKey !== drop.dropKey || row.quantity < 1) continue;
     if (row.soldAt !== null || row.takenByMemberId !== null) continue;
     const bundles = row.bundles ?? 0;
-    if (bundles < 2) continue;
+    if (bundles < (drop.tradeable ? 2 : 1)) continue;
 
     const seats = ranSeats(row, party);
     if (foldSeats(seats).length < 2) continue;
@@ -86,9 +118,22 @@ export function assignableDrops(party: Party, loot: Loot[], dropKey: string): St
       seats,
       recorded,
       counts: recorded ? counts : {},
+      behind: drop.behind,
+      tradeable: drop.tradeable,
     });
   }
   return drops;
+}
+
+/**
+ * Whether this night says anything at rest, with nobody typing into it.
+ *
+ * An unanswered PIECE night does not. Its share is fractional and cannot be handed over, so the only
+ * true thing left is whose turn it is, and the rotation block states that already. A coupon night
+ * always does, because "60 due" stands whether or not anybody has said who took it.
+ */
+export function pickupStated(drop: StackDrop): boolean {
+  return drop.recorded || drop.tradeable;
 }
 
 /**
@@ -105,11 +150,7 @@ export function assignableDrops(party: Party, loot: Loot[], dropKey: string): St
  * is edited, and a guess written down would rewrite nights already settled. Nothing is saved until
  * somebody presses the button.
  */
-export function openingCounts(
-  drop: StackDrop,
-  party: Party,
-  behind: Map<string, number>,
-): Record<string, number> {
+export function openingCounts(drop: StackDrop, party: Party): Record<string, number> {
   if (drop.recorded) return { ...drop.counts };
 
   // Only when that seat actually ran. A looter who sat the week out cannot have picked anything up,
@@ -117,7 +158,7 @@ export function openingCounts(
   const looter = drop.seats.find((s) => s.id === party.looterMemberId);
   if (looter) return { [looter.id]: drop.bundles };
 
-  const suggested = suggestArrangement(drop.bundles, drop.seats, behind);
+  const suggested = suggestArrangement(drop.bundles, drop.seats, drop.behind);
   return Object.fromEntries(drop.seats.map((s) => [s.id, suggested.get(s.id) ?? 0]));
 }
 
@@ -194,7 +235,11 @@ export function parseWholeStacks(value: string): number | null {
  * Null on the two grounds assignableDrops leaves a night out for: one stack cannot be shared, and a
  * night folding to a single holder has nothing to hand over.
  */
-export function draftDrop(config: ShareConfig, quantity: number): StackDrop | null {
+export function draftDrop(
+  config: ShareConfig,
+  quantity: number,
+  behind: Map<string, number>,
+): StackDrop | null {
   if (config.bundles < 2 || quantity < 1) return null;
   if (foldSeats(config.seats).length < 2) return null;
   return {
@@ -205,6 +250,10 @@ export function draftDrop(config: ShareConfig, quantity: number): StackDrop | nu
     seats: config.seats,
     recorded: false,
     counts: {},
+    behind,
+    // A ShareConfig is the coupon's deal and nothing else builds one, so a draft is always the
+    // coupon. A piece night is answered on the row it lands in, which is where its balance is.
+    tradeable: true,
   };
 }
 
@@ -237,12 +286,8 @@ export function draftStacks(
 }
 
 /** The boxes a draft opens on: the same suggestion the recorded boxes open on. See openingCounts. */
-export function draftBoxes(
-  drop: StackDrop,
-  party: Party,
-  behind: Map<string, number>,
-): Record<string, string> {
+export function draftBoxes(drop: StackDrop, party: Party): Record<string, string> {
   return Object.fromEntries(
-    Object.entries(openingCounts(drop, party, behind)).map(([id, n]) => [id, String(n)]),
+    Object.entries(openingCounts(drop, party)).map(([id, n]) => [id, String(n)]),
   );
 }
