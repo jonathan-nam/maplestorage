@@ -3776,6 +3776,33 @@ button.link:disabled {
   margin-bottom: 26px;
 }
 
+/* One night in a pool that spans several. Only drawn when there is more than one, so its presence
+   is itself the fact that this pool is not all one arrangement. Louder than .loot-group-title,
+   which names a half of ONE night ("Drops", "Coupons") and now sits under this. */
+.loot-night-title {
+  margin: 0 0 8px;
+  font-size: var(--text-base);
+  font-weight: 600;
+}
+
+/* The rule separates nights without a heading having to say "and now a different one". Last one
+   unruled: a line under the final night reads as the start of a block that never comes. */
+.loot-night + .loot-night {
+  border-top: 1px solid var(--line);
+  padding-top: 18px;
+}
+
+.loot-night + .loot-night,
+.loot-night {
+  margin-top: 22px;
+}
+
+/* Inside a night the halves are already spaced by the night's own gap, so the first heading's top
+   margin would double it. */
+.loot-night > .loot-group-title:first-of-type {
+  margin-top: 0;
+}
+
 /* Names one half of a pool holding both kinds. Quieter than the pool's own title, which is still
    the heading for the whole thing. */
 .loot-group-title {

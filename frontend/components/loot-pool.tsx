@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { DropPicker } from "@/components/drop-picker";
 import { LootList, type StackAssignment } from "@/components/loot-list";
+import { StackAssign } from "@/components/stack-assign";
+import { nightLabel, poolNights } from "@/lib/pool-nights";
 import type { PieceStatus } from "@/lib/drop-log";
 import { takenTally } from "@/lib/loot";
 import { canTrade } from "@/lib/world";
@@ -63,6 +65,7 @@ export function LootPool({
    * rest the night states what was recorded and nothing else. See StackPickup.
    */
   const [editing, setEditing] = useState(false);
+  const nights = poolNights(loot, party);
   // Offered only where something can actually be answered. A pool whose coupon nights have all
   // settled is history, and an Edit over it is a button that opens nothing.
   const correctable = Boolean(
@@ -110,21 +113,68 @@ export function LootPool({
         </ul>
       )}
 
-      <LootList
-        party={party}
-        loot={loot}
-        dropTables={dropTables}
-        bossByKey={bossByKey}
-        pieceStatus={pieceStatus}
-        stacks={stacks}
-        editing={editing}
-        isSaving={isSaving}
-        onSell={onSell}
-        onUnsell={onUnsell}
-        onSetTaken={onSetTaken}
-        onSetPaid={onSetPaid}
-        onDelete={onDelete}
-      />
+      {/* One night, or the pool as the nights it was logged on.
+
+          A pool that has only ever been one night is just the pool, and heading it would be saying
+          in a line what the page already says. More than one and the heading above is describing an
+          arrangement the older rows were not run under: the config's mode and roster are today's,
+          and a one-off takes over the row rather than making its own, so a Chaos night sat over
+          Extreme coupons three former members had looted. See poolNights. */}
+      {nights.length <= 1 ? (
+        <LootList
+          party={party}
+          loot={loot}
+          dropTables={dropTables}
+          bossByKey={bossByKey}
+          pieceStatus={pieceStatus}
+          stacks={stacks}
+          editing={editing}
+          isSaving={isSaving}
+          onSell={onSell}
+          onUnsell={onUnsell}
+          onSetTaken={onSetTaken}
+          onSetPaid={onSetPaid}
+          onDelete={onDelete}
+        />
+      ) : (
+        <>
+          {nights.map((night) => (
+            <div className="loot-night" key={night.weekStart}>
+              <h3 className="loot-night-title">{nightLabel(night, party)}</h3>
+              <LootList
+                party={party}
+                loot={night.loot}
+                dropTables={dropTables}
+                bossByKey={bossByKey}
+                pieceStatus={pieceStatus}
+                stacks={stacks}
+                // The deal is the PARTY's, not a night's, so it is drawn once below rather than
+                // restated under every night that happens to hold coupons. Same reason LootGroup
+                // draws it on the last row only.
+                splitElsewhere
+                editing={editing}
+                isSaving={isSaving}
+                onSell={onSell}
+                onUnsell={onUnsell}
+                onSetTaken={onSetTaken}
+                onSetPaid={onSetPaid}
+                onDelete={onDelete}
+              />
+            </div>
+          ))}
+          {stacks && (
+            <div className="loot-config-card">
+              <h3 className="loot-group-title is-config">{stacks.entitledTitle}</h3>
+              <StackAssign
+                config={stacks.config}
+                editing={editing}
+                busy={false}
+                onSave={stacks.onSave}
+              />
+            </div>
+          )}
+        </>
+      )}
     </section>
   );
 }
