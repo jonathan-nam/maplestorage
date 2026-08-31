@@ -230,28 +230,26 @@ export function BossMatrix({
         </table>
       </div>
 
-      {/* Each band's count, under the heads and above the rows it counts. Weekly leads though the
-          table leads with monthly, being the band the week is spent in. */}
+      {/* Each band's progress, under the heads and above the rows it counts. Weekly leads though
+          the table leads with monthly, being the band the week is spent in. */}
       <div className="boss-band-totals">
         {[...bands]
           .sort((a, b) => TOTALS_ORDER.indexOf(a.cadence) - TOTALS_ORDER.indexOf(b.cadence))
           .map(({ cadence, progress }) => (
             <div key={cadence} className="boss-band-row">
               <span className="boss-band-name">{cadenceLabel(cadence)}</span>
-              {/* Never the bar alone. It is a second reading of the number beside it, so a
-                  proportion nobody can state (a past week) keeps the space and draws no track:
-                  an empty track is a bar reading zero. The figures are withheld while loading for
-                  the same reason, the skeleton's rows being invented (see SKELETON_BOSSES). */}
+              {/* A proportion nobody can state (a past week) keeps the space and draws no track:
+                  an empty track is a bar reading zero. The count is drawn per character in the row
+                  at the foot of the band, so here the bar carries it for a reader that cannot read
+                  a bar. Withheld while loading, the skeleton's rows being invented (see
+                  SKELETON_BOSSES). */}
               {!loading && progress.total ? (
-                <span className="boss-progress-bar" aria-hidden="true">
+                <span className="boss-progress-bar" role="img" aria-label={progressLabel(progress)}>
                   <span style={{ width: `${(progress.cleared / progress.total) * 100}%` }} />
                 </span>
               ) : (
                 <span aria-hidden="true" />
               )}
-              <span className="boss-band-count">
-                {loading ? <span className="skeleton sk-line" /> : progressLabel(progress)}
-              </span>
             </div>
           ))}
       </div>

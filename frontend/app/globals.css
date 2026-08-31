@@ -2479,14 +2479,14 @@ button.link:disabled {
   background: var(--bg);
 }
 
-/* Each band's count, under the heads and above the rows it counts. It scrolls away with them: the
-   heads are what is held, being the thing a mark cannot be read without. */
+/* Each band's progress, under the heads and above the rows it counts. It scrolls away with them:
+   the heads are what is held, being the thing a mark cannot be read without. */
 .boss-band-totals {
-  /* ONE grid over both bands, not a grid per band. Sized per band, the label and count columns
-     took their own widths and the two bars came out different lengths, which is a difference that
-     means nothing: what a bar says is its fill, and two of them are read against each other. */
+  /* ONE grid over both bands, not a grid per band. Sized per band, the label column took its own
+     width and the two bars came out different lengths, which is a difference that means nothing:
+     what a bar says is its fill, and two of them are read against each other. */
   display: grid;
-  grid-template-columns: max-content 1fr max-content;
+  grid-template-columns: max-content 1fr;
   align-items: center;
   gap: 6px 12px;
   /* Less below than above: what follows is the band label, which brings its own. */
@@ -2496,9 +2496,9 @@ button.link:disabled {
   font-size: var(--text-sm);
 }
 
-/* No box of its own: its three children are laid out by the grid above, which is what puts the two
-   bands on one set of columns. The bar takes the middle one, so it ends on the same edge as the
-   table below whatever the labels either side measure. */
+/* No box of its own: its children are laid out by the grid above, which is what puts the two bands
+   on one set of columns. The bar takes the second column, so it ends on the same edge as the table
+   below whatever the label beside it measures. */
 .boss-band-row {
   display: contents;
 }
@@ -2509,16 +2509,9 @@ button.link:disabled {
   white-space: nowrap;
 }
 
-.boss-band-count {
-  white-space: nowrap;
-  /* Two bands under each other, so 6/17 and 12/17 have to line up. */
-  font-variant-numeric: tabular-nums;
-}
-
-/* A second reading of the number beside it, never a replacement. It was 56px and inline, on the
-   grounds that a bar wide enough to read a value off claims a precision the count states exactly.
-   That is still true, and it was the wrong trade: the weekly band is seventeen rows deep, so the
-   count it belonged to was off screen exactly while its marks were being read. */
+/* The band's whole summary. A bar wide enough to read a value off claims a precision it does not
+   have, so it is not one to read a count off: the counts are in the row at the foot of the band,
+   per character, which is where they can be acted on. */
 .boss-progress-bar {
   height: 6px;
   border-radius: var(--radius-sm);
