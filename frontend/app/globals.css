@@ -2482,13 +2482,14 @@ button.link:disabled {
 /* Each band's count, under the heads and above the rows it counts. It scrolls away with them: the
    heads are what is held, being the thing a mark cannot be read without. */
 .boss-band-totals {
-  /* ONE grid over both bands, not a grid per band. Sized per band, the label and count columns
-     took their own widths and the two bars came out different lengths, which is a difference that
-     means nothing: what a bar says is its fill, and two of them are read against each other. */
+  /* ONE grid over both bands, not a grid per band. Sized per band, the label column took its own
+     width and the two bars came out different lengths, which is a difference that means nothing:
+     what a bar says is its fill, and two of them are read against each other. */
   display: grid;
-  grid-template-columns: max-content 1fr max-content;
+  grid-template-columns: max-content 1fr;
+  /* The bar against the middle of the two lines it belongs to, not the top one. */
   align-items: center;
-  gap: 6px 12px;
+  gap: 10px 12px;
   /* Less below than above: what follows is the band label, which brings its own. */
   padding: 10px 0 6px;
   border-bottom: 1px solid var(--line);
@@ -2496,11 +2497,19 @@ button.link:disabled {
   font-size: var(--text-sm);
 }
 
-/* No box of its own: its three children are laid out by the grid above, which is what puts the two
-   bands on one set of columns. The bar takes the middle one, so it ends on the same edge as the
-   table below whatever the labels either side measure. */
+/* No box of its own: its two children are laid out by the grid above, which is what puts the two
+   bands on one set of columns. The bar takes the second, so it ends on the same edge as the table
+   below whatever the label beside it measures. */
 .boss-band-row {
   display: contents;
+}
+
+/* The band's name over its figure, one column. The name is what the figure is of, so it is not
+   worth a column of separation. */
+.boss-band-label {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
 .boss-band-name {
@@ -2515,7 +2524,7 @@ button.link:disabled {
   font-variant-numeric: tabular-nums;
 }
 
-/* A second reading of the number beside it, never a replacement. It was 56px and inline, on the
+/* A second reading of the figure beside it, never a replacement. It was 56px and inline, on the
    grounds that a bar wide enough to read a value off claims a precision the count states exactly.
    That is still true, and it was the wrong trade: the weekly band is seventeen rows deep, so the
    count it belonged to was off screen exactly while its marks were being read. */

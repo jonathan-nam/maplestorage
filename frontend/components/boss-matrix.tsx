@@ -4,6 +4,7 @@ import { type CSSProperties, useRef, useState } from "react";
 
 import { apiAssetUrl, spriteUrl } from "@/lib/api";
 import {
+  bandCount,
   cadenceLabel,
   cellState,
   cellStateLabel,
@@ -237,8 +238,18 @@ export function BossMatrix({
           .sort((a, b) => TOTALS_ORDER.indexOf(a.cadence) - TOTALS_ORDER.indexOf(b.cadence))
           .map(({ cadence, progress }) => (
             <div key={cadence} className="boss-band-row">
-              <span className="boss-band-name">{cadenceLabel(cadence)}</span>
-              {/* Never the bar alone. It is a second reading of the number beside it, so a
+              {/* The band and its figure in one column, so the figure is read where it is said
+                  rather than at the far end of the bar. */}
+              <span className="boss-band-label">
+                <span className="boss-band-name">{cadenceLabel(cadence)}</span>
+                {/* The bar is a picture of the figure and the figure has dropped the word, so the
+                    words go here for a reader with neither. */}
+                {!loading && <span className="visually-hidden">{progressLabel(progress)}</span>}
+                <span className="boss-band-count" aria-hidden="true">
+                  {loading ? <span className="skeleton sk-line" /> : bandCount(progress)}
+                </span>
+              </span>
+              {/* Never the bar alone. It is a second reading of the figure beside it, so a
                   proportion nobody can state (a past week) keeps the space and draws no track:
                   an empty track is a bar reading zero. The figures are withheld while loading for
                   the same reason, the skeleton's rows being invented (see SKELETON_BOSSES). */}
@@ -249,9 +260,6 @@ export function BossMatrix({
               ) : (
                 <span aria-hidden="true" />
               )}
-              <span className="boss-band-count">
-                {loading ? <span className="skeleton sk-line" /> : progressLabel(progress)}
-              </span>
             </div>
           ))}
       </div>

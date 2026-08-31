@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
+  bandCount,
   cadenceLabel,
   cellState,
   cellStateLabel,
@@ -303,6 +304,17 @@ describe("progressLabel", () => {
   it("drops the denominator without dropping the count", () => {
     expect(progressLabel({ cleared: 12, total: null })).toBe("12 cleared");
     expect(progressMark({ cleared: 12, total: null })).toBe("12");
+  });
+});
+
+describe("bandCount", () => {
+  it("drops the word, the band's name being on the line above it", () => {
+    expect(bandCount({ cleared: 8, total: 12 })).toBe("8/12");
+    expect(bandCount({ cleared: 12, total: null })).toBe("12");
+  });
+
+  it("says an empty band in words, having no column head to read a glyph against", () => {
+    expect(bandCount({ cleared: 0, total: 0 })).toBe("none to run");
   });
 });
 
