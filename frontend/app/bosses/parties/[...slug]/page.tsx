@@ -24,7 +24,7 @@ import { NOTHING_OUTSTANDING, poolLabel, summarize } from "@/lib/loot";
 import { assignableDrops } from "@/lib/vestige-pickup";
 import { shareConfig } from "@/lib/vestige-stacks";
 import { closedByHolder } from "@/lib/vestige-ledger";
-import { partySizeLabel } from "@/lib/parties";
+import { ownMember, partySizeLabel } from "@/lib/parties";
 import type { Boss } from "@/types/boss";
 import type { DropTables } from "@/types/drop";
 import type { AddLootBody, Loot, PartyLootPool, SellLootBody } from "@/types/loot";
@@ -284,16 +284,21 @@ export default function PartyPage() {
       >
         {state === "loaded" && party && (
           <>
-            {/* The boss and the mode ARE the title, and the roster is NOT.
+            {/* The character, the boss and the mode. Not the roster.
 
-              It used to read "... with iPhone69C", which is the config's roster as it stands. The
-              pool under it is a season of nights, and who ran each of them is that night's own fact
-              (party_week_seat, and ranSeats divides by it), so a title naming today's members
-              promised a list filtered by them and did not deliver one. The mode belongs here
-              because the pool IS filtered by it, see ranAtThisMode.
+              What a config IS, in the order the URL says it: the character and the boss are the two
+              halves that can never be edited, and the mode belongs with them because the pool is
+              filtered by it (see ranAtThisMode). Several of your characters can run the same boss,
+              so without the name the title does not say which config this is.
 
-              Nothing is lost: RosterStrip draws the roster directly below, and the config editor
-              under that is where it is changed. */}
+              It used to read "Chaos Kalos the Guardian with iPhone69C", naming the roster as it
+              stands today. The pool under it is a season of nights and who ran each is that night's
+              own fact (party_week_seat, and ranSeats divides by it), so the title promised a list
+              filtered by those members and delivered one filtered by the mode.
+
+              The character leads rather than trails, so it cannot be read as one more member: the
+              strip directly below lists the roster, and a name on the end of this line is exactly
+              the ambiguity just taken out of it. */}
             <h1 className="page-title">
               {/* The one place the page says which boss this is. Everything under it (the picker, the
                 rows) belongs to the same boss, so it is said here or it is not said. */}
@@ -304,7 +309,12 @@ export default function PartyPage() {
                   alt=""
                 />
               )}
-              {bossLabel(bossByKey.get(party.bossKey)?.name ?? party.bossKey, party.difficulty)}
+              {[
+                ownMember(party)?.name,
+                bossLabel(bossByKey.get(party.bossKey)?.name ?? party.bossKey, party.difficulty),
+              ]
+                .filter((part): part is string => Boolean(part))
+                .join(" · ")}
             </h1>
             <div className="party-card-head">
               {/* Your own character among them, unlike the strips on Party View, which put it in the
