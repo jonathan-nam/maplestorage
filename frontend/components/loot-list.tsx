@@ -145,13 +145,14 @@ export function LootList({
   const sellable = loot.filter((item) => !isPieceDrop(item, party, dropTables));
   // Headed only when both kinds are present. A pool of one kind is just the pool.
   const headed = sellable.length > 0 && coupons.length > 0;
-  // A stack of coupons is a DROP, so it is headed like one. It used to take the config's heading
-  // whenever the boxes were on screen, which read as though the week's coupons were a setting: the
-  // deal has its own block below now, and this says what the rows are.
+  // The coupons take NO heading of their own. "Drops" above already covers them, which is the
+  // reading that was asked for ("make it a bit more obvious that the Vestiges are part of the drops
+  // for the week"): a second word under the first said they were a separate kind of thing, when
+  // what they are is the night's biggest drop. What keeps them from reading as configuration is
+  // that the deal is a block of its own, not that they were labelled.
   //
-  // Null where the pool is the page and holds one kind, which is the pool's own title's job. Only a
-  // panel, whose neighbours are headed too, needs the word.
-  const couponTitle = headed ? "Coupons" : panel ? "Drops" : null;
+  // "Drops" still where the pool is a PANEL holding only coupons, whose neighbours are headed too.
+  const couponTitle = !headed && panel ? "Drops" : null;
   // Whichever kind is on its own carries the same word, so a week of one hammer and a week of one
   // stack of coupons are headed alike.
   const sellableTitle = headed || panel ? "Drops" : null;
