@@ -115,7 +115,7 @@ export default function PeoplePage() {
       <p className="loot-back">
         <Link href="/bosses/parties/edit">&larr; Edit Parties</Link>
       </p>
-      <h1 className="page-title">People</h1>
+      <h1 className="page-title">Edit People</h1>
 
       {state === "error" && <p>Couldn&apos;t load your people.</p>}
       <PageSwap
