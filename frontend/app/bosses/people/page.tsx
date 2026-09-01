@@ -37,9 +37,12 @@ export default function PeoplePage() {
     peek<Character[]>(CHARACTERS_KEY) ?? [],
   );
   const [draft, setDraft] = useState<PersonDraft[]>([]);
-  // Which person's link is being made, or null. One at a time: two open panels would be two names
-  // to type and two links to keep straight.
+  // Which person's link is being made right now, for the length of the request only. The button
+  // that started it says so; nothing else on the board changes.
   const [inviting, setInviting] = useState<string | null>(null);
+  // The finished link, which is the whole of what the dialog shows. Null is no dialog.
+  const [invite, setInvite] = useState<Invite | null>(null);
+  const [inviteError, setInviteError] = useState<string | null>(null);
   const [state, setState] = useState<LoadState>("loading");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -104,12 +107,31 @@ export default function PeoplePage() {
   }
 
   const dirty = JSON.stringify(draft) !== JSON.stringify(toDraft(people));
-  async function createInvite(personId: string): Promise<Invite> {
-    return apiFetch<Invite>(
-      "/api/invites",
-      { method: "POST", body: JSON.stringify({ personId }) },
-      getToken,
-    );
+
+  /**
+   * Makes the link, and only then opens the dialog on it.
+   *
+   * Not inside the dialog. Opening first and filling in afterwards put an empty box and a
+   * "Making a link..." on screen for as long as the round trip took, and the swap to the real
+   * link read as a flicker. A dialog whose whole content is one result should not exist before
+   * the result does; the wait belongs on the button that started it.
+   */
+  async function invitePerson(personId: string) {
+    setInviting(personId);
+    setInviteError(null);
+    try {
+      setInvite(
+        await apiFetch<Invite>(
+          "/api/invites",
+          { method: "POST", body: JSON.stringify({ personId }) },
+          getToken,
+        ),
+      );
+    } catch {
+      setInviteError("Couldn't make a link.");
+    } finally {
+      setInviting(null);
+    }
   }
 
   const sprites = spriteByName(characters, parties);
@@ -149,14 +171,15 @@ export default function PeoplePage() {
               }
               onRemove={(index) => setDraft(draft.filter((_, i) => i !== index))}
               unsaved={dirty}
-              onInvite={setInviting}
+              inviting={inviting}
+              onInvite={invitePerson}
             />
 
-            {inviting !== null && (
+            {invite !== null && (
               <InviteLink
-                person={people.find((p) => p.id === inviting)?.name ?? "them"}
-                onCreate={() => createInvite(inviting)}
-                onClose={() => setInviting(null)}
+                person={invite.personName}
+                invite={invite}
+                onClose={() => setInvite(null)}
               />
             )}
 
@@ -172,6 +195,7 @@ export default function PeoplePage() {
                 {busy ? "Saving..." : "Save people"}
               </button>
               {error && <span className="split-error">{error}</span>}
+              {inviteError && <span className="split-error">{inviteError}</span>}
             </div>
           </>
         )}
