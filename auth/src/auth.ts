@@ -102,6 +102,10 @@ export const auth = betterAuth({
     discord: {
       clientId: env("DISCORD_CLIENT_ID"),
       clientSecret: env("DISCORD_CLIENT_SECRET"),
+      // Show Discord's approval screen every time. Better Auth's discord provider defaults this to
+      // `none`, which asks Discord to skip the screen for anybody who has authorised the app once
+      // already, so a returning user is bounced straight through without being asked.
+      prompt: "consent",
       // Discord returns no email at all for a phone-only account, even with the email scope
       // granted, and Better Auth refuses a sign-in with no email. Synthesised from the Discord
       // snowflake, which is stable and unique. Left unverified on purpose: `emailVerified` is what
