@@ -2,6 +2,7 @@
 
 import { useId, type ReactNode } from "react";
 import { SharpEyesMark } from "@/components/sharp-eyes-mark";
+import { TILES_SHOWN } from "@/lib/carousel";
 import { DOCK_LABELS, type DockName } from "@/lib/dock-collapse";
 import { useDockOpen } from "@/lib/use-dock-open";
 
@@ -81,7 +82,7 @@ export function DockSkeleton({ name, picker = false }: { name: DockName; picker?
               &#8249;
             </button>
             <div className="carousel-track">
-              {Array.from({ length: 5 }).map((_, i) => (
+              {Array.from({ length: TILES_SHOWN }).map((_, i) => (
                 <div className="char-tile is-compact is-skeleton" key={i}>
                   {/* Empty, not shimmered: see .sk-sprite, a filled square advertises a sprite
                       bigger than the one that replaces it. */}

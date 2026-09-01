@@ -1089,13 +1089,24 @@ button.ms-slot {
   margin: 16px 0 8px;
 }
 
+/* Four sprites at a time, and page for the rest: four is the number anywhere this app puts sprites
+   in a row (lib/carousel.ts, pinned to this rule by lib/carousel.test.ts). The compact picker used
+   to show seven on a wide window, which reads as a wall of faces rather than a set to pick from.
+   --tile-outer is the tile's OUTER width, its 150px content plus 4px padding either side
+   (.char-tile is content-box), which is the stride the arrows page by. */
 .carousel-track {
+  --tile-outer: 158px;
   display: flex;
   flex: 1;
   gap: 16px;
+  max-width: calc(4 * var(--tile-outer) + 3 * 16px);
   overflow-x: auto;
   scroll-snap-type: x mandatory;
   scrollbar-width: none;
+}
+
+.carousel-compact .carousel-track {
+  --tile-outer: 104px;
 }
 
 .carousel-track::-webkit-scrollbar {
@@ -5207,13 +5218,6 @@ button.link:disabled {
   align-items: center;
   gap: 6px 16px;
   margin-bottom: 8px;
-}
-
-/* The editor toolbar's links, kept together at its right. */
-.party-toolbar-links {
-  display: flex;
-  align-items: center;
-  gap: 12px;
 }
 
 /* A row of headline figures, above the detail that produced them. Shared by the Wallet and the

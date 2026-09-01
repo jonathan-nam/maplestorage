@@ -162,20 +162,20 @@ export default function EditPartiesPage() {
 
   return (
     <main className="page">
-      <p className="loot-back">
-        <Link href="/bosses/parties">&larr; Party View</Link>
-      </p>
-      <h1 className="page-title">Edit parties</h1>
-
       {/* People is not in the hamburger any more: naming whose character is which is part of
-          setting a party up, so it is reached from here, where you already are when you need it. */}
-      <div className="party-toolbar">
-        <span className="party-toolbar-links">
+          setting a party up, so it is reached from here. It sits where Party View carries its way
+          here, so the two pages point at each other from the same corner. */}
+      <div className="page-head">
+        <p className="loot-back">
+          <Link href="/bosses/parties">&larr; Party View</Link>
+        </p>
+        <span className="page-head-links">
           <Link className="party-cancel" href="/bosses/people">
-            People
+            Edit People
           </Link>
         </span>
       </div>
+      <h1 className="page-title">Edit Parties</h1>
 
       {state === "error" && <p>Couldn&apos;t load your parties.</p>}
       <PageSwap

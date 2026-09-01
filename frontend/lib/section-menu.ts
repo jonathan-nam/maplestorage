@@ -51,7 +51,7 @@ export const SECTIONS: { group?: string; items: SectionItem[] }[] = [
       // Reached from the party editor and from Run Order, so it needs matching but not listing.
       // The Wallet needs neither: it sits under /bosses/parties and so already resolves to Party
       // View, which is the section it is part of.
-      { href: "/bosses/people", label: "People", hidden: true },
+      { href: "/bosses/people", label: "Edit People", hidden: true },
       { href: "/bosses/drops", label: "Drop Log" },
       { href: "/bosses/order", label: "Run Order" },
       { href: "/bosses/split", label: "Split Utility", interactiveOnly: true },

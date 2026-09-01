@@ -850,7 +850,7 @@ export default function PartiesPage() {
         {state === "loaded" && (
           <span className="page-head-links">
             <Link className="party-cancel" href="/bosses/parties/edit">
-              Edit parties
+              Edit Parties
             </Link>
           </span>
         )}
