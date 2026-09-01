@@ -1,0 +1,126 @@
+# Watches production from OUTSIDE it.
+#
+# Everything else that looks at prod runs on the box, which cannot report that the box is gone. The
+# Lightsail alarms are closer, but they watch the instance: a healthy instance serving 502s, an
+# expired certificate, or a wedged Postgres all look fine to them.
+#
+# The alert is this workflow going red. GitHub emails the repo owner when a scheduled run fails on
+# the default branch, which is the whole notification mechanism. Do not make it fail for anything
+# that is not worth an email.
+#
+# Deliberately NOT run on pull_request or push: a PR cannot change whether prod is up, and a red
+# check on every PR because the site blipped is how people learn to ignore it.
+name: Uptime
+
+on:
+  schedule:
+    # Every 15 minutes. GitHub's scheduler is best effort and drifts under load, sometimes by ten
+    # minutes or more, so treat this as "roughly quarter hourly" rather than a guarantee. That is
+    # fine for catching an outage and is why the thresholds below have slack in them.
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+# One run at a time. A backed-up scheduler firing three at once tells you nothing new and would
+# turn a single outage into three emails.
+concurrency:
+  group: uptime
+  cancel-in-progress: false
+
+env:
+  API: https://api.sharpeyes.app
+  APEX: https://sharpeyes.app
+  # Certbot renews at 30 days remaining. Alerting at 21 leaves nine days of failed renewals before
+  # this says anything, which is deliberate: renewal runs twice a day, so a single failure is not
+  # news and a week of them is.
+  CERT_MIN_DAYS: 21
+
+jobs:
+  api:
+    name: API and certificate
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      # Three tries before calling it down. A single failed request is a blip on the public
+      # internet, not an outage, and this workflow's only output is an email.
+      - name: /health/db answers ok
+        run: |
+          for attempt in 1 2 3; do
+            body=$(curl -sS --max-time 20 "$API/health/db" || true)
+            if [ "$body" = '{"status":"ok"}' ]; then
+              echo "attempt $attempt: $body"
+              exit 0
+            fi
+            echo "attempt $attempt: got '${body:-<no response>}'"
+            sleep 20
+          done
+          echo "::error::/health/db never returned {\"status\":\"ok\"}. The API cannot reach its database, or is down."
+          exit 1
+
+      # Checked separately from the body above because the failures are different: this one stays
+      # green while the database is dead, which is exactly why /health alone was not enough.
+      - name: frontend is up
+        run: |
+          for attempt in 1 2 3; do
+            code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 20 "$APEX" || true)
+            if [ "$code" = "200" ]; then
+              echo "attempt $attempt: $code"
+              exit 0
+            fi
+            echo "attempt $attempt: $code"
+            sleep 20
+          done
+          echo "::error::$APEX did not return 200."
+          exit 1
+
+      # Let's Encrypt ended expiration notification emails on 2025-06-04 and no longer stores the
+      # address, so NOTHING else will warn about this. A renewal that silently stops working takes
+      # the site down 90 days later with nothing in between.
+      - name: certificate has time left
+        run: |
+          host=${API#https://}
+          end=$(echo | openssl s_client -connect "$host:443" -servername "$host" 2>/dev/null \
+                | openssl x509 -noout -enddate | cut -d= -f2)
+          if [ -z "$end" ]; then
+            echo "::error::could not read the certificate for $host"
+            exit 1
+          fi
+          days=$(( ( $(date -d "$end" +%s) - $(date +%s) ) / 86400 ))
+          echo "expires $end ($days days)"
+          if [ "$days" -lt "$CERT_MIN_DAYS" ]; then
+            echo "::error::certificate for $host expires in $days days. Renewal has been failing; check docker compose logs certbot."
+            exit 1
+          fi
+
+  backups:
+    name: Backup freshness
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    # Skipped until the read-only key exists. The backup IAM user is PutObject-only on purpose and
+    # cannot list, so this needs its own credentials: see aws_iam_user.backup_reader in infra/.
+    if: ${{ vars.BACKUP_BUCKET != '' }}
+    steps:
+      - name: newest backup is under 26 hours old
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.BACKUP_READER_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.BACKUP_READER_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: us-east-1
+          BUCKET: ${{ vars.BACKUP_BUCKET }}
+        run: |
+          # A dead man's switch, and it checks the ARTIFACT rather than that a script ran. A cron
+          # that fires and uploads nothing is the failure worth catching, and a ping-on-success
+          # would not catch it.
+          newest=$(aws s3 ls "s3://$BUCKET/" | sort | tail -1)
+          if [ -z "$newest" ]; then
+            echo "::error::no objects in s3://$BUCKET. The nightly backup has never run, or cannot write."
+            exit 1
+          fi
+          echo "newest: $newest"
+          stamp=$(echo "$newest" | awk '{print $1" "$2}')
+          age=$(( ( $(date +%s) - $(date -d "$stamp" +%s) ) / 3600 ))
+          echo "age: ${age}h"
+          # 26, not 24: the cron runs at 07:30 UTC, so a healthy bucket is up to 24h old plus slack
+          # for a slow dump and this workflow's own drift.
+          if [ "$age" -gt 26 ]; then
+            echo "::error::newest backup is ${age}h old. The 07:30 UTC cron has stopped: check /var/log/sharpeyes-backup.log on the box."
+            exit 1
+          fi
