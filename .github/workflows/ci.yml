@@ -47,7 +47,7 @@ jobs:
           # Anchored on purpose: an unanchored `\.env` also matches a stray .envrc, and a check
           # that cries wolf gets weakened rather than obeyed.
           leaked=$(git ls-files \
-            | grep -E '(^|/)(\.env|terraform\.tfvars|backend\.hcl)(\.[^/]*)?$|(^|/)\.clerk/' \
+            | grep -E '(^|/)(\.env|terraform\.tfvars|backend\.hcl)(\.[^/]*)?$|(^|/)\.clerk/|\.(pem|key)$|(^|/)id_(rsa|ed25519)' \
             | grep -v '\.example$' || true)
           if [ -n "$leaked" ]; then
             echo "::error::secret-carrying files are tracked in a PUBLIC repo:"
@@ -60,7 +60,8 @@ jobs:
         run: |
           for f in .env .env.prod .env.local .env.production backend/.env backend/.env.prod \
                    frontend/.env.local frontend/.env.production auth/.env auth/.env.prod \
-                   vision/.env infra/terraform.tfvars infra/backend.hcl; do
+                   vision/.env infra/terraform.tfvars infra/backend.hcl \
+                   LightsailDefaultKey-us-east-1.pem deploy.pem id_rsa infra/id_ed25519; do
             if ! git check-ignore -q "$f"; then
               echo "::error::$f is not gitignored"
               exit 1
