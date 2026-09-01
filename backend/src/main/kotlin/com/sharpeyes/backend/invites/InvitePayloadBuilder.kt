@@ -39,10 +39,9 @@ private data class SourceSeat(
  * The account [personId] would have, seen from the sender's data, or null when that person is not
  * the caller's.
  *
- * Which configs travel: standing, not solo, and seating at least one character the sender has
- * attributed to this person. A solo config has nobody else in it by definition, a retired one is
- * kept only for the pool hanging off it, and a config the recipient has no seat in is not theirs
- * to receive.
+ * Which configs travel: a standing arrangement (see standingConfigsOf) seating at least one
+ * character the sender has attributed to this person. A config the recipient has no seat in is not
+ * theirs to receive.
  *
  * Must be called from inside a `transaction { }` block.
  */
@@ -86,14 +85,30 @@ internal fun buildInvitePayload(
     )
 }
 
-/** Every config of the sender's that could carry somebody else: standing, and not a solo run. */
+/**
+ * Every config of the sender's that describes a standing arrangement somebody else is part of.
+ *
+ * Not solo, which has nobody else in it. Not retired, which is kept for the pool hanging off it.
+ * And **not a one-off**, which is the one that is easy to miss: a one-off is a boss run once, on
+ * for the periods it is armed for and off in every other, so it is not an arrangement to hand over.
+ * Carrying one would create it on the recipient's account as a permanent config, which says
+ * "CreedBratton runs Jupiter every week" on the strength of a single night in August.
+ *
+ * Found by dry-running this against real data: three of the sender's configs were spent one-offs,
+ * and two of them collided with real configs and were reported as dropped, which made an artefact
+ * of this bug look like a fact about the parties.
+ */
 private fun standingConfigsOf(userId: String): List<SourceConfig> =
     Party
         .join(BossCatalog, JoinType.INNER, Party.bossCatalogId, BossCatalog.id)
         .join(Characters, JoinType.INNER, Party.characterId, Characters.id)
         .selectAll()
-        .where { (Party.userId eq userId) and (Party.standing eq true) and (Party.solo eq false) }
-        .orderBy(Party.createdAt)
+        .where {
+            (Party.userId eq userId) and
+                (Party.standing eq true) and
+                (Party.solo eq false) and
+                (Party.oneOff eq false)
+        }.orderBy(Party.createdAt)
         .map {
             SourceConfig(
                 partyId = it[Party.id],
@@ -200,7 +215,7 @@ private fun recipientCharacters(
 }
 
 /**
- * Who each of [seatNames] is, the sender among them.
+ * Who each of [seatNames] is, the sender always among them.
  *
  * Only the characters that turn up in a shared config. The sender knows more about some of these
  * people than the shared parties show, and the rest of an address book is not part of what one
@@ -231,7 +246,11 @@ private fun peopleIn(
             .filter { (_, character) -> character.lowercase() in wanted }
             .groupBy({ it.first }) { it.second }
 
-    val sender = if (mine.isEmpty()) emptyList() else listOf(InvitePerson(senderName, mine, isSender = true))
+    // Always, even with no characters to show for it. Somebody you share no config with still
+    // receives a link FROM you, and their account is where the link is recorded as having come from
+    // you: without this row there is nothing on their side to write linked_user_id onto, and the
+    // binding would exist in one direction only.
+    val sender = listOf(InvitePerson(senderName, mine, isSender = true))
     // A person the sender happens to have named the same as themselves would otherwise arrive as
     // two rows one save cannot hold, since a name identifies a person on the people board.
     val others =

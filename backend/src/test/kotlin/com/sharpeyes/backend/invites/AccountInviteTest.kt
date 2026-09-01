@@ -166,9 +166,16 @@ class AccountInviteTest {
             // to receive: one has no seat of theirs, and the other has no seats at all.
             config(mine, "baldrix", listOf("Lynn"))
             solo(mine, "limbo")
+            // A night run once, with the recipient in it. Not an arrangement, so not a config to
+            // hand over: carrying it would say they run this boss every week on the strength of it.
+            // Real data had three of these, and two of them collided with real configs.
+            oneOff(mine, "malefic-star", listOf("CreedBratton"))
 
             val payload = payloadFor("Bro")
             assertEquals(listOf("kalos-the-guardian"), payload.parties.map { it.bossKey })
+            // Silently, like the solo and the retired ones: leaving a one-off out is what the link
+            // IS, not a config it failed to carry.
+            assertEquals(emptyList(), payload.omitted)
         }
     }
 
@@ -213,6 +220,26 @@ class AccountInviteTest {
             assertEquals(setOf("Jonathan", "Chris"), people.keys)
             assertEquals(listOf("mechyfechy"), people.getValue("Jonathan"))
             assertEquals(listOf("Lynn"), people.getValue("Chris"))
+        }
+    }
+
+    @Test
+    fun `somebody you share no config with still gets you, and still gets linked`() {
+        transaction {
+            addCharacter(senderId, "mechyfechy", position = 0)
+            // Named as somebody you run with, but in none of your configs. Found by dry-running
+            // this against real data: their account came out with one character and nobody at all,
+            // and the link back to the sender had no row on their side to be written onto.
+            attribute("Nacho", "Haruko")
+
+            val payload = payloadFor("Nacho")
+            assertEquals(listOf("Jonathan"), payload.people.map { it.name })
+            assertEquals(emptyList(), payload.people.single().characters)
+            assertTrue(payload.people.single().isSender)
+
+            invite("Nacho")
+            assertEquals(senderId, personRow(recipientId, "Jonathan")[Person.linkedUserId])
+            assertEquals(recipientId, personRow(senderId, "Nacho")[Person.linkedUserId])
         }
     }
 
@@ -369,6 +396,16 @@ class AccountInviteTest {
             request = SavePartyRequest(characterId.toString(), bossKey, members),
             now = Clock.System.now(),
         )
+
+    /** A boss run once, armed for the period it was made in. See V32. */
+    private fun oneOff(
+        characterId: Uuid,
+        bossKey: String,
+        members: List<String>,
+    ) {
+        val request = SavePartyRequest(characterId.toString(), bossKey, members, oneOff = true)
+        createParty(senderId, characterId, bossIdForKey(bossKey)!!, request, Clock.System.now())
+    }
 
     private fun solo(
         characterId: Uuid,
