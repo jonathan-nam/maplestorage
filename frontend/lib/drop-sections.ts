@@ -5,14 +5,28 @@
 // ask something of the reader; the last asks nothing and only records, which is why a finished row
 // belongs in it and nowhere else.
 //
-// All four are always offered, empty or not. They used to come and go with their contents, which
-// had two costs: a tab could vanish from under the reader as they recorded the last thing on it,
-// silently moving them somewhere else, and a ledger nobody had ever had anything on was invisible,
-// so there was no way to learn it existed. An empty one says so instead.
+// In an Interactive world all four are always offered, empty or not. They used to come and go with
+// their contents, which had two costs: a tab could vanish from under the reader as they recorded
+// the last thing on it, silently moving them somewhere else, and a ledger nobody had ever had
+// anything on was invisible, so there was no way to learn it existed. An empty one says so instead.
+//
+// A Heroic world is the one exception, and it is not "empty" but "does not apply". See below.
 
 export type DropSectionKey = "drops" | "sales" | "settlement" | "settled";
 
-export type DropSection = { key: DropSectionKey; label: string };
+export type DropSection = {
+  key: DropSectionKey;
+  label: string;
+  /**
+   * Only offered while the world being shown can trade.
+   *
+   * Three of the four stages exist because something changed hands, and nothing does in a Heroic
+   * world. Their pools are narrowed to the shown world server-side (LootQueries), so these are not
+   * tabs that happen to be empty, they are tabs that cannot fill. Same rule as the Split Utility's
+   * on the section menu, and the way back is the same one click on the world toggle.
+   */
+  interactiveOnly?: boolean;
+};
 
 /** What the Sale Ledger would draw, in cards. Zero is what puts the empty line on screen. */
 export type SaleCards = {
@@ -30,21 +44,30 @@ export function saleCards({ unanswered, holders, lots, rows }: SaleCards): numbe
   return (unanswered > 0 ? 1 : 0) + holders + lots + rows;
 }
 
-/** The tabs, which are the same four however little is behind them, and in pipeline order. */
-export function dropSections(): DropSection[] {
-  return [
-    { key: "drops", label: "Drop Ledger" },
-    { key: "sales", label: "Sale Ledger" },
-    { key: "settlement", label: "Settlement Ledger" },
-    { key: "settled", label: "Settled" },
-  ];
+const SECTIONS: DropSection[] = [
+  { key: "drops", label: "Drop Ledger" },
+  { key: "sales", label: "Sale Ledger", interactiveOnly: true },
+  { key: "settlement", label: "Settlement Ledger", interactiveOnly: true },
+  { key: "settled", label: "Settled", interactiveOnly: true },
+];
+
+/**
+ * The tabs for the world being shown, in pipeline order and the same however little is behind them.
+ *
+ * `trades` is /api/settings'. Undefined is the moment before it answers, and it offers all four:
+ * that is what this did before it took an argument, and it errs towards showing rather than hiding.
+ */
+export function dropSections(trades?: boolean): DropSection[] {
+  if (trades !== false) return SECTIONS;
+  return SECTIONS.filter((s) => !s.interactiveOnly);
 }
 
 /**
- * The section to draw: the chosen one, since all three always exist.
+ * The section to draw: the chosen one where the world offers it, the Drop Ledger otherwise.
  *
  * Kept as a function rather than read straight from state because it is the guard against a key
- * that is not a section at all, from an old cached value or a hand-edited one.
+ * this world does not have, whether from an old cached value or from toggling to Heroic while
+ * standing on a tab that Heroic does not carry.
  */
 export function shownSection(chosen: DropSectionKey, sections: DropSection[]): DropSectionKey {
   return sections.some((s) => s.key === chosen) ? chosen : "drops";

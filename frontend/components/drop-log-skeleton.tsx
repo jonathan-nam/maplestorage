@@ -1,5 +1,8 @@
+"use client";
+
 import { SectionMark } from "@/components/section-mark";
 import { dropSections } from "@/lib/drop-sections";
+import { useAccountSettings } from "@/lib/use-account-settings";
 
 // The Drop Log's loading state: the page's own chrome, not a line of text where a page will be.
 //
@@ -47,23 +50,31 @@ function Row() {
 }
 
 export function DropLogSkeleton() {
+  // Read here rather than passed in, because app/bosses/drops/loading.tsx has nothing to pass: the
+  // route boundary and the page have to draw the same strip or a cold route flashes a shape the
+  // loaded page does not have. The store is warm on any navigation from inside the app.
+  const sections = dropSections(useAccountSettings()?.trades);
+
   return (
     <div role="status" aria-label="Loading your drops">
-      {/* The real strip. dropSections() is a constant, so this cannot drift from the loaded page. */}
-      <div className="basis-row droplog-sections" aria-hidden="true">
-        {dropSections().map((s, i) => (
-          <button
-            key={s.key}
-            type="button"
-            className={i === 0 ? "basis-tab active" : "basis-tab"}
-            disabled
-          >
-            {/* No art: the tables it comes from are what is still loading. The box is held. */}
-            <SectionMark section={s.key} />
-            {s.label}
-          </button>
-        ))}
-      </div>
+      {/* The real strip, drawn on the same condition as the page's, so a Heroic world holds no
+          height for tabs it will not get. */}
+      {sections.length > 1 && (
+        <div className="basis-row droplog-sections" aria-hidden="true">
+          {sections.map((s, i) => (
+            <button
+              key={s.key}
+              type="button"
+              className={i === 0 ? "basis-tab active" : "basis-tab"}
+              disabled
+            >
+              {/* No art: the tables it comes from are what is still loading. The box is held. */}
+              <SectionMark section={s.key} />
+              {s.label}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* The real Add Drop panel, down to the disabled controls, so its height is its own and not a
           number copied out of it. */}

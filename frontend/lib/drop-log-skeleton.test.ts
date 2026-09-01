@@ -52,6 +52,20 @@ describe("the Drop Log's loading state is the page's shape", () => {
     }
   });
 
+  // A Heroic world gets one section, so the page draws no strip at all. A skeleton that held four
+  // tabs above it would jump by the strip's whole height the moment the drops landed.
+  it("draws the strip on the same condition the page does", () => {
+    for (const [file, source] of [
+      ["the page", page],
+      ["the skeleton", skeleton],
+    ] as const) {
+      expect(source, `${file} draws the tab strip unconditionally`).toContain(
+        "sections.length > 1",
+      );
+    }
+    expect(skeleton, "the skeleton cannot know the world").toContain("useAccountSettings");
+  });
+
   // Every figure on this page is somebody's money. A placeholder that says "Sold for" to an account
   // that never sells, or draws a number-shaped thing that reads as a number, is the confident wrong
   // statement this repo exists to prevent.
