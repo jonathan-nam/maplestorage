@@ -14,7 +14,7 @@ import { useRowWrites } from "@/lib/use-row-writes";
 import type { Boss } from "@/types/boss";
 import type { Character } from "@/types/character";
 import type { DropTables } from "@/types/drop";
-import type { Party, Person, SavePartyBody, SetPartySkipBody } from "@/types/party";
+import type { Party, Person, SavePartyBody } from "@/types/party";
 
 type LoadState = "loading" | "loaded" | "error";
 
@@ -111,29 +111,6 @@ export default function EditPartiesPage() {
     }
   }
 
-  /**
-   * Puts a boss back on the period Party View took it off.
-   *
-   * Only this direction is offered here. Taking one off is a decision about the week you are looking
-   * at, which is Party View's screen; this page is where you come to undo it, because that is where
-   * the row still is.
-   */
-  async function putBack(party: Party) {
-    setError(null);
-    try {
-      await write(party.id, async () => {
-        await apiFetch<Party>(
-          `${PARTIES_KEY}/${party.id}/skip`,
-          { method: "PUT", body: JSON.stringify({ skipped: false } satisfies SetPartySkipBody) },
-          getToken,
-        );
-        await loadParties();
-      });
-    } catch (e) {
-      setError(e instanceof ApiError ? e.body : "Couldn't put that boss back.");
-    }
-  }
-
   async function remove(party: Party) {
     setError(null);
     try {
@@ -211,7 +188,6 @@ export default function EditPartiesPage() {
                     error={error}
                     onSave={save}
                     onDelete={remove}
-                    onPutBack={putBack}
                   />
                 )}
               </>

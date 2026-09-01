@@ -255,8 +255,8 @@ export function partiedBossKeys(parties: Party[], characterId: string): Set<stri
  * one, so offering them offers something that works.
  *
  * A STANDING party taken off the period is not here. It has a config, it is on again next period,
- * and adding over it would overwrite the roster and difficulty it already carries. Putting that one
- * back is the edit page's own button.
+ * and adding over it would overwrite the roster and difficulty it already carries. Nothing puts it
+ * back sooner, which is what taking it off means.
  *
  * A RETIRED one is offered, and has to be: it holds the pair's slot too, so the boss would
  * otherwise be unaddable forever. Adding it revives that config, pool and all. See takeOverParty.

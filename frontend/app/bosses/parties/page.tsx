@@ -406,22 +406,22 @@ export default function PartiesPage() {
   }
 
   /**
-   * Takes a boss off this period, or puts it back, leaving the config alone.
+   * Takes a boss off this period, leaving the config alone.
    *
    * A week off is not the party ending, so nothing is deleted: the seats, the pool and the standing
-   * roster all survive it, and next period runs as usual without being told to. The row leaves the
-   * list, and the count above it is what says so.
+   * roster all survive it, and next period runs as usual without being told to. One direction only.
+   * The row leaves the list and stays off until the reset.
    *
    * Live view only, so PARTY_LIST_KEY is the right list to refetch. Throws on failure, which is what
    * lets the row show it did not save.
    */
-  async function setSkipped(party: Party, skipped: boolean) {
+  async function takeOff(party: Party) {
     await write(party.id, async () => {
       // Not typed as a Party: taking a one-off off its period deletes it, and that answers 204 with
       // no config to send back. The list below is what redraws either way.
       await apiFetch<unknown>(
         `${PARTIES_KEY}/${party.id}/skip`,
-        { method: "PUT", body: JSON.stringify({ skipped } satisfies SetPartySkipBody) },
+        { method: "PUT", body: JSON.stringify({ skipped: true } satisfies SetPartySkipBody) },
         getToken,
       );
       const refreshed = await apiFetch<Party[]>(PARTY_LIST_KEY, { method: "GET" }, getToken);
@@ -826,7 +826,7 @@ export default function PartiesPage() {
         rotation={rotationOf(party)}
         piecePickup={piecePickupFor(party)}
         onSaveRoster={history ? undefined : (members) => saveRoster(party, members)}
-        onTakeOff={history ? undefined : () => setSkipped(party, true)}
+        onTakeOff={history ? undefined : () => takeOff(party)}
         heading={
           <>
             {boss?.iconUrl && (
@@ -964,14 +964,7 @@ export default function PartiesPage() {
 
             {shown.length > 0 && running.length === 0 && (
               <p className="finder-empty">
-                {history ? (
-                  "Every boss was off that week."
-                ) : (
-                  <>
-                    Every boss is off this week.{" "}
-                    <Link href="/bosses/parties/edit">Put one back</Link>.
-                  </>
-                )}
+                {history ? "Every boss was off that week." : "Every boss is off this week."}
               </p>
             )}
 
@@ -1070,7 +1063,7 @@ export default function PartiesPage() {
                         rotation={rotationOf(party)}
                         piecePickup={piecePickupFor(party)}
                         onSaveRoster={history ? undefined : (members) => saveRoster(party, members)}
-                        onTakeOff={history ? undefined : () => setSkipped(party, true)}
+                        onTakeOff={history ? undefined : () => takeOff(party)}
                         heading={
                           <>
                             {characterById.get(party.characterId)?.spriteImgUrl && (
