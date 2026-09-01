@@ -210,14 +210,15 @@ function SettledTiles({
       {money && (
         <>
           <div className="stat-tile">
-            <span className="stat-label">Sold for</span>
-            {/* What there was to split, not "total sales": a listed price and a received one sit
-              either side of the Auction House fee, so adding them is the confident wrong number
-              this repo exists to prevent. See the header of lib/drop-log.ts. */}
+            <span className="stat-label">Total Sales</span>
+            {/* The figure is what there was to SPLIT (Split.sellerReceives), not the sum of the
+              sale prices as entered: a listed price and a received one sit either side of the
+              Auction House fee, and adding them is the confident wrong number this repo exists to
+              prevent. See the header of lib/drop-log.ts. */}
             <span className="stat-value is-good">{formatMesos(totals.pooled, true)}</span>
           </div>
           <div className="stat-tile">
-            <span className="stat-label">Your take</span>
+            <span className="stat-label">My Share</span>
             <span className="stat-value is-good">{formatMesos(totals.yourTake, true)}</span>
           </div>
         </>
