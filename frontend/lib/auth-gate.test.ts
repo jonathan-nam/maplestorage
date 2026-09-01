@@ -51,11 +51,23 @@ function effectBodies(text: string): string[] {
   return bodies;
 }
 
+/**
+ * A fetch that deliberately carries no token at all.
+ *
+ * The race this guards is `Bearer null` against a route that wanted a real one. A call to an
+ * endpoint mounted OUTSIDE the authenticated block has no such race: it never had a token to wait
+ * for, and gating it would delay a page that can answer signed out. The join page is the one, and
+ * naming the helper is what keeps the exemption from widening by accident.
+ */
+function unauthenticated(body: string): boolean {
+  return !body.includes("getToken") && body.includes("noToken");
+}
+
 describe("no page fetches before auth has answered", () => {
   const fetchingOnMount = files.flatMap(({ file, text }) => {
-    const bodies = effectBodies(text).filter(
-      (body) => body.includes("getToken") || body.includes("apiFetch"),
-    );
+    const bodies = effectBodies(text)
+      .filter((body) => body.includes("getToken") || body.includes("apiFetch"))
+      .filter((body) => !unauthenticated(body));
     return bodies.length > 0 ? [{ file, text, bodies }] : [];
   });
 

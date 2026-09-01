@@ -1,6 +1,7 @@
 "use client";
 
 import { PageSwap } from "@/components/page-swap";
+import { InviteLink } from "@/components/invite-link";
 import { PeopleBoard } from "@/components/people-board";
 import { useAuth } from "@/lib/use-auth";
 import Link from "next/link";
@@ -10,6 +11,8 @@ import { peek, put } from "@/lib/cache";
 import { type PersonDraft, unclaimed } from "@/lib/people-board";
 import { spriteByName } from "@/lib/sprite-by-name";
 import type { Character } from "@/types/character";
+import type { Invite } from "@/types/invite";
+import type { Settings } from "@/types/settings";
 import type { Party, Person, SavePeopleBody } from "@/types/party";
 
 type LoadState = "loading" | "loaded" | "error";
@@ -17,6 +20,7 @@ type LoadState = "loading" | "loaded" | "error";
 const PEOPLE_KEY = "/api/people";
 const PARTIES_KEY = "/api/parties";
 const CHARACTERS_KEY = "/api/characters";
+const SETTINGS_KEY = "/api/settings";
 
 // Who plays which character. Kept apart from the parties on purpose: a party names characters, and
 // this says whose they are, once, for every party that names them. Say it here and CreedBratton is
@@ -34,7 +38,11 @@ export default function PeoplePage() {
   const [characters, setCharacters] = useState<Character[]>(
     peek<Character[]>(CHARACTERS_KEY) ?? [],
   );
+  const [settings, setSettings] = useState<Settings | null>(peek<Settings>(SETTINGS_KEY) ?? null);
   const [draft, setDraft] = useState<PersonDraft[]>([]);
+  // Which person's link is being made, or null. One at a time: two open panels would be two names
+  // to type and two links to keep straight.
+  const [inviting, setInviting] = useState<string | null>(null);
   const [state, setState] = useState<LoadState>("loading");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -52,16 +60,20 @@ export default function PeoplePage() {
           apiFetch<Person[]>(PEOPLE_KEY, { method: "GET" }, withToken),
           apiFetch<Party[]>(PARTIES_KEY, { method: "GET" }, withToken),
           apiFetch<Character[]>(CHARACTERS_KEY, { method: "GET" }, withToken),
+          // For the name to offer when making a link: your main is what a friend knows you as.
+          apiFetch<Settings>(SETTINGS_KEY, { method: "GET" }, withToken),
         ]);
       })
-      .then(([peopleResult, partyResult, characterResult]) => {
+      .then(([peopleResult, partyResult, characterResult, settingsResult]) => {
         setPeople(peopleResult);
         setDraft(toDraft(peopleResult));
         setParties(partyResult);
         setCharacters(characterResult);
+        setSettings(settingsResult);
         put(PEOPLE_KEY, peopleResult);
         put(PARTIES_KEY, partyResult);
         put(CHARACTERS_KEY, characterResult);
+        put(SETTINGS_KEY, settingsResult);
         setState("loaded");
       })
       .catch(() => setState((s) => (s === "loaded" ? "loaded" : "error")));
@@ -99,6 +111,19 @@ export default function PeoplePage() {
   }
 
   const dirty = JSON.stringify(draft) !== JSON.stringify(toDraft(people));
+  // What a friend already knows you as. The main character if one is set, else the first in the
+  // carousel, which is the closest thing to one an account without a main has.
+  const senderName =
+    characters.find((c) => c.id === settings?.mainCharacterId)?.name ?? characters[0]?.name ?? "";
+
+  async function createInvite(personId: string, name: string): Promise<Invite> {
+    return apiFetch<Invite>(
+      "/api/invites",
+      { method: "POST", body: JSON.stringify({ personId, senderName: name }) },
+      getToken,
+    );
+  }
+
   const sprites = spriteByName(characters, parties);
   const mine = characters.map((c) => c.name);
   // Against the DRAFT, not the saved list: a character dragged onto somebody has to leave the pile
@@ -135,7 +160,18 @@ export default function PeoplePage() {
                 setDraft(draft.map((r, i) => (i === index ? { ...r, name } : r)))
               }
               onRemove={(index) => setDraft(draft.filter((_, i) => i !== index))}
+              unsaved={dirty}
+              onInvite={setInviting}
             />
+
+            {inviting !== null && (
+              <InviteLink
+                person={people.find((p) => p.id === inviting)?.name ?? "them"}
+                defaultName={senderName}
+                onCreate={(name) => createInvite(inviting, name)}
+                onClose={() => setInviting(null)}
+              />
+            )}
 
             <div className="loot-actions">
               <button
