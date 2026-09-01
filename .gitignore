@@ -63,6 +63,14 @@ symbol-candidates.png
 # Clerk's local config, which can carry a secret key. Repo-wide, not just frontend/.
 .clerk/
 
+# SSH private keys. docs/deploy.md tells you to download the Lightsail key to reach the box, so a
+# .pem in the tree is a step in the runbook, not an accident. Repo is public, so it must never be
+# stageable. Pinned by the two secret-file steps in ci.yml.
+*.pem
+*.key
+id_rsa*
+id_ed25519*
+
 # Dev database dumps. This repo is public and a dump carries the account and Discord rows of whoever
 # took it, so a dump must never be committable by an absent-minded `git add -A`.
 dev-snapshots/
