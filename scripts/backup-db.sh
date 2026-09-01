@@ -11,8 +11,15 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
+# set -a, because `source` alone makes these SHELL variables and the aws CLI is a CHILD PROCESS
+# that never sees them. It does not then fail for want of credentials: it falls through to instance
+# metadata and assumes AmazonLightsailInstanceRole in an AWS-OWNED account (374617279889, not this
+# one), which authenticates fine and cannot write here. The upload dies on "AccessDenied", which
+# reads as a broken IAM policy and is not. Cost an hour on the first deploy.
+set -a
 # shellcheck disable=SC1091
 source .env
+set +a
 : "${BACKUP_BUCKET:?set it in .env}"
 : "${DB_USERNAME:?}"
 : "${DB_NAME:=sharpeyes}"
