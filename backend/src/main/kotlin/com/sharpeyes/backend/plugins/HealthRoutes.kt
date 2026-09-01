@@ -6,7 +6,23 @@ import io.ktor.server.application.call
 import io.ktor.server.response.respond
 import io.ktor.server.routing.Route
 import io.ktor.server.routing.get
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
+import java.util.concurrent.atomic.AtomicReference
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.seconds
+
+/**
+ * How long the probe gets before this reports the database unreachable.
+ *
+ * Bounded because Hikari's connectionTimeout is 30s by default and Database.kt does not set it, so
+ * with Postgres actually down `transaction {}` blocks for half a minute and the endpoint answers
+ * nothing at all. Measured against a stopped Postgres: without this, curl gave up at 20s having
+ * received no response. A monitor reads a timeout as down either way, but a hang pins a thread and
+ * logs no reason, and neither is what a health check is for.
+ */
+private val PROBE_TIMEOUT = 2.seconds
 
 /**
  * Answers "could the app reach its database", for something watching from outside.
@@ -19,18 +35,46 @@ import org.jetbrains.exposed.v1.jdbc.transactions.transaction
  * Extracted from the route so both branches are testable. The 503 is the one that matters and it is
  * the one you cannot exercise by having a working database.
  */
-suspend fun ApplicationCall.respondDbHealth(probe: () -> Boolean) {
-    // Broad on purpose. The question is whether the database was reachable, and the ways it is not
-    // are not one exception type: a refused socket, an exhausted Hikari pool and a killed backend
-    // read differently and all mean the same thing here.
-    @Suppress("TooGenericExceptionCaught")
-    val reachable =
-        try {
-            probe()
-        } catch (e: Exception) {
-            failing("db unreachable: ${e.message}")
-            false
+suspend fun ApplicationCall.respondDbHealth(
+    timeout: Duration = PROBE_TIMEOUT,
+    probe: () -> Boolean,
+) {
+    // On a thread we are willing to abandon, joined with a deadline.
+    //
+    // withTimeout does NOT work here and the obvious version of this shipped broken. Cancellation in
+    // coroutines is cooperative, and a blocking JDBC call offers no suspension point to cancel at,
+    // so the timeout only fires once the call it was meant to bound has already returned. The test
+    // that blocks for 30s catches it.
+    //
+    // Daemon so a probe still stuck on a dead database cannot hold JVM shutdown open. It finishes
+    // on its own once Hikari gives up, and nobody is listening by then.
+    val reason = AtomicReference<String?>(null)
+    val result = AtomicReference<Boolean?>(null)
+    val worker =
+        Thread {
+            // Broad on purpose. The question is whether the database was reachable, and the ways it
+            // is not are not one exception type: a refused socket, an exhausted Hikari pool and a
+            // killed backend read differently and all mean the same thing here.
+            @Suppress("TooGenericExceptionCaught")
+            val answer =
+                try {
+                    probe()
+                } catch (e: Exception) {
+                    reason.set("db unreachable: ${e.message}")
+                    false
+                }
+            result.set(answer)
         }
+    worker.isDaemon = true
+    worker.name = "db-health-probe"
+    worker.start()
+
+    withContext(Dispatchers.IO) { worker.join(timeout.inWholeMilliseconds) }
+
+    val reachable = result.get() ?: false
+    if (!reachable) {
+        failing(reason.get() ?: "db probe did not answer within $timeout")
+    }
 
     if (reachable) {
         respond(mapOf("status" to "ok"))
