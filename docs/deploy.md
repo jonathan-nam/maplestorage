@@ -278,6 +278,56 @@ edit applies on the next deploy without a new version number.
 Changing `.env` needs `up -d` afterwards. It is not in git, so `deploy.sh`'s pull will not touch it,
 and a running container will not pick it up.
 
+## What watches this
+
+Three things, and they catch different failures. None of them overlaps as much as it looks.
+
+| Watcher | Catches | Misses |
+| --- | --- | --- |
+| Lightsail alarms | the instance dying or pegging CPU | everything software: 502s, a wedged Postgres, an expired certificate |
+| `.github/workflows/uptime.yml` | the API failing to reach its database, the frontend down, the certificate running out, the backup cron stopping | anything in the ~15 minutes between runs |
+| `certbot` renewal | nothing. It is a thing to be watched, not a watcher | |
+
+**The alert is a workflow going red.** GitHub emails the repo owner when a scheduled run fails on the
+default branch, and that is the entire notification mechanism, so nothing should fail in that
+workflow that is not worth an email. Each check retries three times before calling it.
+
+**`/health` is not a database check and must not become one.** It answers `ok` with Postgres dead,
+deliberately, because `deploy.sh` polls it to gate a rolling restart and a slow query must not stall
+one. Point monitors at **`/health/db`**, which runs `SELECT 1` and answers 503 within two seconds
+when it cannot.
+
+**Nothing emails you about certificate expiry.** Let's Encrypt ended expiration notifications on
+2025-06-04 and no longer stores the address, so the workflow's certificate check is the only warning
+that exists. Verify renewal actually works without spending a rate limit:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.prod.yml exec certbot \
+  certbot renew --webroot --webroot-path /var/www/certbot --dry-run
+```
+
+### The backup check needs its own key
+
+The box's backup user is `PutObject`-only on purpose, so it cannot list the bucket and cannot tell
+you whether the dump stopped arriving. `aws_iam_user.backup_reader` in `infra/` is a second identity
+with `ListBucket` and nothing else. The box writes and cannot read; GitHub reads and cannot write.
+
+After `terraform apply`, wire it up. Read the secret in a terminal that is **not** being transcribed:
+
+```bash
+cd infra
+terraform output -raw backup_reader_secret_access_key
+```
+
+```bash
+gh variable set BACKUP_BUCKET --body "$(terraform output -raw backup_bucket)"
+gh secret set BACKUP_READER_ACCESS_KEY_ID --body "$(terraform output -raw backup_reader_access_key_id)"
+gh secret set BACKUP_READER_SECRET_ACCESS_KEY   # paste when prompted
+```
+
+The backup job skips itself while `BACKUP_BUCKET` is unset, so the workflow is not red in the
+meantime.
+
 ## Restoring the database
 
 Do this once as a rehearsal, into a scratch database, and compare row counts. The box's own

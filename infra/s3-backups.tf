@@ -83,3 +83,36 @@ resource "aws_iam_user_policy" "backup" {
 resource "aws_iam_access_key" "backup" {
   user = aws_iam_user.backup.name
 }
+
+# A SECOND identity, read-only, for the uptime workflow's dead man's switch.
+#
+# Not the backup user above: that one is PutObject-only on purpose, so it cannot list the bucket and
+# therefore cannot tell you whether the nightly dump stopped arriving. Asking "is there a recent
+# object" needs ListBucket, and granting it to the box's key would let anything on the box enumerate
+# the backups. So the box writes and cannot read, and GitHub reads and cannot write.
+#
+# ListBucket only. Not GetObject: knowing a dump ARRIVED needs the listing, and nothing outside the
+# box has any business downloading the database.
+resource "aws_iam_user" "backup_reader" {
+  name = "${var.project_name}-${var.environment}-backup-reader"
+}
+
+resource "aws_iam_user_policy" "backup_reader" {
+  name = "${var.project_name}-backup-list-only"
+  user = aws_iam_user.backup_reader.name
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect   = "Allow"
+        Action   = ["s3:ListBucket"]
+        Resource = [aws_s3_bucket.backups.arn]
+      },
+    ]
+  })
+}
+
+resource "aws_iam_access_key" "backup_reader" {
+  user = aws_iam_user.backup_reader.name
+}
