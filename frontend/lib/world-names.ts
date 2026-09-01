@@ -16,3 +16,14 @@ export const WORLDS_IN: Record<WorldType, string[]> = {
   INTERACTIVE: ["Bera", "Scania"],
   HEROIC: ["Kronos", "Hyperion"],
 };
+
+/**
+ * Where a world's emblem was written by scripts/build-world-emblems.mjs.
+ *
+ * Derived from the name rather than listed, so a world added to GmsWorld.kt needs no second edit
+ * here. world-emblems.test.ts checks the file is actually there, because a path that is merely
+ * well-formed still renders a broken image.
+ */
+export function emblemFor(world: string): string {
+  return `/worlds/${world.toLowerCase()}.png`;
+}

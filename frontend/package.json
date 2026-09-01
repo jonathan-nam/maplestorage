@@ -13,7 +13,8 @@
     "format:check": "prettier --check .",
     "test": "vitest run",
     "test:watch": "vitest",
-    "marks": "node scripts/build-tab-marks.mjs"
+    "marks": "node scripts/build-tab-marks.mjs",
+    "worlds": "node scripts/build-world-emblems.mjs"
   },
   "dependencies": {
     "@vercel/analytics": "^2.0.1",

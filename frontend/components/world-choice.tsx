@@ -5,7 +5,7 @@ import { apiFetch } from "@/lib/api";
 import { SharpEyesMark } from "@/components/sharp-eyes-mark";
 import { setAccountSettings, SETTINGS_KEY } from "@/lib/use-account-settings";
 import { useAuth } from "@/lib/use-auth";
-import { WORLDS_IN } from "@/lib/world-names";
+import { WORLDS_IN, emblemFor } from "@/lib/world-names";
 import { WORLD_TYPES, worldLabel, type WorldType } from "@/lib/world";
 import type { Settings } from "@/types/settings";
 
@@ -58,12 +58,12 @@ export function WorldChoice() {
             disabled={busy !== null}
             onClick={() => choose(world)}
           >
-            {/* The emblems go here, one per world, cut from a world select capture the way
-                build_boss_portraits.py cuts the boss art. The names stand in until that capture
-                exists: the mirror this repo pulls item icons from serves no UI art. */}
+            {/* Each world's own emblem from the game's world select, beside its name. See
+                scripts/build-world-emblems.mjs for where they are cut from. */}
             <span className="world-choice-worlds">
               {WORLDS_IN[world].map((name) => (
                 <span key={name} className="world-choice-world">
+                  <img className="world-emblem" src={emblemFor(name)} alt="" />
                   {name}
                 </span>
               ))}

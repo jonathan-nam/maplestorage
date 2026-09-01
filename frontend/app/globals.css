@@ -1325,7 +1325,7 @@ html.switching-world .world-veil {
   cursor: default;
 }
 
-/* The worlds the card answers for. A row now, a row of emblems once the art is cut. */
+/* The worlds the card answers for, each with the emblem the game's own world select gives it. */
 .world-choice-worlds {
   display: flex;
   flex-wrap: wrap;
@@ -1333,6 +1333,20 @@ html.switching-world .world-veil {
   gap: 4px 10px;
   color: var(--muted);
   font-size: var(--text-base);
+}
+
+.world-choice-world {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+/* Cut to a 20px canvas and drawn at it. See scripts/build-world-emblems.mjs, which refuses art
+   that does not fit rather than scaling it. */
+.world-emblem {
+  width: 20px;
+  height: 20px;
+  image-rendering: pixelated;
 }
 
 .world-choice-name {
