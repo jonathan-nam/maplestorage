@@ -5520,12 +5520,6 @@ button.link:disabled {
   margin-top: 16px;
 }
 
-/* The counts over the Settled list. One line, because the three are one glance and each is a count
-   of a different kind of finished thing rather than a figure to compare. */
-.settled-counts {
-  margin: 0 0 12px;
-}
-
 /* Which config the drop fell on, in facts and separators. The boss and the day are on the DROPPED
    row and are not repeated here. Pulled up under the title, whose own margin is the gap. */
 .audit-meta {
