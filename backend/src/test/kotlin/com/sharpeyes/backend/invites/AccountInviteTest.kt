@@ -15,7 +15,9 @@ import com.sharpeyes.backend.parties.SavePeopleRequest
 import com.sharpeyes.backend.parties.bossIdForKey
 import com.sharpeyes.backend.parties.createParty
 import com.sharpeyes.backend.parties.savePeople
+import com.sharpeyes.backend.users.WORLD_INTERACTIVE
 import com.sharpeyes.backend.users.ensureUser
+import com.sharpeyes.backend.users.setActiveWorld
 import kotlinx.datetime.LocalDate
 import org.flywaydb.core.Flyway
 import org.jetbrains.exposed.v1.core.and
@@ -361,6 +363,23 @@ class AccountInviteTest {
         assertFalse(hashInviteToken(token).contains(token))
     }
 
+    @Test
+    fun `a sender who has not chosen a world has no link to give`() {
+        transaction {
+            val mine = addCharacter(senderId, "mechyfechy", position = 0)
+            attribute("Bro", "CreedBratton")
+            config(mine, "kalos-the-guardian", listOf("CreedBratton"))
+            val personId = personRow(senderId, "Bro")[Person.id]
+            assertNotNull(buildInvitePayload(senderId, personId, "Jonathan"))
+
+            // Every config the link would carry was read through the sender's world. Without one
+            // there is nothing to read them through, and a link built anyway would hand over an
+            // arrangement its sender was never shown. See V71.
+            Users.update({ Users.id eq senderId }) { it[worldType] = null }
+            assertNull(buildInvitePayload(senderId, personId, "Jonathan"))
+        }
+    }
+
     // Helpers. Each writes the sender's side of one fact, so the tests above read as the claim
     // they make rather than as setup.
 
@@ -370,6 +389,12 @@ class AccountInviteTest {
         position: Int,
     ): Uuid {
         ensureUser(userId, "$userId@example.com")
+        // A character is inserted here directly, so the account has to say which world it is
+        // looking at. buildInvitePayload refuses for a sender with no world, every config it would
+        // read being narrowed by one: see V71 and users/WorldType.kt. The RECIPIENT keeps none,
+        // deliberately, because accepting is what gives them one (InviteAccept sets it from the
+        // payload) and that is the behaviour these tests are here to hold.
+        setActiveWorld(userId, WORLD_INTERACTIVE)
         val id = Uuid.random()
         val now = Clock.System.now()
         Characters.insert {
