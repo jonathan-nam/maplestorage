@@ -11,9 +11,10 @@ const css = readFileSync(join(__dirname, "..", "app", "globals.css"), "utf8");
 //
 // Twice of those it was broken WITH THIS FILE ALREADY HERE, by a rule that only narrows an icon
 // somebody else declared the filter on: a 46px drop icon at 22px two folds into a ledger card, and
-// a 96px avatar at 72px in the Boss Clears picker. So the guard now follows the cascade rather than
-// reading one rule's body (see filterFor), and it is CLOSED rather than opt-in: a rule that sizes
-// an image and is in neither table below fails, instead of being invisible the way those two were.
+// a 96px avatar at 72px in the Boss Clears picker (that one is gone, every strip now draws the
+// avatar at its own size). So the guard follows the cascade rather than reading one rule's body
+// (see filterFor), and it is CLOSED rather than opt-in: a rule that sizes an image and is in
+// neither table below fails, instead of being invisible the way those two were.
 //
 // The natural sizes are facts about assets, not about this file, and each is pinned where the asset
 // is made:
@@ -36,8 +37,7 @@ const NATURAL: Record<string, number> = {
   ".boss-portrait": 26, // planner portrait, the game's own size
   ".boss-portrait.is-small": 26,
   ".run-art": 80, // the @2x portrait, BOSS_ART_2X
-  ".tile-sprite": 96, // Nexon avatar render
-  ".char-tile.is-compact .tile-sprite": 96, // 0.75x, smoothed
+  ".tile-sprite": 96, // Nexon avatar render, and the one size a strip's sprite is drawn at
   ".character-row-sprite": 96,
   ".boss-char-sprite": 96,
   ".roster-sprite": 96,
@@ -69,8 +69,9 @@ const RULES: Rule[] = [...sheet.matchAll(/(?:^|\n)([^\n@{}][^{}]*)\{([^{}]*)\}/g
 /**
  * The element a rule actually sizes, which is the LAST compound in its selector.
  *
- * `.char-tile.is-compact .tile-sprite` sizes a `.tile-sprite`, and that is the element `.tile-sprite`
- * declared the filter on. Reading the whole selector instead is what let the two live cases hide.
+ * `.ledger-drop-head.is-oneline .loot-icon` sizes a `.loot-icon`, and that is the element
+ * `.loot-icon` declared the filter on. Reading the whole selector instead let the two live cases
+ * hide.
  */
 function subject(selector: string): { classes: Set<string>; tag: string | null } {
   const last =

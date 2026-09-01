@@ -53,7 +53,10 @@ export function useCarousel(deps: unknown[]) {
     const tile = el.firstElementChild as HTMLElement | null;
     const gap = parseFloat(getComputedStyle(el).columnGap) || 16;
     const stride = tile ? tile.offsetWidth + gap : 206;
-    const perPage = Math.max(1, Math.floor(el.clientWidth / stride));
+    // Add a gap back before dividing: the visible width holds the gaps BETWEEN its tiles, one
+    // short of a whole number of strides. Dividing without it pages a strip showing exactly four
+    // by three, which is what a tile sized as a share of the track always is.
+    const perPage = Math.max(1, Math.round((el.clientWidth + gap) / stride));
     el.scrollBy({ left: direction * perPage * stride, behavior: "smooth" });
   }
 

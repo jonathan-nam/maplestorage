@@ -613,29 +613,14 @@ a:hover {
 /* The picker on Boss Clears. Same tile, smaller: there it is a field in a form, not the subject of
    the page, and it carries no level or class line under the name. */
 .char-tile.is-compact {
-  width: 96px;
   border: 0;
   background: none;
   color: inherit;
   font: inherit;
 }
 
-/* SMOOTHED, because 72 is 0.75x of the 96px avatar and the filter is inherited from .tile-sprite.
-   Nearest at three quarters drops one column in four, which walks up the face. Same call as the
-   ledger row's icon: below 1:1 it is nearest that wrecks the shape. */
-.char-tile.is-compact .tile-sprite {
-  width: 72px;
-  height: 72px;
-  image-rendering: auto;
-}
-
 .char-tile.is-compact .tile-name {
   font-size: var(--text-base);
-  /* A long IGN must not widen the tile, or the strip pages by a stride that no longer matches. */
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .tile-plate {
@@ -643,9 +628,16 @@ a:hover {
   line-height: 1.3;
 }
 
+/* A long IGN is cut, not carried. Every tile is a share of its strip's width (see .carousel-track
+   .char-tile), so a name left to set its own width takes that share with it and the strip pages by
+   a stride that no longer matches. */
 .tile-name {
   font-weight: 600;
   color: var(--ink);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .char-tile.selected .tile-name {
@@ -1089,32 +1081,29 @@ button.ms-slot {
   margin: 16px 0 8px;
 }
 
-/* Four sprites at a time, and page for the rest: four is the number anywhere this app puts sprites
-   in a row (lib/carousel.ts, pinned to this rule by lib/carousel.test.ts). The compact picker used
-   to show seven on a wide window, which reads as a wall of faces rather than a set to pick from.
-   --tile-outer is the tile's OUTER width, its 150px content plus 4px padding either side
-   (.char-tile is content-box), which is the stride the arrows page by. */
 .carousel-track {
-  --tile-outer: 158px;
   display: flex;
   flex: 1;
   gap: 16px;
-  max-width: calc(4 * var(--tile-outer) + 3 * 16px);
   overflow-x: auto;
   scroll-snap-type: x mandatory;
   scrollbar-width: none;
-}
-
-.carousel-compact .carousel-track {
-  --tile-outer: 104px;
 }
 
 .carousel-track::-webkit-scrollbar {
   display: none;
 }
 
+/* Four across the strip, whatever the strip is wide: four is the number anywhere this app puts
+   sprites in a row (lib/carousel.ts, pinned to this rule by lib/carousel.test.ts). A share of the
+   track rather than a fixed width, so the strip fills its column and the fifth tile is fully off
+   the end. Capping the track's width instead let a fifth name show at the edge, because a long IGN
+   widened its own tile past the width the cap was arithmetic on: min-width is the flex default of
+   auto, so content, not the declared width, was setting the tile's size. */
 .carousel-track .char-tile {
-  flex: 0 0 auto;
+  flex: 0 0 calc((100% - 3 * 16px) / 4);
+  box-sizing: border-box;
+  min-width: 0;
   scroll-snap-align: start;
 }
 
