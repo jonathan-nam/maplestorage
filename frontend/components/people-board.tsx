@@ -28,6 +28,7 @@ export function PeopleBoard({
   spriteFor,
   busy,
   unsaved,
+  inviting,
   onChange,
   onRename,
   onRemove,
@@ -46,6 +47,8 @@ export function PeopleBoard({
    * a roster that does not match the screen it was made from.
    */
   unsaved: boolean;
+  /** The person whose link is being made right now, if any. Only their button says so. */
+  inviting: string | null;
   onChange: (people: PersonDraft[]) => void;
   onRename: (index: number, name: string) => void;
   onRemove: (index: number) => void;
@@ -130,11 +133,13 @@ export function PeopleBoard({
                   <button
                     type="button"
                     className="person-invite"
-                    disabled={busy || unsaved}
+                    disabled={busy || unsaved || inviting !== null}
                     title={unsaved ? "Save first" : undefined}
                     onClick={() => onInvite(row.id as string)}
                   >
-                    Invite
+                    {/* The wait is here rather than in the dialog, which does not open until there
+                        is a link to put in it. */}
+                    {inviting === row.id ? "Making..." : "Invite"}
                   </button>
                 )}
                 <button
