@@ -74,58 +74,78 @@ await_replica() {
   return 1
 }
 
-# Postgres first.
+# A cold start cannot take the rolling path. await_replica asks FROM INSIDE nginx, and nginx is
+# started at the END of that path, so on a box where nothing is running yet every probe fails and
+# the first replica is declared dead after 60s. The first real deploy died exactly there, with a
+# backend that had migrated and was answering on 8080.
 #
-# There used to be a branch here for the parser being replaced, and it was the sharpest edge in the
-# file: the replicas lived inside the parser's network namespace, so recreating it left them holding
-# a namespace with nothing in it. They kept reporting `running`, the proxy got connection refused on
-# both upstreams, and it never recovered on its own. It was the one deploy that cost downtime.
-#
-# The parser is not deployed any more and the replicas have their own network, so there is nothing
-# to strand and no branch to take.
-echo "==> postgres"
-"${COMPOSE[@]}" up -d postgres
+# There is also nothing to protect on a cold start: no traffic, and no other replica to keep serving.
+# So hand the whole stack to compose, which has the dependency order right already, and skip the
+# careful part rather than reimplementing it.
+if ! "${COMPOSE[@]}" ps --status running --services 2>/dev/null | grep -qx nginx; then
+  echo "==> cold start: nothing is serving yet, bringing the whole stack up"
+  "${COMPOSE[@]}" up -d
+else
+  # Postgres first.
+  #
+  # There used to be a branch here for the parser being replaced, and it was the sharpest edge in the
+  # file: the replicas lived inside the parser's network namespace, so recreating it left them holding
+  # a namespace with nothing in it. They kept reporting `running`, the proxy got connection refused on
+  # both upstreams, and it never recovered on its own. It was the one deploy that cost downtime.
+  #
+  # The parser is not deployed any more and the replicas have their own network, so there is nothing
+  # to strand and no branch to take.
+  echo "==> postgres"
+  "${COMPOSE[@]}" up -d postgres
 
-# Sign-in, on its own and before the replicas.
-#
-# One instance, no rolling, and that is fine: the backend verifies tokens offline against keys it
-# cached at startup, so nothing serving the API depends on this being up. The cost of a restart is
-# a few seconds in which somebody cannot START a session, not one in which sessions stop working.
-echo "==> auth"
-"${COMPOSE[@]}" up -d --no-deps auth
+  # Sign-in, on its own and before the replicas.
+  #
+  # One instance, no rolling, and that is fine: the backend verifies tokens offline against keys it
+  # cached at startup, so nothing serving the API depends on this being up. The cost of a restart is
+  # a few seconds in which somebody cannot START a session, not one in which sessions stop working.
+  echo "==> auth"
+  "${COMPOSE[@]}" up -d --no-deps auth
 
-# One replica at a time. No --force-recreate: compose leaves a replica alone when nothing about it
-# changed, and a deploy that restarts nothing is the correct outcome for a docs-only commit.
-for replica in "${REPLICAS[@]}"; do
-  name="${replica%%:*}"
-  port="${replica##*:}"
+  # One replica at a time. No --force-recreate: compose leaves a replica alone when nothing about it
+  # changed, and a deploy that restarts nothing is the correct outcome for a docs-only commit.
+  for replica in "${REPLICAS[@]}"; do
+    name="${replica%%:*}"
+    port="${replica##*:}"
 
-  echo "==> ${name}"
-  "${COMPOSE[@]}" up -d --no-deps "$name"
+    echo "==> ${name}"
+    "${COMPOSE[@]}" up -d --no-deps "$name"
 
-  # Reload nginx before waiting, not after the loop. It resolves upstream addresses when it starts
-  # or reloads, and a recreated container can come back on a different one. Skip this and nginx
-  # keeps proxying to an address nothing is listening on, which looks like a replica that came up
-  # healthy and serves 502s anyway. Caddy re-resolved on its own; this is the replacement for that.
-  "${COMPOSE[@]}" exec -T nginx nginx -s reload 2>/dev/null || true
+    # Reload nginx before waiting, not after the loop. It resolves upstream addresses when it starts
+    # or reloads, and a recreated container can come back on a different one. Skip this and nginx
+    # keeps proxying to an address nothing is listening on, which looks like a replica that came up
+    # healthy and serves 502s anyway. Caddy re-resolved on its own; this is the replacement for that.
+    "${COMPOSE[@]}" exec -T nginx nginx -s reload 2>/dev/null || true
 
-  if ! await_replica "$name" "$port"; then
-    echo "==> the other replica is still serving. Nothing further was restarted." >&2
-    exit 1
-  fi
-done
+    if ! await_replica "$name" "$port"; then
+      echo "==> the other replica is still serving. Nothing further was restarted." >&2
+      exit 1
+    fi
+  done
 
-# nginx last, and reloaded rather than restarted. The config is a bind-mounted template, so compose
-# cannot see that it changed and `up -d` would leave the old one running; restarting the container
-# would drop live connections for no reason. `nginx -s reload` swaps it with neither.
-#
-# The template is rendered by the image's entrypoint, which only runs at START-UP, so a changed
-# template needs the container recreated before a reload has anything new to load. Hence up -d with
-# --force-recreate rather than a bare reload.
-echo "==> nginx"
-"${COMPOSE[@]}" up -d --no-deps --force-recreate nginx
-"${COMPOSE[@]}" exec -T nginx nginx -t
-"${COMPOSE[@]}" exec -T nginx nginx -s reload
+  # nginx last, and reloaded rather than restarted. The config is a bind-mounted template, so compose
+  # cannot see that it changed and `up -d` would leave the old one running; restarting the container
+  # would drop live connections for no reason. `nginx -s reload` swaps it with neither.
+  #
+  # The template is rendered by the image's entrypoint, which only runs at START-UP, so a changed
+  # template needs the container recreated before a reload has anything new to load. Hence up -d with
+  # --force-recreate rather than a bare reload.
+  echo "==> nginx"
+  "${COMPOSE[@]}" up -d --no-deps --force-recreate nginx
+  "${COMPOSE[@]}" exec -T nginx nginx -t
+  "${COMPOSE[@]}" exec -T nginx nginx -s reload
+
+  # certbot is NOT in the rolling path above and was in no path at all: it appeared exactly once in
+  # this file, inside the failure branch's `logs`. So nothing ever started it, no certificate was
+  # ever requested, and the health check below then failed against the self-signed placeholder.
+  # `up -d` covers it on a cold start; this is the warm one.
+  echo "==> certbot"
+  "${COMPOSE[@]}" up -d --no-deps certbot
+fi
 
 # The real check, made from outside, through nginx, over TLS, against the actual hostname. A
 # container that is "up" proves nothing.

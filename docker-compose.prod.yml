@@ -141,8 +141,15 @@ services:
     # Reloads itself every six hours to pick up a renewed certificate. certbot cannot signal it,
     # they are separate containers, and this is the standard way round that. The `wait $${!}` is so
     # a `docker compose stop` is not held up for six hours by the sleep.
+    # /docker-entrypoint.sh FIRST, and it is not decoration. The nginx image only runs its
+    # envsubst-over-templates step when $$1 is `nginx`, and this command's $$1 is `/bin/sh`. Without
+    # it the template is never rendered, nginx serves the image's stock default.conf, and the first
+    # deploy came up on server_name localhost with no 443 listener at all. It answered port 80 with
+    # a 404, which reads as a routing mistake rather than a config that was never loaded.
+    # `nginx -t` is just a cheap command for the entrypoint to exec once the rendering is done.
     command: >-
-      /bin/sh -c 'while :; do sleep 6h & wait $${!}; nginx -s reload; done & nginx -g "daemon off;"'
+      /bin/sh -c '/docker-entrypoint.sh nginx -t;
+      while :; do sleep 6h & wait $${!}; nginx -s reload; done & nginx -g "daemon off;"'
     depends_on:
       cert-init:
         condition: service_completed_successfully
@@ -163,6 +170,9 @@ services:
       CERTBOT_EMAIL: ${CERTBOT_EMAIL:?an address for Let's Encrypt expiry warnings}
     volumes:
       - ./nginx/certbot-loop.sh:/certbot-loop.sh:ro
+      # Also mounted here, not just in cert-init: the loop puts the placeholder BACK when issuance
+      # fails, so a recreated nginx still has something to start with.
+      - ./nginx/bootstrap-cert.sh:/bootstrap-cert.sh:ro
       - letsencrypt:/etc/letsencrypt
       - certbot-webroot:/var/www/certbot
     depends_on:
