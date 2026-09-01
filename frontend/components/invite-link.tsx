@@ -5,40 +5,41 @@ import { inviteUrl } from "@/lib/invite-link";
 import type { Invite } from "@/types/invite";
 
 /**
- * Makes one person a link that starts their account from your side of the parties you share.
+ * The link that starts one person's account from your side of the parties you share.
+ *
+ * One action. Pressing Invite makes the link and this shows it; there is nothing to fill in first.
+ * It used to ask what the recipient should see you called, which turned a button into a form and
+ * needed a label to explain why the box was there. The server takes your main character's name,
+ * which is what a friend knows you by, and the recipient can rename you on their own people list
+ * like anybody else.
  *
  * A dialog over the board rather than a panel below it. The board is as tall as its people, so a
  * panel appended underneath opened off screen for anybody with more than a couple, and the button
  * that opened it stayed exactly where it was: pressing Invite looked like it did nothing.
- *
- * Two steps, because they answer different questions. First what they should see you called, which
- * only you can say: nothing on the account is a name a friend would recognise. Then the link
- * itself, which is shown once. The backend keeps only its hash, so a link that was not copied is
- * made again rather than looked up.
  */
 export function InviteLink({
   person,
-  defaultName,
   onCreate,
   onClose,
 }: {
   person: string;
-  /** Your main character, which is what a friend already knows you as. */
-  defaultName: string;
-  onCreate: (senderName: string) => Promise<Invite>;
+  onCreate: () => Promise<Invite>;
   onClose: () => void;
 }) {
-  const [senderName, setSenderName] = useState(defaultName);
   const [invite, setInvite] = useState<Invite | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
   const [copied, setCopied] = useState(false);
-  const first = useRef<HTMLInputElement>(null);
+  const asked = useRef(false);
 
-  // Escape closes, and the focus starts inside. Both are what make this a dialog rather than a box
-  // drawn on top of one: without them the page behind still has the keyboard.
   useEffect(() => {
-    first.current?.select();
+    // Once. The effect runs twice on a StrictMode remount, and each call spends a token and
+    // replaces the link the last one made, so the URL on screen would not be the one just created.
+    if (!asked.current) {
+      asked.current = true;
+      onCreate()
+        .then(setInvite)
+        .catch(() => setFailed(true));
+    }
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
     };
@@ -47,20 +48,8 @@ export function InviteLink({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  async function create() {
-    setBusy(true);
-    setError(null);
-    try {
-      setInvite(await onCreate(senderName.trim()));
-    } catch {
-      setError("Couldn't make a link.");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  // The token is only ever on the response that created it, so this is the one render that can
-  // show a URL. A dialog reopened later starts again at the name.
+  // The token is only ever on the response that created it, so this is the one render that can show
+  // a URL. A dialog opened again makes a new link rather than looking the old one up.
   const url = invite?.token != null ? inviteUrl(window.location.origin, invite.token) : "";
 
   async function copy() {
@@ -87,58 +76,35 @@ export function InviteLink({
       >
         <h2 className="invite-title">Invite {person}</h2>
 
-        {invite?.token == null ? (
-          <>
-            <label className="invite-field">
-              <span className="field-label">What {person} sees you called</span>
-              <input
-                ref={first}
-                className="split-input"
-                value={senderName}
-                onChange={(e) => setSenderName(e.target.value)}
-                placeholder="Your name"
-                maxLength={40}
-              />
-            </label>
-            <div className="invite-actions">
-              <button
-                type="button"
-                className="party-save"
-                disabled={busy || senderName.trim() === ""}
-                onClick={create}
-              >
-                {busy ? "Making..." : "Make a link"}
-              </button>
-              <button type="button" className="party-cancel" onClick={onClose}>
-                Cancel
-              </button>
-            </div>
-            {error && <p className="split-error">{error}</p>}
-          </>
-        ) : (
-          <>
-            <label className="invite-field">
-              <span className="field-label">
-                {invite.characterCount} characters, {invite.partyCount} parties
-              </span>
-              <input
-                className="split-input invite-url"
-                value={url}
-                readOnly
-                aria-label="Link"
-                onFocus={(e) => e.target.select()}
-              />
-            </label>
-            <div className="invite-actions">
-              <button type="button" className="party-save" onClick={copy}>
-                {copied ? "Copied" : "Copy link"}
-              </button>
-              <button type="button" className="party-cancel" onClick={onClose}>
-                Done
-              </button>
-            </div>
-          </>
+        {failed && <p className="split-error">Couldn&apos;t make a link.</p>}
+
+        {!failed && (
+          <label className="invite-field">
+            <span className="field-label">
+              {invite === null
+                ? "Making a link..."
+                : `${invite.characterCount} characters, ${invite.partyCount} parties`}
+            </span>
+            <input
+              className="split-input invite-url"
+              value={url}
+              readOnly
+              aria-label="Link"
+              onFocus={(e) => e.target.select()}
+            />
+          </label>
         )}
+
+        <div className="invite-actions">
+          {!failed && (
+            <button type="button" className="party-save" disabled={invite === null} onClick={copy}>
+              {copied ? "Copied" : "Copy link"}
+            </button>
+          )}
+          <button type="button" className="party-cancel" onClick={onClose}>
+            {failed ? "Close" : "Done"}
+          </button>
+        </div>
       </div>
     </div>
   );

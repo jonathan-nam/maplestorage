@@ -121,10 +121,17 @@ const val OMITTED_DUPLICATE_BOSS = "already has a config for this boss"
  */
 const val OMITTED_UNKNOWN_BOSS = "this boss is no longer in the catalog"
 
+/**
+ * Who to make a link for. That is the whole of it.
+ *
+ * No name: the sender was asked one, and being asked is what made a one-click action into a form.
+ * The account already holds a name a friend knows them by, and the recipient can rename them on
+ * their own people list afterwards, so asking bought nothing that could not be corrected. See
+ * senderNameFor.
+ */
 @Serializable
 data class CreateInviteRequest(
     val personId: String,
-    val senderName: String,
 )
 
 /**

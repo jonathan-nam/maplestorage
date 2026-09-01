@@ -44,7 +44,7 @@ export type AcceptedInvite = {
   omitted: InviteOmission[];
 };
 
+/** Who to make a link for. The name it is sent under is the server's to decide: see senderNameFor. */
 export type CreateInviteBody = {
   personId: string;
-  senderName: string;
 };

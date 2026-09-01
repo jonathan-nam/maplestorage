@@ -6,6 +6,7 @@ import com.sharpeyes.backend.db.Party
 import com.sharpeyes.backend.db.PartyMember
 import com.sharpeyes.backend.db.Person
 import com.sharpeyes.backend.db.PersonCharacter
+import com.sharpeyes.backend.db.Users
 import com.sharpeyes.backend.parties.seatSpritesByCharacter
 import com.sharpeyes.backend.users.activeWorldFor
 import org.jetbrains.exposed.v1.core.JoinType
@@ -83,6 +84,36 @@ internal fun buildInvitePayload(
         omitted = omitted,
         sprites = spritesFor(userId, theirCharacters + seatNames),
     )
+}
+
+/**
+ * What a friend already knows the sender as: their main character, else the first in the carousel.
+ *
+ * Their in-game name, not their account's. `users` holds an email and an id, and neither is a thing
+ * to put on somebody else's people list. Null only for an account with no characters at all, which
+ * has no people to invite either.
+ *
+ * Derived rather than typed. The sender used to be asked, which turned a one-click action into a
+ * form and needed a label to explain why the box was there. A wrong guess here costs nothing: the
+ * recipient renames people on their own list like any other.
+ *
+ * Must be called from inside a `transaction { }` block.
+ */
+internal fun senderNameFor(userId: String): String? {
+    val main =
+        Users
+            .selectAll()
+            .where { Users.id eq userId }
+            .firstOrNull()
+            ?.get(Users.mainCharacterId)
+    val mine =
+        Characters
+            .selectAll()
+            .where { Characters.userId eq userId }
+            .orderBy(Characters.position)
+            .toList()
+    return mine.firstOrNull { it[Characters.id] == main }?.get(Characters.name)
+        ?: mine.firstOrNull()?.get(Characters.name)
 }
 
 /**
