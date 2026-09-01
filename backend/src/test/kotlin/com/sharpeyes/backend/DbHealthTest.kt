@@ -1,14 +1,18 @@
 package com.sharpeyes.backend
 
+import com.sharpeyes.backend.plugins.dbReachable
 import com.sharpeyes.backend.plugins.respondDbHealth
 import io.ktor.client.request.get
+import io.ktor.client.request.head
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.HttpStatusCode
 import io.ktor.serialization.kotlinx.json.json
 import io.ktor.server.application.install
 import io.ktor.server.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.server.plugins.statuspages.StatusPages
+import io.ktor.server.response.respond
 import io.ktor.server.routing.get
+import io.ktor.server.routing.head
 import io.ktor.server.routing.routing
 import io.ktor.server.testing.testApplication
 import kotlinx.serialization.json.Json
@@ -80,4 +84,38 @@ class DbHealthTest {
         val elapsed = System.currentTimeMillis() - startedAt
         assertTrue(elapsed < 10_000, "answered in ${elapsed}ms, so it waited on the probe")
     }
+
+    // Uptime monitors default to HEAD because it is cheaper. Ktor routes it separately from GET and
+    // answers 405 otherwise, which a monitor reads as the site being permanently down. Production
+    // returned 405 here until this was added.
+    private fun assertHead(
+        expected: HttpStatusCode,
+        probe: () -> Boolean,
+    ) = testApplication {
+        application {
+            install(ContentNegotiation) { json(Json) }
+            routing {
+                head("/health/db") {
+                    val status =
+                        if (call.dbReachable(2.seconds, probe)) {
+                            HttpStatusCode.OK
+                        } else {
+                            HttpStatusCode.ServiceUnavailable
+                        }
+                    call.respond(status)
+                }
+            }
+        }
+
+        val response = client.head("/health/db")
+        assertEquals(expected, response.status)
+        // A HEAD response must not carry a body.
+        assertEquals("", response.bodyAsText())
+    }
+
+    @Test
+    fun `answers HEAD rather than 405 when the database is up`() = assertHead(HttpStatusCode.OK) { true }
+
+    @Test
+    fun `answers HEAD with 503 when the database is down`() = assertHead(HttpStatusCode.ServiceUnavailable) { false }
 }

@@ -6,6 +6,7 @@ import io.ktor.server.application.call
 import io.ktor.server.response.respond
 import io.ktor.server.routing.Route
 import io.ktor.server.routing.get
+import io.ktor.server.routing.head
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
@@ -35,10 +36,10 @@ private val PROBE_TIMEOUT = 2.seconds
  * Extracted from the route so both branches are testable. The 503 is the one that matters and it is
  * the one you cannot exercise by having a working database.
  */
-suspend fun ApplicationCall.respondDbHealth(
+suspend fun ApplicationCall.dbReachable(
     timeout: Duration = PROBE_TIMEOUT,
     probe: () -> Boolean,
-) {
+): Boolean {
     // On a thread we are willing to abandon, joined with a deadline.
     //
     // withTimeout does NOT work here and the obvious version of this shipped broken. Cancellation in
@@ -76,7 +77,17 @@ suspend fun ApplicationCall.respondDbHealth(
         failing(reason.get() ?: "db probe did not answer within $timeout")
     }
 
-    if (reachable) {
+    return reachable
+}
+
+/**
+ * The GET body. Split from [dbReachable] so HEAD can ask the same question and answer without one.
+ */
+suspend fun ApplicationCall.respondDbHealth(
+    timeout: Duration = PROBE_TIMEOUT,
+    probe: () -> Boolean,
+) {
+    if (dbReachable(timeout, probe)) {
         respond(mapOf("status" to "ok"))
     } else {
         respond(HttpStatusCode.ServiceUnavailable, mapOf("status" to "db unreachable"))
@@ -98,6 +109,28 @@ fun Route.healthRoutes() {
     }
 
     get("/health/db") {
-        call.respondDbHealth { transaction { exec("SELECT 1") { rows -> rows.next() } } == true }
+        call.respondDbHealth { dbProbe() }
+    }
+
+    // HEAD, because uptime monitors default to it: it is cheaper and they only want the status.
+    // Without these, such a monitor gets 405 on every check and reports the site permanently down,
+    // which is worse than no monitor because you learn to ignore it. Ktor routes HEAD separately
+    // from GET and answers 405 otherwise.
+    //
+    // Status only. A HEAD response must not carry a body.
+    head("/health") {
+        call.respond(HttpStatusCode.OK)
+    }
+
+    head("/health/db") {
+        val status =
+            if (call.dbReachable { dbProbe() }) HttpStatusCode.OK else HttpStatusCode.ServiceUnavailable
+        call.respond(status)
     }
 }
+
+/**
+ * The cheapest question that still proves the database answered. Shared by GET and HEAD so the two
+ * cannot drift into checking different things.
+ */
+private fun dbProbe(): Boolean = transaction { exec("SELECT 1") { rows -> rows.next() } } == true
