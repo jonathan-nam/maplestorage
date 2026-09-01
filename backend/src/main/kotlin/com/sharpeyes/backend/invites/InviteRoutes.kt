@@ -84,14 +84,9 @@ private suspend fun RoutingContext.createInviteRoute() {
     val (userId, email) = call.principalIdAndEmail()
     val request = call.receive<CreateInviteRequest>()
     val personId = Uuid.parseOrNull(request.personId)
-    val senderName = request.senderName.trim()
 
     if (personId == null) {
         call.respond(HttpStatusCode.BadRequest, "malformed personId")
-        return
-    }
-    if (senderName.isEmpty()) {
-        call.respond(HttpStatusCode.BadRequest, "a link needs a name to send it under")
         return
     }
 
@@ -100,6 +95,8 @@ private suspend fun RoutingContext.createInviteRoute() {
     val created =
         transaction {
             ensureUser(userId, email)
+            // Derived, never sent: the client does not tell the server the user's own name.
+            val senderName = senderNameFor(userId) ?: return@transaction null
             val payload = buildInvitePayload(userId, personId, senderName) ?: return@transaction null
 
             AccountInvite.deleteWhere {
@@ -128,7 +125,7 @@ private suspend fun RoutingContext.createInviteRoute() {
         }
 
     if (created == null) {
-        call.respond(HttpStatusCode.NotFound, "no such person")
+        call.respond(HttpStatusCode.NotFound, "no such person, or no character to send the link as")
     } else {
         call.respond(HttpStatusCode.Created, created)
     }

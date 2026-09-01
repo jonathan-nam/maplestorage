@@ -8,6 +8,7 @@ import com.sharpeyes.backend.db.Party
 import com.sharpeyes.backend.db.PartyMember
 import com.sharpeyes.backend.db.Person
 import com.sharpeyes.backend.db.PersonCharacter
+import com.sharpeyes.backend.db.Users
 import com.sharpeyes.backend.parties.PersonRequest
 import com.sharpeyes.backend.parties.SavePartyRequest
 import com.sharpeyes.backend.parties.SavePeopleRequest
@@ -327,6 +328,24 @@ class AccountInviteTest {
             // Merging would mean deciding whether the CreedBratton in the payload is the one
             // already here, and a wrong answer reads exactly like a right one.
             assertFalse(accountIsEmpty(recipientId))
+        }
+    }
+
+    @Test
+    fun `a link is sent under your main character's name, and is never asked for`() {
+        transaction {
+            addCharacter(senderId, "mechyfechy", position = 0)
+            val main = addCharacter(senderId, "acornacorn", position = 1)
+
+            // No main set yet, so the first in the carousel is the closest thing to one.
+            assertEquals("mechyfechy", senderNameFor(senderId))
+
+            Users.update({ Users.id eq senderId }) { it[mainCharacterId] = main }
+            assertEquals("acornacorn", senderNameFor(senderId))
+
+            // Nothing to send one as. That account has no people to invite either, so the route
+            // refusing is the whole of what this has to do.
+            assertNull(senderNameFor(recipientId))
         }
     }
 
