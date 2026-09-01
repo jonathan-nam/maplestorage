@@ -1,8 +1,10 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { type ReactNode, useRef, useState } from "react";
+import { CarouselFrame } from "@/components/carousel-frame";
 import { KNOWN_CHARACTERS_ID, KnownCharacters } from "@/components/known-characters";
 import { spriteUrl } from "@/lib/api";
+import { useCarousel } from "@/lib/use-carousel";
 import { type PersonDraft, claim } from "@/lib/people-board";
 
 // Only our own chips are accepted, so text dragged in from anywhere else is not read as a name.
@@ -78,7 +80,7 @@ export function PeopleBoard({
 
   function zoneProps(personIndex: number | null) {
     return {
-      className: `roster-strip person-chips${over !== undefined && over === personIndex ? " is-target" : ""}`,
+      className: `person-chips${over !== undefined && over === personIndex ? " is-target" : ""}`,
       onDragOver: (e: React.DragEvent) => {
         if (busy || !e.dataTransfer.types.includes(DRAG_TYPE)) return;
         e.preventDefault();
@@ -107,15 +109,45 @@ export function PeopleBoard({
         {people.map((row, index) => (
           // A saved person keys on their id; a new row has only its slot.
           <div className="person-row" key={row.id ?? `new-${index}`}>
-            <input
-              className="split-input person-name"
-              value={row.name}
-              onChange={(e) => onRename(index, e.target.value)}
-              placeholder="Jared"
-              aria-label="Person's name"
-              maxLength={40}
-            />
-            <ul {...zoneProps(index)}>
+            {/* Who they are and what you can do about them, in one column. The lane beside it
+                takes whatever width is left, which is what keeps every row the same shape however
+                many characters a person has. */}
+            <div className="person-meta">
+              <label className="person-name-field">
+                <span className="field-label">Name</span>
+                <input
+                  className="split-input person-name"
+                  value={row.name}
+                  onChange={(e) => onRename(index, e.target.value)}
+                  placeholder="Jared"
+                  maxLength={40}
+                />
+              </label>
+              <div className="person-meta-actions">
+                {/* Only a saved person can be sent one: the link is made from their row in the
+                    database, and a row that is not there yet has no id to make it from. */}
+                {row.id != null && (
+                  <button
+                    type="button"
+                    className="person-invite"
+                    disabled={busy || unsaved}
+                    title={unsaved ? "Save first" : undefined}
+                    onClick={() => onInvite(row.id as string)}
+                  >
+                    Invite
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className="party-delete"
+                  disabled={busy}
+                  onClick={() => onRemove(index)}
+                >
+                  Remove
+                </button>
+              </div>
+            </div>
+            <TileStrip zone={zoneProps(index)} deps={[row.characters, picked, adding]}>
               {row.characters.map((name) => (
                 <Chip
                   key={name}
@@ -142,34 +174,13 @@ export function PeopleBoard({
               {picked === null && adding !== index && (
                 <AddCard person={row.name} busy={busy} onOpen={() => setAdding(index)} />
               )}
-            </ul>
-            {/* Only a saved person can be sent one: the link is made from their row in the
-                database, and a row that is not there yet has no id to make it from. */}
-            {row.id != null && (
-              <button
-                type="button"
-                className="party-add-seat"
-                disabled={busy || unsaved}
-                title={unsaved ? "Save first" : undefined}
-                onClick={() => onInvite(row.id as string)}
-              >
-                Invite
-              </button>
-            )}
-            <button
-              type="button"
-              className="party-delete"
-              disabled={busy}
-              onClick={() => onRemove(index)}
-            >
-              Remove
-            </button>
+            </TileStrip>
           </div>
         ))}
       </div>
 
       <h2 className="night-heading people-pool-title">Unassigned party members</h2>
-      <ul {...zoneProps(null)}>
+      <TileStrip zone={zoneProps(null)} deps={[unassigned, picked]}>
         {unassigned.map((name) => (
           <Chip
             key={name}
@@ -183,7 +194,35 @@ export function PeopleBoard({
         {picked !== null && !unassigned.includes(picked) && (
           <Target label="Unassign" description={`Take ${picked} off everybody`} />
         )}
-      </ul>
+      </TileStrip>
+    </div>
+  );
+}
+
+/**
+ * One lane of cards: four across, arrows for the rest.
+ *
+ * Its own component so each lane can hold its own scroll position, which a hook called in the
+ * board's map could not do. Four is the number everywhere in this app that puts sprites in a row
+ * (lib/carousel.ts); a lane used to wrap instead, so somebody with five characters made their row
+ * twice the height of everybody else's and the column of names went ragged.
+ *
+ * The drop zone is the wrapper rather than the track, so a card dropped on the arrows still lands.
+ */
+function TileStrip({
+  zone,
+  deps,
+  children,
+}: {
+  zone: React.HTMLAttributes<HTMLDivElement> & { className: string };
+  /** What re-measures the arrows: the cards, and anything that adds or removes one. */
+  deps: unknown[];
+  children: ReactNode;
+}) {
+  const carousel = useCarousel(deps);
+  return (
+    <div {...zone}>
+      <CarouselFrame carousel={carousel}>{children}</CarouselFrame>
     </div>
   );
 }
@@ -203,7 +242,7 @@ function Chip({
   onPick: () => void;
 }) {
   return (
-    <li className="roster-tile">
+    <div className="roster-tile">
       <button
         type="button"
         className={`person-card person-chip${picked ? " is-picked" : ""}`}
@@ -228,7 +267,7 @@ function Chip({
         )}
         <span className="roster-name">{name}</span>
       </button>
-    </li>
+    </div>
   );
 }
 
@@ -240,21 +279,21 @@ function Chip({
  */
 function Target({ label, description }: { label: string; description: string }) {
   return (
-    <li className="roster-tile">
+    <div className="roster-tile">
       <button type="button" className="person-card person-target" aria-label={description}>
         {/* Holds the grip's space so this sits level with the cards beside it. Nothing to grab. */}
         <span className="person-grip" aria-hidden="true" />
         <span className="roster-sprite is-empty" aria-hidden="true" />
         <span className="roster-name">{label}</span>
       </button>
-    </li>
+    </div>
   );
 }
 
 /** The last card in a person's lane: a character no party has recorded for them yet. */
 function AddCard({ person, busy, onOpen }: { person: string; busy: boolean; onOpen: () => void }) {
   return (
-    <li className="roster-tile">
+    <div className="roster-tile">
       <button
         type="button"
         className="person-card person-add"
@@ -268,7 +307,7 @@ function AddCard({ person, busy, onOpen }: { person: string; busy: boolean; onOp
         </span>
         <span className="roster-name">Character</span>
       </button>
-    </li>
+    </div>
   );
 }
 
@@ -295,7 +334,7 @@ function AddBox({
   const cancelled = useRef(false);
 
   return (
-    <li className="roster-tile">
+    <div className="roster-tile">
       <div className="person-card person-add is-typing">
         <span className="person-grip" aria-hidden="true" />
         <span className="roster-sprite is-empty" aria-hidden="true" />
@@ -319,6 +358,6 @@ function AddBox({
           }}
         />
       </div>
-    </li>
+    </div>
   );
 }
