@@ -69,7 +69,16 @@ export default function JoinPage() {
   return (
     <main className="page">
       <section className="auth-panel">
-        {state === "gone" && <h1>This link has expired or was already used.</h1>}
+        {/* Unknown, expired and already used are one answer from the backend on purpose, so this
+            claims none of the three and says the only thing that helps either way. The lifetime is
+            deliberately not quoted here: it lives in INVITE_LIFETIME, and a number repeated in copy
+            is a number that goes wrong when the constant moves. */}
+        {state === "gone" && (
+          <>
+            <h1>This link doesn&apos;t work.</h1>
+            <p className="party-hint">Ask whoever sent it for a new one.</p>
+          </>
+        )}
         {state === "error" && <h1>Couldn&apos;t open this link.</h1>}
 
         <PageSwap

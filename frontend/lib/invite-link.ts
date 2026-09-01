@@ -1,3 +1,5 @@
+import type { Invite } from "@/types/invite";
+
 /**
  * Where a sign-on link points, and what the join page does with it.
  *
@@ -43,4 +45,35 @@ export function invitedSummary(counts: { bosses: number; peopleCount: number }):
 export function omittedSummary(omitted: { length: number }): string {
   if (omitted.length === 0) return "";
   return `${omitted.length} ${omitted.length === 1 ? "party is" : "parties are"} not included.`;
+}
+
+/**
+ * The link still worth talking about for one person, or null.
+ *
+ * Unaccepted and unexpired, newest first. Both conditions are the backend's (see liveInviteFor):
+ * an accepted invite is kept as the record of where an account came from and an expired one is
+ * refused on redemption, so neither is something the sender can still revoke or a friend can still
+ * use. Showing either as live would offer a button that does nothing.
+ *
+ * The list should hold at most one of these per person, because making a link deletes the unaccepted
+ * ones it replaces. Newest-first rather than single(), so a race that left two does not decide which
+ * one is shown by which came back first.
+ */
+export function liveInvite(invites: Invite[], personId: string, now: Date): Invite | null {
+  const live = invites
+    .filter((i) => i.personId === personId && !i.accepted && new Date(i.expiresAt) > now)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  return live[0] ?? null;
+}
+
+/**
+ * Whole minutes until a link stops working, floored, never below zero.
+ *
+ * Floored because it is read as "you have this long": rounding 1.6 minutes up to 2 promises most of
+ * a minute that is not there. A link inside its last minute reads as 0, which is the honest answer
+ * and is also true.
+ */
+export function minutesUntil(expiresAt: string, now: Date): number {
+  const ms = new Date(expiresAt).getTime() - now.getTime();
+  return Math.max(0, Math.floor(ms / 60_000));
 }
