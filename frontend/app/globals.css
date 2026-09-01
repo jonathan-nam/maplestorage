@@ -1290,6 +1290,63 @@ html.switching-world .world-veil {
   cursor: default;
 }
 
+/* --- Choosing a world ------------------------------------------------------------------- */
+
+/* Asked once, on an account that has never said. See components/world-choice.tsx. */
+.world-choice-cards {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.world-choice-card {
+  /* min-width: 0 against the grid item's `auto` minimum, which is what lets content push a track
+     wider than its 1fr share. Same defeat as the sprite strip's fifth tile. */
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 20px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  color: var(--ink-strong);
+  font: inherit;
+  cursor: pointer;
+}
+
+.world-choice-card:hover:not(:disabled) {
+  border-color: var(--ink-strong);
+}
+
+.world-choice-card:disabled {
+  cursor: default;
+}
+
+/* The worlds the card answers for. A row now, a row of emblems once the art is cut. */
+.world-choice-worlds {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 4px 10px;
+  color: var(--muted);
+  font-size: var(--text-base);
+}
+
+.world-choice-name {
+  font-size: var(--text-lg);
+  font-weight: 600;
+}
+
+/* Side by side is the whole point of the pair, so they only stack where two will not fit. */
+@media (max-width: 560px) {
+  .world-choice-cards {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* The account button: the user's main character in a fixed circle, with a small menu under it. */
 .user-avatar {
   position: relative;

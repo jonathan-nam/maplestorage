@@ -10,6 +10,7 @@ import com.sharpeyes.backend.db.Screenshots
 import com.sharpeyes.backend.users.WORLD_HEROIC
 import com.sharpeyes.backend.users.WORLD_INTERACTIVE
 import com.sharpeyes.backend.users.ensureUser
+import com.sharpeyes.backend.users.setActiveWorld
 import kotlinx.datetime.DateTimeUnit
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
@@ -104,6 +105,10 @@ class PartyLootTest {
     /** Your character plus two others, which is three seats: yours is stored as the first. */
     private fun trio(world: String = WORLD_INTERACTIVE): PartyResponse {
         ensureUser(userId, "$userId@example.com")
+        // A character is inserted here directly, so the account has to say which world it is
+        // looking at or every account-wide read below is empty. The route refuses to create a
+        // character without one at all: see V71 and users/WorldType.kt.
+        setActiveWorld(userId, WORLD_INTERACTIVE)
         val mine = Uuid.random()
         val now = Clock.System.now()
         // Held in a local first: inside insert {} the TABLE is the receiver, so a bare `userId`
@@ -784,6 +789,7 @@ class PartyLootTest {
     /** A second account with a config of its own, to prove the ownership filter above. */
     private fun strangerParty(): PartyResponse {
         ensureUser(strangerId, "$strangerId@example.com")
+        setActiveWorld(strangerId, WORLD_INTERACTIVE)
         val theirs = Uuid.random()
         val now = Clock.System.now()
         val owner = strangerId

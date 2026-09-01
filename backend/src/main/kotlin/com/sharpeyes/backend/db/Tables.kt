@@ -22,7 +22,9 @@ object Users : Table("users") {
 
     // INTERACTIVE or HEROIC (V26). The account-wide answer, used where there is no character to
     // ask: what the section menu offers, and what a newly added character inherits.
-    val worldType = text("world_type")
+    // Null until the account says which world it plays in. See users/WorldType.kt: the site has no
+    // lens until this is answered, so it refuses to answer rather than picking one. V71.
+    val worldType = text("world_type").nullable()
 
     // The character drawn as the account avatar (V66), or null for none.
     //

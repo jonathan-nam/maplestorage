@@ -27,9 +27,13 @@ import kotlin.uuid.Uuid
 
 @Serializable
 data class SettingsResponse(
-    // INTERACTIVE or HEROIC: the world the site is currently answering for. See activeWorldFor.
-    val worldType: String,
+    // INTERACTIVE or HEROIC: the world the site is currently answering for, or null if the account
+    // has never said. See activeWorldFor. Null is what the choice screen is drawn on.
+    val worldType: String?,
     // Whether anything in the world being shown can change hands. Every meso figure hangs off it.
+    //
+    // False while unanswered, which costs nothing: an account with no world has no characters to
+    // have sold anything, and the screen asking the question is what it gets instead.
     val trades: Boolean,
     // How many characters the OTHER world holds.
     //
@@ -75,12 +79,19 @@ private suspend fun RoutingContext.getSettings() {
 
 internal fun settingsFor(userId: String): SettingsResponse {
     val world = activeWorldFor(userId)
+    // Every character is "elsewhere" until a world is chosen, and none of them is: with no lens
+    // there is no here for them to be outside of. Zero, so the toggle says nothing rather than
+    // offering to move an account that has not been asked yet.
     val elsewhere =
-        Characters
-            .selectAll()
-            .where { (Characters.userId eq userId) and (Characters.worldType neq world) }
-            .count()
-            .toInt()
+        if (world == null) {
+            0
+        } else {
+            Characters
+                .selectAll()
+                .where { (Characters.userId eq userId) and (Characters.worldType neq world) }
+                .count()
+                .toInt()
+        }
     val main =
         Users
             .join(

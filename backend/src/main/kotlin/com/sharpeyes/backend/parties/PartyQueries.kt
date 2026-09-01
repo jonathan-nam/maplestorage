@@ -10,7 +10,7 @@ import com.sharpeyes.backend.db.Person
 import com.sharpeyes.backend.db.PersonCharacter
 import com.sharpeyes.backend.sprites.spriteProxyPath
 import com.sharpeyes.backend.users.WORLD_INTERACTIVE
-import com.sharpeyes.backend.users.activeWorldFor
+import com.sharpeyes.backend.users.inActiveWorld
 import kotlinx.datetime.LocalDate
 import org.jetbrains.exposed.v1.core.JoinType
 import org.jetbrains.exposed.v1.core.Op
@@ -81,7 +81,7 @@ internal fun partiesFor(
             .where {
                 // Narrowed to the world being shown. A party belongs to the world its character is
                 // in, so this is the same lens the character list is under, applied one join along.
-                (Party.userId eq userId) and (Characters.worldType eq activeWorldFor(userId)) and wanted
+                (Party.userId eq userId) and inActiveWorld(userId) and wanted
             }.orderBy(BossCatalog.sortOrder)
             .toList()
     if (rows.isEmpty()) return emptyList()

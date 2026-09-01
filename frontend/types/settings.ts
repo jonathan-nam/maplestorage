@@ -3,9 +3,10 @@
 import type { WorldType } from "@/lib/world";
 
 export type Settings = {
-  // Which world the site is answering for. Every account-wide list is narrowed to it server-side,
-  // so it is not a preference, it is what the numbers on screen are numbers OF.
-  worldType: WorldType;
+  // Which world the site is answering for, or null if the account has never said. Every
+  // account-wide list is narrowed to it server-side, so it is not a preference, it is what the
+  // numbers on screen are numbers OF. Null is what WorldChoice is drawn on: see V71.
+  worldType: WorldType | null;
   // Whether anything in that world can change hands. Follows from worldType, and the server sends
   // it rather than the client deriving it so the rule lives in one place.
   trades: boolean;
