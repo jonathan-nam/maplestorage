@@ -4960,7 +4960,10 @@ button.link:disabled {
   min-height: 157px;
   align-content: flex-start;
   padding: 6px;
-  border: 1px dashed var(--line-soft);
+  /* Transparent, not absent. The lane is a drop zone and the border is what says so while you are
+     holding somebody (.is-picking, .is-target below); declaring it here rather than there keeps the
+     cards from shifting 1px the moment one is picked up. */
+  border: 1px solid transparent;
   border-radius: var(--radius-md);
 }
 
@@ -4984,7 +4987,13 @@ button.link:disabled {
 }
 
 /* Every card in a lane is the same box, whichever of the three it is. Border-box because there is
-   no global reset: without it the padding pushes the card past .roster-tile's 112px stride. */
+   no global reset: without it the padding pushes the card past .roster-tile's 112px stride.
+
+   Nothing is drawn round a character at rest. The edge and the fill used to be there always, to say
+   the whole card is the handle; a lane of four boxes inside a fifth box read as boxes rather than as
+   people. The edge comes back on hover and on the one you are holding, so the affordance survives
+   what the resting state drops. Kept at 1px transparent rather than removed: the width is what the
+   layout is measured on (people-lane-css.test.ts counts it) and what stops a hover nudging the row. */
 .person-card {
   box-sizing: border-box;
   display: flex;
@@ -4992,9 +5001,9 @@ button.link:disabled {
   align-items: center;
   width: 100%;
   padding: 6px 4px;
-  border: 1px solid var(--line);
+  border: 1px solid transparent;
   border-radius: var(--radius-md);
-  background: var(--surface);
+  background: none;
   font: inherit;
   color: inherit;
   text-align: center;
@@ -5046,9 +5055,18 @@ button.link:disabled {
 
 /* The two cards that are not a character: where the one you are holding can go, and where a name
    the parties have never seen is typed. Dashed, so neither is mistaken for somebody. */
-.person-target,
-.person-add {
+/* Where the character you are holding can go. Dashed and loud, because it is only on screen for
+   the length of a pickup and has to be found in that time. */
+.person-target {
   border-style: dashed;
+  border-color: var(--line);
+  background: none;
+}
+
+/* Where a name the parties have never seen is typed. No edge of its own: the empty sprite frame
+   inside it is already a dashed rectangle, and the two nested made the one permanent card in a lane
+   the heaviest thing on the row. */
+.person-add {
   background: none;
 }
 
