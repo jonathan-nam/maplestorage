@@ -183,10 +183,8 @@ function SettledRow({
 /**
  * The three figures this page is read for, above the rows they are the sum of.
  *
- * Drops counts the WHOLE log and the money counts the settled rows, which is why the first tile
- * says what it counts in its note. The two were a line each and read as one population: "15 sold"
- * over "12 sold" is the same word for every drop that found a buyer and for the subset that has
- * been paid out.
+ * Drops counts the WHOLE log while the money counts the settled rows, so the three are not one
+ * population and do not add up.
  *
  * Drawn even when nothing is settled. An account that has logged drops and settled none would
  * otherwise lose the count altogether, and a zero is an answer where a missing tile is not.
@@ -205,17 +203,6 @@ function SettledTiles({
       <div className="stat-tile">
         <span className="stat-label">Drops</span>
         <span className="stat-value">{logged.drops}</span>
-        <span className="stat-note">
-          {/* Whichever happened. A Heroic account never sells one and an Interactive one never
-              takes one, so in practice this is a single figure either way. */}
-          {[
-            logged.sold > 0 || logged.taken === 0 ? `${logged.sold} sold` : null,
-            logged.taken > 0 ? `${logged.taken} taken` : null,
-          ]
-            .filter(Boolean)
-            .join(", ")}
-          {logged.pending > 0 && `, ${logged.pending} in the pool`}
-        </span>
       </div>
 
       {/* Only where there is money to talk about. A Heroic account trades nothing, so both of these
@@ -224,17 +211,14 @@ function SettledTiles({
         <>
           <div className="stat-tile">
             <span className="stat-label">Sold for</span>
+            {/* What there was to split, not "total sales": a listed price and a received one sit
+              either side of the Auction House fee, so adding them is the confident wrong number
+              this repo exists to prevent. See the header of lib/drop-log.ts. */}
             <span className="stat-value is-good">{formatMesos(totals.pooled, true)}</span>
-            {/* Labelled precisely, because the obvious reading of "total sales" is a number that
-              cannot be computed: a listed price and a received one are quantities either side of
-              the Auction House fee, and adding them is the confident wrong number this repo exists
-              to prevent. See the header of lib/drop-log.ts. */}
-            <span className="stat-note">what there was to split</span>
           </div>
           <div className="stat-tile">
             <span className="stat-label">Your take</span>
             <span className="stat-value is-good">{formatMesos(totals.yourTake, true)}</span>
-            <span className="stat-note">your share of the above</span>
           </div>
         </>
       )}
@@ -271,17 +255,6 @@ export function SettledView({
     );
   }
 
-  // What the rows below are, which is NOT what the tiles count. "Paid out" rather than "sold":
-  // every one of these has been settled, and the tile above already says how many found a buyer.
-  // Two lines reading "N sold" against different populations is what this replaced.
-  //
-  // The two kinds counted apart, because a coupon night and a sale do not add.
-  const counts = [
-    totals.sales > 0 ? `${totals.sales} paid out` : null,
-    totals.nights > 0 ? `${totals.nights} settled` : null,
-    totals.taken > 0 ? `${totals.taken} taken` : null,
-  ].filter(Boolean);
-
   return (
     <>
       {/* Above the section, not inside it. The tiles are what the page is read for, and the rows
@@ -296,11 +269,6 @@ export function SettledView({
               SettledTotals.pooled. */}
           <h2 className="loot-pool-title">Settled</h2>
         </header>
-
-        <p className="loot-meta settled-counts">
-          {counts.join(" · ")}
-          {totals.writtenOff > 0 && ` · ${formatMesos(totals.writtenOff, true)} written off`}
-        </p>
 
         <ul className="droplog-list">
           {consolidateSettled(rows).map((line) => (
