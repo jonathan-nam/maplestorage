@@ -11,19 +11,37 @@ EMAIL="${CERTBOT_EMAIL:?CERTBOT_EMAIL is not set. Let's Encrypt sends expiry war
 
 # The renewal config is the honest test of "do we have a real certificate". The live/ directory is
 # not: bootstrap-cert.sh puts a self-signed one there precisely so nginx can start.
-if [ ! -f "/etc/letsencrypt/renewal/${DOMAIN}.conf" ]; then
+# A LOOP, not one attempt. The first deploy failed here (nginx was serving the wrong config, so the
+# challenge 404'd) and then fell straight through into the renew loop below, where `certbot renew`
+# is a no-op because there is no renewal config to renew. That container could never obtain a
+# certificate at all without being restarted by hand.
+while [ ! -f "/etc/letsencrypt/renewal/${DOMAIN}.conf" ]; do
   echo "no real certificate for ${DOMAIN}, asking Let's Encrypt"
 
-  # --force-renewal because live/ already holds the self-signed placeholder, and without it certbot
-  # sees a certificate and declines. Not a re-issue: there is nothing real to re-issue yet.
-  certbot certonly \
-    --webroot --webroot-path /var/www/certbot \
-    -d "${DOMAIN}" \
-    --email "${EMAIL}" \
-    --agree-tos --no-eff-email \
-    --non-interactive \
-    --force-renewal || echo "issuance FAILED, nginx is still serving the placeholder"
-fi
+  # bootstrap-cert.sh's placeholder sits at exactly the path certbot wants, and certbot REFUSES to
+  # write into a live/ directory it does not manage: "live directory exists for <domain>".
+  # --force-renewal does NOT cover that, it applies to certificates certbot already manages and the
+  # placeholder is not one. This used to carry that flag and the comment that went with it, and both
+  # were wrong. Move the placeholder out of the way instead, and put it back below if this fails.
+  rm -rf "/etc/letsencrypt/live/${DOMAIN}" "/etc/letsencrypt/archive/${DOMAIN}"
+
+  if certbot certonly \
+      --webroot --webroot-path /var/www/certbot \
+      -d "${DOMAIN}" \
+      --email "${EMAIL}" \
+      --agree-tos --no-eff-email \
+      --non-interactive; then
+    break
+  fi
+
+  # Put a placeholder back, or a recreated nginx has no certificate and will not start at all.
+  sh /bootstrap-cert.sh
+
+  # 15 minutes, so four attempts an hour. Let's Encrypt allows 5 FAILED validations per hostname per
+  # hour, and burning that budget leaves you waiting rather than debugging.
+  echo "issuance failed, nginx is still serving the placeholder. Retrying in 15 minutes."
+  sleep 900
+done
 
 # Twice a day, which is what Let's Encrypt asks for. Renewal is a no-op until 30 days before expiry,
 # so this is cheap, and running often means a failure has many chances to recover before it matters.

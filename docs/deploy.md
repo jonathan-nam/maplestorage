@@ -165,10 +165,31 @@ Discord matches it character for character, a trailing slash included, and refus
 
 ### 5. Backups
 
+The log file has to exist and be yours first, because `/var/log` is root-owned and the redirect
+below fails before the command even runs:
+
+```bash
+sudo touch /var/log/sharpeyes-backup.log
+sudo chown ubuntu:ubuntu /var/log/sharpeyes-backup.log
+```
+
 ```bash
 crontab -e
+```
+```
+PATH=/usr/local/bin:/usr/bin:/bin
 # 07:30 UTC, half an hour after the Lightsail snapshot
 30 7 * * * cd /home/ubuntu/sharpeyes && ./scripts/backup-db.sh >> /var/log/sharpeyes-backup.log 2>&1
+```
+
+**The `PATH` line is required.** cron's own is `/usr/bin:/bin`, and `aws` installs to
+`/usr/local/bin`. Without it the dump is taken and the upload dies on "command not found", nightly.
+
+Check it under cron's environment rather than your shell's, because yours has neither problem:
+
+```bash
+env -i PATH=/usr/local/bin:/usr/bin:/bin HOME=/home/ubuntu /bin/sh -c \
+  'cd /home/ubuntu/sharpeyes && ./scripts/backup-db.sh'
 ```
 
 **Then rehearse the restore, once, before you need it** (below). An untested backup is a file you
