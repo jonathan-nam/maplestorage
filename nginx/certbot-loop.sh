@@ -4,10 +4,14 @@
 # Caddy did both of these itself. This is the part of the swap that has to be owned: a renewal that
 # silently stops working takes the site down 90 days later, with nothing to see in between. Check
 # `docker compose logs certbot` if https ever starts failing for no apparent reason.
+#
+# And nothing will email you about it. Let's Encrypt ended expiration notifications on 2025-06-04, so
+# CERTBOT_EMAIL below registers the account and buys no warning whatsoever. Expiry has to be watched
+# from outside, by something that actually reads the certificate.
 set -eu
 
 DOMAIN="${API_DOMAIN:?API_DOMAIN is not set}"
-EMAIL="${CERTBOT_EMAIL:?CERTBOT_EMAIL is not set. Let's Encrypt sends expiry warnings there}"
+EMAIL="${CERTBOT_EMAIL:?CERTBOT_EMAIL is not set. certonly needs one to register the account}"
 
 # The renewal config is the honest test of "do we have a real certificate". The live/ directory is
 # not: bootstrap-cert.sh puts a self-signed one there precisely so nginx can start.

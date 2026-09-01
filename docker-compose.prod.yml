@@ -167,7 +167,7 @@ services:
     entrypoint: ["/bin/sh", "/certbot-loop.sh"]
     environment:
       API_DOMAIN: ${API_DOMAIN:?the API hostname, e.g. api.sharpeyes.app}
-      CERTBOT_EMAIL: ${CERTBOT_EMAIL:?an address for Let's Encrypt expiry warnings}
+      CERTBOT_EMAIL: ${CERTBOT_EMAIL:?an address to register the ACME account with, see .env.prod.example}
     volumes:
       - ./nginx/certbot-loop.sh:/certbot-loop.sh:ro
       # Also mounted here, not just in cert-init: the loop puts the placeholder BACK when issuance
