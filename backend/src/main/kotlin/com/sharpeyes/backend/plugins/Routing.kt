@@ -68,12 +68,7 @@ fun Application.configureRouting(
         // and live in the database, not in the jar. Public for the same reason as the art above.
         spriteRoutes()
 
-        // Unauthenticated on purpose: deploy.sh polls it through nginx to decide when a restarted
-        // replica may take traffic. It answers only once Flyway has migrated, which is the signal
-        // a rolling deploy waits on, and it touches no table, so a slow query cannot stall one.
-        get("/health") {
-            call.respond(mapOf("status" to "ok"))
-        }
+        healthRoutes()
 
         // Real User Monitoring: browsers beacon their page-load metrics here. Unauthenticated
         // on purpose, it is a fire-and-forget sendBeacon that carries no credentials and no PII.
