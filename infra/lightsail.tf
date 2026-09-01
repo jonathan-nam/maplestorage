@@ -32,6 +32,20 @@ resource "aws_lightsail_instance" "app" {
   tags = {
     Name = "${var.project_name}-${var.environment}"
   }
+
+  # user_data FORCES REPLACEMENT, and replacing this instance destroys production: the Postgres
+  # volume, the containers, the .env and the certificate all go with it.
+  #
+  # It is also pointless. Lightsail runs user_data once, on first boot. Editing cloud-init.sh cannot
+  # affect a machine that has already booted, so rebuilding one to "apply" the new script trades the
+  # whole environment for nothing. A box rebuilt on purpose reads the current script at creation,
+  # which is the only moment it matters.
+  #
+  # This is not theoretical. #555 changed the shebang to fix a boot failure, and the next plan
+  # wanted to replace the live box over it.
+  lifecycle {
+    ignore_changes = [user_data]
+  }
 }
 
 # A static IP, because DNS points at it. Without one the address changes on stop/start and the A
