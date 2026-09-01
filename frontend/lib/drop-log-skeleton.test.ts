@@ -66,14 +66,14 @@ describe("the Drop Log's loading state is the page's shape", () => {
     expect(skeleton, "the skeleton cannot know the world").toContain("useAccountSettings");
   });
 
-  // Every figure on this page is somebody's money. A placeholder that says "Sold for" to an account
+  // Every figure on this page is somebody's money. A placeholder that says "Total Sales" to an account
   // that never sells, or draws a number-shaped thing that reads as a number, is the confident wrong
   // statement this repo exists to prevent.
   it("puts no words on screen it cannot know the contents of", () => {
     // Comments stripped first: this file explains why those words are absent, and matching its own
     // explanation is how a regex-over-source test passes for the wrong reason.
     const drawn = skeleton.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
-    for (const word of ["Sold for", "Your take", ">Drops<"]) {
+    for (const word of ["Total Sales", "My Share", ">Drops<"]) {
       expect(drawn, `the skeleton states "${word}" before it can know it`).not.toContain(word);
     }
   });
