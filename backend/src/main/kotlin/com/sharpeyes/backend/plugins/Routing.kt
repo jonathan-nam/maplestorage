@@ -2,6 +2,8 @@ package com.sharpeyes.backend.plugins
 
 import com.sharpeyes.backend.bosses.bossRoutes
 import com.sharpeyes.backend.characters.characterRoutes
+import com.sharpeyes.backend.invites.inviteRoutes
+import com.sharpeyes.backend.invites.joinRoutes
 import com.sharpeyes.backend.parties.partyRoutes
 import com.sharpeyes.backend.parties.peopleRoutes
 import com.sharpeyes.backend.parties.vestigeLedgerRoutes
@@ -20,10 +22,30 @@ import io.ktor.server.auth.jwt.JWTPrincipal
 import io.ktor.server.auth.principal
 import io.ktor.server.http.content.staticResources
 import io.ktor.server.response.respond
+import io.ktor.server.routing.Route
 import io.ktor.server.routing.get
 import io.ktor.server.routing.route
 import io.ktor.server.routing.routing
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
+
+/**
+ * The two endpoints a browser talks to with no credentials at all.
+ *
+ * Both are fire-and-forget sendBeacon targets carrying no PII, and the second has to work when
+ * authentication is exactly what broke. Lifted out of configureRouting because they are one idea
+ * and it was three route blocks long without them.
+ */
+private fun Route.beaconRoutes() {
+    // Real User Monitoring: browsers beacon their page-load metrics here.
+    route("/api/vitals") {
+        vitalsRoutes()
+    }
+
+    // What the browser saw.
+    route("/api/errors") {
+        clientErrorRoutes()
+    }
+}
 
 fun Application.configureRouting(
     nexonLookupService: NexonLookupService,
@@ -70,17 +92,10 @@ fun Application.configureRouting(
 
         healthRoutes()
 
-        // Real User Monitoring: browsers beacon their page-load metrics here. Unauthenticated
-        // on purpose, it is a fire-and-forget sendBeacon that carries no credentials and no PII.
-        route("/api/vitals") {
-            vitalsRoutes()
-        }
+        beaconRoutes()
 
-        // What the browser saw. Unauthenticated for the same reason as vitals, and for one more:
-        // the failures worth reporting include the ones where authentication is what broke.
-        route("/api/errors") {
-            clientErrorRoutes()
-        }
+        // What a sign-on link offers, to somebody who has no account yet. See joinRoutes.
+        joinRoutes()
 
         // M0's actual round-trip proof: a signed-in user's JWT verifies against
         // the auth service's JWKS, and the response value comes from a real database query, not
@@ -130,6 +145,10 @@ fun Application.configureRouting(
 
             route("/api/settings") {
                 settingsRoutes()
+            }
+
+            route("/api/invites") {
+                inviteRoutes()
             }
         }
     }

@@ -25,9 +25,11 @@ export function PeopleBoard({
   knownCharacters,
   spriteFor,
   busy,
+  unsaved,
   onChange,
   onRename,
   onRemove,
+  onInvite,
 }: {
   people: PersonDraft[];
   unassigned: string[];
@@ -35,9 +37,17 @@ export function PeopleBoard({
   knownCharacters: string[];
   spriteFor: (name: string) => string | null;
   busy: boolean;
+  /**
+   * There are edits on this board that are not in the database yet.
+   *
+   * A link is built from what is SAVED, so offering one over an unsaved rename would hand somebody
+   * a roster that does not match the screen it was made from.
+   */
+  unsaved: boolean;
   onChange: (people: PersonDraft[]) => void;
   onRename: (index: number, name: string) => void;
   onRemove: (index: number) => void;
+  onInvite: (personId: string) => void;
 }) {
   // The character being moved by clicks. Drags carry their own name on the dataTransfer, so this
   // stays null throughout one and the "give it to" buttons never appear mid-drag.
@@ -133,6 +143,19 @@ export function PeopleBoard({
                 <AddCard person={row.name} busy={busy} onOpen={() => setAdding(index)} />
               )}
             </ul>
+            {/* Only a saved person can be sent one: the link is made from their row in the
+                database, and a row that is not there yet has no id to make it from. */}
+            {row.id != null && (
+              <button
+                type="button"
+                className="party-add-seat"
+                disabled={busy || unsaved}
+                title={unsaved ? "Save first" : undefined}
+                onClick={() => onInvite(row.id as string)}
+              >
+                Invite
+              </button>
+            )}
             <button
               type="button"
               className="party-delete"

@@ -237,6 +237,11 @@ object Party : Table("party") {
     // the same reason. See V33__party_standing.sql.
     val standing = bool("standing")
 
+    // The real party two accounts are both describing, when an invite has linked them (V70). Not
+    // unique and not a reference: the other row with this id is on somebody else's account. Null
+    // is unlinked, which is nearly every config.
+    val groupId = uuid("group_id").nullable()
+
     val createdAt = timestamp("created_at")
     val updatedAt = timestamp("updated_at")
 
@@ -273,6 +278,11 @@ object Person : Table("person") {
     // Keep their Settlement Ledger card drawn with nothing outstanding. Set by hand, derived from
     // nothing. See V59__person_pinned.sql.
     val pinned = bool("pinned")
+
+    // The account this person signs in as, once they have accepted an invite (V70). Null for
+    // everybody who does not use the app, which is most of them. Nothing reads it yet: it is
+    // written at the one moment it can be known, so a shared party later has a key to join on.
+    val linkedUserId = text("linked_user_id").nullable()
     val createdAt = timestamp("created_at")
     val updatedAt = timestamp("updated_at")
 
@@ -618,4 +628,34 @@ object CharacterSprite : Table("character_sprite") {
     val createdAt = timestamp("created_at")
 
     override val primaryKey = PrimaryKey(urlSha256)
+}
+
+// A link that starts somebody else's account from your side of the parties you share. The payload
+// is frozen when the link is made, not read when it is accepted: see V70__account_invite.sql for
+// why, and InviteDtos.kt for its shape.
+object AccountInvite : Table("account_invite") {
+    val id = uuid("id")
+    val userId = reference("user_id", Users.id)
+
+    // Who the link is for. Which of the sender's people has become an account is the one thing
+    // accept cannot work out from the payload alone.
+    val personId = reference("person_id", Person.id)
+
+    // sha256 of the token, hex. The token is in the URL and is deliberately not stored: it is a
+    // bearer credential, so a row holding it would be a row that grants the invite.
+    val tokenHash = text("token_hash")
+
+    // What the recipient sees the sender called, on their People board. Typed by the sender, since
+    // nothing on the account is a name a friend would recognise: `users` holds an email and an id.
+    val senderName = text("sender_name")
+    val payload = jsonb<JsonElement>("payload", Json)
+    val createdAt = timestamp("created_at")
+    val expiresAt = timestamp("expires_at")
+
+    // When it was redeemed, and by whom. Kept rather than deleted: this is the only record of
+    // which account came from which link, and a spent link has to be refused rather than missing.
+    val acceptedAt = timestamp("accepted_at").nullable()
+    val acceptedBy = text("accepted_by").nullable()
+
+    override val primaryKey = PrimaryKey(id)
 }

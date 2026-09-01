@@ -1,0 +1,261 @@
+package com.sharpeyes.backend.invites
+
+import com.sharpeyes.backend.db.AccountInvite
+import com.sharpeyes.backend.db.Person
+import com.sharpeyes.backend.plugins.parseUuidParam
+import com.sharpeyes.backend.plugins.principalIdAndEmail
+import com.sharpeyes.backend.users.ensureUser
+import io.ktor.http.HttpStatusCode
+import io.ktor.server.application.call
+import io.ktor.server.request.receive
+import io.ktor.server.response.respond
+import io.ktor.server.routing.Route
+import io.ktor.server.routing.RoutingContext
+import io.ktor.server.routing.delete
+import io.ktor.server.routing.get
+import io.ktor.server.routing.post
+import io.ktor.server.routing.route
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.decodeFromJsonElement
+import kotlinx.serialization.json.encodeToJsonElement
+import org.jetbrains.exposed.v1.core.JoinType
+import org.jetbrains.exposed.v1.core.ResultRow
+import org.jetbrains.exposed.v1.core.SortOrder
+import org.jetbrains.exposed.v1.core.and
+import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.jdbc.deleteWhere
+import org.jetbrains.exposed.v1.jdbc.insert
+import org.jetbrains.exposed.v1.jdbc.selectAll
+import org.jetbrains.exposed.v1.jdbc.transactions.transaction
+import org.jetbrains.exposed.v1.jdbc.update
+import kotlin.time.Clock
+import kotlin.uuid.Uuid
+
+// A link that starts somebody else's account from your side of the parties you share. Three
+// audiences, and they are not the same person: the sender makes and revokes links, anybody holding
+// one can see what it offers, and the recipient redeems it once signed in.
+
+/** Strict on purpose. A stored payload with a field we do not know is one to refuse, not to guess at. */
+private val payloadJson = Json
+
+fun Route.inviteRoutes() {
+    get { listInvitesRoute() }
+    post { createInviteRoute() }
+    delete("/{inviteId}") { revokeInviteRoute() }
+    post("/{token}/accept") { acceptInviteRoute() }
+}
+
+/**
+ * What one link offers, to somebody not signed in.
+ *
+ * Mounted outside the authenticated block, because the whole point is to be readable before there
+ * is an account: a landing page that demanded a sign-in first would ask people to create an account
+ * to find out whether they want one. The token is the authority, and it is the only one.
+ */
+fun Route.joinRoutes() {
+    route("/api/join") {
+        get("/{token}") { previewInviteRoute() }
+    }
+}
+
+private suspend fun RoutingContext.listInvitesRoute() {
+    val (userId, email) = call.principalIdAndEmail()
+    val invites =
+        transaction {
+            ensureUser(userId, email)
+            AccountInvite
+                .join(Person, JoinType.INNER, AccountInvite.personId, Person.id)
+                .selectAll()
+                .where { AccountInvite.userId eq userId }
+                .orderBy(AccountInvite.createdAt to SortOrder.DESC)
+                .map { it.toInviteResponse(token = null) }
+        }
+    call.respond(invites)
+}
+
+/**
+ * Makes a link for one person.
+ *
+ * The token comes back once, here, and is never recoverable: only its hash is stored. Any earlier
+ * unaccepted link for the same person is deleted first, so "invite" is one live link per person
+ * rather than a pile of them that all still work.
+ */
+private suspend fun RoutingContext.createInviteRoute() {
+    val (userId, email) = call.principalIdAndEmail()
+    val request = call.receive<CreateInviteRequest>()
+    val personId = Uuid.parseOrNull(request.personId)
+    val senderName = request.senderName.trim()
+
+    if (personId == null) {
+        call.respond(HttpStatusCode.BadRequest, "malformed personId")
+        return
+    }
+    if (senderName.isEmpty()) {
+        call.respond(HttpStatusCode.BadRequest, "a link needs a name to send it under")
+        return
+    }
+
+    val now = Clock.System.now()
+    val token = newInviteToken()
+    val created =
+        transaction {
+            ensureUser(userId, email)
+            val payload = buildInvitePayload(userId, personId, senderName) ?: return@transaction null
+
+            AccountInvite.deleteWhere {
+                (AccountInvite.userId eq userId) and
+                    (AccountInvite.personId eq personId) and
+                    (AccountInvite.acceptedAt eq null)
+            }
+
+            val id = Uuid.random()
+            AccountInvite.insert {
+                it[AccountInvite.id] = id
+                it[AccountInvite.userId] = userId
+                it[AccountInvite.personId] = personId
+                it[tokenHash] = hashInviteToken(token)
+                it[AccountInvite.senderName] = senderName
+                it[AccountInvite.payload] = payloadJson.encodeToJsonElement(payload)
+                it[createdAt] = now
+                it[expiresAt] = now + INVITE_LIFETIME
+            }
+            AccountInvite
+                .join(Person, JoinType.INNER, AccountInvite.personId, Person.id)
+                .selectAll()
+                .where { AccountInvite.id eq id }
+                .single()
+                .toInviteResponse(token)
+        }
+
+    if (created == null) {
+        call.respond(HttpStatusCode.NotFound, "no such person")
+    } else {
+        call.respond(HttpStatusCode.Created, created)
+    }
+}
+
+/**
+ * Takes a link back.
+ *
+ * Only an unaccepted one. An accepted invite is the record of where an account came from, and the
+ * link it was redeemed with is already spent, so there is nothing left to revoke.
+ */
+private suspend fun RoutingContext.revokeInviteRoute() {
+    val (userId, email) = call.principalIdAndEmail()
+    val inviteId = call.parseUuidParam("inviteId") ?: return
+    val gone =
+        transaction {
+            ensureUser(userId, email)
+            AccountInvite.deleteWhere {
+                (AccountInvite.id eq inviteId) and
+                    (AccountInvite.userId eq userId) and
+                    (AccountInvite.acceptedAt eq null)
+            } > 0
+        }
+    call.respond(if (gone) HttpStatusCode.NoContent else HttpStatusCode.NotFound)
+}
+
+private suspend fun RoutingContext.previewInviteRoute() {
+    val token = call.parameters["token"].orEmpty()
+    val preview =
+        transaction {
+            val payload = liveInviteFor(token)?.second ?: return@transaction null
+            InvitePreview(
+                senderName = payload.senderName,
+                characters = payload.characters.map { it.name },
+                bosses = payload.parties.map { it.bossKey }.distinct(),
+                peopleCount = payload.people.size,
+                omitted = payload.omitted,
+            )
+        }
+    if (preview == null) call.respond(HttpStatusCode.NotFound) else call.respond(preview)
+}
+
+/**
+ * Redeems a link into the signed-in account.
+ *
+ * Refused on an account that already holds anything, and the refusal is the feature. Merging would
+ * mean deciding whether the CreedBratton in the payload is the one already there, and a wrong
+ * answer is a duplicate person or a second config for one boss that reads exactly like the real
+ * one. See [accountIsEmpty].
+ */
+private suspend fun RoutingContext.acceptInviteRoute() {
+    val (userId, email) = call.principalIdAndEmail()
+    val token = call.parameters["token"].orEmpty()
+    val now = Clock.System.now()
+
+    val outcome =
+        transaction {
+            ensureUser(userId, email)
+            val (invite, payload) = liveInviteFor(token) ?: return@transaction Refusal.Unknown
+            if (payload.version != INVITE_PAYLOAD_VERSION) return@transaction Refusal.Stale
+            // Redeeming your own link would link an account to itself and copy its parties back
+            // onto it under different ids.
+            if (invite[AccountInvite.userId] == userId) return@transaction Refusal.Own
+            if (!accountIsEmpty(userId)) return@transaction Refusal.NotEmpty
+
+            // Spent before the rows are written, inside the same transaction: two requests racing
+            // the same link both pass the checks above, and the unique token_hash does not stop the
+            // second because it is an update, not an insert. This does, by matching only the row
+            // that is still unaccepted.
+            val spent =
+                AccountInvite.update({
+                    (AccountInvite.id eq invite[AccountInvite.id]) and (AccountInvite.acceptedAt eq null)
+                }) {
+                    it[acceptedAt] = now
+                    it[acceptedBy] = userId
+                } > 0
+            if (!spent) return@transaction Refusal.Unknown
+
+            acceptInvite(payload, userId, invite[AccountInvite.personId], now)
+        }
+
+    when (outcome) {
+        Refusal.Unknown -> call.respond(HttpStatusCode.NotFound)
+        Refusal.Stale -> call.respond(HttpStatusCode.Gone, "this link is out of date, ask for a new one")
+        Refusal.Own -> call.respond(HttpStatusCode.Conflict, "this is your own link")
+        Refusal.NotEmpty ->
+            call.respond(HttpStatusCode.Conflict, "this account already has characters of its own")
+        is AcceptedInvite -> call.respond(outcome)
+        else -> call.respond(HttpStatusCode.NotFound)
+    }
+}
+
+/** Why a link was not redeemed. One type so the transaction can return either it or the result. */
+private enum class Refusal { Unknown, Stale, Own, NotEmpty }
+
+/**
+ * The invite a token names, if it is still good, with its payload read out.
+ *
+ * Unknown, expired and already accepted are one answer on purpose: three that a caller holding a
+ * token could tell apart would say whether a token ever existed.
+ *
+ * Must be called from inside a `transaction { }` block.
+ */
+private fun liveInviteFor(token: String): Pair<ResultRow, InvitePayload>? {
+    if (token.isEmpty()) return null
+    return AccountInvite
+        .selectAll()
+        .where { AccountInvite.tokenHash eq hashInviteToken(token) }
+        .firstOrNull()
+        ?.takeIf { it[AccountInvite.acceptedAt] == null }
+        ?.takeIf { it[AccountInvite.expiresAt] >= Clock.System.now() }
+        ?.let { it to payloadJson.decodeFromJsonElement(it[AccountInvite.payload]) }
+}
+
+private fun ResultRow.toInviteResponse(token: String?): InviteResponse {
+    val payload: InvitePayload = payloadJson.decodeFromJsonElement(this[AccountInvite.payload])
+    return InviteResponse(
+        id = this[AccountInvite.id].toString(),
+        personId = this[AccountInvite.personId].toString(),
+        personName = this[Person.name],
+        senderName = this[AccountInvite.senderName],
+        token = token,
+        createdAt = this[AccountInvite.createdAt].toString(),
+        expiresAt = this[AccountInvite.expiresAt].toString(),
+        accepted = this[AccountInvite.acceptedAt] != null,
+        characterCount = payload.characters.size,
+        partyCount = payload.parties.size,
+        omitted = payload.omitted,
+    )
+}

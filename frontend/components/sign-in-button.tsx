@@ -8,7 +8,13 @@ import { authClient } from "@/lib/auth-client";
 //
 // The provider is named on the button rather than hidden behind a generic "Sign in", so nobody is
 // sent to a third-party consent screen they did not expect.
-export function SignInButton() {
+export function SignInButton({
+  // Where to land afterwards, when it is not the app's front door. A sign-on link sends its own
+  // page back, token and all, so signing in does not lose the invite that prompted it.
+  callbackPath,
+}: {
+  callbackPath?: string;
+} = {}) {
   const [busy, setBusy] = useState(false);
 
   async function signIn() {
@@ -18,7 +24,7 @@ export function SignInButton() {
       await authClient.signIn.social({
         provider: "discord",
         // Back to the app, not to the auth service, which has nothing to show anybody.
-        callbackURL: window.location.origin,
+        callbackURL: `${window.location.origin}${callbackPath ?? ""}`,
       });
     } finally {
       // Reached only if the redirect did not happen, which is what a failed sign-in looks like from
