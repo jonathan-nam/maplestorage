@@ -1,11 +1,13 @@
 import { InventoryPanel } from "@/components/inventory-panel";
+import { TILES_SHOWN } from "@/lib/carousel";
 
 // Placeholder shapes shown while the characters page loads. They mirror the real layout (search
 // bar, a strip of character tiles, the inventory window) so the finished UI crossfades in as one
 // piece instead of assembling from empty chrome. See the skeleton styles in globals.css.
 
-// Five tiles is enough to read as a populated strip rather than a single lonely card.
-const TILE_COUNT = 5;
+// As many tiles as the real strip shows. One more and the placeholder runs off the strip's edge,
+// then settles a tile narrower when the data lands.
+const TILE_COUNT = TILES_SHOWN;
 
 export function CharactersSkeleton() {
   return (

@@ -7,7 +7,7 @@ export default function Loading() {
   return (
     <RouteLoading>
       <p className="loot-back">
-        <Link href="/bosses/parties/edit">&larr; Edit parties</Link>
+        <Link href="/bosses/parties/edit">&larr; Edit Parties</Link>
       </p>
       <h1 className="page-title">People</h1>
       <p className="party-hint">Loading...</p>

@@ -4,7 +4,7 @@ import { RouteLoading } from "@/components/route-loading";
 export default function Loading() {
   return (
     <RouteLoading>
-      <h1 className="page-title">Edit parties</h1>
+      <h1 className="page-title">Edit Parties</h1>
       <p className="party-hint">Loading...</p>
     </RouteLoading>
   );
