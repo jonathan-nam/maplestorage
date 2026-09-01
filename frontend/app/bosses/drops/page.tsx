@@ -145,8 +145,10 @@ const VESTIGE = "vestige-of-erion";
 export default function DropLogPage() {
   const { getToken, isLoaded } = useAuth();
   // This page sums across every party the server hands back, which is one world's. In a Heroic
-  // world the money tiles would be three true zeroes, so they go.
-  const money = showsMoney(useAccountSettings()?.trades);
+  // world the money tiles would be three true zeroes, so they go, and so do the three tabs that
+  // only exist because something changed hands. See lib/drop-sections.ts.
+  const trades = useAccountSettings()?.trades;
+  const money = showsMoney(trades);
 
   const [parties, setParties] = useState<Party[]>(peek<Party[]>(PARTIES_KEY) ?? []);
   const [pools, setPools] = useState<PartyLootPool[]>([]);
@@ -696,7 +698,7 @@ export default function DropLogPage() {
   // What fell, and what it was sold for, one at a time. Both halves are entered into rather than
   // read, so they stay on one page: a drop and the sale that prices it are the same evening's work.
   // See lib/drop-sections.ts for why the chosen tab is not drawn straight from state.
-  const sections = dropSections();
+  const sections = dropSections(trades);
   const shown = shownSection(section, sections);
   /**
    * Everything a pile card takes but the piles themselves.

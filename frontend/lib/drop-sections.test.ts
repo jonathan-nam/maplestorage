@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { dropSections, saleCards, shownSection } from "./drop-sections";
 
 const none = { unanswered: 0, holders: 0, lots: 0, rows: 0 };
-const keys = () => dropSections().map((s) => s.key);
+const keys = (trades?: boolean) => dropSections(trades).map((s) => s.key);
 
 describe("how many cards the Sale Ledger holds", () => {
   it("counts every unanswered night as the one card that answers them", () => {
@@ -38,6 +38,26 @@ describe("which sections the page has", () => {
   });
 });
 
+describe("which sections a Heroic world has", () => {
+  // Nothing changes hands in Heroic, so three of the four stages cannot happen there. The pools
+  // behind them are narrowed to the shown world server-side, so these are not tabs that happen to
+  // be empty, they are tabs that cannot fill.
+  it("offers the Drop Ledger alone", () => {
+    expect(keys(false)).toEqual(["drops"]);
+  });
+
+  // The strip is drawn on `sections.length > 1`, on the page and in the skeleton alike, so one
+  // section means no tabs at all rather than a strip with nothing to choose between.
+  it("leaves nothing to choose between, which is what takes the strip off screen", () => {
+    expect(dropSections(false)).toHaveLength(1);
+  });
+
+  it("keeps all four while the world is still unknown", () => {
+    // Undefined is the moment before /api/settings answers, not a third world.
+    expect(keys(undefined)).toEqual(keys(true));
+  });
+});
+
 describe("which section to draw", () => {
   it("draws the chosen one", () => {
     expect(shownSection("sales", dropSections())).toBe("sales");
@@ -49,5 +69,13 @@ describe("which section to draw", () => {
   // than from a tab that went away.
   it("falls back to the drops for a key that is not a section", () => {
     expect(shownSection("nonsense" as never, dropSections())).toBe("drops");
+  });
+
+  // Toggling the header to Heroic while standing on the Sale Ledger. Without this the page would
+  // keep drawing a tab the world does not have, with no strip left to leave it by.
+  it("falls back to the drops when the world drops the chosen tab", () => {
+    for (const key of ["sales", "settlement", "settled"] as const) {
+      expect(shownSection(key, dropSections(false))).toBe("drops");
+    }
   });
 });
