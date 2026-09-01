@@ -6866,6 +6866,21 @@ button.ledger-drop-sale.is-armed:hover:not(:disabled) {
   background: var(--surface);
 }
 
+/* A person who already has a link out. Marked on the button because that is the control whose
+   meaning changes: it opens the standing link rather than making another. */
+.person-invite.is-invited {
+  border-color: var(--accent);
+  color: var(--ink-strong);
+}
+
+/* An older link has no address to show: only the response that created one carries its token. So
+   this says what there is to know about it instead. */
+.invite-standing {
+  margin: 0 0 16px;
+  font-size: var(--text-base);
+  color: var(--ink);
+}
+
 .invite-title {
   margin: 0 0 16px;
   font-size: var(--text-lg);

@@ -2,7 +2,6 @@ package com.sharpeyes.backend.invites
 
 import com.sharpeyes.backend.db.AccountInvite
 import com.sharpeyes.backend.db.Person
-import com.sharpeyes.backend.plugins.parseUuidParam
 import com.sharpeyes.backend.plugins.principalIdAndEmail
 import com.sharpeyes.backend.users.ensureUser
 import io.ktor.http.HttpStatusCode
@@ -11,7 +10,6 @@ import io.ktor.server.request.receive
 import io.ktor.server.response.respond
 import io.ktor.server.routing.Route
 import io.ktor.server.routing.RoutingContext
-import io.ktor.server.routing.delete
 import io.ktor.server.routing.get
 import io.ktor.server.routing.post
 import io.ktor.server.routing.route
@@ -32,8 +30,11 @@ import kotlin.time.Clock
 import kotlin.uuid.Uuid
 
 // A link that starts somebody else's account from your side of the parties you share. Three
-// audiences, and they are not the same person: the sender makes and revokes links, anybody holding
-// one can see what it offers, and the recipient redeems it once signed in.
+// audiences, and they are not the same person: the sender makes links, anybody holding one can see
+// what it offers, and the recipient redeems it once signed in.
+//
+// Nothing here takes a link back. It expires on its own (INVITE_LIFETIME), and making a new one for
+// somebody deletes the one it replaces, which between them are the two ways a link stops working.
 
 /** Strict on purpose. A stored payload with a field we do not know is one to refuse, not to guess at. */
 private val payloadJson = Json
@@ -41,7 +42,6 @@ private val payloadJson = Json
 fun Route.inviteRoutes() {
     get { listInvitesRoute() }
     post { createInviteRoute() }
-    delete("/{inviteId}") { revokeInviteRoute() }
     post("/{token}/accept") { acceptInviteRoute() }
 }
 
@@ -129,27 +129,6 @@ private suspend fun RoutingContext.createInviteRoute() {
     } else {
         call.respond(HttpStatusCode.Created, created)
     }
-}
-
-/**
- * Takes a link back.
- *
- * Only an unaccepted one. An accepted invite is the record of where an account came from, and the
- * link it was redeemed with is already spent, so there is nothing left to revoke.
- */
-private suspend fun RoutingContext.revokeInviteRoute() {
-    val (userId, email) = call.principalIdAndEmail()
-    val inviteId = call.parseUuidParam("inviteId") ?: return
-    val gone =
-        transaction {
-            ensureUser(userId, email)
-            AccountInvite.deleteWhere {
-                (AccountInvite.id eq inviteId) and
-                    (AccountInvite.userId eq userId) and
-                    (AccountInvite.acceptedAt eq null)
-            } > 0
-        }
-    call.respond(if (gone) HttpStatusCode.NoContent else HttpStatusCode.NotFound)
 }
 
 private suspend fun RoutingContext.previewInviteRoute() {

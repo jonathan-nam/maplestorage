@@ -4,7 +4,7 @@ import java.security.MessageDigest
 import java.security.SecureRandom
 import java.util.Base64
 import kotlin.time.Duration
-import kotlin.time.Duration.Companion.days
+import kotlin.time.Duration.Companion.minutes
 
 // The credential in a sign-on link. Everything about it follows from one fact: the link IS the
 // authority. Anyone holding the URL can redeem it, so it has to be unguessable, short-lived, spent
@@ -19,14 +19,21 @@ import kotlin.time.Duration.Companion.days
 private const val TOKEN_BYTES = 32
 
 /**
- * How long a link is worth sending.
+ * How long a link works for.
  *
- * The payload is frozen when the link is made, so this also bounds how stale what it hands over can
- * be. Two weeks is long enough to sit unread in a Discord DM over a holiday and short enough that a
- * roster reorganised since is a link that has to be made again rather than one that quietly lands
- * last month's parties.
+ * This is the whole of how a link is taken back: it goes stale on its own, and nobody is asked to
+ * remember to stop it. There was a Revoke button and it was the wrong shape, because it made
+ * somebody responsible for a credential they should be able to forget about.
+ *
+ * Five minutes, which makes this a code you read out while the two of you are talking rather than
+ * something to send and forget. A link that goes anywhere it should not is worthless before anyone
+ * could act on it, and the payload it carries is frozen when it is made, so it cannot go stale
+ * either.
+ *
+ * The cost is deliberate and worth saying out loud: a link left in a Discord DM overnight will not
+ * work in the morning. Making another is one press, and the page that refuses an old one says so.
  */
-val INVITE_LIFETIME: Duration = 14.days
+val INVITE_LIFETIME: Duration = 5.minutes
 
 private val random = SecureRandom()
 

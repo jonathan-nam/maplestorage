@@ -8,6 +8,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { ApiError, apiFetch } from "@/lib/api";
 import { peek, put } from "@/lib/cache";
+import { liveInvite } from "@/lib/invite-link";
 import { type PersonDraft, unclaimed } from "@/lib/people-board";
 import { spriteByName } from "@/lib/sprite-by-name";
 import type { Character } from "@/types/character";
@@ -19,6 +20,7 @@ type LoadState = "loading" | "loaded" | "error";
 const PEOPLE_KEY = "/api/people";
 const PARTIES_KEY = "/api/parties";
 const CHARACTERS_KEY = "/api/characters";
+const INVITES_KEY = "/api/invites";
 
 // Who plays which character. Kept apart from the parties on purpose: a party names characters, and
 // this says whose they are, once, for every party that names them. Say it here and CreedBratton is
@@ -40,9 +42,14 @@ export default function PeoplePage() {
   // Which person's link is being made right now, for the length of the request only. The button
   // that started it says so; nothing else on the board changes.
   const [inviting, setInviting] = useState<string | null>(null);
-  // The finished link, which is the whole of what the dialog shows. Null is no dialog.
+  // The link the dialog is open on, which is the whole of what it shows. Null is no dialog.
   const [invite, setInvite] = useState<Invite | null>(null);
   const [inviteError, setInviteError] = useState<string | null>(null);
+
+  // Every link this account has made, so a person with one still out is marked as such and it can
+  // be taken back. Only the response that CREATED a link carries its token, so these carry none:
+  // an outstanding link can be revoked or replaced, never shown again.
+  const [invites, setInvites] = useState<Invite[]>(peek<Invite[]>(INVITES_KEY) ?? []);
   const [state, setState] = useState<LoadState>("loading");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -60,16 +67,19 @@ export default function PeoplePage() {
           apiFetch<Person[]>(PEOPLE_KEY, { method: "GET" }, withToken),
           apiFetch<Party[]>(PARTIES_KEY, { method: "GET" }, withToken),
           apiFetch<Character[]>(CHARACTERS_KEY, { method: "GET" }, withToken),
+          apiFetch<Invite[]>(INVITES_KEY, { method: "GET" }, withToken),
         ]);
       })
-      .then(([peopleResult, partyResult, characterResult]) => {
+      .then(([peopleResult, partyResult, characterResult, inviteResult]) => {
         setPeople(peopleResult);
         setDraft(toDraft(peopleResult));
         setParties(partyResult);
         setCharacters(characterResult);
         put(PEOPLE_KEY, peopleResult);
         put(PARTIES_KEY, partyResult);
+        setInvites(inviteResult);
         put(CHARACTERS_KEY, characterResult);
+        put(INVITES_KEY, inviteResult);
         setState("loaded");
       })
       .catch(() => setState((s) => (s === "loaded" ? "loaded" : "error")));
@@ -116,17 +126,26 @@ export default function PeoplePage() {
    * link read as a flicker. A dialog whose whole content is one result should not exist before
    * the result does; the wait belongs on the button that started it.
    */
-  async function invitePerson(personId: string) {
+  async function invitePerson(personId: string, replace = false) {
+    // A link already out is opened rather than replaced. Making one deletes the last, so pressing
+    // Invite twice would silently kill a link somebody may already have been sent. Replacing it is
+    // a second, deliberate press inside the dialog.
+    const standing = liveInvite(invites, personId, new Date());
+    if (standing !== null && !replace) {
+      setInvite(standing);
+      return;
+    }
     setInviting(personId);
     setInviteError(null);
     try {
-      setInvite(
-        await apiFetch<Invite>(
-          "/api/invites",
-          { method: "POST", body: JSON.stringify({ personId }) },
-          getToken,
-        ),
+      const made = await apiFetch<Invite>(
+        INVITES_KEY,
+        { method: "POST", body: JSON.stringify({ personId }) },
+        getToken,
       );
+      // The created one replaces whatever this person had, exactly as the backend does.
+      setInvites((held) => [made, ...held.filter((i) => i.personId !== personId || i.accepted)]);
+      setInvite(made);
     } catch {
       setInviteError("Couldn't make a link.");
     } finally {
@@ -172,6 +191,7 @@ export default function PeoplePage() {
               onRemove={(index) => setDraft(draft.filter((_, i) => i !== index))}
               unsaved={dirty}
               inviting={inviting}
+              invited={invites}
               onInvite={invitePerson}
             />
 
@@ -179,6 +199,8 @@ export default function PeoplePage() {
               <InviteLink
                 person={invite.personName}
                 invite={invite}
+                busy={inviting !== null}
+                onReplace={() => invitePerson(invite.personId, true)}
                 onClose={() => setInvite(null)}
               />
             )}

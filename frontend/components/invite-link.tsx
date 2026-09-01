@@ -1,28 +1,36 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { inviteUrl } from "@/lib/invite-link";
+import { inviteUrl, minutesUntil } from "@/lib/invite-link";
 import type { Invite } from "@/types/invite";
 
 /**
- * The finished link that starts one person's account from your side of the parties you share.
+ * One person's link: the one just made, or the one already out for them.
  *
- * Shows a link and nothing else: it is handed one, and does not exist before there is one to hand.
- * It used to make the link itself, which meant it opened on an empty box and a "Making a link..."
- * and then swapped both for the real thing, and the swap read as a flicker. The wait lives on the
- * button that starts it now. See invitePerson.
+ * The two are the same dialog because they are the same subject, and they differ in exactly what a
+ * link IS. A fresh one carries its token, so it can be shown and copied. An older one does not: the
+ * backend stores only a hash, so a link that was not copied is replaced rather than looked up. That
+ * is why the second state offers a new link instead of the old one's address.
  *
- * A dialog rather than a panel below the board. The board is as tall as its people, so a panel
- * appended underneath opened off screen for anybody with more than a couple, and the button that
- * opened it stayed exactly where it was: pressing Invite looked like it did nothing.
+ * There is no Revoke. A link expires on its own, and making a new one deletes the last, so nobody
+ * has to remember to switch one off.
+ *
+ * Handed a finished invite and shows it. It does not make one, so it cannot render half of
+ * anything: opening on an empty box and filling it in afterwards read as a flicker. The wait for a
+ * new link lives on the button that starts it. See invitePerson.
  */
 export function InviteLink({
   person,
   invite,
+  busy,
+  onReplace,
   onClose,
 }: {
   person: string;
   invite: Invite;
+  /** A replacement is being made. */
+  busy: boolean;
+  onReplace: () => void;
   onClose: () => void;
 }) {
   const [copied, setCopied] = useState(false);
@@ -36,12 +44,11 @@ export function InviteLink({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // The token is only ever on the response that created it, so this is the one render that can show
-  // a URL. Inviting again makes a new link rather than looking the old one up.
-  const url = invite.token != null ? inviteUrl(window.location.origin, invite.token) : "";
+  const url = invite.token != null ? inviteUrl(window.location.origin, invite.token) : null;
+  const minutes = minutesUntil(invite.expiresAt, new Date());
 
   async function copy() {
-    if (url === "") return;
+    if (url === null) return;
     try {
       await navigator.clipboard.writeText(url);
       setCopied(true);
@@ -64,24 +71,42 @@ export function InviteLink({
       >
         <h2 className="invite-title">Invite {person}</h2>
 
-        <label className="invite-field">
-          <span className="field-label">
-            {invite.characterCount} characters, {invite.partyCount} parties
-          </span>
-          <input
-            className="split-input invite-url"
-            value={url}
-            readOnly
-            aria-label="Link"
-            autoFocus
-            onFocus={(e) => e.target.select()}
-          />
-        </label>
+        {url !== null ? (
+          <label className="invite-field">
+            <span className="field-label">
+              {invite.characterCount} characters, {invite.partyCount} parties
+            </span>
+            <input
+              className="split-input invite-url"
+              value={url}
+              readOnly
+              aria-label="Link"
+              autoFocus
+              onFocus={(e) => e.target.select()}
+            />
+          </label>
+        ) : (
+          // No token to show. Said as what it means for the reader rather than as the mechanism:
+          // a link is out there, and this is how long until it stops on its own.
+          <p className="invite-standing">
+            A link is already out for {person}. It stops working in {minutes}{" "}
+            {minutes === 1 ? "minute" : "minutes"}.
+          </p>
+        )}
 
         <div className="invite-actions">
-          <button type="button" className="party-save" onClick={copy}>
-            {copied ? "Copied" : "Copy link"}
-          </button>
+          {url !== null && (
+            <button type="button" className="party-save" onClick={copy}>
+              {copied ? "Copied" : "Copy link"}
+            </button>
+          )}
+          {/* The only way back to a link nobody kept the address of, and the way to kill one sent
+              to the wrong place: making a link deletes the one it replaces. */}
+          {url === null && (
+            <button type="button" className="party-save" disabled={busy} onClick={onReplace}>
+              {busy ? "Making..." : "New link"}
+            </button>
+          )}
           <button type="button" className="party-cancel" onClick={onClose}>
             Done
           </button>

@@ -5,7 +5,9 @@ import { CarouselFrame } from "@/components/carousel-frame";
 import { KNOWN_CHARACTERS_ID, KnownCharacters } from "@/components/known-characters";
 import { spriteUrl } from "@/lib/api";
 import { useCarousel } from "@/lib/use-carousel";
+import { liveInvite } from "@/lib/invite-link";
 import { type PersonDraft, claim } from "@/lib/people-board";
+import type { Invite } from "@/types/invite";
 
 // Only our own chips are accepted, so text dragged in from anywhere else is not read as a name.
 const DRAG_TYPE = "application/x-character";
@@ -29,6 +31,7 @@ export function PeopleBoard({
   busy,
   unsaved,
   inviting,
+  invited,
   onChange,
   onRename,
   onRemove,
@@ -49,6 +52,8 @@ export function PeopleBoard({
   unsaved: boolean;
   /** The person whose link is being made right now, if any. Only their button says so. */
   inviting: string | null;
+  /** Every link this account has made, so a person with one still out says so on their row. */
+  invited: Invite[];
   onChange: (people: PersonDraft[]) => void;
   onRename: (index: number, name: string) => void;
   onRemove: (index: number) => void;
@@ -61,6 +66,8 @@ export function PeopleBoard({
   const [over, setOver] = useState<number | null | undefined>(undefined);
   // Which person's lane has its add box open. What is typed lives in the box itself.
   const [adding, setAdding] = useState<number | null>(null);
+  // One clock for the whole render, so two rows cannot disagree about whether a link has expired.
+  const now = new Date();
 
   function pick(name: string) {
     // A lane cannot be typing and receiving at once: both want the last card in the row.
@@ -132,14 +139,20 @@ export function PeopleBoard({
                 {row.id != null && (
                   <button
                     type="button"
-                    className="person-invite"
+                    className={`person-invite${liveInvite(invited, row.id, now) !== null ? " is-invited" : ""}`}
                     disabled={busy || unsaved || inviting !== null}
                     title={unsaved ? "Save first" : undefined}
                     onClick={() => onInvite(row.id as string)}
                   >
                     {/* The wait is here rather than in the dialog, which does not open until there
-                        is a link to put in it. */}
-                    {inviting === row.id ? "Making..." : "Invite"}
+                        is a link to put in it. A link already out is said on the button, because
+                        that is the control whose meaning changes: it opens one instead of making
+                        one. */}
+                    {inviting === row.id
+                      ? "Making..."
+                      : liveInvite(invited, row.id, now) !== null
+                        ? "Invited"
+                        : "Invite"}
                   </button>
                 )}
                 <button
