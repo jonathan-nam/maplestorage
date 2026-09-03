@@ -123,6 +123,51 @@ describe("screenRuns", () => {
     expect(rejected[0]?.detail).toEqual(["Stranger"]);
   });
 
+  it("drops the smaller versions of a party when everyone has to be on", () => {
+    const trio = run("trio", "lotus", 10, [
+      ["Mechy", "me"],
+      ["Creed", "chris"],
+      ["Sable", "mel"],
+    ]);
+    const duo = run("duo", "lucid", 10, [
+      ["Mechy", "me"],
+      ["Creed", "chris"],
+    ]);
+    const solo = run("solo", "will", 10, [["Mechy", "me"]]);
+
+    const { eligible: kept, rejected } = screenRuns([trio, duo, solo], ["me", "chris", "mel"], {
+      everyoneOn: true,
+    });
+
+    expect(kept.map((r) => r.id)).toEqual(["trio"]);
+    // Named, so it is whoever would have been sitting out and not just "excluded".
+    expect(rejected.map((r) => [r.reason, r.detail])).toEqual([
+      ["leaves-somebody-out", ["mel"]],
+      ["leaves-somebody-out", ["chris", "mel"]],
+    ]);
+  });
+
+  it("keeps the smaller versions when it is off, which is what it did before", () => {
+    const duo = run("duo", "lucid", 10, [
+      ["Mechy", "me"],
+      ["Creed", "chris"],
+    ]);
+    expect(screenRuns([duo], ["me", "chris", "mel"]).eligible.map((r) => r.id)).toEqual(["duo"]);
+  });
+
+  it("still refuses a party seating somebody who is away, however full it is", () => {
+    const trio = run("trio", "lotus", 10, [
+      ["Mechy", "me"],
+      ["Creed", "chris"],
+      ["Dwight", "dave"],
+    ]);
+    const { eligible: kept, rejected } = screenRuns([trio], ["me", "chris", "mel"], {
+      everyoneOn: true,
+    });
+    expect(kept).toEqual([]);
+    expect(rejected[0]?.reason).toBe("person-unavailable");
+  });
+
   it("reports the double-booking ahead of the absence, because it is broken either way", () => {
     const { rejected } = screenRuns(
       [

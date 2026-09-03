@@ -44,6 +44,7 @@ import { controlsKey } from "@/lib/run-order-submit";
 import { useDropIcons } from "@/lib/drop-icons";
 import { useSeatSprites } from "@/lib/seat-sprites";
 import { useRowWrites } from "@/lib/use-row-writes";
+import { useEveryoneOn } from "@/lib/everyone-on";
 import { useShowPieces } from "@/lib/show-pieces";
 import { useShowTimes } from "@/lib/show-times";
 import { useWhoIsOn } from "@/lib/who-is-on";
@@ -213,6 +214,9 @@ export default function RunOrderPage() {
   const [source, setSource] = useState<Source>("parties");
   const [duration, setDuration] = useState(120);
   const [openOnly, setOpenOnly] = useState(true);
+  // Whether a run has to seat everyone who is on, kept across visits: how you plan, not something
+  // about tonight. Same reasoning as `timed` below. See lib/everyone-on.ts.
+  const [everyoneOn, setEveryoneOn] = useEveryoneOn();
   // Who is off, kept across visits. The same handful of people are away most weeks, and unticking
   // them again every visit is the sort of setup that gets skipped, which plans a night around
   // somebody who is not there. See lib/who-is-on.ts.
@@ -488,15 +492,26 @@ export default function RunOrderPage() {
   // depths of the chain, and freezing them one by one is what would let them disagree. Server data
   // (parties, bosses) is deliberately not in here, so a write during the night still lands.
   const inputs = useMemo(
-    () => ({ source, budget, openOnly, away, drafts, startAt, windows, timed }),
-    [source, budget, openOnly, away, drafts, startAt, windows, timed],
+    () => ({ source, budget, openOnly, everyoneOn, away, drafts, startAt, windows, timed }),
+    [source, budget, openOnly, everyoneOn, away, drafts, startAt, windows, timed],
   );
 
   // What the button compares against. See lib/run-order-submit.ts for why it is a key.
   const key = useMemo(
     () =>
-      controlsKey({ source, openOnly, timed, away, windows, drafts, startText, endText, duration }),
-    [source, openOnly, timed, away, windows, drafts, startText, endText, duration],
+      controlsKey({
+        source,
+        openOnly,
+        everyoneOn,
+        timed,
+        away,
+        windows,
+        drafts,
+        startText,
+        endText,
+        duration,
+      }),
+    [source, openOnly, everyoneOn, timed, away, windows, drafts, startText, endText, duration],
   );
 
   const [asked, setAsked] = useState<{ inputs: typeof inputs; key: string } | null>(null);
@@ -547,8 +562,9 @@ export default function RunOrderPage() {
   // Nothing until the night has been asked for, which is what keeps the search, the plan and
   // "Left out" all empty rather than each needing its own gate.
   const eligible = useMemo(
-    () => (planning ? screenRuns(plannedRuns, here).eligible : NO_RUNS),
-    [planning, plannedRuns, here],
+    () =>
+      planning ? screenRuns(plannedRuns, here, { everyoneOn: shown.everyoneOn }).eligible : NO_RUNS,
+    [planning, plannedRuns, here, shown.everyoneOn],
   );
 
   // Nothing on screen marks the wait. Fading the old plan through it was tried and removed: at the
@@ -892,6 +908,17 @@ export default function RunOrderPage() {
               </label>
             </div>
           )}
+
+          {/* With the chips, because it is a rule about them, and because ticking it off is the
+              only way back from a night where no party seats all of you. */}
+          <label className="night-toggle">
+            <input
+              type="checkbox"
+              checked={everyoneOn}
+              onChange={(e) => setEveryoneOn(e.target.checked)}
+            />
+            <span>Only runs with everyone on</span>
+          </label>
         </section>
       )}
 
@@ -1047,9 +1074,11 @@ export default function RunOrderPage() {
           fits. */}
       {planning && plannedRuns.length > 0 && plan.runs.length === 0 && (
         <p className="finder-empty">
-          {eligible.length === 0 || !shown.timed
-            ? "No run can go ahead with the people who are on."
-            : `Nothing fits in ${formatDuration(shown.budget)}. The shortest run needs longer than that.`}
+          {eligible.length === 0 && shown.everyoneOn
+            ? "No run seats everyone who is on."
+            : eligible.length === 0 || !shown.timed
+              ? "No run can go ahead with the people who are on."
+              : `Nothing fits in ${formatDuration(shown.budget)}. The shortest run needs longer than that.`}
         </p>
       )}
 

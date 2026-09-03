@@ -14,6 +14,7 @@ import type { DraftRun } from "./boss-night";
 export type NightControls = {
   source: string;
   openOnly: boolean;
+  everyoneOn: boolean;
   timed: boolean;
   /** Ticked off, in click order. */
   away: string[];
@@ -28,6 +29,7 @@ export function controlsKey(controls: NightControls): string {
   return JSON.stringify({
     source: controls.source,
     openOnly: controls.openOnly,
+    everyoneOn: controls.everyoneOn,
     timed: controls.timed,
     // Sorted: who was ticked off first is not a difference between two nights.
     away: [...controls.away].sort(),
