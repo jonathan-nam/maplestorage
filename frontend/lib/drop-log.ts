@@ -484,11 +484,11 @@ function totalsOf(entries: DropEntry[]): DropLogTotals {
 }
 
 /**
- * Coupons in the wrong hands out of THIS BOSS's own nights, in both directions.
+ * Coupons of yours somebody else is holding, out of THIS BOSS's own nights.
  *
- * Off `owedToYou`/`owedByYou`, which is entitled against looted and nothing else. A boss row asks what
- * came off this boss, so it is answered from this boss's stacks and adds up to the "120 took, 60
- * due" on the cards beneath it.
+ * Off `owedToYou`, which is entitled against looted and nothing else. A boss row asks what came off
+ * this boss, so it is answered from this boss's stacks and adds up to the "120 took, 60 due" on the
+ * cards beneath it.
  *
  * It used to read the LEDGER pair, which is the same gap spent down by coupons already sold on that
  * person's behalf. Those sales are account-wide, so a row's figure moved for reasons nowhere near
@@ -503,9 +503,9 @@ function totalsOf(entries: DropEntry[]): DropLogTotals {
  * A CLOSED night is still excluded. Closing the books is a decision about that night rather than a
  * sale somewhere else, which is exactly the difference this function now draws.
  *
- * Both directions in ONE map, rather than a second function beside this one. The row says which way
- * a debt runs, and the pair has to come from a single pass: four call sites read this, and the way
- * this feature has gone wrong before is a figure added to some of them and missed on the rest.
+ * The other direction, coupons YOU are holding for the party, is deliberately not here. A row of a
+ * list is not where somebody goes to be told what to hand over, and the drop itself and the Sale
+ * Ledger both say it.
  */
 export function couponsOutstandingByParty(
   entries: DropEntry[],
@@ -528,10 +528,9 @@ export function couponsOutstandingByParty(
     // A closed drop is not outstanding. Without this the badge read the party's ARRANGEMENT rather
     // than the ledger, so "30 coupons owed" survived every sale, payment and settlement against it.
     if (!entry.pieces || entry.closed) continue;
-    if (entry.owedToYou === 0 && entry.owedByYou === 0) continue;
-    const seen = out.get(entry.partyId) ?? { toYou: 0, byYou: 0 };
+    if (entry.owedToYou === 0) continue;
+    const seen = out.get(entry.partyId) ?? { toYou: 0 };
     seen.toYou += entry.owedToYou;
-    seen.byYou += entry.owedByYou;
     out.set(entry.partyId, seen);
   }
   return out;

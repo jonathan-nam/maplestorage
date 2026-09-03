@@ -300,7 +300,7 @@ describe("poolLabel", () => {
   it("says the coupons in coupons, because a count of rows cannot", () => {
     // One row is one hammer or 180 coupons, and the row count leaves out the coupon drops that
     // came out even, so the two numbers are answering different questions.
-    const owed = (toYou: number) => ({ toYou, byYou: 0 });
+    const owed = (toYou: number) => ({ toYou });
     expect(poolLabel(counts(0, 0, 0), owed(90))).toEqual({
       text: "90 coupons owed",
       done: false,
@@ -315,21 +315,13 @@ describe("poolLabel", () => {
     expect(poolLabel(counts(0, 0, 3), owed(20))?.done).toBe(false);
   });
 
-  it("says which way a coupon debt runs, because one word cannot say both", () => {
-    // The ordinary night: you loot the lot and owe the party their share. The row said nothing at
-    // all about it, so a week of runs you had to settle up on read as a week with nothing to do.
-    expect(poolLabel(counts(0, 0, 0), { toYou: 0, byYou: 45 })).toEqual({
-      text: "45 to hand over",
-      done: false,
-    });
-    // Both at once is a pool of several nights that went different ways. Owed first, since that is
-    // the one somebody else has to be asked for.
-    expect(poolLabel(counts(0, 0, 0), { toYou: 20, byYou: 30 })).toEqual({
-      text: "20 coupons owed · 30 to hand over",
-      done: false,
-    });
-    // Coupons of theirs in your inventory are work, so this pool is not drawn as done either.
-    expect(poolLabel(counts(0, 0, 2), { toYou: 0, byYou: 15 })?.done).toBe(false);
+  it("says only what is owed to you, never what you are holding", () => {
+    // The row carried "45 to hand over" for the ordinary night, the one you loot whole. What you
+    // do about it is on the drop and in the Sale Ledger, and a list is not where it is read.
+    expect(poolLabel(counts(0, 0, 0), { toYou: 0 })).toBeNull();
+    // Which means a pool whose only outstanding thing is coupons of theirs in your inventory is
+    // drawn as settled here. Deliberate: this line answers what to chase, not what to do.
+    expect(poolLabel(counts(0, 0, 2), { toYou: 0 })).toEqual({ text: "2 settled", done: true });
   });
 });
 
