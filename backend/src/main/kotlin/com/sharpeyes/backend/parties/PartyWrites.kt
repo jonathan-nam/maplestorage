@@ -114,7 +114,15 @@ internal fun saveParty(
         it[minutes] = request.minutes
         it[updatedAt] = now
     }
-    writeMembers(partyId, characterId, request.members, SeatContext(userId, sprites, now), request.shares)
+    // Nobody else left in it, so it is not a party any more. The config becomes the solo pool it
+    // now is: off Party View, on every period, holding every drop it already had. Refusing the edit
+    // instead would leave you deleting the config to say it, and deleting takes the pool with it.
+    // See soloAgain, which is the same move a spent night makes.
+    if (request.members.isEmpty()) {
+        soloAgain(userId, partyId, characterId, bossResetOf(bossIdOfParty(partyId)!!)!!, now)
+    } else {
+        writeMembers(partyId, characterId, request.members, SeatContext(userId, sprites, now), request.shares)
+    }
     setLooter(partyId, request.looterName)
 }
 

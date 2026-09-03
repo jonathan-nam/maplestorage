@@ -239,6 +239,7 @@ private suspend fun RoutingContext.saveWeekRosterRoute(
             val week = asked ?: thisWeek
             val problem =
                 validateRosterWeek(partyId, week, thisWeek)
+                    ?: validateRosterClear(partyId, request.members)
                     ?: request.members?.let { members ->
                         validateMembers(members)
                             ?: bossIdOfParty(partyId)?.let { boss ->

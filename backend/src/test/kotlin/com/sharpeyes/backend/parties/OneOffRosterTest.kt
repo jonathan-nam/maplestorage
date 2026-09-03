@@ -22,6 +22,7 @@ import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlin.time.Clock
 import kotlin.uuid.Uuid
@@ -172,6 +173,61 @@ class OneOffRosterTest {
                 )
             assertNotNull(refusal)
             assertTrue(refusal.contains("Steve"), refusal)
+        }
+    }
+
+    @Test
+    fun `taking the last member out hides the party and keeps its drops`() {
+        transaction {
+            val own = mine("Rune")
+            val boss = bossIdForKey("limbo")!!
+            val party = nightOn(own, oneOff = false)
+            val partyId = Uuid.parse(party.id)
+            val grindstone = LootedDrop(dropIdForKey("grindstone-of-faith")!!)
+            addLoot(partyId, grindstone, boss, todayUtc(), Clock.System.now())
+
+            // Steve stops running it. Refusing this would leave deleting the config as the only way
+            // to say so, and deleting takes the pool with it.
+            saveParty(
+                userId,
+                partyId,
+                SavePartyRequest(own.toString(), "limbo", emptyList()),
+                Clock.System.now(),
+            )
+
+            val after = findParty(partyId, userId)!!
+            assertTrue(after.solo)
+            // A week that already holds a drop is a night played, and it keeps the seats it was
+            // played with: taking Steve out today does not un-owe him half of what fell while he
+            // was in it. Every week after is the roster of one this now is.
+            assertEquals(listOf("Rune", "Steve"), namesIn(after, thisWeek()))
+            assertEquals(listOf("Rune"), namesIn(after, nextWeek()))
+            // Off Party View, on the list the Drop Log reads, drop and all.
+            assertTrue(partiesFor(userId).none { it.id == party.id })
+            assertTrue(partiesFor(userId, includeSolo = true).any { it.id == party.id })
+            assertEquals(1, lootFor(partyId).size)
+        }
+    }
+
+    @Test
+    fun `a party cannot be MADE with nobody else in it`() {
+        transaction {
+            // The other half of the same rule: an edit has a config to demote, and a create does
+            // not, so this would be a party of one on the page that lists parties.
+            assertEquals("a party needs somebody else in it", validateMembers(emptyList()))
+            assertNull(validateMembers(emptyList(), allowNone = true))
+        }
+    }
+
+    @Test
+    fun `a night cannot be put back to a usual party it does not have`() {
+        transaction {
+            val party = nightOn(mine("Rune"))
+            // Clearing the week is what "Use the usual party" sends. A one-off has none, so this
+            // would leave the config naming nobody. See validateRosterClear.
+            assertNotNull(validateRosterClear(Uuid.parse(party.id), null))
+            // Saying who ran it is still the same route's job.
+            assertNull(validateRosterClear(Uuid.parse(party.id), listOf("Steve")))
         }
     }
 }

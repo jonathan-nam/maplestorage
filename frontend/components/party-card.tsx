@@ -11,7 +11,7 @@ import { ApiError, SAVED_BUT_STALE, StaleAfterWrite, apiAssetUrl } from "@/lib/a
 import { clearClass, clearStateLabel, nextClear } from "@/lib/boss-clears";
 import type { PieceStatus } from "@/lib/drop-log";
 import { type CouponsOutstanding, poolLabel } from "@/lib/loot";
-import { guaranteedDrop, otherMembers, partySizeLabel } from "@/lib/parties";
+import { guaranteedDrop, hasStandingRoster, otherMembers, partySizeLabel } from "@/lib/parties";
 import type { Boss } from "@/types/boss";
 import type { BossDrop, DropTables } from "@/types/drop";
 import type { AddLootBody, Loot, SellLootBody } from "@/types/loot";
@@ -332,8 +332,9 @@ export function PartyCard({
                   Save roster for this week
                 </button>
                 {/* Only once the week has been spelled out: there is nothing to go back to
-                    otherwise, and offering it would imply the week is currently unusual. */}
-                {!party.usualRoster && (
+                    otherwise, and offering it would imply the week is currently unusual. A one-off
+                    has nothing to go back to either, ever. See hasStandingRoster. */}
+                {!party.usualRoster && hasStandingRoster(party) && (
                   <button
                     type="button"
                     className="party-cancel"

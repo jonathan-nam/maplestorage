@@ -186,7 +186,9 @@ internal fun takeOverParty(
         saveParty(userId, partyId, request, now, sprites)
     }
 
-    if (request.oneOff) {
+    // Not for a request that names nobody: saveParty has just made this the pool for a boss run
+    // alone, and a pool is on every period rather than one night. See soloAgain.
+    if (request.oneOff && request.members.isNotEmpty()) {
         Party.update({ Party.id eq partyId }) { it[oneOff] = true }
         setRunsInPeriod(partyId, oneOff = true, period, runs = true, now = now)
         // The names belong to the night, not to every week after it. See writeNightRoster.

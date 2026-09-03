@@ -232,6 +232,18 @@ export function isSpentOneOff(party: Party): boolean {
 }
 
 /**
+ * Whether this config keeps a roster of its own, behind whatever a week says.
+ *
+ * A one-off does not. It is one night, and its people are that week's, so there is nothing under
+ * the week to go back to: clearing it would leave the config naming nobody, which is a run alone on
+ * the page that lists parties. The server refuses it too (validateRosterClear); this is what keeps
+ * the button off the screen rather than the whole of the rule.
+ */
+export function hasStandingRoster(party: Party): boolean {
+  return !party.oneOff;
+}
+
+/**
  * The bosses whose routine box cannot be un-ticked, because a party config already says this
  * character runs them.
  *
