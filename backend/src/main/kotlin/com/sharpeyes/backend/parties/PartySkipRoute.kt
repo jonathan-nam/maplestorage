@@ -73,7 +73,7 @@ internal suspend fun RoutingContext.setSkipRoute() {
                                 userId,
                                 bossId,
                                 exclude = partyId,
-                                standingRosterOf(partyId),
+                                rosterNamesFor(partyId, currentWeek()),
                                 now,
                                 oneOff,
                             )

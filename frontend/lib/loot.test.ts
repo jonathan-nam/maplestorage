@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { splitDrop } from "./drop-split";
 import {
+  divides,
   dropsInWeek,
   formatDropped,
   formatDroppedWithYear,
@@ -416,5 +417,21 @@ describe("dropsInWeek", () => {
 
     expect(shown).toEqual([]);
     expect(earlier).toBe(2);
+  });
+});
+
+describe("divides", () => {
+  it("is false where one seat ran, which is a drop nothing is owed off", () => {
+    // The Drop Log records a run with nobody else, so its drop reads one seat even when the pool
+    // it sits in is a party's. See ranWith on the server.
+    expect(divides([member("m1", "Rune")])).toBe(false);
+  });
+
+  it("is false where nobody ran, rather than offering a split with no seats in it", () => {
+    expect(divides([])).toBe(false);
+  });
+
+  it("is true where the party ran it", () => {
+    expect(divides(party)).toBe(true);
   });
 });

@@ -2,10 +2,11 @@
 
 import { useState } from "react";
 import { formatMesos, parseMesos } from "@/lib/drop-split";
+import { divides } from "@/lib/loot";
 import { largestRemainder } from "@/lib/piece-ledger";
 import { parseShares } from "@/lib/shares";
 import type { SellLootBody } from "@/types/loot";
-import type { Party, PartyMember } from "@/types/party";
+import type { PartyMember } from "@/types/party";
 
 // What one drop sold for: the price, what that price IS, how it divides, and who sold it.
 //
@@ -18,13 +19,11 @@ import type { Party, PartyMember } from "@/types/party";
 // server wrote.
 
 export function LootSaleForm({
-  party,
   ran,
   busy,
   onSell,
   onCancel,
 }: {
-  party: Party;
   /**
    * Who could have sold this drop: the seats that ran the week it FELL in, not the party as it
    * stands now. Offering more than that would offer a seller the sell route refuses, and offering
@@ -60,6 +59,8 @@ export function LootSaleForm({
       )
     : null;
   const amount = parseMesos(price);
+  // Whether this drop divides at all, which is what every control below asks about.
+  const shared = divides(ran);
 
   return (
     <form
@@ -94,15 +95,15 @@ export function LootSaleForm({
           <option value="LISTED">listed for</option>
           <option value="RECEIVED">received</option>
           {/* No listing, so no Auction House cut off the top: the price is the whole pot.
-              The payouts are still taxed, so the split is the same one. Not offered on a
-              solo pool: there is no party for a member to buy it off. */}
-          {!party.solo && <option value="BOUGHT">member bought</option>}
+              The payouts are still taxed, so the split is the same one. Not offered where one
+              seat ran: there is nobody to have bought it off. */}
+          {shared && <option value="BOUGHT">member bought</option>}
         </select>
-        {/* Neither control is a question on a solo pool: one seat means nobody to divide
-            with and nobody else it could have been sold by. The stored method is whichever
-            the state holds, and with no members splitDrop's two branches are the same
-            arithmetic (see the test). */}
-        {!party.solo && (
+        {/* Neither control is a question where one seat ran: nobody to divide with and nobody
+            else it could have been sold by. The stored method is whichever the state holds,
+            and with no members splitDrop's two branches are the same arithmetic (see the
+            test). */}
+        {shared && (
           <select
             className="split-input"
             value={splitMethod}
@@ -115,7 +116,7 @@ export function LootSaleForm({
             <option value="LAZY">lazy split</option>
           </select>
         )}
-        {!party.solo && (
+        {shared && (
           <select
             className="split-input"
             value={sellerMemberId}
@@ -131,9 +132,9 @@ export function LootSaleForm({
         )}
       </div>
 
-      {/* One box per seat that ran, so an uneven split is typed where the sale is. Not on a
-          solo pool, which has nobody to divide with. */}
-      {!party.solo && (
+      {/* One box per seat that ran, so an uneven split is typed where the sale is. Not where
+          one seat ran, which has nobody to divide with. */}
+      {shared && (
         <div className="loot-share-inputs">
           {ran.map((m, i) => (
             <span key={m.id} className="loot-share-input">

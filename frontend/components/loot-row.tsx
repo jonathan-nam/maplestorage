@@ -6,7 +6,7 @@ import { LootSaleForm } from "@/components/loot-sale-form";
 import { apiAssetUrl } from "@/lib/api";
 import { formatMesos } from "@/lib/drop-split";
 import { sharesLabel } from "@/lib/shares";
-import { formatDropped, splitOf, statusLabel } from "@/lib/loot";
+import { divides, formatDropped, splitOf, statusLabel } from "@/lib/loot";
 import { canTrade, isPerMember } from "@/lib/world";
 import type { Boss } from "@/types/boss";
 import type { Loot, SellLootBody } from "@/types/loot";
@@ -162,7 +162,7 @@ export function LootRow({
 
       {loot.status === "PENDING" && !canSell && (
         <div className="loot-actions">
-          {!party.solo &&
+          {divides(ran) &&
             ran.map((m) => (
               <button
                 key={m.id}
@@ -207,7 +207,6 @@ export function LootRow({
         !pieces &&
         (selling ? (
           <LootSaleForm
-            party={party}
             ran={ran}
             busy={busy}
             onSell={(body) => {

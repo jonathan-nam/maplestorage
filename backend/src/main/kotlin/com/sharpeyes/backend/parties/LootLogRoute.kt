@@ -21,16 +21,20 @@ import kotlin.uuid.Uuid
 // works the pool out from there. See logDropRoute.
 
 /**
- * Logs a drop by character and boss, working out which pool it belongs in.
+ * Logs a drop by character and boss, on a run with nobody else.
  *
  * The Drop Log's own form, and the only way to log a drop on a boss that has no party: that
  * character's config for the boss takes it if there is one, and a solo config is opened if there is
  * not. Registered under /api/parties rather than /api/parties/{id}/loot because the pool is what it
  * resolves, so there is no id to be under.
  *
- * The form offers EVERY boss, so a partied one arrives here routinely rather than exceptionally. It
- * lands in that party's pool, because there is one config per character per boss and no second pool
- * to open. Which is what made the form's old filter safe to drop: the resolution was always here.
+ * The form offers EVERY boss, so a partied one arrives here routinely, and its drop still lands in
+ * that party's pool: one config per character per boss, no second pool to open.
+ *
+ * It does NOT land in that party's SPLIT. This form names nobody, so what it records is a run with
+ * nobody else, and the row says so (see V72__loot_solo.sql). Which pool a drop sits in cannot say
+ * who was there, and reading it that way handed half of a 3.5b solo kill to somebody who was not in
+ * the game. A drop the party shared is added on the party, where the party is named.
  */
 internal suspend fun RoutingContext.logDropRoute() {
     val (userId, email) = call.principalIdAndEmail()
@@ -84,6 +88,7 @@ internal suspend fun RoutingContext.logDropRoute() {
                                 bossId,
                                 droppedOn,
                                 now,
+                                LootSource(solo = true),
                             )
                         findLoot(lootId, partyId)!!
                     }

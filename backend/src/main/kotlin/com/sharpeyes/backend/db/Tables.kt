@@ -425,6 +425,10 @@ object PartyLoot : Table("party_loot") {
     // may take it back. See V37__loot_from_clear.sql.
     val fromClear = bool("from_clear")
 
+    // It fell on a run with nobody else, so it divides by one seat whatever the pool's roster says
+    // that week. What the Drop Log's own form records, since it names no party. See V72.
+    val solo = bool("solo")
+
     // The sale, all six columns or none of them (party_loot_sale_complete).
     val soldAt = timestamp("sold_at").nullable()
     val saleAmount = long("sale_amount").nullable()

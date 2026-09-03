@@ -189,6 +189,14 @@ internal fun takeOverParty(
     if (request.oneOff) {
         Party.update({ Party.id eq partyId }) { it[oneOff] = true }
         setRunsInPeriod(partyId, oneOff = true, period, runs = true, now = now)
+        // The names belong to the night, not to every week after it. See writeNightRoster.
+        writeNightRoster(
+            partyId,
+            characterIdOfParty(partyId)!!,
+            request.members,
+            now,
+            SeatContext(userId, sprites, now),
+        )
     } else if (!solo) {
         // A one-off asked for as a standing party, which is what "we are doing this every week now"
         // looks like, whether or not its own week is still on. Its armed periods are left alone:

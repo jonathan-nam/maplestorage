@@ -1,6 +1,5 @@
 package com.sharpeyes.backend.parties
 
-import com.sharpeyes.backend.bosses.weekOf
 import com.sharpeyes.backend.db.Party
 import com.sharpeyes.backend.db.PartyLoot
 import com.sharpeyes.backend.db.PartyLootBundle
@@ -33,8 +32,7 @@ internal fun addLoot(
     bossCatalogId: Uuid?,
     droppedOn: LocalDate,
     now: Instant,
-    // True only for a row the app filed from a clear, which is the only kind it may take back.
-    fromClear: Boolean = false,
+    source: LootSource = LootSource(),
 ): Uuid {
     val lootId = Uuid.random()
     // The mode the config runs TODAY, stamped on the row now so a later edit cannot re-attribute it.
@@ -53,7 +51,8 @@ internal fun addLoot(
         it[customName] = item.customName
         it[PartyLoot.bossCatalogId] = bossCatalogId
         it[quantity] = item.quantity
-        it[PartyLoot.fromClear] = fromClear
+        it[PartyLoot.fromClear] = source.fromClear
+        it[PartyLoot.solo] = source.solo
         it[PartyLoot.droppedOn] = droppedOn
         it[difficulty] = mode
         it[createdAt] = now
@@ -85,6 +84,19 @@ internal fun addLoot(
     }
     return lootId
 }
+
+/**
+ * Which door wrote the row, which the drop itself cannot say.
+ *
+ * One value rather than two flags: both answer the same question, and both are read from the same
+ * place at every call. See NewSeat, which is the same shape for the same reason.
+ */
+internal data class LootSource(
+    // The app filed it from a clear, so un-ticking that clear may take it back. See V37.
+    val fromClear: Boolean = false,
+    // It fell on a run with nobody else, so it divides by one seat. See V72 and ranWith.
+    val solo: Boolean = false,
+)
 
 /**
  * What fell: which drop it is, and how many.
@@ -121,11 +133,12 @@ internal fun sellLoot(
     partyId: Uuid,
     now: Instant,
 ) {
-    val droppedOn =
+    val row =
         PartyLoot
             .selectAll()
             .where { PartyLoot.id eq lootId }
-            .first()[PartyLoot.droppedOn]
+            .first()
+    val droppedOn = row[PartyLoot.droppedOn]
 
     // Absent is one share, which is the even split every sale was before this could be said.
     val sharesFor = { seatId: Uuid -> request.shares[seatId.toString()] ?: 1 }
@@ -152,7 +165,7 @@ internal fun sellLoot(
     // Against the roster rather than the rows already there, so re-selling a drop after a seat's
     // share moved off or onto zero writes the row that share now implies. Rows for somebody no
     // longer in the roster are left alone, because one may be the record that they were paid.
-    rosterFor(partyId, weekOf(droppedOn))
+    ranWith(partyId, droppedOn, row[PartyLoot.solo])
         .filterNot { it == sellerMemberId }
         .forEach { seatId ->
             val count = sharesFor(seatId)
