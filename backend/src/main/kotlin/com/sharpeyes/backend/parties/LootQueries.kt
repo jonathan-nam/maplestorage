@@ -88,20 +88,30 @@ private fun payoutsFor(lootIds: List<Uuid>): Map<Uuid, List<LootPayoutResponse>>
         }
 
 /**
- * The seats that ran each drop's own week, keyed by drop.
+ * The seats each drop is divided between, keyed by drop.
  *
  * A drop belongs to the week it fell in, so that is the roster it is measured against: who could
- * have sold it, and who a sale owes. Batched a week at a time rather than asked per drop, since a
- * pool is usually a handful of drops spread over very few weeks.
+ * have sold it, and who a sale owes. A drop that says it fell on a run with nobody else is measured
+ * against your own seat instead, whatever the pool ran that week. See ranWith.
+ *
+ * Batched a week at a time rather than asked per drop, since a pool is usually a handful of drops
+ * spread over very few weeks.
  */
 private fun ranThatWeekFor(rows: List<ResultRow>): Map<Uuid, List<String>> {
+    val (alone, withOthers) = rows.partition { it[PartyLoot.solo] }
     val rostersByWeek =
-        rows
+        withOthers
             .groupBy({ weekOf(it[PartyLoot.droppedOn]) }) { it[PartyLoot.partyId] }
             .mapValues { (week, partyIds) -> rostersFor(partyIds.distinct(), week) }
+    val ownSeats = ownSeatsOf(alone.map { it[PartyLoot.partyId] }.distinct())
 
     return rows.associate { row ->
-        val ran = rostersByWeek[weekOf(row[PartyLoot.droppedOn])]?.get(row[PartyLoot.partyId])
+        val ran =
+            if (row[PartyLoot.solo]) {
+                ownSeats[row[PartyLoot.partyId]]
+            } else {
+                rostersByWeek[weekOf(row[PartyLoot.droppedOn])]?.get(row[PartyLoot.partyId])
+            }
         row[PartyLoot.id] to ran.orEmpty().map { it.toString() }
     }
 }
@@ -255,6 +265,7 @@ private fun ResultRow.toLootResponse(
         bossKey = this.getOrNull(BossCatalog.bossKey),
         quantity = this[PartyLoot.quantity],
         difficulty = this[PartyLoot.difficulty],
+        solo = this[PartyLoot.solo],
         droppedOn = this[PartyLoot.droppedOn].toString(),
         weekStart = weekOf(this[PartyLoot.droppedOn]).toString(),
         status = statusOf(sold, takenBy != null, payouts),

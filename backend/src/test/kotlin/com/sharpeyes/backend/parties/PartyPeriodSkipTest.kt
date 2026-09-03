@@ -343,7 +343,9 @@ class PartyPeriodSkipTest {
                     userId,
                     limbo,
                     exclude = Uuid.parse(night.id),
-                    standingRosterOf(Uuid.parse(night.id)),
+                    // The night's roster, which is what setSkipRoute reads: a one-off keeps no
+                    // standing seats, it names its week. See writeNightRoster.
+                    rosterNamesFor(Uuid.parse(night.id), currentWeek()),
                     Clock.System.now(),
                     oneOff = true,
                 ),
@@ -495,7 +497,7 @@ class PartyPeriodSkipTest {
                 bossIdForKey("limbo"),
                 todayUtc(),
                 Clock.System.now(),
-                fromClear = true,
+                LootSource(fromClear = true),
             )
 
             // The failure this guards: Delete takes the row off Party View and leaves the coupons

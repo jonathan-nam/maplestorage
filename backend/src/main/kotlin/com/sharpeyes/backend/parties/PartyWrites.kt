@@ -63,7 +63,9 @@ internal fun createParty(
         val period = periodShown(bossResetOf(bossCatalogId)!!, week = null, now = now)
         setRunsInPeriod(partyId, oneOff = true, period, runs = true, now = now)
     }
-    writeMembers(partyId, characterId, request.members, SeatContext(userId, sprites, now), request.shares)
+    val context = SeatContext(userId, sprites, now)
+    writeMembers(partyId, characterId, request.members, context, request.shares)
+    if (request.oneOff) writeNightRoster(partyId, characterId, request.members, now, context)
     setLooter(partyId, request.looterName)
     return partyId
 }

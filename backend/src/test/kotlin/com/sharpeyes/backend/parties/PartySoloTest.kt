@@ -2,6 +2,7 @@ package com.sharpeyes.backend.parties
 
 import com.sharpeyes.backend.bosses.setBossClearByHand
 import com.sharpeyes.backend.bosses.setBossRoutine
+import com.sharpeyes.backend.bosses.weekOf
 import com.sharpeyes.backend.config.Env
 import com.sharpeyes.backend.db.Characters
 import com.sharpeyes.backend.db.Party
@@ -29,10 +30,12 @@ import kotlin.uuid.Uuid
 /**
  * The pool for a boss run alone, against a real Postgres.
  *
- * Two claims are worth a database. That a solo pool is not a party: it holds drops and appears on
+ * Three claims are worth a database. That a solo pool is not a party: it holds drops and appears on
  * no list of parties, or Party View, Run Order and People all start showing arrangements of one.
- * And that adding the people you run it with does not back-date them onto what already fell, which
- * would owe a share of a drop to somebody who was not in the game that night.
+ * That adding the people you run it with does not back-date them onto what already fell, which
+ * would owe a share of a drop to somebody who was not in the game that night. And that a run with
+ * nobody else stays one even when its drop is pooled under a party, which is the state the Drop Log
+ * puts a partied boss in every time.
  */
 class PartySoloTest {
     private val userId = "user_test_solo_1"
@@ -349,12 +352,17 @@ class PartySoloTest {
             // A pool is on every period, unlike the night this was.
             assertFalse(pool.oneOff)
             assertEquals("NORMAL", pool.difficulty)
-            // One seat from now on, so what a clear files divides by one.
-            assertEquals(listOf(characterId.toString()), pool.members.map { it.characterId })
-            // Steve is off the roster, not out of it. The night they ran keeps both, or selling
-            // that grindstone later would read the roster as it stands now and owe nobody a share.
+            // One seat from the week this was said in, so what a clear files there divides by one.
+            assertEquals(1, rosterFor(partyId, weekOf(todayIn(later))).size)
+            // Steve is off the roster, not out of it. The night he ran keeps both seats, which is
+            // the week the one-off was armed for: selling that night's drop later must not read the
+            // roster as it stands now and owe nobody a share.
             assertEquals(2, pool.seats.size)
-            assertEquals(2, rosterFor(partyId, weekOf20Jul).size)
+            assertEquals(2, rosterFor(partyId, weekOf(todayIn(night))).size)
+            // The grindstone above fell in a week this config was never armed for, so it was not
+            // that night and divides by one. A one-off's people are written onto its own week and
+            // stand in no other. See writeNightRoster.
+            assertEquals(1, rosterFor(partyId, weekOf20Jul).size)
         }
     }
 
@@ -427,6 +435,54 @@ class PartySoloTest {
             // this character runs it. A pool of one drop is not, and there would be nothing to
             // "remove first" if it refused.
             assertNull(setBossRoutine(userId, characterId, listOf("limbo"), Clock.System.now()))
+        }
+    }
+
+    @Test
+    fun `a drop logged on a boss with a party is still a run with nobody else`() {
+        transaction {
+            val characterId = character()
+            val now = Clock.System.now()
+            val bossId = bossIdForKey("limbo")!!
+            val request = SavePartyRequest(characterId.toString(), "limbo", listOf("Steve"))
+            val partyId = createParty(userId, characterId, bossId, request, now)
+            val mine = findParty(partyId, userId)!!.seats.first { it.characterId == characterId.toString() }.id
+
+            // What the Drop Log's own form writes. It names nobody, so the row says nobody else was
+            // there, and the pool it happens to sit in does not get to answer that question.
+            val grindstone = LootedDrop(dropIdForKey("grindstone-of-faith")!!)
+            val lootId = addLoot(partyId, grindstone, bossId, dropped, now, LootSource(solo = true))
+
+            assertEquals(listOf(mine), findLoot(lootId, partyId)!!.ranThatWeek)
+
+            sellLoot(lootId, SellLootRequest(9_500_000_000, "LISTED", "FAIR", mine), Uuid.parse(mine), partyId, now)
+            // The failure this exists to stop: half of a solo kill owed to Steve, who was not in
+            // the game, on a drop entered through the button that asks about neither.
+            assertTrue(findLoot(lootId, partyId)!!.payouts.isEmpty())
+        }
+    }
+
+    @Test
+    fun `a drop added on the party is still divided by the party`() {
+        transaction {
+            val characterId = character()
+            val now = Clock.System.now()
+            val bossId = bossIdForKey("limbo")!!
+            val request = SavePartyRequest(characterId.toString(), "limbo", listOf("Steve"))
+            val partyId = createParty(userId, characterId, bossId, request, now)
+            val seats = findParty(partyId, userId)!!.seats
+            val mine = seats.first { it.characterId == characterId.toString() }.id
+
+            // The other door, unchanged: this one names the party, so the party is what it divides
+            // by. Both are worth a test, because the fix for one is a way to break the other.
+            val grindstone = LootedDrop(dropIdForKey("grindstone-of-faith")!!)
+            val lootId = addLoot(partyId, grindstone, bossId, dropped, now)
+
+            assertEquals(seats.map { it.id }.toSet(), findLoot(lootId, partyId)!!.ranThatWeek.toSet())
+
+            sellLoot(lootId, SellLootRequest(9_500_000_000, "LISTED", "FAIR", mine), Uuid.parse(mine), partyId, now)
+            val steve = seats.first { it.name == "Steve" }.id
+            assertEquals(listOf(steve), findLoot(lootId, partyId)!!.payouts.map { it.memberId })
         }
     }
 }

@@ -44,6 +44,9 @@ data class LootResponse(
     // party's, so editing a party's difficulty cannot re-decide whether a logged stack divides.
     // Null for a row from before V69__loot_difficulty.sql that the backfill could not place.
     val difficulty: String? = null,
+    // It fell on a run with nobody else, so it divides by one seat however the pool reads that week.
+    // What the Drop Log's own form records, since it names no party. See V72__loot_solo.sql.
+    val solo: Boolean = false,
     val droppedOn: String,
     // The reset week droppedOn falls in, as that week's Thursday. Sent rather than derived on the
     // client so the week a drop is filed under is the same one ranThatWeek was read against, and

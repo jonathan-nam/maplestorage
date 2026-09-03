@@ -108,7 +108,7 @@ internal fun lootFromClear(
                 bossCatalogId,
                 droppedOn,
                 now,
-                fromClear = true,
+                LootSource(fromClear = true),
             )
         }
 }
