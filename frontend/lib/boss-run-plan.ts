@@ -32,6 +32,12 @@
 // login screen. It sits below party size, so a person whose two runs are the fullest and the
 // emptiest can still be split across the night.
 //
+// A gap is counted as it OPENS, not when it closes. Waiting is only paid when somebody comes back,
+// so ranking half-built nights on the paid total alone cannot tell a night that has stranded
+// somebody from one that has not, and prunes the orderings that would have avoided it: that is
+// what put a person's last two runs behind nine they sat out. See betterState and betterPlanned,
+// which are why there are two comparators rather than one.
+//
 // A switch is counted and ordered on, never billed to the clock. The night is measured in whole
 // runs, so at the default half hour a run the schedule reads 0:00, 0:30, 1:00. Charging a relog
 // against an estimate that coarse only bought a finishing time that looked precise and was not.
@@ -298,8 +304,12 @@ type State = {
   parties: string;
   /** Which run each person was last in, by person. -1 means they have not been in one yet. */
   lastRunAt: number[];
+  /** Candidate runs each person is still in that have not been scheduled, by person. */
+  left: number[];
   /** Runs people sit out between two of their own, summed over everybody. See WAITING. */
   waiting: number;
+  /** The waiting already incurred by everybody still owed a run. See WAITING. */
+  owed: number;
   minutes: number;
   switches: number;
   /** Filled in by planKey on first use, which only happens on a tie. */
@@ -388,13 +398,38 @@ function swap<T>(items: T[], a: number, b: number): void {
   items[b] = held;
 }
 
+/**
+ * Which of two states to carry forward: waiting counted with what is already owed.
+ *
+ * The beam has to rank half-built nights, and waiting is a LAGGING cost: it is only charged when
+ * somebody comes back, so a state that has stranded a person mid-night is indistinguishable from
+ * one that has not until the bill arrives, by which point every better continuation has been
+ * pruned. That is what put a person's last two runs behind nine they sat out. `owed` is the same
+ * gap counted as it opens rather than when it closes, which is what makes the two comparable.
+ */
 function betterState(a: State, b: State): number {
   // Bigger parties earlier. Greater string, not lesser, so this is descending.
+  if (a.parties !== b.parties) return a.parties < b.parties ? 1 : -1;
+  if (a.waiting + a.owed !== b.waiting + b.owed) return a.waiting + a.owed - (b.waiting + b.owed);
+  if (a.switches !== b.switches) return a.switches - b.switches;
+  if (a.minutes !== b.minutes) return a.minutes - b.minutes;
+  // Deterministic last resort, so the same input always gives the same plan back.
+  return planKey(a).localeCompare(planKey(b));
+}
+
+/**
+ * Which of two finished plans to hand back. Waiting only, because `owed` is an estimate.
+ *
+ * A night that runs out of clock leaves runs unscheduled, and whoever is in them is owed a gap
+ * that will never be waited. Ranking the ANSWER on that would trade a real sat-out run for an
+ * imaginary one, which is the ordering this file promises not to do. So the estimate steers the
+ * search and the tally decides between what it found.
+ */
+function betterPlanned(a: State, b: State): number {
   if (a.parties !== b.parties) return a.parties < b.parties ? 1 : -1;
   if (a.waiting !== b.waiting) return a.waiting - b.waiting;
   if (a.switches !== b.switches) return a.switches - b.switches;
   if (a.minutes !== b.minutes) return a.minutes - b.minutes;
-  // Deterministic last resort, so the same input always gives the same plan back.
   return planKey(a).localeCompare(planKey(b));
 }
 
@@ -476,6 +511,23 @@ export function planNight(
 
   const people = personAt.size;
 
+  // How many of tonight's runs each person is in, which is what makes stranding them visible.
+  const runsPerPerson = new Array(people).fill(0);
+  // The shortest run each person is in, and the clock they have to be off by: together, whether
+  // another run could still fit them. Both are optimistic (the short run may already be taken),
+  // which is the safe direction: owed is a cost, and over-owing is what distorts a plan.
+  const shortestRun = new Array(people).fill(Infinity);
+  const offBy = new Array(people).fill(options.minutes);
+  for (const { run, persons } of prepared) {
+    for (let s = 0; s < persons.length; s++) {
+      const person = persons[s] as number;
+      runsPerPerson[person]++;
+      if (run.minutes < shortestRun[person]) shortestRun[person] = run.minutes;
+      const until = available[(run.seats[s] as AttributedSeat).personId]?.until;
+      if (until !== undefined && until < offBy[person]) offBy[person] = until;
+    }
+  }
+
   const start: State = {
     order: null,
     depth: 0,
@@ -484,7 +536,9 @@ export function planNight(
     spent: noBits(pairAt.size),
     parties: "",
     lastRunAt: new Array(people).fill(-1),
+    left: runsPerPerson,
     waiting: 0,
+    owed: 0,
     minutes: 0,
     switches: 0,
     orderKey: null,
@@ -535,6 +589,7 @@ export function planNight(
         const at = state.depth;
         const parked = state.parked.slice();
         const lastRunAt = state.lastRunAt.slice();
+        const left = state.left.slice();
         const spent = state.spent.slice();
         let waiting = state.waiting;
         for (let s = 0; s < seats.length; s++) {
@@ -543,11 +598,33 @@ export function planNight(
           if (before >= 0) waiting += at - before - 1;
           parked[person] = (seats[s] as AttributedSeat).character;
           lastRunAt[person] = at;
+          left[person] = (left[person] as number) - 1;
           setBit(spent, pairs[s] as number);
         }
 
         const taken = state.taken.slice();
         setBit(taken, index);
+
+        // Only ever compared for equality, so the shape is free: the taken words, the clock, then
+        // everyone who has logged in, in person order.
+        //
+        // The clock is in here because waiting for somebody makes it depend on the ORDER the runs
+        // were taken in and not just on which ones. Without an arrival it is the sum of the taken
+        // runs and therefore already implied by the words in front of it, which is why adding it
+        // cannot change a plan for a night nobody turns up late to.
+        //
+        // `owed` rides along the same pass: it reads only `parked`, `lastRunAt` and `left`, all of
+        // which the key already covers, so it is a function of the key and cannot split one.
+        let owed = 0;
+        let key = `${taken.join()}@${minutes}`;
+        for (let person = 0; person < people; person++) {
+          const on = parked[person];
+          if (on === undefined) continue;
+          key += `|${person}>${on}@${lastRunAt[person]}`;
+          if ((left[person] as number) > 0 && minutes + shortestRun[person] <= offBy[person]) {
+            owed += at - (lastRunAt[person] as number);
+          }
+        }
 
         const candidate: State = {
           order: {
@@ -565,33 +642,44 @@ export function planNight(
           spent,
           parties: state.parties + size,
           lastRunAt,
+          left,
           waiting,
+          owed,
           minutes,
           switches: state.switches + switched.length,
           orderKey: null,
         };
-
-        // Only ever compared for equality, so the shape is free: the taken words, the clock, then
-        // everyone who has logged in, in person order.
-        //
-        // The clock is in here because waiting for somebody makes it depend on the ORDER the runs
-        // were taken in and not just on which ones. Without an arrival it is the sum of the taken
-        // runs and therefore already implied by the words in front of it, which is why adding it
-        // cannot change a plan for a night nobody turns up late to.
-        let key = `${taken.join()}@${minutes}`;
-        for (let person = 0; person < people; person++) {
-          const on = parked[person];
-          if (on !== undefined) key += `|${person}>${on}@${lastRunAt[person]}`;
-        }
 
         const held = next.get(key);
         if (!held || betterState(candidate, held) < 0) next.set(key, candidate);
       }
     }
 
-    beam = bestOf([...next.values()], beamWidth, betterState);
-    const leader = beam[0];
-    if (!leader) break;
+    // Full width to EACH comparator, carrying the union forward, because the estimate steers and
+    // can therefore steer wrong: `owed` prefers a state with nobody stranded over one with more
+    // of the clock left, and less clock left fits fewer runs after it. Planning two thousand
+    // random nights both ways, that dropped a whole boss on three of them, and a boss is the one
+    // thing ranked above waiting. Splitting one width between the two was far worse again (38 of
+    // the two thousand), so the count is bought with width and not with the ranking.
+    const pool = [...next.values()];
+    const steered = bestOf(pool.slice(), beamWidth, betterState);
+    const plain = bestOf(pool, beamWidth, betterPlanned);
+
+    const kept = new Set(steered);
+    beam = steered;
+    for (const state of plain) {
+      if (!kept.has(state)) {
+        kept.add(state);
+        beam.push(state);
+      }
+    }
+    if (beam.length === 0) break;
+
+    // The beam is cut on the estimate, the plan of this length is picked off what survived.
+    let leader = beam[0] as State;
+    for (let i = 1; i < beam.length; i++) {
+      if (betterPlanned(beam[i] as State, leader) < 0) leader = beam[i] as State;
+    }
     byCount.push(toPlan(leader));
   }
 

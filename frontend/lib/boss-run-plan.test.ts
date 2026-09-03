@@ -329,6 +329,140 @@ describe("planNight", () => {
     expect(best.switches).toBe(2);
   });
 
+  it("finishes off the person who is only in a handful of a long night", () => {
+    // The night this was reported on. Jared is in four of sixteen runs and used to be given two at
+    // the start and two at the eleventh hour, sitting out nine in between, because waiting is only
+    // charged when somebody comes BACK: until then a half-built night that had stranded him ranked
+    // exactly like one that had not, and every better continuation was pruned before the bill
+    // arrived. Nothing pays for it, the same sixteen runs at the same ten switches.
+    const night: [string, [string, string][]][] = [
+      [
+        "limbo",
+        [
+          ["onetwothreeo", "me"],
+          ["Freeballynn", "bro"],
+          ["CourseLair", "jared"],
+        ],
+      ],
+      [
+        "adversary",
+        [
+          ["onetwothreeo", "me"],
+          ["iPhone69C", "bro"],
+          ["CourseLair", "jared"],
+        ],
+      ],
+      [
+        "kalos",
+        [
+          ["warrior2020", "me"],
+          ["iPhone69C", "bro"],
+        ],
+      ],
+      [
+        "kaling",
+        [
+          ["acornacorn", "me"],
+          ["iPhone69C", "bro"],
+        ],
+      ],
+      [
+        "blackmage",
+        [
+          ["acornacorn", "me"],
+          ["iPhone69C", "bro"],
+        ],
+      ],
+      [
+        "star",
+        [
+          ["acornacorn", "me"],
+          ["CreedBratton", "bro"],
+        ],
+      ],
+      [
+        "baldrix",
+        [
+          ["HuskyxKenshi", "me"],
+          ["CreedBratton", "bro"],
+        ],
+      ],
+      [
+        "kalosx",
+        [
+          ["HuskyxKenshi", "me"],
+          ["CreedBratton", "bro"],
+        ],
+      ],
+      [
+        "adversaryx",
+        [
+          ["mechyfechy", "me"],
+          ["CreedBratton", "bro"],
+        ],
+      ],
+      [
+        "kalosx",
+        [
+          ["mechyfechy", "me"],
+          ["Freeballynn", "bro"],
+        ],
+      ],
+      [
+        "blackmage",
+        [
+          ["onetwothreeo", "me"],
+          ["Freeballynn", "bro"],
+        ],
+      ],
+      [
+        "star",
+        [
+          ["onetwothreeo", "me"],
+          ["CourseLair", "jared"],
+        ],
+      ],
+      [
+        "limbo",
+        [
+          ["HuskyxKenshi", "me"],
+          ["DemonSlays20", "jared"],
+        ],
+      ],
+      [
+        "kaling",
+        [
+          ["HuskyxKenshi", "me"],
+          ["Freeballynn", "bro"],
+        ],
+      ],
+      [
+        "seren",
+        [
+          ["HuskyxKenshi", "me"],
+          ["Freeballynn", "bro"],
+        ],
+      ],
+      [
+        "star",
+        [
+          ["HuskyxKenshi", "me"],
+          ["Freeballynn", "bro"],
+        ],
+      ],
+    ];
+    const runs = night.map(([boss, seats], i) => eligible(`r${i}`, boss, 30, seats));
+    const { best } = planNight(runs, { minutes: night.length * 30 });
+
+    expect(best.runs).toHaveLength(16);
+    expect(best.switches).toBe(10);
+
+    const jaredAt = best.runs.flatMap((planned, i) =>
+      planned.run.seats.some((seat) => seat.personId === "jared") ? [i] : [],
+    );
+    expect(jaredAt).toEqual([0, 1, 2, 3]);
+  });
+
   it("puts a fuller party first even when that costs a switch", () => {
     // Kanna's two runs would group for free, but that leaves the three-person boss until last,
     // by which time somebody has gone to bed. One relog is the cheaper thing to spend.
