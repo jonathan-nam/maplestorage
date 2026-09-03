@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useDeferredValue, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 
 import type { StackDraft } from "@/components/drop-picker";
+import { HintBubble } from "@/components/hint-bubble";
 import { RunDraftEditor } from "@/components/run-draft-editor";
 import { CopyPlan, type RunLog, type RunRotation, RunPlan } from "@/components/run-plan";
 import { pieceNote, rotatingDrops, rotationFor, takesByOwner } from "@/lib/loot-rotation";
@@ -910,15 +911,24 @@ export default function RunOrderPage() {
           )}
 
           {/* With the chips, because it is a rule about them, and because ticking it off is the
-              only way back from a night where no party seats all of you. */}
-          <label className="night-toggle">
-            <input
-              type="checkbox"
-              checked={everyoneOn}
-              onChange={(e) => setEveryoneOn(e.target.checked)}
-            />
-            <span>Only runs with everyone on</span>
-          </label>
+              only way back from a night where no party seats all of you.
+
+              The hint, and not a line under the box, because "subset" is the one word here that is
+              ours rather than the product's. The mark is OUTSIDE the label: inside it, asking what
+              the box does would tick it. */}
+          <div className="night-toggle-row">
+            <label className="night-toggle">
+              <input
+                type="checkbox"
+                checked={everyoneOn}
+                onChange={(e) => setEveryoneOn(e.target.checked)}
+              />
+              <span>Exclude Party Member Subsets</span>
+            </label>
+            <HintBubble name="What this excludes">
+              Three people on get the three-person party, not its duos and solos as well.
+            </HintBubble>
+          </div>
         </section>
       )}
 
