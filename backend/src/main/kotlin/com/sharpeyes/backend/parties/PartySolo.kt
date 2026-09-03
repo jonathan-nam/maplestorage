@@ -141,7 +141,7 @@ internal fun setSoloDifficulty(
 }
 
 /**
- * Takes a retired config back as the pool for a boss this character now runs alone.
+ * Takes a config back as the pool for a boss this character now runs alone.
  *
  * The reverse of adoptSoloParty, and the only way back. One config per pair, so a retired party held
  * the slot for a boss now run alone with no door out: a party needs somebody else in it, and naming
@@ -156,7 +156,7 @@ internal fun setSoloDifficulty(
  * holds a DROP is a night played and keeps its seats; the rest of the live period goes back to the
  * standing roster of one.
  */
-private fun soloAgain(
+internal fun soloAgain(
     userId: String,
     partyId: Uuid,
     characterId: Uuid,

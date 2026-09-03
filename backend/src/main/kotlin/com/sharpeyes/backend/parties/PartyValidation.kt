@@ -94,7 +94,7 @@ internal fun validateSavedParty(
     val bossCatalogId = bossIdOfParty(partyId)
     return bossCatalogId?.let { validateDifficulty(it, request.difficulty) }
         ?: validateMinutes(request.minutes)
-        ?: validateMembers(request.members)
+        ?: validateMembers(request.members, allowNone = true)
         ?: validateShares(request.shares, characterIdOfParty(partyId), request.members)
         ?: validateLooter(request.looterName, characterIdOfParty(partyId), request.members)
         ?: bossCatalogId?.let {

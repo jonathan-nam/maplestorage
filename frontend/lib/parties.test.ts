@@ -9,6 +9,7 @@ import {
   filterByClear,
   guaranteedDrop,
   hasGuaranteedDrop,
+  hasStandingRoster,
   isCleared,
   knownCharacterNames,
   otherMembers,
@@ -63,6 +64,19 @@ const config = (id: string, characterId: string, bossKey: string, others: string
   clearedByHand: false,
   createdAt: "2026-07-26T00:00:00Z",
   updatedAt: "2026-07-26T00:00:00Z",
+});
+
+describe("hasStandingRoster", () => {
+  const party = config("p1", "c1", "limbo", ["Steve"]);
+
+  it("is false for a one-off, which has no roster under the week", () => {
+    // Its people are that week's, so clearing the week reveals nobody rather than a usual party.
+    expect(hasStandingRoster({ ...party, oneOff: true })).toBe(false);
+  });
+
+  it("is true for an ordinary party, which a week can be reverted to", () => {
+    expect(hasStandingRoster(party)).toBe(true);
+  });
 });
 
 describe("otherMembers", () => {
