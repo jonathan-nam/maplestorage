@@ -824,7 +824,7 @@ describe("a piece drop counts YOUR share, not what fell", () => {
     // One drop, one fact. Counting it both ways read as two things to do: a single coupon drop
     // showed as "1 in the pool · 30 coupons owed" on the party row.
     expect(log.totals.pending).toBe(0);
-    expect(couponsOutstandingByParty(log.entries).get("pa")).toEqual({ toYou: 20, byYou: 0 });
+    expect(couponsOutstandingByParty(log.entries).get("pa")).toEqual({ toYou: 20 });
     // And "in the pool" is not what it is. It is in somebody else's inventory, which the row says.
     expect(dropStatusLabel(log.entries[0]!)).toBe("Owed");
   });
@@ -885,7 +885,8 @@ describe("a piece drop counts YOUR share, not what fell", () => {
     // Not owed TO you, and not nothing either: you are holding 40 of a 30 share, so 10 of it is
     // theirs and the row says so the other way round.
     expect(entry.owedByYou).toBe(10);
-    expect(couponsOutstandingByParty(log.entries).get("pa")).toEqual({ toYou: 0, byYou: 10 });
+    // The badge says nothing: it answers what to chase, and this is on the drop below instead.
+    expect(couponsOutstandingByParty(log.entries).has("pa")).toBe(false);
     // This said "Yours" once, on the grounds that they are in your inventory. So is somebody else's
     // share of them: a Hard Baldrix duo read "Yours" over 120 coupons that owed Bro 60, while the
     // Sale Ledger asked for the 60. The whole row went quiet in the one direction.
@@ -942,7 +943,7 @@ describe("a piece drop counts YOUR share, not what fell", () => {
     expect(log.entries[0]!.yours).toBe(30);
     expect(log.entries[0]!.owedToYou).toBe(10);
     expect(log.entries[0]!.owedBy).toBe("CreedBratton");
-    expect(couponsOutstandingByParty(log.entries).get("pa")).toEqual({ toYou: 10, byYou: 0 });
+    expect(couponsOutstandingByParty(log.entries).get("pa")).toEqual({ toYou: 10 });
     expect(dropStatusLabel(log.entries[0]!)).toBe("Owed");
   });
 
@@ -952,18 +953,19 @@ describe("a piece drop counts YOUR share, not what fell", () => {
     const log = buildDropLog([pair()], [pool("pa", [arranged(0, 3)])], tables);
 
     expect(log.entries[0]!.owedToYou).toBe(30);
-    expect(couponsOutstandingByParty(log.entries).get("pa")).toEqual({ toYou: 30, byYou: 0 });
+    expect(couponsOutstandingByParty(log.entries).get("pa")).toEqual({ toYou: 30 });
   });
 
   it("owes them all of theirs where YOU picked up every stack", () => {
-    // The mirror of the row above, and the one that went silent: a seat holding nothing is not in
-    // the arrangement at all, so the night read as having nobody on the other side of it and the
-    // badge said nothing. The ordinary duo night, on a boss whose stacks one person picks up.
+    // The mirror of the row above: a seat holding nothing is not in the arrangement at all, so the
+    // night read as having nobody on the other side of it. The ordinary duo night, on a boss whose
+    // stacks one person picks up. The DROP says it. The party badge deliberately does not.
     const log = buildDropLog([pair()], [pool("pa", [arranged(3, 0)])], tables);
 
     expect(log.entries[0]!.owedByYou).toBe(30);
     expect(log.entries[0]!.owedToYou).toBe(0);
-    expect(couponsOutstandingByParty(log.entries).get("pa")).toEqual({ toYou: 0, byYou: 30 });
+    expect(dropStatusLabel(log.entries[0]!)).toBe("To hand over");
+    expect(couponsOutstandingByParty(log.entries).has("pa")).toBe(false);
   });
 
   // A sale of their share does NOT touch the night. Selling instead of handing back turns a coupon
@@ -979,7 +981,7 @@ describe("a piece drop counts YOUR share, not what fell", () => {
       const log = buildDropLog([pair()], [pool("pa", [arranged(3, 0)])], tables);
 
       expect(log.entries[0]!.owedByYou).toBe(30);
-      expect(couponsOutstandingByParty(log.entries).get("pa")).toEqual({ toYou: 0, byYou: 30 });
+      expect(dropStatusLabel(log.entries[0]!)).toBe("To hand over");
     });
 
     it("takes no sales at all, so nothing account-wide can reach a boss row", () => {
@@ -995,7 +997,7 @@ describe("a piece drop counts YOUR share, not what fell", () => {
       const log = buildDropLog([pair()], [pool("pa", [arranged(3, 0)])], tables, closed);
 
       expect(log.entries[0]!.closed).toBe(true);
-      expect(couponsOutstandingByParty(log.entries).has("pa")).toBe(false);
+      expect(dropStatusLabel(log.entries[0]!)).toBe("Settled");
     });
   });
 
@@ -1023,8 +1025,11 @@ describe("a piece drop counts YOUR share, not what fell", () => {
         ],
         ...over,
       });
+    /** Coupons of theirs YOU are holding out of one party, which is a fact about the DROP now. */
+    const holding = (log: ReturnType<typeof buildDropLog>, partyId: string) =>
+      log.entries.filter((e) => e.partyId === partyId).reduce((sum, e) => sum + e.owedByYou, 0);
 
-    it("says both directions where an equal debt runs each way, across two parties", () => {
+    it("says each way round where an equal debt runs both, across two parties", () => {
       // 10 of yours in their pile off one boss, 10 of theirs in yours off another. One handover
       // between the two of you settles it, and the Sale Ledger says so; each ROW still says what
       // came off its own boss, or a night nobody has answered for reads as a night that never was.
@@ -1045,8 +1050,8 @@ describe("a piece drop counts YOUR share, not what fell", () => {
       );
       const out = couponsOutstandingByParty(log.entries);
 
-      expect(out.get("pa")).toEqual({ toYou: 0, byYou: 10 });
-      expect(out.get("pb")).toEqual({ toYou: 10, byYou: 0 });
+      expect(holding(log, "pa")).toBe(10);
+      expect(out.get("pb")).toEqual({ toYou: 10 });
     });
 
     it("still reads a retired config's night, which the Sale Ledger nets against", () => {
@@ -1070,8 +1075,8 @@ describe("a piece drop counts YOUR share, not what fell", () => {
       );
       const out = couponsOutstandingByParty(log.entries);
 
-      expect(out.get("pa")).toEqual({ toYou: 0, byYou: 10 });
-      expect(out.get("pb")).toEqual({ toYou: 10, byYou: 0 });
+      expect(holding(log, "pa")).toBe(10);
+      expect(out.get("pb")).toEqual({ toYou: 10 });
     });
 
     it("states each run in full rather than the difference between them", () => {
@@ -1092,8 +1097,8 @@ describe("a piece drop counts YOUR share, not what fell", () => {
       );
       const out = couponsOutstandingByParty(log.entries);
 
-      expect(out.get("pb")).toEqual({ toYou: 10, byYou: 0 });
-      expect(out.get("pa")).toEqual({ toYou: 0, byYou: 30 });
+      expect(out.get("pb")).toEqual({ toYou: 10 });
+      expect(holding(log, "pa")).toBe(30);
     });
 
     it("does not cancel across two different people", () => {
@@ -1118,14 +1123,13 @@ describe("a piece drop counts YOUR share, not what fell", () => {
       );
       const out = couponsOutstandingByParty(log.entries);
 
-      expect(out.get("pb")).toEqual({ toYou: 10, byYou: 0 });
-      expect(out.get("pc")).toEqual({ toYou: 0, byYou: 10 });
+      expect(out.get("pb")).toEqual({ toYou: 10 });
+      expect(holding(log, "pc")).toBe(10);
     });
 
     it("answers for the week on screen, not the config's whole history", () => {
       // A row sits under a heading about one week, so it says what came off that week's runs. Hard
-      // Baldrix read "20 coupons owed · 60 to hand over" off two runs ten days apart, and the 20 was
-      // nothing to do with the night being looked at.
+      // Baldrix read "20 coupons owed" off a run ten days before the night being looked at.
       const older = theirNight({ id: "old", droppedOn: "2026-08-13" });
       const thisWeek = coupons({
         id: "new",
@@ -1135,17 +1139,13 @@ describe("a piece drop counts YOUR share, not what fell", () => {
       });
       const log = buildDropLog([pair()], [pool("pa", [older, thisWeek])], tables);
 
-      expect(couponsOutstandingByParty(log.entries, "2026-08-20").get("pa")).toEqual({
-        toYou: 0,
-        byYou: 30,
-      });
+      // This week holds only a night you looted whole, which the badge does not speak for, so the
+      // older run's 10 is the whole of what could show and it is out of the week.
+      expect(couponsOutstandingByParty(log.entries, "2026-08-20").has("pa")).toBe(false);
       // The older run is still said under its own week, so nothing is lost, only re-filed.
-      expect(couponsOutstandingByParty(log.entries, "2026-08-13").get("pa")).toEqual({
-        toYou: 10,
-        byYou: 30,
-      });
+      expect(couponsOutstandingByParty(log.entries, "2026-08-13").get("pa")).toEqual({ toYou: 10 });
       // And a page with no week to name still shows the pool whole.
-      expect(couponsOutstandingByParty(log.entries).get("pa")).toEqual({ toYou: 10, byYou: 30 });
+      expect(couponsOutstandingByParty(log.entries).get("pa")).toEqual({ toYou: 10 });
     });
   });
 
@@ -1169,7 +1169,7 @@ describe("a piece drop counts YOUR share, not what fell", () => {
     // Off the same entries the Drop Log counts, so a party row and the log cannot disagree about
     // what is owed. A party holding its own coupons is absent rather than zero.
     const owed = buildDropLog([trio({ looterMemberId: "m2" })], [pool("pa", [coupons()])], tables);
-    expect(couponsOutstandingByParty(owed.entries).get("pa")).toEqual({ toYou: 20, byYou: 0 });
+    expect(couponsOutstandingByParty(owed.entries).get("pa")).toEqual({ toYou: 20 });
 
     const even = buildDropLog([trio()], [pool("pa", [coupons()])], tables);
     expect(couponsOutstandingByParty(even.entries).has("pa")).toBe(false);
@@ -1183,7 +1183,7 @@ describe("a piece drop counts YOUR share, not what fell", () => {
     const pools = [pool("pa", [coupons()])];
 
     const open = buildDropLog(parties, pools, tables);
-    expect(couponsOutstandingByParty(open.entries).get("pa")).toEqual({ toYou: 20, byYou: 0 });
+    expect(couponsOutstandingByParty(open.entries).get("pa")).toEqual({ toYou: 20 });
     expect(dropStatusLabel(open.entries[0]!)).toBe("Owed");
 
     // Closed by the holder who owes it, which is the seat that looted the lot.
@@ -1212,7 +1212,7 @@ describe("a piece drop counts YOUR share, not what fell", () => {
 
     const log = buildDropLog(parties, pools, tables, stranger);
     expect(log.entries[0]!.closed).toBe(false);
-    expect(couponsOutstandingByParty(log.entries).get("pa")).toEqual({ toYou: 20, byYou: 0 });
+    expect(couponsOutstandingByParty(log.entries).get("pa")).toEqual({ toYou: 20 });
   });
 
   it("closes it through the PERSON, whichever of their characters looted it", () => {

@@ -59,11 +59,11 @@ export function PartyCard({
   /** THIS row's write. Fed the page's, it dimmed every row at once: the page appeared to flicker. */
   busy?: boolean;
   /**
-   * Coupons of this party's in the wrong hands, each way round.
+   * Coupons of yours out of this party somebody else is holding.
    *
    * Passed in rather than worked out here: it comes off the same entries the Drop Log counts, so
-   * the badge and the log cannot disagree. Both zero for a party whose coupons went where they
-   * belong on the night.
+   * the badge and the log cannot disagree. Zero for a party whose coupons went where they belong
+   * on the night.
    *
    * Required, with no default. Every caller has the figure and a default of zero would let one of
    * them quietly draw a row as square: this feature's own history is a number added to some call
