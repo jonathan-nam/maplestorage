@@ -265,7 +265,6 @@ private fun ResultRow.toLootResponse(
         bossKey = this.getOrNull(BossCatalog.bossKey),
         quantity = this[PartyLoot.quantity],
         difficulty = this[PartyLoot.difficulty],
-        solo = this[PartyLoot.solo],
         droppedOn = this[PartyLoot.droppedOn].toString(),
         weekStart = weekOf(this[PartyLoot.droppedOn]).toString(),
         status = statusOf(sold, takenBy != null, payouts),

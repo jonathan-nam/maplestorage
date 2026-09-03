@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { DropPicker } from "@/components/drop-picker";
-import { configFor, otherMembers } from "@/lib/parties";
+import { configFor } from "@/lib/parties";
 import type { Boss } from "@/types/boss";
 import type { Character } from "@/types/character";
 import type { DropTables } from "@/types/drop";
@@ -41,10 +41,7 @@ export function LogDrop({
   characters: Character[];
   bosses: Boss[];
   /**
-   * Every config, retired ones included, to name the pool this drop will land in.
-   *
-   * Retired ones are the whole point: without them this cannot tell a boss with no config from one
-   * whose config is off the lists, and those two file a drop very differently.
+   * Every config, retired ones included, to read the mode off the pool this drop will land in.
    */
   parties: Party[];
   dropTables: DropTables;
@@ -63,8 +60,6 @@ export function LogDrop({
 
   const chosen = bosses.some((b) => b.bossKey === bossKey) ? bossKey : "";
   const pool = configFor(parties, character.id, chosen);
-  // Seats to name, or none. A retired pool of one splits with nobody, so it has nothing to say.
-  const retiredSeats = pool?.retired ? otherMembers(pool) : [];
 
   return (
     <section className="loot-pool add-panel">
@@ -118,14 +113,6 @@ export function LogDrop({
           })
         }
       />
-
-      {/* Under the picker rather than beside the boss select: it is about what the submit will do,
-        and .loot-add is a row of controls. Named seats, because the names are what you can act on. */}
-      {retiredSeats.length > 0 && (
-        <p className="split-note">
-          Retired party: splits with {retiredSeats.map((m) => m.name).join(", ")}.
-        </p>
-      )}
     </section>
   );
 }

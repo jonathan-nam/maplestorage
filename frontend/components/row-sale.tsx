@@ -118,7 +118,6 @@ function RowCard({
       </header>
 
       <LootSaleForm
-        party={party}
         // The seats that RAN the week it fell, which `shares` already has one key each for. Not the
         // party as it stands now: the sale route refuses a seller who was not there.
         ran={party.seats.filter((s) => s.id in row.shares)}

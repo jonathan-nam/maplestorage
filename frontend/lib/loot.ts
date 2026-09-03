@@ -20,6 +20,18 @@ export function memberFee(): number {
   return FEE_STANDARD;
 }
 
+/**
+ * Whether a drop divides at all.
+ *
+ * One seat ran it, so there is nobody to split with, nobody else it could have been sold by, and
+ * nothing for the share boxes to ask. Read off the seats that RAN rather than off the config: a
+ * boss run alone is a run alone whether its pool is a solo one or the party's, which is what the
+ * Drop Log records every time. See ranWith on the server.
+ */
+export function divides(ran: PartyMember[]): boolean {
+  return ran.length > 1;
+}
+
 export type Share = {
   memberId: string;
   name: string;
