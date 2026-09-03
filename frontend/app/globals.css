@@ -5903,6 +5903,16 @@ button.link:disabled {
   cursor: pointer;
 }
 
+/* A tick box with a hint beside it. Relative because the bubble anchors to the ROW: hung off the
+   mark it ran past the right edge of a phone. See components/hint-bubble.tsx. */
+.night-toggle-row {
+  position: relative;
+  display: flex;
+  width: fit-content;
+  align-items: center;
+  gap: 2px;
+}
+
 /* What asks for the run order. Between the controls and the plan, because it is the line between
    them: everything above is what you are asking, everything below is the answer. */
 .night-go {
@@ -6454,6 +6464,66 @@ button.link:disabled {
 /* On the wrapper, not the mark, so moving the pointer into the bubble does not close it. */
 .ledger-hint:hover .ledger-hint-bubble,
 .ledger-hint-mark:focus-visible + .ledger-hint-bubble {
+  visibility: visible;
+  opacity: 1;
+}
+
+/* The general one. Same bubble as .ledger-hint above, which is anchored to a card's step row and
+   pinned to that markup by its own tests, so the two are still separate. See
+   components/hint-bubble.tsx. */
+.hint {
+  display: inline-flex;
+}
+
+/* 24px of target around a 14px mark, which is WCAG 2.5.8's floor. */
+.hint-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  margin: -4px 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  cursor: help;
+}
+
+.hint-mark:hover,
+.hint-mark:focus-visible {
+  color: var(--ink);
+}
+
+.hint-mark > svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* Drawn always and hidden until asked for, so aria-describedby has something to read. Sized by its
+   own text rather than by the row it hangs from, which is only as wide as a label. */
+.hint-bubble {
+  position: absolute;
+  z-index: 5;
+  top: calc(100% + 6px);
+  left: 0;
+  width: max-content;
+  max-width: min(280px, 90vw);
+  padding: 8px 10px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 35%);
+  color: var(--ink);
+  font-size: var(--text-sm);
+  visibility: hidden;
+  opacity: 0;
+}
+
+/* On the wrapper, not the mark, so moving the pointer into the bubble does not close it. */
+.hint:hover .hint-bubble,
+.hint-mark:focus-visible + .hint-bubble {
   visibility: visible;
   opacity: 1;
 }

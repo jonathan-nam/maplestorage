@@ -87,7 +87,8 @@ export type EligibleRun = Omit<CandidateRun, "seats"> & { seats: AttributedSeat[
  * still classifies, and these tests still pin it, because the classification is what produces
  * `eligible`. Read a UI for it back off `rejected`; do not re-derive the reasons.
  */
-export type RejectionReason = "person-twice" | "person-unavailable" | "unattributed-seat";
+export type RejectionReason =
+  "person-twice" | "person-unavailable" | "unattributed-seat" | "leaves-somebody-out";
 
 export type Rejection = {
   run: CandidateRun;
@@ -101,13 +102,26 @@ export type Screening = {
   rejected: Rejection[];
 };
 
+export type ScreenOptions = {
+  /**
+   * Keep only the runs that seat EVERYONE who is on, so three people get the three-person party
+   * and not its solo and duo versions as well. Off, a smaller config staffed entirely by people
+   * who turned up is a run like any other.
+   */
+  everyoneOn?: boolean;
+};
+
 /**
  * The candidates that can run tonight, and why the others cannot.
  *
  * Order of checks matters for the message, not the outcome: a party that double-books somebody is
  * broken whether or not they turned up, so that is reported ahead of availability.
  */
-export function screenRuns(runs: CandidateRun[], availablePersonIds: Iterable<string>): Screening {
+export function screenRuns(
+  runs: CandidateRun[],
+  availablePersonIds: Iterable<string>,
+  options: ScreenOptions = {},
+): Screening {
   const available = new Set(availablePersonIds);
   const eligible: EligibleRun[] = [];
   const rejected: Rejection[] = [];
@@ -149,6 +163,19 @@ export function screenRuns(runs: CandidateRun[], availablePersonIds: Iterable<st
         run,
         reason: "person-unavailable",
         detail: missing.map((seat) => seat.personId as string),
+      });
+      continue;
+    }
+
+    // Everybody who is on is already accounted for by the checks above: no seat is empty, no
+    // person is seated twice, and nobody seated is away. So a count short of the people on is a
+    // party somebody would be sitting out.
+    if (options.everyoneOn === true && run.seats.length < available.size) {
+      const seated = new Set(run.seats.map((seat) => seat.personId as string));
+      rejected.push({
+        run,
+        reason: "leaves-somebody-out",
+        detail: [...available].filter((id) => !seated.has(id)),
       });
       continue;
     }

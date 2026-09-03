@@ -13,6 +13,7 @@ const DRAFT: DraftRun = {
 const NIGHT: NightControls = {
   source: "parties",
   openOnly: true,
+  everyoneOn: true,
   timed: true,
   away: ["you"],
   windows: { you: { from: "+1", until: "" } },
@@ -50,6 +51,7 @@ describe("the night a run order was built from", () => {
     ["a window", { windows: { you: { from: "+2", until: "" } } }],
     ["the source", { source: "byHand" }],
     ["the cleared filter", { openOnly: false }],
+    ["the everyone-on filter", { everyoneOn: false }],
     ["the clock going off", { timed: false }],
     ["a start being typed", { startText: "+2" }],
     ["an end being typed", { endText: "+4" }],
