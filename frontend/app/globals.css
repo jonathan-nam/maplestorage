@@ -137,10 +137,6 @@
   margin-left: auto;
 }
 
-.page-head-links .party-cancel {
-  text-decoration: none;
-}
-
 /* Sections open from a hamburger at the far left of the header. The content itself stays on .page,
    centred like every other page, so navigation and content no longer fight over the layout.
    The auto margin is what puts everything after it on the right edge: the world toggle, then the
@@ -3599,6 +3595,9 @@ button.link:disabled {
   border: 1px solid var(--line);
   background: var(--surface);
   color: var(--ink);
+  /* Some of these are links (People, Edit Parties). A box that looks like a button does not
+     also get the base underline. */
+  text-decoration: none;
   cursor: pointer;
 }
 
@@ -4487,10 +4486,6 @@ button.link:disabled {
   justify-content: space-between;
   gap: 10px;
   margin-bottom: 8px;
-}
-
-.party-toolbar .party-cancel {
-  text-decoration: none;
 }
 
 /* The two splits, as chips that can both be on. Not tabs: they are independent, and tabs would say
