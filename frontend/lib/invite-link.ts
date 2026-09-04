@@ -48,32 +48,14 @@ export function omittedSummary(omitted: { length: number }): string {
 }
 
 /**
- * The link still worth talking about for one person, or null.
+ * What is left of a link as m:ss, or null once there is none.
  *
- * Unaccepted and unexpired, newest first. Both conditions are the backend's (see liveInviteFor):
- * an accepted invite is kept as the record of where an account came from and an expired one is
- * refused on redemption, so neither is something the sender can still revoke or a friend can still
- * use. Showing either as live would offer a button that does nothing.
- *
- * The list should hold at most one of these per person, because making a link deletes the unaccepted
- * ones it replaces. Newest-first rather than single(), so a race that left two does not decide which
- * one is shown by which came back first.
+ * Null rather than "0:00", because a dead link and a nearly dead one are different things to say
+ * and only one of them should still offer a Copy button. Seconds are floored: 0:01 with nine tenths
+ * of a second behind it is a second you do not have.
  */
-export function liveInvite(invites: Invite[], personId: string, now: Date): Invite | null {
-  const live = invites
-    .filter((i) => i.personId === personId && !i.accepted && new Date(i.expiresAt) > now)
-    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-  return live[0] ?? null;
-}
-
-/**
- * Whole minutes until a link stops working, floored, never below zero.
- *
- * Floored because it is read as "you have this long": rounding 1.6 minutes up to 2 promises most of
- * a minute that is not there. A link inside its last minute reads as 0, which is the honest answer
- * and is also true.
- */
-export function minutesUntil(expiresAt: string, now: Date): number {
-  const ms = new Date(expiresAt).getTime() - now.getTime();
-  return Math.max(0, Math.floor(ms / 60_000));
+export function timeLeft(expiresAt: string, now: Date): string | null {
+  const seconds = Math.floor((new Date(expiresAt).getTime() - now.getTime()) / 1000);
+  if (seconds <= 0) return null;
+  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
 }
