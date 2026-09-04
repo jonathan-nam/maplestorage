@@ -1,19 +1,15 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { inviteUrl, minutesUntil } from "@/lib/invite-link";
+import { inviteUrl, timeLeft } from "@/lib/invite-link";
 import type { Invite } from "@/types/invite";
 
 /**
- * One person's link: the one just made, or the one already out for them.
+ * The link just made for one person.
  *
- * The two are the same dialog because they are the same subject, and they differ in exactly what a
- * link IS. A fresh one carries its token, so it can be shown and copied. An older one does not: the
- * backend stores only a hash, so a link that was not copied is replaced rather than looked up. That
- * is why the second state offers a new link instead of the old one's address.
- *
- * There is no Revoke. A link expires on its own, and making a new one deletes the last, so nobody
- * has to remember to switch one off.
+ * Only ever a fresh one, which is why there is a URL to show at all: the backend stores a hash, so
+ * a link that was not copied is remade rather than looked up. There is no Revoke either. A link
+ * expires on its own and making another deletes it, so nobody has to remember to switch one off.
  *
  * Handed a finished invite and shows it. It does not make one, so it cannot render half of
  * anything: opening on an empty box and filling it in afterwards read as a flicker. The wait for a
@@ -22,18 +18,21 @@ import type { Invite } from "@/types/invite";
 export function InviteLink({
   person,
   invite,
-  busy,
-  onReplace,
   onClose,
 }: {
   person: string;
   invite: Invite;
-  /** A replacement is being made. */
-  busy: boolean;
-  onReplace: () => void;
   onClose: () => void;
 }) {
   const [copied, setCopied] = useState(false);
+  // Ticks the countdown. Once a second is as fine as a seconds display can show, and the dialog is
+  // the only thing on screen while it is open.
+  const [now, setNow] = useState(() => new Date());
+
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(id);
+  }, []);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -45,7 +44,7 @@ export function InviteLink({
   }, []);
 
   const url = invite.token != null ? inviteUrl(window.location.origin, invite.token) : null;
-  const minutes = minutesUntil(invite.expiresAt, new Date());
+  const left = timeLeft(invite.expiresAt, now);
 
   async function copy() {
     if (url === null) return;
@@ -86,25 +85,23 @@ export function InviteLink({
             />
           </label>
         ) : (
-          // No token to show. Said as what it means for the reader rather than as the mechanism:
-          // a link is out there, and this is how long until it stops on its own.
-          <p className="invite-standing">
-            A link is already out for {person}. It stops working in {minutes}{" "}
-            {minutes === 1 ? "minute" : "minutes"}.
-          </p>
+          // Only reachable if the create response came back without a token, which is a backend
+          // that changed under this. Say the link is not there rather than draw an empty box.
+          <p className="invite-standing">Couldn&apos;t show that link. Try again.</p>
         )}
 
+        {/* The clock, because a link this short outlives the conversation about it by less than you
+            would guess. It runs out while the dialog is open, so what it says has to change. */}
+        <p className={`invite-countdown${left === null ? " is-spent" : ""}`}>
+          {left !== null ? `Expires in ${left}` : "Expired. Generate another."}
+        </p>
+
         <div className="invite-actions">
-          {url !== null && (
+          {/* Nothing to copy once it is spent: handing somebody a dead address is worse than
+              telling them there is none. */}
+          {url !== null && left !== null && (
             <button type="button" className="party-save" onClick={copy}>
               {copied ? "Copied" : "Copy link"}
-            </button>
-          )}
-          {/* The only way back to a link nobody kept the address of, and the way to kill one sent
-              to the wrong place: making a link deletes the one it replaces. */}
-          {url === null && (
-            <button type="button" className="party-save" disabled={busy} onClick={onReplace}>
-              {busy ? "Making..." : "New link"}
             </button>
           )}
           <button type="button" className="party-cancel" onClick={onClose}>

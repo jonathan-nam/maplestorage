@@ -1,11 +1,9 @@
 import { describe, expect, it } from "vitest";
-import type { Invite } from "@/types/invite";
 import {
-  minutesUntil,
   inviteUrl,
   invitedSummary,
   joinCallbackPath,
-  liveInvite,
+  timeLeft,
   omittedSummary,
 } from "./invite-link";
 
@@ -59,56 +57,24 @@ describe("omittedSummary", () => {
   });
 });
 
-const invite = (over: Partial<Invite> = {}): Invite => ({
-  id: "i1",
-  personId: "p1",
-  personName: "Bro",
-  senderName: "mechyfechy",
-  createdAt: "2026-09-01T00:00:00Z",
-  expiresAt: "2026-09-03T00:05:00Z",
-  accepted: false,
-  characterCount: 3,
-  partyCount: 17,
-  omitted: [],
-  ...over,
-});
+describe("timeLeft", () => {
+  const at = (iso: string) => timeLeft("2026-09-03T00:05:00Z", new Date(iso));
 
-const now = new Date("2026-09-03T00:00:00Z");
-
-describe("liveInvite", () => {
-  it("is the person's own unaccepted, unexpired link", () => {
-    expect(liveInvite([invite()], "p1", now)?.id).toBe("i1");
-    expect(liveInvite([invite()], "p2", now)).toBeNull();
+  it("counts down in minutes and seconds", () => {
+    expect(at("2026-09-03T00:00:00Z")).toBe("5:00");
+    expect(at("2026-09-03T00:00:28Z")).toBe("4:32");
+    expect(at("2026-09-03T00:04:51Z")).toBe("0:09");
   });
 
-  // Both are the backend's rules. Offering revoke on either is a button that does nothing: an
-  // accepted invite is the record of where an account came from, and an expired one is already
-  // refused on redemption.
-  it("is not an accepted one, and not an expired one", () => {
-    expect(liveInvite([invite({ accepted: true })], "p1", now)).toBeNull();
-    expect(liveInvite([invite({ expiresAt: "2026-09-02T23:59:00Z" })], "p1", now)).toBeNull();
+  // Floored: 0:01 with most of a second behind it is a second you do not have.
+  it("floors the part second", () => {
+    expect(at("2026-09-03T00:04:58.900Z")).toBe("0:01");
   });
 
-  it("takes the newest when somehow there are two", () => {
-    const older = invite({ id: "old", createdAt: "2026-08-20T00:00:00Z" });
-    const newer = invite({ id: "new", createdAt: "2026-08-30T00:00:00Z" });
-    expect(liveInvite([older, newer], "p1", now)?.id).toBe("new");
-    expect(liveInvite([newer, older], "p1", now)?.id).toBe("new");
-  });
-});
-
-describe("minutesUntil", () => {
-  it("counts whole minutes left", () => {
-    expect(minutesUntil("2026-09-03T00:05:00Z", now)).toBe(5);
-  });
-
-  // Floored, because it reads as "you have this long": rounding up promises most of a minute that
-  // is not there, and on a five minute link that is a fifth of it.
-  it("floors a part minute rather than rounding it up", () => {
-    expect(minutesUntil("2026-09-03T00:01:50Z", now)).toBe(1);
-  });
-
-  it("never goes below zero", () => {
-    expect(minutesUntil("2026-09-02T00:00:00Z", now)).toBe(0);
+  // Null, not "0:00". A dead link is a different thing to say, and it is the one that stops
+  // offering a Copy button for an address that no longer works.
+  it("is nothing at all once the link is spent", () => {
+    expect(at("2026-09-03T00:05:00Z")).toBeNull();
+    expect(at("2026-09-03T00:06:00Z")).toBeNull();
   });
 });

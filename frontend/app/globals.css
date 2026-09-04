@@ -4811,14 +4811,16 @@ button.link:disabled {
   gap: 8px;
 }
 
+/* Stacked, not side by side: the invite button carries a sentence of a label and squeezing Remove
+   in beside it cut one of the two off. */
 .person-meta-actions {
   display: flex;
+  flex-direction: column;
   gap: 8px;
 }
 
-/* Both controls share the column, so neither is sized by its own word length. */
+/* Each control takes the column, so neither is sized by its own word length. */
 .person-meta-actions > button {
-  flex: 1;
   padding-inline: 8px;
 }
 
@@ -6866,15 +6868,7 @@ button.ledger-drop-sale.is-armed:hover:not(:disabled) {
   background: var(--surface);
 }
 
-/* A person who already has a link out. Marked on the button because that is the control whose
-   meaning changes: it opens the standing link rather than making another. */
-.person-invite.is-invited {
-  border-color: var(--accent);
-  color: var(--ink-strong);
-}
-
-/* An older link has no address to show: only the response that created one carries its token. So
-   this says what there is to know about it instead. */
+/* Said in place of the link box when there is no link to draw. */
 .invite-standing {
   margin: 0 0 16px;
   font-size: var(--text-base);
@@ -6910,6 +6904,19 @@ button.ledger-drop-sale.is-armed:hover:not(:disabled) {
    down to fit rather than being cut off mid-word. */
 .invite-url {
   font-size: var(--text-base);
+}
+
+/* Tabular figures so a ticking clock does not shuffle the words beside it every second: this face's
+   digits are proportional (see the count box in the game window). */
+.invite-countdown {
+  margin: 0 0 16px;
+  font-size: var(--text-base);
+  font-variant-numeric: tabular-nums;
+  color: var(--muted-2);
+}
+
+.invite-countdown.is-spent {
+  color: var(--bad);
 }
 
 .invite-actions {
