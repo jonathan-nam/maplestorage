@@ -44,7 +44,7 @@ export function BossMatrix({
   bosses: Boss[];
   characters: Pick<Character, "id" | "name" | "spriteImgUrl">[];
   clearsByCharacter: BossClearsByCharacter;
-  /** Bosses each character does not run. Empty on a past week, which is not a period this answers for. */
+  /** Bosses each character does not run. On a past week, as the routine stood then; see bossSkipsFor. */
   skipsByCharacter?: BossSkipsByCharacter;
   loading?: boolean;
   // Set when showing a past week rather than the current period. See the cadence filter below.
@@ -96,8 +96,11 @@ export function BossMatrix({
   const roster = Math.max(columns.length, 1);
   const span = roster / Math.min(roster, VISIBLE_COLUMNS);
 
-  // A past week brings no routine marks, so it gets a count with no denominator. See clearProgress.
-  const routineKnown = !historyWeek;
+  // True for every view, past weeks included; the same reasoning as bossBands', and it has to be
+  // the same answer. This feeds the per-character figures at the foot of each band, and the band's
+  // own total is the sum of them: one of the two refusing a denominator while the other took one
+  // would put a column of counts under a total that does not add up to them.
+  const routineKnown = true;
 
   // Nothing left to run, so the character steps back the way a finished row does. Counted over the
   // bosses on the table rather than over `bosses`, so a past week is judged on the weekly band it

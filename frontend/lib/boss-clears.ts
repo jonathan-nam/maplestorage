@@ -176,10 +176,11 @@ export function indexSkips(skips: Record<string, string[]>): Map<string, Set<str
 /**
  * How far through a set of bosses a period is.
  *
- * `total` is null for "not known", which is not the same as zero. A past week is served without
- * routine marks (BossRoutes.kt sends emptyMap there), so there is no stated set of bosses to run to
- * count against. The clears themselves are still known, so the count is shown without a denominator
- * rather than against one nobody gave.
+ * `total` is null for "not known", which is not the same as zero: the count is then shown without a
+ * denominator rather than against one nobody gave. No view reaches that now. A past week used to,
+ * being served without routine marks, and is served with them again as of bossSkipsFor's asOf. The
+ * branch stays because the distinction is the reason this returns a nullable at all, and a caller
+ * that genuinely does not know must not be able to fall into counting every boss.
  */
 export type ClearProgress = { cleared: number; total: number | null };
 
@@ -195,8 +196,9 @@ export type ClearProgress = { cleared: number; total: number | null };
  * week with no work left in it, which is the flattering direction to be wrong in and the one this
  * project exists to refuse. Counting it can only ever overstate the work remaining.
  *
- * `routineKnown` is passed rather than inferred from the absence of skips, which would reach the
- * same denominator by accident on a past week and state it as confidently as a live one.
+ * `routineKnown` is passed rather than inferred from the absence of skips. An empty routine is a
+ * real answer, "this character runs everything", and it arrives looking exactly like a view that
+ * was told nothing: inferring would state the second as confidently as the first.
  */
 export function clearProgress(states: CellState[], routineKnown: boolean): ClearProgress {
   const cleared = states.filter((s) => s === "cleared").length;
@@ -407,8 +409,11 @@ export function bossBands({
   const shown = historyWeek ? CADENCE_ORDER.filter((c) => c === "WEEKLY") : CADENCE_ORDER;
   const cadences = shown.filter((c) => rows.some((b) => b.reset === c));
 
-  // A past week brings no routine marks, so it gets a count with no denominator. See clearProgress.
-  const routineKnown = !historyWeek;
+  // Every view brings routine marks now, a past week's being the routine as it stood at the end of
+  // it (see bossSkipsFor). So there is always a target to measure the clears against, and the two
+  // readings of it agree: the same skips that leave the denominator also draw the cells that are
+  // not counted.
+  const routineKnown = true;
 
   // Counted per cadence and never pooled across them, for the reason the bands exist at all: a
   // monthly and a weekly are not counting the same span of time, so one figure over both would be

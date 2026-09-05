@@ -516,15 +516,23 @@ describe("nextSkips", () => {
 /**
  * The band figures the head row draws, end to end.
  *
- * clearProgress refuses a past week's denominator, and this is the seam where that refusal is
- * actually asked for: bossBands decides routineKnown from historyWeek. Wire it up wrong and every
- * unit test above still passes while the screen states a past week's target as confidently as a
- * live one, off a routine that describes today. That is this project's whole failure mode.
+ * A past week used to be given no denominator, on the grounds that the routine describes today.
+ * The routine is now served for a past week as it stood at the END of that week (bossSkipsFor
+ * takes an asOf), so there is a target and the bar can be drawn. What this pins is that the two
+ * readings agree: the same skips that leave the denominator are the ones the cells draw as not
+ * run, and a band's total is the sum of its characters'.
  */
 describe("bossBands, over a past week", () => {
   const WEEKLY = {
     bossKey: "lotus",
     name: "Lotus",
+    reset: "WEEKLY",
+    iconUrl: null,
+    difficulties: [],
+  };
+  const OTHER = {
+    bossKey: "damien",
+    name: "Damien",
     reset: "WEEKLY",
     iconUrl: null,
     difficulties: [],
@@ -536,29 +544,50 @@ describe("bossBands, over a past week", () => {
     iconUrl: null,
     difficulties: [],
   };
-  const bosses = [MONTHLY, WEEKLY];
+  const bosses = [MONTHLY, WEEKLY, OTHER];
   const characters = [{ id: "c1", name: "Aria", spriteImgUrl: null }];
   const clearsByCharacter = {
     c1: [{ bossKey: "lotus", cleared: true, periodStart: "2026-08-27", capturedAt: "2026-08-28" }],
   };
 
-  it("counts what was cleared and refuses to say what there was to clear", () => {
+  it("measures a past week against the routine it is served with", () => {
     const { bands } = bossBands({
       bosses,
       characters,
       clearsByCharacter,
+      skipsByCharacter: { c1: ["damien"] },
       historyWeek: "2026-08-27",
     });
 
     // Only the weekly band: a week cannot answer for a monthly boss. See the cadence filter.
     expect(bands.map((b) => b.cadence)).toEqual(["WEEKLY"]);
-    expect(bands[0]?.progress).toEqual({ cleared: 1, total: null });
-    // And it says so in a word, because there is no bar to read the figure off.
-    expect(progressLabel(bands[0]!.progress)).toBe("1 cleared");
+    // Two weekly bosses, one of them not run that week, so the target is one and it was met.
+    expect(bands[0]?.progress).toEqual({ cleared: 1, total: 1 });
   });
 
-  it("still gives the live week a denominator to draw against", () => {
-    const { bands } = bossBands({ bosses, characters, clearsByCharacter, historyWeek: null });
+  it("counts a boss out of the target only when the week was told about it", () => {
+    // The same week with no routine served for it. Nothing is skipped, so both bosses count: the
+    // week reads 1 of 2 rather than 1 of 1. Understating what was done is the safe direction, and
+    // it is the one an un-skipped boss lands in, since nothing records a withdrawal.
+    const { bands } = bossBands({
+      bosses,
+      characters,
+      clearsByCharacter,
+      skipsByCharacter: {},
+      historyWeek: "2026-08-27",
+    });
+
+    expect(bands[0]?.progress).toEqual({ cleared: 1, total: 2 });
+  });
+
+  it("gives the live week a denominator too, by the same rule", () => {
+    const { bands } = bossBands({
+      bosses,
+      characters,
+      clearsByCharacter,
+      skipsByCharacter: { c1: ["damien"] },
+      historyWeek: null,
+    });
 
     expect(bands.map((b) => b.cadence)).toEqual(["MONTHLY", "WEEKLY"]);
     for (const band of bands) {

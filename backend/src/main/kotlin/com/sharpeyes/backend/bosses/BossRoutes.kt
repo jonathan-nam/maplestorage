@@ -150,9 +150,10 @@ private fun clearsView(
     val clears = if (week == null) currentBossClearsFor(userId, now) else weeklyClearsFor(userId, week)
     return BossClearsViewResponse(
         clearsByCharacter = clears,
-        // Current view only. A skip is true as of now, so painting it over a past week would state
-        // it about a week nobody said it about.
-        skipsByCharacter = if (week == null) bossSkipsFor(userId) else emptyMap(),
+        // A past week gets the routine as it stood AT THE END OF IT, not as it stands now: a boss
+        // the character only started skipping since was one they ran that week. Withheld entirely
+        // before, which left the week with a count and no target to measure it against.
+        skipsByCharacter = bossSkipsFor(userId, asOf = week?.let { periodEndInstant(WEEKLY_CADENCE, it) }),
         weekStart = week?.toString(),
         previousWeekStart = navigation.previous?.toString(),
         nextWeekStart = navigation.next?.toString(),

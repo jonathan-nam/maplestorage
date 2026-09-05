@@ -11,6 +11,7 @@ import com.sharpeyes.backend.parties.SavePartyRequest
 import com.sharpeyes.backend.parties.createParty
 import com.sharpeyes.backend.services.DetectedBossClear
 import com.sharpeyes.backend.users.ensureUser
+import kotlinx.datetime.LocalDate
 import org.flywaydb.core.Flyway
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.or
@@ -125,6 +126,13 @@ class BossRoutineTest {
         userId: String,
         character: Uuid,
     ): List<String> = bossSkipsFor(userId)[character.toString()].orEmpty()
+
+    /** The same, as the routine stood at an instant. See bossSkipsFor's asOf. */
+    private fun skipsAsOf(
+        userId: String,
+        character: Uuid,
+        asOf: Instant,
+    ): List<String> = bossSkipsFor(userId, asOf)[character.toString()].orEmpty()
 
     @Test
     fun `a routine outlives the reset that wipes the clears`() =
@@ -381,5 +389,53 @@ class BossRoutineTest {
 
             assertEquals(listOf("jupiter"), skipsOf(userOneId, alt))
             assertEquals(listOf("limbo"), skipsOf(userOneId, main))
+        }
+
+    // The week `midWeek` falls in, and the one after it. Thursday starts a week; see BossPeriodTest.
+    private val weekOfMidWeek = LocalDate.parse("2026-07-16")
+    private val weekOfNextWeek = LocalDate.parse("2026-07-23")
+
+    @Test
+    fun `a skip said after a week is not counted against that week`() =
+        transaction {
+            // What lets a past week be measured at all. The routine is a standing fact with no
+            // history, so the question "what did they run THEN" has only one piece of evidence:
+            // created_at, the day the skip was said. A boss dropped from the routine since is a
+            // boss that WAS being run in the weeks before that, and counting it out of those weeks
+            // would show them as finished work that never happened.
+            val character = addCharacter(userOneId, "Later")
+            setBossRoutine(userOneId, character, listOf("jupiter"), nextWeek)
+
+            val duringTheWeekBefore = periodEndInstant(WEEKLY_CADENCE, weekOfMidWeek)
+            val duringTheWeekItWasSaid = periodEndInstant(WEEKLY_CADENCE, weekOfNextWeek)
+
+            assertEquals(emptyList(), skipsAsOf(userOneId, character, duringTheWeekBefore))
+            assertEquals(listOf("jupiter"), skipsAsOf(userOneId, character, duringTheWeekItWasSaid))
+            // And with no instant at all it is simply the routine as it stands.
+            assertEquals(listOf("jupiter"), skipsOf(userOneId, character))
+        }
+
+    @Test
+    fun `re-saving a routine does not restamp the skips that were already in it`() =
+        transaction {
+            // The upsert this replaced rewrote every column on conflict, so saving the routine
+            // page moved created_at forward on marks that had been standing for months. Every week
+            // before that save would then find nothing had been said by then, lose its target, and
+            // read as unfinished. The bug is invisible until a past week is opened, which is why it
+            // is pinned here rather than left to the read.
+            val character = addCharacter(userOneId, "Restamped")
+            setBossRoutine(userOneId, character, listOf("jupiter"), midWeek)
+            // Said again a week later, with another boss added alongside it.
+            setBossRoutine(userOneId, character, listOf("jupiter", "limbo"), nextWeek)
+
+            val asOfTheFirstWeek = periodEndInstant(WEEKLY_CADENCE, weekOfMidWeek)
+            // Jupiter keeps the date it was first said, so the first week still knows about it.
+            assertEquals(listOf("jupiter"), skipsAsOf(userOneId, character, asOfTheFirstWeek))
+            // Limbo was not said until the week after, which is the first week told about it.
+            val asOfTheSecondWeek = periodEndInstant(WEEKLY_CADENCE, weekOfNextWeek)
+            assertEquals(
+                listOf("jupiter", "limbo"),
+                skipsAsOf(userOneId, character, asOfTheSecondWeek).sorted(),
+            )
         }
 }
