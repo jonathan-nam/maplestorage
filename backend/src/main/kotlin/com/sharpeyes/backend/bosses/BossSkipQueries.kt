@@ -8,8 +8,9 @@ import com.sharpeyes.backend.parties.isSpentOneOff
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.inList
+import org.jetbrains.exposed.v1.core.lessEq
 import org.jetbrains.exposed.v1.core.notInList
-import org.jetbrains.exposed.v1.jdbc.batchUpsert
+import org.jetbrains.exposed.v1.jdbc.batchInsert
 import org.jetbrains.exposed.v1.jdbc.deleteWhere
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import kotlin.time.Instant
@@ -27,13 +28,28 @@ import kotlin.uuid.Uuid
  * has said anything about Jupiter this week" from "this character never runs Jupiter": both are a
  * missing boss_clear row, and before this they were drawn the same.
  */
-internal fun bossSkipsFor(userId: String): Map<String, List<String>> =
+internal fun bossSkipsFor(
+    userId: String,
+    asOf: Instant? = null,
+): Map<String, List<String>> =
     CharacterBossSkip
         .innerJoin(BossCatalog)
         .innerJoin(Characters)
         .selectAll()
-        .where { Characters.userId eq userId }
-        .orderBy(BossCatalog.sortOrder)
+        .where {
+            val mine = Characters.userId eq userId
+            // Null asks what is true now. An instant asks what had been said by then, which is the
+            // only history this table keeps: created_at records when a skip was declared (V25) and
+            // nothing records when one was withdrawn.
+            //
+            // So both ways of being wrong about a past week are the careful way. A boss skipped
+            // only LAST MONTH is counted as run for a week before that, which is right. A boss
+            // that was skipped then and is run again now leaves no row to find, so it counts as
+            // run too: the target comes out too big and the week reads as less finished than it
+            // was. Overstating the work left is the direction this tracker already chooses
+            // everywhere else. See clearProgress.
+            if (asOf == null) mine else mine and (CharacterBossSkip.createdAt lessEq asOf)
+        }.orderBy(BossCatalog.sortOrder)
         .groupBy({ it[CharacterBossSkip.characterId].toString() }) { it[BossCatalog.bossKey] }
 
 /** Why a routine could not be saved, or null when it was. */
@@ -141,7 +157,17 @@ private fun partiedNames(
     return bosses.filter { it.id in partied }.map { it.name }
 }
 
-/** Replaces the character's set, since anything the checklist did not send is a boss they run. */
+/**
+ * Replaces the character's set, since anything the checklist did not send is a boss they run.
+ *
+ * Rows that survive the replace are LEFT ALONE, which is why this ignores rather than upserts. An
+ * upsert with no onUpdate rewrites every column, so re-saving a routine stamped today's date on
+ * skips that had been standing for months. That made created_at mean "when the routine was last
+ * saved", and a past week asked what it had been told by then (see bossSkipsFor) would have been
+ * told nothing: every week before today's save would lose its target and read as unfinished work
+ * that was actually done. Same trap as the sprite cache's, opposite fix, because here the
+ * conflicting row wants nothing updated at all.
+ */
 private fun replaceSkips(
     characterId: Uuid,
     bossCatalogIds: List<Uuid>,
@@ -151,11 +177,7 @@ private fun replaceSkips(
         (CharacterBossSkip.characterId eq characterId) and
             (CharacterBossSkip.bossCatalogId notInList bossCatalogIds)
     }
-    CharacterBossSkip.batchUpsert(
-        bossCatalogIds,
-        CharacterBossSkip.characterId,
-        CharacterBossSkip.bossCatalogId,
-    ) { bossCatalogId ->
+    CharacterBossSkip.batchInsert(bossCatalogIds, ignore = true) { bossCatalogId ->
         this[CharacterBossSkip.characterId] = characterId
         this[CharacterBossSkip.bossCatalogId] = bossCatalogId
         this[CharacterBossSkip.createdAt] = now

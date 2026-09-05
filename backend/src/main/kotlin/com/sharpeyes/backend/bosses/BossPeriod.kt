@@ -1,3 +1,8 @@
+// One module of period arithmetic, which is why it is over detekt's function count: the alternative
+// is splitting the reset boundary across two files, and every one of these has to agree with the
+// others or clears land in the wrong week. RESET_ZONE being private here is the point.
+@file:Suppress("TooManyFunctions")
+
 package com.sharpeyes.backend.bosses
 
 import kotlinx.datetime.DateTimeUnit
@@ -122,6 +127,17 @@ fun nextResetAfter(
     reset: String,
     now: Instant,
 ): Instant = periodAfter(reset, periodStartFor(reset, now)).atStartOfDayIn(RESET_ZONE)
+
+/**
+ * When a period ends, as an instant: the moment its successor begins.
+ *
+ * Derived from periodAfter for the same reason nextResetAfter is, so nothing computes a boundary
+ * of its own. Used to ask what was true DURING a past period rather than what is true now.
+ */
+fun periodEndInstant(
+    reset: String,
+    periodStart: LocalDate,
+): Instant = periodAfter(reset, periodStart).atStartOfDayIn(RESET_ZONE)
 
 /** Where the week picker may step from the week it is showing. Null means the arrow is at an end. */
 data class WeekNavigation(

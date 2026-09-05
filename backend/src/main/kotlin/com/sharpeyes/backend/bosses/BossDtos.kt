@@ -70,9 +70,9 @@ data class SetBossRoutineRequest(
 @Serializable
 data class BossClearsViewResponse(
     val clearsByCharacter: Map<String, List<BossClearResponse>>,
-    // character id -> the boss keys that character does not run. Sent on the current view only, and
-    // empty on a past week: the marks say what is true now, and drawing them over an old week would
-    // date a standing fact to a week it may not have been true in.
+    // character id -> the boss keys that character does not run. On a past week these are the marks
+    // that had been SAID by the end of it, not the ones standing now, so an old week is measured
+    // against the routine it was actually run under. See bossSkipsFor's asOf.
     val skipsByCharacter: Map<String, List<String>> = emptyMap(),
     // Null for the current view, which spans three cadences and so has no single period. Set to the
     // week being shown when the user has stepped back.
