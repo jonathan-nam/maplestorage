@@ -162,7 +162,6 @@ describe("the wait for a page that has been asked for", () => {
   const SHAPED = [
     ["app/bosses/drops/loading.tsx", "app/bosses/drops/page.tsx"],
     ["app/bosses/loading.tsx", "app/bosses/page.tsx"],
-    ["app/inventory/loading.tsx", "app/inventory/page.tsx"],
   ];
 
   it.each(SHAPED)("%s and %s both draw their skeleton at once", (boundary, page) => {

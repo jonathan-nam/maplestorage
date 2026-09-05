@@ -29,8 +29,6 @@ export type SectionItem = {
  * A group is a heading with its own links, NOT a link itself: there is no /bossing page, and a
  * heading that navigated nowhere would be the one thing in here that lies about what it does.
  *
- * /characters redirects to /inventory (see next.config), so old links keep working.
- *
  * The Wallet and People are deliberately absent from the list. They are reached from the pages that
  * name the thing they edit, which is where you already are when you want them, and six entries
  * under one heading had stopped being a menu and started being a list of every page.
@@ -56,9 +54,6 @@ export const SECTIONS: { group?: string; items: SectionItem[] }[] = [
       { href: "/bosses/order", label: "Run Order" },
       { href: "/bosses/split", label: "Split Utility", interactiveOnly: true },
     ],
-  },
-  {
-    items: [{ href: "/inventory", label: "Inventory" }],
   },
 ];
 

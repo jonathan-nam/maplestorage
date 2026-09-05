@@ -20,7 +20,7 @@ export default function Home() {
           <SharpEyesMark size={64} />
           <h1>Welcome back</h1>
           <p>
-            <Link href="/inventory">See where you stand</Link>.
+            <Link href="/bosses">See where you stand</Link>.
           </p>
         </section>
       ) : (

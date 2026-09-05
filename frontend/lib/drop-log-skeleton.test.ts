@@ -93,7 +93,7 @@ describe("the Drop Log's loading state is the page's shape", () => {
   });
 
   // Both entry points, or a route reached cold flashes a different shape than one reached by a
-  // click. See app/inventory/loading.tsx for why the boundary exists at all.
+  // click. See app/bosses/loading.tsx for why the boundary exists at all.
   it("is what the route boundary shows too", () => {
     const boundary = readFileSync(join(root, "app", "bosses", "drops", "loading.tsx"), "utf8");
     expect(boundary).toContain("DropLogSkeleton");

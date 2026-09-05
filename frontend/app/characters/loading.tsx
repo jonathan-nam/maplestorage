@@ -1,6 +1,6 @@
 import { RouteLoading } from "@/components/route-loading";
 
-// See app/inventory/loading.tsx for why these boundaries exist. A menu destination without one
+// See app/bosses/loading.tsx for why these boundaries exist. A menu destination without one
 // cannot show anything until its own JS has mounted, however early the route was prefetched.
 //
 // The chrome mirrors app/characters/page.tsx, down to the hint it shows for its own fetch, so

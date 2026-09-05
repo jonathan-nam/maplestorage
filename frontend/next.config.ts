@@ -51,10 +51,6 @@ const nextConfig: NextConfig = {
     return [{ source: "/preview-api/:path*", destination: `${previewApi}/:path*` }];
   },
 
-  // The section moved from /characters to /inventory. Keep old bookmarks and in-flight
-  // sessions working with a permanent redirect. The API routes (/api/characters) are the
-  // data resource and are unaffected.
-
   // The Drop Log came out from under Party View when it started holding drops from bosses that
   // have no party. Permanent, since the old path is nobody's page any more.
   async redirects() {

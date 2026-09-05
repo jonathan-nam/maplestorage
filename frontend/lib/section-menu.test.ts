@@ -12,7 +12,6 @@ const labelFor = (pathname: string) =>
 describe("which section a path belongs to", () => {
   it("lights the entry for its own page", () => {
     expect(labelFor("/characters")).toBe("Characters");
-    expect(labelFor("/inventory")).toBe("Inventory");
     expect(labelFor("/bosses")).toBe("Individual View");
     expect(labelFor("/bosses/parties")).toBe("Party View");
     expect(labelFor("/bosses/order")).toBe("Run Order");
@@ -79,7 +78,6 @@ describe("what the menu lists", () => {
       "/bosses/drops",
       "/bosses/order",
       "/bosses/split",
-      "/inventory",
     ]);
   });
 });

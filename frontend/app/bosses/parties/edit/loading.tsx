@@ -1,6 +1,6 @@
 import { RouteLoading } from "@/components/route-loading";
 
-// See app/inventory/loading.tsx for why these boundaries exist.
+// See app/bosses/loading.tsx for why these boundaries exist.
 export default function Loading() {
   return (
     <RouteLoading>

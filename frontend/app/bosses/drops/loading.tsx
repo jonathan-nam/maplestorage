@@ -1,7 +1,7 @@
 import { RouteLoading } from "@/components/route-loading";
 import { DropLogSkeleton } from "@/components/drop-log-skeleton";
 
-// See app/inventory/loading.tsx for why these boundaries exist. The same skeleton the page shows for
+// See app/bosses/loading.tsx for why these boundaries exist. The same skeleton the page shows for
 // its own fetch, so handing over to it is invisible.
 export default function Loading() {
   return (
