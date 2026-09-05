@@ -12,7 +12,7 @@ import type { Settings } from "@/types/settings";
 /**
  * Which world the account plays in, asked once, before there is anything to be wrong about.
  *
- * users.world_type is the lens every account-wide read narrows by, and until V71 a new account held
+ * users.world_type is the lens every account-wide read narrows by, and until V74 a new account held
  * INTERACTIVE without anyone having chosen it. A Heroic player was then shown Interactive drop
  * pools, piece counts joined on the wrong world, and a Sale Ledger for a world that does not trade,
  * with nothing on screen saying an assumption had been made.

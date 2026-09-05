@@ -26,7 +26,7 @@ val WORLD_TYPES = setOf(WORLD_INTERACTIVE, WORLD_HEROIC)
  * separate setting: you add a character in the world you are looking at.
  *
  * Null is not a third world to render, and it is never a reason to substitute one. It means the
- * account has not been asked yet, which is what V71 made expressible: before it, unanswered and
+ * account has not been asked yet, which is what V74 made expressible: before it, unanswered and
  * INTERACTIVE were the same value and a Heroic player was silently shown the wrong one.
  *
  * Must be called from inside a `transaction { }` block.

@@ -11,7 +11,9 @@ import com.sharpeyes.backend.db.Person
 import com.sharpeyes.backend.db.SettlementDebt
 import com.sharpeyes.backend.db.SettlementDebtPayout
 import com.sharpeyes.backend.db.Users
+import com.sharpeyes.backend.users.WORLD_INTERACTIVE
 import com.sharpeyes.backend.users.ensureUser
+import com.sharpeyes.backend.users.setActiveWorld
 import kotlinx.datetime.LocalDate
 import org.flywaydb.core.Flyway
 import org.jetbrains.exposed.v1.core.and
@@ -93,6 +95,10 @@ class SettlementOffsetDbTest {
         seats: Int,
     ): Pair<Uuid, List<Uuid>> {
         val now = Clock.System.now()
+        // A character is inserted here directly, so the account has to say which world it is
+        // looking at or every account-wide read below is empty. The route refuses to create a
+        // character without one at all: see V74 and users/WorldType.kt.
+        setActiveWorld(owner, WORLD_INTERACTIVE)
         val characterId = Uuid.random()
         Characters.insert {
             it[id] = characterId

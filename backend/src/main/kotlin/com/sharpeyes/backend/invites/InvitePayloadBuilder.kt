@@ -59,7 +59,7 @@ internal fun buildInvitePayload(
 
     // Two ways to have nothing to send, refused together because detekt allows one early return.
     // The person is not the caller's, or the sender has never said which world they play in: every
-    // config, character and seat below is read through that lens, and there is no lens (V71, and
+    // config, character and seat below is read through that lens, and there is no lens (V74, and
     // see users/WorldType.kt). Refusing beats substituting a world, which would put an arrangement
     // the sender was never shown into the link.
     val world = activeWorldFor(userId)

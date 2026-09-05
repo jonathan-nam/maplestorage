@@ -111,7 +111,7 @@ class TokenTotalsTest {
             ensureUser(userOneId, "one@example.com")
             // A character is inserted here directly, so the account has to say which world it is
             // looking at or every account-wide read below is empty. The route refuses to create a
-            // character without one at all: see V71 and users/WorldType.kt.
+            // character without one at all: see V74 and users/WorldType.kt.
             setActiveWorld(userOneId, WORLD_INTERACTIVE)
             val main = addCharacter(userOneId, "TotalsMain")
             val mule = addCharacter(userOneId, "TotalsMule")

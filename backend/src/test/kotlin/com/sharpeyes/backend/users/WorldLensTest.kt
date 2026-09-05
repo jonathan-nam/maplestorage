@@ -197,7 +197,7 @@ class WorldLensTest {
     fun `an account that never chose a mode is in no world at all`() {
         // Its own user id, never toggled by the tests above: the point is what a row inserted
         // without a world reads as. This test used to assert the opposite, because V26's column
-        // default made a new account Interactive and there was no way to say otherwise. V71 drops
+        // default made a new account Interactive and there was no way to say otherwise. V74 drops
         // the default, and null is the difference between an account that chose Interactive and
         // one that was never asked, which is the whole of what the choice screen is drawn on.
         val fresh = "user_test_lens_unanswered"

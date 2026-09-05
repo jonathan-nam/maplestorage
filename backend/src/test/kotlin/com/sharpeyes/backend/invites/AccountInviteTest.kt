@@ -374,7 +374,7 @@ class AccountInviteTest {
 
             // Every config the link would carry was read through the sender's world. Without one
             // there is nothing to read them through, and a link built anyway would hand over an
-            // arrangement its sender was never shown. See V71.
+            // arrangement its sender was never shown. See V74.
             Users.update({ Users.id eq senderId }) { it[worldType] = null }
             assertNull(buildInvitePayload(senderId, personId, "Jonathan"))
         }
@@ -391,7 +391,7 @@ class AccountInviteTest {
         ensureUser(userId, "$userId@example.com")
         // A character is inserted here directly, so the account has to say which world it is
         // looking at. buildInvitePayload refuses for a sender with no world, every config it would
-        // read being narrowed by one: see V71 and users/WorldType.kt. The RECIPIENT keeps none,
+        // read being narrowed by one: see V74 and users/WorldType.kt. The RECIPIENT keeps none,
         // deliberately, because accepting is what gives them one (InviteAccept sets it from the
         // payload) and that is the behaviour these tests are here to hold.
         setActiveWorld(userId, WORLD_INTERACTIVE)

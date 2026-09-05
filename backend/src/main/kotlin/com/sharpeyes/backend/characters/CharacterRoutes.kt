@@ -90,7 +90,7 @@ private suspend fun RoutingContext.createCharacter(
             val detected = lookup?.world
             // Neither the lookup nor the account can say which world this character is in, so
             // nothing here can. Placing them in a world picked for them is the failure the world
-            // comment above describes, and V71 is what makes refusing possible: before it the
+            // comment above describes, and V74 is what makes refusing possible: before it the
             // account always held a world, whether or not anyone had chosen it.
             val world = detected?.worldType ?: activeWorldFor(userId) ?: return@transaction null
             Characters.insert {
