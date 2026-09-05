@@ -50,7 +50,7 @@ describe("the Drop Log's loading state is the page's shape", () => {
   // rather than restate them. Hardcoding the labels is how the strip ends up a rename behind.
   it("takes its tabs from dropSections rather than spelling them out", () => {
     expect(skeleton).toContain("dropSections");
-    for (const section of dropSections()) {
+    for (const section of dropSections(true)) {
       expect(skeleton, `${section.label} is hardcoded`).not.toContain(`>${section.label}<`);
     }
   });

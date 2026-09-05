@@ -49,6 +49,11 @@ data class BossDropResponse(
      *
      * Only the difficulties that drop any are in here. An absent one means nothing to fill, which is
      * not the same as none: a pre-filled zero would be a claim the drop table does not make.
+     *
+     * A HEROIC figure is always a count PER PERSON. Reboot instances every piece it drops, so a drop
+     * carrying one is `per_member` there and build.py refuses it otherwise. An Interactive figure is
+     * the size of a POOL, and writing one to both worlds is what had a Heroic party dividing 180
+     * coupons all six of them already held.
      */
     val pieces: Map<String, Map<String, Int>> = emptyMap(),
     /**

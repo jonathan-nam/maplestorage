@@ -42,7 +42,7 @@ import { preloadBossArt } from "@/lib/preload-boss-art";
 import { type CrossedReset, WEEKLY_CADENCE } from "@/lib/reset-countdown";
 import { useDropIcons } from "@/lib/drop-icons";
 import { useSeatSprites } from "@/lib/seat-sprites";
-import { useAccountSettings } from "@/lib/use-account-settings";
+import { OtherWorld } from "@/components/other-world";
 import { useRowWrites } from "@/lib/use-row-writes";
 import type { Boss, BossClearsView } from "@/types/boss";
 import type { Character } from "@/types/character";
@@ -113,7 +113,6 @@ export default function PartiesPage() {
   preloadBossArt();
 
   const { getToken, isLoaded } = useAuth();
-  const settings = useAccountSettings();
 
   const seededParties = peek<Party[]>(PARTY_LIST_KEY);
   const seededBosses = peek<Boss[]>(BOSSES_KEY);
@@ -955,10 +954,15 @@ export default function PartiesPage() {
             </section>
 
             {parties.length === 0 && (
-              <p className="finder-empty">
-                No parties yet. <Link href="/bosses/parties/edit">Set them up</Link>: pick a
-                character, then say who they run each boss with.
-              </p>
+              <>
+                <p className="finder-empty">
+                  No parties yet. <Link href="/bosses/parties/edit">Set them up</Link>: pick a
+                  character, then say who they run each boss with.
+                </p>
+                {/* This list is one world's, so "no parties" can mean every party you have belongs
+                    to characters in the other one. See OtherWorld. */}
+                <OtherWorld />
+              </>
             )}
 
             {/* Not "nothing cleared": that week's clears are real and the Individual View has them.

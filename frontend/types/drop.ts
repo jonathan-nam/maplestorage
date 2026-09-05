@@ -22,6 +22,10 @@ export type BossDrop = {
   // the count really is per world and is not a restatement of perMember: Chaos Kalos gives 5 to the
   // whole party on Interactive and 2 to EACH member on Heroic. Only the difficulties that drop any
   // are here: absent means nothing to fill, not none.
+  //
+  // A HEROIC figure is always a count PER PERSON, because Reboot instances every piece it drops, so
+  // a drop carrying one is per_member there. build.py refuses the pair any other way. That is what
+  // makes isPieceDrop's per-member check the whole of the rule rather than half of it.
   pieces: Record<string, Record<string, number>>;
   // How many equal stacks those pieces fall in, keyed the same way. What a party actually picks up,
   // so it is what makes a share ratio mean anything on screen. Absent for a difficulty nobody has

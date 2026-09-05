@@ -9,7 +9,6 @@ import com.sharpeyes.backend.db.PartyMember
 import com.sharpeyes.backend.db.Person
 import com.sharpeyes.backend.db.PersonCharacter
 import com.sharpeyes.backend.sprites.spriteProxyPath
-import com.sharpeyes.backend.users.WORLD_INTERACTIVE
 import com.sharpeyes.backend.users.inActiveWorld
 import kotlinx.datetime.LocalDate
 import org.jetbrains.exposed.v1.core.JoinType
@@ -146,21 +145,6 @@ internal fun findParty(
         week = state,
     )
 }
-
-/**
- * True when this config's drops can be sold at all.
- *
- * Heroic (Reboot) worlds do not trade, so a sale there is not a figure to get right, it is one
- * that could never have happened. The UI hides the control; this is what makes hiding it a rule
- * rather than a suggestion, and without it the payout rows a sale pins would outlive the button.
- */
-internal fun partyCanSell(partyId: Uuid): Boolean =
-    Party
-        .join(Characters, JoinType.INNER, Party.characterId, Characters.id)
-        .selectAll()
-        .where { Party.id eq partyId }
-        .firstOrNull()
-        ?.get(Characters.worldType) == WORLD_INTERACTIVE
 
 /** True when the config exists and belongs to this user. The ownership check every write starts with. */
 internal fun ownsParty(

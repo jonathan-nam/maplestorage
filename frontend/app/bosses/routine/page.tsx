@@ -3,6 +3,7 @@
 import { PageSwap } from "@/components/page-swap";
 import { useAuth } from "@/lib/use-auth";
 import Link from "next/link";
+import { OtherWorld } from "@/components/other-world";
 import { useEffect, useRef, useState } from "react";
 import { BossRoutineEditor } from "@/components/boss-routine-editor";
 import { CharacterPicker } from "@/components/character-picker";
@@ -184,7 +185,14 @@ export default function BossRoutinePage() {
         {state === "loaded" && (
           <>
             {characters.length === 0 ? (
-              <p className="finder-empty">Add a character on the Inventory page first.</p>
+              <>
+                <p className="finder-empty">
+                  No characters yet. <Link href="/characters">Add one</Link> first.
+                </p>
+                {/* This list is one world's, so "no characters" can mean they are all in the other
+                    one. See OtherWorld. */}
+                <OtherWorld />
+              </>
             ) : (
               <>
                 <CharacterPicker
