@@ -79,15 +79,17 @@ export function ResetTimer({
 
   return (
     <p className="reset-timer">
-      {cadences.map(({ cadence, at }, i) => {
-        const remaining = msUntil(at, nowOnServer);
-        return (
-          <span key={cadence} className={i === 0 ? "reset-lead" : "reset-minor"}>
-            <span className="reset-label">{LABELS[cadence] ?? cadence}</span>
-            <span className="reset-value">{formatCountdown(remaining)}</span>
-          </span>
-        );
-      })}
+      <span className="reset-rows">
+        {cadences.map(({ cadence, at }, i) => {
+          const remaining = msUntil(at, nowOnServer);
+          return (
+            <span key={cadence} className={i === 0 ? "reset-lead" : "reset-minor"}>
+              <span className="reset-label">{LABELS[cadence] ?? cadence}</span>
+              <span className="reset-value">{formatCountdown(remaining)}</span>
+            </span>
+          );
+        })}
+      </span>
       <span className="reset-zone" title="Bosses reset at 00:00 UTC; weeklies on Thursday.">
         UTC
       </span>

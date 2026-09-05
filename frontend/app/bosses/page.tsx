@@ -4,7 +4,9 @@ import { PageSwap } from "@/components/page-swap";
 import { useAuth } from "@/lib/use-auth";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
+import { BossBands } from "@/components/boss-bands";
 import { BossMatrix } from "@/components/boss-matrix";
+import { PageGutter } from "@/components/page-gutter";
 import { ResetTimer } from "@/components/reset-timer";
 import { WeekStepper } from "@/components/week-stepper";
 import { apiFetch } from "@/lib/api";
@@ -181,7 +183,12 @@ export default function BossesPage() {
       <PageSwap
         waiting={state === "loading"}
         placeholder={
-          <BossMatrix loading bosses={bosses} characters={characters} clearsByCharacter={{}} />
+          <>
+            <PageGutter>
+              <BossBands loading bosses={bosses} characters={characters} clearsByCharacter={{}} />
+            </PageGutter>
+            <BossMatrix loading bosses={bosses} characters={characters} clearsByCharacter={{}} />
+          </>
         }
         shaped
       >
@@ -196,14 +203,29 @@ export default function BossesPage() {
                 {view && (
                   <div className="boss-controls">
                     <WeekStepper view={view} onSelect={selectWeek} busy={stepping} />
+                  </div>
+                )}
+
+                {/* The countdowns and the band figures are both read at a glance and neither is
+                    ever clicked, so they stand beside the page and the matrix keeps the height
+                    they used to take. See PageGutter. */}
+                <PageGutter>
+                  {view && (
                     <ResetTimer
                       nextResets={view.nextResets}
                       serverNow={view.now}
                       receivedAt={receivedAt}
                       onReset={pickUpReset}
                     />
-                  </div>
-                )}
+                  )}
+                  <BossBands
+                    bosses={bosses}
+                    characters={characters}
+                    clearsByCharacter={view?.clearsByCharacter ?? {}}
+                    skipsByCharacter={view?.skipsByCharacter ?? {}}
+                    historyWeek={view?.weekStart ?? null}
+                  />
+                </PageGutter>
 
                 {/* Editable on the live view only: a past week carries weekly rows alone, so a
                 tick on it would have no one period to land in. */}
