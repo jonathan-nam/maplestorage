@@ -8,27 +8,51 @@ const MINUTE = 60 * SECOND;
 const HOUR = 60 * MINUTE;
 const DAY = 24 * HOUR;
 
+/** One unit of a countdown: the number, and the letter that says what it counts. */
+export type CountdownPart = { value: number; unit: "d" | "h" | "m" | "s" };
+
 /**
- * A live countdown, down to the second at every distance.
+ * A live countdown, in its parts.
+ *
+ * Split rather than formatted because the numbers have to be drawn in a box of their own: unpadded,
+ * "9s" becomes "10s" and every character to its left shifts, which the panel reads as the whole
+ * countdown twitching sideways several times a minute. The stylesheet reserves each number two
+ * digits (see .reset-num); nothing here pads, so the text is what it always was.
  *
  * Leading zero units are dropped so a five-hour wait does not read "0d". Seconds stay on even a
  * five-day countdown: it is the ticking that makes it a timer rather than a date, which is what
- * this is for.
+ * this is for. Empty means the reset has passed; see formatCountdown.
+ */
+export function countdownParts(ms: number): CountdownPart[] {
+  if (ms <= 0) return [];
+
+  const all: CountdownPart[] = [
+    { value: Math.floor(ms / DAY), unit: "d" },
+    { value: Math.floor((ms % DAY) / HOUR), unit: "h" },
+    { value: Math.floor((ms % HOUR) / MINUTE), unit: "m" },
+    { value: Math.floor((ms % MINUTE) / SECOND), unit: "s" },
+  ];
+
+  // From the first unit that is not zero, everything down to seconds. A zero in the MIDDLE stays:
+  // "1d 0h 5m 2s" is one span, and dropping the hours from it would read as 1 day 5 minutes.
+  const lead = all.findIndex((part) => part.value > 0);
+  // All four zero is the sub-second gap before a reset lands. Seconds is the honest unit there.
+  return lead === -1 ? [{ value: 0, unit: "s" }] : all.slice(lead);
+}
+
+/**
+ * The same countdown as one string, for a title or a label.
+ *
+ * Joined from countdownParts rather than built again, so the words a reader hears and the digits
+ * a reader sees cannot drift apart.
  */
 export function formatCountdown(ms: number): string {
   // Between the reset instant passing and the next poll landing, the honest answer is that it has
   // happened, not a negative duration.
   if (ms <= 0) return "now";
-
-  const days = Math.floor(ms / DAY);
-  const hours = Math.floor((ms % DAY) / HOUR);
-  const minutes = Math.floor((ms % HOUR) / MINUTE);
-  const seconds = Math.floor((ms % MINUTE) / SECOND);
-
-  if (days > 0) return `${days}d ${hours}h ${minutes}m ${seconds}s`;
-  if (hours > 0) return `${hours}h ${minutes}m ${seconds}s`;
-  if (minutes > 0) return `${minutes}m ${seconds}s`;
-  return `${seconds}s`;
+  return countdownParts(ms)
+    .map((part) => `${part.value}${part.unit}`)
+    .join(" ");
 }
 
 /**
