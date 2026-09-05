@@ -174,7 +174,6 @@ export default function DropLogPage() {
   const [grouping, setGrouping] = useState<Grouping>("month");
   const [runAxis, setRunAxis] = useState<RunAxis>("character");
   // Whether the reader has asked for the box that sells out of a pile nobody is owed anything from.
-  const [sellingOwn, setSellingOwn] = useState(false);
   const [section, setSection] = useState<DropSectionKey>("drops");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -670,14 +669,9 @@ export default function DropLogPage() {
   // What the OTHER piles are holding of yours, so your own pile's debt reads as what changes hands:
   // owing Bro 90 while he holds 20 of yours is 70. Netted per creditor, never across people. See owes.
   const heldOfYours = heldOfYoursBy(ledgers);
-  // Of your own piles, the ones with something to answer. A pile that owes nobody is somewhere a sale
-  // may be recorded and nothing else, so it waits behind the control that offers exactly that rather
-  // than standing on screen with a count and no question.
-  const { drawn, quiet } = worthDrawing(yours, recorded, heldOfYours);
-  // A held-back pile, once asked for. Drawn where the control that asked for it stood, not folded in
-  // above with the rest: appended there, a click at the foot of the page made a card appear further
-  // up it and took away the thing that was clicked, and nothing on screen tied the two together.
-  const revealed = sellingOwn ? quiet : [];
+  // Of your own piles, the ones with something to answer. A pile that owes nobody is not drawn at
+  // all: it is a count with no question on it, and this tab is the list of what is still open.
+  const { drawn } = worthDrawing(yours, recorded, heldOfYours);
   // The piles of interchangeable drops waiting to be priced. Yours: a lot is filed against the seat
   // that sold it, and only your own seats are ones you can name as seller. A partner's pile stays on
   // its rows, where each names its own seller.
@@ -687,7 +681,7 @@ export default function DropLogPage() {
   // and one card each, because a queue of them could only guess which copy went. See rowSales.
   const alone = rowSales(parties, pools, dropTables, fungible, SELF_KEY);
   // Whether the sale boxes will draw anything, which decides with the coupon piles whether there is
-  // a Record Sale section at all. A heading over no cards is a heading over nothing.
+  // an Outstanding Sales section at all. A heading over no cards is a heading over nothing.
   const anythingToPrice = money && (lots.length > 0 || alone.length > 0);
   // The coupon's sprite, off whichever boss table carries it. Every table names the same drop.
   const vestigeIcon =
@@ -747,7 +741,7 @@ export default function DropLogPage() {
   const hasSales =
     saleCards({
       unanswered: open.length,
-      holders: drawn.length + revealed.length,
+      holders: drawn.length,
       lots: money ? lots.length : 0,
       rows: money ? alone.length : 0,
     }) > 0;
@@ -882,7 +876,7 @@ export default function DropLogPage() {
                   back for owing nobody leaves the heading standing over nothing. */}
                 {(anythingToPrice || drawn.length > 0) && (
                   <section className="loot-pool">
-                    <h2 className="loot-pool-title">Record Sale</h2>
+                    <h2 className="loot-pool-title">Outstanding Sales</h2>
 
                     {/* Only where there is money to talk about. A Heroic-only account trades nothing,
                       and both lists leave those pools out anyway. */}
@@ -912,28 +906,6 @@ export default function DropLogPage() {
                   </section>
                 )}
 
-                {/* The way back to a pile that owes nobody, and then the pile itself, in the one slot.
-                  Holding coupons is not a task, so it is not a card until it is asked for, but they
-                  are still yours to sell and a ledger that will not admit you hold them cannot take
-                  the sale. After the cards rather than above them: it is the way to one more of the
-                  same, not a heading over them.
-
-                  The card replaces the control that asked for it. Somewhere else on the page it was
-                  a pile of coupons appearing for no stated reason, which is how a reader ends up
-                  asking what they just recorded. It focuses its own count box for the same reason. */}
-                {quiet.length > 0 &&
-                  (sellingOwn ? (
-                    <PieceLedger ledgers={revealed} {...pileCard} forEntry />
-                  ) : (
-                    <button
-                      type="button"
-                      className="party-save"
-                      onClick={() => setSellingOwn(true)}
-                    >
-                      Record a sale
-                    </button>
-                  ))}
-
                 {/* Last, and the one real boundary on this tab: every card above takes a sale, and this
                   one cannot be acted on for money at all. It names the nights whose arrangement
                   nobody has said, and nothing about them can be priced until somebody does. Still on
@@ -953,7 +925,7 @@ export default function DropLogPage() {
 
             {shown === "settlement" && (
               <section className="loot-pool">
-                <h2 className="loot-pool-title">Record Settlement</h2>
+                <h2 className="loot-pool-title">Settlement Summary</h2>
 
                 <SettlementSummary rows={settlement} totals={owedTotals} />
 

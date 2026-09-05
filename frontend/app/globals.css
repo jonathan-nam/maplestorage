@@ -5309,12 +5309,6 @@ button.link:disabled {
 
 /* What the figure above is measuring. Load-bearing on the Drop Log, where "sold for" means what
  * landed in inventories and NOT the prices as typed. See lib/drop-log.ts. */
-.stat-note {
-  color: var(--muted-2);
-  font-size: var(--text-sm);
-  line-height: 1.4;
-}
-
 /* A breakdown row with the nights behind it on hover. Dotted, the way a term with a definition is
    marked, so the hover is offered rather than left to be discovered. */
 .loot-name.has-detail {

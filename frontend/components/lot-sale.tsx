@@ -42,7 +42,7 @@ export function LotSale({
   busy: boolean;
   onSell: (body: LotSaleBody) => Promise<void>;
 }) {
-  // Cards only. The "Record Sale" heading covers these AND the coupon piles, so it belongs to
+  // Cards only. The "Outstanding Sales" heading covers these AND the coupon piles, so it belongs to
   // whatever draws both, not to one of them.
   if (drops.length === 0) return null;
   return (

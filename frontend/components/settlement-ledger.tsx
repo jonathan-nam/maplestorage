@@ -131,6 +131,7 @@ export function SettlementLedger({
   if (rows.length === 0) return null;
   return (
     <>
+      <h3 className="loot-group-title">Outstanding Settlements</h3>
       {rows.map((row) => (
         <SettlementCard
           key={row.key}
