@@ -5,6 +5,7 @@ import { useAuth } from "@/lib/use-auth";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { BossMatrix } from "@/components/boss-matrix";
+import { OtherWorld } from "@/components/other-world";
 import { ResetTimer } from "@/components/reset-timer";
 import { WeekStepper } from "@/components/week-stepper";
 import { apiFetch } from "@/lib/api";
@@ -188,9 +189,15 @@ export default function BossesPage() {
         {state === "loaded" && (
           <>
             {characters.length === 0 ? (
-              <p className="finder-empty">
-                Add a character on the Inventory page to start tracking clears.
-              </p>
+              <>
+                <p className="finder-empty">
+                  No characters yet. <Link href="/characters">Add one</Link> to start tracking
+                  clears.
+                </p>
+                {/* This list is one world's, so "no characters" can mean they are all in the
+                    other one, and the line above would be telling you to add what you have. */}
+                <OtherWorld />
+              </>
             ) : (
               <>
                 {view && (

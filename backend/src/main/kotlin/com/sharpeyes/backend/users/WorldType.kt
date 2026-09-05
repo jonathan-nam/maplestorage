@@ -48,6 +48,20 @@ fun activeWorldFor(userId: String): String? =
 fun inActiveWorld(userId: String): Op<Boolean> = activeWorldFor(userId)?.let { Characters.worldType eq it } ?: Op.FALSE
 
 /**
+ * Whether every member receives their own copy, so the party has no one drop to divide or hand over.
+ *
+ * ALWAYS means everywhere. HEROIC means the party gets one in Interactive worlds and one EACH in
+ * Heroic, which is the whole reason this takes a world. In Heroic it is true of every piece drop
+ * there is: Reboot instances its pieces, and only ordinary drops still pool.
+ *
+ * Mirrors the frontend's isPerMember in lib/world.ts, which is what hides the controls this refuses.
+ */
+fun isPerMember(
+    perMember: String?,
+    world: String,
+): Boolean = perMember == "ALWAYS" || (perMember == WORLD_HEROIC && world == WORLD_HEROIC)
+
+/**
  * The value if it is one of the two, else null.
  *
  * Refusing an unknown world beats storing it: the CHECK constraint would reject it anyway, and a
