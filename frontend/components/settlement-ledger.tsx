@@ -29,9 +29,13 @@ import type { SettlementDebt, VestigePayment, VestigeTranche } from "@/types/ves
 
 // One card per person, in the two units something can stand between you.
 //
-// MONEY is one net figure, made of every part that has a price: shares of a sale, coupons of theirs
-// you sold out of your own pile, what they owe you from elsewhere, and what has been paid. The parts
-// are listed because a net nobody can take apart is a net nobody can check.
+// MONEY is what THEY owe you, made of every part that has a price: shares of a sale, coupons of
+// theirs you sold out of your own pile, what they owe you from elsewhere, and what has been paid. The
+// parts are listed because a figure nobody can take apart is a figure nobody can check.
+//
+// What YOU owe is beside it, not inside it. A share of yours comes off their debt when you press
+// Offset and stays off it when you press Mark sent, and the card cannot know which until you say.
+// See Settlement.sharesYouOwe.
 //
 // PIECES are the other unit and stay a count. Coupons are single-trade, so pieces of yours in
 // somebody else's inventory can only be sold by them, and what they fetched is not something this can
@@ -125,7 +129,7 @@ export function SettlementLedger({
   onSettleShares: (payouts: { lootId: string; memberId: string }[]) => Promise<void>;
   /** Keeps this person's card drawn with nothing outstanding, or stops. See V59. */
   onPin: (row: Settlement, pinned: boolean) => Promise<void>;
-  /** Marks the shares paid AND records the offset, so the net does not move. See V57. */
+  /** Marks the shares paid AND records the offset, which takes it off what they owe. See V57. */
   onOffsetShares: (holder: Holder, name: string, parts: OffsetPart[]) => Promise<void>;
 }) {
   if (rows.length === 0) return null;
@@ -222,7 +226,7 @@ function SettlementCard({
   onSettleShares: (payouts: { lootId: string; memberId: string }[]) => Promise<void>;
   /** Keeps this person's card drawn with nothing outstanding, or stops. See V59. */
   onPin: (row: Settlement, pinned: boolean) => Promise<void>;
-  /** Marks the shares paid AND records the offset, so the net does not move. See V57. */
+  /** Marks the shares paid AND records the offset, which takes it off what they owe. See V57. */
   onOffsetShares: (holder: Holder, name: string, parts: OffsetPart[]) => Promise<void>;
 }) {
   const [got, setGot] = useState("");
@@ -273,22 +277,27 @@ function SettlementCard({
   // check. This is a debt somebody is going to be asked for, and the pieces beside it are a count.
   // The one figure on the card anybody pastes anywhere, whichever way it runs. Null when the two
   // sides cancel and only the pieces hold the card here.
-  const toCopy = row.mesos > 0 ? row.mesos : row.owedByYou > 0 ? row.owedByYou : null;
+  // What YOU owe them, however it got there: a net that came out against you and shares nobody has
+  // decided about are the same errand. Never subtracted from `mesos`, which is what they owe you and
+  // moves when Offset is pressed rather than before. See sharesYouOwe.
+  const youOwe = row.owedByYou + row.sharesYouOwe;
+  const toCopy = row.mesos > 0 ? row.mesos : youOwe > 0 ? youOwe : null;
 
   /**
    * The drops behind the shares figure, on hover.
    *
    * They are already listed further down the card, under their own step, but two forms sit between
    * the two: the number and the nights it came off do not read as the same thing from that far
-   * apart. Signed the way the list is, so a night you owe for is told from one you are owed for.
+   * apart. Only the ones this figure is made of, which is the direction running towards you: what
+   * you owe is outside the net and is listed under the step below with the acts that answer it.
    */
   const behindShares = row.lines
+    .filter((line) => line.direction === "owed")
     .map((line) => {
       const boss = bossByKey.get(line.bossKey ?? "");
       const party = partyById.get(line.partyId);
       const where = boss ? bossLabel(boss.name, party?.difficulty ?? null) : "Unknown boss";
-      const mesos = formatMesos(line.direction === "owe" ? -line.pay : line.pay, true);
-      return `${line.name} \u00b7 ${where} \u00b7 ${line.theirs}: ${mesos}`;
+      return `${line.name} \u00b7 ${where} \u00b7 ${line.theirs}: ${formatMesos(line.pay, true)}`;
     })
     .join("\n");
 
@@ -440,10 +449,14 @@ function SettlementCard({
                 display={
                   row.mesos > 0
                     ? `${formatMesos(row.mesos, true)} owed`
-                    : `you owe ${formatMesos(row.owedByYou, true)}`
+                    : `you owe ${formatMesos(youOwe, true)}`
                 }
               />
             )}
+            {/* Both directions, said rather than netted. The headline is what they owe you and it
+                stays that until an act moves it, so a card running both ways has to carry the other
+                side out loud or it would say nothing about money you have to send. */}
+            {row.mesos > 0 && youOwe > 0 && <span>{`you owe ${formatMesos(youOwe, true)}`}</span>}
           </span>
         </span>
         {/* Money they sent beyond anything priced, which is a payment for the pieces. Out here rather
@@ -633,14 +646,8 @@ function SettlementCard({
           </ul>
           {/* What it will do, beside the button that does it. One act now covers shares in both
               directions, so what it will record is worth saying before it runs. Reversible from the
-              party page, share by share.
-
-              A share you OWE says so instead of counting. Settling one declares the money has
-              already gone, which takes it OUT of the netting above and puts what they owe you back
-              UP: Jonathan settled a 139m share expecting it to come off a 254b debt and watched the
-              figure rise. Leaving it unsettled is what nets it, and one transfer settles the lot. */}
-          {/* Discharged against what they owe you, rather than by money crossing. One act, so the
-              share stops being outstanding and the figure it was netting against does not move.
+              party page, share by share. */}
+          {/* Discharged against what they owe you, rather than by money crossing.
 
               The shares YOU owe, and only those. Handed every line it also marked their shares to you
               paid, so the offset quietly collected money nobody had sent: the net fell by whatever
@@ -659,15 +666,12 @@ function SettlementCard({
               {/* What it leaves behind, where their debt cannot cover the lot. Said, because the
                   alternative is a button promising to take 800m off a 500m debt.
 
-                  CLEARS, not "takes off". The headline is the net and the two halves of an offset
-                  cancel in it, so a button promising to take 703,703,488 off what Bro owes you sat
-                  over a figure that did not move: the same words the money-in-hand Offset below
-                  wears, where the figure does move. What changes here is whose side the share is on.
-                  */}
+                  The same words the money-in-hand Offset below wears, now that the headline moves
+                  the same way: a share you owe is outside the net until this is pressed. */}
               <span className="ledger-progress">
                 {offset.leftOwing > 0
                   ? `clears what ${row.name} owes you, leaving you owing ${formatMesos(offset.leftOwing, true)}`
-                  : `clears the ${formatMesos(offset.amount, true)} you owe against what ${row.name} owes you`}
+                  : `takes ${formatMesos(offset.amount, true)} off what ${row.name} owes you`}
               </span>
             </span>
           )}

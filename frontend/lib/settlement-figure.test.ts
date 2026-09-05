@@ -23,7 +23,10 @@ const settlement = readFileSync(join(__dirname, "settlement.ts"), "utf8");
 describe("what the card says a person owes", () => {
   it("states it to the meso, never shortened", () => {
     expect(source).toContain("formatMesos(row.mesos, true)");
-    expect(source).toContain("formatMesos(row.owedByYou, true)");
+    // What you owe them, which is the netted debt and the shares nobody has decided about, added
+    // rather than netted against the above: both are money leaving your hands. See sharesYouOwe.
+    expect(source).toContain("const youOwe = row.owedByYou + row.sharesYouOwe;");
+    expect(source).toContain("formatMesos(youOwe, true)");
   });
 
   it("does not reach for shortMesos anywhere, including the import", () => {
@@ -126,11 +129,17 @@ describe("what the card says a person owes", () => {
     expect(handler).toContain("setDebts(done.debts);");
   });
 
-  it("says what the offset clears, not a figure the headline will not move by", () => {
-    // The headline is the net, so the two halves cancel in it. "takes 703,703,488 off what Bro owes
-    // you" was the same promise the money-in-hand Offset below makes, where the figure does move.
+  it("promises the figure the headline actually moves by", () => {
+    // It used to say "clears", because the headline was the net and the two halves of an offset
+    // cancelled in it: the button could not promise to take anything off a figure that did not move.
+    // A share you owe is outside the net now, so it can, in the same words the money-in-hand Offset
+    // below wears.
     expect(source).toContain(
-      "clears the ${formatMesos(offset.amount, true)} you owe against what ${row.name} owes you",
+      "takes ${formatMesos(offset.amount, true)} off what ${row.name} owes you",
+    );
+    // And the figure it promises is the one the act writes: `parts` is what the request carries.
+    expect(settlement).toContain(
+      "const amount = parts.reduce((sum, part) => sum + part.amount, 0);",
     );
   });
 
@@ -391,7 +400,10 @@ describe("what the figures on the card are counted in", () => {
     // 703,703,488 offset directly under the 668,518,313 share it was made of. The party page this
     // row links to leads with `pay` too, and carries the fee underneath.
     expect(source).toContain('signed(line.direction === "owe" ? -line.pay : line.pay)');
-    expect(source).toContain('formatMesos(line.direction === "owe" ? -line.pay : line.pay, true)');
+    // The hover list behind the `shares` part is one direction, because that part is: what they owe
+    // you. What you owe is not in it and is not netted off it.
+    expect(source).toContain('.filter((line) => line.direction === "owed")');
+    expect(source).toContain("formatMesos(line.pay, true)");
     // No figure on this card comes off the fee, so `nets` is not read here at all.
     expect(source).not.toContain("line.nets");
   });
