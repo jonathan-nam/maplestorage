@@ -65,6 +65,13 @@ describe("a finished character's head dims", () => {
     expect(rule(".boss-table .boss-char-head.is-col-cleared")).toMatch(/opacity:\s*0\.5/);
   });
 
+  it("starts the IGN at full text colour, so the dim is the only grey", () => {
+    // The head dims by opacity alone, so a name that begins at --muted gives the cleared and
+    // uncleared columns two shades of grey to be told apart by instead of a state.
+    expect(matrix).toContain("boss-char-name");
+    expect(rule(".boss-char-name")).toMatch(/color:\s*var\(--ink\)/);
+  });
+
   it("desaturates the sprite, the two numbers a finished row's portrait uses", () => {
     // Opacity is shared with the IGN and floored at 0.5 by the test below, so the sprite's own
     // colour is the only channel left to take a finished character further back.

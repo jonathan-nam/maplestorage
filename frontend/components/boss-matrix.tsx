@@ -182,7 +182,11 @@ export function BossMatrix({
                   ) : (
                     <span className="boss-char-sprite is-empty" aria-hidden="true" />
                   )}
-                  {loading ? <span className="skeleton sk-line" /> : character.name}
+                  {loading ? (
+                    <span className="skeleton sk-line" />
+                  ) : (
+                    <span className="boss-char-name">{character.name}</span>
+                  )}
                 </th>
               ))}
             </tr>

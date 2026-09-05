@@ -2424,6 +2424,13 @@ button.link:disabled {
   text-overflow: ellipsis;
 }
 
+/* The IGN is the column's own label, not a heading over it, so it carries full text weight while
+   the "Boss" head above the rows stays muted. It also has to start at --ink for the cleared head's
+   dim to read as a state: at --muted the two are a pair of greys. */
+.boss-char-name {
+  color: var(--ink);
+}
+
 /* The character above the IGN, drawn as the full sprite rather than a cropped face: the same
    figure the picker below the matrix shows, so a column and a tile read as the same character.
    96px is the Nexon render's own size, so this is 1:1 and not an enlargement; see .tile-sprite. */
