@@ -16,6 +16,7 @@
     "marks": "node scripts/build-tab-marks.mjs"
   },
   "dependencies": {
+    "@vercel/analytics": "^2.0.1",
     "better-auth": "1.7.0",
     "next": "^16.2.10",
     "react": "^19.1.0",
