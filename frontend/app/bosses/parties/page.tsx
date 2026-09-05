@@ -21,6 +21,7 @@ import {
 } from "@/lib/api";
 import { cellState, clearOfCell, indexClears } from "@/lib/boss-clears";
 import { SharedParties } from "@/components/shared-parties";
+import { yourClear } from "@/lib/shared-parties";
 import { bossLabel, difficultyLabel } from "@/lib/boss-difficulty";
 import { peek, put } from "@/lib/cache";
 import { buildDropLog, couponsOutstandingByParty, pieceStatusByParty } from "@/lib/drop-log";
@@ -1113,7 +1114,11 @@ export default function PartiesPage() {
                 </section>
               ))}
 
-            <SharedParties parties={seated} bosses={bosses} />
+            <SharedParties
+              parties={seated}
+              bosses={bosses}
+              clearOf={(party) => yourClear(party, clearsByCharacter)}
+            />
           </>
         )}
       </PageSwap>

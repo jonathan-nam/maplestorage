@@ -1,3 +1,4 @@
+import { clearClass, clearStateLabel } from "@/lib/boss-clears";
 import { difficultyLabel } from "@/lib/boss-difficulty";
 import { formatDropped, statusLabel } from "@/lib/loot";
 import type { Boss } from "@/types/boss";
@@ -19,7 +20,25 @@ function yoursPaid(
   return mine.every((p) => p.paid);
 }
 
-export function SharedParties({ parties, bosses }: { parties: SeatedParty[]; bosses: Boss[] }) {
+export function SharedParties({
+  parties,
+  bosses,
+  clearOf,
+}: {
+  parties: SeatedParty[];
+  bosses: Boss[];
+  /**
+   * Whether YOUR character has cleared this party's boss this period.
+   *
+   * Your own account's answer, not the owner's. boss_clear is per character, so the owner's tick is
+   * about THEIR character and answers "have they run it", where the question on this card is "have
+   * I". Both accounts record the same night, once each, because the run is one run.
+   *
+   * Passed in rather than resolved here: the page already holds the clears and already has one way
+   * of reading them, and a second way is how two screens come to disagree about the same tick.
+   */
+  clearOf: (party: SeatedParty) => boolean | null;
+}) {
   if (parties.length === 0) return null;
   const nameOf = (bossKey: string) => bosses.find((b) => b.bossKey === bossKey)?.name ?? bossKey;
   return (
@@ -34,6 +53,11 @@ export function SharedParties({ parties, bosses }: { parties: SeatedParty[]; bos
             {party.difficulty && (
               <span className="party-difficulty">{difficultyLabel(party.difficulty)}</span>
             )}
+            {/* Read-only, like a past week's. Your clear is yours to change, but not from a card
+                about somebody else's party: it is on your own routine and the Boss Clears page. */}
+            <span className={`party-clear is-${clearClass(clearOf(party))} is-readonly`}>
+              {clearStateLabel(clearOf(party))}
+            </span>
           </h3>
           {/* The roster as its owner keeps it, yours among them. */}
           <p className="party-hint">{party.seats.map((seat) => seat.name).join(", ")}</p>
