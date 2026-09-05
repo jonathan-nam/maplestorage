@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { AddForWeek } from "@/components/add-for-week";
 import { KnownCharacters } from "@/components/known-characters";
+import { PageGutter } from "@/components/page-gutter";
 import { PartyCard } from "@/components/party-card";
 import { ResetTimer } from "@/components/reset-timer";
 import { RosterStrip } from "@/components/roster-strip";
@@ -863,9 +864,9 @@ export default function PartiesPage() {
           <>
             {/* Once for the page, not once per row: every roster editor points at this one id. */}
             <KnownCharacters names={knownCharacters} />
-            {/* The same controls the Individual View carries, in the same order and the same row:
-              the stepper on the left, the countdown on the right. The WeekStepper component
-              itself, not a copy of its label, so the two pages cannot drift in wording, spacing
+            {/* The same controls the Individual View carries, in the same place: the stepper in
+              the row, the countdown out in the gutter. The WeekStepper and ResetTimer components
+              themselves, not a copy of either, so the two pages cannot drift in wording, spacing
               or behaviour.
 
               Stepping refetches the clears and the ticks follow it, which is the only reason the
@@ -874,13 +875,18 @@ export default function PartiesPage() {
             {view && (
               <div className="boss-controls">
                 <WeekStepper view={view} onSelect={selectWeek} busy={stepping} />
+              </div>
+            )}
+
+            {view && (
+              <PageGutter>
                 <ResetTimer
                   nextResets={view.nextResets}
                   serverNow={view.now}
                   receivedAt={receivedAt}
                   onReset={pickUpReset}
                 />
-              </div>
+              </PageGutter>
             )}
 
             {/* Above every line about the list, the way the Drop Log's Add Drop is: the form is one

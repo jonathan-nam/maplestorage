@@ -96,6 +96,41 @@
   padding: 2rem;
 }
 
+/* ---------------------------------------------------------------------------
+   The gutter: the empty column beside the page.
+
+   The page is a fixed measure centred in the window, so a wide screen leaves the same width either
+   side of it doing nothing. Figures that are only ever read, never clicked, stand out there instead
+   of in the column: the boss matrix is the page, and two bands of progress above it started it a
+   screenful down.
+
+   Narrow, it is a block in the flow, exactly where it is written. Nothing is hidden at any width.
+   --------------------------------------------------------------------------- */
+.page-gutter {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  margin: 0 0 16px;
+}
+
+/* 794 + 2 * (220 + 24) = 1282, the narrowest window with a gutter wide enough to hold the panel.
+   Both sides, because the page is centred: there is no right gutter without a left one. */
+@media (min-width: 1282px) {
+  .page-gutter {
+    /* Fixed, not absolute: it is pinned to the window rather than to whichever positioned ancestor
+       it happens to be written inside, and PageSwap is one of those. The page is centred, so half
+       the window plus half the measure IS its right edge, at any width. */
+    position: fixed;
+    left: calc(50% + var(--measure) / 2 + 24px);
+    /* Lines the first countdown up with the week stepper at the top of the page: the header, the
+       title and the title's margin, measured. Decorative, so drifting a few px when a title wraps
+       costs nothing. */
+    top: 132px;
+    width: 220px;
+    margin: 0;
+  }
+}
+
 /* The section's own title, at the top-left of its content. The hamburger says which sections exist;
    this says which one you are on. */
 .page-title {
@@ -2476,8 +2511,9 @@ button.link:disabled {
   background: var(--bg);
 }
 
-/* Each band's count, under the heads and above the rows it counts. It scrolls away with them: the
-   heads are what is held, being the thing a mark cannot be read without. */
+/* Each band's count. It sat between the column heads and the rows it counts, which cost the table
+   two bands of height at the top of the page; it is in the gutter now, and only falls back into
+   the flow here on a window too narrow to have one. */
 .boss-band-totals {
   /* ONE grid over both bands, not a grid per band. Sized per band, the label column took its own
      width and the two bars came out different lengths, which is a difference that means nothing:
@@ -2487,16 +2523,13 @@ button.link:disabled {
   /* The bar against the middle of the two lines it belongs to, not the top one. */
   align-items: center;
   gap: 10px 12px;
-  /* Less below than above: what follows is the band label, which brings its own. */
-  padding: 10px 0 6px;
-  border-bottom: 1px solid var(--line);
   color: var(--muted);
   font-size: var(--text-sm);
 }
 
 /* No box of its own: its two children are laid out by the grid above, which is what puts the two
-   bands on one set of columns. The bar takes the second, so it ends on the same edge as the table
-   below whatever the label beside it measures. */
+   bands on one set of columns. The bar takes the second, so both bars are the same length whatever
+   the label beside them measures. */
 .boss-band-row {
   display: contents;
 }
@@ -2830,8 +2863,10 @@ button.link:disabled {
   font-size: var(--text-base);
 }
 
-/* Week picker on the left, reset clocks on the right, above the table. They wrap onto two lines on
-   a narrow viewport rather than squeezing, since both are text that has to stay readable. */
+/* The week picker, above the table. It is the only thing left in this row: the routine link went
+   up beside the title (#592) and the reset clocks out to the gutter, so the row is one control on
+   the left and space. It keeps the flex layout because a second control here is one commit away.
+   See .page-gutter. */
 .boss-controls {
   display: flex;
   flex-wrap: wrap;
@@ -2896,17 +2931,24 @@ button.link:disabled {
 
 .reset-timer {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 12px;
   margin: 0;
   font-size: var(--text-base);
 }
 
+/* Weekly over monthly, in a grid rather than two rows of their own so the countdowns share a
+   column: the labels are different widths and stacking them flex left the values ragged. */
+.reset-rows {
+  display: inline-grid;
+  grid-template-columns: auto auto;
+  align-items: baseline;
+  gap: 2px 5px;
+}
+
 .reset-lead,
 .reset-minor {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 5px;
+  display: contents;
 }
 
 /* Weekly is the one that matters for 16 of the 19 bosses, so it is the one that reads first. */
@@ -2918,6 +2960,13 @@ button.link:disabled {
 
 .reset-minor .reset-value {
   color: var(--muted);
+}
+
+/* Both columns right-align, so the two countdowns line up on their seconds and each label sits
+   against the number it names. The day counts are different widths ("3d" under "25d"). */
+.reset-label,
+.reset-value {
+  text-align: right;
 }
 
 .reset-label {
