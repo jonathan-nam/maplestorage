@@ -104,7 +104,7 @@ export function AddForWeek({
             </select>
           </label>
 
-          <label className="add-party-field">
+          <label className="add-party-field is-wide">
             <span>Boss</span>
             <select
               className="split-input"
@@ -147,7 +147,7 @@ export function AddForWeek({
 
           {/* The server refuses a party with nobody else in it, on purpose: that is a solo run. So
               there is no such thing as an empty one to fill in afterwards. */}
-          <label className="add-party-field">
+          <label className="add-party-field is-wide">
             <span>Member</span>
             <input
               className="split-input"

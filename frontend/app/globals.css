@@ -3883,12 +3883,29 @@ button.link:disabled {
   gap: 10px;
 }
 
+/* An EXPLICIT flex-basis, never auto. A wrapping flex row wraps at each item's base size and only
+   shrinks what is already on a line, so flex-shrink cannot save a row that does not fit: with
+   basis:auto a select is as wide as its longest option ("every boss is on this week", 26
+   characters) and the + got pushed onto a line of its own at the page's 794px. Fixed bases make the
+   row's width answer to this file rather than to the catalog. min-width:0 lets them shrink after. */
 .add-party-field {
   display: flex;
   flex-direction: column;
   gap: 4px;
+  min-width: 0;
+  flex: 1 1 120px;
   font-size: var(--text-base);
   color: var(--muted);
+}
+
+/* Boss and Member hold the longest text, so they take a double share of whatever is left over. */
+.add-party-field.is-wide {
+  flex: 2 1 150px;
+}
+
+/* Never the thing that wraps: a + alone on the second line names nothing. */
+.add-party-fields .party-add-icon {
+  flex: none;
 }
 
 /* One height for a select and an input alike, which the browser does not give: without it the
@@ -3896,6 +3913,8 @@ button.link:disabled {
 .add-party-field .split-input {
   height: 38px;
   box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
 }
 
 /* The nights this configuration did not run, behind their own count. Ruled off because what is
