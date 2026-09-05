@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Field } from "@/components/add-field";
 import { formatMesos, parseMesos } from "@/lib/drop-split";
 import { divides } from "@/lib/loot";
 import { parseShares, sharePercents } from "@/lib/shares";
@@ -22,6 +23,7 @@ export function LootSaleForm({
   busy,
   onSell,
   onCancel,
+  labelled,
 }: {
   /**
    * Who could have sold this drop: the seats that ran the week it FELL in, not the party as it
@@ -33,6 +35,14 @@ export function LootSaleForm({
   onSell: (body: SellLootBody) => void;
   /** Absent where the form is the card rather than a mode of a row, which has nothing to go back to. */
   onCancel?: () => void;
+  /**
+   * Name every box and flatten the words out of the options, which is how the Sale Ledger draws it.
+   *
+   * Not on the pool row, which is where the other copy of this form lives. There the row reads as a
+   * sentence ("9.5b, listed for, fair split, sold by Alice") and the option text IS the wording, so
+   * labelling it would say each thing twice.
+   */
+  labelled?: boolean;
 }) {
   const [price, setPrice] = useState("");
   const [amountBasis, setAmountBasis] = useState("LISTED");
@@ -69,58 +79,72 @@ export function LootSaleForm({
         });
       }}
     >
-      <div className="loot-sale-line">
-        <input
-          className="split-input"
-          value={price}
-          onChange={(e) => setPrice(e.target.value)}
-          placeholder="9.5b"
-          aria-label="Sale amount"
-          inputMode="decimal"
-        />
-        <select
-          className="split-input"
-          value={amountBasis}
-          onChange={(e) => setAmountBasis(e.target.value)}
-          aria-label="What that amount is"
-        >
-          <option value="LISTED">listed for</option>
-          <option value="RECEIVED">received</option>
-          {/* No listing, so no Auction House cut off the top: the price is the whole pot.
-              The payouts are still taxed, so the split is the same one. Not offered where one
-              seat ran: there is nobody to have bought it off. */}
-          {shared && <option value="BOUGHT">member bought</option>}
-        </select>
+      <div className={labelled ? "add-fields" : "loot-sale-line"}>
+        <Field on={Boolean(labelled)} label="Sold for">
+          <input
+            className="split-input"
+            value={price}
+            onChange={(e) => setPrice(e.target.value)}
+            placeholder="9.5b"
+            aria-label={labelled ? undefined : "Sale amount"}
+            inputMode="decimal"
+          />
+        </Field>
+        <Field on={Boolean(labelled)} label="Amount is" cls="is-pick">
+          <select
+            className="split-input"
+            value={amountBasis}
+            onChange={(e) => setAmountBasis(e.target.value)}
+            aria-label={labelled ? undefined : "What that amount is"}
+          >
+            <option value="LISTED">{labelled ? "Listed" : "listed for"}</option>
+            <option value="RECEIVED">{labelled ? "Received" : "received"}</option>
+            {/* No listing, so no Auction House cut off the top: the price is the whole pot.
+                The payouts are still taxed, so the split is the same one. Not offered where one
+                seat ran: there is nobody to have bought it off. */}
+            {shared && (
+              <option value="BOUGHT">{labelled ? "Member bought" : "member bought"}</option>
+            )}
+          </select>
+        </Field>
         {/* Neither control is a question where one seat ran: nobody to divide with and nobody
             else it could have been sold by. The stored method is whichever the state holds,
             and with no members splitDrop's two branches are the same arithmetic (see the
             test). */}
         {shared && (
-          <select
-            className="split-input"
-            value={splitMethod}
-            onChange={(e) => setSplitMethod(e.target.value)}
-            aria-label="Split method"
-          >
-            {/* Both are offered for the reason lib/drop-split.ts gives: "lazy" is what most
-                parties do, and only showing "fair" would hide what it costs. */}
-            <option value="FAIR">fair split</option>
-            <option value="LAZY">lazy split</option>
-          </select>
+          <Field on={Boolean(labelled)} label="Split" cls="is-narrow">
+            <select
+              className="split-input"
+              value={splitMethod}
+              onChange={(e) => setSplitMethod(e.target.value)}
+              aria-label={labelled ? undefined : "Split method"}
+            >
+              {/* Both are offered for the reason lib/drop-split.ts gives: "lazy" is what most
+                  parties do, and only showing "fair" would hide what it costs. */}
+              <option value="FAIR">{labelled ? "Fair" : "fair split"}</option>
+              <option value="LAZY">{labelled ? "Lazy" : "lazy split"}</option>
+            </select>
+          </Field>
         )}
         {shared && (
-          <select
-            className="split-input"
-            value={sellerMemberId}
-            onChange={(e) => setSellerMemberId(e.target.value)}
-            aria-label={amountBasis === "BOUGHT" ? "Who bought it" : "Who sold it"}
-          >
-            {ran.map((m) => (
-              <option key={m.id} value={m.id}>
-                {amountBasis === "BOUGHT" ? "bought by" : "sold by"} {m.name}
-              </option>
-            ))}
-          </select>
+          <Field on={Boolean(labelled)} label={amountBasis === "BOUGHT" ? "Bought by" : "Sold by"}>
+            <select
+              className="split-input"
+              value={sellerMemberId}
+              onChange={(e) => setSellerMemberId(e.target.value)}
+              aria-label={
+                labelled ? undefined : amountBasis === "BOUGHT" ? "Who bought it" : "Who sold it"
+              }
+            >
+              {ran.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {labelled
+                    ? m.name
+                    : `${amountBasis === "BOUGHT" ? "bought by" : "sold by"} ${m.name}`}
+                </option>
+              ))}
+            </select>
+          </Field>
         )}
       </div>
 

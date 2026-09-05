@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type FormEvent, type ReactNode } from "react";
+import { Field } from "@/components/add-field";
 import { DropSelect } from "@/components/drop-select";
 import { StackAssign } from "@/components/stack-assign";
 import { StackPickupDraft } from "@/components/stack-pickup";
@@ -47,33 +48,6 @@ export type StackDraft = {
 // that has to ask which boss (the Drop Log does, since it covers all of them) asks in `lead`, and
 // the answer arrives as `bossKey`. Nor is it drawn: every screen carrying this form already names
 // the boss above it.
-
-/**
- * Named in the card, bare everywhere else, where the boxes sit in a row the caller titled.
- *
- * At module scope on purpose: declared inside DropPicker it would be a new component type on every
- * render, so React would remount the box instead of updating it and typing would lose the caret.
- */
-function Field({
-  card,
-  label,
-  cls,
-  children,
-}: {
-  card?: boolean;
-  label: string;
-  /** How wide this box wants to be. See .add-field's modifiers. */
-  cls?: string;
-  children: ReactNode;
-}) {
-  if (!card) return <>{children}</>;
-  return (
-    <label className={cls ? `add-field ${cls}` : "add-field"}>
-      <span>{label}</span>
-      {children}
-    </label>
-  );
-}
 
 export function DropPicker({
   bossKey,
@@ -191,7 +165,7 @@ export function DropPicker({
     <>
       {lead}
 
-      <Field card={card} label="Drop" cls="is-drop">
+      <Field on={Boolean(card)} label="Drop" cls="is-drop">
         <DropSelect
           drops={drops}
           worldType={worldType}
@@ -221,7 +195,7 @@ export function DropPicker({
       </Field>
 
       {dropKey === OTHER && (
-        <Field card={card} label="Name" cls="is-wide">
+        <Field on={Boolean(card)} label="Name" cls="is-wide">
           <input
             className="split-input"
             value={customName}
@@ -234,7 +208,7 @@ export function DropPicker({
       )}
 
       {dropKey !== "" && (
-        <Field card={card} label="How many" cls="is-narrow">
+        <Field on={Boolean(card)} label="How many" cls="is-narrow">
           <input
             className="split-input loot-count-input"
             value={quantity}

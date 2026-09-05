@@ -3922,6 +3922,20 @@ button.link:disabled {
   flex: 0 1 84px;
 }
 
+/* What happened to a pile of pieces, whose options are whole phrases rather than one word: they
+   carry a direction ("I took theirs" against "they took mine") that a label cannot say for them.
+   See PieceLedger's LABELS. */
+.add-field.is-fate {
+  flex: 0 1 240px;
+}
+
+/* A box whose answers are a closed vocabulary ("Listed", "Received", "Member bought") wants enough
+   for the longest of them and not a share of the slack, which otherwise leaves a 234px box holding
+   the word "Listed" beside a price box that could have used it. */
+.add-field.is-pick {
+  flex: 0 1 140px;
+}
+
 /* The drop picker sets the width of its own popup list (panelPlacement takes the trigger's), and
    264px is what fits a 46px icon beside a name. So this one field is sized by that floor rather
    than by a basis of ours, and does not grow past it. */
@@ -6523,6 +6537,17 @@ button.link:disabled {
 
 /* The share boxes for the rows a lot would cover. Its own row in the form's wrap, so the price line
    keeps its line and the button keeps the next one. */
+/* The lot card's form. .ledger-sale, which this was, is a wrapping ROW, so the boxes, the splits
+   and the sell all shared one wrap and it sized its own boxes; naming the boxes wants a row of
+   their own and the sizes the fields bring. .ledger-sale still draws the Settlement Ledger's
+   unlabelled lines, which is why this is a class of its own rather than a change to that one. */
+.ledger-form {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+}
+
 .ledger-splits {
   display: flex;
   flex-direction: column;
