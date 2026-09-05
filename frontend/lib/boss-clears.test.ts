@@ -15,6 +15,7 @@ import {
   indexSkips,
   nextClear,
   nextSkips,
+  bossBands,
   progressLabel,
   progressMark,
   weekEndExclusive,
@@ -440,5 +441,59 @@ describe("nextSkips", () => {
     const asked = new Set(["lotus"]);
     nextSkips(asked, new Set(), "damien", false);
     expect(Array.from(asked)).toEqual(["lotus"]);
+  });
+});
+
+/**
+ * The band figures the head row draws, end to end.
+ *
+ * clearProgress refuses a past week's denominator, and this is the seam where that refusal is
+ * actually asked for: bossBands decides routineKnown from historyWeek. Wire it up wrong and every
+ * unit test above still passes while the screen states a past week's target as confidently as a
+ * live one, off a routine that describes today. That is this project's whole failure mode.
+ */
+describe("bossBands, over a past week", () => {
+  const WEEKLY = {
+    bossKey: "lotus",
+    name: "Lotus",
+    reset: "WEEKLY",
+    iconUrl: null,
+    difficulties: [],
+  };
+  const MONTHLY = {
+    bossKey: "bm",
+    name: "Black Mage",
+    reset: "MONTHLY",
+    iconUrl: null,
+    difficulties: [],
+  };
+  const bosses = [MONTHLY, WEEKLY];
+  const characters = [{ id: "c1", name: "Aria", spriteImgUrl: null }];
+  const clearsByCharacter = {
+    c1: [{ bossKey: "lotus", cleared: true, periodStart: "2026-08-27", capturedAt: "2026-08-28" }],
+  };
+
+  it("counts what was cleared and refuses to say what there was to clear", () => {
+    const { bands } = bossBands({
+      bosses,
+      characters,
+      clearsByCharacter,
+      historyWeek: "2026-08-27",
+    });
+
+    // Only the weekly band: a week cannot answer for a monthly boss. See the cadence filter.
+    expect(bands.map((b) => b.cadence)).toEqual(["WEEKLY"]);
+    expect(bands[0]?.progress).toEqual({ cleared: 1, total: null });
+    // And it says so in a word, because there is no bar to read the figure off.
+    expect(progressLabel(bands[0]!.progress)).toBe("1 cleared");
+  });
+
+  it("still gives the live week a denominator to draw against", () => {
+    const { bands } = bossBands({ bosses, characters, clearsByCharacter, historyWeek: null });
+
+    expect(bands.map((b) => b.cadence)).toEqual(["MONTHLY", "WEEKLY"]);
+    for (const band of bands) {
+      expect(band.progress.total).not.toBeNull();
+    }
   });
 });
