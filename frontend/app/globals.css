@@ -1290,6 +1290,45 @@ html.switching-world .world-veil {
   cursor: default;
 }
 
+/* --- Shared with you -------------------------------------------------------------------- */
+
+/* A party somebody else keeps the book for. No controls, so no hit targets and no hover. */
+.shared-party {
+  margin: 12px 8px 0;
+}
+
+.shared-nights {
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* One night. Wraps rather than truncating: a drop name is the one part worth reading in full. */
+.shared-nights li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+  padding: 4px 0;
+  border-top: 1px solid var(--line);
+  font-size: var(--text-base);
+}
+
+.shared-night-drop {
+  font-weight: 600;
+}
+
+.shared-night-when,
+.shared-night-status {
+  color: var(--muted);
+}
+
+/* Your own share's state, which is the one figure on the row that is about you. */
+.shared-night-yours {
+  margin-left: auto;
+  color: var(--ink-strong);
+}
+
 /* --- Choosing a world ------------------------------------------------------------------- */
 
 /* Asked once, on an account that has never said. See components/world-choice.tsx. */

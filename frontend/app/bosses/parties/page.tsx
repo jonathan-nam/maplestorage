@@ -20,6 +20,7 @@ import {
   spriteUrl,
 } from "@/lib/api";
 import { cellState, clearOfCell, indexClears } from "@/lib/boss-clears";
+import { SharedParties } from "@/components/shared-parties";
 import { bossLabel, difficultyLabel } from "@/lib/boss-difficulty";
 import { peek, put } from "@/lib/cache";
 import { buildDropLog, couponsOutstandingByParty, pieceStatusByParty } from "@/lib/drop-log";
@@ -54,6 +55,7 @@ import type {
   Person,
   SavePartyBody,
   SaveWeekRosterBody,
+  SeatedParty,
   SetPartySkipBody,
 } from "@/types/party";
 
@@ -75,6 +77,8 @@ const PARTIES_KEY = "/api/parties";
 // and the log cannot disagree. See partiesFor.
 const PARTY_LIST_KEY = "/api/parties?solo=include&retired=include";
 const BOSSES_KEY = "/api/bosses";
+// The parties somebody ELSE owns that a character of yours sits in. See SeatedParties.kt.
+const SEATED_KEY = "/api/parties/seated";
 const CHARACTERS_KEY = "/api/characters";
 // Whose character is whose, for the roster editor's datalist. Same key as the edit page, so the
 // two share one cached copy and offer the same spellings.
@@ -120,6 +124,7 @@ export default function PartiesPage() {
 
   const [everyParty, setEveryParty] = useState<Party[]>(seededParties ?? []);
   const [bosses, setBosses] = useState<Boss[]>(seededBosses ?? []);
+  const [seated, setSeated] = useState<SeatedParty[]>(peek<SeatedParty[]>(SEATED_KEY) ?? []);
   const [characters, setCharacters] = useState<Character[]>(seededCharacters ?? []);
   const [dropTables, setDropTables] = useState<DropTables>(peek<DropTables>(DROPS_KEY) ?? {});
   const [people, setPeople] = useState<Person[]>(peek<Person[]>(PEOPLE_KEY) ?? []);
@@ -268,6 +273,9 @@ export default function PartiesPage() {
           apiFetch<VestigeSettlement[]>(SETTLEMENTS_KEY, { method: "GET" }, withToken).catch(
             () => null,
           ),
+          // Optional as well. Losing it costs the section for parties somebody else keeps the book
+          // for, which is a section this account may well not have, and never the page.
+          apiFetch<SeatedParty[]>(SEATED_KEY, { method: "GET" }, withToken).catch(() => null),
         ]);
       })
       .then(
@@ -279,6 +287,7 @@ export default function PartiesPage() {
           peopleResult,
           poolResult,
           settlementResult,
+          seatedResult,
         ]) => {
           setBosses(bossResult);
           setCharacters(characterResult);
@@ -299,6 +308,10 @@ export default function PartiesPage() {
           if (settlementResult) {
             setSettlements(settlementResult);
             put(SETTLEMENTS_KEY, settlementResult);
+          }
+          if (seatedResult) {
+            setSeated(seatedResult);
+            put(SEATED_KEY, seatedResult);
           }
           setState("loaded");
         },
@@ -1099,6 +1112,8 @@ export default function PartiesPage() {
                   </div>
                 </section>
               ))}
+
+            <SharedParties parties={seated} bosses={bosses} />
           </>
         )}
       </PageSwap>

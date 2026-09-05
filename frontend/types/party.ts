@@ -1,3 +1,4 @@
+import type { Loot } from "@/types/loot";
 // Mirrors backend's parties/PartyDtos.kt field-for-field.
 
 import type { WorldType } from "@/lib/world";
@@ -168,4 +169,19 @@ export type SetPartySkipBody = {
 // The whole people list, every time.
 export type SavePeopleBody = {
   people: { id?: string; name: string; characters: string[] }[];
+};
+
+// One party somebody ELSE owns that a character of yours is seated in. Mirrors the backend's
+// SeatedPartyResponse. Deliberately not a Party: that one carries pool totals spanning nights this
+// account was not on, and no slug, because a party's URL resolves only for its owner.
+export type SeatedParty = {
+  id: string;
+  bossKey: string;
+  difficulty: string | null;
+  minutes: number | null;
+  seats: PartyMember[];
+  // Which of those seats are yours.
+  mySeatIds: string[];
+  // Only the nights you were on the roster for. The party's own record of each, unreduced.
+  nights: Loot[];
 };
