@@ -2445,6 +2445,21 @@ button.link:disabled {
   opacity: 0.5;
 }
 
+/* Nothing left to run, so the character goes quiet, the same move .is-row-cleared makes on a
+   finished row and the same weight an unpicked tile carries on /inventory (.char-tile). The head
+   dims whole rather than sprite-then-name: it is one figure and a half-lit one reads as a fault.
+   Hovering the column brings it back, as it does on the tile.
+   Only on a definite clear, see columnFullyCleared: a character who has reported nothing keeps
+   their full weight, because their week is unanswered rather than done. */
+.boss-table .boss-char-head.is-col-cleared {
+  opacity: 0.65;
+  transition: opacity 0.12s ease;
+}
+
+.boss-table .boss-char-head.is-col-cleared.is-col-hover {
+  opacity: 1;
+}
+
 /* The cadence band. A row of its own rather than a caption per boss: it is the
    answer to "which period is this?" for everything beneath it.
 

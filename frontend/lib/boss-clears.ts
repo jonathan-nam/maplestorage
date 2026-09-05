@@ -143,6 +143,31 @@ export function rowNobodyRuns(
   return characterIds.every((id) => skipsByCharacter?.get(id)?.has(bossKey) ?? false);
 }
 
+/**
+ * Is this character done with every boss they run?
+ *
+ * The column head dims on this answer, the way a row dims on rowFullyCleared, and it holds to the
+ * same rule: `unseen` is not a clear. A character whose planner was not captured this period has
+ * not answered, and greying their sprite would call the week finished on the strength of silence.
+ *
+ * Read over every cadence on the table, not the weekly band alone. The sprite is one figure, so it
+ * cannot go quiet for a finished week while a daily underneath it is still outstanding.
+ *
+ * A character who runs nothing is false, not vacuously true: that is a roster entry with nothing
+ * to say rather than a week's work finished, the distinction rowNobodyRuns draws for a row.
+ */
+export function columnFullyCleared(
+  clears: Map<string, boolean> | undefined,
+  bosses: Boss[],
+  skips?: Set<string>,
+): boolean {
+  const states = bosses
+    .map((boss) => cellState(clears, boss.bossKey, skips))
+    .filter((state) => state !== "skipped");
+  if (states.length === 0) return false;
+  return states.every((state) => state === "cleared");
+}
+
 /** One character's skipped boss keys, for lookup, the way indexClears does for clears. */
 export function indexSkips(skips: Record<string, string[]>): Map<string, Set<string>> {
   return new Map(Object.entries(skips).map(([characterId, keys]) => [characterId, new Set(keys)]));
