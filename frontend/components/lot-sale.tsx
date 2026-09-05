@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Field } from "@/components/add-field";
 import { apiAssetUrl } from "@/lib/api";
 import { bossLabel } from "@/lib/boss-difficulty";
 import { formatMesos, parseMesos } from "@/lib/drop-split";
@@ -147,56 +148,55 @@ function LotCard({
       </header>
 
       <form
-        className="ledger-sale"
+        className="ledger-form"
         onSubmit={(e) => {
           e.preventDefault();
           void sell();
         }}
       >
-        <label className="loot-share-input">
-          sold
-          <input
-            className="split-input loot-count-input"
-            value={count}
-            onChange={(e) => setCount(e.target.value)}
-            placeholder="how many"
-            inputMode="numeric"
-            aria-label={`How many ${drop.name} you sold`}
-          />
-        </label>
-        <label className="loot-share-input">
-          for
-          <input
-            className="split-input"
-            value={amount}
-            onChange={(e) => setAmount(e.target.value)}
-            placeholder="total"
-            inputMode="decimal"
-            aria-label={`What you got for the ${drop.name}`}
-          />
-        </label>
-        {/* No "member bought": a lot spans pools, and one member cannot have bought a pile out of
-            parties they were not in. That case stays on the row, where it names its own buyer. */}
-        <select
-          className="split-input"
-          value={amountBasis}
-          onChange={(e) => setAmountBasis(e.target.value)}
-          aria-label="What that amount is"
-        >
-          <option value="LISTED">listed for</option>
-          <option value="RECEIVED">received</option>
-        </select>
-        {splits && (
-          <select
-            className="split-input"
-            value={splitMethod}
-            onChange={(e) => setSplitMethod(e.target.value)}
-            aria-label="Split method"
-          >
-            <option value="FAIR">fair split</option>
-            <option value="LAZY">lazy split</option>
-          </select>
-        )}
+        <div className="add-fields">
+          <Field on label="How many" cls="is-narrow">
+            <input
+              className="split-input loot-count-input"
+              value={count}
+              onChange={(e) => setCount(e.target.value)}
+              inputMode="numeric"
+            />
+          </Field>
+          <Field on label="Sold for">
+            <input
+              className="split-input"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              placeholder="total"
+              inputMode="decimal"
+            />
+          </Field>
+          {/* No "member bought": a lot spans pools, and one member cannot have bought a pile out of
+              parties they were not in. That case stays on the row, where it names its own buyer. */}
+          <Field on label="Amount is" cls="is-pick">
+            <select
+              className="split-input"
+              value={amountBasis}
+              onChange={(e) => setAmountBasis(e.target.value)}
+            >
+              <option value="LISTED">Listed</option>
+              <option value="RECEIVED">Received</option>
+            </select>
+          </Field>
+          {splits && (
+            <Field on label="Split" cls="is-narrow">
+              <select
+                className="split-input"
+                value={splitMethod}
+                onChange={(e) => setSplitMethod(e.target.value)}
+              >
+                <option value="FAIR">Fair</option>
+                <option value="LAZY">Lazy</option>
+              </select>
+            </Field>
+          )}
+        </div>
         {rosters.length > 0 && (
           <div className="ledger-splits">
             <h4 className="loot-group-title is-config">Splits</h4>

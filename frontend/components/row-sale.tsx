@@ -122,6 +122,7 @@ function RowCard({
         // refuses a seller who was not there.
         ran={row.ran}
         busy={busy}
+        labelled
         onSell={(body) => void sell(body)}
       />
 

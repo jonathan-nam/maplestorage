@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useId, useState } from "react";
+import { Field } from "@/components/add-field";
 import { apiAssetUrl } from "@/lib/api";
 import { formatWeekStart } from "@/lib/boss-clears";
 import { bossLabel } from "@/lib/boss-difficulty";
@@ -363,7 +364,7 @@ function HolderCard({
             hold the coupons cannot take the sale. */}
         {outstanding > 0 ? (
           <form
-            className="ledger-sale"
+            className="add-fields"
             onSubmit={(e) => {
               e.preventDefault();
               if (!entry) return;
@@ -390,48 +391,53 @@ function HolderCard({
                 );
             }}
           >
-            <input
-              className="split-input loot-count-input"
-              value={pieces}
-              onChange={(e) => setPieces(clamp(e.target.value, room))}
-              // The number it is waiting for, so the ordinary case is one keystroke away rather than
-              // something to work out from the counts. The debt, where there is one: a box offering
-              // 1495 asked about the pile when the question was about 40. Where there is none the box
-              // is open because somebody asked for it, and it names itself rather than guessing.
-              placeholder={suggested > 0 ? String(suggested) : "pieces"}
-              inputMode="numeric"
-              aria-label={`Pieces, at most ${room}`}
-            />
-            <select
-              className="split-input"
-              value={fate}
-              onChange={(e) => setFate(e.target.value as Fate)}
-              aria-label="What happened to those pieces"
-              disabled={busy}
-            >
-              {/* All three on every card. BOUGHT was hidden on your own, which read as "you cannot
-                  buy your own coupons" and meant "the pieces in your pile that are somebody else's
-                  can only be sold": a pile you meant to keep never reached all-accounted-for. */}
-              {FATES.map((f) => (
-                <option key={f} value={f}>
-                  {ledger.holder.kind === "SELF" ? LABELS[f].yours : LABELS[f].theirs}
-                </option>
-              ))}
-            </select>
+            <Field on label="Pieces" cls="is-narrow">
+              <input
+                className="split-input loot-count-input"
+                value={pieces}
+                onChange={(e) => setPieces(clamp(e.target.value, room))}
+                // The number it is waiting for, so the ordinary case is one keystroke away rather
+                // than something to work out from the counts. The debt, where there is one: a box
+                // offering 1495 asked about the pile when the question was about 40. Where there is
+                // none the box is open because somebody asked for it, and it names itself rather
+                // than guessing.
+                placeholder={suggested > 0 ? String(suggested) : "pieces"}
+                inputMode="numeric"
+                aria-label={`Pieces, at most ${room}`}
+              />
+            </Field>
+            {/* These options are not flattened the way the sale boxes' are. "I took theirs" against
+                "they took mine" is a DIRECTION, which is the answer itself rather than a connecting
+                word a label could carry. */}
+            <Field on label="What happened" cls="is-fate">
+              <select
+                className="split-input"
+                value={fate}
+                onChange={(e) => setFate(e.target.value as Fate)}
+                disabled={busy}
+              >
+                {/* All three on every card. BOUGHT was hidden on your own, which read as "you cannot
+                    buy your own coupons" and meant "the pieces in your pile that are somebody else's
+                    can only be sold": a pile you meant to keep never reached all-accounted-for. */}
+                {FATES.map((f) => (
+                  <option key={f} value={f}>
+                    {ledger.holder.kind === "SELF" ? LABELS[f].yours : LABELS[f].theirs}
+                  </option>
+                ))}
+              </select>
+            </Field>
             {/* A redemption realized nothing, so it has no price to give. Entered as a sale for zero
                 it would price those pieces at nothing and make the creditor absorb half of it. */}
             {fate !== "KEPT" && (
-              <label className="loot-share-input">
-                for
+              <Field on label="Sold for">
                 <input
                   className="split-input"
                   value={amount}
                   onChange={(e) => setAmount(e.target.value)}
                   placeholder="total"
                   inputMode="decimal"
-                  aria-label="What they came to"
                 />
-              </label>
+              </Field>
             )}
             <button type="submit" className="party-save" disabled={busy || entry === null}>
               Add
