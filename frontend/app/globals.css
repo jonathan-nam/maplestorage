@@ -1323,10 +1323,17 @@ html.switching-world .world-veil {
   color: var(--muted);
 }
 
-/* Your own share's state, which is the one figure on the row that is about you. */
+/* What the party got for it. Muted, because it is the basis for the figure beside it rather than
+   the figure this row is about. */
+.shared-night-sold {
+  color: var(--muted);
+}
+
+/* Your own share, which is the one number on the row that is about you. */
 .shared-night-yours {
   margin-left: auto;
   color: var(--ink-strong);
+  white-space: nowrap;
 }
 
 /* --- Choosing a world ------------------------------------------------------------------- */
