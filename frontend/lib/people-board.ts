@@ -1,4 +1,4 @@
-import type { Party } from "@/types/party";
+import type { Party, Person } from "@/types/party";
 
 /**
  * One row of the People page while it is being edited.
@@ -113,4 +113,26 @@ export function stillAttributed(person: PersonDraft): string[] {
 export function plays(person: PersonDraft, name: string): boolean {
   const wanted = key(name);
   return [...person.characters, ...person.owned].some((held) => key(held) === wanted);
+}
+
+/**
+ * The board's rows, from what the API said.
+ *
+ * `ownedCharacters` is read as OPTIONAL even though the server always sends it (encodeDefaults is
+ * on). lib/cache.ts is a stale-while-revalidate store that lives as long as the tab does, so a page
+ * opened before a deploy seeds its state from a payload that predates the new field, and the People
+ * page reaches this on its very first render, through `dirty`, before any fetch has replaced it.
+ * Spreading the undefined threw "p.ownedCharacters is not iterable" and took the page down until a
+ * hard reload.
+ *
+ * So: every field this app adds to a cached DTO is optional on the way in for one deploy, whatever
+ * the type says. The type describes what the server sends, not what a tab is still holding.
+ */
+export function toDraft(rows: Person[]): PersonDraft[] {
+  return rows.map((person) => ({
+    id: person.id,
+    name: person.name,
+    characters: [...(person.characters ?? [])],
+    owned: [...(person.ownedCharacters ?? [])],
+  }));
 }
