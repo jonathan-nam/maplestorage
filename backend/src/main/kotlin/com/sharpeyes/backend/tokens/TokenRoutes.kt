@@ -31,7 +31,7 @@ fun Route.tokenRoutes() {
 }
 
 /**
- * Every item the catalog knows, whether or not anybody holds one.
+ * Every BOSS TOKEN the catalog knows, whether or not anybody holds one.
  *
  * The inventory reads what you hold; this reads what there IS to hold. Not merged into the totals,
  * because a total of zero and an item nobody has ever picked up are the same row here and very
@@ -42,28 +42,40 @@ private suspend fun RoutingContext.getTokenCatalog() {
     val items =
         transaction {
             ensureUser(userId, email)
-            TokenCatalog
-                .join(
-                    RedemptionRule,
-                    JoinType.LEFT,
-                    onColumn = TokenCatalog.id,
-                    otherColumn = RedemptionRule.itemId,
-                ).selectAll()
-                .orderBy(TokenCatalog.sortOrder)
-                .map {
-                    TokenCatalogResponse(
-                        tokenCatalogId = it[TokenCatalog.id].toString(),
-                        name = it[TokenCatalog.name],
-                        iconUrl = it[TokenCatalog.iconRefKey]?.let { file -> "/token-icons/$file" },
-                        itemGroup = it[TokenCatalog.itemGroup],
-                        sourceBoss = it[TokenCatalog.sourceBossName],
-                        redeemThreshold = it[RedemptionRule.redeemThreshold],
-                        redeemSlots = it.getOrNull(RedemptionRule.slotGroup) ?: emptyList(),
-                    )
-                }
+            bossTokenCatalog()
         }
     call.respond(items)
 }
+
+/**
+ * The items the + can offer, which is the boss tokens and only those.
+ *
+ * Must be called inside a transaction. Internal rather than private for the reason tokenTotalsFor
+ * is: the thing worth testing is that this list agrees with what the seed calls a boss token, and a
+ * test that re-typed the query would agree with itself instead. Renaming the group in
+ * catalog/items.yaml empties the inventory with nothing else to say so.
+ */
+internal fun bossTokenCatalog(): List<TokenCatalogResponse> =
+    TokenCatalog
+        .join(
+            RedemptionRule,
+            JoinType.LEFT,
+            onColumn = TokenCatalog.id,
+            otherColumn = RedemptionRule.itemId,
+        ).selectAll()
+        .where { isBossToken() }
+        .orderBy(TokenCatalog.sortOrder)
+        .map {
+            TokenCatalogResponse(
+                tokenCatalogId = it[TokenCatalog.id].toString(),
+                name = it[TokenCatalog.name],
+                iconUrl = it[TokenCatalog.iconRefKey]?.let { file -> "/token-icons/$file" },
+                itemGroup = it[TokenCatalog.itemGroup],
+                sourceBoss = it[TokenCatalog.sourceBossName],
+                redeemThreshold = it[RedemptionRule.redeemThreshold],
+                redeemSlots = it.getOrNull(RedemptionRule.slotGroup) ?: emptyList(),
+            )
+        }
 
 /**
  * One item, with no count attached.
@@ -92,7 +104,7 @@ private suspend fun RoutingContext.getTokenTotals() {
     call.respond(totals)
 }
 
-// The aggregate the dashboard shows: every token this user holds, summed across
+// The aggregate the dashboard shows: every boss token this user holds, summed across
 // all their characters. Doing this server-side rather than fetching each
 // character's tokens and adding them up in the browser keeps it one query
 // instead of one-per-character, and keeps the ownership filter in one place.
@@ -108,7 +120,8 @@ internal fun tokenTotalsFor(userId: String): List<TokenTotalResponse> {
     return CharacterTokenCount
         .innerJoin(TokenCatalog)
         .innerJoin(Characters)
-        // LEFT join: a consumable has no redemption rule, and must still be totalled.
+        // LEFT join. Every boss token currently HAS a redemption rule, so an inner join would
+        // pass today and silently drop the first one added without one.
         .join(RedemptionRule, JoinType.LEFT, onColumn = TokenCatalog.id, otherColumn = RedemptionRule.itemId)
         .select(
             TokenCatalog.id,
@@ -124,7 +137,7 @@ internal fun tokenTotalsFor(userId: String): List<TokenTotalResponse> {
         // character rows otherwise, so dropping the first leaks other people's counts into the
         // totals; dropping the second pools two worlds' inventories, which cannot be redeemed
         // against each other. Both silently, and both as a plausible-looking larger number.
-        .where { (Characters.userId eq userId) and inActiveWorld(userId) }
+        .where { (Characters.userId eq userId) and inActiveWorld(userId) and isBossToken() }
         .groupBy(
             TokenCatalog.id,
             TokenCatalog.name,
