@@ -6,6 +6,7 @@ import com.sharpeyes.backend.db.PartyMember
 import com.sharpeyes.backend.db.Person
 import com.sharpeyes.backend.db.PersonCharacter
 import com.sharpeyes.backend.db.Users
+import com.sharpeyes.backend.users.activeWorldFor
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.isNull
@@ -17,29 +18,24 @@ import kotlin.time.Instant
 import kotlin.uuid.Uuid
 
 // Turns a frozen payload into rows on the accepting account, and links the two accounts while both
-// are in reach. Everything here runs in the caller's transaction: an account half-built from a link
-// is worse than one that was never built, because the guard below would then refuse to try again.
-
-/**
- * True when nothing has been entered on this account yet.
- *
- * The gate on accepting a link. Merging into an account that already has characters, people or
- * configs means deciding whether the CreedBratton in the payload is the CreedBratton already there,
- * and every wrong answer is a duplicate person or a second config for one boss that nothing on
- * screen distinguishes from the real one. Refusing is the answer that cannot be quietly wrong.
- *
- * Must be called from inside a `transaction { }` block.
- */
-internal fun accountIsEmpty(userId: String): Boolean =
-    Characters.selectAll().where { Characters.userId eq userId }.empty() &&
-        Person.selectAll().where { Person.userId eq userId }.empty() &&
-        Party.selectAll().where { Party.userId eq userId }.empty()
+// are in reach. Everything here runs in the caller's transaction, which is what makes a failure
+// leave nothing behind: no half-built account, and the link still unspent to try again with.
 
 /**
  * Writes [payload] onto [userId]'s account.
  *
- * Assumes the account is empty (see [accountIsEmpty]) and that the payload's version has been
- * checked. Returns what it created, including the configs it could not, which the caller shows.
+ * The account need NOT be empty. It had to be until the mirror was unwound: accepting used to copy
+ * the sender's configs onto your account, and merging those meant guessing whether the CreedBratton
+ * in the payload was the one already here. Since V75 accepting binds a seat on the sender's own row
+ * instead, so the only thing that can overlap is a character or a person, and both of those are
+ * matched by NAME, which is the match the rest of the app already runs on.
+ *
+ * Refusing a non-empty account was the worst screen in the app: it turned up only after the person
+ * pressed the button, and it hit exactly the people keen enough to have signed up and added a
+ * character before clicking the link.
+ *
+ * Assumes the payload's version has been checked. Returns what it did, including the configs it
+ * could not, which the caller shows.
  *
  * Must be called from inside a `transaction { }` block.
  */
@@ -49,10 +45,14 @@ internal fun acceptInvite(
     invitePersonId: Uuid,
     now: Instant,
 ): AcceptedInvite {
-    Users.update({ Users.id eq userId }) { it[worldType] = payload.worldType }
+    // Only where nobody has been asked. An account that has already chosen a world is not overruled
+    // by somebody else's link: see V74, and the toggle is one click if the link is for the other.
+    if (activeWorldFor(userId) == null) {
+        Users.update({ Users.id eq userId }) { it[worldType] = payload.worldType }
+    }
 
-    val characterIds = createCharacters(payload, userId, now)
-    createPeople(payload, userId, now)
+    val characterIds = ensureCharacters(payload, userId, now)
+    ensurePeople(payload, userId, now)
     val seated = takeSeats(payload, characterIds)
 
     linkAccounts(payload, userId, invitePersonId, now)
@@ -73,13 +73,31 @@ internal fun acceptInvite(
  * cache is content-addressed on the URL, so these bytes are already warm and the alternative is a
  * new account whose every seat is blank until a job runs.
  */
-private fun createCharacters(
+private fun ensureCharacters(
     payload: InvitePayload,
     userId: String,
     now: Instant,
-): Map<String, Uuid> =
-    payload.characters
-        .mapIndexed { index, character ->
+): Map<String, Uuid> {
+    // By name AND world. A name is unique within a world and not across them, so the same name in
+    // the other world is a different character and gets a row of its own rather than being bound to
+    // by mistake. There is no unique index on characters(user_id, name) to catch that for us: a
+    // duplicate would insert silently and leave ownCharacterIds picking one of the two arbitrarily.
+    val existing =
+        Characters
+            .selectAll()
+            .where { Characters.userId eq userId }
+            .associate { (it[Characters.name].lowercase() to it[Characters.worldType]) to it[Characters.id] }
+
+    // position is dense and the count is the next free slot, so an account that already has
+    // characters appends rather than restarting at zero and stacking two on every square.
+    var next = existing.size
+
+    return payload.characters.associate { character ->
+        val key = character.name.lowercase()
+        val found = existing[key to character.worldType]
+        if (found != null) {
+            key to found
+        } else {
             val id = Uuid.random()
             val sprite = payload.sprites[character.name]
             Characters.insert {
@@ -91,31 +109,61 @@ private fun createCharacters(
                 it[spriteRefreshedAt] = if (sprite != null) now else null
                 it[createdAt] = now
                 it[updatedAt] = now
-                it[position] = index
+                it[position] = next++
             }
-            character.name.lowercase() to id
-        }.toMap()
+            key to id
+        }
+    }
+}
 
-private fun createPeople(
+/**
+ * The payload's people, added to whoever this account already knows.
+ *
+ * A person already on the list is REUSED rather than inserted again: person has a unique constraint
+ * on (user_id, name), so a second row is a 500 rather than a duplicate, and that is the constraint
+ * doing its job.
+ *
+ * An attribution this account has already made for a character is left alone, whoever it named.
+ * Their address book is theirs, and a link is somebody else's copy of part of it: moving a character
+ * from the person they filed it under to the one the sender did would be guessing which of two
+ * people is right about a third. Skipping is the same refusal validatePeople makes when two people
+ * claim one character.
+ */
+private fun ensurePeople(
     payload: InvitePayload,
     userId: String,
     now: Instant,
 ) {
+    val existing =
+        Person
+            .selectAll()
+            .where { Person.userId eq userId }
+            .associate { it[Person.name] to it[Person.id] }
+    val claimed =
+        PersonCharacter
+            .selectAll()
+            .where { PersonCharacter.userId eq userId }
+            .mapTo(mutableSetOf()) { it[PersonCharacter.name].lowercase() }
+
     for (person in payload.people) {
-        val personId = Uuid.random()
-        Person.insert {
-            it[Person.id] = personId
-            it[Person.userId] = userId
-            it[name] = person.name
-            it[createdAt] = now
-            it[updatedAt] = now
-        }
-        person.characters.forEach { character ->
-            PersonCharacter.insert {
-                it[PersonCharacter.id] = Uuid.random()
-                it[PersonCharacter.personId] = personId
-                it[PersonCharacter.userId] = userId
-                it[name] = character
+        val personId =
+            existing[person.name] ?: Uuid.random().also { id ->
+                Person.insert {
+                    it[Person.id] = id
+                    it[Person.userId] = userId
+                    it[name] = person.name
+                    it[createdAt] = now
+                    it[updatedAt] = now
+                }
+            }
+        for (character in person.characters) {
+            if (claimed.add(character.lowercase())) {
+                PersonCharacter.insert {
+                    it[PersonCharacter.id] = Uuid.random()
+                    it[PersonCharacter.personId] = personId
+                    it[PersonCharacter.userId] = userId
+                    it[name] = character
+                }
             }
         }
     }

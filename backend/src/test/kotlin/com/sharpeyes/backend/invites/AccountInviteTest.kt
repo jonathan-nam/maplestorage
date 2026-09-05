@@ -15,8 +15,11 @@ import com.sharpeyes.backend.parties.SavePeopleRequest
 import com.sharpeyes.backend.parties.bossIdForKey
 import com.sharpeyes.backend.parties.createParty
 import com.sharpeyes.backend.parties.partiesSeatedIn
+import com.sharpeyes.backend.parties.peopleFor
 import com.sharpeyes.backend.parties.savePeople
+import com.sharpeyes.backend.users.WORLD_HEROIC
 import com.sharpeyes.backend.users.WORLD_INTERACTIVE
+import com.sharpeyes.backend.users.activeWorldFor
 import com.sharpeyes.backend.users.ensureUser
 import com.sharpeyes.backend.users.setActiveWorld
 import kotlinx.datetime.LocalDate
@@ -346,17 +349,105 @@ class AccountInviteTest {
     }
 
     @Test
-    fun `an account that already holds anything is refused`() {
+    fun `an account that already holds things can still take a link`() {
+        transaction {
+            val mine = addCharacter(senderId, "mechyfechy", position = 0)
+            attribute("Bro", "CreedBratton")
+            val source = config(mine, "kalos-the-guardian", listOf("CreedBratton"))
+
+            // A recipient who signed up, looked around and added a character before clicking. This
+            // used to be refused, and the refusal only appeared after they pressed the button.
+            addCharacter(recipientId, "SomebodyElse", position = 0)
+            invite("Bro")
+
+            // Their own character is untouched and the payload's is beside it, appended rather than
+            // stacked on position 0.
+            val theirs =
+                Characters
+                    .selectAll()
+                    .where { Characters.userId eq recipientId }
+                    .associate { it[Characters.name] to it[Characters.position] }
+            assertEquals(setOf("SomebodyElse", "CreedBratton"), theirs.keys)
+            assertEquals(setOf(0, 1), theirs.values.toSet())
+            // And the seat on the SENDER's config is bound to the character just written.
+            assertEquals(
+                theirCharacter(recipientId, "CreedBratton"),
+                seatFor(source, "CreedBratton")[PartyMember.linkedCharacterId],
+            )
+        }
+    }
+
+    @Test
+    fun `a character the recipient already has is bound rather than duplicated`() {
+        transaction {
+            val mine = addCharacter(senderId, "mechyfechy", position = 0)
+            attribute("Bro", "CreedBratton")
+            val source = config(mine, "kalos-the-guardian", listOf("CreedBratton"))
+
+            // They already added the character the link is about. characters has no unique index on
+            // (user_id, name), so a second row would insert silently and leave ownCharacterIds
+            // picking one of the two arbitrarily.
+            val already = addCharacter(recipientId, "CreedBratton", position = 0)
+            invite("Bro")
+
+            assertEquals(
+                1,
+                Characters
+                    .selectAll()
+                    .where { Characters.userId eq recipientId }
+                    .count()
+                    .toInt(),
+            )
+            assertEquals(already, seatFor(source, "CreedBratton")[PartyMember.linkedCharacterId])
+        }
+    }
+
+    @Test
+    fun `a person the recipient already knows is reused, and their own attribution wins`() {
         transaction {
             val mine = addCharacter(senderId, "mechyfechy", position = 0)
             attribute("Bro", "CreedBratton")
             config(mine, "kalos-the-guardian", listOf("CreedBratton"))
 
-            assertTrue(accountIsEmpty(recipientId))
-            addCharacter(recipientId, "SomebodyElse", position = 0)
-            // Merging would mean deciding whether the CreedBratton in the payload is the one
-            // already here, and a wrong answer reads exactly like a right one.
-            assertFalse(accountIsEmpty(recipientId))
+            // The recipient already knows a Jonathan, and has already decided CreedBratton is
+            // somebody else's. person has a unique (user_id, name), so reusing is not a nicety.
+            savePeople(
+                recipientId,
+                SavePeopleRequest(
+                    listOf(
+                        PersonRequest(null, "Jonathan", emptyList()),
+                        PersonRequest(null, "Dwight", listOf("CreedBratton")),
+                    ),
+                ),
+                Clock.System.now(),
+            )
+            invite("Bro")
+
+            val people = peopleFor(recipientId).associate { it.name to it.characters }
+            assertEquals(setOf("Jonathan", "Dwight"), people.keys)
+            // CreedBratton is NOT moved onto Jonathan. Their address book is theirs, and choosing
+            // between two people's answers about a third is the guess this refuses to make.
+            assertEquals(listOf("CreedBratton"), people["Dwight"])
+            // The Jonathan they already knew gains what the link does say: which character the
+            // sender plays. Reused, not inserted again, person being unique on (user_id, name).
+            assertEquals(listOf("mechyfechy"), people["Jonathan"])
+        }
+    }
+
+    @Test
+    fun `a world the recipient already chose is not overruled by a link`() {
+        transaction {
+            val mine = addCharacter(senderId, "mechyfechy", position = 0)
+            attribute("Bro", "CreedBratton")
+            config(mine, "kalos-the-guardian", listOf("CreedBratton"))
+
+            ensureUser(recipientId, "$recipientId@example.com")
+            setActiveWorld(recipientId, WORLD_HEROIC)
+            invite("Bro")
+
+            // Somebody else's link does not move which world your whole site answers for. The
+            // toggle is one click if the party is in the other one.
+            assertEquals(WORLD_HEROIC, activeWorldFor(recipientId))
         }
     }
 
@@ -501,7 +592,6 @@ class AccountInviteTest {
         into: String = recipientId,
     ): AcceptedInvite {
         ensureUser(into, "$into@example.com")
-        assertTrue(accountIsEmpty(into), "the test's recipient account is not empty")
         val personId = personRow(senderId, person)[Person.id]
         return acceptInvite(buildInvitePayload(senderId, personId, "Jonathan")!!, into, personId, Clock.System.now())
     }
