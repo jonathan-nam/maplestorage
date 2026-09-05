@@ -5,7 +5,7 @@ import com.sharpeyes.backend.db.Party
 import com.sharpeyes.backend.db.PartyMember
 import com.sharpeyes.backend.db.Person
 import com.sharpeyes.backend.db.PersonCharacter
-import com.sharpeyes.backend.users.activeWorldFor
+import com.sharpeyes.backend.users.inActiveWorld
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.inList
@@ -90,8 +90,7 @@ private fun ownedByLinkedAccounts(userId: String): Map<Uuid, List<String>> {
         Characters
             .selectAll()
             .where {
-                (Characters.userId inList personByAccount.keys.toList()) and
-                    (Characters.worldType eq activeWorldFor(userId))
+                (Characters.userId inList personByAccount.keys.toList()) and inActiveWorld(userId)
             }.mapNotNull { row ->
                 val personId = personByAccount[row[Characters.userId]] ?: return@mapNotNull null
                 val name = row[Characters.name]
