@@ -14,6 +14,7 @@ import com.sharpeyes.backend.parties.SavePartyRequest
 import com.sharpeyes.backend.parties.SavePeopleRequest
 import com.sharpeyes.backend.parties.bossIdForKey
 import com.sharpeyes.backend.parties.createParty
+import com.sharpeyes.backend.parties.partiesSeatedIn
 import com.sharpeyes.backend.parties.savePeople
 import com.sharpeyes.backend.users.WORLD_INTERACTIVE
 import com.sharpeyes.backend.users.ensureUser
@@ -107,30 +108,31 @@ class AccountInviteTest {
     }
 
     @Test
-    fun `the config arrives anchored on the character that received it`() {
+    fun `the recipient takes a seat in the config rather than a copy of it`() {
         transaction {
             val mine = addCharacter(senderId, "mechyfechy", position = 0)
             attribute("Bro", "CreedBratton")
-            config(mine, "kalos-the-guardian", listOf("CreedBratton"))
+            val source = config(mine, "kalos-the-guardian", listOf("CreedBratton"))
 
             invite("Bro")
 
-            val theirs = partiesOf(recipientId)
-            assertEquals(1, theirs.size)
-            val party = theirs.single()
+            // No copy. This test used to assert one, anchored on the recipient's character: two
+            // rows describing one party, each with a pool and a difficulty of its own. See V75.
+            assertEquals(emptyList(), partiesOf(recipientId))
 
-            // The config now belongs to THEIR character, not to a copy of the sender's.
-            assertEquals("CreedBratton", nameOf(party[Party.characterId]))
-            // Same roster, other end: their character first (the config is theirs), then the
-            // sender's, who is now the seat with no character row behind it.
-            assertEquals(listOf("CreedBratton", "mechyfechy"), seatNamesOf(party[Party.id]))
-            assertNotNull(seatFor(party[Party.id], "CreedBratton")[PartyMember.characterId])
-            assertNull(seatFor(party[Party.id], "mechyfechy")[PartyMember.characterId])
+            // The roster is unchanged, still the sender's, and the seat that names the recipient's
+            // character now points at it.
+            assertEquals(listOf("mechyfechy", "CreedBratton"), seatNamesOf(source))
+            val seat = seatFor(source, "CreedBratton")
+            assertEquals(theirCharacter(recipientId, "CreedBratton"), seat[PartyMember.linkedCharacterId])
+            // Still not one of the OWNER's, which is what characterId means.
+            assertNull(seat[PartyMember.characterId])
+            assertNotNull(seatFor(source, "mechyfechy")[PartyMember.characterId])
         }
     }
 
     @Test
-    fun `the difficulty, the run time and who loots travel, because they are the arrangement`() {
+    fun `the difficulty, the run time and who loots are the one row's, and the member reads them`() {
         transaction {
             val mine = addCharacter(senderId, "mechyfechy", position = 0)
             attribute("Bro", "CreedBratton")
@@ -147,15 +149,21 @@ class AccountInviteTest {
                     // the party rather than about whose account recorded it.
                     looterName = "CreedBratton",
                 )
-            createParty(senderId, mine, bossIdForKey("kalos-the-guardian")!!, request, Clock.System.now())
+            val source = createParty(senderId, mine, bossIdForKey("kalos-the-guardian")!!, request, Clock.System.now())
 
             invite("Bro")
 
-            val party = partiesOf(recipientId).single()
-            assertEquals("CHAOS", party[Party.difficulty])
-            assertEquals(12, party[Party.minutes])
-            assertEquals("CreedBratton", nameOf(party[Party.looterMemberId]!!, seat = true))
-            assertEquals(2, seatFor(party[Party.id], "CreedBratton")[PartyMember.shares])
+            // One row carries the arrangement, and the member reads it there. It used to be copied
+            // onto a second row, which is the thing that could then disagree: difficulty is what
+            // boss_drop_amount joins on, so two answers to it is two answers to what fell.
+            val party = partiesSeatedIn(recipientId).single()
+            assertEquals("CHAOS", party.difficulty)
+            assertEquals(12, party.minutes)
+            assertEquals(source.toString(), party.id)
+            // The looter and the shares stay on the one row, where they always were. Nothing was
+            // copied, so there is nothing that could come to disagree with them.
+            assertEquals(2, seatFor(source, "CreedBratton")[PartyMember.shares])
+            assertEquals("CreedBratton", nameOf(partyRow(source)[Party.looterMemberId]!!, seat = true))
         }
     }
 
@@ -261,17 +269,21 @@ class AccountInviteTest {
             assertEquals(recipientId, personRow(senderId, "Bro")[Person.linkedUserId])
             assertEquals(senderId, personRow(recipientId, "Jonathan")[Person.linkedUserId])
 
-            // And the two configs are marked as one real party, which is what a shared pool would
-            // later join on.
-            val theirs = partiesOf(recipientId).single()
-            val group = theirs[Party.groupId]
-            assertNotNull(group)
-            assertEquals(group, partyRow(source)[Party.groupId])
+            // And the recipient is now IN the sender's config rather than holding a copy of it.
+            // One row, one pool: two rows was two pools for one night, and two difficulty columns
+            // that could disagree about the mode the piece counts join on. See V75.
+            assertEquals(emptyList(), partiesOf(recipientId))
+            val seat =
+                PartyMember
+                    .selectAll()
+                    .where { (PartyMember.partyId eq source) and (PartyMember.name eq "CreedBratton") }
+                    .single()
+            assertEquals(theirCharacter(recipientId, "CreedBratton"), seat[PartyMember.linkedCharacterId])
         }
     }
 
     @Test
-    fun `a third person invited to the same party joins the group rather than starting a rival`() {
+    fun `a third person invited to the same party takes their own seat in it`() {
         transaction {
             val mine = addCharacter(senderId, "mechyfechy", position = 0)
             attribute("Bro", "CreedBratton")
@@ -279,16 +291,31 @@ class AccountInviteTest {
             val source = config(mine, "kalos-the-guardian", listOf("CreedBratton", "Lynn"))
 
             invite("Bro")
-            val group = partyRow(source)[Party.groupId]
-            assertNotNull(group)
-
-            // The sender's config keeps the group it already has, so all three accounts describe
-            // one party rather than two pairs describing two.
             invite("Chris", into = thirdId)
-            assertEquals(group, partyRow(source)[Party.groupId])
-            assertEquals(group, partiesOf(thirdId).single()[Party.groupId])
+
+            // All three accounts are in ONE party, because there is only one to be in. Under the
+            // mirror this was three rows that had to be kept agreeing with each other.
+            val bound =
+                PartyMember
+                    .selectAll()
+                    .where { PartyMember.partyId eq source }
+                    .associate { it[PartyMember.name] to it[PartyMember.linkedCharacterId] }
+            assertEquals(theirCharacter(recipientId, "CreedBratton"), bound["CreedBratton"])
+            assertEquals(theirCharacter(thirdId, "Lynn"), bound["Lynn"])
+            // The sender's own seat is theirs, and is never a linked one.
+            assertNull(bound["mechyfechy"])
         }
     }
+
+    /** The id of [named] on [userId]'s account, which accept has just created. */
+    private fun theirCharacter(
+        userId: String,
+        named: String,
+    ): Uuid =
+        Characters
+            .selectAll()
+            .where { (Characters.userId eq userId) and (Characters.name eq named) }
+            .single()[Characters.id]
 
     @Test
     fun `nothing that happened travels, only what the party is`() {

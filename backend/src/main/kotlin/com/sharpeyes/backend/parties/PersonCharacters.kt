@@ -40,15 +40,6 @@ internal class PersonCharacters(
             .groupBy({ it.personId }) { it.name }
             .mapValues { (_, names) -> names.sorted() }
 
-    /**
-     * The row behind a seat, by lowercased name.
-     *
-     * A seat naming one of these is that character, on its owner's account, so it can be read
-     * rather than copied. Names are unique per world and this is narrowed to one, so a name cannot
-     * reach two rows here.
-     */
-    val linkedByName: Map<String, LinkedCharacter> = linkedCharacters.associateBy { it.name.lowercase() }
-
     /** Lowercased character name to whoever plays them. */
     fun byCharacter(): Map<String, Uuid> =
         buildMap {
@@ -136,4 +127,31 @@ private fun ownedByLinkedAccounts(userId: String): List<LinkedCharacter> {
                 }
             }
     }
+}
+
+/**
+ * Every character a linked person's own account holds, by lowercased name.
+ *
+ * For BINDING a seat, which is a different job from attributing one, so it is a different query.
+ * ownedByLinkedAccounts is narrowed to characters this account already seats, because a person's
+ * roster is theirs and the People page has no business listing forty of their mules. Binding is
+ * asked about a name the caller has just typed into a roster themselves, so narrowing it to what is
+ * already seated would refuse to bind the very seat being written.
+ *
+ * Nothing this returns is ever sent anywhere. It answers "is the name in front of me a real
+ * character of theirs", and the caller already knew the name.
+ */
+internal fun linkedCharactersFor(userId: String): Map<String, Uuid> {
+    val accounts =
+        Person
+            .selectAll()
+            .where { (Person.userId eq userId) and Person.linkedUserId.isNotNull() }
+            .mapNotNull { it[Person.linkedUserId] }
+    if (accounts.isEmpty()) return emptyMap()
+
+    return Characters
+        .selectAll()
+        .where {
+            (Characters.userId inList accounts) and inActiveWorld(userId)
+        }.associate { it[Characters.name].lowercase() to it[Characters.id] }
 }

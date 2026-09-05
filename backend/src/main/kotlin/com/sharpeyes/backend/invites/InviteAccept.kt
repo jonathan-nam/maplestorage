@@ -1,15 +1,15 @@
 package com.sharpeyes.backend.invites
 
-import com.sharpeyes.backend.db.BossCatalog
 import com.sharpeyes.backend.db.Characters
 import com.sharpeyes.backend.db.Party
+import com.sharpeyes.backend.db.PartyMember
 import com.sharpeyes.backend.db.Person
 import com.sharpeyes.backend.db.PersonCharacter
 import com.sharpeyes.backend.db.Users
-import com.sharpeyes.backend.parties.SavePartyRequest
-import com.sharpeyes.backend.parties.createParty
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.core.isNull
+import org.jetbrains.exposed.v1.core.lowerCase
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.update
@@ -53,15 +53,15 @@ internal fun acceptInvite(
 
     val characterIds = createCharacters(payload, userId, now)
     createPeople(payload, userId, now)
-    val (created, omitted) = createParties(payload, userId, characterIds, now)
+    val seated = takeSeats(payload, characterIds)
 
     linkAccounts(payload, userId, invitePersonId, now)
 
     return AcceptedInvite(
         charactersCreated = characterIds.size,
         peopleCreated = payload.people.size,
-        partiesCreated = created,
-        omitted = payload.omitted + omitted,
+        partiesCreated = seated,
+        omitted = payload.omitted,
     )
 }
 
@@ -122,75 +122,67 @@ private fun createPeople(
 }
 
 /**
- * Each config, through the same writer the party routes use.
+ * The recipient's seats in the sender's configs, bound to the characters just written.
  *
- * Not a hand-rolled insert: seats, shares and the looter are written by createParty, and a second
- * path that built them itself would be a second answer to what a config is the day one of them
- * changed.
+ * This is what accepting an invite DOES to the parties now, and it writes nothing new: the config
+ * already has a seat with this character's name on it, because that is what made the payload
+ * include it. Binding it says the seat is that account's character, which is the whole of their
+ * membership. Returns how many configs they are now seated in.
+ *
+ * It used to copy each config onto the recipient's account and pair the two with party.group_id.
+ * Two rows describing one party is two pools for one night, and worse, two `difficulty` columns
+ * that can disagree about a mode the piece counts are joined on (V69, and #548 is what that costs).
+ * So there is one row, and it stays the sender's. See V75.
+ *
+ * The sender's rows are written from the recipient's transaction, which is the sender's own doing:
+ * issuing the link is what says these seats are this person's.
  */
-private fun createParties(
+private fun takeSeats(
     payload: InvitePayload,
-    userId: String,
     characterIds: Map<String, Uuid>,
-    now: Instant,
-): Pair<Int, List<InviteOmission>> {
-    val bosses =
-        BossCatalog
-            .selectAll()
-            .associate { it[BossCatalog.bossKey] to it[BossCatalog.id] }
-
-    val omitted = mutableListOf<InviteOmission>()
-    var created = 0
-
+): Int {
+    var seated = 0
     for (party in payload.parties) {
-        val bossCatalogId = bosses[party.bossKey]
-        val characterId = characterIds[party.ownName.lowercase()]
-        if (bossCatalogId == null || characterId == null) {
-            omitted += InviteOmission(party.bossKey, party.ownName, OMITTED_UNKNOWN_BOSS)
-            continue
-        }
-
-        val request =
-            SavePartyRequest(
-                characterId = characterId.toString(),
-                bossKey = party.bossKey,
-                members = party.members,
-                shares = party.shares,
-                difficulty = party.difficulty,
-                minutes = party.minutes,
-                looterName = party.looterName,
-            )
-        // The sprites are passed whole. Only seats that are NOT the recipient's own read them;
-        // their own characters draw off the Characters rows written above.
-        val partyId = createParty(userId, characterId, bossCatalogId, request, now, payload.sprites)
-        pairWithSource(partyId, party.sourcePartyId, payload.senderUserId)
-        created++
+        // Only a config the sender still owns. One deleted since the link was made leaves nothing
+        // to sit in, which is what an expired invitation looks like anyway.
+        val sourceId = Uuid.parseOrNull(party.sourcePartyId)
+        val owned =
+            sourceId != null &&
+                Party
+                    .selectAll()
+                    .where { (Party.id eq sourceId) and (Party.userId eq payload.senderUserId) }
+                    .empty()
+                    .not()
+        if (owned && bindSeats(sourceId, party.members + party.ownName, characterIds)) seated++
     }
-    return created to omitted
+    return seated
 }
 
 /**
- * Marks the new config and the one it mirrors as the same real party.
+ * Binds the seats of [sourceId] that name one of [characterIds], and says whether any did.
  *
- * The sender's config keeps whatever group it already had, so a third person invited to the same
- * party joins the existing group instead of starting a rival one. A source config deleted since the
- * link was made leaves the new one ungrouped, which is what an unlinked config looks like anyway.
+ * Never a seat the config's owner already holds a character for: characterId is theirs, and V75
+ * states in SQL that a seat cannot be both.
  */
-private fun pairWithSource(
-    partyId: Uuid,
-    sourcePartyId: String,
-    senderUserId: String,
-) {
-    val sourceId = Uuid.parseOrNull(sourcePartyId) ?: return
-    val source =
-        Party
-            .selectAll()
-            .where { (Party.id eq sourceId) and (Party.userId eq senderUserId) }
-            .firstOrNull() ?: return
-
-    val groupId = source[Party.groupId] ?: Uuid.random()
-    Party.update({ Party.id eq sourceId }) { it[Party.groupId] = groupId }
-    Party.update({ Party.id eq partyId }) { it[Party.groupId] = groupId }
+private fun bindSeats(
+    sourceId: Uuid,
+    names: List<String>,
+    characterIds: Map<String, Uuid>,
+): Boolean {
+    var bound = false
+    for (name in names) {
+        val characterId = characterIds[name.lowercase()]
+        if (characterId != null) {
+            val changed =
+                PartyMember.update({
+                    (PartyMember.partyId eq sourceId) and
+                        (PartyMember.name.lowerCase() eq name.lowercase()) and
+                        PartyMember.characterId.isNull()
+                }) { it[linkedCharacterId] = characterId }
+            if (changed > 0) bound = true
+        }
+    }
+    return bound
 }
 
 /**

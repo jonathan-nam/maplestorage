@@ -239,11 +239,6 @@ object Party : Table("party") {
     // the same reason. See V33__party_standing.sql.
     val standing = bool("standing")
 
-    // The real party two accounts are both describing, when an invite has linked them (V70). Not
-    // unique and not a reference: the other row with this id is on somebody else's account. Null
-    // is unlinked, which is nearly every config.
-    val groupId = uuid("group_id").nullable()
-
     val createdAt = timestamp("created_at")
     val updatedAt = timestamp("updated_at")
 
@@ -309,7 +304,17 @@ object PartyMember : Table("party_member") {
 
     // Set when the seat is one of the caller's own characters. Optional, and SET NULL on delete,
     // so removing a character leaves the seat (and any loot split with it) readable.
+    //
+    // Four readers take a non-null value to mean "this seat is MINE", the coupon ledger among them,
+    // so somebody else's character is never this one. See linkedCharacterId.
     val characterId = optReference("character_id", Characters.id)
+
+    // Set when the seat is a character on somebody ELSE'S account, once an invite has linked them.
+    //
+    // This IS their membership of the party: a shared party is one row, and being in it is having a
+    // seat in it, so the account reaches the party by owning the character this points at. V75,
+    // which also states in SQL that a seat cannot be both this and characterId.
+    val linkedCharacterId = optReference("linked_character_id", Characters.id)
 
     val position = integer("position")
 

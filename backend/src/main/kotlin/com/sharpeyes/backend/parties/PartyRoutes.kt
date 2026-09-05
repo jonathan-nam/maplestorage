@@ -33,6 +33,10 @@ fun Route.partyRoutes(
 ) {
     get { listParties() }
     post { createPartyRoute(nexonLookupService, spriteCache) }
+    // The parties somebody ELSE owns that a character of yours sits in. A read of its own rather
+    // than a flag on the list above, because it crosses accounts and that is worth being able to
+    // point at. See SeatedParties.kt.
+    get("/seated") { listSeatedParties() }
     // Before /{id}, and matched ahead of it whatever the order: Ktor scores a constant segment
     // above a parameter. Every pool at once, for the wallet, and the wallet's one settle back.
     get("/loot") { listAllLoot() }
