@@ -19,7 +19,7 @@ FROM (VALUES
     ('ferocious-beast-ring', 'Ferocious Beast Entanglement Ring', 'Kaling', 'ferocious-beast-ring.png', 'Eternal Pieces', 11),
     ('kalos-token', 'Kalos''s Residual Determination', 'Kalos the Guardian', 'kalos-token.png', 'Eternal Pieces', 10),
     ('trace-eternal-loyalty', 'Trace of Eternal Loyalty', 'Baldrix', 'trace-eternal-loyalty.png', 'Eternal Pieces', 15),
-    ('lingering-twisted-desire', 'Lingering Twisted Desire', 'Jupiter', NULL, 'Eternal Pieces', 16),
+    ('lingering-twisted-desire', 'Lingering Twisted Desire', 'Jupiter', 'lingering-twisted-desire.png', 'Eternal Pieces', 16),
     ('kalos-residual-determination-fragment', 'Kalos''s Residual Determination Fragment', 'Kalos the Guardian', 'kalos-residual-determination-fragment.png', 'Eternal Pieces', 17),
     ('ferocious-entanglement-ring-fragment', 'Ferocious Entanglement Ring Fragment', 'Kaling', 'ferocious-entanglement-ring-fragment.png', 'Eternal Pieces', 18),
     ('whisper-ancient-resolve', 'Whisper of Ancient Resolve', 'First Adversary', 'whisper-ancient-resolve.png', 'Eternal Pieces', 19),
