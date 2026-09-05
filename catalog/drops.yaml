@@ -122,7 +122,17 @@ drops:
     name: Original Sin of Pride
     art: cut
 
+  # --- Badges ------------------------------------------------------------------------
+  # The mirror 504s on this item's METADATA while serving its icon fine, so probing by id reads as
+  # absent and it was nearly filed as having no art. The icon endpoint is the one that matters.
+  - key: genesis-badge
+    name: Genesis Badge
+    icon_id: 1182285
+
   # --- Exceptional Hammers, one slot per boss ----------------------------------------
+  - key: exceptional-hammer-belt
+    name: Exceptional Hammer (Belt)
+    icon_id: 2644204
   - key: exceptional-hammer-face
     name: Exceptional Hammer (Face Acc)
     icon_id: 2644205
@@ -406,3 +416,11 @@ tables:
       count:
         NORMAL: 1
         HARD: 2
+
+  # The belt hammer is Extreme only, which a table cannot say, so by the rule above it is listed
+  # rather than left out. The other three drop on Hard as well.
+  black-mage:
+    - genesis-badge
+    - exceptional-hammer-belt
+    - ring-of-restraint-4
+    - continuous-ring-4
