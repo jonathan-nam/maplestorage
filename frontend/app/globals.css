@@ -3980,6 +3980,13 @@ button.link:disabled {
   flex: none;
 }
 
+/* The Settlement tab's second heading, sized with the pool title above it rather than under it.
+   It keeps the spacing it had as a group title, which .loot-pool-title (always first in its
+   section) has no margin for. */
+.settlement-ledger-title {
+  margin: 16px 0 6px;
+}
+
 /* Add Party and Add Drop, each a form above the list of what it has already recorded. That is a
    real boundary, and both draw it as a card. It was a rule under the form on the Drop Log, which
    Add Party could not copy: it sits between the week stepper and Filter Options, where a rule reads
