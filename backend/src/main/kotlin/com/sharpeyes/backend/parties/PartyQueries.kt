@@ -13,6 +13,7 @@ import kotlinx.datetime.LocalDate
 import org.jetbrains.exposed.v1.core.JoinType
 import org.jetbrains.exposed.v1.core.Op
 import org.jetbrains.exposed.v1.core.ResultRow
+import org.jetbrains.exposed.v1.core.alias
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.inList
@@ -192,7 +193,7 @@ internal fun peopleFor(userId: String): List<PersonResponse> {
  * page reading that differently is how one screen ends up owing a share to somebody the other
  * does not.
  */
-private fun seatsFor(
+internal fun seatsFor(
     partyIds: List<Uuid>,
     userId: String,
 ): Map<Uuid, List<PartyMemberResponse>> {
@@ -212,26 +213,28 @@ private fun seatsFor(
             .selectAll()
             .where { Person.userId eq userId }
             .associate { it[Person.id] to it[Person.name] }
-    val characters = personCharacters(userId)
-    val owners = characters.byCharacter()
-    val linked = characters.linkedByName
+    val owners = personCharacters(userId).byCharacter()
 
+    // Two joins to characters, so the alias says which is which: the seat's own character, and the
+    // character on somebody else's account that the seat IS (V75). A seat can carry one or the
+    // other and never both, which the migration states as a CHECK.
+    val theirCharacter = Characters.alias("their_character")
     return PartyMember
         .join(Characters, JoinType.LEFT, PartyMember.characterId, Characters.id)
+        .join(theirCharacter, JoinType.LEFT, PartyMember.linkedCharacterId, theirCharacter[Characters.id])
         .selectAll()
         .where { PartyMember.partyId inList partyIds }
         .orderBy(PartyMember.position)
         .groupBy({ it[PartyMember.partyId] }) { row ->
             val owner = owners[row[PartyMember.name].lowercase()]
-            val theirs = linked[row[PartyMember.name].lowercase()]
             PartyMemberResponse(
                 id = row[PartyMember.id].toString(),
                 name = row[PartyMember.name],
                 personId = owner?.toString(),
                 personName = owner?.let { personNames[it] },
                 characterId = row[PartyMember.characterId]?.toString(),
-                linkedCharacterId = theirs?.characterId?.toString(),
-                spriteImgUrl = spriteFor(row, spritesByName, theirs),
+                linkedCharacterId = row[PartyMember.linkedCharacterId]?.toString(),
+                spriteImgUrl = spriteFor(row, spritesByName, row.getOrNull(theirCharacter[Characters.spriteImgUrl])),
                 guest = !row[PartyMember.standing],
                 shares = row[PartyMember.shares],
             )
@@ -333,11 +336,11 @@ private fun clearStateFor(rows: List<ResultRow>): Map<Uuid, ClearState> {
 private fun spriteFor(
     row: ResultRow,
     spritesByName: Map<String, String>,
-    linked: LinkedCharacter?,
+    theirSprite: String?,
 ): String? {
     val nexonUrl =
         row.getOrNull(Characters.spriteImgUrl)
-            ?: linked?.spriteImgUrl
+            ?: theirSprite
             ?: row[PartyMember.spriteImgUrl]
             ?: spritesByName[row[PartyMember.name].lowercase()]
     // What goes out is our own proxy path, never Nexon's URL. See spriteProxyPath.

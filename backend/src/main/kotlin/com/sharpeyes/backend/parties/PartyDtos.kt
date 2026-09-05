@@ -128,6 +128,31 @@ data class PersonResponse(
     val pinned: Boolean = false,
 )
 
+/**
+ * One party you are IN but do not own.
+ *
+ * Its own response type, not PartyResponse. That one carries pending, awaiting and settled loot
+ * counts, and a zero in those fields would be a claim about somebody's pool rather than the absence
+ * of one. Nothing about the pool is here: what a member may see of it is scoped to the nights they
+ * were on the roster, and a partial answer to a question about money is the kind of wrong number
+ * this repo exists to prevent. That scoping is the next stage, not this one.
+ *
+ * No slug either. A party's URL is built from its OWNER's character slugs and resolves only for
+ * them, so handing one to a member would be handing them a 404.
+ */
+@Serializable
+data class SeatedPartyResponse(
+    val id: String,
+    val bossKey: String,
+    val difficulty: String?,
+    val minutes: Int?,
+    // Every seat, the owner's own character first, as on any config. This is also what says whose
+    // party it is: the first seat is the character the config belongs to.
+    val seats: List<PartyMemberResponse>,
+    // Which of those seats are yours, so the caller never works it out by name.
+    val mySeatIds: List<String>,
+)
+
 /** PUT /api/people/{personId}/pinned. One flag, so a pin cannot rewrite the people list. */
 @Serializable
 data class PinPersonRequest(

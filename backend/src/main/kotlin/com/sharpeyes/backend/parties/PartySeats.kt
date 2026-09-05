@@ -77,14 +77,19 @@ internal fun insertSeat(
     context: SeatContext,
 ): Uuid {
     val seatId = Uuid.random()
-    // A seat of yours reads its sprite off the character, so no copy is kept here: a copy would go
-    // stale the moment the character's own sprite is refreshed.
-    val looked = characterId == null && context.sprites.containsKey(name)
+    // Somebody else's real character, once an invite has linked them. This IS their membership of
+    // the party, so it is written here rather than waiting for them to accept anything: see V75.
+    val linked = if (characterId == null) context.linkedCharacters[name.lowercase()] else null
+    // A seat that IS a character reads its sprite off that character, so no copy is kept here: a
+    // copy would go stale the moment the character's own sprite is refreshed. True of a linked
+    // person's character as much as of one of yours, their account being what refreshes it.
+    val looked = characterId == null && linked == null && context.sprites.containsKey(name)
     PartyMember.insert {
         it[id] = seatId
         it[PartyMember.partyId] = partyId
         it[PartyMember.name] = name
         it[PartyMember.characterId] = characterId
+        it[PartyMember.linkedCharacterId] = linked
         it[position] = seatPosition
         it[standing] = seat.standing
         it[shares] = seat.shares
