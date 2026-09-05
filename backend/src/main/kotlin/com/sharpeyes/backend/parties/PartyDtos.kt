@@ -132,10 +132,7 @@ data class PersonResponse(
  * One party you are IN but do not own.
  *
  * Its own response type, not PartyResponse. That one carries pending, awaiting and settled loot
- * counts, and a zero in those fields would be a claim about somebody's pool rather than the absence
- * of one. Nothing about the pool is here: what a member may see of it is scoped to the nights they
- * were on the roster, and a partial answer to a question about money is the kind of wrong number
- * this repo exists to prevent. That scoping is the next stage, not this one.
+ * counts for the WHOLE pool, and those totals span nights this account was not on.
  *
  * No slug either. A party's URL is built from its OWNER's character slugs and resolves only for
  * them, so handing one to a member would be handing them a 404.
@@ -151,6 +148,16 @@ data class SeatedPartyResponse(
     val seats: List<PartyMemberResponse>,
     // Which of those seats are yours, so the caller never works it out by name.
     val mySeatIds: List<String>,
+    /**
+     * The nights YOU were on the roster for, and nothing else.
+     *
+     * The narrowing is by night, which is the whole of what a member is entitled to see: a pool
+     * spans months and they were not there for most of it. Within a night they get the party's own
+     * record as it stands, unreduced, because they were in the party that night and because a
+     * smaller shape would mean a second implementation of the money maths beside splitOf. Two
+     * answers to what somebody is owed is worse than one answer they can check.
+     */
+    val nights: List<LootResponse> = emptyList(),
 )
 
 /** PUT /api/people/{personId}/pinned. One flag, so a pin cannot rewrite the people list. */

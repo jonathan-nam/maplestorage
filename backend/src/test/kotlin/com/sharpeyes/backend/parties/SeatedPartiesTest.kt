@@ -1,5 +1,6 @@
 package com.sharpeyes.backend.parties
 
+import com.sharpeyes.backend.bosses.weekOf
 import com.sharpeyes.backend.config.Env
 import com.sharpeyes.backend.db.Characters
 import com.sharpeyes.backend.db.Party
@@ -8,6 +9,7 @@ import com.sharpeyes.backend.db.Person
 import com.sharpeyes.backend.users.WORLD_INTERACTIVE
 import com.sharpeyes.backend.users.ensureUser
 import com.sharpeyes.backend.users.setActiveWorld
+import kotlinx.datetime.LocalDate
 import org.flywaydb.core.Flyway
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.inList
@@ -196,6 +198,79 @@ class SeatedPartiesTest {
             // characterId stays the owner's alone. V75 says so as a CHECK, and the coupon ledger
             // reads a non-null value as SELF.
             assertEquals(null, seat.characterId)
+        }
+    }
+
+    /** A drop into [party]'s pool on [on], with the week's roster left as the usual one. */
+    private fun drop(
+        party: PartyResponse,
+        on: LocalDate,
+    ): Uuid =
+        addLoot(
+            Uuid.parse(party.id),
+            LootedDrop(dropIdForKey("grindstone-of-faith")!!),
+            bossIdForKey("kalos-the-guardian"),
+            on,
+            Clock.System.now(),
+        )
+
+    @Test
+    fun `a member sees the nights they were on the roster for`() {
+        transaction {
+            val theirs = character(owner, "mechyfechy")
+            character(member, "CreedBratton")
+            link(owner, "Chris", member)
+            val party = config(theirs, listOf("CreedBratton"))
+            drop(party, LocalDate.parse("2026-07-20"))
+
+            val nights = partiesSeatedIn(member).single().nights
+            assertEquals(1, nights.size)
+            // The party's own record of that night, not a reduced copy of it: a second shape would
+            // be a second implementation of what somebody is owed.
+            assertEquals("Grindstone of Faith", nights.single().name)
+            assertTrue(nights.single().ranThatWeek.contains(party.members[1].id))
+        }
+    }
+
+    @Test
+    fun `a night the member was not on stays out of it`() {
+        transaction {
+            val theirs = character(owner, "mechyfechy")
+            character(member, "CreedBratton")
+            link(owner, "Chris", member)
+            val party = config(theirs, listOf("CreedBratton"))
+            val night = LocalDate.parse("2026-07-20")
+
+            // The owner ran that week without them, spelled out as a roster of one.
+            saveWeekRoster(
+                Uuid.parse(party.id),
+                Uuid.parse(party.characterId),
+                weekOf(night),
+                emptyList(),
+                SeatContext(owner, emptyMap(), Clock.System.now()),
+            )
+            drop(party, night)
+
+            // A pool spans months and a member was not there for most of it. This is the claim the
+            // whole read exists to make, and the one that costs money if it is wrong.
+            assertEquals(emptyList(), partiesSeatedIn(member).single().nights)
+        }
+    }
+
+    @Test
+    fun `the owner's own read is untouched by any of it`() {
+        transaction {
+            val theirs = character(owner, "mechyfechy")
+            character(member, "CreedBratton")
+            link(owner, "Chris", member)
+            val party = config(theirs, listOf("CreedBratton"))
+            drop(party, LocalDate.parse("2026-07-20"))
+
+            // partiesFor is what every party screen reads. It is owner-scoped and stays that way:
+            // the crossing happens in partiesSeatedIn and nowhere else.
+            assertEquals(1, lootFor(Uuid.parse(party.id)).size)
+            assertEquals(listOf(party.id), partiesFor(owner).map { it.id })
+            assertEquals(emptyList(), partiesFor(member))
         }
     }
 }
