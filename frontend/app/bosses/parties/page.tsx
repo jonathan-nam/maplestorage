@@ -632,7 +632,7 @@ export default function PartiesPage() {
         title: "Looted this week",
         drops: assignableDrops(
           party,
-          dropsInWeek(lootByParty.get(party.id) ?? [], view?.currentWeekStart ?? null).shown,
+          dropsInWeek(lootByParty.get(party.id) ?? [], view?.currentWeekStart ?? null),
           { dropKey: VESTIGE, tradeable: true, behind },
         ),
         // A settled night is history. The server refuses to rewrite one either way (see
@@ -666,7 +666,7 @@ export default function PartiesPage() {
       title: "Looted this week",
       drops: assignableDrops(
         party,
-        dropsInWeek(lootByParty.get(party.id) ?? [], view?.currentWeekStart ?? null).shown,
+        dropsInWeek(lootByParty.get(party.id) ?? [], view?.currentWeekStart ?? null),
         { dropKey: rotation.dropKey, tradeable: false, behind: behindByHolder(rotation) },
       ),
       onSave: (lootId: string, bundles: Record<string, number>) =>
@@ -686,19 +686,17 @@ export default function PartiesPage() {
    * ledger exists to prevent. The week rule is in the card's own docs.
    *
    * One week's drops, not the pool: the row is about the week on screen, and the whole pool under it
-   * was a season of drops headed by tonight. What that leaves out is counted, never dropped, because
-   * the badge above counts an unsold drop from any week. See dropsInWeek.
+   * was a season of drops headed by tonight. What that leaves out is on the party's own page, which
+   * the row's heading and its badge both link to. See dropsInWeek.
    *
    * The week is the clears view's, which is the server's own reckoning and the same one every row's
    * weekStart was stamped with. Null while that view has not arrived, which shows the pool whole
    * rather than narrowing it against a week nothing has named yet.
    */
   const poolFor = (party: Party) => {
-    const week = dropsInWeek(lootByParty.get(party.id) ?? [], view?.currentWeekStart ?? null);
     return canAddDrops
       ? {
-          loot: week.shown,
-          earlier: week.earlier,
+          loot: dropsInWeek(lootByParty.get(party.id) ?? [], view?.currentWeekStart ?? null),
           dropTables,
           bossByKey,
           pieceStatus: pieceStatus.get(party.id),

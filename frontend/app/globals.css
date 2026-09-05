@@ -5234,14 +5234,6 @@ button.link:disabled {
   margin: 0;
 }
 
-/* What this week's list leaves out, and the way to it. Muted and last: it is there so the panel
-   cannot be read as the whole pool, not to ask for anything. */
-.party-loot-earlier {
-  align-self: flex-start;
-  font-size: var(--text-base);
-  color: var(--muted);
-}
-
 /* The roster on the left, the row's own controls in the panel's top corner. */
 .party-row-roster {
   display: flex;
