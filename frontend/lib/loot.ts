@@ -269,30 +269,26 @@ export function poolSize(counts: PoolCounts): number {
 }
 
 /**
- * A pool narrowed to one week, with what fell before it COUNTED rather than dropped.
+ * A pool narrowed to one week.
  *
  * For a Party View row, which is about the week on screen. The whole pool there was a season of
- * drops under a heading about tonight.
+ * drops under a heading about tonight. What it leaves out is on the party's own page, which the
+ * row's heading and its badge both link to.
  *
- * The count is the point. This does not agree with the row's badge and cannot: an unsold drop
- * carries forward into every later week's counts (see LootCounts.kt), so a row can say "1 in the
- * pool" over a week that holds no such drop. Saying how many are behind it is what keeps that from
- * being a screen that quietly lost them.
+ * The row's badge does not agree with what this returns and cannot: an unsold drop carries forward
+ * into every later week's counts (see LootCounts.kt), so a row can say "1 in the pool" over a week
+ * that holds no such drop.
  *
  * `weekStart` is the server's Thursday, and so is every row's, so this is a comparison and never a
  * date calculation. Null is not knowing which week it is, which shows the pool whole: hiding rows
  * against a week we could not name would be the guess this refuses to make.
  *
- * A row dated after the week is kept, not counted as earlier. Nothing writes one (a drop is stamped
- * with the server's today), and if something ever does, the honest failure is showing it.
+ * A row dated after the week is kept. Nothing writes one (a drop is stamped with the server's
+ * today), and if something ever does, the honest failure is showing it.
  */
-export function dropsInWeek(
-  loot: Loot[],
-  weekStart: string | null,
-): { shown: Loot[]; earlier: number } {
-  if (weekStart === null) return { shown: loot, earlier: 0 };
-  const shown = loot.filter((drop) => drop.weekStart >= weekStart);
-  return { shown, earlier: loot.length - shown.length };
+export function dropsInWeek(loot: Loot[], weekStart: string | null): Loot[] {
+  if (weekStart === null) return loot;
+  return loot.filter((drop) => drop.weekStart >= weekStart);
 }
 
 /** The status as a short label. Kept beside summarize so the two cannot disagree. */

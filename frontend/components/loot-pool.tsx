@@ -181,9 +181,9 @@ export function LootPool({
         </div>
       )}
 
-      {/* Said, not silently dropped. The count is the rule this page cannot break: a screen may
-          narrow what it draws, and may not lose rows without saying so. Openable because some of
-          them can still be acted on and a pool row is the only place to do it. */}
+      {/* Said, not silently dropped: a screen may narrow what it draws, and may not lose rows
+          without saying so. Openable because some of them can still be acted on and a pool row is
+          the only place to do it. */}
       {hidden > 0 && (
         <div className="loot-elsewhere">
           <button
@@ -191,7 +191,7 @@ export function LootPool({
             className="party-cancel"
             onClick={() => setShowingOthers((open) => !open)}
           >
-            {showingOthers ? "Hide" : `${hidden} on other nights`}
+            {showingOthers ? "Hide" : "Other nights"}
           </button>
           {showingOthers &&
             others.map((night) => (

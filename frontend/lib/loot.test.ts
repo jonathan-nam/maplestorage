@@ -380,43 +380,33 @@ describe("splitOf reads the shares the sale was split on", () => {
 describe("dropsInWeek", () => {
   const week = (id: string, weekStart: string) => sold({ id, weekStart });
 
-  it("keeps the week on screen and counts what fell before it", () => {
+  it("keeps the week on screen and leaves the rest to the party's own page", () => {
     // The row is about this week. The whole pool under it was a season of drops headed by tonight.
-    const { shown, earlier } = dropsInWeek(
+    const shown = dropsInWeek(
       [week("l1", "2026-08-06"), week("l2", "2026-07-16"), week("l3", "2026-08-06")],
       "2026-08-06",
     );
 
     expect(shown.map((l) => l.id)).toEqual(["l1", "l3"]);
-    // Counted, not dropped: the badge above counts an unsold drop from any week, so a panel that
-    // simply lost this row would be short against a number on the same line.
-    expect(earlier).toBe(1);
   });
 
   it("shows the pool whole when nothing has named the week yet", () => {
     // Narrowing against a week we cannot name would be a guess about which drops belong to it.
     const loot = [week("l1", "2026-08-06"), week("l2", "2026-07-16")];
 
-    expect(dropsInWeek(loot, null)).toEqual({ shown: loot, earlier: 0 });
+    expect(dropsInWeek(loot, null)).toEqual(loot);
   });
 
-  it("keeps a row dated after the week rather than counting it as earlier", () => {
+  it("keeps a row dated after the week rather than filing it under one that has gone", () => {
     // Nothing writes one, since a drop is stamped with the server's today. If something ever does,
-    // the honest failure is showing it, not filing it under weeks that have already gone.
-    const { shown, earlier } = dropsInWeek([week("l1", "2026-08-13")], "2026-08-06");
-
-    expect(shown.map((l) => l.id)).toEqual(["l1"]);
-    expect(earlier).toBe(0);
+    // the honest failure is showing it.
+    expect(dropsInWeek([week("l1", "2026-08-13")], "2026-08-06").map((l) => l.id)).toEqual(["l1"]);
   });
 
-  it("counts every row when the week on screen has nothing in it", () => {
-    const { shown, earlier } = dropsInWeek(
-      [week("l1", "2026-07-16"), week("l2", "2026-07-09")],
-      "2026-08-06",
+  it("is empty where the week on screen holds nothing", () => {
+    expect(dropsInWeek([week("l1", "2026-07-16"), week("l2", "2026-07-09")], "2026-08-06")).toEqual(
+      [],
     );
-
-    expect(shown).toEqual([]);
-    expect(earlier).toBe(2);
   });
 });
 

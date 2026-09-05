@@ -43,3 +43,20 @@ export function sharesKey(shares: Record<string, string>): string {
 export function sharesLabel(shares: number): string {
   return shares === 1 ? "" : `${shares} shares`;
 }
+
+/**
+ * What each share count comes to as a percentage of the pot, as strings ready to render.
+ *
+ * Each is its own exact share, NOT a whole number of percent chosen so the column adds to 100.
+ * Largest remainder did that, and it read three even seats as 34/33/33: a split the party agreed
+ * evenly, on screen as one seat taking more. The money never worked that way (splitDrop divides by
+ * the counts and the seller absorbs the dust), so the label was the only thing saying otherwise.
+ *
+ * Two decimals, trailing zeros dropped, so 4 and 1 stay 80 and 20 and three 1s read 33.33 each.
+ * Equal counts always read equal, which is the one thing this label has to get right.
+ */
+export function sharePercents(weights: number[]): string[] {
+  const total = weights.reduce((sum, w) => sum + w, 0);
+  if (total <= 0) return weights.map(() => "0");
+  return weights.map((w) => String(Number(((100 * w) / total).toFixed(2))));
+}

@@ -3847,6 +3847,11 @@ button.link:disabled {
   margin: 0;
 }
 
+/* The same heading over the sale form's share boxes, which the form's own gap already spaces. */
+.loot-sale-form .loot-group-title.is-config {
+  margin: 0;
+}
+
 /* The same two blocks in the Add Drop form, for a night with no row yet, in ONE frame. Unframed
    they read as two more of the picker's own controls, and Save split ended up a line above Add drop
    with nothing saying which block it belonged to. The frame the standing split already gets when
@@ -5229,14 +5234,6 @@ button.link:disabled {
   margin: 0;
 }
 
-/* What this week's list leaves out, and the way to it. Muted and last: it is there so the panel
-   cannot be read as the whole pool, not to ask for anything. */
-.party-loot-earlier {
-  align-self: flex-start;
-  font-size: var(--text-base);
-  color: var(--muted);
-}
-
 /* The roster on the left, the row's own controls in the panel's top corner. */
 .party-row-roster {
   display: flex;
@@ -6350,6 +6347,19 @@ button.link:disabled {
 /* The sale box takes a price, so it is wider than the count beside it. */
 .ledger-sale .split-input:not(.loot-count-input) {
   width: 120px;
+}
+
+/* The share boxes for the rows a lot would cover. Its own row in the form's wrap, so the price line
+   keeps its line and the button keeps the next one. */
+.ledger-splits {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex-basis: 100%;
+}
+
+.ledger-splits .loot-group-title.is-config {
+  margin: 0;
 }
 
 /* A pile whose books are closed. Said rather than hidden: these bosses drop vestiges on every clear, so

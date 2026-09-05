@@ -3,8 +3,7 @@
 import { useState } from "react";
 import { formatMesos, parseMesos } from "@/lib/drop-split";
 import { divides } from "@/lib/loot";
-import { largestRemainder } from "@/lib/piece-ledger";
-import { parseShares } from "@/lib/shares";
+import { parseShares, sharePercents } from "@/lib/shares";
 import type { SellLootBody } from "@/types/loot";
 import type { PartyMember } from "@/types/party";
 
@@ -50,14 +49,7 @@ export function LootSaleForm({
   // What each box works out to as a percentage of the pot, which is the thing a share count means
   // and the thing a deal is agreed in. Derived and never typed: an 80/20 deal reads 80 and 20, and
   // so does 4 and 1, so the box cannot be labelled a percentage without being wrong half the time.
-  //
-  // Largest remainder, so three even seats read 34/33/33 rather than three 33s that come to 99.
-  const percent = sharesReadable
-    ? largestRemainder(
-        100,
-        entered.map((count) => count ?? 0),
-      )
-    : null;
+  const percent = sharesReadable ? sharePercents(entered.map((count) => count ?? 0)) : null;
   const amount = parseMesos(price);
   // Whether this drop divides at all, which is what every control below asks about.
   const shared = divides(ran);
@@ -134,6 +126,7 @@ export function LootSaleForm({
 
       {/* One box per seat that ran, so an uneven split is typed where the sale is. Not where
           one seat ran, which has nobody to divide with. */}
+      {shared && <h4 className="loot-group-title is-config">Splits</h4>}
       {shared && (
         <div className="loot-share-inputs">
           {ran.map((m, i) => (
