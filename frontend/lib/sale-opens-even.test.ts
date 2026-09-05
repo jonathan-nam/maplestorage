@@ -21,6 +21,7 @@ const source = (...parts: string[]) =>
 
 const form = source("components", "loot-sale-form.tsx");
 const row = source("components", "loot-row.tsx");
+const lot = source("components", "lot-sale.tsx");
 
 describe("the sale form's share boxes", () => {
   it("open on one share each", () => {
@@ -72,5 +73,30 @@ describe("the percentage a share count comes to", () => {
   it("is what the form renders, rather than a column rounded to add up", () => {
     expect(form).toContain("sharePercents");
     expect(form).not.toContain("largestRemainder");
+  });
+});
+
+// A lot had no share boxes at all, so every pile of grindstones was written as an even split and
+// reached the Settlement Ledger as one, whatever the party had agreed. lot-sale.test.ts pins what
+// the ratio does; this pins that there is somewhere to type it.
+describe("the lot card's share boxes", () => {
+  it("draws a box per name, one set per roster the sale covers", () => {
+    expect(lot).toContain("lotRosters(proposal.rows)");
+    expect(lot).toContain("aria-label={`Shares for ${name}`}");
+  });
+
+  it("open on one share each, like every other sale", () => {
+    expect(lot).toContain(
+      'const shareOf = (key: string, name: string) => shares[key]?.[name] ?? "1";',
+    );
+    expect(lot).toContain('placeholder="1"');
+  });
+
+  it("sends what was typed, rather than pinning an even split behind it", () => {
+    expect(lot).toContain("splitMethod, proposal!.rows, typed)");
+  });
+
+  it("refuses to send a ratio it could not read", () => {
+    expect(lot).toContain("total !== null && sharesReadable");
   });
 });

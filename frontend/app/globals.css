@@ -6357,6 +6357,19 @@ button.link:disabled {
   width: 120px;
 }
 
+/* The share boxes for the rows a lot would cover. Its own row in the form's wrap, so the price line
+   keeps its line and the button keeps the next one. */
+.ledger-splits {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex-basis: 100%;
+}
+
+.ledger-splits .loot-group-title.is-config {
+  margin: 0;
+}
+
 /* A pile whose books are closed. Said rather than hidden: these bosses drop vestiges on every clear, so
    the card is a fixture and a missing one would only raise the question this answers. */
 .ledger-done {

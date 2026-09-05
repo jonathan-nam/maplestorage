@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
+  evenShares,
   fungibleDropKeys,
   lotDrops,
   lotQueue,
+  lotRosters,
   lotSaleBody,
   priceLot,
   proposeLot,
@@ -153,13 +155,12 @@ describe("the queue a lot is drawn from", () => {
   it("names your own seat as the seller, and opens every seat on one share", () => {
     const [first] = lotQueue(parties, pools, STONE, SELF_KEY);
     expect(first?.sellerMemberId).toBe("m1");
-    expect(first?.shares).toEqual({ m1: 1, m2: 1 });
+    expect(evenShares(first?.ran ?? [])).toEqual({ m1: 1, m2: 1 });
   });
 
   it("splits evenly whatever stack ratio the party is on", () => {
     // Rune's 2 is an entitlement to the vestige stacks, which is the only thing that column says.
-    // A lot has no share boxes at all, so reading it here sold a pile of grindstones 1:2 and put
-    // that nowhere on screen.
+    // Reading it here sold a pile of grindstones 1:2 off a set of boxes that opened even.
     const carried = [seat("m1", "Husky", { mine: true }), seat("m2", "Rune", { shares: 2 })];
     const queue = lotQueue(
       [party("p1", "limbo", carried)],
@@ -167,7 +168,10 @@ describe("the queue a lot is drawn from", () => {
       STONE,
       SELF_KEY,
     );
-    expect(queue[0]?.shares).toEqual({ m1: 1, m2: 1 });
+    expect(lotSaleBody(STONE, 1, "RECEIVED", "FAIR", queue).rows[0]?.shares).toEqual({
+      m1: 1,
+      m2: 1,
+    });
   });
 
   it("splits evenly whatever the week itself was pinned on", () => {
@@ -178,7 +182,10 @@ describe("the queue a lot is drawn from", () => {
       STONE,
       SELF_KEY,
     );
-    expect(queue[0]?.shares).toEqual({ m1: 1, m2: 1 });
+    expect(lotSaleBody(STONE, 1, "RECEIVED", "FAIR", queue).rows[0]?.shares).toEqual({
+      m1: 1,
+      m2: 1,
+    });
   });
 
   it("leaves out a row that has already sold", () => {
@@ -264,7 +271,7 @@ describe("the drops that price alone", () => {
     );
     expect(found.map((r) => r.lootId)).toEqual(["l1", "l2"]);
     expect(found[0]?.sellerMemberId).toBe("m1");
-    expect(found[0]?.shares).toEqual({ m1: 1, m2: 1 });
+    expect(evenShares(found[0]?.ran ?? [])).toEqual({ m1: 1, m2: 1 });
   });
 
   it("shares the lot queue's own rules about what is sellable", () => {
@@ -344,7 +351,7 @@ describe("what each row of a lot sold for", () => {
       characterId: "char-m1",
       sellerMemberId: "m1",
       sellerName: "Husky",
-      shares: { m1: 1 },
+      ran: [seat("m1", "Husky", { mine: true })],
     }));
 
   it("divides the total evenly when it divides", () => {
@@ -403,6 +410,65 @@ describe("the request a confirmed lot sends", () => {
     const body = lotSaleBody(STONE, 1 * B, "LISTED", "LAZY", proposeLot(queue, 2).rows);
     expect(body.total).toBe(1 * B);
     expect(body.rows.reduce((sum, r) => sum + r.amount, 0)).toBe(body.total);
+  });
+});
+
+// A lot used to pin an even split with no boxes to say so, so every pile of grindstones reached the
+// Settlement Ledger as one, whatever the party had agreed. The boxes are per ROSTER: one person
+// holds a different seat id in each pool a lot spans, and a four-week pile the same two ran is one
+// ratio to type rather than four.
+describe("the seats a lot's share boxes stand for", () => {
+  const rosterQueue = lotQueue(
+    [party("p1", "limbo", duo()), party("p2", "kaling", [...duo(), seat("m3", "Kelp")])],
+    [
+      pool("p1", [
+        drop("l1", STONE, "2026-07-16", ["m1", "m2"]),
+        drop("l3", STONE, "2026-07-30", ["m1", "m2"]),
+      ]),
+      pool("p2", [drop("l2", STONE, "2026-07-23", ["m1", "m2", "m3"])]),
+    ],
+    STONE,
+    SELF_KEY,
+  );
+
+  it("is one set of boxes per distinct roster, not per row", () => {
+    expect(lotRosters(rosterQueue).map((r) => r.names)).toEqual([
+      ["Husky", "Rune"],
+      ["Husky", "Rune", "Kelp"],
+    ]);
+  });
+
+  it("offers no boxes for a row nobody else ran, which has nothing to divide", () => {
+    const solo = lotQueue(
+      [party("p1", "limbo", duo())],
+      [pool("p1", [drop("l1", STONE, "2026-07-16", ["m1"])])],
+      STONE,
+      SELF_KEY,
+    );
+    expect(lotRosters(solo)).toEqual([]);
+  });
+
+  it("applies a typed ratio to every row that roster ran, by their seat in it", () => {
+    const [duoRoster, trioRoster] = lotRosters(rosterQueue);
+    const body = lotSaleBody(STONE, 3 * B, "RECEIVED", "FAIR", rosterQueue, {
+      [duoRoster!.key]: { Husky: 1, Rune: 2 },
+      [trioRoster!.key]: { Husky: 1, Rune: 1, Kelp: 0 },
+    });
+    expect(body.rows.map((r) => [r.lootId, r.shares])).toEqual([
+      ["l1", { m1: 1, m2: 2 }],
+      ["l2", { m1: 1, m2: 1, m3: 0 }],
+      ["l3", { m1: 1, m2: 2 }],
+    ]);
+  });
+
+  it("is an even split where nothing was typed", () => {
+    expect(
+      lotSaleBody(STONE, 3 * B, "RECEIVED", "FAIR", rosterQueue).rows.map((r) => r.shares),
+    ).toEqual([
+      { m1: 1, m2: 1 },
+      { m1: 1, m2: 1, m3: 1 },
+      { m1: 1, m2: 1 },
+    ]);
   });
 });
 

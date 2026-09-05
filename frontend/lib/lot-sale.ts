@@ -66,12 +66,11 @@ export type LotRow = {
   sellerMemberId: string;
   sellerName: string;
   /**
-   * What each seat that ran takes: one each, the same even split the per-row sale form opens on.
-   *
-   * Every seat, not only the uneven ones, because the panel counts these keys to tell a lot that
-   * divides from one that does not.
+   * The seats that ran that week: who this row divides between, and what the card's share boxes are
+   * one of each. Every seat, not only the uneven ones, so a lot that does not divide is tellable
+   * from one that does.
    */
-  shares: Record<string, number>;
+  ran: PartyMember[];
 };
 
 /**
@@ -123,7 +122,7 @@ function sellableRows(
         characterId: party.characterId,
         sellerMemberId: seller.id,
         sellerName: seller.name,
-        shares: sharesOf(ran),
+        ran,
       });
     }
   }
@@ -144,16 +143,58 @@ export function lotQueue(
 }
 
 /**
- * One share each, keyed by seat id. What the sale pins.
+ * One share each, keyed by seat id. What a lot pins where nobody typed a ratio.
  *
- * A lot has no share boxes, so anything but an even split here is a split nobody was shown. It used
- * to seed from `party_member.shares`, which is the stack entitlement the party config writes: a
- * party on 1:2 vestige stacks sold every lot of grindstones 1:2 and said so nowhere. See the note
- * in loot-row.tsx.
+ * Even, never seeded from `party_member.shares`: that is the stack entitlement the party config
+ * writes, and a party on 1:2 vestige stacks sold every lot of grindstones 1:2 and said so nowhere.
+ * See the note in loot-row.tsx.
  */
-function sharesOf(ran: PartyMember[]): Record<string, number> {
+export function evenShares(ran: PartyMember[]): Record<string, number> {
   return Object.fromEntries(ran.map((s) => [s.id, 1]));
 }
+
+/**
+ * The seats a set of share boxes stands for: the names that ran, in the order the row lists them.
+ *
+ * By NAME, and keyed by the sorted names, because one lot spans pools and a person holds a
+ * different seat id in each. Rows that the same people ran take one set of boxes, which is what
+ * makes a four-week pile of grindstones one ratio to type rather than four.
+ */
+export type LotRoster = {
+  key: string;
+  names: string[];
+};
+
+export function rosterOf(row: LotRow): LotRoster {
+  const names = row.ran.map((s) => s.name);
+  return { key: [...names].sort().join("\u0000"), names };
+}
+
+/**
+ * The distinct rosters among the rows a lot covers, in queue order.
+ *
+ * Only the rows that divide: a solo row has nobody to divide with, and a box beside one name would
+ * be a ratio against nothing.
+ */
+export function lotRosters(rows: LotRow[]): LotRoster[] {
+  const seen = new Map<string, LotRoster>();
+  for (const row of rows) {
+    if (row.ran.length < 2) continue;
+    const roster = rosterOf(row);
+    if (!seen.has(roster.key)) seen.set(roster.key, roster);
+  }
+  return [...seen.values()];
+}
+
+/** What one row of a lot divides by: the counts typed against its roster, or one each. */
+export function rowShares(row: LotRow, typed: LotShares): Record<string, number> {
+  const counts = typed[rosterOf(row).key];
+  if (!counts) return evenShares(row.ran);
+  return Object.fromEntries(row.ran.map((s) => [s.id, counts[s.name] ?? 1]));
+}
+
+/** Share counts as the card holds them: per roster, then per name. */
+export type LotShares = Record<string, Record<string, number>>;
 
 /** Which rows a lot of this size covers, or why it covers none. */
 export type LotProposal = {
@@ -259,6 +300,8 @@ export function lotSaleBody(
   amountBasis: string,
   splitMethod: string,
   rows: LotRow[],
+  /** What was typed into the share boxes. Absent is an even split, which is what they open on. */
+  typed: LotShares = {},
 ): LotSaleBody {
   const amounts = priceLot(total, rows);
   return {
@@ -271,7 +314,7 @@ export function lotSaleBody(
       lootId: row.lootId,
       amount: amounts[i] ?? 0,
       sellerMemberId: row.sellerMemberId,
-      shares: row.shares,
+      shares: rowShares(row, typed),
     })),
   };
 }
