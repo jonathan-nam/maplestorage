@@ -953,7 +953,7 @@ export default function DropLogPage() {
 
             {shown === "settlement" && (
               <section className="loot-pool">
-                <h2 className="loot-pool-title">Record Settlement</h2>
+                <h2 className="loot-pool-title">Settlement Summary</h2>
 
                 <SettlementSummary rows={settlement} totals={owedTotals} />
 
