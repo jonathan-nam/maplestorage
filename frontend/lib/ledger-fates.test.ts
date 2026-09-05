@@ -46,6 +46,7 @@ const seat = (
   personId: person?.[0] ?? null,
   personName: person?.[1] ?? null,
   characterId: mine ? `char-${id}` : null,
+  linkedCharacterId: null,
   spriteImgUrl: null,
   guest: false,
   shares: 1,

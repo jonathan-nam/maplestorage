@@ -34,6 +34,7 @@ function member(over: Partial<PartyMember> & { name: string }): PartyMember {
     personId: null,
     personName: null,
     characterId: null,
+    linkedCharacterId: null,
     spriteImgUrl: null,
     guest: false,
     shares: 1,

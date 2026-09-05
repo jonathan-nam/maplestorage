@@ -30,6 +30,7 @@ const seat = (id: string, name: string, { mine = false, shares = 1 } = {}): Part
   personId: null,
   personName: null,
   characterId: mine ? `char-${id}` : null,
+  linkedCharacterId: null,
   spriteImgUrl: null,
   guest: false,
   shares,

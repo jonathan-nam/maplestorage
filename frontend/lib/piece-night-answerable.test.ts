@@ -25,6 +25,7 @@ const seat = (id: string, name: string, { mine = false } = {}): PartyMember => (
   // Only YOUR seats carry one, and every seat that does folds into the same holder. Both seats
   // holding a character id would make this duo one person, which rotates nothing.
   characterId: mine ? `char-${id}` : null,
+  linkedCharacterId: null,
   spriteImgUrl: null,
   guest: false,
   shares: 1,

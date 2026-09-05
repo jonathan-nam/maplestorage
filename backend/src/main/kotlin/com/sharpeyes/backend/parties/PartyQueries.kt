@@ -212,7 +212,9 @@ private fun seatsFor(
             .selectAll()
             .where { Person.userId eq userId }
             .associate { it[Person.id] to it[Person.name] }
-    val owners = personCharacters(userId).byCharacter()
+    val characters = personCharacters(userId)
+    val owners = characters.byCharacter()
+    val linked = characters.linkedByName
 
     return PartyMember
         .join(Characters, JoinType.LEFT, PartyMember.characterId, Characters.id)
@@ -221,13 +223,15 @@ private fun seatsFor(
         .orderBy(PartyMember.position)
         .groupBy({ it[PartyMember.partyId] }) { row ->
             val owner = owners[row[PartyMember.name].lowercase()]
+            val theirs = linked[row[PartyMember.name].lowercase()]
             PartyMemberResponse(
                 id = row[PartyMember.id].toString(),
                 name = row[PartyMember.name],
                 personId = owner?.toString(),
                 personName = owner?.let { personNames[it] },
                 characterId = row[PartyMember.characterId]?.toString(),
-                spriteImgUrl = spriteFor(row, spritesByName),
+                linkedCharacterId = theirs?.characterId?.toString(),
+                spriteImgUrl = spriteFor(row, spritesByName, theirs),
                 guest = !row[PartyMember.standing],
                 shares = row[PartyMember.shares],
             )
@@ -314,19 +318,26 @@ private fun clearStateFor(rows: List<ResultRow>): Map<Uuid, ClearState> {
 }
 
 /**
- * The sprite to draw for a seat: the roster's own for one of your characters, then this seat's,
- * then whatever this account has found for that character NAME anywhere else.
+ * The sprite to draw for a seat, from the freshest place that has one: your own character's row,
+ * then a linked person's, then this seat's copy, then whatever this account has found for that
+ * character NAME anywhere else.
  *
- * The last one matters. A character named in three configs is looked up once, so the other two
- * seats hold a null of their own, and reading only the seat left the same person drawn in one row
- * and blank in the next two.
+ * A character's OWN account keeps its sprite refreshed, so a seat that IS a real character reads it
+ * off that row rather than a copy. insertSeat states the reason and it does not stop at your own
+ * characters: "a copy would go stale the moment the character's own sprite is refreshed".
+ *
+ * The last fallback matters too. A character named in three configs is looked up once, so the other
+ * two seats hold a null of their own, and reading only the seat left the same person drawn in one
+ * row and blank in the next two.
  */
 private fun spriteFor(
     row: ResultRow,
     spritesByName: Map<String, String>,
+    linked: LinkedCharacter?,
 ): String? {
     val nexonUrl =
         row.getOrNull(Characters.spriteImgUrl)
+            ?: linked?.spriteImgUrl
             ?: row[PartyMember.spriteImgUrl]
             ?: spritesByName[row[PartyMember.name].lowercase()]
     // What goes out is our own proxy path, never Nexon's URL. See spriteProxyPath.

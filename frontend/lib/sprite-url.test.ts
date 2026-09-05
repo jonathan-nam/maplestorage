@@ -24,6 +24,7 @@ const member = (name: string, spriteImgUrl: string | null): PartyMember => ({
   personId: null,
   personName: null,
   characterId: null,
+  linkedCharacterId: null,
   spriteImgUrl,
   guest: false,
   shares: 1,

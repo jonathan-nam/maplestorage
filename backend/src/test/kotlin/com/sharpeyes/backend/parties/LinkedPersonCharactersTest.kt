@@ -3,7 +3,9 @@ package com.sharpeyes.backend.parties
 import com.sharpeyes.backend.config.Env
 import com.sharpeyes.backend.db.Characters
 import com.sharpeyes.backend.db.Party
+import com.sharpeyes.backend.db.PartyMember
 import com.sharpeyes.backend.db.Person
+import com.sharpeyes.backend.sprites.spriteProxyPath
 import com.sharpeyes.backend.users.WORLD_HEROIC
 import com.sharpeyes.backend.users.WORLD_INTERACTIVE
 import com.sharpeyes.backend.users.ensureUser
@@ -21,6 +23,7 @@ import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNull
 import kotlin.time.Clock
 import kotlin.uuid.Uuid
 
@@ -69,6 +72,7 @@ class LinkedPersonCharactersTest {
         name: String,
         world: String = WORLD_INTERACTIVE,
         position: Int = 0,
+        sprite: String? = null,
     ): Uuid {
         ensureUser(userId, "$userId@example.com")
         setActiveWorld(userId, WORLD_INTERACTIVE)
@@ -79,6 +83,7 @@ class LinkedPersonCharactersTest {
             it[Characters.userId] = userId
             it[Characters.name] = name
             it[Characters.worldType] = world
+            it[spriteImgUrl] = sprite
             it[createdAt] = now
             it[updatedAt] = now
             it[Characters.position] = position
@@ -199,6 +204,82 @@ class LinkedPersonCharactersTest {
             config(own, listOf("CreedBratton"))
 
             assertEquals(emptyList(), peopleFor(mine).single().ownedCharacters)
+        }
+    }
+
+    @Test
+    fun `a seat that is their real character points at it`() {
+        transaction {
+            val own = character(mine, "mechyfechy")
+            val theirCharacter = character(theirs, "CreedBratton")
+            link(people("Chris" to emptyList()).getValue("Chris"), theirs)
+            val party = config(own, listOf("CreedBratton"))
+
+            val seat = party.members[1]
+            assertEquals(theirCharacter.toString(), seat.linkedCharacterId)
+            // NOT characterId. That one means the seat is one of MINE, and the coupon ledger reads
+            // a non-null value as SELF: setting it here would report their pieces as my own.
+            assertNull(seat.characterId)
+        }
+    }
+
+    @Test
+    fun `my own seat is mine and is not a linked one`() {
+        transaction {
+            val own = character(mine, "mechyfechy")
+            val party = config(own, listOf("Steve"))
+
+            val me = party.members[0]
+            assertEquals(own.toString(), me.characterId)
+            assertNull(me.linkedCharacterId)
+        }
+    }
+
+    @Test
+    fun `a seat that is only a name points at nothing`() {
+        transaction {
+            val own = character(mine, "mechyfechy")
+            // Attributed by hand to somebody with no account. A name is all this seat has ever
+            // been, and stage one does not change that.
+            people("Dwight" to listOf("Schrute"))
+            val party = config(own, listOf("Schrute"))
+
+            assertEquals("Dwight", party.members[1].personName)
+            assertNull(party.members[1].linkedCharacterId)
+        }
+    }
+
+    @Test
+    fun `their account's sprite beats this account's copy of it`() {
+        transaction {
+            val own = character(mine, "mechyfechy")
+            character(theirs, "CreedBratton", sprite = "https://nexon.example/creed-now.png")
+            link(people("Chris" to emptyList()).getValue("Chris"), theirs)
+            val party = config(own, listOf("CreedBratton"))
+            // A copy this account looked up earlier, which is what the seat would otherwise show.
+            // Their account refreshes the character's own sprite, so the copy is the stale one.
+            PartyMember.update({ PartyMember.id eq Uuid.parse(party.members[1].id) }) {
+                it[spriteImgUrl] = "https://nexon.example/creed-stale.png"
+            }
+
+            val seat = findParty(Uuid.parse(party.id), mine)!!.members[1]
+            assertEquals(spriteProxyPath("https://nexon.example/creed-now.png"), seat.spriteImgUrl)
+        }
+    }
+
+    @Test
+    fun `a seat with no character behind it still shows the copy`() {
+        transaction {
+            val own = character(mine, "mechyfechy")
+            val party = config(own, listOf("Schrute"))
+            PartyMember.update({ PartyMember.id eq Uuid.parse(party.members[1].id) }) {
+                it[spriteImgUrl] = "https://nexon.example/schrute.png"
+            }
+
+            // Nothing better exists for a name nobody's account holds, and a copy beats an empty
+            // frame. Only a real character row displaces it.
+            val seat = findParty(Uuid.parse(party.id), mine)!!.members[1]
+            assertEquals(spriteProxyPath("https://nexon.example/schrute.png"), seat.spriteImgUrl)
         }
     }
 }

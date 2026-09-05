@@ -12,7 +12,13 @@ export type PartyMember = {
   personName: string | null;
   // Set when the seat is one of YOUR characters. The config's own character is always the first
   // seat, so this is set on at least one of them.
+  //
+  // Load-bearing beyond identity: lib/vestige-ledger.ts reads a non-null value as SELF and
+  // lib/drop-log.ts as "mine". Somebody else's character is never this, it is linkedCharacterId.
   characterId: string | null;
+  // The character row this seat is, on a linked person's own account. Null for a seat that is just
+  // a name, which is everybody who does not use the app.
+  linkedCharacterId: string | null;
   // Backend-relative, resolve with spriteUrl(). See Character.spriteImgUrl.
   spriteImgUrl: string | null;
   // Not in the party's usual roster: here for this week only, or gone from it since. Said out loud

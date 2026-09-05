@@ -18,7 +18,20 @@ data class PartyMemberResponse(
     val personId: String?,
     val personName: String?,
     // Set when the seat is one of YOUR characters, which happens when you bring two of your own.
+    //
+    // Load-bearing beyond identifying the seat: the coupon ledger reads a non-null value as SELF,
+    // and the roster strip labels the tile "one of your characters". So it stays yours alone, and a
+    // seat that is somebody else's real character says so in the next field instead.
     val characterId: String?,
+    /**
+     * The character row this seat is, on a LINKED person's account.
+     *
+     * Set for a seat naming a character that person's own account holds. It is what makes the seat
+     * a reference to a character rather than a name that happens to match one, and it is where the
+     * sprite comes from, their account keeping it fresher than any copy of ours. Never one of
+     * yours: see characterId above.
+     */
+    val linkedCharacterId: String? = null,
     val spriteImgUrl: String?,
     // Not in the party's usual roster: here for this week only, or gone from it since. Said out
     // loud because "who is in this party" and "who ran it that week" now have different answers.
