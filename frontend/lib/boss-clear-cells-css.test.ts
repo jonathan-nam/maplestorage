@@ -53,3 +53,30 @@ describe("boss clear marks stay visible", () => {
     }
   });
 });
+
+// A finished character's column head steps back the way a finished row does. The pairing is what
+// the test is for: the class is written in one file and read in another, so a rename in either
+// leaves a sprite that never dims and nothing that fails.
+describe("a finished character's head dims", () => {
+  const matrix = readFileSync(join(__dirname, "..", "components", "boss-matrix.tsx"), "utf8");
+
+  it("styles the class the matrix writes", () => {
+    expect(matrix).toContain("is-col-cleared");
+    expect(rule(".boss-table .boss-char-head.is-col-cleared")).toMatch(/opacity:\s*0\.65/);
+  });
+
+  it("dims rather than hides, since the column still has to be read", () => {
+    // The sprite and the IGN are what says whose column this is, and the marks under a dimmed head
+    // are still marks to read. Taken much further this is a column that has left the table.
+    const opacity = Number(
+      /opacity:\s*([\d.]+)/.exec(rule(".boss-table .boss-char-head.is-col-cleared"))?.[1],
+    );
+    expect(opacity).toBeGreaterThanOrEqual(0.5);
+    expect(opacity).toBeLessThan(1);
+  });
+
+  it("comes back under the cursor, as the /inventory tile does", () => {
+    expect(rule(".boss-table .boss-char-head.is-col-cleared.is-col-hover")).toMatch(/opacity:\s*1/);
+    expect(rule(".char-tile:hover")).toMatch(/opacity:\s*1/);
+  });
+});

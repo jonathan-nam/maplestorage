@@ -9,6 +9,7 @@ import {
   clearOfCell,
   clearProgress,
   clearStateLabel,
+  columnFullyCleared,
   formatPeriod,
   formatWeekStart,
   indexClears,
@@ -230,6 +231,74 @@ describe("rowFullyCleared", () => {
 
     expect(rowFullyCleared(new Map(), roster, "jupiter", skips)).toBe(false);
     expect(rowNobodyRuns(roster, "jupiter", skips)).toBe(true);
+  });
+});
+
+describe("columnFullyCleared", () => {
+  // The matrix dims a character's sprite on this, and a dimmed sprite is read as "they are done
+  // for the week". Every case below is one where saying true would hide a run they still owe.
+  const bossOf = (bossKey: string, reset = "WEEKLY") => ({
+    bossKey,
+    name: bossKey,
+    reset,
+    iconUrl: null,
+    difficulties: [],
+  });
+  const bosses = [bossOf("lotus"), bossOf("damien"), bossOf("zakum", "DAILY")];
+
+  it("is true when every boss they run is cleared", () => {
+    const clears = indexClears([clear("lotus", true), clear("damien", true), clear("zakum", true)]);
+
+    expect(columnFullyCleared(clears, bosses)).toBe(true);
+  });
+
+  it("is false while one is reported and not done", () => {
+    const clears = indexClears([
+      clear("lotus", true),
+      clear("damien", false),
+      clear("zakum", true),
+    ]);
+
+    expect(columnFullyCleared(clears, bosses)).toBe(false);
+  });
+
+  it("does not count silence as a clear", () => {
+    // The capture mentioned two of the three, so nobody has said anything about Damien.
+    const clears = indexClears([clear("lotus", true), clear("zakum", true)]);
+
+    expect(columnFullyCleared(clears, bosses)).toBe(false);
+  });
+
+  it("does not dim a character who has reported nothing at all", () => {
+    // Every character on a Thursday morning. An uncaptured week is unanswered, not finished.
+    expect(columnFullyCleared(undefined, bosses)).toBe(false);
+  });
+
+  it("holds a finished week open while a daily is outstanding", () => {
+    // The sprite is one figure over every band, so the weekly being done is not the answer.
+    const clears = indexClears([clear("lotus", true), clear("damien", true)]);
+
+    expect(columnFullyCleared(clears, bosses)).toBe(false);
+    expect(
+      columnFullyCleared(
+        clears,
+        bosses.filter((b) => b.reset === "WEEKLY"),
+      ),
+    ).toBe(true);
+  });
+
+  it("ignores the bosses they do not run, which is the point of saying so", () => {
+    const clears = indexClears([clear("lotus", true)]);
+
+    expect(columnFullyCleared(clears, bosses, new Set(["damien", "zakum"]))).toBe(true);
+  });
+
+  it("is false for a character who runs nothing, rather than vacuously true", () => {
+    // every() on nothing is true, which would dim a character who has never been given a routine.
+    expect(columnFullyCleared(undefined, bosses, new Set(["lotus", "damien", "zakum"]))).toBe(
+      false,
+    );
+    expect(columnFullyCleared(undefined, [])).toBe(false);
   });
 });
 

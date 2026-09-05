@@ -12,6 +12,7 @@ import {
   cellStateLabel,
   clearOfCell,
   clearProgress,
+  columnFullyCleared,
   indexClears,
   indexSkips,
   nextClear,
@@ -97,6 +98,17 @@ export function BossMatrix({
 
   // A past week brings no routine marks, so it gets a count with no denominator. See clearProgress.
   const routineKnown = !historyWeek;
+
+  // Nothing left to run, so the character steps back the way a finished row does. Counted over the
+  // bosses on the table rather than over `bosses`, so a past week is judged on the weekly band it
+  // actually shows. See columnFullyCleared for why silence is not a clear.
+  const shownBosses = bands.flatMap((band) => band.inCadence);
+  const doneClass = (characterId: string) =>
+    !loading &&
+    columnFullyCleared(byCharacter.get(characterId), shownBosses, skipsBy.get(characterId))
+      ? " is-col-cleared"
+      : "";
+
   const statesOf = (characterId: string, list: Boss[]) =>
     list.map((boss) =>
       cellState(byCharacter.get(characterId), boss.bossKey, skipsBy.get(characterId)),
@@ -152,7 +164,7 @@ export function BossMatrix({
               {columns.map((character) => (
                 <th
                   key={character.id}
-                  className={`boss-char-head${colClass(character.id)}`}
+                  className={`boss-char-head${doneClass(character.id)}${colClass(character.id)}`}
                   scope="col"
                   title={character.name}
                   onMouseEnter={() => setHoveredColumn(character.id)}
