@@ -1,3 +1,4 @@
+import { Analytics } from "@vercel/analytics/next";
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { NavPending } from "@/components/nav-pending";
@@ -51,6 +52,10 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         <script dangerouslySetInnerHTML={{ __html: RESERVE_CONTROLS }} />
         <script dangerouslySetInnerHTML={{ __html: WORLD_VEIL }} />
         <WebVitals />
+        {/* Page views. The `/next` entry point rather than `/react` so a dynamic segment is
+            reported as its pattern, or every party slug would be its own row. Sends nothing off
+            Vercel: the script it wants is served by the platform. */}
+        <Analytics />
         <WorldVeil />
         {/* Above the header so it covers every link on the page, the header's included. */}
         <NavPending />

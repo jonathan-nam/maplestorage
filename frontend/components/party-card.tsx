@@ -101,13 +101,6 @@ export function PartyCard({
   pool?: {
     /** THIS week's drops. Narrowed by dropsInWeek, which is where the rule lives. */
     loot: Loot[];
-    /**
-     * Drops from before this week, which are counted here and listed on the party's own page.
-     *
-     * Not a detail. The badge counts an unsold drop from any week, so a row can read "1 in the pool"
-     * over a week holding no such drop, and without this the panel would simply be short.
-     */
-    earlier: number;
     dropTables: DropTables;
     bossByKey: Map<string, Boss>;
     /** What a coupon row says it is. See PieceStatus. */
@@ -466,15 +459,6 @@ export function PartyCard({
               onDelete={pool.onDelete}
             />
           )}
-          {/* What this week's list does not hold, said rather than left out, and a way to it. The
-              badge above counts an unsold drop from any week, so this is the line that stops the
-              two disagreeing in silence. */}
-          {pool && pool.earlier > 0 && (
-            <Link className="party-loot-earlier" href={partyHref(party)}>
-              {pool.earlier} from earlier weeks
-            </Link>
-          )}
-
           {/* One press opens the roster, the night's pickup and the split, so one press has to
               close them: the way out used to be the roster's own Cancel, which is off the top of
               the screen by the time you are in the config. Last in the panel, where the block you

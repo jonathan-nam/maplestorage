@@ -632,7 +632,7 @@ export default function PartiesPage() {
         title: "Looted this week",
         drops: assignableDrops(
           party,
-          dropsInWeek(lootByParty.get(party.id) ?? [], view?.currentWeekStart ?? null).shown,
+          dropsInWeek(lootByParty.get(party.id) ?? [], view?.currentWeekStart ?? null),
           { dropKey: VESTIGE, tradeable: true, behind },
         ),
         // A settled night is history. The server refuses to rewrite one either way (see
@@ -666,7 +666,7 @@ export default function PartiesPage() {
       title: "Looted this week",
       drops: assignableDrops(
         party,
-        dropsInWeek(lootByParty.get(party.id) ?? [], view?.currentWeekStart ?? null).shown,
+        dropsInWeek(lootByParty.get(party.id) ?? [], view?.currentWeekStart ?? null),
         { dropKey: rotation.dropKey, tradeable: false, behind: behindByHolder(rotation) },
       ),
       onSave: (lootId: string, bundles: Record<string, number>) =>
@@ -686,19 +686,17 @@ export default function PartiesPage() {
    * ledger exists to prevent. The week rule is in the card's own docs.
    *
    * One week's drops, not the pool: the row is about the week on screen, and the whole pool under it
-   * was a season of drops headed by tonight. What that leaves out is counted, never dropped, because
-   * the badge above counts an unsold drop from any week. See dropsInWeek.
+   * was a season of drops headed by tonight. What that leaves out is on the party's own page, which
+   * the row's heading and its badge both link to. See dropsInWeek.
    *
    * The week is the clears view's, which is the server's own reckoning and the same one every row's
    * weekStart was stamped with. Null while that view has not arrived, which shows the pool whole
    * rather than narrowing it against a week nothing has named yet.
    */
   const poolFor = (party: Party) => {
-    const week = dropsInWeek(lootByParty.get(party.id) ?? [], view?.currentWeekStart ?? null);
     return canAddDrops
       ? {
-          loot: week.shown,
-          earlier: week.earlier,
+          loot: dropsInWeek(lootByParty.get(party.id) ?? [], view?.currentWeekStart ?? null),
           dropTables,
           bossByKey,
           pieceStatus: pieceStatus.get(party.id),
@@ -785,7 +783,7 @@ export default function PartiesPage() {
     { value: "all", label: "All", count: running.length },
     {
       value: "not-cleared",
-      label: "Not cleared",
+      label: "Not Cleared",
       count: running.length - clearedCount,
       title: "Includes bosses no planner capture has mentioned this period",
     },
@@ -885,53 +883,6 @@ export default function PartiesPage() {
               </div>
             )}
 
-            <div className="party-toolbar-tabs">
-              <div className="basis-row" role="group" aria-label="Group parties by">
-                <button
-                  type="button"
-                  className={grouping === "character" ? "basis-tab active" : "basis-tab"}
-                  onClick={() => setGrouping("character")}
-                >
-                  By character
-                </button>
-                <button
-                  type="button"
-                  className={grouping === "boss" ? "basis-tab active" : "basis-tab"}
-                  onClick={() => setGrouping("boss")}
-                >
-                  By boss
-                </button>
-                <button
-                  type="button"
-                  className={grouping === "party" ? "basis-tab active" : "basis-tab"}
-                  onClick={() => setGrouping("party")}
-                >
-                  By party
-                </button>
-              </div>
-
-              {/* What is left this week, without reading past what is done. "Not cleared" holds the
-                unreported ones too. The counts do not move when you switch tabs: they are of every
-                config being RUN in the week, which on the live view is all of them bar the ones
-                taken off and on a past week is the weekly ones. Counting past that would offer a tab
-                that lists less than it promises. */}
-              <div className="basis-row" role="group" aria-label="Filter by clear state">
-                {filterTabs.map((tab) => (
-                  <button
-                    key={tab.value}
-                    type="button"
-                    className={clearFilter === tab.value ? "basis-tab active" : "basis-tab"}
-                    aria-pressed={clearFilter === tab.value}
-                    title={tab.title}
-                    onClick={() => setClearFilter(tab.value)}
-                  >
-                    {tab.label}
-                    <span className="tab-count">{tab.count}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-
             {/* Above every line about the list, the way the Drop Log's Add Drop is: the form is one
               thing and what the list is or is not showing is another.
 
@@ -948,6 +899,60 @@ export default function PartiesPage() {
                 onAdd={addOneOff}
               />
             )}
+
+            <section className="party-filters">
+              <h2 className="party-filters-title">Filter Options</h2>
+              <div className="party-toolbar-tabs">
+                <div className="basis-row" role="group" aria-label="Group parties by">
+                  <button
+                    type="button"
+                    className={grouping === "character" ? "basis-tab active" : "basis-tab"}
+                    onClick={() => setGrouping("character")}
+                  >
+                    By character
+                  </button>
+                  <button
+                    type="button"
+                    className={grouping === "boss" ? "basis-tab active" : "basis-tab"}
+                    onClick={() => setGrouping("boss")}
+                  >
+                    By boss
+                  </button>
+                  <button
+                    type="button"
+                    className={grouping === "party" ? "basis-tab active" : "basis-tab"}
+                    onClick={() => setGrouping("party")}
+                  >
+                    By party
+                  </button>
+                </div>
+
+                {/* What is left this week, without reading past what is done. "Not Cleared" holds the
+                  unreported ones too. The counts do not move when you switch tabs: they are of every
+                  config being RUN in the week, which on the live view is all of them bar the ones
+                  taken off and on a past week is the weekly ones. Counting past that would offer a tab
+                  that lists less than it promises. */}
+                <div
+                  className="basis-row basis-row-end"
+                  role="group"
+                  aria-label="Filter by clear state"
+                >
+                  {filterTabs.map((tab) => (
+                    <button
+                      key={tab.value}
+                      type="button"
+                      className={clearFilter === tab.value ? "basis-tab active" : "basis-tab"}
+                      aria-pressed={clearFilter === tab.value}
+                      title={tab.title}
+                      onClick={() => setClearFilter(tab.value)}
+                    >
+                      {tab.label}
+                      <span className="tab-count">{tab.count}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </section>
 
             {parties.length === 0 && (
               <p className="finder-empty">

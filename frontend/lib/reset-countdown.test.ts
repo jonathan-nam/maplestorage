@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  countdownParts,
   earliestReset,
   formatCountdown,
   msUntil,
@@ -164,5 +165,59 @@ describe("resetToAnnounce", () => {
 
   it("says nothing when no cadence was served", () => {
     expect(resetToAnnounce({}, after, null)).toBeNull();
+  });
+});
+
+/**
+ * The countdown is drawn in boxes of a fixed size (.reset-part is 3.9ch wide and .reset-num
+ * reserves 2ch), which is the only thing stopping the line shifting sideways as the digits change.
+ * Those two numbers are a bet: at most four units, and no unit above 99. Nothing in a browser
+ * checks it, and the cost of losing it is silent, a countdown that overflows its box or drags the
+ * label and the UTC across the row several times a minute.
+ *
+ * Measured against the real stylesheet in Chromium over 2048 sampled instants: one distinct layout,
+ * the label, value and UTC boxes identical at every one.
+ */
+describe("what the countdown boxes are sized for", () => {
+  it("never renders more than four units", () => {
+    for (const ms of [0, 1, SECOND, MINUTE, HOUR, DAY, 31 * DAY, 400 * DAY]) {
+      expect(countdownParts(ms).length).toBeLessThanOrEqual(4);
+    }
+  });
+
+  it("keeps every unit to two digits over the longest cadence tracked", () => {
+    // A month is the rarest reset there is, so 31 days is the longest a countdown ever runs.
+    // Sampled across the crossings that change a number's WIDTH, which is what moves the line:
+    // 9 to 10 in each unit, and the roll from 59 back to 0.
+    for (let days = 0; days <= 31; days++) {
+      for (const hours of [0, 9, 10, 23]) {
+        for (const minutes of [0, 9, 10, 59]) {
+          for (const seconds of [0, 9, 10, 59]) {
+            const ms = days * DAY + hours * HOUR + minutes * MINUTE + seconds * SECOND;
+            for (const part of countdownParts(ms)) {
+              expect(
+                String(part.value).length,
+                `${formatCountdown(ms)} at ${part.unit}`,
+              ).toBeLessThanOrEqual(2);
+            }
+          }
+        }
+      }
+    }
+  });
+
+  it("says the same thing in parts as it does in one string", () => {
+    for (const ms of [SECOND, 90 * SECOND, HOUR + SECOND, 6 * DAY + 5 * HOUR, 31 * DAY]) {
+      const joined = countdownParts(ms)
+        .map((part) => `${part.value}${part.unit}`)
+        .join(" ");
+      expect(joined).toBe(formatCountdown(ms));
+    }
+  });
+
+  // The units either side of a kept one stay, or "1d 0h 5m 2s" would read as 1 day 5 minutes.
+  it("keeps a zero in the middle and drops only the leading ones", () => {
+    expect(formatCountdown(DAY + 5 * MINUTE + 2 * SECOND)).toBe("1d 0h 5m 2s");
+    expect(countdownParts(5 * MINUTE + 2 * SECOND).map((p) => p.unit)).toEqual(["m", "s"]);
   });
 });

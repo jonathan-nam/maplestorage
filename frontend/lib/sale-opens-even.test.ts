@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { largestRemainder } from "./piece-ledger";
+import { sharePercents } from "./shares";
 
 // A sale opens on an even split, whatever ratio the party's config is on.
 //
@@ -21,6 +21,7 @@ const source = (...parts: string[]) =>
 
 const form = source("components", "loot-sale-form.tsx");
 const row = source("components", "loot-row.tsx");
+const lot = source("components", "lot-sale.tsx");
 
 describe("the sale form's share boxes", () => {
   it("open on one share each", () => {
@@ -52,21 +53,50 @@ describe("the sale form's share boxes", () => {
 // with a 1 in each said nothing about being relative, so each box states the percentage it comes to.
 // It is DERIVED: 80 and 20 is the same split as 4 and 1, so the box itself cannot be a percentage.
 describe("the percentage a share count comes to", () => {
-  const pct = (weights: number[]) => largestRemainder(100, weights);
-
   it("reads a ratio as the deal it is", () => {
-    expect(pct([4, 1])).toEqual([80, 20]);
-    expect(pct([80, 20])).toEqual([80, 20]);
+    expect(sharePercents([4, 1])).toEqual(["80", "20"]);
+    expect(sharePercents([80, 20])).toEqual(["80", "20"]);
   });
 
-  it("comes to exactly 100 where the split does not divide", () => {
-    // Three even seats are 33.33 each. Three 33s on screen come to 99, and a percentage that does
-    // not add up is a figure the reader has to distrust.
-    expect(pct([1, 1, 1])).toEqual([34, 33, 33]);
-    expect(pct([1, 1, 1]).reduce((sum, n) => sum + n, 0)).toBe(100);
+  it("reads equal counts as equal, where the split does not divide", () => {
+    // It used to round the column to whole percents that added to 100, which read three even seats
+    // as 34/33/33. The money divides evenly (splitDrop, dust to the seller), so the label was the
+    // only thing on screen saying one of the three took more.
+    expect(sharePercents([1, 1, 1])).toEqual(["33.33", "33.33", "33.33"]);
+    expect(sharePercents([1, 1, 1, 1, 1, 1])).toEqual(Array(6).fill("16.67"));
   });
 
   it("gives a seat that takes nothing a nothing, since zero is a real answer", () => {
-    expect(pct([1, 0])).toEqual([100, 0]);
+    expect(sharePercents([1, 0])).toEqual(["100", "0"]);
+  });
+
+  it("is what the form renders, rather than a column rounded to add up", () => {
+    expect(form).toContain("sharePercents");
+    expect(form).not.toContain("largestRemainder");
+  });
+});
+
+// A lot had no share boxes at all, so every pile of grindstones was written as an even split and
+// reached the Settlement Ledger as one, whatever the party had agreed. lot-sale.test.ts pins what
+// the ratio does; this pins that there is somewhere to type it.
+describe("the lot card's share boxes", () => {
+  it("draws a box per name, one set per roster the sale covers", () => {
+    expect(lot).toContain("lotRosters(proposal.rows)");
+    expect(lot).toContain("aria-label={`Shares for ${name}`}");
+  });
+
+  it("open on one share each, like every other sale", () => {
+    expect(lot).toContain(
+      'const shareOf = (key: string, name: string) => shares[key]?.[name] ?? "1";',
+    );
+    expect(lot).toContain('placeholder="1"');
+  });
+
+  it("sends what was typed, rather than pinning an even split behind it", () => {
+    expect(lot).toContain("splitMethod, proposal!.rows, typed)");
+  });
+
+  it("refuses to send a ratio it could not read", () => {
+    expect(lot).toContain("total !== null && sharesReadable");
   });
 });

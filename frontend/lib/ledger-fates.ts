@@ -370,14 +370,13 @@ function piecesOf(sales: AnsweredSale[] | undefined): number {
  * `recorded` is the caller's, and what it counts moved with `stillAsking`: a sale that is finished is
  * not drawn on the card any more, so a pile kept open by one would be a card with nothing on it.
  *
- * The quiet ones are held back, not dropped. Dropping them would re-break what `alsoHeldByYou`
- * exists for, which is that a Sale Ledger refusing to admit you hold the coupons cannot take the
- * sale. They come back the moment the reader asks to record one.
+ * Nothing draws the quiet ones. The two controls that asked for one are gone, so a pile that owes
+ * nobody has no card on the tab, and no sale can be entered against it until it owes somebody again.
+ * That takes a mistyped tranche on a settled pile with it: this card was the only place one could be
+ * taken back off. `quiet` is returned to say what was left out, and nothing renders it.
  *
  * A pile whose every night is CLOSED is quiet whatever it has recorded. It is finished, so it is the
- * Settled View's, and a worklist that keeps drawing finished work is not a worklist. Held back rather
- * than dropped for the reason the others are, and one more: a mistyped tranche re-prices what a
- * settlement was agreed on, and this card is still the only place one can be taken back off.
+ * Settled View's, and a worklist that keeps drawing finished work is not a worklist.
  */
 export function worthDrawing(
   yours: HolderLedger[],

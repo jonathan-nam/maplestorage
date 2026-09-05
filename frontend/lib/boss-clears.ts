@@ -1,4 +1,11 @@
-import type { BossClear, BossClearsView } from "@/types/boss";
+import type {
+  Boss,
+  BossClear,
+  BossClearsByCharacter,
+  BossClearsView,
+  BossSkipsByCharacter,
+} from "@/types/boss";
+import type { Character } from "@/types/character";
 
 // Four states, and the last two are both kinds of empty.
 //
@@ -17,7 +24,7 @@ export type CellState = "cleared" | "pending" | "unseen" | "skipped";
  * What a clear state is called, everywhere one is named out loud.
  *
  * One function because the wording had already split: the party grouping said "done" and "still to
- * do" for the states the filter tabs directly above it called "Cleared" and "Not cleared", so one
+ * do" for the states the filter tabs called "Cleared" and "Not Cleared", so one
  * tick answered to two vocabularies on the same screen.
  */
 export function clearStateLabel(cleared: boolean | null): string {
@@ -292,4 +299,113 @@ export function nextSkips(
   if (runs) next.delete(bossKey);
   else next.add(bossKey);
   return next;
+}
+
+// The planner itself groups by cadence (MONTHLY / WEEKLY / DAILY, see test-fixtures/occluded/boss
+// planner.png), and the grouping is load-bearing here rather than decorative: two bosses in one
+// matrix are not counting the same span of time, and a check under MONTHLY means something quite
+// different from a check under WEEKLY. DAILY stays in the order though the tracker no longer keeps
+// dailies: the list is filtered to the cadences actually present, so it costs nothing and is what
+// this would need if they ever come back.
+const CADENCE_ORDER = ["MONTHLY", "WEEKLY", "DAILY"];
+
+// Four characters on screen at once, and the rest are scrolled to. A roster of ten split a 730px
+// column into 53px slices, which is narrower than the sprite that has to sit in one.
+export const VISIBLE_COLUMNS = 4;
+
+// On a cold load neither the catalog nor the roster has arrived, so the loading state has nothing
+// real to lay out. These stand in: the shape is right (one monthly and a run of weeklies, which is
+// what the catalog actually looks like) even though the exact counts are not known client side
+// until /api/bosses answers. Being a row or two out for one round-trip is a cosmetic difference;
+// rendering an empty table is not.
+const SKELETON_BOSSES: Boss[] = [
+  { bossKey: "sk-monthly", name: "", reset: "MONTHLY", iconUrl: null, difficulties: [] },
+  ...Array.from({ length: 8 }, (_, i) => ({
+    bossKey: `sk-weekly-${i}`,
+    name: "",
+    reset: "WEEKLY",
+    iconUrl: null,
+    difficulties: [],
+  })),
+];
+
+const SKELETON_CHARACTERS = Array.from({ length: VISIBLE_COLUMNS }, (_, i) => ({
+  id: `sk-char-${i}`,
+  name: "",
+  spriteImgUrl: null,
+}));
+
+export type BossBand = { cadence: string; inCadence: Boss[]; progress: ClearProgress };
+
+/**
+ * The rows, the columns, and each cadence's figure, worked out once.
+ *
+ * The totals in the gutter and the marks inside the table are two readings of the same numbers,
+ * and two components draw them now, so neither may work them out for itself.
+ */
+export function bossBands({
+  bosses,
+  characters,
+  clearsByCharacter,
+  skipsByCharacter,
+  historyWeek,
+  loading,
+}: {
+  bosses: Boss[];
+  characters: Pick<Character, "id" | "name" | "spriteImgUrl">[];
+  clearsByCharacter: BossClearsByCharacter;
+  skipsByCharacter?: BossSkipsByCharacter;
+  historyWeek?: string | null;
+  loading?: boolean;
+}): {
+  rows: Boss[];
+  columns: Pick<Character, "id" | "name" | "spriteImgUrl">[];
+  bands: BossBand[];
+} {
+  // Same table either way, so the loading and loaded layouts cannot drift apart.
+  const rows = loading && bosses.length === 0 ? SKELETON_BOSSES : bosses;
+  const columns = loading && characters.length === 0 ? SKELETON_CHARACTERS : characters;
+
+  // Indexed per character; see cellState for why the four cell states are four.
+  const byCharacter = new Map<string, Map<string, boolean>>();
+  for (const [characterId, clears] of Object.entries(clearsByCharacter)) {
+    byCharacter.set(characterId, indexClears(clears));
+  }
+  const skipsBy = indexSkips(skipsByCharacter ?? {});
+
+  // A past week can only answer for weekly bosses. Seven daily periods sit inside one week, so
+  // there is no single "was Zakum cleared that week" to put in a cell, and a week can straddle two
+  // months. Drawing one of several true answers as if it were the only one is the confident wrong
+  // number this project exists to avoid, so the other two cadences are absent instead. The backend
+  // returns weekly rows only for these views (see weeklyClearsFor); this keeps the empty MONTHLY
+  // and DAILY bands off the table to match.
+  const shown = historyWeek ? CADENCE_ORDER.filter((c) => c === "WEEKLY") : CADENCE_ORDER;
+  const cadences = shown.filter((c) => rows.some((b) => b.reset === c));
+
+  // A past week brings no routine marks, so it gets a count with no denominator. See clearProgress.
+  const routineKnown = !historyWeek;
+
+  // Counted per cadence and never pooled across them, for the reason the bands exist at all: a
+  // monthly and a weekly are not counting the same span of time, so one figure over both would be
+  // a total of two different things.
+  const bands = cadences.map((cadence) => {
+    const inCadence = rows.filter((boss) => boss.reset === cadence);
+    return {
+      cadence,
+      inCadence,
+      // Summed over the roster, so the denominator is one per character per boss they run and not
+      // the number of bosses. The week's work is a run, and a boss six characters run is six of
+      // them.
+      progress: clearProgress(
+        columns.flatMap((character) =>
+          inCadence.map((boss) =>
+            cellState(byCharacter.get(character.id), boss.bossKey, skipsBy.get(character.id)),
+          ),
+        ),
+        routineKnown,
+      ),
+    };
+  });
+
+  return { rows, columns, bands };
 }

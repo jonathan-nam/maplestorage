@@ -39,7 +39,7 @@ export function RowSale({
   busy: boolean;
   onSell: (row: LotRow, body: SellLootBody) => Promise<void>;
 }) {
-  // Cards only. The "Record Sale" heading covers these, the lots and the coupon piles, so it
+  // Cards only. The "Outstanding Sales" heading covers these, the lots and the coupon piles, so it
   // belongs to whatever draws all three.
   if (rows.length === 0) return null;
   return (
@@ -118,9 +118,9 @@ function RowCard({
       </header>
 
       <LootSaleForm
-        // The seats that RAN the week it fell, which `shares` already has one key each for. Not the
-        // party as it stands now: the sale route refuses a seller who was not there.
-        ran={party.seats.filter((s) => s.id in row.shares)}
+        // The seats that RAN the week it fell, not the party as it stands now: the sale route
+        // refuses a seller who was not there.
+        ran={row.ran}
         busy={busy}
         onSell={(body) => void sell(body)}
       />

@@ -102,6 +102,7 @@ data class AddSettlementDebtRequest(
 fun Route.settlementDebtRoutes() {
     get { listDebts() }
     post { addDebtRoute() }
+    post("/offset") { offsetSharesRoute() }
     delete("/{debtId}") { deleteDebtRoute() }
 }
 
@@ -208,7 +209,7 @@ private suspend fun RoutingContext.deleteDebtRoute() {
  * also match a share built from one row's loot and another's member, which is a refusal nobody could
  * explain. Must run inside a transaction.
  */
-private fun anyDischarged(shares: List<Pair<Uuid, Uuid>>): Boolean {
+internal fun anyDischarged(shares: List<Pair<Uuid, Uuid>>): Boolean {
     if (shares.isEmpty()) return false
     return SettlementDebtPayout
         .selectAll()

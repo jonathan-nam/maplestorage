@@ -7,12 +7,15 @@ import { formatMesos, parseMesos } from "@/lib/drop-split";
 import {
   type LotDrop,
   type LotSaleBody,
+  type LotShares,
+  lotRosters,
   lotSaleBody,
   nearestCounts,
   priceLot,
   proposeLot,
 } from "@/lib/lot-sale";
 import { formatDropped } from "@/lib/loot";
+import { parseShares, sharePercents } from "@/lib/shares";
 import type { Boss } from "@/types/boss";
 import type { Party } from "@/types/party";
 
@@ -39,7 +42,7 @@ export function LotSale({
   busy: boolean;
   onSell: (body: LotSaleBody) => Promise<void>;
 }) {
-  // Cards only. The "Record Sale" heading covers these AND the coupon piles, so it belongs to
+  // Cards only. The "Outstanding Sales" heading covers these AND the coupon piles, so it belongs to
   // whatever draws both, not to one of them.
   if (drops.length === 0) return null;
   return (
@@ -75,6 +78,8 @@ function LotCard({
   const [amount, setAmount] = useState("");
   const [amountBasis, setAmountBasis] = useState("LISTED");
   const [splitMethod, setSplitMethod] = useState("FAIR");
+  // What each name takes, per roster, as typed. Every box opens on one share: see evenShares().
+  const [shares, setShares] = useState<Record<string, Record<string, string>>>({});
   const [refusal, setRefusal] = useState<string | null>(null);
 
   const asked = Number(count.trim());
@@ -92,16 +97,34 @@ function LotCard({
 
   // The method only matters where there is somebody to divide with. Every row solo means one seat,
   // and the two methods are the same arithmetic on it: see the note in components/loot-row.tsx.
-  const splits = drop.queue.some((row) => Object.keys(row.shares).length > 1);
-  const ready = proposal !== null && proposal.rows.length > 0 && total !== null;
+  const splits = drop.queue.some((row) => row.ran.length > 1);
+
+  // One set of boxes per roster among the rows this sale would cover, so the ratio is typed once
+  // for a pile the same people ran. Off the proposal rather than the queue: the boxes say what
+  // would be written, and the queue's other rows are not part of this sale.
+  const rosters = proposal ? lotRosters(proposal.rows) : [];
+  const shareOf = (key: string, name: string) => shares[key]?.[name] ?? "1";
+  const entered = rosters.map((r) => r.names.map((name) => parseShares(shareOf(r.key, name))));
+  const sharesReadable = entered.every((counts) => counts.every((count) => count !== null));
+  const typed: LotShares = Object.fromEntries(
+    rosters.map((r, i) => [
+      r.key,
+      Object.fromEntries(r.names.map((name, j) => [name, entered[i]?.[j] ?? 1])),
+    ]),
+  );
+
+  const ready = proposal !== null && proposal.rows.length > 0 && total !== null && sharesReadable;
 
   async function sell() {
     if (!ready) return;
     setRefusal(null);
     try {
-      await onSell(lotSaleBody(drop.dropKey, total!, amountBasis, splitMethod, proposal!.rows));
+      await onSell(
+        lotSaleBody(drop.dropKey, total!, amountBasis, splitMethod, proposal!.rows, typed),
+      );
       setCount("");
       setAmount("");
+      setShares({});
     } catch (e) {
       setRefusal(e instanceof Error ? e.message : "That didn't save.");
     }
@@ -174,6 +197,40 @@ function LotCard({
             <option value="LAZY">lazy split</option>
           </select>
         )}
+        {rosters.length > 0 && (
+          <div className="ledger-splits">
+            <h4 className="loot-group-title is-config">Splits</h4>
+            {rosters.map((roster, i) => {
+              const percent = entered[i]?.every((count) => count !== null)
+                ? sharePercents(entered[i]?.map((count) => count ?? 0) ?? [])
+                : null;
+              return (
+                <div key={roster.key} className="loot-share-inputs">
+                  {roster.names.map((name, j) => (
+                    <span key={name} className="loot-share-input">
+                      <span className="loot-share-name">{name}</span>
+                      <input
+                        className="split-input loot-count-input"
+                        value={shareOf(roster.key, name)}
+                        onChange={(e) =>
+                          setShares({
+                            ...shares,
+                            [roster.key]: { ...shares[roster.key], [name]: e.target.value },
+                          })
+                        }
+                        aria-label={`Shares for ${name}`}
+                        inputMode="numeric"
+                        maxLength={2}
+                        placeholder="1"
+                      />
+                      {percent && <span className="loot-share-pct">{percent[j]}%</span>}
+                    </span>
+                  ))}
+                </div>
+              );
+            })}
+          </div>
+        )}
         <button type="submit" className="party-save" disabled={busy || !ready}>
           {proposal && proposal.rows.length > 0
             ? `Sell ${proposal.rows.length === 1 ? "this drop" : `these ${proposal.rows.length}`}`
@@ -197,7 +254,15 @@ function LotCard({
                     {row.units > 1 && <span className="loot-count"> x{row.units}</span>}
                   </span>
                   <span className="loot-meta">
-                    {row.sellerName} · {formatDropped(row.droppedOn)}
+                    {/* Who ran it, but only where the card shows more than one set of boxes: with
+                        two rosters on screen, nothing else says which one this row divides by. */}
+                    {[
+                      row.sellerName,
+                      formatDropped(row.droppedOn),
+                      rosters.length > 1 ? row.ran.map((s) => s.name).join(", ") : null,
+                    ]
+                      .filter(Boolean)
+                      .join(" · ")}
                   </span>
                   {amounts && (
                     <span className="lot-row-amount">{formatMesos(amounts[i] ?? 0, true)}</span>

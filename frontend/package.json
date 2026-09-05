@@ -2,7 +2,7 @@
   "name": "sharpeyes-frontend",
   "version": "0.1.0",
   "private": true,
-  "packageManager": "pnpm@11.12.0",
+  "packageManager": "pnpm@11.25.0",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -16,6 +16,7 @@
     "marks": "node scripts/build-tab-marks.mjs"
   },
   "dependencies": {
+    "@vercel/analytics": "^2.0.1",
     "better-auth": "1.7.0",
     "next": "^16.2.10",
     "react": "^19.1.0",

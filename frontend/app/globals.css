@@ -2409,6 +2409,12 @@ button.link:disabled {
 
 .boss-col-head {
   text-align: left;
+  vertical-align: middle;
+  /* Centred on the SPRITES, not on the cell. The cell is a sprite plus the IGN under it, so
+     centring in the whole of it lands the bands half a line low and hard against the rule at the
+     bottom. The extra bottom padding is that line, which lifts the centre back onto the art.
+     Measured; see boss-bands-css.test.ts. */
+  padding-bottom: 28px;
 }
 
 /* A long IGN is cut rather than allowed to widen its column: the columns are a fixed stride now,
@@ -2476,49 +2482,44 @@ button.link:disabled {
   background: var(--bg);
 }
 
-/* Each band's count, under the heads and above the rows it counts. It scrolls away with them: the
-   heads are what is held, being the thing a mark cannot be read without. */
+/* Each band's count, in the corner cell of the column heads. It had a strip of its own between the
+   heads and the rows, which pushed the table two bands further down the page for something the head
+   row already had room for: this cell is as tall as a 96px sprite and held the word "Boss".
+
+   Name and figure on one line, the bar on its own beneath, because the cell is 214px wide and a bar
+   sharing the line with them had nothing left to draw in. */
 .boss-band-totals {
-  /* ONE grid over both bands, not a grid per band. Sized per band, the label column took its own
-     width and the two bars came out different lengths, which is a difference that means nothing:
-     what a bar says is its fill, and two of them are read against each other. */
-  display: grid;
-  grid-template-columns: max-content 1fr;
-  /* The bar against the middle of the two lines it belongs to, not the top one. */
-  align-items: center;
-  gap: 10px 12px;
-  /* Less below than above: what follows is the band label, which brings its own. */
-  padding: 10px 0 6px;
-  border-bottom: 1px solid var(--line);
-  color: var(--muted);
-  font-size: var(--text-sm);
-}
-
-/* No box of its own: its two children are laid out by the grid above, which is what puts the two
-   bands on one set of columns. The bar takes the second, so it ends on the same edge as the table
-   below whatever the label beside it measures. */
-.boss-band-row {
-  display: contents;
-}
-
-/* The band's name over its figure, one column. The name is what the figure is of, so it is not
-   worth a column of separation. */
-.boss-band-label {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 7px;
+  color: var(--muted);
+  font-size: var(--text-sm);
+  font-weight: 400;
+  white-space: nowrap;
+}
+
+.boss-band-row {
+  display: grid;
+  grid-template-columns: auto auto;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 3px 8px;
 }
 
 .boss-band-name {
   color: var(--muted-2);
   font-weight: 600;
-  white-space: nowrap;
 }
 
 .boss-band-count {
-  white-space: nowrap;
   /* Two bands under each other, so 6/17 and 12/17 have to line up. */
   font-variant-numeric: tabular-nums;
+}
+
+/* Under both, so the two bars are the same length and can be read against each other. */
+.boss-band-row > .boss-progress-bar,
+.boss-band-row > span[aria-hidden]:empty {
+  grid-column: 1 / -1;
 }
 
 /* A second reading of the figure beside it, never a replacement. It was 56px and inline, on the
@@ -2747,13 +2748,6 @@ button.link:disabled {
   color: var(--muted-2);
 }
 
-/* A way out to the routine page, sitting with the week picker and the clocks. A link and not a
-   button: it goes somewhere, and the matrix has no mode for it to put the page into. */
-.boss-routine-link {
-  color: var(--muted);
-  font-size: var(--text-base);
-}
-
 /* One character's routine: a checklist of the catalog, grouped by cadence like the matrix. */
 .routine {
   margin-top: 16px;
@@ -2837,8 +2831,10 @@ button.link:disabled {
   font-size: var(--text-base);
 }
 
-/* Week picker on the left, reset clocks on the right, above the table. They wrap onto two lines on
-   a narrow viewport rather than squeezing, since both are text that has to stay readable. */
+/* The week picker, above the table. It is the only thing left in this row: the routine link went
+   up beside the title (#592) and the reset clocks out to the gutter, so the row is one control on
+   the left and space. It keeps the flex layout because a second control here is one commit away.
+   See .page-gutter. */
 .boss-controls {
   display: flex;
   flex-wrap: wrap;
@@ -2846,6 +2842,14 @@ button.link:disabled {
   justify-content: space-between;
   gap: 8px 16px;
   margin-bottom: 10px;
+}
+
+/* Tighter above the matrix than above anything else, because the head row is not text: it opens
+   with 6px of cell padding and then a sprite box taller than the art standing in it, so the full
+   gap read as a hole between the countdown and the characters. Only where the matrix actually
+   follows; Party View puts a toolbar here and still wants the whole 10px. */
+.boss-controls:has(+ .boss-matrix-wrap) {
+  margin-bottom: 2px;
 }
 
 .week-stepper {
@@ -2903,36 +2907,75 @@ button.link:disabled {
 
 .reset-timer {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 12px;
   margin: 0;
   font-size: var(--text-base);
 }
 
-.reset-lead,
-.reset-minor {
-  display: inline-flex;
+/* Weekly over monthly, in a grid rather than two rows of their own so the countdowns share a
+   column: the labels are different widths and stacking them flex left the values ragged. */
+.reset-rows {
+  display: inline-grid;
+  grid-template-columns: auto auto;
   align-items: baseline;
-  gap: 5px;
+  gap: 2px 5px;
 }
 
-/* Weekly is the one that matters for 16 of the 19 bosses, so it is the one that reads first. */
+.reset-lead,
+.reset-minor {
+  display: contents;
+}
+
+/* Weekly is the one that matters for 16 of the 19 bosses, so it is the one that reads first.
+   Colour alone, never weight: the two lines are read as a pair of columns, and bold digits are
+   wider than regular ones even in a tabular face, so a bold row cannot line up with a plain one. */
 .reset-lead .reset-value {
   color: var(--ink);
   font-size: var(--text-base);
-  font-weight: 600;
 }
 
 .reset-minor .reset-value {
   color: var(--muted);
 }
 
+/* Never wrapped: the row is sized to hold this whole, and a label broken over two lines is the
+   first sign that it is not. */
 .reset-label {
   color: var(--muted-2);
+  white-space: nowrap;
 }
 
-/* Tabular figures, or the countdown jostles its neighbours every time a digit changes width. */
+/* One unit of the countdown, in a box of a fixed width. This is what holds the line still.
+   Unpadded, "9s" becomes "10s" and every character to its left shifts, which reads as the whole
+   countdown twitching sideways several times a minute. Tabular figures were already here and do
+   not help: they equalise digit WIDTHS, and what changes is the number of characters.
+
+   3.9ch is the widest a unit gets ("59m", whose letter is the broadest of d/h/m/s) plus a gap;
+   at 3.5ch the units ran together. Measured in Chromium at --text-base, where 1ch is 8.3px. */
+.reset-part {
+  display: inline-block;
+  width: 3.9ch;
+  text-align: right;
+}
+
+/* Two digits reserved. Nothing in countdownParts pads the text, so this is the whole of it. No
+   number here reaches three digits because a month is the longest cadence tracked, which
+   reset-countdown.test.ts asserts rather than assumes. */
+.reset-num {
+  display: inline-block;
+  min-width: 2ch;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Fixed, never sized to its content: a column that grew with the longer of the two values dragged
+   the label and the UTC across the row every time a digit was gained. Four units wide and
+   right-aligned, so a countdown that has run out of days keeps the column and lines its hours up
+   under the other row's hours. */
 .reset-value {
+  width: calc(4 * 3.9ch);
+  text-align: right;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
@@ -3627,6 +3670,20 @@ button.link:disabled {
   cursor: default;
 }
 
+/* The + that submits Add Party's row. Square and the height of a .split-input beside it (15px text
+   in 9px padding inside a 1px border), so the row reads as one control rather than boxes with an
+   afterthought. 38px also clears WCAG 2.5.8's 24px target. */
+.party-add-icon {
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--text-xl);
+  line-height: 1;
+}
+
 .party-editor {
   display: flex;
   flex-direction: column;
@@ -3778,14 +3835,52 @@ button.link:disabled {
   flex: none;
 }
 
-/* Add Drop, and Add Party on the parties page, ruled off from the list under it. A form above and a
-   list of what it has recorded below is a real boundary, which is why this is here and why Record
-   Sale does NOT have one: everything on that tab either side of a rule would be another card taking
-   another sale. */
+/* Add Drop, ruled off from the list under it. A form above and a list of what it has recorded below
+   is a real boundary, which is why this is here and why Record Sale does NOT have one: everything on
+   that tab either side of a rule would be another card taking another sale. */
 .add-panel {
   padding-bottom: 22px;
   border-bottom: 1px solid var(--line);
   margin-bottom: 26px;
+}
+
+/* Add Party draws the same boundary as a card rather than a rule, because it is not the page's
+   first thing: it sits between the week stepper and Filter Options, where a rule reads as the end
+   of the block above it. */
+.add-party {
+  margin-bottom: 26px;
+}
+
+.add-party-card {
+  margin-top: 10px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+}
+
+/* Label over box, so naming a field cannot push its own box out of the row. Bottom-aligned, which
+   is what puts the + on the boxes' line and not on the labels'. */
+.add-party-fields {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px;
+}
+
+.add-party-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: var(--text-base);
+  color: var(--muted);
+}
+
+/* One height for a select and an input alike, which the browser does not give: without it the
+   taller box lifts its own label out of line with the rest. Matches .party-add-icon's square. */
+.add-party-field .split-input {
+  height: 38px;
+  box-sizing: border-box;
 }
 
 /* The nights this configuration did not run, behind their own count. Ruled off because what is
@@ -3844,6 +3939,11 @@ button.link:disabled {
    heading's margin would double it. Specificity beats .party-row-panel .loot-group-title, which is
    about the same headings when they were siblings of the row rather than in it. */
 .loot-row .loot-group-title.is-config {
+  margin: 0;
+}
+
+/* The same heading over the sale form's share boxes, which the form's own gap already spaces. */
+.loot-sale-form .loot-group-title.is-config {
   margin: 0;
 }
 
@@ -5229,14 +5329,6 @@ button.link:disabled {
   margin: 0;
 }
 
-/* What this week's list leaves out, and the way to it. Muted and last: it is there so the panel
-   cannot be read as the whole pool, not to ask for anything. */
-.party-loot-earlier {
-  align-self: flex-start;
-  font-size: var(--text-base);
-  color: var(--muted);
-}
-
 /* The roster on the left, the row's own controls in the panel's top corner. */
 .party-row-roster {
   display: flex;
@@ -5267,7 +5359,24 @@ button.link:disabled {
   flex-wrap: wrap;
   align-items: center;
   gap: 6px 16px;
-  margin-bottom: 8px;
+}
+
+/* Under the Add Party form, not above it: the form is one thing and what the list shows is another.
+   Same boundary .add-panel draws on the Drop Log. */
+.party-filters {
+  margin-bottom: 18px;
+}
+
+.party-filters-title {
+  margin: 0 0 12px;
+  font-size: var(--text-lg);
+  color: var(--ink-strong);
+}
+
+/* Pushed to the far edge, so the two groups read as two questions rather than one long strip. On a
+   narrow screen the row wraps and this one lands right-aligned on its own line. */
+.party-toolbar-tabs .basis-row-end {
+  margin-left: auto;
 }
 
 /* A row of headline figures, above the detail that produced them. Shared by the Wallet and the
@@ -5312,12 +5421,6 @@ button.link:disabled {
 
 /* What the figure above is measuring. Load-bearing on the Drop Log, where "sold for" means what
  * landed in inventories and NOT the prices as typed. See lib/drop-log.ts. */
-.stat-note {
-  color: var(--muted-2);
-  font-size: var(--text-sm);
-  line-height: 1.4;
-}
-
 /* A breakdown row with the nights behind it on hover. Dotted, the way a term with a definition is
    marked, so the hover is offered rather than left to be discovered. */
 .loot-name.has-detail {
@@ -6350,6 +6453,19 @@ button.link:disabled {
 /* The sale box takes a price, so it is wider than the count beside it. */
 .ledger-sale .split-input:not(.loot-count-input) {
   width: 120px;
+}
+
+/* The share boxes for the rows a lot would cover. Its own row in the form's wrap, so the price line
+   keeps its line and the button keeps the next one. */
+.ledger-splits {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex-basis: 100%;
+}
+
+.ledger-splits .loot-group-title.is-config {
+  margin: 0;
 }
 
 /* A pile whose books are closed. Said rather than hidden: these bosses drop vestiges on every clear, so

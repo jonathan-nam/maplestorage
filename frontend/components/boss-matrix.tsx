@@ -2,9 +2,11 @@
 
 import { type CSSProperties, useRef, useState } from "react";
 
+import { BossBands } from "@/components/boss-bands";
 import { apiAssetUrl, spriteUrl } from "@/lib/api";
 import {
-  bandCount,
+  VISIBLE_COLUMNS,
+  bossBands,
   cadenceLabel,
   cellState,
   cellStateLabel,
@@ -27,44 +29,6 @@ import type { Character } from "@/types/character";
 // is not enough for a name and forces rotated headers. Characters are the smaller axis for almost
 // everyone, and it is also how the same information is kept by hand today
 // (test-fixtures/occluded/boss matrix.png), so the layout matches how it is already read.
-
-// The planner itself groups by cadence (MONTHLY / WEEKLY / DAILY, see test-fixtures/occluded/boss
-// planner.png), and the grouping is load-bearing here rather than decorative: two bosses in one
-// matrix are not counting the same span of time, and a check under MONTHLY means something quite
-// different from a check under WEEKLY. DAILY stays in the order though the tracker no longer keeps
-// dailies: the list is filtered to the cadences actually present, so it costs nothing and is what
-// this would need if they ever come back.
-const CADENCE_ORDER = ["MONTHLY", "WEEKLY", "DAILY"];
-
-// The totals read the other way up from the table. The table follows the planner, which puts the
-// rarest reset first; the totals are read at a glance, and the glance is nearly always at the week.
-const TOTALS_ORDER = ["WEEKLY", "MONTHLY", "DAILY"];
-
-// On a cold load neither the catalog nor the roster has arrived, so the loading state has nothing
-// real to lay out. These stand in: the shape is right (one monthly and a run of weeklies, which is
-// what the catalog actually looks like) even though the exact counts are not known client side
-// until /api/bosses answers. Being a row or two out for one round-trip is a cosmetic difference;
-// rendering an empty table is not.
-const SKELETON_BOSSES: Boss[] = [
-  { bossKey: "sk-monthly", name: "", reset: "MONTHLY", iconUrl: null, difficulties: [] },
-  ...Array.from({ length: 8 }, (_, i) => ({
-    bossKey: `sk-weekly-${i}`,
-    name: "",
-    reset: "WEEKLY",
-    iconUrl: null,
-    difficulties: [],
-  })),
-];
-
-// Four characters on screen at once, and the rest are scrolled to. A roster of ten split a 730px
-// column into 53px slices, which is narrower than the sprite that has to sit in one.
-const VISIBLE_COLUMNS = 4;
-
-const SKELETON_CHARACTERS = Array.from({ length: VISIBLE_COLUMNS }, (_, i) => ({
-  id: `sk-char-${i}`,
-  name: "",
-  spriteImgUrl: null,
-}));
 
 export function BossMatrix({
   bosses,
@@ -96,9 +60,17 @@ export function BossMatrix({
   /** A tick is in flight. Ticks serialise, so the matrix always draws what the server last said. */
   busy?: boolean;
 }) {
-  // Same table either way, so the loading and loaded layouts cannot drift apart.
-  const rows = loading && bosses.length === 0 ? SKELETON_BOSSES : bosses;
-  const columns = loading && characters.length === 0 ? SKELETON_CHARACTERS : characters;
+  // Rows, columns and band figures all come from one place, shared with the totals BossBands
+  // draws in the corner of the heads. Two counts of the same clears is the disagreement this
+  // avoids.
+  const { rows, columns, bands } = bossBands({
+    bosses,
+    characters,
+    clearsByCharacter,
+    skipsByCharacter,
+    historyWeek,
+    loading,
+  });
 
   // The row band alone answers "which boss", but not "which character": the header sits up to 17
   // rows away, so reading a mark still means tracing a column by eye. CSS can do a row on its own
@@ -117,48 +89,18 @@ export function BossMatrix({
   }
   const skipsBy = indexSkips(skipsByCharacter ?? {});
 
-  // A past week can only answer for weekly bosses. Seven daily periods sit inside one week, so
-  // there is no single "was Zakum cleared that week" to put in a cell, and a week can straddle two
-  // months. Drawing one of several true answers as if it were the only one is the confident wrong
-  // number this project exists to avoid, so the other two cadences are absent instead. The backend
-  // returns weekly rows only for these views (see weeklyClearsFor); this keeps the empty MONTHLY
-  // and DAILY bands off the table to match.
-  const shown = historyWeek ? CADENCE_ORDER.filter((c) => c === "WEEKLY") : CADENCE_ORDER;
-  const cadences = shown.filter((c) => rows.some((b) => b.reset === c));
-
   // How many screens wide the table is: 1 up to four characters, 2 at eight, and so on. The width
   // itself is the stylesheet's, which is the only place that knows how much of the column the boss
   // names take. This is the part it cannot know.
   const roster = Math.max(columns.length, 1);
   const span = roster / Math.min(roster, VISIBLE_COLUMNS);
 
-  // Counted per cadence and never pooled across them, for the reason the bands exist at all: a
-  // monthly and a weekly are not counting the same span of time, so one figure over both would be
-  // a total of two different things.
-  //
   // A past week brings no routine marks, so it gets a count with no denominator. See clearProgress.
   const routineKnown = !historyWeek;
   const statesOf = (characterId: string, list: Boss[]) =>
     list.map((boss) =>
       cellState(byCharacter.get(characterId), boss.bossKey, skipsBy.get(characterId)),
     );
-
-  // One band, computed once. The totals above the table and the rows inside it are two readings of
-  // the same figures, so neither may work them out for itself.
-  const bands = cadences.map((cadence) => {
-    const inCadence = rows.filter((boss) => boss.reset === cadence);
-    return {
-      cadence,
-      inCadence,
-      // Summed over the roster, so the denominator is one per character per boss they run and not
-      // the number of bosses. The week's work is a run, and a boss six characters run is six of
-      // them.
-      progress: clearProgress(
-        columns.flatMap((character) => statesOf(character.id, inCadence)),
-        routineKnown,
-      ),
-    };
-  });
 
   // Both tables lay their columns out from these rather than from their first row, which is what
   // keeps the split head over the marks it heads. A fixed layout reads its widths off the first
@@ -199,8 +141,13 @@ export function BossMatrix({
           {columnWidths}
           <thead>
             <tr>
+              {/* The word "Boss" said what the column below it holds, which is boss names: it was
+                  a label on the self-evident, in a cell as tall as a 96px sprite. The band figures
+                  take the space instead. The column still needs a name for a reader who cannot see
+                  that, hence the hidden one. */}
               <th className="boss-col-head" scope="col">
-                Boss
+                <span className="visually-hidden">Boss</span>
+                <BossBands bands={bands} loading={loading} />
               </th>
               {columns.map((character) => (
                 <th
@@ -231,39 +178,6 @@ export function BossMatrix({
         </table>
       </div>
 
-      {/* Each band's count, under the heads and above the rows it counts. Weekly leads though the
-          table leads with monthly, being the band the week is spent in. */}
-      <div className="boss-band-totals">
-        {[...bands]
-          .sort((a, b) => TOTALS_ORDER.indexOf(a.cadence) - TOTALS_ORDER.indexOf(b.cadence))
-          .map(({ cadence, progress }) => (
-            <div key={cadence} className="boss-band-row">
-              {/* The band and its figure in one column, so the figure is read where it is said
-                  rather than at the far end of the bar. */}
-              <span className="boss-band-label">
-                <span className="boss-band-name">{cadenceLabel(cadence)}</span>
-                {/* The bar is a picture of the figure and the figure has dropped the word, so the
-                    words go here for a reader with neither. */}
-                {!loading && <span className="visually-hidden">{progressLabel(progress)}</span>}
-                <span className="boss-band-count" aria-hidden="true">
-                  {loading ? <span className="skeleton sk-line" /> : bandCount(progress)}
-                </span>
-              </span>
-              {/* Never the bar alone. It is a second reading of the figure beside it, so a
-                  proportion nobody can state (a past week) keeps the space and draws no track:
-                  an empty track is a bar reading zero. The figures are withheld while loading for
-                  the same reason, the skeleton's rows being invented (see SKELETON_BOSSES). */}
-              {!loading && progress.total ? (
-                <span className="boss-progress-bar" aria-hidden="true">
-                  <span style={{ width: `${(progress.cleared / progress.total) * 100}%` }} />
-                </span>
-              ) : (
-                <span aria-hidden="true" />
-              )}
-            </div>
-          ))}
-      </div>
-
       {/* The heads above are dragged along by hand. They are in a box of their own now, so the
           browser no longer scrolls the two together. */}
       <div
@@ -277,9 +191,9 @@ export function BossMatrix({
           {bands.map(({ cadence, inCadence }) => {
             return (
               <tbody key={cadence}>
-                {/* The name alone: the band's count is in the totals above, and saying it twice
-                  would be one of the two going stale. What is left is the mark between one band
-                  and the next, which the table still has to carry. */}
+                {/* The name alone: the band's count is in the gutter, and saying it twice would
+                  be one of the two going stale. What is left is the mark between one band and the
+                  next, which the table still has to carry. */}
                 <tr className="boss-cadence-row">
                   <th className="boss-cadence" scope="colgroup" colSpan={columns.length + 1}>
                     {cadenceLabel(cadence)}
@@ -437,7 +351,7 @@ export function BossMatrix({
         </table>
       </div>
 
-      {!loading && historyWeek && cadences.length === 0 && (
+      {!loading && historyWeek && bands.length === 0 && (
         <p className="boss-empty-week">No planner was captured this week.</p>
       )}
 

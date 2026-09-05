@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import {
   type CrossedReset,
+  countdownParts,
   formatCountdown,
   msUntil,
   resetToAnnounce,
@@ -79,15 +80,31 @@ export function ResetTimer({
 
   return (
     <p className="reset-timer">
-      {cadences.map(({ cadence, at }, i) => {
-        const remaining = msUntil(at, nowOnServer);
-        return (
-          <span key={cadence} className={i === 0 ? "reset-lead" : "reset-minor"}>
-            <span className="reset-label">{LABELS[cadence] ?? cadence}</span>
-            <span className="reset-value">{formatCountdown(remaining)}</span>
-          </span>
-        );
-      })}
+      <span className="reset-rows">
+        {cadences.map(({ cadence, at }, i) => {
+          const remaining = msUntil(at, nowOnServer);
+          const parts = countdownParts(remaining);
+          return (
+            <span key={cadence} className={i === 0 ? "reset-lead" : "reset-minor"}>
+              <span className="reset-label">{LABELS[cadence] ?? cadence}</span>
+              {/* Each number in a box two digits wide, so 9s becoming 10s does not shove the rest
+                  of the line sideways. The text is exactly formatCountdown's; only the spacing is
+                  the stylesheet's. A passed reset has no parts and says so in a word. */}
+              <span className="reset-value">
+                {parts.length === 0
+                  ? formatCountdown(remaining)
+                  : parts.map((part, at_) => (
+                      <span key={part.unit} className="reset-part">
+                        {at_ > 0 ? " " : null}
+                        <span className="reset-num">{part.value}</span>
+                        {part.unit}
+                      </span>
+                    ))}
+              </span>
+            </span>
+          );
+        })}
+      </span>
       <span className="reset-zone" title="Bosses reset at 00:00 UTC; weeklies on Thursday.">
         UTC
       </span>
