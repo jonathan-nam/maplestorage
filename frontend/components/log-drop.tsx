@@ -62,7 +62,7 @@ export function LogDrop({
   const pool = configFor(parties, character.id, chosen);
 
   return (
-    <section className="loot-pool add-panel">
+    <section className="loot-pool add-section">
       <h2 className="loot-pool-title">Add Drop</h2>
 
       <DropPicker
@@ -71,35 +71,40 @@ export function LogDrop({
         table={dropTables[chosen]}
         difficulty={pool?.difficulty}
         busy={busy}
+        card
         lead={
           <>
             {characters.length > 1 && (
+              <label className="add-field">
+                <span>Character</span>
+                <select
+                  className="split-input"
+                  value={character.id}
+                  onChange={(e) => setCharacterId(e.target.value)}
+                >
+                  {characters.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+            <label className="add-field">
+              <span>Boss</span>
               <select
                 className="split-input"
-                value={character.id}
-                onChange={(e) => setCharacterId(e.target.value)}
-                aria-label="Whose drop"
+                value={chosen}
+                onChange={(e) => setBossKey(e.target.value)}
               >
-                {characters.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
+                <option value="">pick a boss</option>
+                {bosses.map((boss) => (
+                  <option key={boss.bossKey} value={boss.bossKey}>
+                    {boss.name}
                   </option>
                 ))}
               </select>
-            )}
-            <select
-              className="split-input"
-              value={chosen}
-              onChange={(e) => setBossKey(e.target.value)}
-              aria-label="Which boss"
-            >
-              <option value="">pick a boss</option>
-              {bosses.map((boss) => (
-                <option key={boss.bossKey} value={boss.bossKey}>
-                  {boss.name}
-                </option>
-              ))}
-            </select>
+            </label>
           </>
         }
         onAdd={(body) =>

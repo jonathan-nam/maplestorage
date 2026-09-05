@@ -26,8 +26,11 @@ describe("the Drop Log's loading state is the page's shape", () => {
   // passed nothing and only proved the test had not been run.
   const OWN = ["droplog-sections", "party-toolbar", "droplog-list"];
   const BORROWED = [
-    ["add-panel", join("components", "log-drop.tsx")],
-    ["loot-add", join("components", "drop-picker.tsx")],
+    ["add-section", join("components", "log-drop.tsx")],
+    ["add-card", join("components", "drop-picker.tsx")],
+    ["add-fields", join("components", "drop-picker.tsx")],
+    // The labels are half the panel's height now, so a skeleton without them jumps by a line.
+    ["add-field", join("components", "drop-picker.tsx")],
   ] as const;
 
   it.each(OWN)("draws the page's own %s", (cls) => {
