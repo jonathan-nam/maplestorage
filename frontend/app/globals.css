@@ -2452,12 +2452,25 @@ button.link:disabled {
    Only on a definite clear, see columnFullyCleared: a character who has reported nothing keeps
    their full weight, because their week is unanswered rather than done. */
 .boss-table .boss-char-head.is-col-cleared {
-  opacity: 0.65;
+  opacity: 0.5;
   transition: opacity 0.12s ease;
+}
+
+/* The sprite is the one part of the head with colour in it, so opacity alone leaves a finished
+   character the brightest thing in their column. Desaturating takes it the rest of the way, on the
+   same pair of numbers a finished row's portrait uses. The IGN is not in the filter: it is grey
+   already, and dimming past 0.5 is where a column stops being readable. */
+.boss-table .boss-char-head.is-col-cleared .boss-char-sprite {
+  filter: saturate(0.3);
+  transition: filter 0.12s ease;
 }
 
 .boss-table .boss-char-head.is-col-cleared.is-col-hover {
   opacity: 1;
+}
+
+.boss-table .boss-char-head.is-col-cleared.is-col-hover .boss-char-sprite {
+  filter: none;
 }
 
 /* The cadence band. A row of its own rather than a caption per boss: it is the
