@@ -672,7 +672,7 @@ describe("the picker the card draws", () => {
   });
 
   it("gates the form on the debt, so a pile that owes nobody is not asked to type", () => {
-    expect(source).toMatch(/\{outstanding > 0 \|\| entering \? \(\s*<form/);
+    expect(source).toMatch(/\{outstanding > 0 \? \(\s*<form/);
   });
 
   it("never gates it on the count, which is the pile and not the question", () => {
@@ -683,11 +683,12 @@ describe("the picker the card draws", () => {
     expect(source).not.toContain("unaccounted(");
   });
 
-  it("says the boxes are gone and opens them again in place", () => {
-    // Both halves. The sentence without the control is a pile of coupons you can no longer sell
-    // through the app, and the control somewhere else is a click whose effect is off screen.
+  it("says the boxes are gone, and offers nothing that would open them again", () => {
+    // The card states the position and takes no entry. A control that reopened the boxes went with
+    // the one on the page: see the block below for what that costs.
     expect(source).toContain("No vestiges outstanding");
-    expect(source).toMatch(/setEntering\(true\)/);
+    expect(source).not.toMatch(/setEntering/);
+    expect(source).not.toContain("Record a sale");
   });
 
   it("suggests the debt and never the pile, in either direction", () => {
@@ -704,37 +705,29 @@ describe("the picker the card draws", () => {
   });
 });
 
-// Holding a pile back is only safe while there is a way to ask for it. Nothing in lib can see the
-// Drop Log's own wiring, and the failure is silent: the card simply never comes back, and the
-// coupons become unsellable through the app.
+// A held-back pile has no way back. Both controls that asked for one were removed on request, so a
+// pile of coupons that owes nobody is unsellable through the app until it owes somebody again, and a
+// tranche mistyped on a settled pile can no longer be taken back off. Nothing in lib can see the
+// Drop Log's own wiring, so the cost is pinned here: restoring either control means changing these.
 const page = readFileSync(join(__dirname, "..", "app", "bosses", "drops", "page.tsx"), "utf8");
 
-describe("the way back to a pile the ledger held back", () => {
-  it("offers it, and only while it is still held back", () => {
-    expect(page).toMatch(/quiet\.length > 0 &&\s*\(sellingOwn \?/);
-    expect(page).toContain("Record a sale");
+describe("the piles the ledger holds back", () => {
+  it("offers no way to ask for one", () => {
+    expect(page).not.toContain("Record a sale");
+    expect(page).not.toContain("sellingOwn");
   });
 
-  it("draws the held-back piles once it is asked for", () => {
-    expect(page).toMatch(/const revealed = sellingOwn \? quiet : \[\]/);
-    expect(page).toMatch(/<PieceLedger ledgers=\{revealed\}/);
+  it("draws the drawn ones and nothing else", () => {
+    expect(page).toMatch(/const \{ drawn \} = worthDrawing\(/);
+    expect(page).not.toContain("revealed");
+    expect([...page.matchAll(/<PieceLedger /g)]).toHaveLength(1);
   });
 
-  // The card the click produces has to arrive where the click was. Appended to the drawn list it
-  // rendered above the button, so clicking at the foot of the page made a pile of coupons appear
-  // higher up it and removed the control that was clicked, with nothing tying the two together.
-  it("puts the revealed card in the slot the control occupied, not up with the drawn ones", () => {
-    expect(page).toMatch(/<PieceLedger ledgers=\{drawn\}/);
-    const slot = page.slice(page.indexOf("quiet.length > 0 &&"));
-    expect(slot).toMatch(/<PieceLedger ledgers=\{revealed\}[\s\S]*?Record a sale/);
-  });
-
-  it("opens the revealed card's box and puts the cursor in it, since a click with no visible effect is the bug", () => {
-    // One prop for both, because a revealed pile owes nobody by definition: its form is behind the
-    // gate, so focusing it without opening it focuses nothing at all.
-    expect(page).toMatch(/ledgers=\{revealed\}[^/]*forEntry/);
-    expect(source).toMatch(/useState\(forEntry\)/);
-    expect(source).toMatch(/if \(focusEntry\) entryRef\.current\?\.focus\(\)/);
+  it("keeps no half of the reveal behind, which would open boxes nothing asks for", () => {
+    // The prop and the focus effect were one fact with the control. Left wired to a `false` nobody
+    // sets, they are a card that opens its boxes for a reason no longer on screen.
+    expect(source).not.toContain("forEntry");
+    expect(source).not.toContain("focusEntry");
   });
 
   it("gates the heading on what will draw, not on there being ledgers at all", () => {
@@ -762,8 +755,8 @@ describe("the way back to a pile the ledger held back", () => {
     expect(page).toMatch(/onRemovePayment=\{\(paymentId\) =>/);
   });
 
-  it("counts the revealed card, so the empty line does not sit above one", () => {
-    expect(page).toMatch(/holders: drawn\.length \+ revealed\.length/);
+  it("counts only what draws, so the empty line is not held off by a card nobody sees", () => {
+    expect(page).toMatch(/holders: drawn\.length,/);
   });
 });
 

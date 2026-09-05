@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useId, useRef, useState } from "react";
+import { useId, useState } from "react";
 import { apiAssetUrl } from "@/lib/api";
 import { formatWeekStart } from "@/lib/boss-clears";
 import { bossLabel } from "@/lib/boss-difficulty";
@@ -68,7 +68,6 @@ export function PieceLedger({
   onAddKept,
   onAddBought,
   onRemoveSale,
-  forEntry = false,
 }: {
   ledgers: HolderLedger[];
   /** Pieces of yours the other piles hold, netted into each pile's debt. See HolderCard. */
@@ -96,16 +95,6 @@ export function PieceLedger({
     shares: VestigeTrancheShare[],
   ) => Promise<void>;
   onRemoveSale: (trancheId: string) => Promise<void>;
-  /**
-   * These cards were drawn by a click asking to record a sale, so they open with the box out and the
-   * cursor in the first one.
-   *
-   * Both halves of that, because they are one fact. A pile that owes nobody has no box until it is
-   * asked for (see the gate below), so focusing one without opening it focuses nothing, and opening
-   * one without the cursor leaves a click with no visible effect. Off everywhere else: stealing focus
-   * on load moves the page under a reader who did not ask for it.
-   */
-  forEntry?: boolean;
 }) {
   if (ledgers.length === 0) return null;
   // A settled pile does not reach here: worthDrawing holds it back, because it is finished and
@@ -114,13 +103,11 @@ export function PieceLedger({
   // moment the boss is run again.
   return (
     <>
-      {ledgers.map((ledger, i) => (
+      {ledgers.map((ledger) => (
         <HolderCard
           key={holderKey(ledger.holder)}
           ledger={ledger}
           heldOfYours={heldOfYours}
-          forEntry={forEntry}
-          focusEntry={forEntry && i === 0}
           tranches={tranches.get(holderKey(ledger.holder)) ?? []}
           decided={decided}
           bossByKey={bossByKey}
@@ -150,8 +137,6 @@ function HolderCard({
   onAddKept,
   onAddBought,
   onRemoveSale,
-  forEntry,
-  focusEntry,
 }: {
   ledger: HolderLedger;
   /**
@@ -181,24 +166,12 @@ function HolderCard({
     shares: VestigeTrancheShare[],
   ) => Promise<void>;
   onRemoveSale: (trancheId: string) => Promise<void>;
-  forEntry: boolean;
-  focusEntry: boolean;
 }) {
   const [pieces, setPieces] = useState("");
   const [amount, setAmount] = useState("");
   const [fate, setFate] = useState<Fate>("SOLD");
   const [refusal, setRefusal] = useState<string | null>(null);
-  // Asked for on a pile that owes nobody. The card is still the only place its rows can be corrected,
-  // so it stays drawn either way, and this is only whether the boxes are out.
-  const [entering, setEntering] = useState(forEntry);
-  const entryRef = useRef<HTMLInputElement>(null);
   const hintId = useId();
-
-  // On mount only, which is the click that drew this card: focus is what ties the two together, and
-  // taking it back later would move the cursor out from under somebody mid-type.
-  useEffect(() => {
-    if (focusEntry) entryRef.current?.focus();
-  }, [focusEntry]);
 
   // For naming a share on a tranche already entered, which the debts cannot: those drop the closed
   // drops, and a sale attributed before the boss was settled still says whose it was.
@@ -381,15 +354,14 @@ function HolderCard({
             to it, and a price for the two that have one. Three separate boxes asked four questions at
             once and permanently, when at any moment there is only ever this one.
 
-            On screen while the pile owes somebody, and otherwise only when asked for. A pile that owes
-            nobody gets the same figures whatever it is told (see asksAnything), so its boxes are a
-            question with no consequence, standing over a card that is only still drawn so its rows can
-            be corrected.
+            On screen while the pile owes somebody, and not otherwise: a pile that owes nobody gets
+            the same figures whatever it is told (see asksAnything). There is no way to ask for the
+            boxes any more, so what a settled pile says is all it says. See worthDrawing.
 
             Never gated on the COUNT, which is what it looks like from here and is not the same thing.
             That would re-break what alsoHeldByYou exists for: a Sale Ledger that will not admit you
-            hold the coupons cannot take the sale. The way in is below, and it opens in place. */}
-        {outstanding > 0 || entering ? (
+            hold the coupons cannot take the sale. */}
+        {outstanding > 0 ? (
           <form
             className="ledger-sale"
             onSubmit={(e) => {
@@ -419,7 +391,6 @@ function HolderCard({
             }}
           >
             <input
-              ref={entryRef}
               className="split-input loot-count-input"
               value={pieces}
               onChange={(e) => setPieces(clamp(e.target.value, room))}
@@ -467,23 +438,7 @@ function HolderCard({
             </button>
           </form>
         ) : (
-          <span className="ledger-progress ledger-none">
-            No vestiges outstanding
-            {/* The coupons are still yours to sell, so the door stays on the card. In place, because a
-                control that made the boxes appear somewhere else would be the click with no visible
-                effect this one is here to avoid. */}
-            <button
-              type="button"
-              className="link"
-              onClick={() => {
-                setEntering(true);
-                // After the paint that draws it. Focused in the same tick the box does not exist yet.
-                requestAnimationFrame(() => entryRef.current?.focus());
-              }}
-            >
-              Record a sale
-            </button>
-          </span>
+          <span className="ledger-progress ledger-none">No vestiges outstanding</span>
         )}
         {/* What the sale pays out, worked out rather than asked for. The one place a coupon debt gets
             a price, and it only can here: these pieces were in YOUR inventory, so the figure being

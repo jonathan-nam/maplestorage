@@ -39,7 +39,7 @@ export function RowSale({
   busy: boolean;
   onSell: (row: LotRow, body: SellLootBody) => Promise<void>;
 }) {
-  // Cards only. The "Record Sale" heading covers these, the lots and the coupon piles, so it
+  // Cards only. The "Outstanding Sales" heading covers these, the lots and the coupon piles, so it
   // belongs to whatever draws all three.
   if (rows.length === 0) return null;
   return (
