@@ -127,8 +127,8 @@ describe("clearStateLabel", () => {
   });
 });
 
-// The party view once said "done" and "still to do" for the states the filter tabs above it called
-// "Cleared" and "Not cleared". Nothing broke, so nothing caught it. The words are pinned here
+// The party view once said "done" and "still to do" for the states the filter tabs called
+// "Cleared" and "Not Cleared". Nothing broke, so nothing caught it. The words are pinned here
 // because they are the only thing that says which of three states a tick is in.
 describe("the views name clear states through one place", () => {
   const source = (...parts: string[]) => readFileSync(join(__dirname, "..", ...parts), "utf8");

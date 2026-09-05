@@ -177,7 +177,7 @@ describe("runningThisPeriod", () => {
   });
 
   it("counts a boss taken off as neither cleared nor outstanding", () => {
-    // The failure this guards: a boss nobody is running this week sits in the "Not cleared" count
+    // The failure this guards: a boss nobody is running this week sits in the "Not Cleared" count
     // for ever, so the number that says what is left to do never reaches zero. Narrowing first is
     // what keeps the tab counts and the rows they promise in agreement.
     const running = runningThisPeriod([on, off]);
