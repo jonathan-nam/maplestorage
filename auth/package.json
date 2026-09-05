@@ -2,7 +2,7 @@
   "name": "sharpeyes-auth",
   "private": true,
   "type": "module",
-  "packageManager": "pnpm@11.12.0",
+  "packageManager": "pnpm@11.25.0",
   "scripts": {
     "build": "tsc",
     "start": "node dist/server.js",
