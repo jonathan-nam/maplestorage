@@ -123,11 +123,11 @@ drops:
     art: cut
 
   # --- Badges ------------------------------------------------------------------------
-  # No icon_id: the badge ids in the pinned dataset were searched by hand and none of them is this
-  # one, so it is drawn blank rather than wearing another badge's picture. Recorded so the next
-  # person does not repeat the search. A capture and `art: cut` is the way to give it a picture.
+  # The mirror 504s on this item's METADATA while serving its icon fine, so probing by id reads as
+  # absent and it was nearly filed as having no art. The icon endpoint is the one that matters.
   - key: genesis-badge
     name: Genesis Badge
+    icon_id: 1182285
 
   # --- Exceptional Hammers, one slot per boss ----------------------------------------
   - key: exceptional-hammer-belt
