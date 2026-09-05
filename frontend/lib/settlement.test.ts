@@ -319,48 +319,60 @@ describe("who belongs on the list at all", () => {
       [],
       wallet([counterparty("person:p-bro", "Bro", [line("l2", 900 * M, "owe")])]),
     );
-    expect([rows[0]!.mesos, rows[0]!.owedByYou]).toEqual([0, 900 * M]);
+    expect([rows[0]!.mesos, rows[0]!.owedByYou, rows[0]!.sharesYouOwe]).toEqual([0, 0, 900 * M]);
   });
 });
 
-describe("netting, which is mesos against mesos and never pieces", () => {
-  it("nets the two directions to one figure", () => {
-    // They owe you 1b of shares and you owe them 400m: one transfer of 600m settles both, and the
-    // 400m that no longer crosses saves its 5% hop.
+describe("the two directions, which are said rather than netted", () => {
+  it("keeps a share you owe out of what they owe you, so an offset has something to move", () => {
+    // They owe you 1b of shares and you owe them 400m. One transfer of 600m is still how the pair
+    // settles; the CARD says both, because which way the 400m goes is a decision nobody has made
+    // yet: Offset takes it off the 1b, Mark sent does not. See sharesYouOwe.
     const rows = buildSettlement(
       [],
       wallet([
         counterparty("person:p-bro", "Bro", [line("l1", 1_000 * M), line("l2", 400 * M, "owe")]),
       ]),
     );
-    expect(rows[0]!.mesos).toBe(600 * M);
-    expect(rows[0]!.owedByYou).toBe(0);
+    expect([rows[0]!.mesos, rows[0]!.owedByYou, rows[0]!.sharesYouOwe]).toEqual([
+      1_000 * M,
+      0,
+      400 * M,
+    ]);
   });
 
-  it("says which way it runs when the netting leaves YOU behind", () => {
-    // They record a sale owing you 1b, you already owed them 1.5b, so you owe 500m. Not collectable,
-    // and still the one thing outstanding between you.
+  it("says both sides when the shares you owe are the bigger half", () => {
+    // They record a sale owing you 1b and you owe them 1.5b. Neither figure swallows the other:
+    // the offset that would net them is an act, and until it is pressed both are outstanding.
     const rows = buildSettlement(
       [],
       wallet([
         counterparty("person:p-bro", "Bro", [line("l1", 1_000 * M), line("l2", 1_500 * M, "owe")]),
       ]),
     );
-    expect([rows[0]!.mesos, rows[0]!.owedByYou]).toEqual([0, 500 * M]);
+    expect([rows[0]!.mesos, rows[0]!.owedByYou, rows[0]!.sharesYouOwe]).toEqual([
+      1_000 * M,
+      0,
+      1_500 * M,
+    ]);
   });
 
   it("says what you owe when their PIECES put them on the list anyway", () => {
-    // So a pile is not chased off somebody you are 500m behind with.
+    // So a pile is not chased off somebody you are 1.5b behind with.
     const rows = buildSettlement(
       [ledger(BRO, "Bro", { owedToYou: 80, drops: [owing("l3", "first-adversary", 80)] })],
       wallet([
         counterparty("person:p-bro", "Bro", [line("l1", 1_000 * M), line("l2", 1_500 * M, "owe")]),
       ]),
     );
-    expect([rows[0]!.pieces, rows[0]!.mesos, rows[0]!.owedByYou]).toEqual([80, 0, 500 * M]);
+    expect([rows[0]!.pieces, rows[0]!.mesos, rows[0]!.sharesYouOwe]).toEqual([
+      80,
+      1_000 * M,
+      1_500 * M,
+    ]);
   });
 
-  it("carries the share lines even when the netting runs against you, so they can be settled", () => {
+  it("carries the share lines when the only money is what you owe, so they can be settled", () => {
     // These used to be dropped, on the reasoning that settling what YOU owe did not belong on a
     // card about collecting. Retiring the Wallet took the only other place it could be done, and
     // Jonathan was left with four shares he owed and no settle anywhere in the app.
@@ -368,7 +380,7 @@ describe("netting, which is mesos against mesos and never pieces", () => {
       [ledger(BRO, "Bro", { owedToYou: 80, drops: [owing("l3", "first-adversary", 80)] })],
       wallet([counterparty("person:p-bro", "Bro", [line("l2", 1_500 * M, "owe")])]),
     );
-    expect(rows[0]!.owedByYou).toBe(1_500 * M);
+    expect(rows[0]!.sharesYouOwe).toBe(1_500 * M);
     expect(sharesOf(rows[0]!)).toEqual([{ lootId: "l2", memberId: "payee-l2" }]);
   });
 
@@ -390,7 +402,7 @@ describe("netting, which is mesos against mesos and never pieces", () => {
       wallet([counterparty("person:p-bro", "Bro", [line("l2", 400 * M, "owe")])]),
     );
     expect(rows[0]!.pieces).toBe(80);
-    expect(rows[0]!.owedByYou).toBe(400 * M);
+    expect(rows[0]!.sharesYouOwe).toBe(400 * M);
   });
 
   it("keeps an unattributed character as their own row, rather than guessing", () => {
@@ -811,22 +823,25 @@ describe("the money a sale of somebody else's coupons puts on the card", () => {
     ).toEqual(["early", "late"]);
   });
 
-  it("leaves the net where it was when a share you owe is OFFSET against theirs", () => {
+  it("takes a share you owe off what they owe you, the moment it is OFFSET against theirs", () => {
     // The settlement two people actually make when the sums are lopsided: rather than send 139m and
-    // have 254b come back, it comes off the larger figure. Marking the share paid ALONE said the
-    // money had moved, so it left the netting and put what they owe you back UP. See V57.
+    // have 254b come back, it comes off the larger figure. Both real rows off Jonathan's account.
+    //
+    // The figure MOVES here, and that is the whole act. It used to be netted before anybody agreed
+    // to it, so the two halves of the offset cancelled and pressing the button changed nothing on
+    // screen. Marking the share paid alone still says the money moved, which is Mark sent. See V57.
     const share = counterparty("person:p-bro", "Bro", [line("l9", 139_548_023, "owe")]);
 
-    // Outstanding: netted, and this is the figure somebody is looking at.
+    // Outstanding: what he owes you, whole, with your share beside it rather than inside it.
     const before = buildSettlement([], wallet([share]), [debt(BRO, 254_512_697_574)]);
-    expect(before[0]!.mesos).toBe(254_512_697_574 - 139_548_023);
+    expect([before[0]!.mesos, before[0]!.sharesYouOwe]).toEqual([254_512_697_574, 139_548_023]);
 
-    // Offset: the share is paid AND a negative adjustment records what discharged it. Same figure.
+    // Offset: the share is paid AND a negative adjustment records what discharged it.
     const after = buildSettlement([], wallet([]), [
       debt(BRO, 254_512_697_574),
       debt(BRO, -139_548_023, "offset against Bro"),
     ]);
-    expect(after[0]!.mesos).toBe(254_512_697_574 - 139_548_023);
+    expect([after[0]!.mesos, after[0]!.sharesYouOwe]).toEqual([254_512_697_574 - 139_548_023, 0]);
   });
 
   it("says you owe when an offset is the only thing on the card", () => {
@@ -879,6 +894,27 @@ describe("what the account comes to, above the cards", () => {
       owe: 400 * M,
       net: 600 * M,
       people: 2,
+    });
+  });
+
+  it("still nets one person's two directions in the strip, which the cards no longer do", () => {
+    // The card says 1b owed with 400m of yours beside it, because which way that 400m goes is an
+    // act nobody has performed. The account's position is not a decision, so the strip subtracts:
+    // one transfer of 600m is what standing between the two of you comes to.
+    //
+    // The tile is what checks this change did not lose a figure. Netting moved out of the cards and
+    // the totals are summed off those cards, so Net is the one place the two sides still meet.
+    const rows = buildSettlement(
+      [],
+      wallet([
+        counterparty("person:p-bro", "Bro", [line("l1", 1_000 * M), line("l2", 400 * M, "owe")]),
+      ]),
+    );
+    expect(settlementTotals(rows)).toEqual({
+      owed: 1_000 * M,
+      owe: 400 * M,
+      net: 600 * M,
+      people: 1,
     });
   });
 
@@ -943,9 +979,9 @@ describe("discharging what you owe against what they owe you", () => {
       entered > 0 ? [debt(entered)] : [],
     )[0]!;
 
-  it("comes off the debt, leaving the net exactly where it was", () => {
+  it("comes off the debt, which is a figure that moves by exactly the shares it discharged", () => {
     const row = card(2_000 * M, 500 * M);
-    expect(row.mesos).toBe(1_500 * M);
+    expect([row.mesos, row.sharesYouOwe]).toEqual([2_000 * M, 500 * M]);
     const offset = offsetOf(row);
     expect(offset).toEqual({
       parts: [{ lootId: "l1", memberId: "payee-l1", amount: 500 * M }],
@@ -954,28 +990,28 @@ describe("discharging what you owe against what they owe you", () => {
       leftOwing: 0,
       offered: true,
     });
-    // The act writes -amount and marks those shares paid, so the two moves cancel: the card said
-    // 1.5b before and says 1.5b after. An offset is a record of an agreement, not a movement.
+    // The act writes -amount and marks those shares paid. The card said 2b before and says 1.5b
+    // after, which is the agreement the two of you made showing up in the one figure you act on.
     const after = buildSettlement([], wallet([]), [debt(2_000 * M), debt(-offset.amount)])[0]!;
-    expect(after.mesos).toBe(row.mesos);
+    expect([after.mesos, after.sharesYouOwe]).toEqual([1_500 * M, 0]);
   });
 
-  it("reads too high between its two writes, which is why the card draws them as one", () => {
-    // The settle lands first and takes the share out of the net. The debt row that puts it back is a
-    // round trip behind it, so a card drawn as each write landed walked 1.5b up to 2b and back down,
-    // and finished on the figure it started on. See onOffsetShares.
+  it("never reads low between its two writes, which is why the card draws them as one", () => {
+    // The settle lands first and marks the shares paid; the debt row that takes them off what he
+    // owes you is a round trip behind it. A card drawn between the two says 2b, which is where it
+    // started: the figure falls when the offset is recorded and not before. A failure in the gap
+    // leaves the shares paid and nothing off the debt, so both go in one request. See onOffsetShares.
     const row = card(2_000 * M, 500 * M);
     const between = buildSettlement([], wallet([]), [debt(2_000 * M)])[0]!;
-    expect(between.mesos).toBe(2_000 * M);
-    expect(between.mesos).not.toBe(row.mesos);
+    expect(between.mesos).toBe(row.mesos);
+    expect(between.sharesYouOwe).toBe(0);
   });
 
   it("is offered when the shares outgrow the debt, and says what it leaves you owing", () => {
     // The night this button was for and refused: you take a week of his coupons, they come to more
-    // than he owed, and the remainder is yours to send. `mesos` reads zero here, which is why the
-    // condition cannot be built on it.
+    // than he owed, and the remainder is yours to send.
     const row = card(500 * M, 800 * M);
-    expect([row.mesos, row.owedByYou]).toEqual([0, 300 * M]);
+    expect([row.mesos, row.owedByYou, row.sharesYouOwe]).toEqual([500 * M, 0, 800 * M]);
     expect(offsetOf(row)).toEqual({
       parts: [{ lootId: "l1", memberId: "payee-l1", amount: 800 * M }],
       amount: 800 * M,
@@ -985,10 +1021,11 @@ describe("discharging what you owe against what they owe you", () => {
     });
   });
 
-  it("keeps the net where it was on a partial one too", () => {
+  it("turns the card over to what you owe on a partial one, by what it could not cover", () => {
     const row = card(500 * M, 800 * M);
     const after = buildSettlement([], wallet([]), [debt(500 * M), debt(-800 * M)])[0]!;
-    expect([after.mesos, after.owedByYou]).toEqual([row.mesos, row.owedByYou]);
+    // The 300m the button promised, now the only thing on the card.
+    expect([after.mesos, after.owedByYou]).toEqual([0, offsetOf(row).leftOwing]);
   });
 
   it("is refused when they owe you nothing, which is not an offset but a debt of yours", () => {
@@ -1073,11 +1110,17 @@ describe("discharging what you owe against what they owe you", () => {
         disposals,
       )[0]!;
 
-    // Undecided, his 400m is in your hands and out of the net: 2b entered less the 200m share.
+    // Undecided, his 400m is in your hands and out of the net, and so is the 200m share you owe:
+    // two decisions nobody has made, neither of them touching the 2b entered.
     const undecided = card([]);
-    expect([undecided.mesos, undecided.holding]).toEqual([1_800 * M, 400 * M]);
+    expect([undecided.mesos, undecided.holding, undecided.sharesYouOwe]).toEqual([
+      2_000 * M,
+      400 * M,
+      200 * M,
+    ]);
 
-    // Offset, and it comes off: 2b entered, less 400m of his coupons you sold, less the share.
+    // Offset, and it comes off: 2b entered, less 400m of his coupons you sold. The share is still
+    // its own decision, and still outside the figure.
     const offset = card([
       {
         id: "x1",
@@ -1087,7 +1130,7 @@ describe("discharging what you owe against what they owe you", () => {
         decidedAt: "2026-08-14T00:00:00Z",
       },
     ]);
-    expect(offset.mesos).toBe(1_400 * M);
+    expect(offset.mesos).toBe(1_600 * M);
     expect(offsetOf(offset).toComeOff).toBe(1_600 * M);
     expect(offsetOf(offset).leftOwing).toBe(0);
   });

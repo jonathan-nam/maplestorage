@@ -130,9 +130,19 @@ export type Settlement = {
    * ledger's act, but a card that showed only the collectable direction would not mention it at all.
    */
   owedByYou: number;
+  /**
+   * Unpaid shares YOU owe them, outside the net until you say which way they go. See V57 and V61.
+   *
+   * The same rule the held coupon money runs on, applied to shares. Two things can happen to a share
+   * you owe and they end in different places: Offset takes it off what they owe you, Mark sent means
+   * the mesos left your hands and their debt never moved. Subtracting it on arrival was the card
+   * choosing, and it made Offset a button that changed nothing on screen: the two halves of the act
+   * cancel in a figure that had already assumed it.
+   */
+  sharesYouOwe: number;
   /** What the net is made of, in the order the card says them. Every one is signed towards you. */
   parts: {
-    /** Unpaid shares, netted. Positive is theirs to send. lib/wallet.ts's figure, untouched. */
+    /** Unpaid shares THEY owe you. What you owe them is `sharesYouOwe`, which is not netted here. */
     shares: number;
     /**
      * Entered by hand. Positive is what they owe you that no drop accounts for.
@@ -223,6 +233,7 @@ const blank = (key: string, name: string): Settlement => ({
   piecesNet: 0,
   mesos: 0,
   owedByYou: 0,
+  sharesYouOwe: 0,
   parts: { shares: 0, entered: 0, soldOfTheirs: 0, soldOfYours: 0, received: 0 },
   receivedOnPieces: 0,
   holding: 0,
@@ -373,16 +384,22 @@ export function buildSettlement(
     row.drops = spent;
   }
 
-  // The shares, NETTED: what they owe you less what you owe them, per person. One transfer of the
-  // difference is how this is settled, and it saves the 5% hop on the value that no longer crosses.
+  // The shares, one direction each. What they owe you is the net's; what YOU owe is outside it until
+  // Offset or Mark sent says which way it goes.
   //
-  // Mesos against mesos only. Pieces are not netted and cannot be: a piece debt has no price until
-  // somebody names one, and the two sides come off different nights at different prices, so calling
-  // 50 pieces owed against 25 owed "25 pieces" states a figure that matches neither side.
+  // It used to be netted here, on the reasoning that a pair settles with one transfer of the
+  // difference. That is still how the transfer works and it is not what the figure has to say: the
+  // subtraction happened the moment the share existed, so pressing Offset moved nothing on screen
+  // and the act read as broken. A share is offset or it is sent, and the card says which. See V61,
+  // which took the same assumption out of the coupon money.
+  //
+  // Mesos against mesos only. Pieces are still netted, and can be: a piece debt has no price until
+  // somebody names one, but it is the same coupon on both sides and nothing is being valued.
   for (const person of wallet.counterparties) {
     if (person.lines.length === 0) continue;
     const row = rowFor(person.key, person.name);
-    row.parts.shares = person.owed - person.owe;
+    row.parts.shares = person.owed;
+    row.sharesYouOwe = person.owe;
 
     // Every line, both directions, and in EVERY direction the net runs.
     //
@@ -486,6 +503,10 @@ export function buildSettlement(
         row.pinned ||
         row.mesos > 0 ||
         row.owedByYou > 0 ||
+        // Shares of yours, which no longer come off the net and so can be the only thing on a card.
+        // Dropping one would take Mark sent and Offset with it, leaving a debt with nowhere to say
+        // it had been paid.
+        row.sharesYouOwe > 0 ||
         row.pieces > 0 ||
         // Coupons of theirs you are holding are exactly the thing this ledger is for now: they come
         // off what that person owes you. A card kept only for the other direction hid them.
@@ -499,7 +520,7 @@ export function buildSettlement(
     .sort(
       (a, b) =>
         b.mesos - a.mesos ||
-        b.owedByYou - a.owedByYou ||
+        b.owedByYou + b.sharesYouOwe - (a.owedByYou + a.sharesYouOwe) ||
         b.pieces - a.pieces ||
         b.piecesYouOwe - a.piecesYouOwe ||
         a.name.localeCompare(b.name),
@@ -884,7 +905,10 @@ export type SettlementTotals = { owed: number; owe: number; net: number; people:
  */
 export function settlementTotals(rows: Settlement[]): SettlementTotals {
   const owed = rows.reduce((sum, row) => sum + row.mesos, 0);
-  const owe = rows.reduce((sum, row) => sum + row.owedByYou, 0);
+  // Shares of yours are in this and not in `owed`, which is the whole point of keeping them out of
+  // the net: they are money you have to move, and a tile that left them out would be short by every
+  // share nobody has decided about yet.
+  const owe = rows.reduce((sum, row) => sum + row.owedByYou + row.sharesYouOwe, 0);
   return { owed, owe, net: owed - owe, people: rows.length };
 }
 
@@ -924,9 +948,9 @@ export type Offset = {
   /**
    * What it has to come off: everything on their side EXCEPT the shares it discharges.
    *
-   * `mesos` cannot answer this. It is the net, so the shares you owe are already subtracted from it,
-   * and the moment they outgrew the debt it read zero and the act was refused on the very card it was
-   * for. Adding them back gives what they owe you before the offset is applied.
+   * `mesos` is that figure now. It used to be the net of both directions, so the shares you owe were
+   * already subtracted, and the moment they outgrew the debt it read zero and the act was refused on
+   * the very card it was for.
    */
   toComeOff: number;
   /** What their debt cannot cover, and so leaves you owing. Zero when it covers the lot. */
@@ -956,7 +980,8 @@ export function offsetOf(row: Settlement): Offset {
   // Off the parts, never alongside them: the button says one figure and writes the other, so working
   // them out separately is how a row list stops adding up to the total above it.
   const amount = parts.reduce((sum, part) => sum + part.amount, 0);
-  const toComeOff = row.mesos - row.owedByYou + amount;
+  // Their side, whole: the shares being discharged are no longer inside it, so nothing is added back.
+  const toComeOff = row.mesos - row.owedByYou;
   return {
     parts,
     amount,
@@ -968,7 +993,13 @@ export function offsetOf(row: Settlement): Offset {
 
 /** Nothing stands between you either way. */
 export function isEmpty(row: Settlement): boolean {
-  return row.pieces === 0 && row.piecesYouOwe === 0 && row.mesos === 0 && row.owedByYou === 0;
+  return (
+    row.pieces === 0 &&
+    row.piecesYouOwe === 0 &&
+    row.mesos === 0 &&
+    row.owedByYou === 0 &&
+    row.sharesYouOwe === 0
+  );
 }
 
 /**
