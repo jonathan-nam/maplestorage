@@ -7,10 +7,11 @@ is the risk on a hand cut: `eternal-armor-of-radiance-box` was cut from a captur
 and the black had swallowed the chest outline. The outline came back from the silhouette its five
 siblings share, so that sharing is load-bearing and is pinned here.
 
-Two more cuts followed: a seventh box, which needed the whole silhouette rather than the outline
-alone, and Blissful Nightmare, a glow whose alpha had to be divided back out of the black it was
-captured against. Size is pinned here as well, because a hand cut never passes through
-`_normalize_icon` and so is capped by nothing.
+Three more cuts followed: a seventh box, which needed the whole silhouette rather than the outline
+alone; Blissful Nightmare, a glow whose alpha had to be divided back out of the black it was
+captured against; and Lingering Twisted Desire, where dividing the whole sprite would have holed
+its shading, so only the halo was. Size is pinned here as well, because a hand cut never passes
+through `_normalize_icon` and so is capped by nothing.
 """
 
 import pathlib
@@ -39,6 +40,10 @@ CUT_BOX_2 = "eternal-twisted-armor-box"
 DONOR = "eternal-armor-of-oaths-box"
 
 GLOW_CUT = "blissful-nightmare"
+# A third cut, and the one the glow rule alone is wrong for: it is a token, so its file here is
+# catalog/build.py's copy of the inventory icon, and the inventory slot is light. Its shading is
+# solid sprite, not halo, so only outside the silhouette was the black divided back out.
+CORE_CUT = "lingering-twisted-desire"
 # Cut off a capture with a framed panel behind it. The panel's tan header and its two bevel
 # shades, which the sprite uses nowhere. Its fringe browns are deliberately absent: the sprite has
 # an enclosed #776644 pixel of its own, so those are shared and would prove nothing.
@@ -104,14 +109,25 @@ def test_the_second_hand_cut_box_is_not_the_donor_recoloured():
     assert difference.mean() > 40
 
 
-def test_the_hand_cut_glow_carries_real_alpha():
+@pytest.mark.parametrize("key", [GLOW_CUT, CORE_CUT])
+def test_the_hand_cut_glow_carries_real_alpha(key):
     # Cut from a capture on black, where a halo arrives premultiplied. Keying that instead of
     # dividing it back out leaves the fringe opaque and near-black; the mirror's own glows carry
     # 123 to 244 here, so a dark fringe fails.
-    alpha = _alpha(GLOW_CUT)
+    alpha = _alpha(key)
     semi = (alpha > 0) & (alpha < 255)
     assert semi.sum() > 200
-    assert _rgb(GLOW_CUT)[semi].max(axis=1).mean() > 120
+    assert _rgb(key)[semi].max(axis=1).mean() > 120
+
+
+def test_the_core_cut_kept_its_shading_opaque():
+    # The other half of the rule, and what the glow treatment alone would have cost: divide the
+    # black out of the whole sprite and every shaded pixel goes translucent in proportion to how
+    # dark it is, so the light slot shows through the item. Inside the silhouette nothing was
+    # divided, so dark and opaque is a state a brightness key cannot produce.
+    icon = _icon(CORE_CUT)
+    dark = (icon[:, :, :3].max(axis=2) < 96) & (icon[:, :, 3] > 0)
+    assert (dark & (icon[:, :, 3] == 255)).sum() > 40
 
 
 @pytest.mark.parametrize(

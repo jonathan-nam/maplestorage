@@ -108,9 +108,12 @@ items:
     redeem_threshold: 10
     redeem_slots: [Cape, Glove, Shoe]
 
-  # No icon_id and no `art: cut`: GMS v268 is the newest dataset the mirror carries and this is a
-  # v270 item, so there is no sprite to point at and nobody has cut one. Drawn as an empty slot,
-  # which is what an item with no picture has always looked like on the drop side.
+  # No icon_id: GMS v268 is the newest dataset the mirror carries and this is a v270 item, so there
+  # is no sprite to point at. Cut instead from a capture taken on black, which hides two different
+  # things here. Inside the silhouette the capture IS the colour, dark shading and all; outside it
+  # the halo arrives premultiplied and divides back out into real alpha. Keying the whole sprite off
+  # brightness, the way Blissful Nightmare's glow was, would have holed that shading, and the slot
+  # behind it is light. What the black did take is the outline, which no sibling shares here.
   - key: lingering-twisted-desire
     name: Lingering Twisted Desire
     boss: Jupiter
@@ -119,6 +122,7 @@ items:
     sort: 16
     redeem_threshold: 10
     redeem_slots: [Cape, Glove, Shoe]
+    art: cut
 
   # --- Fragments ---------------------------------------------------------------------
   # Half a piece each: two make one of the tokens above, so TWENTY buy one Eternal piece. That is

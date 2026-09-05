@@ -42,7 +42,7 @@ FROM (VALUES
     ('whisper-ancient-resolve', 'Whisper of Ancient Resolve', 'whisper-ancient-resolve.png', 'HEROIC', NULL, 1, FALSE, TRUE, 30),
     ('blissful-fantasy-shard', 'Blissful Fantasy Shard', 'blissful-fantasy-shard.png', 'HEROIC', NULL, 1, FALSE, TRUE, 31),
     ('blissful-fantasy-fragment', 'Blissful Fantasy Fragment', NULL, 'HEROIC', NULL, 1, FALSE, TRUE, 32),
-    ('lingering-twisted-desire', 'Lingering Twisted Desire', NULL, 'ALWAYS', NULL, 1, FALSE, TRUE, 33),
+    ('lingering-twisted-desire', 'Lingering Twisted Desire', 'lingering-twisted-desire.png', 'ALWAYS', NULL, 1, FALSE, TRUE, 33),
     ('trace-eternal-loyalty', 'Trace of Eternal Loyalty', 'trace-eternal-loyalty.png', 'ALWAYS', NULL, 1, FALSE, TRUE, 34)
 ) AS v (drop_key, name, icon_ref_key, per_member, worlds, quantity, fungible, untradeable, sort_order)
 LEFT JOIN drop_catalog existing ON existing.drop_key = v.drop_key
