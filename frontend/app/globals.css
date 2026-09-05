@@ -3847,6 +3847,11 @@ button.link:disabled {
   margin: 0;
 }
 
+/* The same heading over the sale form's share boxes, which the form's own gap already spaces. */
+.loot-sale-form .loot-group-title.is-config {
+  margin: 0;
+}
+
 /* The same two blocks in the Add Drop form, for a night with no row yet, in ONE frame. Unframed
    they read as two more of the picker's own controls, and Save split ended up a line above Add drop
    with nothing saying which block it belonged to. The frame the standing split already gets when
