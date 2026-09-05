@@ -5257,7 +5257,24 @@ button.link:disabled {
   flex-wrap: wrap;
   align-items: center;
   gap: 6px 16px;
-  margin-bottom: 8px;
+}
+
+/* Under the Add Party form, not above it: the form is one thing and what the list shows is another.
+   Same boundary .add-panel draws on the Drop Log. */
+.party-filters {
+  margin-bottom: 18px;
+}
+
+.party-filters-title {
+  margin: 0 0 12px;
+  font-size: var(--text-lg);
+  color: var(--ink-strong);
+}
+
+/* Pushed to the far edge, so the two groups read as two questions rather than one long strip. On a
+   narrow screen the row wraps and this one lands right-aligned on its own line. */
+.party-toolbar-tabs .basis-row-end {
+  margin-left: auto;
 }
 
 /* A row of headline figures, above the detail that produced them. Shared by the Wallet and the

@@ -17,7 +17,7 @@ export type CellState = "cleared" | "pending" | "unseen" | "skipped";
  * What a clear state is called, everywhere one is named out loud.
  *
  * One function because the wording had already split: the party grouping said "done" and "still to
- * do" for the states the filter tabs directly above it called "Cleared" and "Not cleared", so one
+ * do" for the states the filter tabs called "Cleared" and "Not Cleared", so one
  * tick answered to two vocabularies on the same screen.
  */
 export function clearStateLabel(cleared: boolean | null): string {
