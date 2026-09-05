@@ -2747,13 +2747,6 @@ button.link:disabled {
   color: var(--muted-2);
 }
 
-/* A way out to the routine page, sitting with the week picker and the clocks. A link and not a
-   button: it goes somewhere, and the matrix has no mode for it to put the page into. */
-.boss-routine-link {
-  color: var(--muted);
-  font-size: var(--text-base);
-}
-
 /* One character's routine: a checklist of the catalog, grouped by cadence like the matrix. */
 .routine {
   margin-top: 16px;

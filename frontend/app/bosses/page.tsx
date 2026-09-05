@@ -157,7 +157,21 @@ export default function BossesPage() {
 
   return (
     <main className="page">
-      <h1 className="page-title">Individual View</h1>
+      {/* Beside the title, like Edit Parties on Party View: it leaves the page, so it does not
+          belong in the controls row, where everything else acts on the table below. */}
+      <div className="page-head">
+        <h1 className="page-title">Individual View</h1>
+        {state === "loaded" && characters.length > 0 && (
+          <span className="page-head-links">
+            {/* Which bosses a character runs is set one character at a time, on its own page: the
+                whole set is the thing being answered, and a grid of cells cannot show one
+                character's set without you reading down a column. */}
+            <Link className="party-cancel" href="/bosses/routine">
+              Edit Boss Config
+            </Link>
+          </span>
+        )}
+      </div>
 
       {state === "error" && <p>Couldn&apos;t load your boss clears.</p>}
 
@@ -188,12 +202,6 @@ export default function BossesPage() {
                       receivedAt={receivedAt}
                       onReset={pickUpReset}
                     />
-                    {/* Which bosses a character runs is set one character at a time, on its own page:
-                    the whole set is the thing being answered, and a grid of cells cannot show one
-                    character's set without you reading down a column. */}
-                    <Link className="boss-routine-link" href="/bosses/routine">
-                      Who runs what
-                    </Link>
                   </div>
                 )}
 
