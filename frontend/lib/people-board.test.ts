@@ -15,6 +15,7 @@ const seat = (name: string, guest = false, characterId: string | null = null): P
   personId: null,
   personName: null,
   characterId,
+  linkedCharacterId: null,
   spriteImgUrl: null,
   guest,
   shares: 1,

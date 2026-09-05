@@ -18,6 +18,7 @@ const seat = (id: string, name: string, mine = false): PartyMember => ({
   personId: null,
   personName: null,
   characterId: mine ? `char-${id}` : null,
+  linkedCharacterId: null,
   spriteImgUrl: null,
   guest: false,
   shares: 1,

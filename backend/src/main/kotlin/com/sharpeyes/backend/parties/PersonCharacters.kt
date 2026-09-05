@@ -32,8 +32,23 @@ import kotlin.uuid.Uuid
  */
 internal class PersonCharacters(
     val attributed: Map<Uuid, List<String>>,
-    val owned: Map<Uuid, List<String>>,
+    linkedCharacters: List<LinkedCharacter>,
 ) {
+    /** Their own account's answer, by person. What the People page draws as not yours to edit. */
+    val owned: Map<Uuid, List<String>> =
+        linkedCharacters
+            .groupBy({ it.personId }) { it.name }
+            .mapValues { (_, names) -> names.sorted() }
+
+    /**
+     * The row behind a seat, by lowercased name.
+     *
+     * A seat naming one of these is that character, on its owner's account, so it can be read
+     * rather than copied. Names are unique per world and this is narrowed to one, so a name cannot
+     * reach two rows here.
+     */
+    val linkedByName: Map<String, LinkedCharacter> = linkedCharacters.associateBy { it.name.lowercase() }
+
     /** Lowercased character name to whoever plays them. */
     fun byCharacter(): Map<String, Uuid> =
         buildMap {
@@ -46,6 +61,21 @@ internal class PersonCharacters(
             }
         }
 }
+
+/**
+ * One character on a linked person's own account, which a seat of this account's names.
+ *
+ * Deliberately NOT written onto party_member.character_id. That column means "this seat is one of
+ * MY characters" and four readers depend on it saying so, one of them the coupon ledger, which
+ * returns SELF on a non-null value. Pointing it at somebody else's character would report their
+ * pieces as yours, silently, which is the failure this repo exists to prevent.
+ */
+internal data class LinkedCharacter(
+    val characterId: Uuid,
+    val personId: Uuid,
+    val name: String,
+    val spriteImgUrl: String?,
+)
 
 internal fun personCharacters(userId: String): PersonCharacters {
     val attributed =
@@ -68,14 +98,14 @@ internal fun personCharacters(userId: String): PersonCharacters {
  * Narrowed to the world being shown, like every other account-wide read. A party is in one world,
  * so the other world's characters cannot be the seat in front of you.
  */
-private fun ownedByLinkedAccounts(userId: String): Map<Uuid, List<String>> {
+private fun ownedByLinkedAccounts(userId: String): List<LinkedCharacter> {
     val personByAccount =
         Person
             .selectAll()
             .where { (Person.userId eq userId) and Person.linkedUserId.isNotNull() }
             .mapNotNull { row -> row[Person.linkedUserId]?.let { it to row[Person.id] } }
             .toMap()
-    if (personByAccount.isEmpty()) return emptyMap()
+    if (personByAccount.isEmpty()) return emptyList()
 
     val seated =
         PartyMember
@@ -85,7 +115,7 @@ private fun ownedByLinkedAccounts(userId: String): Map<Uuid, List<String>> {
             .mapTo(mutableSetOf()) { it[PartyMember.name].lowercase() }
 
     return if (seated.isEmpty()) {
-        emptyMap()
+        emptyList()
     } else {
         Characters
             .selectAll()
@@ -94,8 +124,16 @@ private fun ownedByLinkedAccounts(userId: String): Map<Uuid, List<String>> {
             }.mapNotNull { row ->
                 val personId = personByAccount[row[Characters.userId]] ?: return@mapNotNull null
                 val name = row[Characters.name]
-                if (name.lowercase() in seated) personId to name else null
-            }.groupBy({ it.first }) { it.second }
-            .mapValues { (_, names) -> names.sorted() }
+                if (name.lowercase() !in seated) {
+                    null
+                } else {
+                    LinkedCharacter(
+                        characterId = row[Characters.id],
+                        personId = personId,
+                        name = name,
+                        spriteImgUrl = row[Characters.spriteImgUrl],
+                    )
+                }
+            }
     }
 }

@@ -22,6 +22,7 @@ const member = (id: string, name: string): PartyMember => ({
   personId: `person-${id}`,
   personName: null,
   characterId: null,
+  linkedCharacterId: null,
   spriteImgUrl: null,
   guest: false,
   shares: 1,
