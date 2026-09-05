@@ -8,7 +8,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { ApiError, apiFetch } from "@/lib/api";
 import { peek, put } from "@/lib/cache";
-import { type PersonDraft, unclaimed } from "@/lib/people-board";
+import { type PersonDraft, toDraft, unclaimed } from "@/lib/people-board";
 import { spriteByName } from "@/lib/sprite-by-name";
 import type { Character } from "@/types/character";
 import type { Invite } from "@/types/invite";
@@ -47,14 +47,6 @@ export default function PeoplePage() {
   const [state, setState] = useState<LoadState>("loading");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  const toDraft = (rows: Person[]): PersonDraft[] =>
-    rows.map((p) => ({
-      id: p.id,
-      name: p.name,
-      characters: [...p.characters],
-      owned: [...p.ownedCharacters],
-    }));
 
   useEffect(() => {
     // Not before Clerk answers, or the fetch goes out as `Bearer null`. See lib/api.ts.

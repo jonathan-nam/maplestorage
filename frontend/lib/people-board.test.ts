@@ -5,6 +5,7 @@ import {
   isRegular,
   plays,
   stillAttributed,
+  toDraft,
   unclaimed,
 } from "./people-board";
 import type { Party, PartyMember } from "@/types/party";
@@ -192,5 +193,44 @@ describe("plays", () => {
     expect(plays(chris, "OldAlt")).toBe(true);
     expect(plays(chris, "CreedBratton")).toBe(true);
     expect(plays(chris, "Premial")).toBe(false);
+  });
+});
+
+describe("toDraft", () => {
+  it("reads what the API sends", () => {
+    const rows = [
+      {
+        id: "p1",
+        name: "Chris",
+        characters: ["OldAlt"],
+        ownedCharacters: ["Creed"],
+        pinned: false,
+      },
+    ];
+    expect(toDraft(rows)).toEqual([
+      { id: "p1", name: "Chris", characters: ["OldAlt"], owned: ["Creed"] },
+    ]);
+  });
+
+  // The bug this exists for. lib/cache.ts lives as long as the tab, so a page opened before a
+  // deploy seeds its state from a payload with no ownedCharacters at all, and the People page hits
+  // this on its first render through `dirty`. Spreading the undefined threw
+  // "p.ownedCharacters is not iterable" and took the page down until a hard reload.
+  it("survives a payload cached before the field existed", () => {
+    const cached = [{ id: "p1", name: "Chris", characters: ["Creed"], pinned: false }];
+    expect(toDraft(cached as unknown as Parameters<typeof toDraft>[0])).toEqual([
+      { id: "p1", name: "Chris", characters: ["Creed"], owned: [] },
+    ]);
+  });
+
+  // Copies, not the same arrays: the board edits a draft and compares it against the people it was
+  // made from, so sharing an array would make every edit look like no edit.
+  it("copies the arrays rather than sharing them", () => {
+    const rows = [
+      { id: "p1", name: "Chris", characters: ["A"], ownedCharacters: ["B"], pinned: false },
+    ];
+    const draft = toDraft(rows);
+    draft[0]!.characters.push("C");
+    expect(rows[0]!.characters).toEqual(["A"]);
   });
 });
