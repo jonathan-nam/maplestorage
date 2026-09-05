@@ -24,24 +24,17 @@ export function SettlementSummary({
   return (
     <div className="stat-row">
       <div className="stat-tile">
-        <span className="stat-label">You&apos;re owed</span>
+        <span className="stat-label">Amount Owed</span>
         <span className="stat-value is-good">{formatMesos(totals.owed, true)}</span>
-        <span className="stat-note">
-          {`across ${totals.people} ${totals.people === 1 ? "person" : "people"}`}
-        </span>
       </div>
       <div className="stat-tile">
-        <span className="stat-label">You owe</span>
+        <span className="stat-label">Amount You Owe</span>
         <span className="stat-value">{formatMesos(totals.owe, true)}</span>
-        <span className="stat-note">not collectable, said anyway</span>
       </div>
       <div className="stat-tile">
         <span className="stat-label">Net</span>
         <span className={totals.net < 0 ? "stat-value is-warn" : "stat-value is-good"}>
           {formatMesos(totals.net, true)}
-        </span>
-        <span className="stat-note">
-          {totals.net < 0 ? "you are behind overall" : "yours to collect overall"}
         </span>
       </div>
     </div>
