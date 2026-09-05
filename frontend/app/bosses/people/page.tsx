@@ -49,7 +49,12 @@ export default function PeoplePage() {
   const [error, setError] = useState<string | null>(null);
 
   const toDraft = (rows: Person[]): PersonDraft[] =>
-    rows.map((p) => ({ id: p.id, name: p.name, characters: [...p.characters] }));
+    rows.map((p) => ({
+      id: p.id,
+      name: p.name,
+      characters: [...p.characters],
+      owned: [...p.ownedCharacters],
+    }));
 
   useEffect(() => {
     // Not before Clerk answers, or the fetch goes out as `Bearer null`. See lib/api.ts.
@@ -187,7 +192,7 @@ export default function PeoplePage() {
               <button
                 type="button"
                 className="party-add-seat"
-                onClick={() => setDraft([...draft, { name: "", characters: [] }])}
+                onClick={() => setDraft([...draft, { name: "", characters: [], owned: [] }])}
               >
                 + Person
               </button>

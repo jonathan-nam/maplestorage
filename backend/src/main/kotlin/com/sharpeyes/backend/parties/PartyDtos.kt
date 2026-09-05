@@ -102,6 +102,15 @@ data class PersonResponse(
     val id: String,
     val name: String,
     val characters: List<String>,
+    /**
+     * The ones their OWN account holds, for a person who has linked (V70).
+     *
+     * Kept apart from `characters` rather than merged into it because the two are editable
+     * differently: what this account said about them can be moved on the People page, and what
+     * their account holds cannot. Empty for everybody who does not use the app, which is most of
+     * them. See personCharacters.
+     */
+    val ownedCharacters: List<String> = emptyList(),
     /** Their Settlement Ledger card stays drawn with nothing outstanding. See V59. */
     val pinned: Boolean = false,
 )
