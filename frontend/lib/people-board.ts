@@ -1,7 +1,13 @@
 import type { Party } from "@/types/party";
 
-/** One row of the People page while it is being edited. Saved as SavePeopleBody. */
-export type PersonDraft = { id?: string; name: string; characters: string[] };
+/**
+ * One row of the People page while it is being edited.
+ *
+ * `characters` is what this account said and is what gets saved (as SavePeopleBody). `owned` is
+ * what a linked person's own account holds: carried so the row can draw it and the pile can leave
+ * it alone, never sent back, because it is not this account's to state.
+ */
+export type PersonDraft = { id?: string; name: string; characters: string[]; owned: string[] };
 
 // The backend claims a character case-insensitively (see validatePeople), so every comparison here
 // has to as well, or the page would offer a name it thinks is free and the save would refuse it.
@@ -38,7 +44,12 @@ export function isRegular(name: string, parties: Party[]): boolean {
  * of people worth naming. Type a name in if you want one anyway.
  */
 export function unclaimed(parties: Party[], people: PersonDraft[], mine: string[] = []): string[] {
-  const claimed = new Set(people.flatMap((person) => person.characters.map(key)));
+  // Owned counts as claimed. A character whose own account says whose it is is not a question this
+  // page has left to ask, and offering it in the pile would invite an attribution that the next
+  // read would overrule anyway.
+  const claimed = new Set(
+    people.flatMap((person) => [...person.characters, ...person.owned].map(key)),
+  );
   const yours = new Set(mine.map(key));
   for (const party of parties) {
     for (const seat of party.seats) {
@@ -84,4 +95,22 @@ export function claim(
   return stripped.map((person, index) =>
     index === personIndex ? { ...person, characters: [...person.characters, name] } : person,
   );
+}
+
+/**
+ * The names on a row that this account still has to speak for.
+ *
+ * A character can be both attributed and owned: you said it was theirs before they linked, and
+ * their account now says so too. The attribution is left in the database, because it is still the
+ * answer if they ever unlink, but the row draws each character once and draws it as owned.
+ */
+export function stillAttributed(person: PersonDraft): string[] {
+  const owned = new Set(person.owned.map(key));
+  return person.characters.filter((name) => !owned.has(key(name)));
+}
+
+/** Whether this row already plays [name], however that came to be known. */
+export function plays(person: PersonDraft, name: string): boolean {
+  const wanted = key(name);
+  return [...person.characters, ...person.owned].some((held) => key(held) === wanted);
 }

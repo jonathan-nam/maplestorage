@@ -5319,7 +5319,8 @@ button.link:disabled {
 }
 
 .person-target .person-grip,
-.person-add .person-grip {
+.person-add .person-grip,
+.person-linked .person-grip {
   visibility: hidden;
 }
 
