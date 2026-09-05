@@ -657,11 +657,17 @@ function SettlementCard({
                 Offset
               </button>
               {/* What it leaves behind, where their debt cannot cover the lot. Said, because the
-                  alternative is a button promising to take 800m off a 500m debt. */}
+                  alternative is a button promising to take 800m off a 500m debt.
+
+                  CLEARS, not "takes off". The headline is the net and the two halves of an offset
+                  cancel in it, so a button promising to take 703,703,488 off what Bro owes you sat
+                  over a figure that did not move: the same words the money-in-hand Offset below
+                  wears, where the figure does move. What changes here is whose side the share is on.
+                  */}
               <span className="ledger-progress">
                 {offset.leftOwing > 0
                   ? `clears what ${row.name} owes you, leaving you owing ${formatMesos(offset.leftOwing, true)}`
-                  : `takes ${formatMesos(offset.amount, true)} off what ${row.name} owes you`}
+                  : `clears the ${formatMesos(offset.amount, true)} you owe against what ${row.name} owes you`}
               </span>
             </span>
           )}

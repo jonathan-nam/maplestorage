@@ -960,6 +960,16 @@ describe("discharging what you owe against what they owe you", () => {
     expect(after.mesos).toBe(row.mesos);
   });
 
+  it("reads too high between its two writes, which is why the card draws them as one", () => {
+    // The settle lands first and takes the share out of the net. The debt row that puts it back is a
+    // round trip behind it, so a card drawn as each write landed walked 1.5b up to 2b and back down,
+    // and finished on the figure it started on. See onOffsetShares.
+    const row = card(2_000 * M, 500 * M);
+    const between = buildSettlement([], wallet([]), [debt(2_000 * M)])[0]!;
+    expect(between.mesos).toBe(2_000 * M);
+    expect(between.mesos).not.toBe(row.mesos);
+  });
+
   it("is offered when the shares outgrow the debt, and says what it leaves you owing", () => {
     // The night this button was for and refused: you take a week of his coupons, they come to more
     // than he owed, and the remainder is yours to send. `mesos` reads zero here, which is why the

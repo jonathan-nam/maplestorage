@@ -1,6 +1,7 @@
 // Mirrors backend's parties/VestigeRoutes.kt field-for-field.
 
 import type { Holder } from "@/lib/vestige-ledger";
+import type { PartyLootPool } from "@/types/loot";
 
 // One tranche: "sold 50 pieces for 1.2b". It names no boss, because which boss its pieces paid for
 // is worked out by lib/piece-ledger.ts rather than typed. See VestigeRoutes.kt.
@@ -109,6 +110,16 @@ export type SettlementDebt = {
   // The shares an OFFSET discharged. Empty on a hand-entered debt, which is most of them. See V58.
   payouts: SettlementDebtPayout[];
   incurredAt: string;
+};
+
+// What an offset moved: the shares it marked paid and the entries it was recorded as. See V57.
+//
+// Both, because it wrote both, in one transaction. Two answers would be two repaints, and the halves
+// of an offset cancel in the net, so the card drew the debt un-offset in between and finished on the
+// figure it started on.
+export type OffsetShares = {
+  pools: PartyLootPool[];
+  debts: SettlementDebt[];
 };
 
 // What became of the money a sale of somebody else's coupons left in your hands. See V61.
