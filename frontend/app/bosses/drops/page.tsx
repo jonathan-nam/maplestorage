@@ -99,6 +99,7 @@ import type { DropTables } from "@/types/drop";
 import type { Loot, LogDropBody, PartyLootPool, SellLootBody, SettleBody } from "@/types/loot";
 import type { Party, Person } from "@/types/party";
 import type {
+  OffsetShares,
   ProceedsDisposal,
   SettlementDebt,
   VestigePayment,
@@ -1061,64 +1062,42 @@ export default function DropLogPage() {
                       setBusy(false);
                     }
                   }}
-                  // The ORDER matters. Settling first leaves the figure 139m too high if the offset
-                  // then fails, which is visible and fixable with the box on the card. The other way
-                  // round nets the same share twice, which is not visible at all.
+                  // ONE request, and one repaint. It was a settle followed by an entry per share,
+                  // and the halves of an offset cancel: between them the ledger said the shares were
+                  // paid and nothing had come off the debt, which walked Bro's card from 253.86b up
+                  // to 254b and back down over two round trips. A failure in the gap left it there.
                   //
-                  // ONE ROW PER SHARE, so the history reads as the drops it was rather than as a
-                  // figure naming nobody, and one can be taken back without the others. Sequential,
-                  // like every paired write on this page: each answers with the whole debt list and
-                  // the last answer wins, so racing them would redraw the card from whichever landed
-                  // second.
-                  //
-                  // ONE REPAINT, at the end, which is why this writes through apiFetch rather than
-                  // through settleShares and debtWrite. Each of those draws the moment it lands, and
-                  // the halves of an offset cancel: the settle takes the share out of the net and the
-                  // debt row puts it back, so a 703,703,488 offset walked Bro's card up to 254b and
-                  // back down over two round trips and finished on the figure it started on. Nothing
-                  // between the two writes is a state of the ledger anybody should read.
-                  //
-                  // Applied in `finally`, so a failure part way still draws what landed: the shares
-                  // settled and some of them not yet offset, which is the direction that shows on the
-                  // card and is fixable with the box on it.
+                  // The server writes both in one transaction and answers with both lists, so there
+                  // is no order to get right here and no half of the act to leave behind. ONE ROW PER
+                  // SHARE still, so the history reads as the drops it was rather than as a figure
+                  // naming nobody: see writeOffset.
                   onOffsetShares={async (holder: Holder, name, parts) => {
                     if (parts.length === 0) return;
                     setBusy(true);
-                    let settled: PartyLootPool[] | null = null;
-                    let owed: SettlementDebt[] | null = null;
                     try {
-                      const body: SettleBody = {
-                        payouts: parts.map(({ lootId, memberId }) => ({ lootId, memberId })),
-                      };
-                      settled = await apiFetch<PartyLootPool[]>(
-                        SETTLE_KEY,
-                        { method: "POST", body: JSON.stringify(body) },
+                      const done = await apiFetch<OffsetShares>(
+                        `${DEBTS_KEY}/offset`,
+                        {
+                          method: "POST",
+                          body: JSON.stringify({
+                            holder,
+                            // Invisible on the card, which names the drop itself once an entry has
+                            // one share behind it. It is what the debt row says on its own.
+                            note: `offset against ${name}`,
+                            parts: parts.map((part) => ({
+                              lootId: part.lootId,
+                              memberId: part.memberId,
+                              amount: part.amount,
+                            })),
+                          }),
+                        },
                         getToken,
                       );
-                      for (const part of parts) {
-                        owed = await apiFetch<SettlementDebt[]>(
-                          DEBTS_KEY,
-                          {
-                            method: "POST",
-                            body: JSON.stringify({
-                              holder,
-                              amount: -part.amount,
-                              // Invisible on the card, which names the drop itself once an entry has
-                              // one share behind it. It is what the debt row says on its own.
-                              note: `offset against ${name}`,
-                              // The very row the settle above just marked paid, so the adjustment can
-                              // name what discharged it a month later. See V58.
-                              payouts: [{ lootId: part.lootId, memberId: part.memberId }],
-                            }),
-                          },
-                          getToken,
-                        );
-                      }
+                      setPools(done.pools);
+                      setDebts(done.debts);
                     } catch (e) {
                       throw new Error(e instanceof ApiError ? e.body : "That didn't save.");
                     } finally {
-                      if (settled) setPools(settled);
-                      if (owed) setDebts(owed);
                       setBusy(false);
                     }
                   }}

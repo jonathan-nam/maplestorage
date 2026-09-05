@@ -96,33 +96,34 @@ describe("what the card says a person owes", () => {
     expect(source).toContain("function DischargeRow(");
   });
 
-  it("records an offset one row per share, so the history names the drops", () => {
+  it("hands the server every share, since the history is one row per share", () => {
     // A press covering three nights wrote ONE entry: 5.6b against "offset against Bro", with which
-    // three of them a fold down from a figure that named none. The rows are what the act was.
-    expect(page).toContain("for (const part of parts) {");
-    expect(page).toContain("amount: -part.amount,");
-    expect(page).toContain("payouts: [{ lootId: part.lootId, memberId: part.memberId }],");
+    // three of them a fold down from a figure that named none. The rows are what the act was, and
+    // writeOffset is where they are written now, so what this side owes is the whole list of shares
+    // with the figure the button quoted for each. See SettlementDebtRoutes.kt for the rows.
+    expect(page).toContain("parts: parts.map((part) => ({");
+    expect(page).toContain("amount: part.amount,");
     // Off the same parts the button quoted a total from, so the rows cannot come to a different sum.
     expect(source).toContain("onOffsetShares(row.holder, row.name, offset.parts)");
     expect(settlement).toContain("parts.reduce((sum, part) => sum + part.amount, 0)");
   });
 
-  it("draws its two writes as ONE repaint, the halves of an offset cancelling in the net", () => {
-    // Neither of the page's write helpers, because each draws the moment it lands and the state
-    // between the settle and the debt row is the debt un-offset: Bro's card went 253.86b, 254b,
-    // 253.86b over two round trips, which reads as a button that did nothing.
+  it("is ONE request, the halves of an offset cancelling in the net", () => {
+    // It was a settle and then an entry per share, each drawn as it landed, and the state between
+    // them is the debt un-offset: Bro's card went 253.86b, 254b, 253.86b over two round trips, which
+    // reads as a button that did nothing. A failure in the gap left it there for good.
     const handler = page.slice(
       page.indexOf("onOffsetShares={async"),
       page.indexOf("<AddSettlement"),
     );
+    expect(handler).toContain("`${DEBTS_KEY}/offset`");
+    // Neither of the page's write helpers: each draws the moment it lands, and this act has two
+    // halves that must be drawn together or not at all.
     expect(handler).not.toContain("settleShares(");
     expect(handler).not.toContain("debtWrite(");
-    // Both applied after the last write, and in `finally`, so a failure part way still draws what
-    // landed: the shares settled and some of them not yet offset.
-    expect(handler).toContain("if (owed) setDebts(owed);");
-    expect(handler.indexOf("if (settled) setPools(settled);")).toBeGreaterThan(
-      handler.lastIndexOf("await apiFetch"),
-    );
+    // Both lists off the one answer, so there is no repaint between them.
+    expect(handler).toContain("setPools(done.pools);");
+    expect(handler).toContain("setDebts(done.debts);");
   });
 
   it("says what the offset clears, not a figure the headline will not move by", () => {
