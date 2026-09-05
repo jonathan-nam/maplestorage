@@ -3708,7 +3708,7 @@ button.link:disabled {
 /* The + that submits Add Party's row. Square and the height of a .split-input beside it (15px text
    in 9px padding inside a 1px border), so the row reads as one control rather than boxes with an
    afterthought. 38px also clears WCAG 2.5.8's 24px target. */
-.party-add-icon {
+.add-plus {
   width: 38px;
   height: 38px;
   padding: 0;
@@ -3870,23 +3870,17 @@ button.link:disabled {
   flex: none;
 }
 
-/* Add Drop, ruled off from the list under it. A form above and a list of what it has recorded below
-   is a real boundary, which is why this is here and why Record Sale does NOT have one: everything on
-   that tab either side of a rule would be another card taking another sale. */
-.add-panel {
-  padding-bottom: 22px;
-  border-bottom: 1px solid var(--line);
+/* Add Party and Add Drop, each a form above the list of what it has already recorded. That is a
+   real boundary, and both draw it as a card. It was a rule under the form on the Drop Log, which
+   Add Party could not copy: it sits between the week stepper and Filter Options, where a rule reads
+   as the end of the block above it rather than the end of the form. Record Sale still has neither,
+   because everything on that tab either side of a boundary would be another card taking another
+   sale. */
+.add-section {
   margin-bottom: 26px;
 }
 
-/* Add Party draws the same boundary as a card rather than a rule, because it is not the page's
-   first thing: it sits between the week stepper and Filter Options, where a rule reads as the end
-   of the block above it. */
-.add-party {
-  margin-bottom: 26px;
-}
-
-.add-party-card {
+.add-card {
   margin-top: 10px;
   padding: 14px;
   border: 1px solid var(--line);
@@ -3896,7 +3890,7 @@ button.link:disabled {
 
 /* Label over box, so naming a field cannot push its own box out of the row. Bottom-aligned, which
    is what puts the + on the boxes' line and not on the labels'. */
-.add-party-fields {
+.add-fields {
   display: flex;
   flex-wrap: wrap;
   align-items: flex-end;
@@ -3908,33 +3902,51 @@ button.link:disabled {
    basis:auto a select is as wide as its longest option ("every boss is on this week", 26
    characters) and the + got pushed onto a line of its own at the page's 794px. Fixed bases make the
    row's width answer to this file rather than to the catalog. min-width:0 lets them shrink after. */
-.add-party-field {
+.add-field {
   display: flex;
   flex-direction: column;
   gap: 4px;
   min-width: 0;
-  flex: 1 1 120px;
+  flex: 1 1 110px;
   font-size: var(--text-base);
   color: var(--muted);
 }
 
-/* Boss and Member hold the longest text, so they take a double share of whatever is left over. */
-.add-party-field.is-wide {
+/* The fields holding the longest text take a double share of whatever is left over. */
+.add-field.is-wide {
   flex: 2 1 150px;
 }
 
+/* A count is at most 7 digits and does not want the width. */
+.add-field.is-narrow {
+  flex: 0 1 84px;
+}
+
+/* The drop picker sets the width of its own popup list (panelPlacement takes the trigger's), and
+   264px is what fits a 46px icon beside a name. So this one field is sized by that floor rather
+   than by a basis of ours, and does not grow past it. */
+.add-field.is-drop {
+  flex: 0 1 264px;
+}
+
 /* Never the thing that wraps: a + alone on the second line names nothing. */
-.add-party-fields .party-add-icon {
+.add-fields .add-plus {
   flex: none;
 }
 
 /* One height for a select and an input alike, which the browser does not give: without it the
-   taller box lifts its own label out of line with the rest. Matches .party-add-icon's square. */
-.add-party-field .split-input {
+   taller box lifts its own label out of line with the rest. Matches .add-plus's square. */
+.add-field .split-input {
   height: 38px;
   box-sizing: border-box;
   width: 100%;
   min-width: 0;
+}
+
+/* The picker is a .split-input too, so it takes the 38px above. Its own min-height was measured to
+   stop the control growing when an icon appears; a fixed height does that job here. */
+.add-field .drop-select {
+  min-height: 0;
 }
 
 /* The nights this configuration did not run, behind their own count. Ruled off because what is
@@ -5415,8 +5427,8 @@ button.link:disabled {
   gap: 6px 16px;
 }
 
-/* Under the Add Party form, not above it: the form is one thing and what the list shows is another.
-   Same boundary .add-panel draws on the Drop Log. */
+/* Under the Add Party form, not above it: the form is one thing and what the list shows is
+   another. */
 .party-filters {
   margin-bottom: 18px;
 }

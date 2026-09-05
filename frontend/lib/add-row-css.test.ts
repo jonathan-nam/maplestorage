@@ -10,45 +10,77 @@ function rule(selector: string): string {
   return m[1] ?? "";
 }
 
+function num(selector: string, prop: RegExp): number {
+  const found = rule(selector).match(prop)?.[1];
+  if (found === undefined) throw new Error(`no ${prop} in ${selector}`);
+  return Number(found);
+}
+
+const basis = (selector: string) => num(selector, /flex:\s*\d\s+1\s+(\d+)px/);
+
+/**
+ * What one of these cards actually has to lay out in, measured rather than derived: --measure, less
+ * .page's 2rem either side, less .add-card's 14px either side, less a scrollbar. The scrollbar is
+ * the part arithmetic misses and both these pages have one, which is the difference between the
+ * 702px this test first assumed and the 685px Chrome reports.
+ */
+const SCROLLBAR = 17;
+const INNER = Number(css.match(/--measure:\s*(\d+)px/)?.[1]) - SCROLLBAR - 2 * 32 - 2 * 14;
+
+/** Every gap between boxes, plus the + itself, which never shrinks. */
+function overhead(fields: number): number {
+  return num(".add-plus", /width:\s*(\d+)px/) + fields * num(".add-fields", /gap:\s*(\d+)px/);
+}
+
 // Add Party's row shipped wrapping its + onto a line of its own, where a + names nothing. The cause
 // is not obvious from the markup: a wrapping flex row breaks lines at each item's BASE size and
 // only shrinks what already sits on a line, so flex-shrink cannot rescue a row that does not fit,
-// and a basis of auto makes a <select> as wide as its longest option. Ours is 26 characters ("every
-// boss is on this week"), which at the page's 794px overflowed a 685px card.
+// and a basis of auto makes a <select> as wide as its longest option. Ours was 26 characters
+// ("every boss is on this week"), which overflowed the card at the page's own width.
 //
-// Nothing the component can assert about itself, and the failure is invisible until somebody adds a
-// longer boss to catalog/bosses.yaml. So the numbers are pinned here.
+// Nothing either component can assert about itself, and the failure is invisible until somebody
+// adds a longer boss to catalog/bosses.yaml. So the numbers are pinned here.
 describe("the add row", () => {
   it("gives every field an explicit flex-basis, so the catalog cannot set the layout", () => {
-    const field = rule(".add-party-field");
     // A bare `flex: 1 1 auto` or no flex at all is the bug coming back.
-    expect(field).toMatch(/flex:\s*1\s+1\s+\d+px/);
-    expect(rule(".add-party-field.is-wide")).toMatch(/flex:\s*2\s+1\s+\d+px/);
+    expect(rule(".add-field")).toMatch(/flex:\s*1\s+1\s+\d+px/);
+    expect(rule(".add-field.is-wide")).toMatch(/flex:\s*2\s+1\s+\d+px/);
+    expect(rule(".add-field.is-narrow")).toMatch(/flex:\s*0\s+1\s+\d+px/);
+    expect(rule(".add-field.is-drop")).toMatch(/flex:\s*0\s+1\s+\d+px/);
   });
 
   it("lets a field shrink, which min-width:auto otherwise forbids", () => {
-    expect(rule(".add-party-field")).toMatch(/min-width:\s*0/);
-    expect(rule(".add-party-field .split-input")).toMatch(/min-width:\s*0/);
+    expect(rule(".add-field")).toMatch(/min-width:\s*0/);
+    expect(rule(".add-field .split-input")).toMatch(/min-width:\s*0/);
   });
 
   it("keeps the + out of the wrap, so it is never the thing left alone on a line", () => {
-    expect(rule(".add-party-fields .party-add-icon")).toMatch(/flex:\s*none/);
+    expect(rule(".add-fields .add-plus")).toMatch(/flex:\s*none/);
   });
 
-  // The bases have to actually fit the card they are in, which is the whole point. The page is
-  // --measure wide with .page's 2rem either side and .add-party-card's 14px either side.
-  it("fits its four fields and the + across the page's own width", () => {
-    const measure = Number(css.match(/--measure:\s*(\d+)px/)?.[1]);
-    const inner = measure - 2 * 32 - 2 * 14;
-    const basis = (selector: string) =>
-      Number(rule(selector).match(/flex:\s*\d\s+1\s+(\d+)px/)?.[1]);
-    const gap = Number(rule(".add-party-fields").match(/gap:\s*(\d+)px/)?.[1]);
-    const button = Number(rule(".party-add-icon").match(/width:\s*(\d+)px/)?.[1]);
+  it("holds every box in the row to one height, which a select and an input do not agree on", () => {
+    const box = num(".add-field .split-input", /height:\s*(\d+)px/);
+    expect(box).toBe(num(".add-plus", /height:\s*(\d+)px/));
+    expect(box).toBe(num(".add-plus", /width:\s*(\d+)px/));
+    // The drop picker carries a min-height of its own, measured to stop it growing when an icon
+    // appears. Left standing it would win over the line above and the picker would sit 1px short.
+    expect(rule(".add-field .drop-select")).toMatch(/min-height:\s*0/);
+  });
 
-    const narrow = basis(".add-party-field");
-    const wide = basis(".add-party-field.is-wide");
-    // Character + Difficulty are narrow, Boss + Member wide, then the +, with four gaps between.
-    const total = 2 * narrow + 2 * wide + button + 4 * gap;
-    expect(total).toBeLessThanOrEqual(inner);
+  // Character, Boss, Difficulty, Member.
+  it("fits Add Party's four boxes and the + across the page", () => {
+    const total = 2 * basis(".add-field") + 2 * basis(".add-field.is-wide") + overhead(4);
+    expect(total).toBeLessThanOrEqual(INNER);
+  });
+
+  // Character, Boss, Drop, How many. The drop picker is the wide one here, and it is sized by the
+  // floor that keeps its popup list readable rather than by a basis we chose.
+  it("fits the Drop Log's four boxes and the + across the page", () => {
+    const total =
+      2 * basis(".add-field") +
+      basis(".add-field.is-drop") +
+      basis(".add-field.is-narrow") +
+      overhead(4);
+    expect(total).toBeLessThanOrEqual(INNER);
   });
 });

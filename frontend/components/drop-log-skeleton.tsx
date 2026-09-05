@@ -76,23 +76,31 @@ export function DropLogSkeleton() {
         </div>
       )}
 
-      {/* The real Add Drop panel, down to the disabled controls, so its height is its own and not a
-          number copied out of it. */}
-      <section className="loot-pool add-panel" aria-hidden="true">
+      {/* The real Add Drop panel, down to the disabled controls and their labels, so its height is
+          its own and not a number copied out of it. The labels are half of that height now. */}
+      <section className="loot-pool add-section" aria-hidden="true">
         <h2 className="loot-pool-title">Add Drop</h2>
-        <form className="loot-add">
-          <select className="split-input" disabled aria-hidden="true">
-            <option>pick a boss</option>
-          </select>
-          <button type="button" className="split-input drop-select" disabled>
-            <span className="drop-select-label is-empty">Select a drop...</span>
-            <span className="drop-select-arrow" aria-hidden="true">
-              &#9662;
-            </span>
-          </button>
-          <button type="submit" className="party-save" disabled>
-            Add drop
-          </button>
+        <form className="add-card">
+          <div className="add-fields">
+            <label className="add-field">
+              <span>Boss</span>
+              <select className="split-input" disabled aria-hidden="true">
+                <option>pick a boss</option>
+              </select>
+            </label>
+            <label className="add-field is-drop">
+              <span>Drop</span>
+              <button type="button" className="split-input drop-select" disabled>
+                <span className="drop-select-label is-empty">Select a drop...</span>
+                <span className="drop-select-arrow" aria-hidden="true">
+                  &#9662;
+                </span>
+              </button>
+            </label>
+            <button type="submit" className="party-save add-plus" disabled>
+              <span aria-hidden="true">+</span>
+            </button>
+          </div>
         </form>
       </section>
 

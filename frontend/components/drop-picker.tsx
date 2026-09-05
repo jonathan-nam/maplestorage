@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useState, type FormEvent, type ReactNode } from "react";
 import { DropSelect } from "@/components/drop-select";
 import { StackAssign } from "@/components/stack-assign";
 import { StackPickupDraft } from "@/components/stack-pickup";
@@ -48,12 +48,40 @@ export type StackDraft = {
 // the answer arrives as `bossKey`. Nor is it drawn: every screen carrying this form already names
 // the boss above it.
 
+/**
+ * Named in the card, bare everywhere else, where the boxes sit in a row the caller titled.
+ *
+ * At module scope on purpose: declared inside DropPicker it would be a new component type on every
+ * render, so React would remount the box instead of updating it and typing would lose the caret.
+ */
+function Field({
+  card,
+  label,
+  cls,
+  children,
+}: {
+  card?: boolean;
+  label: string;
+  /** How wide this box wants to be. See .add-field's modifiers. */
+  cls?: string;
+  children: ReactNode;
+}) {
+  if (!card) return <>{children}</>;
+  return (
+    <label className={cls ? `add-field ${cls}` : "add-field"}>
+      <span>{label}</span>
+      {children}
+    </label>
+  );
+}
+
 export function DropPicker({
   bossKey,
   worldType,
   table,
   busy,
   lead,
+  card,
   difficulty,
   draft,
   onPick,
@@ -74,6 +102,15 @@ export function DropPicker({
   busy: boolean;
   /** Controls the caller needs answered first, inside this form so there is one submit. */
   lead?: ReactNode;
+  /**
+   * The Drop Log's own presentation: a card of labelled boxes submitted by a +, the shape Add Party
+   * has on the parties page. Everywhere else this form is a plain row inside a card the caller has
+   * already drawn, where a second card would be a box around nothing and a bare + would sit under
+   * the full-width stack blocks with nothing naming it.
+   *
+   * A caller passing this labels its own `lead` boxes. This one cannot name controls it is handed.
+   */
+  card?: boolean;
   /**
    * The stacking drop's blocks, answerable here. Absent on every picker that has no party to split by.
    *
@@ -117,31 +154,44 @@ export function DropPicker({
   // now takes the DROP down with it, so the form holds it back rather than losing both.
   const ready = Boolean(body) && (night === null || stacks !== null);
 
-  return (
-    <>
-      <form
-        className="loot-add"
-        onSubmit={async (e) => {
-          e.preventDefault();
-          if (!body || busy || !ready) return;
-          try {
-            // Empty is a night nobody has answered for, which is what a drop logged anywhere else
-            // is, so nothing is sent rather than an empty map.
-            await onAdd(
-              stacks && Object.keys(stacks).length > 0 ? { ...body, bundles: stacks } : body,
-            );
-          } catch {
-            return;
-          }
-          setDropKey("");
-          onPick?.("");
-          setCustomName("");
-          setQuantity("");
-          setBoxes({});
-        }}
-      >
-        {lead}
+  async function submit(e: FormEvent) {
+    e.preventDefault();
+    if (!body || busy || !ready) return;
+    try {
+      // Empty is a night nobody has answered for, which is what a drop logged anywhere else
+      // is, so nothing is sent rather than an empty map.
+      await onAdd(stacks && Object.keys(stacks).length > 0 ? { ...body, bundles: stacks } : body);
+    } catch {
+      return;
+    }
+    setDropKey("");
+    onPick?.("");
+    setCustomName("");
+    setQuantity("");
+    setBoxes({});
+  }
 
+  /* Both blocks the coupon row carries, before there is a row to carry them. Inside the form and
+     ABOVE its button, because the pickup goes out with Add drop and a button that submits what is
+     under it reads as belonging to the line it is on instead.
+
+     The split keeps its own Save: it is the party's standing deal, it outlives this night, and it
+     is already saved that way everywhere else. */
+  const blocks = night && draft && (
+    <div className="loot-draft">
+      <h4 className="loot-group-title is-config">{draft.pickupTitle}</h4>
+      <StackPickupDraft drop={night} boxes={boxes} busy={busy} onChange={setBoxes} />
+
+      <h4 className="loot-group-title is-config">{draft.entitledTitle}</h4>
+      <StackAssign config={draft.config} editing busy={busy} onSave={draft.onSaveShares} />
+    </div>
+  );
+
+  const fields = (
+    <>
+      {lead}
+
+      <Field card={card} label="Drop" cls="is-drop">
         <DropSelect
           drops={drops}
           worldType={worldType}
@@ -168,50 +218,66 @@ export function DropPicker({
             setBoxes(opening ? draftBoxes(opening, draft!.party) : {});
           }}
         />
+      </Field>
 
-        {dropKey === OTHER && (
+      {dropKey === OTHER && (
+        <Field card={card} label="Name" cls="is-wide">
           <input
             className="split-input"
             value={customName}
             onChange={(e) => setCustomName(e.target.value)}
-            placeholder="what dropped"
-            aria-label="Item name"
+            placeholder={card ? undefined : "what dropped"}
+            aria-label={card ? undefined : "Item name"}
             maxLength={80}
           />
-        )}
+        </Field>
+      )}
 
-        {dropKey !== "" && (
+      {dropKey !== "" && (
+        <Field card={card} label="How many" cls="is-narrow">
           <input
             className="split-input loot-count-input"
             value={quantity}
             onChange={(e) => setQuantity(e.target.value)}
             placeholder="1"
-            aria-label="How many"
+            aria-label={card ? undefined : "How many"}
             inputMode="numeric"
             maxLength={7}
           />
-        )}
+        </Field>
+      )}
 
-        {/* Both blocks the coupon row carries, before there is a row to carry them. Inside the form
-            and ABOVE its button, because the pickup goes out with Add drop and a button that submits
-            what is under it reads as belonging to the line it is on instead.
+      {blocks}
 
-            The split keeps its own Save: it is the party's standing deal, it outlives this night,
-            and it is already saved that way everywhere else. */}
-        {night && draft && (
-          <div className="loot-draft">
-            <h4 className="loot-group-title is-config">{draft.pickupTitle}</h4>
-            <StackPickupDraft drop={night} boxes={boxes} busy={busy} onChange={setBoxes} />
-
-            <h4 className="loot-group-title is-config">{draft.entitledTitle}</h4>
-            <StackAssign config={draft.config} editing busy={busy} onSave={draft.onSaveShares} />
-          </div>
-        )}
-
+      {card ? (
+        <button
+          type="submit"
+          className="party-save add-plus"
+          title="Add drop"
+          aria-label="Add drop"
+          disabled={busy || !ready}
+        >
+          <span aria-hidden="true">+</span>
+        </button>
+      ) : (
         <button type="submit" className="party-save" disabled={busy || !ready}>
           Add drop
         </button>
-      </form>
+      )}
+    </>
+  );
+
+  return (
+    <>
+      {card ? (
+        <form className="add-card" onSubmit={submit}>
+          <div className="add-fields">{fields}</div>
+        </form>
+      ) : (
+        <form className="loot-add" onSubmit={submit}>
+          {fields}
+        </form>
+      )}
 
       {/* The "only drops in Interactive worlds" note that used to sit here is gone: the list is
           now narrowed to this party's world and mode, so anything still on it does drop here.

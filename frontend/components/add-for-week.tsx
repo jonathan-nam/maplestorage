@@ -72,18 +72,18 @@ export function AddForWeek({
   }
 
   return (
-    <section className="loot-pool add-party">
+    <section className="loot-pool add-section">
       <h2 className="loot-pool-title">Add Party</h2>
 
       <form
-        className="add-party-card"
+        className="add-card"
         onSubmit={(e) => {
           e.preventDefault();
           void add();
         }}
       >
-        <div className="add-party-fields">
-          <label className="add-party-field">
+        <div className="add-fields">
+          <label className="add-field">
             <span>Character</span>
             <select
               className="split-input"
@@ -104,7 +104,7 @@ export function AddForWeek({
             </select>
           </label>
 
-          <label className="add-party-field is-wide">
+          <label className="add-field is-wide">
             <span>Boss</span>
             <select
               className="split-input"
@@ -128,7 +128,7 @@ export function AddForWeek({
 
           {/* Unlike the edit page, empty is not an answer here: a night you are recording is a
               night you already ran, so the mode is known. */}
-          <label className="add-party-field">
+          <label className="add-field">
             <span>Difficulty</span>
             <select
               className="split-input"
@@ -147,7 +147,7 @@ export function AddForWeek({
 
           {/* The server refuses a party with nobody else in it, on purpose: that is a solo run. So
               there is no such thing as an empty one to fill in afterwards. */}
-          <label className="add-party-field is-wide">
+          <label className="add-field is-wide">
             <span>Member</span>
             <input
               className="split-input"
@@ -161,7 +161,7 @@ export function AddForWeek({
 
           <button
             type="submit"
-            className="party-save party-add-icon"
+            className="party-save add-plus"
             title="Add for this week"
             aria-label="Add for this week"
             disabled={busy || !ready}
