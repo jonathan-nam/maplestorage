@@ -2424,6 +2424,13 @@ button.link:disabled {
   text-overflow: ellipsis;
 }
 
+/* The IGN is the column's own label, not a heading over it, so it carries full text weight while
+   the "Boss" head above the rows stays muted. It also has to start at --ink for the cleared head's
+   dim to read as a state: at --muted the two are a pair of greys. */
+.boss-char-name {
+  color: var(--ink);
+}
+
 /* The character above the IGN, drawn as the full sprite rather than a cropped face: the same
    figure the picker below the matrix shows, so a column and a tile read as the same character.
    96px is the Nexon render's own size, so this is 1:1 and not an enlargement; see .tile-sprite. */
@@ -2452,12 +2459,25 @@ button.link:disabled {
    Only on a definite clear, see columnFullyCleared: a character who has reported nothing keeps
    their full weight, because their week is unanswered rather than done. */
 .boss-table .boss-char-head.is-col-cleared {
-  opacity: 0.65;
+  opacity: 0.5;
   transition: opacity 0.12s ease;
+}
+
+/* The sprite is the one part of the head with colour in it, so opacity alone leaves a finished
+   character the brightest thing in their column. Desaturating takes it the rest of the way, on the
+   same pair of numbers a finished row's portrait uses. The IGN is not in the filter: it is grey
+   already, and dimming past 0.5 is where a column stops being readable. */
+.boss-table .boss-char-head.is-col-cleared .boss-char-sprite {
+  filter: saturate(0.3);
+  transition: filter 0.12s ease;
 }
 
 .boss-table .boss-char-head.is-col-cleared.is-col-hover {
   opacity: 1;
+}
+
+.boss-table .boss-char-head.is-col-cleared.is-col-hover .boss-char-sprite {
+  filter: none;
 }
 
 /* The cadence band. A row of its own rather than a caption per boss: it is the

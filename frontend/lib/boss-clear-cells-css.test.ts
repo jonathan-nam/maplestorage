@@ -62,7 +62,24 @@ describe("a finished character's head dims", () => {
 
   it("styles the class the matrix writes", () => {
     expect(matrix).toContain("is-col-cleared");
-    expect(rule(".boss-table .boss-char-head.is-col-cleared")).toMatch(/opacity:\s*0\.65/);
+    expect(rule(".boss-table .boss-char-head.is-col-cleared")).toMatch(/opacity:\s*0\.5/);
+  });
+
+  it("starts the IGN at full text colour, so the dim is the only grey", () => {
+    // The head dims by opacity alone, so a name that begins at --muted gives the cleared and
+    // uncleared columns two shades of grey to be told apart by instead of a state.
+    expect(matrix).toContain("boss-char-name");
+    expect(rule(".boss-char-name")).toMatch(/color:\s*var\(--ink\)/);
+  });
+
+  it("desaturates the sprite, the two numbers a finished row's portrait uses", () => {
+    // Opacity is shared with the IGN and floored at 0.5 by the test below, so the sprite's own
+    // colour is the only channel left to take a finished character further back.
+    // The row's rule is a group, so read it by the selector the brace actually follows.
+    expect(rule(".boss-table tr.is-row-unrun .boss-portrait")).toMatch(/saturate\(0\.3\)/);
+    expect(rule(".boss-table .boss-char-head.is-col-cleared .boss-char-sprite")).toMatch(
+      /saturate\(0\.3\)/,
+    );
   });
 
   it("dims rather than hides, since the column still has to be read", () => {
@@ -77,6 +94,9 @@ describe("a finished character's head dims", () => {
 
   it("comes back under the cursor, as the /inventory tile does", () => {
     expect(rule(".boss-table .boss-char-head.is-col-cleared.is-col-hover")).toMatch(/opacity:\s*1/);
+    expect(
+      rule(".boss-table .boss-char-head.is-col-cleared.is-col-hover .boss-char-sprite"),
+    ).toMatch(/filter:\s*none/);
     expect(rule(".char-tile:hover")).toMatch(/opacity:\s*1/);
   });
 });
