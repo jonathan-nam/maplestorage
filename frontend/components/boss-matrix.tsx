@@ -2,6 +2,7 @@
 
 import { type CSSProperties, useRef, useState } from "react";
 
+import { BossBands } from "@/components/boss-bands";
 import { apiAssetUrl, spriteUrl } from "@/lib/api";
 import {
   VISIBLE_COLUMNS,
@@ -60,7 +61,8 @@ export function BossMatrix({
   busy?: boolean;
 }) {
   // Rows, columns and band figures all come from one place, shared with the totals BossBands
-  // draws beside the page. Two counts of the same clears is the disagreement this avoids.
+  // draws in the corner of the heads. Two counts of the same clears is the disagreement this
+  // avoids.
   const { rows, columns, bands } = bossBands({
     bosses,
     characters,
@@ -139,8 +141,13 @@ export function BossMatrix({
           {columnWidths}
           <thead>
             <tr>
+              {/* The word "Boss" said what the column below it holds, which is boss names: it was
+                  a label on the self-evident, in a cell as tall as a 96px sprite. The band figures
+                  take the space instead. The column still needs a name for a reader who cannot see
+                  that, hence the hidden one. */}
               <th className="boss-col-head" scope="col">
-                Boss
+                <span className="visually-hidden">Boss</span>
+                <BossBands bands={bands} loading={loading} />
               </th>
               {columns.map((character) => (
                 <th

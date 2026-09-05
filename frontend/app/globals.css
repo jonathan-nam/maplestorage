@@ -96,41 +96,6 @@
   padding: 2rem;
 }
 
-/* ---------------------------------------------------------------------------
-   The gutter: the empty column beside the page.
-
-   The page is a fixed measure centred in the window, so a wide screen leaves the same width either
-   side of it doing nothing. Figures that are only ever read, never clicked, stand out there instead
-   of in the column: the boss matrix is the page, and two bands of progress above it started it a
-   screenful down.
-
-   Narrow, it is a block in the flow, exactly where it is written. Nothing is hidden at any width.
-   --------------------------------------------------------------------------- */
-.page-gutter {
-  display: flex;
-  flex-direction: column;
-  gap: 18px;
-  margin: 0 0 16px;
-}
-
-/* 794 + 2 * (220 + 24) = 1282, the narrowest window with a gutter wide enough to hold the panel.
-   Both sides, because the page is centred: there is no right gutter without a left one. */
-@media (min-width: 1282px) {
-  .page-gutter {
-    /* Fixed, not absolute: it is pinned to the window rather than to whichever positioned ancestor
-       it happens to be written inside, and PageSwap is one of those. The page is centred, so half
-       the window plus half the measure IS its right edge, at any width. */
-    position: fixed;
-    left: calc(50% + var(--measure) / 2 + 24px);
-    /* Lines the first countdown up with the week stepper at the top of the page: the header, the
-       title and the title's margin, measured. Decorative, so drifting a few px when a title wraps
-       costs nothing. */
-    top: 132px;
-    width: 220px;
-    margin: 0;
-  }
-}
-
 /* The section's own title, at the top-left of its content. The hamburger says which sections exist;
    this says which one you are on. */
 .page-title {
@@ -2444,6 +2409,7 @@ button.link:disabled {
 
 .boss-col-head {
   text-align: left;
+  vertical-align: bottom;
 }
 
 /* A long IGN is cut rather than allowed to widen its column: the columns are a fixed stride now,
@@ -2511,47 +2477,44 @@ button.link:disabled {
   background: var(--bg);
 }
 
-/* Each band's count. It sat between the column heads and the rows it counts, which cost the table
-   two bands of height at the top of the page; it is in the gutter now, and only falls back into
-   the flow here on a window too narrow to have one. */
+/* Each band's count, in the corner cell of the column heads. It had a strip of its own between the
+   heads and the rows, which pushed the table two bands further down the page for something the head
+   row already had room for: this cell is as tall as a 96px sprite and held the word "Boss".
+
+   Name and figure on one line, the bar on its own beneath, because the cell is 214px wide and a bar
+   sharing the line with them had nothing left to draw in. */
 .boss-band-totals {
-  /* ONE grid over both bands, not a grid per band. Sized per band, the label column took its own
-     width and the two bars came out different lengths, which is a difference that means nothing:
-     what a bar says is its fill, and two of them are read against each other. */
-  display: grid;
-  grid-template-columns: max-content 1fr;
-  /* The bar against the middle of the two lines it belongs to, not the top one. */
-  align-items: center;
-  gap: 10px 12px;
-  color: var(--muted);
-  font-size: var(--text-sm);
-}
-
-/* No box of its own: its two children are laid out by the grid above, which is what puts the two
-   bands on one set of columns. The bar takes the second, so both bars are the same length whatever
-   the label beside them measures. */
-.boss-band-row {
-  display: contents;
-}
-
-/* The band's name over its figure, one column. The name is what the figure is of, so it is not
-   worth a column of separation. */
-.boss-band-label {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 7px;
+  color: var(--muted);
+  font-size: var(--text-sm);
+  font-weight: 400;
+  white-space: nowrap;
+}
+
+.boss-band-row {
+  display: grid;
+  grid-template-columns: auto auto;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 3px 8px;
 }
 
 .boss-band-name {
   color: var(--muted-2);
   font-weight: 600;
-  white-space: nowrap;
 }
 
 .boss-band-count {
-  white-space: nowrap;
   /* Two bands under each other, so 6/17 and 12/17 have to line up. */
   font-variant-numeric: tabular-nums;
+}
+
+/* Under both, so the two bars are the same length and can be read against each other. */
+.boss-band-row > .boss-progress-bar,
+.boss-band-row > span[aria-hidden]:empty {
+  grid-column: 1 / -1;
 }
 
 /* A second reading of the figure beside it, never a replacement. It was 56px and inline, on the
@@ -2951,30 +2914,55 @@ button.link:disabled {
   display: contents;
 }
 
-/* Weekly is the one that matters for 16 of the 19 bosses, so it is the one that reads first. */
+/* Weekly is the one that matters for 16 of the 19 bosses, so it is the one that reads first.
+   Colour alone, never weight: the two lines are read as a pair of columns, and bold digits are
+   wider than regular ones even in a tabular face, so a bold row cannot line up with a plain one. */
 .reset-lead .reset-value {
   color: var(--ink);
   font-size: var(--text-base);
-  font-weight: 600;
 }
 
 .reset-minor .reset-value {
   color: var(--muted);
 }
 
-/* Both columns right-align, so the two countdowns line up on their seconds and each label sits
-   against the number it names. The day counts are different widths ("3d" under "25d"). */
-.reset-label,
-.reset-value {
+/* Never wrapped: the row is sized to hold this whole, and a label broken over two lines is the
+   first sign that it is not. */
+.reset-label {
+  color: var(--muted-2);
+  white-space: nowrap;
+}
+
+/* One unit of the countdown, in a box of a fixed width. This is what holds the line still.
+   Unpadded, "9s" becomes "10s" and every character to its left shifts, which reads as the whole
+   countdown twitching sideways several times a minute. Tabular figures were already here and do
+   not help: they equalise digit WIDTHS, and what changes is the number of characters.
+
+   3.9ch is the widest a unit gets ("59m", whose letter is the broadest of d/h/m/s) plus a gap;
+   at 3.5ch the units ran together. Measured in Chromium at --text-base, where 1ch is 8.3px. */
+.reset-part {
+  display: inline-block;
+  width: 3.9ch;
   text-align: right;
 }
 
-.reset-label {
-  color: var(--muted-2);
+/* Two digits reserved. Nothing in countdownParts pads the text, so this is the whole of it. No
+   number here reaches three digits because a month is the longest cadence tracked, which
+   reset-countdown.test.ts asserts rather than assumes. */
+.reset-num {
+  display: inline-block;
+  min-width: 2ch;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
 }
 
-/* Tabular figures, or the countdown jostles its neighbours every time a digit changes width. */
+/* Fixed, never sized to its content: a column that grew with the longer of the two values dragged
+   the label and the UTC across the row every time a digit was gained. Four units wide and
+   right-aligned, so a countdown that has run out of days keeps the column and lines its hours up
+   under the other row's hours. */
 .reset-value {
+  width: calc(4 * 3.9ch);
+  text-align: right;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
