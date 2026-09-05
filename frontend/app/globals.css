@@ -2409,7 +2409,12 @@ button.link:disabled {
 
 .boss-col-head {
   text-align: left;
-  vertical-align: bottom;
+  vertical-align: middle;
+  /* Centred on the SPRITES, not on the cell. The cell is a sprite plus the IGN under it, so
+     centring in the whole of it lands the bands half a line low and hard against the rule at the
+     bottom. The extra bottom padding is that line, which lifts the centre back onto the art.
+     Measured; see boss-bands-css.test.ts. */
+  padding-bottom: 28px;
 }
 
 /* A long IGN is cut rather than allowed to widen its column: the columns are a fixed stride now,
@@ -2837,6 +2842,14 @@ button.link:disabled {
   justify-content: space-between;
   gap: 8px 16px;
   margin-bottom: 10px;
+}
+
+/* Tighter above the matrix than above anything else, because the head row is not text: it opens
+   with 6px of cell padding and then a sprite box taller than the art standing in it, so the full
+   gap read as a hole between the countdown and the characters. Only where the matrix actually
+   follows; Party View puts a toolbar here and still wants the whole 10px. */
+.boss-controls:has(+ .boss-matrix-wrap) {
+  margin-bottom: 2px;
 }
 
 .week-stepper {
