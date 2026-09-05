@@ -4,6 +4,7 @@ import com.sharpeyes.backend.db.CharacterTokenCount
 import com.sharpeyes.backend.db.TokenCatalog
 import com.sharpeyes.backend.plugins.parseUuidParam
 import com.sharpeyes.backend.plugins.principalIdAndEmail
+import com.sharpeyes.backend.tokens.isBossToken
 import com.sharpeyes.backend.users.ensureUser
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.call
@@ -54,19 +55,31 @@ internal suspend fun RoutingContext.setCharacterTokenCount() {
             // Ownership first, and a 404 rather than a 403: a character that is not yours must not
             // be distinguishable from one that does not exist.
             if (findOwnedCharacter(characterId, userId) == null) return@transaction false
-            val known =
-                TokenCatalog
-                    .selectAll()
-                    .where { TokenCatalog.id eq tokenId }
-                    .empty()
-                    .not()
-            if (!known) return@transaction false
+            if (!isAddableToken(tokenId)) return@transaction false
             writeTokenCount(characterId, tokenId, request.quantity)
             true
         }
 
     call.respond(if (written) HttpStatusCode.NoContent else HttpStatusCode.NotFound)
 }
+
+/**
+ * Whether a count may be written for this item at all.
+ *
+ * A boss token specifically, not merely an item that exists. The + cannot offer anything else, so
+ * this only fires on a hand-made request, and refusing it keeps the API saying the same thing the
+ * screen does about which items there are. A screenshot parse writes through
+ * ScreenshotIngestion.upsertTokenCounts and does NOT pass here, so what a capture reads is still
+ * stored whether or not the inventory shows it.
+ *
+ * Must run inside a transaction.
+ */
+internal fun isAddableToken(tokenId: Uuid): Boolean =
+    TokenCatalog
+        .selectAll()
+        .where { (TokenCatalog.id eq tokenId) and isBossToken() }
+        .empty()
+        .not()
 
 /**
  * Sets what one character holds of one item, or clears it.

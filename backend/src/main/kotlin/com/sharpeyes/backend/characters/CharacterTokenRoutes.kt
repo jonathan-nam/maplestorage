@@ -6,6 +6,7 @@ import com.sharpeyes.backend.db.RedemptionRule
 import com.sharpeyes.backend.db.TokenCatalog
 import com.sharpeyes.backend.plugins.parseUuidParam
 import com.sharpeyes.backend.plugins.principalIdAndEmail
+import com.sharpeyes.backend.tokens.isBossToken
 import com.sharpeyes.backend.users.ensureUser
 import com.sharpeyes.backend.users.inActiveWorld
 import io.ktor.http.HttpStatusCode
@@ -18,6 +19,7 @@ import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
+import kotlin.uuid.Uuid
 
 // What a character HOLDS, kept apart from what a character IS.
 //
@@ -51,7 +53,7 @@ internal suspend fun RoutingContext.getAllCharacterTokens() {
                 // Scope to this user's characters, in the world being shown. Without the first the
                 // join reaches every user's rows; without the second it returns counts for
                 // characters the caller's list does not contain.
-                .where { (Characters.userId eq userId) and inActiveWorld(userId) }
+                .where { (Characters.userId eq userId) and inActiveWorld(userId) and isBossToken() }
                 .orderBy(TokenCatalog.sortOrder)
                 .groupBy({ it[CharacterTokenCount.characterId].toString() }) {
                     it.toCharacterTokenResponse()
@@ -72,18 +74,7 @@ internal suspend fun RoutingContext.getCharacterTokens() {
             if (findOwnedCharacter(characterId, userId) == null) {
                 null
             } else {
-                CharacterTokenCount
-                    .innerJoin(TokenCatalog)
-                    // LEFT join: a consumable has no redemption rule, and must still be listed.
-                    .join(
-                        RedemptionRule,
-                        JoinType.LEFT,
-                        onColumn = TokenCatalog.id,
-                        otherColumn = RedemptionRule.itemId,
-                    ).selectAll()
-                    .where { CharacterTokenCount.characterId eq characterId }
-                    .orderBy(TokenCatalog.sortOrder)
-                    .map { it.toCharacterTokenResponse() }
+                characterTokensFor(characterId)
             }
         }
 
@@ -93,6 +84,27 @@ internal suspend fun RoutingContext.getCharacterTokens() {
         call.respond(tokens)
     }
 }
+
+/**
+ * One character's inventory: the boss tokens they hold, and nothing else.
+ *
+ * Must be called inside a transaction. Internal so a test can prove the filter against a character
+ * that really does hold a symbol, which is the only way to tell "left out" from "never stored".
+ */
+internal fun characterTokensFor(characterId: Uuid): List<CharacterTokenResponse> =
+    CharacterTokenCount
+        .innerJoin(TokenCatalog)
+        // LEFT join. Every boss token currently HAS a redemption rule, so an inner join would pass
+        // today and silently drop the first one added without one.
+        .join(
+            RedemptionRule,
+            JoinType.LEFT,
+            onColumn = TokenCatalog.id,
+            otherColumn = RedemptionRule.itemId,
+        ).selectAll()
+        .where { (CharacterTokenCount.characterId eq characterId) and isBossToken() }
+        .orderBy(TokenCatalog.sortOrder)
+        .map { it.toCharacterTokenResponse() }
 
 private fun ResultRow.toCharacterTokenResponse(): CharacterTokenResponse =
     CharacterTokenResponse(
