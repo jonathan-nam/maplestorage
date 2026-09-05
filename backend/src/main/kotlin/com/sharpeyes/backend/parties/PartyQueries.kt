@@ -7,9 +7,7 @@ import com.sharpeyes.backend.db.Characters
 import com.sharpeyes.backend.db.Party
 import com.sharpeyes.backend.db.PartyMember
 import com.sharpeyes.backend.db.Person
-import com.sharpeyes.backend.db.PersonCharacter
 import com.sharpeyes.backend.sprites.spriteProxyPath
-import com.sharpeyes.backend.users.WORLD_INTERACTIVE
 import com.sharpeyes.backend.users.inActiveWorld
 import kotlinx.datetime.LocalDate
 import org.jetbrains.exposed.v1.core.JoinType
@@ -147,21 +145,6 @@ internal fun findParty(
     )
 }
 
-/**
- * True when this config's drops can be sold at all.
- *
- * Heroic (Reboot) worlds do not trade, so a sale there is not a figure to get right, it is one
- * that could never have happened. The UI hides the control; this is what makes hiding it a rule
- * rather than a suggestion, and without it the payout rows a sale pins would outlive the button.
- */
-internal fun partyCanSell(partyId: Uuid): Boolean =
-    Party
-        .join(Characters, JoinType.INNER, Party.characterId, Characters.id)
-        .selectAll()
-        .where { Party.id eq partyId }
-        .firstOrNull()
-        ?.get(Characters.worldType) == WORLD_INTERACTIVE
-
 /** True when the config exists and belongs to this user. The ownership check every write starts with. */
 internal fun ownsParty(
     partyId: Uuid,
@@ -182,18 +165,14 @@ internal fun peopleFor(userId: String): List<PersonResponse> {
             .toList()
     if (people.isEmpty()) return emptyList()
 
-    val charactersByPerson =
-        PersonCharacter
-            .selectAll()
-            .where { PersonCharacter.userId eq userId }
-            .orderBy(PersonCharacter.name)
-            .groupBy({ it[PersonCharacter.personId] }) { it[PersonCharacter.name] }
+    val characters = personCharacters(userId)
 
     return people.map {
         PersonResponse(
             id = it[Person.id].toString(),
             name = it[Person.name],
-            characters = charactersByPerson[it[Person.id]].orEmpty(),
+            characters = characters.attributed[it[Person.id]].orEmpty(),
+            ownedCharacters = characters.owned[it[Person.id]].orEmpty(),
             pinned = it[Person.pinned],
         )
     }
@@ -207,9 +186,11 @@ internal fun peopleFor(userId: String): List<PersonResponse> {
  * this week's roster would turn the drop unreadable the moment the week rolled over. Who ran a
  * given week is a narrowing of this, not a different query. See ranIn.
  *
- * The person comes from person_character, matched on the seat's character NAME: that association
- * is account-wide and stated once, so a seat naming CreedBratton shows Chris in every config
- * without storing him on each of them.
+ * The person is matched on the seat's character NAME, account-wide and stated once, so a seat
+ * naming CreedBratton shows Chris in every config without storing him on each of them. Which
+ * names belong to whom is personCharacters' answer, not this function's: a seat and the People
+ * page reading that differently is how one screen ends up owing a share to somebody the other
+ * does not.
  */
 private fun seatsFor(
     partyIds: List<Uuid>,
@@ -226,15 +207,12 @@ private fun seatsFor(
                 seat.spriteImgUrl?.let { name.lowercase() to it }
             }.toMap()
 
-    val owners =
-        PersonCharacter
-            .innerJoin(Person)
+    val personNames =
+        Person
             .selectAll()
-            .where { PersonCharacter.userId eq userId }
-            .associate {
-                it[PersonCharacter.name].lowercase() to
-                    (it[Person.id].toString() to it[Person.name])
-            }
+            .where { Person.userId eq userId }
+            .associate { it[Person.id] to it[Person.name] }
+    val owners = personCharacters(userId).byCharacter()
 
     return PartyMember
         .join(Characters, JoinType.LEFT, PartyMember.characterId, Characters.id)
@@ -246,8 +224,8 @@ private fun seatsFor(
             PartyMemberResponse(
                 id = row[PartyMember.id].toString(),
                 name = row[PartyMember.name],
-                personId = owner?.first,
-                personName = owner?.second,
+                personId = owner?.toString(),
+                personName = owner?.let { personNames[it] },
                 characterId = row[PartyMember.characterId]?.toString(),
                 spriteImgUrl = spriteFor(row, spritesByName),
                 guest = !row[PartyMember.standing],

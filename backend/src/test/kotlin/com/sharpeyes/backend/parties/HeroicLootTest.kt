@@ -7,6 +7,7 @@ import com.sharpeyes.backend.db.Screenshots
 import com.sharpeyes.backend.users.WORLD_HEROIC
 import com.sharpeyes.backend.users.WORLD_INTERACTIVE
 import com.sharpeyes.backend.users.ensureUser
+import com.sharpeyes.backend.users.isPerMember
 import kotlinx.datetime.LocalDate
 import org.flywaydb.core.Flyway
 import org.jetbrains.exposed.v1.core.eq
@@ -18,8 +19,10 @@ import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 import kotlin.time.Clock
 import kotlin.uuid.Uuid
 
@@ -165,6 +168,62 @@ class HeroicLootTest {
             // Null is "put it back in the pool", not a seat, so it is not measured against anybody.
             assertNull(takenRefusal(null, loot.ranThatWeek, canSell = false, sold = false))
         }
+    }
+
+    @Test
+    fun `nobody takes an instanced drop, because everyone who ran has one`() {
+        transaction {
+            val party = trio()
+            val loot = findLoot(addGrindstone(party), Uuid.parse(party.id))!!
+            val steve = party.members.first { it.name == "Steve" }
+
+            // A Heroic Chaos Kalos night hands each member their own 2 tokens. Filing one as "Steve
+            // took it" hands over a copy the party never held, and takenTally then counts the whole
+            // quantity against Steve, which moves whose turn it is next. The pool hides the button;
+            // this is what makes hiding it a rule, the same as canSell above.
+            assertNotNull(
+                takenRefusal(
+                    steve.id,
+                    loot.ranThatWeek,
+                    canSell = false,
+                    sold = false,
+                    instanced = true,
+                ),
+            )
+            // Putting it back is always allowed, including for a row recorded before this refusal
+            // existed. Otherwise a mistake made under the old rule could never be undone.
+            assertNull(
+                takenRefusal(
+                    null,
+                    loot.ranThatWeek,
+                    canSell = false,
+                    sold = false,
+                    instanced = true,
+                ),
+            )
+            // And the pooled control, so this cannot pass by every take being refused.
+            assertNull(
+                takenRefusal(
+                    steve.id,
+                    loot.ranThatWeek,
+                    canSell = false,
+                    sold = false,
+                    instanced = false,
+                ),
+            )
+        }
+    }
+
+    @Test
+    fun `a drop is instanced in the world it says it is`() {
+        // The one rule, read the way the route reads it. HEROIC means pooled on Interactive and one
+        // each on Heroic, which is why the world is a parameter and not an assumption.
+        assertTrue(isPerMember("ALWAYS", WORLD_INTERACTIVE))
+        assertTrue(isPerMember("ALWAYS", WORLD_HEROIC))
+        assertTrue(isPerMember("HEROIC", WORLD_HEROIC))
+        assertFalse(isPerMember("HEROIC", WORLD_INTERACTIVE))
+        assertFalse(isPerMember(null, WORLD_HEROIC))
+        assertFalse(isPerMember(null, WORLD_INTERACTIVE))
     }
 
     @Test

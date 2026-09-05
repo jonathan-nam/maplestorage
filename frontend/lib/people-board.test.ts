@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { type PersonDraft, claim, isRegular, unclaimed } from "./people-board";
+import {
+  type PersonDraft,
+  claim,
+  isRegular,
+  plays,
+  stillAttributed,
+  unclaimed,
+} from "./people-board";
 import type { Party, PartyMember } from "@/types/party";
 
 const seat = (name: string, guest = false, characterId: string | null = null): PartyMember => ({
@@ -39,10 +46,11 @@ const party = (seats: PartyMember[], over: Partial<Party> = {}): Party => ({
   ...over,
 });
 
-const person = (name: string, characters: string[]): PersonDraft => ({
+const person = (name: string, characters: string[], owned: string[] = []): PersonDraft => ({
   id: `p-${name}`,
   name,
   characters,
+  owned,
 });
 
 describe("isRegular", () => {
@@ -82,6 +90,12 @@ describe("unclaimed", () => {
 
   it("leaves out whoever a person already holds", () => {
     expect(unclaimed(parties, [person("Jared", ["Premial"])])).toEqual(["mechyfechy"]);
+  });
+
+  // The point of stage one: a character whose own account says whose it is is not a question this
+  // page has left to ask, so it does not sit in the pile waiting to be dragged onto somebody.
+  it("leaves out whoever a linked account already answers for", () => {
+    expect(unclaimed(parties, [person("Jared", [], ["Premial"])])).toEqual(["mechyfechy"]);
   });
 
   it("does not offer a guest at all", () => {
@@ -149,5 +163,33 @@ describe("claim", () => {
 
   it("leaves the list alone rather than unclaiming when the row is gone", () => {
     expect(claim(people, "Premial", 7)).toEqual(people);
+  });
+});
+
+describe("stillAttributed", () => {
+  // Both sources can name the same character: you said it before they linked, and their account
+  // says it now. The row draws each character once, as the owned one, and the attribution stays in
+  // the database because it is still the answer if the link goes away.
+  it("drops an attribution their own account already answers", () => {
+    expect(stillAttributed(person("Chris", ["CreedBratton"], ["CreedBratton"]))).toEqual([]);
+  });
+
+  it("keeps one their account does not hold", () => {
+    expect(stillAttributed(person("Chris", ["OldAlt"], ["CreedBratton"]))).toEqual(["OldAlt"]);
+  });
+
+  // The backend claims a character case-insensitively, so a spelling that differs only in case is
+  // the same character and would otherwise draw twice.
+  it("matches the two without regard to case", () => {
+    expect(stillAttributed(person("Chris", ["creedbratton"], ["CreedBratton"]))).toEqual([]);
+  });
+});
+
+describe("plays", () => {
+  it("is true either way a character can be known", () => {
+    const chris = person("Chris", ["OldAlt"], ["CreedBratton"]);
+    expect(plays(chris, "OldAlt")).toBe(true);
+    expect(plays(chris, "CreedBratton")).toBe(true);
+    expect(plays(chris, "Premial")).toBe(false);
   });
 });

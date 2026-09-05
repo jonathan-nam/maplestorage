@@ -2,7 +2,9 @@ package com.sharpeyes.backend.parties
 
 import com.sharpeyes.backend.plugins.parseUuidParam
 import com.sharpeyes.backend.plugins.principalIdAndEmail
+import com.sharpeyes.backend.users.WORLD_INTERACTIVE
 import com.sharpeyes.backend.users.ensureUser
+import com.sharpeyes.backend.users.isPerMember
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.call
 import io.ktor.server.request.receive
@@ -48,6 +50,9 @@ internal suspend fun RoutingContext.setTakenRoute() {
                         loot.ranThatWeek,
                         partyCanSell(partyId),
                         loot.soldAt != null,
+                        // The row already carries the catalog's flag, so this needs only the world
+                        // it is read against. See isPerMember.
+                        isPerMember(loot.perMember, partyWorld(partyId) ?: WORLD_INTERACTIVE),
                     ) ?: run {
                         setLootTakenBy(lootId, memberId, Clock.System.now())
                         findLoot(lootId, partyId)!!

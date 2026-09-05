@@ -8,8 +8,9 @@ import { PageSwap } from "@/components/page-swap";
 import { ApiError, apiFetch } from "@/lib/api";
 import { invalidate, peek, put } from "@/lib/cache";
 import { groupByWorld } from "@/lib/character-groups";
+import { OtherWorld } from "@/components/other-world";
 import { SETTINGS_KEY, setAccountSettings, useAccountSettings } from "@/lib/use-account-settings";
-import { otherWorld, worldLabel } from "@/lib/world";
+import { worldLabel } from "@/lib/world";
 import type { Character } from "@/types/character";
 import type { Settings } from "@/types/settings";
 
@@ -228,14 +229,9 @@ export default function CharactersPage() {
             {elsewhere && <p className="party-hint">{elsewhere}</p>}
 
             {/* The list is one world's. This is the rest of the account, and it is said because an
-              empty page in the wrong world looks exactly like an account with no characters. */}
-            {settings?.worldType && settings.otherWorldCharacters > 0 && (
-              <p className="party-hint">
-                {settings.otherWorldCharacters}{" "}
-                {settings.otherWorldCharacters === 1 ? "character" : "characters"} in{" "}
-                {worldLabel(otherWorld(settings.worldType))}.
-              </p>
-            )}
+              empty page in the wrong world looks exactly like an account with no characters. Shared
+              with the other pages the toggle narrows, which used to say nothing at all. */}
+            <OtherWorld />
           </>
         )}
       </PageSwap>

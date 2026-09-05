@@ -90,6 +90,10 @@ export type Person = {
   id: string;
   name: string;
   characters: string[];
+  // The ones their own account holds, for a person who has linked. Not editable here: they are a
+  // fact about their account rather than something this one said. Empty for everybody who does not
+  // use the app, which is most of them.
+  ownedCharacters: string[];
   // Their Settlement Ledger card is drawn with nothing outstanding. Set by hand. See V59.
   pinned: boolean;
 };

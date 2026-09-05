@@ -101,6 +101,9 @@ export function LootRow({
   // goes is every control that would turn a drop into money. The backend refuses the sale too, so
   // this is what the rule looks like rather than the whole of it.
   const canSell = canTrade(party.worldType);
+  // Everyone received their own copy, so the row has no pot and no holder. In Heroic that is every
+  // piece drop there is; ordinary drops (a grindstone, a ring) still pool.
+  const instanced = isPerMember(loot.perMember, party.worldType);
 
   return (
     <article className={`loot-row status-${loot.status.toLowerCase()}`}>
@@ -140,10 +143,12 @@ export function LootRow({
       {/* The mistake this whole app exists to prevent, in miniature: a drop everyone receives
           their own copy of is not one pot to divide. It used to hedge ("in Heroic/Reboot...")
           because the row did not know where it was; it does now, so it either applies or is not
-          said. Only where there is splitting to warn off: in a Heroic pool nothing splits anyway. */}
-      {canSell && isPerMember(loot.perMember, party.worldType) && (
-        <p className="loot-warn">Everyone gets their own. Nothing to split.</p>
-      )}
+          said.
+
+          NOT gated on selling. `per_member: HEROIC` is true exactly where nothing sells, so pairing
+          the two meant the one drop that most needed this never said it: a Heroic pool still shares
+          out by hand, and a stack of 2 each was being taken by one seat. */}
+      {instanced && <p className="loot-warn">Everyone gets their own. Nothing to split.</p>}
 
       {/* Where nothing sells, the question is who takes it. That is the whole of a Heroic pool's
           product: the item cannot move again, so which seat ends up with it is the only lever the
@@ -162,7 +167,12 @@ export function LootRow({
 
       {loot.status === "PENDING" && !canSell && (
         <div className="loot-actions">
+          {/* Nobody takes an instanced drop: it is already in every inventory that ran, so naming
+              a seat would hand the party's one copy to somebody when there was never one copy.
+              divides() is master's better test for the other half of it, reading the seats that
+              RAN rather than the config's solo flag. */}
           {divides(ran) &&
+            !instanced &&
             ran.map((m) => (
               <button
                 key={m.id}

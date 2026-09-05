@@ -52,6 +52,12 @@
 # one they have to remember. Only the difficulties listed drop any; a difficulty left out fills
 # nothing, which is not the same as filling zero.
 #
+# `pieces` is a POOLED count, so it is an INTERACTIVE one. Reboot instances every piece it drops:
+# each member is handed their own, and however many that is, it is not the size of a pile nobody
+# there receives. Writing this number to both worlds is what had a Heroic party dividing 180 coupons
+# six ways. A Heroic count is written with the per-world `count` form below, on a drop that says
+# `per_member: HEROIC`, and build.py refuses a Heroic count anywhere else.
+#
 # `bundles` is how many separate stacks that total falls in. Stacks are indivisible, so it is what
 # decides whether a party can split a drop by looting alone: three of them between two people
 # leaves one holding half a stack that is not theirs. Static per (boss, difficulty), not a function
@@ -243,8 +249,13 @@ drops:
   # 16% over. Scale a replacement PREMULTIPLIED: 42% of these pixels are semi-transparent and the
   # transparent ones carry black and magenta, which a straight RGBA resample bleeds into the glow.
   # Multiplying by alpha first zeroes them, so they contribute nothing.
+  # Instanced in Heroic, like every other piece in this file: Reboot hands each member their own
+  # count and there is no pile to share out. It was the one piece drop here not saying so, which had
+  # a Heroic night dividing coupons everybody already held and naming a creditor for the shortfall.
+  # The Heroic COUNT is a separate fact and not yet one we hold: see `pieces` below.
   - key: vestige-of-erion
     name: Vestige of Erion Coupon
+    per_member: HEROIC
     art: cut
 
 # What each boss drops. Keys on the left are catalog/bosses.yaml boss keys; a boss with no entry

@@ -100,11 +100,13 @@ BOSS_ART_OUT = ROOT / "frontend" / "lib" / "boss-art.ts"
 DROP_MANIFEST = ROOT / "catalog" / "drops.yaml"
 DROP_ICONS = ROOT / "backend" / "src" / "main" / "resources" / "seed-assets" / "drops"
 DROP_SQL_OUT = ROOT / "backend" / "src" / "main" / "resources" / "db" / "migration" / "R__drop_catalog.sql"
-DROP_PER_MEMBER = {"ALWAYS", "HEROIC"}
-DROP_WORLDS = {"INTERACTIVE", "HEROIC"}
+WORLD_INTERACTIVE = "INTERACTIVE"
+WORLD_HEROIC = "HEROIC"
+DROP_PER_MEMBER = {"ALWAYS", WORLD_HEROIC}
+DROP_WORLDS = {WORLD_INTERACTIVE, WORLD_HEROIC}
 # The worlds a COUNT can differ between, which is not the same axis as DROP_WORLDS: that one says
 # where a drop exists at all. See V63__boss_drop_amount_world.sql.
-COUNTED_WORLDS = ["INTERACTIVE", "HEROIC"]
+COUNTED_WORLDS = [WORLD_INTERACTIVE, WORLD_HEROIC]
 
 # The display icons are the official item sprites from maplestory.io, keyed by Nexon item id.
 # `icon_id` in items.yaml pins the one a human validated against the in-game art. The version is
@@ -534,6 +536,8 @@ def load_drops(
     # it is refused here rather than dropped silently at insert time.
     tracked = {b["key"] for b in bosses if b.get("tracked", True)}
     modes_of = {b["key"]: b.get("difficulties") or [] for b in bosses}
+    # Generated item rows included, so a token is held to the same instancing rule a coupon is.
+    by_key = {d["key"]: d for d in drops}
     normalised: dict[str, list[dict]] = {}
     for boss_key, entries in tables.items():
         if boss_key not in tracked:
@@ -604,17 +608,43 @@ def load_drops(
                             f"drop table for {boss_key!r} {difficulty}: {total} pieces do not "
                             f"divide into {bundles} bundles"
                         )
-                # One number, stated once and read in whichever world the party is in. That is what
-                # this file has always claimed for a vestige count, so it is written to both worlds
-                # rather than reinterpreted as one of them. See V63.
-                counts[difficulty] = {
-                    world: {"total": total, "bundles": bundles} for world in COUNTED_WORLDS
-                }
+                # INTERACTIVE only. `pieces` states the size of a POOL, and Reboot has no pool to
+                # state: it instances every piece it drops, one count into each inventory. Written
+                # to both worlds, this number had a Heroic party dividing 180 coupons six ways and
+                # settling the shortfall. A Heroic count is a different fact, written with the
+                # per-world `count` form. See _token_counts and _heroic_needs_instancing.
+                counts[difficulty] = {WORLD_INTERACTIVE: {"total": total, "bundles": bundles}}
             if counts:
                 row["pieces"] = counts
+        for row in rows:
+            _heroic_needs_instancing(boss_key, row, by_key)
         normalised[boss_key] = rows
 
     return drops, normalised
+
+
+def _heroic_needs_instancing(boss_key: str, row: dict, drops_by_key: dict) -> None:
+    """A Heroic count must be on a drop that says it is instanced there.
+
+    Reboot hands each member their own pieces. So a Heroic number is a count PER PERSON, and a drop
+    that does not say `per_member: HEROIC` (or ALWAYS) is claiming Reboot pools it, which nothing in
+    the game does. That claim is how the vestige coupon ended up divided six ways in a world where
+    all six had their own: the number was right for Interactive and was written to both.
+
+    Refused rather than corrected. If a boss really does pool pieces in Reboot, the flag is the
+    place to say so, and someone should have to write it down.
+    """
+    counts = row.get("pieces") or {}
+    heroic = sorted(d for d, by_world in counts.items() if WORLD_HEROIC in by_world)
+    if not heroic:
+        return
+    per_member = (drops_by_key.get(row["key"]) or {}).get("per_member")
+    if per_member not in DROP_PER_MEMBER:
+        sys.exit(
+            f"drop table for {boss_key!r} {row['key']}: has Heroic counts for {heroic} but is not "
+            f"per_member, and Reboot instances every piece it drops. Set per_member: HEROIC, or "
+            f"write the count for INTERACTIVE only"
+        )
 
 
 def drop_sql(drops: list[dict], tables: dict[str, list[str]]) -> str:

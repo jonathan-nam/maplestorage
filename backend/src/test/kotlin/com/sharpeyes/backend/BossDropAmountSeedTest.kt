@@ -32,13 +32,13 @@ class BossDropAmountSeedTest {
     /** boss -> drop -> difficulty -> world -> pieces. Mirrors catalog/drops.yaml, by hand. */
     private val expected =
         mapOf(
-            // --- Vestige coupons. One number each, read in whichever world the party is in, which
-            // is what this file has always claimed. Written to both worlds rather than reinterpreted.
+            // --- Vestige coupons. One number each, and an INTERACTIVE one: it is the size of the
+            // pile the party shares, and Reboot instances its pieces instead of piling them.
             "chosen-seren" to
-                mapOf("vestige-of-erion" to mapOf("EXTREME" to bothWorlds(30))),
+                mapOf("vestige-of-erion" to mapOf("EXTREME" to pooled(30))),
             "limbo" to
                 mapOf(
-                    "vestige-of-erion" to mapOf("HARD" to bothWorlds(60)),
+                    "vestige-of-erion" to mapOf("HARD" to pooled(60)),
                     // Instanced in both worlds AND the same count in both, which is why it is a bare
                     // number in the manifest where Kalos needs one per world. No fragment tier:
                     // Normal drops the piece itself.
@@ -47,7 +47,7 @@ class BossDropAmountSeedTest {
                 ),
             "kalos-the-guardian" to
                 mapOf(
-                    "vestige-of-erion" to mapOf("EXTREME" to bothWorlds(180)),
+                    "vestige-of-erion" to mapOf("EXTREME" to pooled(180)),
                     "kalos-token" to
                         mapOf("CHAOS" to perWorld(5, 2), "EXTREME" to perWorld(14, 3)),
                     "kalos-residual-determination-fragment" to
@@ -56,7 +56,7 @@ class BossDropAmountSeedTest {
             "kaling" to
                 mapOf(
                     "vestige-of-erion" to
-                        mapOf("HARD" to bothWorlds(60), "EXTREME" to bothWorlds(480)),
+                        mapOf("HARD" to pooled(60), "EXTREME" to pooled(480)),
                     "ferocious-beast-ring" to
                         mapOf("HARD" to perWorld(7, 2), "EXTREME" to perWorld(18, 3)),
                     // Easy still drops one here, where Easy Kalos drops nothing at all. The two
@@ -67,27 +67,27 @@ class BossDropAmountSeedTest {
             "first-adversary" to
                 mapOf(
                     "vestige-of-erion" to
-                        mapOf("HARD" to bothWorlds(30), "EXTREME" to bothWorlds(240)),
+                        mapOf("HARD" to pooled(30), "EXTREME" to pooled(240)),
                     "echo-ancient-resolve" to
                         mapOf("HARD" to perWorld(6, 2), "EXTREME" to perWorld(16, 3)),
                     "whisper-ancient-resolve" to mapOf("NORMAL" to perWorld(4, 2)),
                 ),
             "malefic-star" to
                 mapOf(
-                    "vestige-of-erion" to mapOf("HARD" to bothWorlds(90)),
+                    "vestige-of-erion" to mapOf("HARD" to pooled(90)),
                     "blissful-fantasy-shard" to mapOf("HARD" to perWorld(18, 2)),
                     "blissful-fantasy-fragment" to mapOf("NORMAL" to perWorld(6, 2)),
                 ),
             "baldrix" to
                 mapOf(
-                    "vestige-of-erion" to mapOf("HARD" to bothWorlds(120)),
+                    "vestige-of-erion" to mapOf("HARD" to pooled(120)),
                     "trace-eternal-loyalty" to
                         mapOf("NORMAL" to bothWorlds(1), "HARD" to bothWorlds(2)),
                 ),
             "jupiter" to
                 mapOf(
                     "vestige-of-erion" to
-                        mapOf("NORMAL" to bothWorlds(45), "HARD" to bothWorlds(360)),
+                        mapOf("NORMAL" to pooled(45), "HARD" to pooled(360)),
                     "lingering-twisted-desire" to
                         mapOf("NORMAL" to bothWorlds(1), "HARD" to bothWorlds(2)),
                 ),
@@ -162,7 +162,10 @@ class BossDropAmountSeedTest {
         val kalos = transaction { dropTables()["kalos-the-guardian"] }.orEmpty()
         val vestige = kalos.single { it.dropKey == "vestige-of-erion" }
         assertEquals(mapOf("EXTREME" to 180), vestige.pieces["INTERACTIVE"])
-        assertEquals(mapOf("EXTREME" to 180), vestige.pieces["HEROIC"])
+        // Nothing for Heroic, because 180 is the size of a PILE and Reboot instances its pieces.
+        // Seeded to both worlds, this figure had a Heroic party dividing coupons all six already
+        // held. Absent fills nothing, which is the honest answer until somebody counts the real one.
+        assertNull(vestige.pieces["HEROIC"])
 
         // A difficulty that drops none is ABSENT rather than zero, so the box fills nothing instead
         // of claiming the boss drops none at Chaos.
@@ -170,6 +173,36 @@ class BossDropAmountSeedTest {
 
         // And a drop with no amounts at all is untouched by the join, rather than losing its row.
         assertEquals(emptyMap(), kalos.single { it.dropKey == "grindstone-of-life" }.pieces)
+    }
+
+    @Test
+    fun `every drop with a Heroic count says it is instanced there`() {
+        // Reboot hands each member their own pieces, so a Heroic figure is a count PER PERSON. A
+        // drop carrying one without saying `per_member` is claiming Reboot pools it, and the Drop
+        // Log divides whatever it finds: that is how a Heroic Kalos night was told its share of 180
+        // coupons the party never held. build.py refuses the pair now; this is the seeded proof, so
+        // a hand-edited R__ file cannot reintroduce it either.
+        val offenders =
+            transaction {
+                dropTables().flatMap { (boss, drops) ->
+                    drops
+                        .filter { it.pieces["HEROIC"].orEmpty().isNotEmpty() }
+                        .filter { it.perMember != "HEROIC" && it.perMember != "ALWAYS" }
+                        .map { "$boss/${it.dropKey}" }
+                }
+            }
+
+        assertEquals(emptyList(), offenders.sorted())
+    }
+
+    @Test
+    fun `the vestige coupon is instanced in Heroic, like every other piece`() {
+        // It was the one piece drop in the manifest not saying so. The control below is a drop that
+        // is pooled in BOTH worlds, so this cannot pass by every drop having become per-member.
+        val limbo = transaction { dropTables()["limbo"] }.orEmpty()
+
+        assertEquals("HEROIC", limbo.single { it.dropKey == "vestige-of-erion" }.perMember)
+        assertNull(limbo.single { it.dropKey == "grindstone-of-life" }.perMember)
     }
 
     @Test
@@ -222,8 +255,24 @@ class BossDropAmountSeedTest {
     )
 
     private companion object {
-        /** A count the manifest states once, so both worlds carry it. */
+        /**
+         * A count the manifest states once, for a drop instanced in both worlds, so both carry it.
+         *
+         * Only legal on a per_member drop. An instanced count is per PERSON, so stating it once is
+         * saying the two worlds hand out the same number each, which Limbo and Baldrix do.
+         */
         fun bothWorlds(pieces: Int) = mapOf("INTERACTIVE" to pieces, "HEROIC" to pieces)
+
+        /**
+         * The size of a POOL, which only Interactive has.
+         *
+         * Reboot instances every piece it drops, so there is no pile there for a pooled figure to
+         * be the size of. These used to be written to both worlds, and the Drop Log divided the
+         * Heroic copy: a Heroic Kalos night was told its share of 180 coupons the party never held
+         * as 180. However many Reboot hands each member, it is not this number, so nothing is
+         * seeded for it and the count is left for whoever logs the drop.
+         */
+        fun pooled(pieces: Int) = mapOf("INTERACTIVE" to pieces)
 
         /** Two independent counts. Interactive first, matching the manifest's own order. */
         fun perWorld(

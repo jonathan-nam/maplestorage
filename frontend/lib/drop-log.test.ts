@@ -1508,3 +1508,113 @@ describe("an untradeable piece divides, but is owed to nobody", () => {
     expect(isPieceDrop(tokens({ difficulty: "NORMAL" }), stillHard, tableWith(true))).toBe(false);
   });
 });
+
+describe("a Heroic world divides nothing by count and owes nobody", () => {
+  // Reboot trades nothing, and every piece drop there is INSTANCED, one count into each inventory
+  // that ran. Ordinary drops (a grindstone, a rare equip) still pool, which is why this stays a
+  // per-drop question rather than a blanket "Heroic has no pools".
+  const HEROIC_PARTY = { worldType: "HEROIC" as const, difficulty: "CHAOS", looterMemberId: "m2" };
+
+  const trio = (over = {}) =>
+    party("pa", [mine("m1", "Huskyxkenshi"), theirs("m2", "CreedBratton"), theirs("m3", "Free")], {
+      ...HEROIC_PARTY,
+      bossKey: "kalos-the-guardian",
+      ...over,
+    });
+
+  /** kalos-token as catalog/drops.yaml has it: 5 to the party on Interactive, 2 to EACH on Heroic. */
+  const kalos = {
+    "kalos-the-guardian": [
+      {
+        dropKey: "kalos-token",
+        name: "Kalos Token",
+        iconUrl: null,
+        perMember: "HEROIC",
+        worlds: null,
+        quantity: 1,
+        fungible: false,
+        untradeable: true,
+        pieces: { INTERACTIVE: { CHAOS: 5 }, HEROIC: { CHAOS: 2 } },
+        bundles: { INTERACTIVE: { CHAOS: 5 }, HEROIC: { CHAOS: 2 } },
+      },
+    ],
+  };
+
+  /** A tradeable coupon, so the world rule is what refuses it and not the untradeable flag. */
+  const coupons = {
+    "kalos-the-guardian": [
+      {
+        dropKey: "vestige-of-erion",
+        name: "Vestige of Erion Coupon",
+        iconUrl: null,
+        perMember: null,
+        worlds: null,
+        quantity: 1,
+        fungible: false,
+        untradeable: false,
+        pieces: { INTERACTIVE: { CHAOS: 6 }, HEROIC: { CHAOS: 6 } },
+        bundles: { INTERACTIVE: { CHAOS: 6 }, HEROIC: { CHAOS: 6 } },
+      },
+    ],
+  };
+
+  const token = () =>
+    pending({
+      dropKey: "kalos-token",
+      name: "Kalos Token",
+      bossKey: "kalos-the-guardian",
+      quantity: 2,
+    });
+  const coupon = () =>
+    pending({
+      dropKey: "vestige-of-erion",
+      name: "Vestige of Erion Coupon",
+      bossKey: "kalos-the-guardian",
+      quantity: 6,
+    });
+
+  it("does not divide an instanced drop, in the world it is instanced in", () => {
+    // The bug this pins: 2 tokens each, reported as your share of a pot of 2, so `yours` came
+    // back 1.
+    expect(isPieceDrop(token(), trio(), kalos)).toBe(false);
+
+    const log = buildDropLog([trio()], [pool("pa", [token()])], kalos);
+    expect(log.entries[0]!.pieces).toBe(false);
+    expect(log.entries[0]!.yours).toBe(2);
+  });
+
+  it("still divides the same drop where it is pooled", () => {
+    // The control. Same drop, same roster, and Interactive is where the pile IS one pile.
+    const at = trio({ worldType: "INTERACTIVE" });
+    expect(isPieceDrop(pending({ ...token(), quantity: 5 }), at, kalos)).toBe(true);
+  });
+
+  it("names no creditor for a tradeable coupon, because the WORLD does not trade", () => {
+    expect(isCouponDrop(coupon(), trio(), coupons)).toBe(false);
+
+    const log = buildDropLog([trio()], [pool("pa", [coupon()])], coupons);
+    const entry = log.entries[0]!;
+    expect(entry.owedBy).toBeNull();
+    expect(entry.owedToYou).toBe(0);
+    expect(entry.owedByYou).toBe(0);
+  });
+
+  it("names one in Interactive, off the same drop and the same arrangement", () => {
+    // Without this the test above would pass for any reason at all, the coupon never dividing
+    // included.
+    const at = trio({ worldType: "INTERACTIVE" });
+    expect(isCouponDrop(coupon(), at, coupons)).toBe(true);
+
+    const log = buildDropLog([at], [pool("pa", [coupon()])], coupons);
+    expect(log.entries[0]!.owedBy).toBe("CreedBratton");
+    expect(log.entries[0]!.owedToYou).toBe(2);
+  });
+
+  it("still pools an ordinary drop there, which is what a Heroic party shares out by hand", () => {
+    // The other half of the rule. A grindstone has no piece count in either world, so it is one
+    // item the party hands to somebody, and the pool's "took it" buttons are right for it.
+    const grindstone = pending({ dropKey: "grindstone-of-life", name: "Grindstone of Life" });
+    expect(isPieceDrop(grindstone, trio(), kalos)).toBe(false);
+    expect(isCouponDrop(grindstone, trio(), kalos)).toBe(false);
+  });
+});

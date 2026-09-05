@@ -20,6 +20,7 @@ import { formatWeekStart } from "./boss-clears";
 import { splitOf, statusLabel } from "./loot";
 import type { CouponsOutstanding } from "./loot";
 import { closureKeyOf, couponGapOf, ranSeats, yourShare } from "./vestige-ledger";
+import { canTrade, isPerMember } from "./world";
 import type { BossDrop, DropTables } from "@/types/drop";
 import type { Loot, PartyLootPool } from "@/types/loot";
 import type { Party, PartyMember } from "@/types/party";
@@ -52,14 +53,20 @@ function catalogDrop(loot: Loot, dropTables: DropTables): BossDrop | null {
  * drop a divisible pile on Interactive and one item each on Heroic. The world is the character's
  * and does not move.
  *
+ * An INSTANCED drop is not one, whatever its count. Every seat received that many in their own
+ * inventory, so there is no pot, and dividing it reported a Heroic Kalos Token drop of 2 each as
+ * "1 out of 2 yours". In Heroic that is every piece drop there is: pieces are instanced there and
+ * only ordinary drops (a grindstone, a ring) still pool.
+ *
  * This is DIVISIBILITY only. Whether the pieces can then be moved between members is a second
  * question, and isCouponDrop is the one that asks it.
  */
 export function isPieceDrop(loot: Loot, party: Party, dropTables: DropTables): boolean {
   const fellAt = loot.difficulty ?? party.difficulty;
   if (fellAt === null) return false;
-  const inWorld = catalogDrop(loot, dropTables)?.pieces?.[party.worldType];
-  return (inWorld?.[fellAt] ?? 0) > 0;
+  const drop = catalogDrop(loot, dropTables);
+  if (isPerMember(drop?.perMember ?? null, party.worldType)) return false;
+  return (drop?.pieces?.[party.worldType]?.[fellAt] ?? 0) > 0;
 }
 
 /**
@@ -81,9 +88,17 @@ export function isUntradeablePiece(loot: Loot, dropTables: DropTables): boolean 
  * settles. An untradeable piece leaves a gap nothing can close, so it is owed as a LOOT next week
  * and never as pieces or mesos, and reporting it as a debt would invent a transfer that cannot
  * happen.
+ *
+ * A Heroic world is the same case reached from the other side: the item is tradeable, the WORLD is
+ * not, so nothing there can change hands either. The flag alone let a Heroic night name a creditor
+ * for 2 coupons and offer to settle it.
  */
 export function isCouponDrop(loot: Loot, party: Party, dropTables: DropTables): boolean {
-  return isPieceDrop(loot, party, dropTables) && !catalogDrop(loot, dropTables)?.untradeable;
+  return (
+    canTrade(party.worldType) &&
+    isPieceDrop(loot, party, dropTables) &&
+    !catalogDrop(loot, dropTables)?.untradeable
+  );
 }
 
 export type DropEntry = {

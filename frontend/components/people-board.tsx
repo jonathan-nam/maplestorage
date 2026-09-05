@@ -5,7 +5,7 @@ import { CarouselFrame } from "@/components/carousel-frame";
 import { KNOWN_CHARACTERS_ID, KnownCharacters } from "@/components/known-characters";
 import { spriteUrl } from "@/lib/api";
 import { useCarousel } from "@/lib/use-carousel";
-import { type PersonDraft, claim } from "@/lib/people-board";
+import { type PersonDraft, claim, plays, stillAttributed } from "@/lib/people-board";
 
 // Only our own chips are accepted, so text dragged in from anywhere else is not read as a name.
 const DRAG_TYPE = "application/x-character";
@@ -153,8 +153,13 @@ export function PeopleBoard({
                 </button>
               </div>
             </div>
-            <TileStrip zone={zoneProps(index)} deps={[row.characters, picked, adding]}>
-              {row.characters.map((name) => (
+            <TileStrip zone={zoneProps(index)} deps={[row.characters, row.owned, picked, adding]}>
+              {/* Their own account's answer, first and unmovable. Nothing here is this account's
+                  to reassign, so the card is not a handle and carries no grip. */}
+              {row.owned.map((name) => (
+                <LinkedChip key={name} name={name} sprite={spriteFor(name)} />
+              ))}
+              {stillAttributed(row).map((name) => (
                 <Chip
                   key={name}
                   name={name}
@@ -164,7 +169,7 @@ export function PeopleBoard({
                   onPick={() => pick(name)}
                 />
               ))}
-              {picked !== null && !row.characters.includes(picked) && (
+              {picked !== null && !plays(row, picked) && (
                 <Target
                   label={row.name.trim() === "" ? "This row" : row.name}
                   description={`Give ${picked} to ${row.name.trim() === "" ? "this row" : row.name}`}
@@ -273,6 +278,30 @@ function Chip({
         )}
         <span className="roster-name">{name}</span>
       </button>
+    </div>
+  );
+}
+
+/**
+ * A character their own account holds, which is not this one's to move.
+ *
+ * The same card as a Chip without the handle: it is not a button, so there is nothing to press and
+ * nothing that looks pressable. What it is doing here is not explained, because the row it sits in
+ * already says whose it is and no other card on the page explains itself either.
+ */
+function LinkedChip({ name, sprite }: { name: string; sprite: string | null }) {
+  return (
+    <div className="roster-tile">
+      <div className="person-card person-linked">
+        {/* Holds the grip's space so this sits level with the chips beside it, as Target does. */}
+        <span className="person-grip" aria-hidden="true" />
+        {sprite ? (
+          <img className="roster-sprite" src={spriteUrl(sprite)} alt="" />
+        ) : (
+          <span className="roster-sprite is-empty" aria-hidden="true" />
+        )}
+        <span className="roster-name">{name}</span>
+      </div>
     </div>
   );
 }

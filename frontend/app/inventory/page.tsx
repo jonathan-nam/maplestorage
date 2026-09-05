@@ -3,6 +3,7 @@
 import { PageSwap } from "@/components/page-swap";
 import { useAuth } from "@/lib/use-auth";
 import Link from "next/link";
+import { OtherWorld } from "@/components/other-world";
 import { useEffect, useRef, useState } from "react";
 import { InventoryPanel, type InventoryItem } from "@/components/inventory-panel";
 import { CharactersSkeleton } from "@/components/loading-skeleton";
@@ -286,9 +287,14 @@ export default function CharactersPage() {
             ) : characters.length === 0 ? (
               // The add control is no longer on this page, so the empty state has to say where it
               // went. Without this the screen is a search bar over nothing.
-              <p className="finder-empty">
-                No characters yet. <Link href="/characters">Add one</Link> to start tracking.
-              </p>
+              <>
+                <p className="finder-empty">
+                  No characters yet. <Link href="/characters">Add one</Link> to start tracking.
+                </p>
+                {/* This roster is one world's, so "no characters" can mean they are all in the
+                    other one. See OtherWorld. */}
+                <OtherWorld />
+              </>
             ) : (
               <p className="finder-empty">Pick a character to see their inventory.</p>
             )}
