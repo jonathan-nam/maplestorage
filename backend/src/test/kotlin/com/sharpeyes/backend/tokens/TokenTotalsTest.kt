@@ -4,7 +4,9 @@ import com.sharpeyes.backend.config.Env
 import com.sharpeyes.backend.db.CharacterTokenCount
 import com.sharpeyes.backend.db.Characters
 import com.sharpeyes.backend.db.TokenCatalog
+import com.sharpeyes.backend.users.WORLD_INTERACTIVE
 import com.sharpeyes.backend.users.ensureUser
+import com.sharpeyes.backend.users.setActiveWorld
 import org.flywaydb.core.Flyway
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.or
@@ -107,6 +109,10 @@ class TokenTotalsTest {
     fun `sums a token across characters and counts the contributors`() =
         transaction {
             ensureUser(userOneId, "one@example.com")
+            // A character is inserted here directly, so the account has to say which world it is
+            // looking at or every account-wide read below is empty. The route refuses to create a
+            // character without one at all: see V74 and users/WorldType.kt.
+            setActiveWorld(userOneId, WORLD_INTERACTIVE)
             val main = addCharacter(userOneId, "TotalsMain")
             val mule = addCharacter(userOneId, "TotalsMule")
 
@@ -135,7 +141,9 @@ class TokenTotalsTest {
     fun `one user's counts never appear in another user's totals`() =
         transaction {
             ensureUser(userOneId, "one@example.com")
+            setActiveWorld(userOneId, WORLD_INTERACTIVE)
             ensureUser(userTwoId, "two@example.com")
+            setActiveWorld(userTwoId, WORLD_INTERACTIVE)
 
             addCount(addCharacter(userOneId, "TotalsMine"), "kalos-token", 19)
             addCount(addCharacter(userTwoId, "TotalsTheirs"), "kalos-token", 500)

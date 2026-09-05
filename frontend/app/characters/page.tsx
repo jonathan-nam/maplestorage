@@ -229,7 +229,7 @@ export default function CharactersPage() {
 
             {/* The list is one world's. This is the rest of the account, and it is said because an
               empty page in the wrong world looks exactly like an account with no characters. */}
-            {settings && settings.otherWorldCharacters > 0 && (
+            {settings?.worldType && settings.otherWorldCharacters > 0 && (
               <p className="party-hint">
                 {settings.otherWorldCharacters}{" "}
                 {settings.otherWorldCharacters === 1 ? "character" : "characters"} in{" "}

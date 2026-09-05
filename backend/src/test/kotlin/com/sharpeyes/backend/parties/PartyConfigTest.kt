@@ -12,7 +12,9 @@ import com.sharpeyes.backend.db.Person
 import com.sharpeyes.backend.db.Screenshots
 import com.sharpeyes.backend.services.DetectedBossClear
 import com.sharpeyes.backend.sprites.spriteProxyPath
+import com.sharpeyes.backend.users.WORLD_INTERACTIVE
 import com.sharpeyes.backend.users.ensureUser
+import com.sharpeyes.backend.users.setActiveWorld
 import org.flywaydb.core.Flyway
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
@@ -85,6 +87,10 @@ class PartyConfigTest {
         sprite: String? = null,
     ): Uuid {
         ensureUser(userId, "$userId@example.com")
+        // A character is inserted here directly, so the account has to say which world it is
+        // looking at or every account-wide read below is empty. The route refuses to create a
+        // character without one at all: see V74 and users/WorldType.kt.
+        setActiveWorld(userId, WORLD_INTERACTIVE)
         val id = Uuid.random()
         val now = Clock.System.now()
         Characters.insert {

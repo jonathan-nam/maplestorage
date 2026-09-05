@@ -6,8 +6,8 @@ import com.sharpeyes.backend.db.RedemptionRule
 import com.sharpeyes.backend.db.TokenCatalog
 import com.sharpeyes.backend.plugins.parseUuidParam
 import com.sharpeyes.backend.plugins.principalIdAndEmail
-import com.sharpeyes.backend.users.activeWorldFor
 import com.sharpeyes.backend.users.ensureUser
+import com.sharpeyes.backend.users.inActiveWorld
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.call
 import io.ktor.server.response.respond
@@ -51,7 +51,7 @@ internal suspend fun RoutingContext.getAllCharacterTokens() {
                 // Scope to this user's characters, in the world being shown. Without the first the
                 // join reaches every user's rows; without the second it returns counts for
                 // characters the caller's list does not contain.
-                .where { (Characters.userId eq userId) and (Characters.worldType eq activeWorldFor(userId)) }
+                .where { (Characters.userId eq userId) and inActiveWorld(userId) }
                 .orderBy(TokenCatalog.sortOrder)
                 .groupBy({ it[CharacterTokenCount.characterId].toString() }) {
                     it.toCharacterTokenResponse()

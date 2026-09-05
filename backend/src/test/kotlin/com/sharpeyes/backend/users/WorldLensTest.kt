@@ -22,11 +22,13 @@ import org.jetbrains.exposed.v1.jdbc.deleteWhere
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
+import org.jetbrains.exposed.v1.jdbc.update
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotEquals
+import kotlin.test.assertNull
 import kotlin.time.Clock
 import kotlin.uuid.Uuid
 
@@ -104,7 +106,7 @@ class WorldLensTest {
     private fun charactersShown(): List<String> =
         Characters
             .selectAll()
-            .where { (Characters.userId eq userId) and (Characters.worldType eq activeWorldFor(userId)) }
+            .where { (Characters.userId eq userId) and inActiveWorld(userId) }
             .orderBy(Characters.position)
             .map { it[Characters.name] }
 
@@ -192,15 +194,52 @@ class WorldLensTest {
     }
 
     @Test
-    fun `an account that never chose a mode is in Interactive`() {
-        // Its own user id, never toggled by the tests above: the point is what a row inserted with
-        // V26's column default reads as. Every account that predates the toggle sits on it, so this
-        // is the state most real users are in on the first deploy.
-        val fresh = "user_test_lens_untouched"
+    fun `an account that never chose a mode is in no world at all`() {
+        // Its own user id, never toggled by the tests above: the point is what a row inserted
+        // without a world reads as. This test used to assert the opposite, because V26's column
+        // default made a new account Interactive and there was no way to say otherwise. V74 drops
+        // the default, and null is the difference between an account that chose Interactive and
+        // one that was never asked, which is the whole of what the choice screen is drawn on.
+        val fresh = "user_test_lens_unanswered"
         transaction {
             ensureUser(fresh, "$fresh@example.com")
-            assertEquals(WORLD_INTERACTIVE, Users.selectAll().where { Users.id eq fresh }.single()[Users.worldType])
-            assertEquals(WORLD_INTERACTIVE, activeWorldFor(fresh))
+            assertNull(Users.selectAll().where { Users.id eq fresh }.single()[Users.worldType])
+            assertNull(activeWorldFor(fresh))
+            assertNull(settingsFor(fresh).worldType)
+            // Not "does anybody trade": there is no world to trade in yet.
+            assertEquals(false, settingsFor(fresh).trades)
+        }
+    }
+
+    @Test
+    fun `an unanswered account is shown nothing rather than one world's worth`() {
+        // The failure the null exists to prevent. A Heroic player signing up got INTERACTIVE by
+        // default, so this read returned their Interactive characters, their Interactive pools and
+        // a Sale Ledger for a world that does not trade, with nothing on screen saying so.
+        transaction {
+            both()
+            Users.update({ Users.id eq userId }) { it[worldType] = null }
+
+            assertEquals(emptyList(), charactersShown())
+            assertEquals(emptyList(), partiesFor(userId))
+            assertEquals(emptyList(), allLootFor(userId))
+            // Zero, not two. With no world chosen there is no "here" for a character to be outside
+            // of, and a count of the account's own characters under "in the other world" is the
+            // toggle offering to move somebody who has not been asked where they are.
+            assertEquals(0, settingsFor(userId).otherWorldCharacters)
+        }
+    }
+
+    @Test
+    fun `answering puts the account back in one world`() {
+        transaction {
+            both()
+            Users.update({ Users.id eq userId }) { it[worldType] = null }
+            assertEquals(emptyList(), charactersShown())
+
+            setActiveWorld(userId, WORLD_HEROIC)
+            assertEquals(listOf("Rune"), charactersShown())
+            assertEquals(WORLD_HEROIC, settingsFor(userId).worldType)
         }
     }
 }

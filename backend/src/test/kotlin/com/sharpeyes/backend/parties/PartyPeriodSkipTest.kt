@@ -8,6 +8,7 @@ import com.sharpeyes.backend.db.Characters
 import com.sharpeyes.backend.db.Party
 import com.sharpeyes.backend.users.WORLD_INTERACTIVE
 import com.sharpeyes.backend.users.ensureUser
+import com.sharpeyes.backend.users.setActiveWorld
 import kotlinx.datetime.DateTimeUnit
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
@@ -84,6 +85,10 @@ class PartyPeriodSkipTest {
 
     private fun mine(named: String = "Rune"): Uuid {
         ensureUser(userId, "$userId@example.com")
+        // A character is inserted here directly, so the account has to say which world it is
+        // looking at or every account-wide read below is empty. The route refuses to create a
+        // character without one at all: see V74 and users/WorldType.kt.
+        setActiveWorld(userId, WORLD_INTERACTIVE)
         val id = Uuid.random()
         val now = Clock.System.now()
         val owner = userId

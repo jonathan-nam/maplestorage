@@ -5,8 +5,8 @@ import com.sharpeyes.backend.db.Characters
 import com.sharpeyes.backend.db.RedemptionRule
 import com.sharpeyes.backend.db.TokenCatalog
 import com.sharpeyes.backend.plugins.principalIdAndEmail
-import com.sharpeyes.backend.users.activeWorldFor
 import com.sharpeyes.backend.users.ensureUser
+import com.sharpeyes.backend.users.inActiveWorld
 import io.ktor.server.application.call
 import io.ktor.server.response.respond
 import io.ktor.server.routing.Route
@@ -124,7 +124,7 @@ internal fun tokenTotalsFor(userId: String): List<TokenTotalResponse> {
         // character rows otherwise, so dropping the first leaks other people's counts into the
         // totals; dropping the second pools two worlds' inventories, which cannot be redeemed
         // against each other. Both silently, and both as a plausible-looking larger number.
-        .where { (Characters.userId eq userId) and (Characters.worldType eq activeWorldFor(userId)) }
+        .where { (Characters.userId eq userId) and inActiveWorld(userId) }
         .groupBy(
             TokenCatalog.id,
             TokenCatalog.name,

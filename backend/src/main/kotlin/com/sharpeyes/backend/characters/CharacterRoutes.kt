@@ -8,6 +8,7 @@ import com.sharpeyes.backend.services.NexonLookupService
 import com.sharpeyes.backend.sprites.SpriteCache
 import com.sharpeyes.backend.users.activeWorldFor
 import com.sharpeyes.backend.users.ensureUser
+import com.sharpeyes.backend.users.inActiveWorld
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.call
 import io.ktor.server.request.receive
@@ -87,6 +88,11 @@ private suspend fun RoutingContext.createCharacter(
             // Nothing found is not nothing known: an unranked or misspelled name falls through to
             // manual entry, and the world you are in is the best answer available for it.
             val detected = lookup?.world
+            // Neither the lookup nor the account can say which world this character is in, so
+            // nothing here can. Placing them in a world picked for them is the failure the world
+            // comment above describes, and V74 is what makes refusing possible: before it the
+            // account always held a world, whether or not anyone had chosen it.
+            val world = detected?.worldType ?: activeWorldFor(userId) ?: return@transaction null
             Characters.insert {
                 it[id] = newId
                 it[Characters.userId] = userId
@@ -97,7 +103,7 @@ private suspend fun RoutingContext.createCharacter(
                 it[level] = lookup?.level
                 it[jobName] = lookup?.jobName
                 it[worldName] = detected?.displayName
-                it[worldType] = detected?.worldType ?: activeWorldFor(userId)
+                it[worldType] = world
                 it[spriteImgUrl] = lookup?.spriteImgUrl
                 it[spriteRefreshedAt] = if (lookup != null) now else null
                 // We asked, whatever came back. A name that resolved to nothing is not re-asked
@@ -111,7 +117,11 @@ private suspend fun RoutingContext.createCharacter(
             findOwnedCharacter(newId, userId)
         }
 
-    call.respond(HttpStatusCode.Created, created!!)
+    if (created == null) {
+        call.respond(HttpStatusCode.Conflict, "choose a world before adding a character")
+        return
+    }
+    call.respond(HttpStatusCode.Created, created)
 }
 
 private suspend fun RoutingContext.listCharacters() {
@@ -128,7 +138,7 @@ private suspend fun RoutingContext.listCharacters() {
 private fun charactersInActiveWorld(userId: String): List<CharacterResponse> =
     Characters
         .selectAll()
-        .where { (Characters.userId eq userId) and (Characters.worldType eq activeWorldFor(userId)) }
+        .where { (Characters.userId eq userId) and inActiveWorld(userId) }
         .orderBy(Characters.position)
         .map { it.toCharacterResponse() }
 
@@ -153,7 +163,7 @@ private suspend fun RoutingContext.reorderCharacters() {
                 Characters
                     .selectAll()
                     .where {
-                        (Characters.userId eq userId) and (Characters.worldType eq activeWorldFor(userId))
+                        (Characters.userId eq userId) and inActiveWorld(userId)
                     }.orderBy(Characters.position)
                     .map { it[Characters.id] to it[Characters.position] }
             // Must be exactly that set, no missing, extra or duplicate ids, or position would end

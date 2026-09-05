@@ -8,7 +8,7 @@ import com.sharpeyes.backend.db.DropCatalog
 import com.sharpeyes.backend.db.Party
 import com.sharpeyes.backend.db.PartyLoot
 import com.sharpeyes.backend.db.PartyLootPayout
-import com.sharpeyes.backend.users.activeWorldFor
+import com.sharpeyes.backend.users.inActiveWorld
 import org.jetbrains.exposed.v1.core.JoinType
 import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.SortOrder
@@ -178,7 +178,7 @@ internal fun allLootFor(userId: String): List<PartyLootPoolResponse> {
             // would add mesos that cannot be earned to mesos that can.
             .join(Characters, JoinType.INNER, Party.characterId, Characters.id)
             .selectAll()
-            .where { (Party.userId eq userId) and (Characters.worldType eq activeWorldFor(userId)) }
+            .where { (Party.userId eq userId) and inActiveWorld(userId) }
             .orderBy(PartyLoot.droppedOn to SortOrder.DESC, PartyLoot.createdAt to SortOrder.DESC)
             .toList()
     if (rows.isEmpty()) return emptyList()

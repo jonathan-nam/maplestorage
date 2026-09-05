@@ -3,15 +3,30 @@
 import Link from "next/link";
 import { SharpEyesMark } from "@/components/sharp-eyes-mark";
 import { SignInButton } from "@/components/sign-in-button";
+import { WorldChoice } from "@/components/world-choice";
 import { PASSWORD_LOGIN } from "@/lib/auth-client";
+import { useAccountSettings } from "@/lib/use-account-settings";
 import { useAuth } from "@/lib/use-auth";
 
 export default function Home() {
   const { isSignedIn, isLoaded } = useAuth();
+  const settings = useAccountSettings();
 
   // Neither hero until the session is known. Drawing the signed-out one first and swapping it is a
   // returning user being asked to sign in for a frame.
   if (!isLoaded) return <main className="page" />;
+
+  // Signed in and never asked which world. Not "welcome back" either: they have not been.
+  //
+  // Held until the settings arrive for the same reason the hero is held until the session does. The
+  // answer decides which of two screens this is, and drawing one and swapping it is the flicker.
+  if (isSignedIn && settings && settings.worldType === null) {
+    return (
+      <main className="page">
+        <WorldChoice />
+      </main>
+    );
+  }
 
   return (
     <main className="page">

@@ -6,7 +6,7 @@ import com.sharpeyes.backend.db.Characters
 import com.sharpeyes.backend.parties.lootFromClear
 import com.sharpeyes.backend.parties.unlootFromClear
 import com.sharpeyes.backend.services.DetectedBossClear
-import com.sharpeyes.backend.users.activeWorldFor
+import com.sharpeyes.backend.users.inActiveWorld
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
@@ -64,7 +64,7 @@ internal fun currentBossClearsFor(
             // join reaches every user's rows. The second is the site's world lens: see
             // activeWorldFor.
             (Characters.userId eq userId) and
-                (Characters.worldType eq activeWorldFor(userId)) and
+                inActiveWorld(userId) and
                 currentPeriod.entries
                     .map { (reset, start) -> (BossCatalog.reset eq reset) and (BossClear.periodStart eq start) }
                     .reduce { a, b -> a or b }
@@ -91,7 +91,7 @@ internal fun weeklyClearsFor(
         .selectAll()
         .where {
             (Characters.userId eq userId) and
-                (Characters.worldType eq activeWorldFor(userId)) and
+                inActiveWorld(userId) and
                 (BossCatalog.reset eq WEEKLY_CADENCE) and
                 (BossClear.periodStart eq weekStart)
         }.orderBy(BossCatalog.sortOrder)
@@ -114,7 +114,7 @@ internal fun earliestWeekStartFor(userId: String): LocalDate? {
             // minimum would bound the back arrow by a week only the other world has clears in, and
             // every step back into it would draw an empty grid that looks like a week off.
             (Characters.userId eq userId) and
-                (Characters.worldType eq activeWorldFor(userId)) and
+                inActiveWorld(userId) and
                 (BossCatalog.reset eq WEEKLY_CADENCE)
         }.firstOrNull()
         ?.get(earliest)

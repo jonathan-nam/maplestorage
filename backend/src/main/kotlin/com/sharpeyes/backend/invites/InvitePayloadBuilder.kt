@@ -51,10 +51,19 @@ internal fun buildInvitePayload(
     personId: Uuid,
     senderName: String,
 ): InvitePayload? {
-    Person
-        .selectAll()
-        .where { (Person.id eq personId) and (Person.userId eq userId) }
-        .firstOrNull() ?: return null
+    val isTheirPerson =
+        Person
+            .selectAll()
+            .where { (Person.id eq personId) and (Person.userId eq userId) }
+            .firstOrNull() != null
+
+    // Two ways to have nothing to send, refused together because detekt allows one early return.
+    // The person is not the caller's, or the sender has never said which world they play in: every
+    // config, character and seat below is read through that lens, and there is no lens (V74, and
+    // see users/WorldType.kt). Refusing beats substituting a world, which would put an arrangement
+    // the sender was never shown into the link.
+    val world = activeWorldFor(userId)
+    if (!isTheirPerson || world == null) return null
 
     val theirCharacters =
         PersonCharacter
@@ -77,8 +86,8 @@ internal fun buildInvitePayload(
         version = INVITE_PAYLOAD_VERSION,
         senderName = senderName,
         senderUserId = userId,
-        worldType = activeWorldFor(userId),
-        characters = recipientCharacters(theirCharacters, parties, configs, userId),
+        worldType = world,
+        characters = recipientCharacters(theirCharacters, parties, configs, world),
         people = peopleIn(userId, senderName, seatNames),
         parties = parties,
         omitted = omitted,
@@ -236,12 +245,11 @@ private fun recipientCharacters(
     names: List<String>,
     parties: List<InviteParty>,
     configs: List<SourceConfig>,
-    userId: String,
+    fallback: String,
 ): List<InviteCharacter> {
     val worldByParty = configs.associate { it.partyId.toString() to it.worldType }
     val worldByName =
         parties.associate { it.ownName.lowercase() to worldByParty.getValue(it.sourcePartyId) }
-    val fallback = activeWorldFor(userId)
     return names.map { InviteCharacter(it, worldByName[it.lowercase()] ?: fallback) }
 }
 

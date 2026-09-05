@@ -47,7 +47,11 @@ export function WorldToggle() {
 
   // Nothing to draw until the answer arrives. A default drawn here would be a claim about which
   // world you are in, made before anyone asked, and half of them would be wrong.
-  if (!settings) return null;
+  //
+  // A null worldType is the second way of not knowing, and the same sentence decides it: the
+  // account has not been asked yet. WorldChoice is where it gets asked, and two controls for one
+  // decision is one too many, so the toggle stays out until there is an answer to show.
+  if (!settings || !settings.worldType) return null;
 
   async function choose(world: WorldType) {
     if (busy || world === settings?.worldType) return;
