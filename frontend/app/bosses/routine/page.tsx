@@ -174,7 +174,7 @@ export default function BossRoutinePage() {
       <p className="loot-back">
         <Link href="/bosses">&larr; Individual View</Link>
       </p>
-      <h1 className="page-title">Who runs what</h1>
+      <h1 className="page-title">Edit Boss Config</h1>
 
       {state === "error" && <p>Couldn&apos;t load your bosses.</p>}
       <PageSwap
