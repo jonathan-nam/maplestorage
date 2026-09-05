@@ -107,6 +107,32 @@ describe("what the card says a person owes", () => {
     expect(settlement).toContain("parts.reduce((sum, part) => sum + part.amount, 0)");
   });
 
+  it("draws its two writes as ONE repaint, the halves of an offset cancelling in the net", () => {
+    // Neither of the page's write helpers, because each draws the moment it lands and the state
+    // between the settle and the debt row is the debt un-offset: Bro's card went 253.86b, 254b,
+    // 253.86b over two round trips, which reads as a button that did nothing.
+    const handler = page.slice(
+      page.indexOf("onOffsetShares={async"),
+      page.indexOf("<AddSettlement"),
+    );
+    expect(handler).not.toContain("settleShares(");
+    expect(handler).not.toContain("debtWrite(");
+    // Both applied after the last write, and in `finally`, so a failure part way still draws what
+    // landed: the shares settled and some of them not yet offset.
+    expect(handler).toContain("if (owed) setDebts(owed);");
+    expect(handler.indexOf("if (settled) setPools(settled);")).toBeGreaterThan(
+      handler.lastIndexOf("await apiFetch"),
+    );
+  });
+
+  it("says what the offset clears, not a figure the headline will not move by", () => {
+    // The headline is the net, so the two halves cancel in it. "takes 703,703,488 off what Bro owes
+    // you" was the same promise the money-in-hand Offset below makes, where the figure does move.
+    expect(source).toContain(
+      "clears the ${formatMesos(offset.amount, true)} you owe against what ${row.name} owes you",
+    );
+  });
+
   it("splits an old offset with NO control, since it is not a decision anybody is making", () => {
     // Asking somebody to click through their own history one entry at a time is asking them to do
     // the migration by hand. The guard refuses on an unresolved share, which is what makes running

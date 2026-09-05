@@ -1069,24 +1069,57 @@ export default function DropLogPage() {
                   // figure naming nobody, and one can be taken back without the others. Sequential,
                   // like every paired write on this page: each answers with the whole debt list and
                   // the last answer wins, so racing them would redraw the card from whichever landed
-                  // second. A failure part way leaves the shares settled and some of them not yet
-                  // offset, which is the direction that shows on the card.
+                  // second.
+                  //
+                  // ONE REPAINT, at the end, which is why this writes through apiFetch rather than
+                  // through settleShares and debtWrite. Each of those draws the moment it lands, and
+                  // the halves of an offset cancel: the settle takes the share out of the net and the
+                  // debt row puts it back, so a 703,703,488 offset walked Bro's card up to 254b and
+                  // back down over two round trips and finished on the figure it started on. Nothing
+                  // between the two writes is a state of the ledger anybody should read.
+                  //
+                  // Applied in `finally`, so a failure part way still draws what landed: the shares
+                  // settled and some of them not yet offset, which is the direction that shows on the
+                  // card and is fixable with the box on it.
                   onOffsetShares={async (holder: Holder, name, parts) => {
-                    await settleShares(parts.map(({ lootId, memberId }) => ({ lootId, memberId })));
-                    for (const part of parts) {
-                      await debtWrite(DEBTS_KEY, {
-                        method: "POST",
-                        body: JSON.stringify({
-                          holder,
-                          amount: -part.amount,
-                          // Invisible on the card, which names the drop itself once an entry has one
-                          // share behind it. It is what the debt row says on its own.
-                          note: `offset against ${name}`,
-                          // The very row the settle above just marked paid, so the adjustment can name
-                          // what discharged it a month later. See V58.
-                          payouts: [{ lootId: part.lootId, memberId: part.memberId }],
-                        }),
-                      });
+                    if (parts.length === 0) return;
+                    setBusy(true);
+                    let settled: PartyLootPool[] | null = null;
+                    let owed: SettlementDebt[] | null = null;
+                    try {
+                      const body: SettleBody = {
+                        payouts: parts.map(({ lootId, memberId }) => ({ lootId, memberId })),
+                      };
+                      settled = await apiFetch<PartyLootPool[]>(
+                        SETTLE_KEY,
+                        { method: "POST", body: JSON.stringify(body) },
+                        getToken,
+                      );
+                      for (const part of parts) {
+                        owed = await apiFetch<SettlementDebt[]>(
+                          DEBTS_KEY,
+                          {
+                            method: "POST",
+                            body: JSON.stringify({
+                              holder,
+                              amount: -part.amount,
+                              // Invisible on the card, which names the drop itself once an entry has
+                              // one share behind it. It is what the debt row says on its own.
+                              note: `offset against ${name}`,
+                              // The very row the settle above just marked paid, so the adjustment can
+                              // name what discharged it a month later. See V58.
+                              payouts: [{ lootId: part.lootId, memberId: part.memberId }],
+                            }),
+                          },
+                          getToken,
+                        );
+                      }
+                    } catch (e) {
+                      throw new Error(e instanceof ApiError ? e.body : "That didn't save.");
+                    } finally {
+                      if (settled) setPools(settled);
+                      if (owed) setDebts(owed);
+                      setBusy(false);
                     }
                   }}
                 />
