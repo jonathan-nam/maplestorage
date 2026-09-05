@@ -168,7 +168,6 @@ private suspend fun RoutingContext.acceptInviteRoute() {
             // Redeeming your own link would link an account to itself and copy its parties back
             // onto it under different ids.
             if (invite[AccountInvite.userId] == userId) return@transaction Refusal.Own
-            if (!accountIsEmpty(userId)) return@transaction Refusal.NotEmpty
 
             // Spent before the rows are written, inside the same transaction: two requests racing
             // the same link both pass the checks above, and the unique token_hash does not stop the
@@ -190,8 +189,6 @@ private suspend fun RoutingContext.acceptInviteRoute() {
         Refusal.Unknown -> call.respond(HttpStatusCode.NotFound)
         Refusal.Stale -> call.respond(HttpStatusCode.Gone, "this link is out of date, ask for a new one")
         Refusal.Own -> call.respond(HttpStatusCode.Conflict, "this is your own link")
-        Refusal.NotEmpty ->
-            call.respond(HttpStatusCode.Conflict, "this account already has characters of its own")
         is AcceptedInvite -> call.respond(outcome)
         else -> call.respond(HttpStatusCode.NotFound)
     }

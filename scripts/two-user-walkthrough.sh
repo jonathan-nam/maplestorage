@@ -70,16 +70,16 @@ sign_up sender "walk-sender-$STAMP@example.com" "walkthrough-pw-1" "Sender"
 sign_up member "walk-member-$STAMP@example.com" "walkthrough-pw-2" "Member"
 echo "signed in as both"
 
-say "2. the SENDER picks a world"
-# Every account-wide read narrows by this and a new account has not been asked yet (V74), so without
-# it the sender's own screens are empty and nothing below works.
+say "2. both pick a world, and the member starts using their account"
+# Every account-wide read narrows by the world and a new account has not been asked yet (V74).
 #
-# The member does NOT pick one, and must not add a character either. Accepting requires a completely
-# empty account (accountIsEmpty) and brings both across from the payload. Setting either first makes
-# the invite refuse with "this account already has characters of its own", which is the design
-# refusing to guess whether the WalkMember in the payload is the WalkMember already here.
+# The member is deliberately NOT empty here. Accepting used to require an empty account and refused
+# after the button was pressed, which hit exactly the people keen enough to have signed up and added
+# a character first. Their own character stays, and the payload's is bound to rather than duplicated.
 api sender PUT /api/settings -d '{"worldType":"INTERACTIVE"}' >/dev/null
-echo "sender INTERACTIVE, member left empty on purpose"
+api member PUT /api/settings -d '{"worldType":"INTERACTIVE"}' >/dev/null
+api member POST /api/characters -d "{\"name\":\"WalkTheirOwn$STAMP\"}" >/dev/null
+echo "both INTERACTIVE, member already has WalkTheirOwn$STAMP"
 
 MEMBER_CHAR="WalkMember$STAMP"
 
@@ -146,5 +146,11 @@ say "10. and what they must NOT have"
 OWN=$(api member GET /api/parties | python3 -c 'import json,sys; print(len(json.load(sys.stdin)))')
 [ "$OWN" = "0" ] || fail "the member owns $OWN parties; accepting should copy none (membership is a seat)"
 echo "0 parties of their own, which is the point of V75"
+
+CHARS=$(api member GET /api/characters | python3 -c 'import json,sys; print(",".join(sorted(c["name"] for c in json.load(sys.stdin))))')
+case "$CHARS" in
+  *WalkTheirOwn*) echo "kept the character they had before accepting: $CHARS" ;;
+  *) fail "the member lost their own character: $CHARS" ;;
+esac
 
 say "done"
