@@ -81,9 +81,9 @@ data class InvitePerson(
  */
 @Serializable
 data class InviteParty(
-    // The config this mirrors, on the sender's account. What accept writes party.group_id from, so
-    // the two rows describing one real party can be told to be the same later. A config deleted
-    // since the link was made still lands, unlinked.
+    // The config on the sender's account whose seats this fills. It stays theirs and is never
+    // copied, so this is the party itself rather than a row to pair with one (V75). A config
+    // deleted since the link was made seats nobody, which is what a stale invitation looks like.
     val sourcePartyId: String,
     val bossKey: String,
     val difficulty: String? = null,
@@ -173,6 +173,15 @@ data class InviteResponse(
 data class InvitePartyLabel(
     val bossName: String,
     val difficulty: String?,
+    /**
+     * Which of the recipient's characters holds the seat, which is what tells two of these apart.
+     *
+     * A boss run on three characters is three configs with one label between them, and the same
+     * line three times reads as a bug in the list rather than as three parties. It is also what
+     * says which ticked character a party arrives with: a config binds no seat unless the name on
+     * it was confirmed, so unticking a character drops its parties. See takeSeats.
+     */
+    val characterName: String,
 )
 
 /**

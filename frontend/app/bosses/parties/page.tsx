@@ -1120,6 +1120,7 @@ export default function PartiesPage() {
             <SharedParties
               parties={seated}
               bosses={bosses}
+              characterOrder={characters.map((c) => c.id)}
               clearOf={(party) => yourClear(party, clearsByCharacter)}
             />
           </>

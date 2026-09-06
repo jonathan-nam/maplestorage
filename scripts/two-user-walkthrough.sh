@@ -9,8 +9,8 @@
 #   ./scripts/two-user-walkthrough.sh
 #
 # Leaves both accounts and their data in the dev database, and makes fresh ones each run because the
-# emails carry a timestamp. That is not tidiness: accepting an invite requires an EMPTY account (see
-# accountIsEmpty), so a reused one fails on the second run and reads like a broken invite.
+# emails carry a timestamp. Fresh so each run starts from a known account rather than from whatever
+# the last one left: a link can only be spent once, and a member already seated proves nothing.
 #
 # Needs password login, which is off by default. Both of these, or the API takes a password the
 # sign-in page will not offer:
@@ -29,6 +29,18 @@ trap 'rm -rf "$TMP"' EXIT
 say() { printf '\n=== %s\n' "$1"; }
 fail() { printf '\nFAILED: %s\n' "$1" >&2; exit 1; }
 
+# The auth container, by its compose labels rather than through `docker compose logs`.
+#
+# That command re-reads docker-compose.yml, which interpolates DISCORD_CLIENT_ID and so needs a .env
+# the checkout it runs from may not have. A worktree does not, and the failure lands inside sign_up
+# where it reads as "no verification link" rather than as a missing file. The project name is pinned
+# in the compose file, so this finds the same container from anywhere.
+auth_container() {
+  docker ps -q \
+    --filter label=com.docker.compose.project=sharpeyes \
+    --filter label=com.docker.compose.service=auth | head -1
+}
+
 # An account, verified and signed in, its cookie jar left at $TMP/<slug>.cookies.
 #
 # Verification is not skippable even on dev: sign-in answers EMAIL_NOT_VERIFIED until it is done.
@@ -39,8 +51,10 @@ sign_up() {
   curl -sS -X POST "$AUTH/api/auth/sign-up/email" -H 'Content-Type: application/json' \
     -d "{\"email\":\"$email\",\"password\":\"$password\",\"name\":\"$name\"}" >/dev/null
 
-  local link
-  link=$(docker compose logs auth --tail 200 2>&1 \
+  local container link
+  container=$(auth_container)
+  [ -n "$container" ] || fail "the auth container is not running; docker compose up -d auth"
+  link=$(docker logs "$container" --tail 200 2>&1 \
     | grep -oE "http://localhost:3001/api/auth/verify-email\?token=[^ ]+" | tail -1)
   [ -n "$link" ] || fail "no verification link in the auth logs for $email"
   curl -sS -o /dev/null "$link"
@@ -83,19 +97,26 @@ echo "both INTERACTIVE, member already has WalkTheirOwn$STAMP"
 
 MEMBER_CHAR="WalkMember$STAMP"
 
-say "3. the sender adds a character and a party seating them"
+say "3. the sender adds characters and two parties on the same boss"
 SENDER_CHAR=$(api sender POST /api/characters -d "{\"name\":\"WalkSender$STAMP\"}" | field '["id"]')
+SENDER_ALT=$(api sender POST /api/characters -d "{\"name\":\"WalkSenderAlt$STAMP\"}" | field '["id"]')
 # Two seats for them, one of which the sender has wrong. The member confirms only the real one.
 WRONG_CHAR="WalkNotTheirs$STAMP"
-api sender POST /api/parties \
+# One boss at one difficulty, run on two of the member's characters. That is two configs wearing a
+# single label, which is the shape the landing page used to render as the same line twice: only
+# whose seat it is tells them apart. Seventeen of these is what the real account looks like.
+PARTY=$(api sender POST /api/parties \
   -d "{\"characterId\":\"$SENDER_CHAR\",\"bossKey\":\"kalos-the-guardian\",\"members\":[\"$MEMBER_CHAR\",\"$WRONG_CHAR\"],\"difficulty\":\"CHAOS\"}" \
+  | field '["id"]')
+api sender POST /api/parties \
+  -d "{\"characterId\":\"$SENDER_ALT\",\"bossKey\":\"kalos-the-guardian\",\"members\":[\"WalkTheirOwn$STAMP\"],\"difficulty\":\"CHAOS\"}" \
   >/dev/null
-echo "Chaos Kalos, seating $MEMBER_CHAR and $WRONG_CHAR"
+echo "two Chaos Kalos parties: $MEMBER_CHAR in one, WalkTheirOwn$STAMP in the other"
 
-say "4. the sender says whose character that is"
-api sender PUT /api/people -d "{\"people\":[{\"name\":\"Walk Friend\",\"characters\":[\"$MEMBER_CHAR\",\"$WRONG_CHAR\"]}]}" >/dev/null
+say "4. the sender says whose characters those are"
+api sender PUT /api/people -d "{\"people\":[{\"name\":\"Walk Friend\",\"characters\":[\"$MEMBER_CHAR\",\"$WRONG_CHAR\",\"WalkTheirOwn$STAMP\"]}]}" >/dev/null
 PERSON=$(api sender GET /api/people | field '[0]["id"]')
-echo "Walk Friend holds $MEMBER_CHAR"
+echo "Walk Friend holds all three names, one of which the sender has wrong"
 
 say "5. the sender makes a link"
 TOKEN=$(api sender POST /api/invites -d "{\"personId\":\"$PERSON\"}" | field '["token"]')
@@ -108,14 +129,32 @@ say "6. what the link says before anyone signs in"
 curl -sS "$API/api/join/$TOKEN" | head -c 300
 echo
 
-say "7. the link offers both characters, and the member confirms only one"
-curl -sS "$API/api/join/$TOKEN" | python3 -c '
+say "7. the link names each party by boss AND by seat, then the member confirms two of three"
+curl -sS "$API/api/join/$TOKEN" > "$TMP/preview.json"
+python3 - "$TMP/preview.json" <<'PY'
 import json, sys
-p = json.load(sys.stdin)
+
+p = json.load(open(sys.argv[1]))
 print("  offers characters:", ", ".join(p["characters"]))
-print("  parties:", ", ".join(f'"'"'{q["difficulty"] or ""} {q["bossName"]}'"'"'.strip() for q in p["parties"]))
-'
-api member POST "/api/invites/$TOKEN/accept" -d "{\"characters\":[\"$MEMBER_CHAR\"]}" | head -c 200
+for q in p["parties"]:
+    print(f"  party: {q['difficulty'] or ''} {q['bossName']} ({q['characterName']})".strip())
+
+if len(p["parties"]) != 2:
+    raise SystemExit(f"FAILED: expected 2 parties on the link, got {len(p['parties'])}")
+
+# The bit worth having a walkthrough for. Both configs are the same words, so a page that named
+# only the boss would print one line twice and read as a bug rather than as two parties.
+labels = {(q["bossName"], q["difficulty"]) for q in p["parties"]}
+if len(labels) != 1:
+    raise SystemExit(f"FAILED: the two parties were meant to share a label, got {labels}")
+
+seats = sorted(q["characterName"] for q in p["parties"])
+if len(set(seats)) != 2:
+    raise SystemExit(f"FAILED: the seats do not tell the two apart: {seats}")
+print("  one label, two seats:", ", ".join(seats))
+PY
+api member POST "/api/invites/$TOKEN/accept" \
+  -d "{\"characters\":[\"$MEMBER_CHAR\",\"WalkTheirOwn$STAMP\"]}" | head -c 200
 echo
 
 say "8. the sender logs a drop into the PARTY's pool"
@@ -126,7 +165,9 @@ say "8. the sender logs a drop into the PARTY's pool"
 # pool's roster says that week". A drop logged that way lands in the party's pool but names only the
 # logger as having run, so a member correctly never sees it. Getting that wrong here is what made
 # this walkthrough first report "nights I was on: 0" with the data looking perfect.
-PARTY=$(api sender GET /api/parties | field '[0]["id"]')
+# The party id came off the create response, not off '[0]' of the list: two configs on one boss
+# come back in no order worth relying on, and dropping the grindstone into the wrong one would
+# leave the member correctly seeing nothing.
 api sender POST "/api/parties/$PARTY/loot" \
   -d '{"dropKey":"grindstone-of-faith","bossKey":"kalos-the-guardian"}' >/dev/null
 echo "grindstone into the party pool"
@@ -140,6 +181,8 @@ seated = json.load(open(sys.argv[1]))
 if not seated:
     print("NOTHING: the member sees no shared party")
     raise SystemExit(1)
+if len(seated) != 2:
+    raise SystemExit(f"FAILED: expected a seat in both configs, got {len(seated)}")
 for party in seated:
     print("  boss:", party["bossKey"], party["difficulty"])
     print("  seats:", ", ".join(s["name"] for s in party["seats"]))
@@ -148,6 +191,28 @@ for party in seated:
     mine = [s for s in party["seats"] if s["id"] in party["mySeatIds"]]
     for s in mine:
         print("  bound to my character:", s["linkedCharacterId"] is not None)
+
+# What the Shared with you list files each card under. Two configs on one boss belong under two
+# different headings, so a null here or a repeat would collapse them back into one wall.
+held = [
+    s["linkedCharacterId"]
+    for party in seated
+    for s in party["seats"]
+    if s["id"] in party["mySeatIds"]
+]
+if None in held:
+    raise SystemExit("FAILED: a seat of mine binds no character, so it can be filed under none")
+if len(set(held)) != 2:
+    raise SystemExit(f"FAILED: both configs came back under one character of mine: {held}")
+print("  filed under 2 characters of mine, which is what the grouping reads")
+
+# The seat the sender got wrong is in the first party's roster and must have been left alone.
+wrong = [s for party in seated for s in party["seats"] if "WalkNotTheirs" in s["name"]]
+if not wrong:
+    raise SystemExit("FAILED: the mis-spelled seat vanished; this run proves nothing about it")
+if any(s["linkedCharacterId"] for s in wrong):
+    raise SystemExit("FAILED: the unticked seat was bound to a character anyway")
+print("  the seat the sender got wrong binds nobody")
 PY
 
 say "10. and what they must NOT have"

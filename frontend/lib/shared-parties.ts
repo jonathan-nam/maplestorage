@@ -1,7 +1,61 @@
 import { cellState, clearOfCell } from "./boss-clears";
 import { splitOf } from "./loot";
 import type { Loot } from "@/types/loot";
-import type { SeatedParty } from "@/types/party";
+import type { PartyMember, SeatedParty } from "@/types/party";
+
+/**
+ * The seat in somebody else's party that a character of YOURS holds.
+ *
+ * There is always one, or the party would not be in this list at all: reaching it is owning a
+ * character with a seat bound to it (backend partiesSeatedIn). Null is still the answer where a
+ * response and the seats in it have come apart, because a guess about whose seat it is is a guess
+ * about whose share it is.
+ */
+export function yourSeat(party: SeatedParty): PartyMember | null {
+  return party.seats.find((seat) => party.mySeatIds.includes(seat.id)) ?? null;
+}
+
+/** Somebody else's parties, filed under the character of yours that sits in them. */
+export type SharedGroup = {
+  /** The character of yours these are seated on, or null where the seat named none. */
+  characterId: string | null;
+  /**
+   * What that seat is called.
+   *
+   * The SENDER'S spelling, because accepting binds a seat without renaming it (backend bindSeats).
+   * That is the name every roster line on these cards already shows, so taking your own spelling
+   * here instead would make the heading the one thing on the screen that disagrees.
+   */
+  name: string;
+  parties: SeatedParty[];
+};
+
+/**
+ * Shared parties grouped by which character of yours is in them, in your own character order.
+ *
+ * The same question the owner's list answers about their own configs, asked from the other end:
+ * seventeen cards in a row say nothing about which character has a night tonight. Ordered to match
+ * that list, so the two read down the page the same way.
+ *
+ * A party whose seat this account cannot place goes last rather than nowhere. Dropping it would be
+ * a shorter list that looks complete, which is worse than a heading with no name behind it.
+ */
+export function bySeatedCharacter(parties: SeatedParty[], characterOrder: string[]): SharedGroup[] {
+  const rank = new Map(characterOrder.map((id, i) => [id, i]));
+  const groups = new Map<string, SharedGroup>();
+  for (const party of parties) {
+    const seat = yourSeat(party);
+    const characterId = seat?.linkedCharacterId ?? null;
+    const key = characterId ?? `seat:${seat?.name ?? party.id}`;
+    const group = groups.get(key);
+    if (group) group.parties.push(party);
+    else groups.set(key, { characterId, name: seat?.name ?? "", parties: [party] });
+  }
+  const last = characterOrder.length;
+  const at = (group: SharedGroup) =>
+    group.characterId === null ? last + 1 : (rank.get(group.characterId) ?? last);
+  return [...groups.values()].sort((a, b) => at(a) - at(b));
+}
 
 /**
  * Whether YOUR character has cleared a shared party's boss, for the period being shown.
@@ -22,7 +76,7 @@ export function yourClear(
   party: SeatedParty,
   clearsByCharacter: Map<string, Map<string, boolean>>,
 ): boolean | null {
-  const mine = party.seats.find((seat) => party.mySeatIds.includes(seat.id));
+  const mine = yourSeat(party);
   if (!mine?.linkedCharacterId) return null;
   return clearOfCell(cellState(clearsByCharacter.get(mine.linkedCharacterId), party.bossKey));
 }
