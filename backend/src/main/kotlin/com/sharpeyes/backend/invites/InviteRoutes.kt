@@ -133,6 +133,27 @@ private suspend fun RoutingContext.createInviteRoute() {
     }
 }
 
+/**
+ * A link's configs, as its landing page names them.
+ *
+ * The key itself where this build does not know the boss, which is a link made against a newer
+ * catalog. Unreadable beats absent: the count is what the page leans on, and a missing row would
+ * understate it.
+ *
+ * Named arguments because all three read as strings, so a transposition would compile.
+ */
+internal fun partyLabels(
+    parties: List<InviteParty>,
+    bossNames: Map<String, String>,
+): List<InvitePartyLabel> =
+    parties.map {
+        InvitePartyLabel(
+            bossName = bossNames[it.bossKey] ?: it.bossKey,
+            difficulty = it.difficulty,
+            characterName = it.ownName,
+        )
+    }
+
 private suspend fun RoutingContext.previewInviteRoute() {
     val token = call.parameters["token"].orEmpty()
     val preview =
@@ -142,17 +163,10 @@ private suspend fun RoutingContext.previewInviteRoute() {
                 BossCatalog
                     .selectAll()
                     .associate { it[BossCatalog.bossKey] to it[BossCatalog.name] }
-            // The key itself where this build does not know the boss, which is a link made against
-            // a newer catalog. Unreadable beats absent: the count is what the page leans on, and a
-            // missing row would understate it.
-            val parties =
-                payload.parties.map {
-                    InvitePartyLabel(bossNames[it.bossKey] ?: it.bossKey, it.difficulty)
-                }
             InvitePreview(
                 senderName = payload.senderName,
                 characters = payload.characters.map { it.name },
-                parties = parties,
+                parties = partyLabels(payload.parties, bossNames),
                 peopleCount = payload.people.size,
                 omitted = payload.omitted,
             )

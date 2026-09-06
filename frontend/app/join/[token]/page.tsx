@@ -5,8 +5,14 @@ import { useEffect, useState } from "react";
 import { PageSwap } from "@/components/page-swap";
 import { SignInButton } from "@/components/sign-in-button";
 import { ApiError, apiFetch } from "@/lib/api";
-import { difficultyLabel } from "@/lib/boss-difficulty";
-import { invitedSummary, joinCallbackPath, omittedSummary, partiesShown } from "@/lib/invite-link";
+import {
+  invitedSummary,
+  joinCallbackPath,
+  omittedSummary,
+  partiesShown,
+  partiesTaken,
+  partyLabel,
+} from "@/lib/invite-link";
 import { useAuth } from "@/lib/use-auth";
 import type { AcceptedInvite, InvitePreview } from "@/types/invite";
 
@@ -125,31 +131,32 @@ export default function JoinPage() {
                 ))}
               </ul>
 
-              <p className="party-hint">
-                {invitedSummary({
-                  parties: preview.parties.length,
-                  peopleCount: preview.peopleCount,
-                })}
-              </p>
-
-              {/* A few of them, to recognise the group by. The count above says how many there are,
-                  and every one of them would be a wall on the first screen anybody sees. */}
-              {preview.parties.length > 0 &&
-                (() => {
-                  const { shown, more } = partiesShown(preview.parties);
-                  return (
-                    <p className="party-hint join-parties">
-                      {shown
-                        .map((p) =>
-                          p.difficulty
-                            ? `${difficultyLabel(p.difficulty)} ${p.bossName}`
-                            : p.bossName,
-                        )
-                        .join(", ")}
-                      {more > 0 && `, and ${more} more`}
+              {/* Of what the ticks above will actually bring, not of what the link holds: a config
+                  binds no seat unless the name on it was confirmed, so a count of all of them would
+                  be a number accepting does not deliver. */}
+              {(() => {
+                const taken = partiesTaken(preview.parties, mine ?? []);
+                const { shown, more } = partiesShown(taken);
+                return (
+                  <>
+                    <p className="party-hint">
+                      {invitedSummary({
+                        parties: taken.length,
+                        peopleCount: preview.peopleCount,
+                      })}
                     </p>
-                  );
-                })()}
+                    {/* A few of them, to recognise the group by. The count above says how many
+                        there are, and every one would be a wall on the first screen anybody
+                        sees. */}
+                    {shown.length > 0 && (
+                      <p className="party-hint join-parties">
+                        {shown.map(partyLabel).join(", ")}
+                        {more > 0 && `, and ${more} more`}
+                      </p>
+                    )}
+                  </>
+                );
+              })()}
               {preview.omitted.length > 0 && (
                 <p className="party-hint">{omittedSummary(preview.omitted)}</p>
               )}

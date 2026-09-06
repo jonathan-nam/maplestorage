@@ -218,6 +218,68 @@ class AccountInviteTest {
     }
 
     @Test
+    fun `one boss on two of the recipient's characters travels twice, told apart by the seat`() {
+        transaction {
+            val first = addCharacter(senderId, "mechyfechy", position = 0)
+            val second = addCharacter(senderId, "acornacorn", position = 1)
+            attribute("Bro", "CreedBratton", "Freeballynn")
+            config(first, "kalos-the-guardian", listOf("CreedBratton"))
+            config(second, "kalos-the-guardian", listOf("Freeballynn"))
+
+            val payload = payloadFor("Bro")
+
+            // The duplicate rule is one boss per CHARACTER, not per person, so both are theirs.
+            assertEquals(2, payload.parties.size)
+            assertEquals(emptyList(), payload.omitted)
+
+            // And the boss alone cannot tell them apart: same key, same difficulty, one label
+            // between them. Whose seat it is is the only thing that differs.
+            val bossKeys = payload.parties.map { it.bossKey }
+            assertEquals(setOf("kalos-the-guardian"), bossKeys.toSet())
+            assertEquals(
+                listOf("CreedBratton", "Freeballynn"),
+                payload.parties.map { it.ownName }.sorted(),
+            )
+        }
+    }
+
+    @Test
+    fun `the landing page names each party by boss and by whose seat it is`() {
+        transaction {
+            val first = addCharacter(senderId, "mechyfechy", position = 0)
+            val second = addCharacter(senderId, "acornacorn", position = 1)
+            attribute("Bro", "CreedBratton", "Freeballynn")
+            config(first, "kalos-the-guardian", listOf("CreedBratton"))
+            config(second, "kalos-the-guardian", listOf("Freeballynn"))
+
+            val labels =
+                partyLabels(payloadFor("Bro").parties, mapOf("kalos-the-guardian" to "Kalos the Guardian"))
+
+            assertEquals(listOf("Kalos the Guardian", "Kalos the Guardian"), labels.map { it.bossName })
+            assertEquals(
+                listOf("CreedBratton", "Freeballynn"),
+                labels.map { it.characterName }.sorted(),
+            )
+        }
+    }
+
+    @Test
+    fun `a boss this build does not know is named by its key rather than dropped`() {
+        transaction {
+            val mine = addCharacter(senderId, "mechyfechy", position = 0)
+            attribute("Bro", "CreedBratton")
+            config(mine, "kalos-the-guardian", listOf("CreedBratton"))
+
+            // A link made against a newer catalog. The count is what the page leans on, so an
+            // unreadable row beats a missing one.
+            val labels = partyLabels(payloadFor("Bro").parties, emptyMap())
+
+            assertEquals(listOf("kalos-the-guardian"), labels.map { it.bossName })
+            assertEquals(listOf("CreedBratton"), labels.map { it.characterName })
+        }
+    }
+
+    @Test
     fun `the people list names the sender and whoever else was in the party`() {
         transaction {
             val mine = addCharacter(senderId, "mechyfechy", position = 0)
@@ -526,10 +588,10 @@ class AccountInviteTest {
         return id
     }
 
-    /** Says whose a character is, keeping every person already named. */
+    /** Says whose some characters are, keeping every person already named. */
     private fun attribute(
         person: String,
-        character: String,
+        vararg characters: String,
     ) {
         val existing =
             peopleOf(senderId).map { (name, characters) ->
@@ -541,7 +603,7 @@ class AccountInviteTest {
             }
         savePeople(
             senderId,
-            SavePeopleRequest(existing + PersonRequest(name = person, characters = listOf(character))),
+            SavePeopleRequest(existing + PersonRequest(name = person, characters = characters.toList())),
             Clock.System.now(),
         )
     }

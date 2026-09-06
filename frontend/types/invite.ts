@@ -27,13 +27,25 @@ export type Invite = {
   omitted: InviteOmission[];
 };
 
+/**
+ * One config on a link's landing page.
+ *
+ * The boss's NAME, because that page is read before anyone signs in and so cannot fetch the catalog
+ * to turn a key into one. `characterName` is whichever of YOUR characters holds the seat, which is
+ * what tells two configs on one boss apart and which ticked character each party arrives with.
+ */
+export type InvitePartyLabel = {
+  bossName: string;
+  difficulty: string | null;
+  characterName: string;
+};
+
 /** What a link offers, read without an account. */
 export type InvitePreview = {
   senderName: string;
   characters: string[];
-  // The configs this link seats you in, one entry each. The boss's NAME, because this page is read
-  // before anyone signs in and so cannot fetch the catalog to turn a key into one.
-  parties: { bossName: string; difficulty: string | null }[];
+  // The configs this link seats you in, one entry each.
+  parties: InvitePartyLabel[];
   peopleCount: number;
   omitted: InviteOmission[];
 };

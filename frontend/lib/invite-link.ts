@@ -1,4 +1,5 @@
-import type { Invite } from "@/types/invite";
+import { bossLabel } from "./boss-difficulty";
+import type { InvitePartyLabel } from "@/types/invite";
 
 /**
  * Where a sign-on link points, and what the join page does with it.
@@ -74,4 +75,32 @@ export function partiesShown<T>(parties: T[]): { shown: T[]; more: number } {
     shown: parties.slice(0, PARTIES_SHOWN),
     more: Math.max(0, parties.length - PARTIES_SHOWN),
   };
+}
+
+/**
+ * The parties that arrive with the characters ticked, out of everything a link offers.
+ *
+ * A config binds no seat unless the name on it was confirmed, so unticking a character drops its
+ * parties (backend takeSeats). Counting all of them regardless would put a number on screen that
+ * accepting will not deliver.
+ *
+ * Matched case-insensitively, which is how the backend matches every character name.
+ */
+export function partiesTaken<T extends { characterName: string }>(
+  parties: T[],
+  mine: string[],
+): T[] {
+  const ticked = new Set(mine.map((name) => name.toLowerCase()));
+  return parties.filter((party) => ticked.has(party.characterName.toLowerCase()));
+}
+
+/**
+ * One party in a line: what it is, then whose seat of yours it is.
+ *
+ * The character is not decoration. A boss run on three of your characters is three configs with one
+ * name between them, and the same line three times reads as a bug in the list rather than as three
+ * parties. It is also what ties a party to the checkbox above it, now that unticking drops one.
+ */
+export function partyLabel(party: InvitePartyLabel): string {
+  return `${bossLabel(party.bossName, party.difficulty)} (${party.characterName})`;
 }

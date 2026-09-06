@@ -4,6 +4,8 @@ import {
   invitedSummary,
   joinCallbackPath,
   partiesShown,
+  partiesTaken,
+  partyLabel,
   timeLeft,
   omittedSummary,
 } from "./invite-link";
@@ -90,5 +92,48 @@ describe("partiesShown", () => {
   it("has nothing left over when there are three or fewer", () => {
     expect(partiesShown([1, 2])).toEqual({ shown: [1, 2], more: 0 });
     expect(partiesShown([])).toEqual({ shown: [], more: 0 });
+  });
+});
+
+describe("partyLabel", () => {
+  // Two configs on one boss are one line twice without the character, which reads as a bug in the
+  // list rather than as two parties. This is the real shape: Kalos on two of your own characters.
+  it("tells two configs on one boss apart by whose seat it is", () => {
+    const kalos = { bossName: "Kalos the Guardian", difficulty: "EXTREME" };
+    expect(partyLabel({ ...kalos, characterName: "Freeballynn" })).toBe(
+      "Extreme Kalos the Guardian (Freeballynn)",
+    );
+    expect(partyLabel({ ...kalos, characterName: "CreedBratton" })).toBe(
+      "Extreme Kalos the Guardian (CreedBratton)",
+    );
+  });
+
+  it("leaves out a mode the boss does not have", () => {
+    expect(partyLabel({ bossName: "Baldrix", difficulty: null, characterName: "iPhone69C" })).toBe(
+      "Baldrix (iPhone69C)",
+    );
+  });
+});
+
+describe("partiesTaken", () => {
+  const parties = [
+    { bossName: "Kalos the Guardian", difficulty: "EXTREME", characterName: "Freeballynn" },
+    { bossName: "Malefic Star", difficulty: "HARD", characterName: "Freeballynn" },
+    { bossName: "Kaling", difficulty: "HARD", characterName: "iPhone69C" },
+  ];
+
+  it("keeps every party when every character is ticked", () => {
+    expect(partiesTaken(parties, ["Freeballynn", "iPhone69C"])).toEqual(parties);
+  });
+
+  // The point of the whole thing: a seat binds only where the name was confirmed, so a count of
+  // all three next to an unticked Freeballynn is a number accepting will not deliver.
+  it("drops the parties of a character that was unticked", () => {
+    expect(partiesTaken(parties, ["iPhone69C"]).map((p) => p.bossName)).toEqual(["Kaling"]);
+    expect(partiesTaken(parties, [])).toEqual([]);
+  });
+
+  it("matches a name the way the backend does, without regard to case", () => {
+    expect(partiesTaken(parties, ["freeballynn"]).length).toBe(2);
   });
 });
