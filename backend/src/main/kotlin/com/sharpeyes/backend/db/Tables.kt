@@ -650,7 +650,11 @@ object AccountInvite : Table("account_invite") {
 
     // Who the link is for. Which of the sender's people has become an account is the one thing
     // accept cannot work out from the payload alone.
-    val personId = reference("person_id", Person.id)
+    //
+    // NULL is a link for somebody this account has no record of, which has no person to name yet:
+    // the recipient gives a character name and accept makes the person from it. That NULL is the
+    // only thing telling the two kinds of link apart. See V76.
+    val personId = reference("person_id", Person.id).nullable()
 
     // sha256 of the token, hex. The token is in the URL and is deliberately not stored: it is a
     // bearer credential, so a row holding it would be a row that grants the invite.

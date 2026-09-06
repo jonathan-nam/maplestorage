@@ -60,11 +60,7 @@ internal fun acceptInvite(
         confirmed?.mapTo(mutableSetOf()) { it.lowercase() }?.let { wanted ->
             payload.copy(characters = payload.characters.filter { it.name.lowercase() in wanted })
         } ?: payload
-    // Only where nobody has been asked. An account that has already chosen a world is not overruled
-    // by somebody else's link: see V74, and the toggle is one click if the link is for the other.
-    if (activeWorldFor(userId) == null) {
-        Users.update({ Users.id eq userId }) { it[worldType] = payload.worldType }
-    }
+    adoptWorld(payload, userId)
 
     // `taken` for the characters and the seats they bind, `payload` for everything else: the people
     // list and the account link are not narrowed by which characters somebody ticked.
@@ -83,6 +79,21 @@ internal fun acceptInvite(
 }
 
 /**
+ * The link's world, but only where nobody has been asked.
+ *
+ * An account that has already chosen a world is not overruled by somebody else's link: see V74, and
+ * the toggle is one click if the link is for the other.
+ */
+internal fun adoptWorld(
+    payload: InvitePayload,
+    userId: String,
+) {
+    if (activeWorldFor(userId) == null) {
+        Users.update({ Users.id eq userId }) { it[worldType] = payload.worldType }
+    }
+}
+
+/**
  * The recipient's own characters, in the order the sender listed them.
  *
  * The sprite is copied and `sprite_checked_at` left null, so the daily refresh treats each one as
@@ -90,7 +101,7 @@ internal fun acceptInvite(
  * cache is content-addressed on the URL, so these bytes are already warm and the alternative is a
  * new account whose every seat is blank until a job runs.
  */
-private fun ensureCharacters(
+internal fun ensureCharacters(
     payload: InvitePayload,
     userId: String,
     now: Instant,
@@ -146,7 +157,7 @@ private fun ensureCharacters(
  * people is right about a third. Skipping is the same refusal validatePeople makes when two people
  * claim one character.
  */
-private fun ensurePeople(
+internal fun ensurePeople(
     payload: InvitePayload,
     userId: String,
     now: Instant,
@@ -257,7 +268,7 @@ private fun bindSeats(
  * the sender's Bro and Bro's account are joined only by character names, which cannot tell a shared
  * party from two people who happen to know the same name.
  */
-private fun linkAccounts(
+internal fun linkAccounts(
     payload: InvitePayload,
     userId: String,
     invitePersonId: Uuid,

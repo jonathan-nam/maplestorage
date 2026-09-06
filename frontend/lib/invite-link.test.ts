@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  acceptBody,
   inviteUrl,
   invitedSummary,
   joinCallbackPath,
@@ -90,5 +91,21 @@ describe("partiesShown", () => {
   it("has nothing left over when there are three or fewer", () => {
     expect(partiesShown([1, 2])).toEqual({ shown: [1, 2], more: 0 });
     expect(partiesShown([])).toEqual({ shown: [], more: 0 });
+  });
+});
+
+describe("acceptBody", () => {
+  it("sends the ticked characters for a link addressed to somebody", () => {
+    expect(acceptBody(false, ["CreedBratton"], "")).toEqual({ characters: ["CreedBratton"] });
+  });
+
+  it("sends the one named character for a link addressed to nobody", () => {
+    // And never `characters` alongside it: an open link carries none to tick, so an empty list
+    // sent with it is a body that takes nothing, which the backend refuses on purpose.
+    expect(acceptBody(true, [], "CreedBratton")).toEqual({ character: "CreedBratton" });
+  });
+
+  it("trims the typed name, which a person ticking a box could not have got wrong", () => {
+    expect(acceptBody(true, [], "  CreedBratton  ")).toEqual({ character: "CreedBratton" });
   });
 });

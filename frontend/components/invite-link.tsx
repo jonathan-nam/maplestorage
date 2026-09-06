@@ -5,7 +5,7 @@ import { inviteUrl, timeLeft } from "@/lib/invite-link";
 import type { Invite } from "@/types/invite";
 
 /**
- * The link just made for one person.
+ * The link just made, for one person or for nobody in particular.
  *
  * Only ever a fresh one, which is why there is a URL to show at all: the backend stores a hash, so
  * a link that was not copied is remade rather than looked up. There is no Revoke either. A link
@@ -20,7 +20,8 @@ export function InviteLink({
   invite,
   onClose,
 }: {
-  person: string;
+  /** Null for a link made for somebody this account has no record of: it names nobody yet. */
+  person: string | null;
   invite: Invite;
   onClose: () => void;
 }) {
@@ -65,16 +66,23 @@ export function InviteLink({
         className="invite-dialog"
         role="dialog"
         aria-modal="true"
-        aria-label={`Invite ${person}`}
+        aria-label={person !== null ? `Invite ${person}` : "Invite somebody new"}
         onClick={(e) => e.stopPropagation()}
       >
-        <h2 className="invite-title">Invite {person}</h2>
+        <h2 className="invite-title">
+          {person !== null ? `Invite ${person}` : "Invite somebody new"}
+        </h2>
 
         {url !== null ? (
           <label className="invite-field">
-            <span className="field-label">
-              {invite.characterCount} characters, {invite.partyCount} parties
-            </span>
+            {/* What the link carries, which only a link addressed to somebody has: one for a
+                stranger carries nothing of anybody's, so there is no count to put here and no
+                sentence worth inventing to fill the gap. */}
+            {person !== null && (
+              <span className="field-label">
+                {invite.characterCount} characters, {invite.partyCount} parties
+              </span>
+            )}
             <input
               className="split-input invite-url"
               value={url}

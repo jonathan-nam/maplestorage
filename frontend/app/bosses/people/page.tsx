@@ -20,6 +20,13 @@ const PEOPLE_KEY = "/api/people";
 const PARTIES_KEY = "/api/parties";
 const CHARACTERS_KEY = "/api/characters";
 const INVITES_KEY = "/api/invites";
+/**
+ * What `inviting` holds while the link being made is for nobody in particular.
+ *
+ * A person id everywhere else, so this is a value no row can have. One at a time is the rule either
+ * way: there is one dialog, and it opens on one link.
+ */
+const ANYBODY = "anybody";
 
 // Who plays which character. Kept apart from the parties on purpose: a party names characters, and
 // this says whose they are, once, for every party that names them. Say it here and CreedBratton is
@@ -159,6 +166,28 @@ export default function PeoplePage() {
     }
   }
 
+  /**
+   * A link for somebody who is not on this board, and could not be.
+   *
+   * The rows above are people you have already written down, and a link made from one carries what
+   * you wrote. Somebody you met last night is on no row, so this link names nobody and asks them
+   * for the one thing you do not have: which character they are. See OpenInviteAccept.kt.
+   */
+  async function inviteAnybody() {
+    setInviting(ANYBODY);
+    setInviteError(null);
+    try {
+      const made = await apiFetch<Invite>(`${INVITES_KEY}/open`, { method: "POST" }, getToken);
+      setInvite(made);
+    } catch (e) {
+      // The backend refuses with the reason: no character to send the link under, or no world
+      // chosen to send it for. Both are things to go and do, so both are worth reading.
+      setInviteError(e instanceof ApiError && e.body !== "" ? e.body : "Couldn't make a link.");
+    } finally {
+      setInviting(null);
+    }
+  }
+
   const sprites = spriteByName(characters, parties);
   const mine = characters.map((c) => c.name);
   // Against the DRAFT, not the saved list: a character dragged onto somebody has to leave the pile
@@ -216,6 +245,14 @@ export default function PeoplePage() {
                 onClick={() => setDraft([...draft, { name: "", characters: [], owned: [] }])}
               >
                 + Person
+              </button>
+              <button
+                type="button"
+                className="party-add-seat"
+                disabled={busy || inviting !== null}
+                onClick={inviteAnybody}
+              >
+                {inviting === ANYBODY ? "Generating..." : "Invite somebody new"}
               </button>
               <button type="button" className="party-save" disabled={busy || !dirty} onClick={save}>
                 {busy ? "Saving..." : "Save people"}
