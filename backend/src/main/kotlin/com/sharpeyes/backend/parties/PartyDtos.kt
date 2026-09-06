@@ -124,6 +124,14 @@ data class PersonResponse(
      * them. See personCharacters.
      */
     val ownedCharacters: List<String> = emptyList(),
+    /**
+     * They sign in as an account of their own, having accepted a link (V70).
+     *
+     * Sent as a flag rather than left to be inferred from ownedCharacters: that list is narrowed to
+     * characters this account already seats, so somebody linked who shares no party yet has an
+     * empty one and would read as unlinked. Which account it is stays unsent.
+     */
+    val linked: Boolean = false,
     /** Their Settlement Ledger card stays drawn with nothing outstanding. See V59. */
     val pinned: Boolean = false,
 )

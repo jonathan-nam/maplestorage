@@ -7,7 +7,13 @@ import type { Party, Person } from "@/types/party";
  * what a linked person's own account holds: carried so the row can draw it and the pile can leave
  * it alone, never sent back, because it is not this account's to state.
  */
-export type PersonDraft = { id?: string; name: string; characters: string[]; owned: string[] };
+export type PersonDraft = {
+  id?: string;
+  name: string;
+  characters: string[];
+  owned: string[];
+  linked?: boolean;
+};
 
 // The backend claims a character case-insensitively (see validatePeople), so every comparison here
 // has to as well, or the page would offer a name it thinks is free and the save would refuse it.
@@ -134,5 +140,6 @@ export function toDraft(rows: Person[]): PersonDraft[] {
     name: person.name,
     characters: [...(person.characters ?? [])],
     owned: [...(person.ownedCharacters ?? [])],
+    linked: person.linked ?? false,
   }));
 }
