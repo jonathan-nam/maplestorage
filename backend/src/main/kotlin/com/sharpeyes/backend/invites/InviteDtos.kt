@@ -26,6 +26,11 @@ const val INVITE_PAYLOAD_VERSION = 1
  *
  * What is deliberately absent: loot, sales, clears, week rosters, and every config the recipient
  * has no seat in. Those are the sender's record of what happened, not a description of the party.
+ *
+ * A link for somebody the sender has no record of carries one of these with `characters`, `parties`
+ * and every person but the sender empty, which is a true description of what it hands over: their
+ * own name and nothing of anybody else's. One stored shape rather than two means one decode path
+ * and one version to check. See V76.
  */
 @Serializable
 data class InvitePayload(
@@ -81,9 +86,9 @@ data class InvitePerson(
  */
 @Serializable
 data class InviteParty(
-    // The config this mirrors, on the sender's account. What accept writes party.group_id from, so
-    // the two rows describing one real party can be told to be the same later. A config deleted
-    // since the link was made still lands, unlinked.
+    // The config this seats the recipient in, on the sender's account. It stays the sender's row:
+    // takeSeats binds a seat in it rather than copying it, so this is the config itself and not a
+    // thing to mirror. One deleted since the link was made leaves nothing to sit in.
     val sourcePartyId: String,
     val bossKey: String,
     val difficulty: String? = null,
@@ -145,6 +150,15 @@ data class CreateInviteRequest(
 @Serializable
 data class AcceptInviteRequest(
     val characters: List<String>? = null,
+    /**
+     * The one character the recipient of an OPEN link is introducing themselves as.
+     *
+     * Read instead of `characters`, because the two kinds ask opposite questions: a person link
+     * shows the sender's spelling of your characters for you to confirm, and an open link has none
+     * to show, so you name one. It becomes the person the sender now has for you, and the seats it
+     * binds are the ones they had already typed that name into.
+     */
+    val character: String? = null,
 )
 
 /**
@@ -156,8 +170,9 @@ data class AcceptInviteRequest(
 @Serializable
 data class InviteResponse(
     val id: String,
-    val personId: String,
-    val personName: String,
+    // Null on a link for somebody new, which names nobody: see V76.
+    val personId: String? = null,
+    val personName: String? = null,
     val senderName: String,
     val token: String? = null,
     val createdAt: String,
@@ -185,6 +200,14 @@ data class InvitePartyLabel(
 @Serializable
 data class InvitePreview(
     val senderName: String,
+    /**
+     * True for a link made for somebody the sender has no record of.
+     *
+     * The two kinds ask the recipient for different things, and this is the only way the landing
+     * page can tell which it is holding: an open link's characters and parties are empty because
+     * there are none, not because a link was made for somebody with no parties.
+     */
+    val open: Boolean = false,
     val characters: List<String>,
     /**
      * The configs this link seats you in, one entry each, for showing a few of them by name.

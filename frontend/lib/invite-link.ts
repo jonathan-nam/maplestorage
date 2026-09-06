@@ -1,4 +1,4 @@
-import type { Invite } from "@/types/invite";
+import type { AcceptInviteBody } from "@/types/invite";
 
 /**
  * Where a sign-on link points, and what the join page does with it.
@@ -22,6 +22,18 @@ export function inviteUrl(origin: string, token: string): string {
  */
 export function joinCallbackPath(token: string): string {
   return `${JOIN_PATH}/${encodeURIComponent(token)}`;
+}
+
+/**
+ * What the recipient is taking, which is a different question per kind of link.
+ *
+ * Here rather than inline on the page because the two halves are not interchangeable and nothing
+ * downstream would say so: an open link sent `characters` is refused for ticking nothing, and a
+ * person link sent `character` is refused for the same reason from the other end. Both read as the
+ * link being broken rather than as the page asking the wrong question.
+ */
+export function acceptBody(open: boolean, ticked: string[], named: string): AcceptInviteBody {
+  return open ? { character: named.trim() } : { characters: ticked };
 }
 
 /**
