@@ -23,6 +23,8 @@ import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlin.time.Clock
 import kotlin.uuid.Uuid
@@ -271,6 +273,74 @@ class SeatedPartiesTest {
             assertEquals(1, lootFor(Uuid.parse(party.id)).size)
             assertEquals(listOf(party.id), partiesFor(owner).map { it.id })
             assertEquals(emptyList(), partiesFor(member))
+        }
+    }
+
+    @Test
+    fun `unlinking takes the account off the person AND its seats back`() {
+        transaction {
+            val theirs = character(owner, "mechyfechy")
+            character(member, "CreedBratton")
+            link(owner, "Chris", member)
+            val party = config(theirs, listOf("CreedBratton"))
+            assertTrue(partiesSeatedIn(member).isNotEmpty(), "the member should be able to reach it first")
+
+            val chris = Person.selectAll().where { Person.userId eq owner }.single()[Person.id]
+            assertTrue(unlinkPerson(owner, chris))
+
+            // The half that matters. partiesSeatedIn authorises on party_member.linked_character_id
+            // and NOT on person.linked_user_id, so clearing the person alone would leave the seat
+            // bound and the other account still reading the party, its roster and its nights. An
+            // unlink that does not revoke is worse than none, because it looks like it worked.
+            assertEquals(emptyList(), partiesSeatedIn(member))
+            assertNull(
+                PartyMember
+                    .selectAll()
+                    .where { PartyMember.id eq Uuid.parse(party.members[1].id) }
+                    .single()[PartyMember.linkedCharacterId],
+            )
+        }
+    }
+
+    @Test
+    fun `unlinking keeps the person and what this account said about them`() {
+        transaction {
+            val theirs = character(owner, "mechyfechy")
+            character(member, "CreedBratton")
+            savePeople(
+                owner,
+                SavePeopleRequest(listOf(PersonRequest(null, "Chris", listOf("AnAltOfTheirs")))),
+                Clock.System.now(),
+            )
+            val chris = Person.selectAll().where { Person.userId eq owner }.single()[Person.id]
+            Person.update({ Person.id eq chris }) { it[linkedUserId] = member }
+            config(theirs, listOf("CreedBratton"))
+
+            unlinkPerson(owner, chris)
+
+            // "That is not their account" is not "I do not know them". Deleting the person would
+            // take the attributions with it, and a payout still points at the seats.
+            val after = peopleFor(owner).single()
+            assertEquals("Chris", after.name)
+            assertEquals(listOf("AnAltOfTheirs"), after.characters)
+        }
+    }
+
+    @Test
+    fun `unlinking somebody who was never linked is a success, and unlinking a stranger's person is not`() {
+        transaction {
+            character(owner, "mechyfechy")
+            savePeople(
+                owner,
+                SavePeopleRequest(listOf(PersonRequest(null, "Dwight", emptyList()))),
+                Clock.System.now(),
+            )
+            val dwight = Person.selectAll().where { Person.userId eq owner }.single()[Person.id]
+
+            // Idempotent: the caller asked for a state and it is already the state.
+            assertTrue(unlinkPerson(owner, dwight))
+            // Not yours, so not found, rather than a quiet no-op that reads as having worked.
+            assertFalse(unlinkPerson(stranger, dwight))
         }
     }
 }

@@ -10,6 +10,7 @@ import io.ktor.server.request.receive
 import io.ktor.server.response.respond
 import io.ktor.server.routing.Route
 import io.ktor.server.routing.RoutingContext
+import io.ktor.server.routing.delete
 import io.ktor.server.routing.get
 import io.ktor.server.routing.put
 import org.jetbrains.exposed.v1.core.and
@@ -25,6 +26,21 @@ fun Route.peopleRoutes() {
     get { listPeople() }
     put { savePeopleRoute() }
     put("/{personId}/pinned") { pinPersonRoute() }
+    // Taking back the account behind a person, and their seats with it. See UnlinkPerson.kt.
+    delete("/{personId}/link") { unlinkPersonRoute() }
+}
+
+/** DELETE /api/people/{personId}/link. Idempotent: unlinking an unlinked person is a success. */
+private suspend fun RoutingContext.unlinkPersonRoute() {
+    val (userId, email) = call.principalIdAndEmail()
+    val personId = call.parseUuidParam("personId") ?: return
+
+    val people =
+        transaction {
+            ensureUser(userId, email)
+            if (unlinkPerson(userId, personId)) peopleFor(userId) else null
+        }
+    if (people == null) call.respond(HttpStatusCode.NotFound) else call.respond(people)
 }
 
 private suspend fun RoutingContext.listPeople() {

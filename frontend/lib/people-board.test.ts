@@ -204,11 +204,12 @@ describe("toDraft", () => {
         name: "Chris",
         characters: ["OldAlt"],
         ownedCharacters: ["Creed"],
+        linked: true,
         pinned: false,
       },
     ];
     expect(toDraft(rows)).toEqual([
-      { id: "p1", name: "Chris", characters: ["OldAlt"], owned: ["Creed"] },
+      { id: "p1", name: "Chris", characters: ["OldAlt"], owned: ["Creed"], linked: true },
     ]);
   });
 
@@ -219,7 +220,7 @@ describe("toDraft", () => {
   it("survives a payload cached before the field existed", () => {
     const cached = [{ id: "p1", name: "Chris", characters: ["Creed"], pinned: false }];
     expect(toDraft(cached as unknown as Parameters<typeof toDraft>[0])).toEqual([
-      { id: "p1", name: "Chris", characters: ["Creed"], owned: [] },
+      { id: "p1", name: "Chris", characters: ["Creed"], owned: [], linked: false },
     ]);
   });
 
@@ -227,7 +228,14 @@ describe("toDraft", () => {
   // made from, so sharing an array would make every edit look like no edit.
   it("copies the arrays rather than sharing them", () => {
     const rows = [
-      { id: "p1", name: "Chris", characters: ["A"], ownedCharacters: ["B"], pinned: false },
+      {
+        id: "p1",
+        name: "Chris",
+        characters: ["A"],
+        ownedCharacters: ["B"],
+        linked: true,
+        pinned: false,
+      },
     ];
     const draft = toDraft(rows);
     draft[0]!.characters.push("C");

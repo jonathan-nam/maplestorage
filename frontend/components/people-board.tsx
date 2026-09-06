@@ -33,6 +33,7 @@ export function PeopleBoard({
   onRename,
   onRemove,
   onInvite,
+  onUnlink,
 }: {
   people: PersonDraft[];
   unassigned: string[];
@@ -53,6 +54,8 @@ export function PeopleBoard({
   onRename: (index: number, name: string) => void;
   onRemove: (index: number) => void;
   onInvite: (personId: string) => void;
+  /** Takes the account off a person, and their seats in your parties with it. */
+  onUnlink: (personId: string) => void;
 }) {
   // The character being moved by clicks. Drags carry their own name on the dataTransfer, so this
   // stays null throughout one and the "give it to" buttons never appear mid-drag.
@@ -141,6 +144,18 @@ export function PeopleBoard({
                         is a link to put in it. The button carries no state beyond that: a link
                         lasts five minutes, so the answer to pressing it again is another link. */}
                     {inviting === row.id ? "Generating..." : "Generate Invite Link"}
+                  </button>
+                )}
+                {/* Only where there is an account to take off. A link is a bearer token, so one
+                    that reached the wrong person is taken back here rather than being permanent. */}
+                {row.linked && row.id != null && (
+                  <button
+                    type="button"
+                    className="party-delete"
+                    disabled={busy}
+                    onClick={() => onUnlink(row.id as string)}
+                  >
+                    Unlink
                   </button>
                 )}
                 <button

@@ -7,7 +7,7 @@ import { useAuth } from "@/lib/use-auth";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { ApiError, apiFetch } from "@/lib/api";
-import { peek, put } from "@/lib/cache";
+import { invalidate, peek, put } from "@/lib/cache";
 import { type PersonDraft, toDraft, unclaimed } from "@/lib/people-board";
 import { spriteByName } from "@/lib/sprite-by-name";
 import type { Character } from "@/types/character";
@@ -73,6 +73,34 @@ export default function PeoplePage() {
       .catch(() => setState((s) => (s === "loaded" ? "loaded" : "error")));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLoaded]);
+
+  /**
+   * Takes the account off a person, and their seats in your parties with it.
+   *
+   * The server answers with the whole people list, so the row redraws from what is now true rather
+   * than from an assumption about what the press did. Their seats stop being theirs at the same
+   * moment: see UnlinkPerson.kt, where the revoking is the half that matters.
+   */
+  async function unlinkPerson(personId: string) {
+    setBusy(true);
+    setError(null);
+    try {
+      const saved = await apiFetch<Person[]>(
+        `${PEOPLE_KEY}/${encodeURIComponent(personId)}/link`,
+        { method: "DELETE" },
+        getToken,
+      );
+      setPeople(saved);
+      setDraft(toDraft(saved));
+      put(PEOPLE_KEY, saved);
+      // Every party read carries whose seat is whose, and one of them just stopped being theirs.
+      invalidate("/api/parties");
+    } catch {
+      setError("Couldn't unlink them.");
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function save() {
     const body: SavePeopleBody = {
@@ -170,6 +198,7 @@ export default function PeoplePage() {
               unsaved={dirty}
               inviting={inviting}
               onInvite={invitePerson}
+              onUnlink={unlinkPerson}
             />
 
             {invite !== null && (

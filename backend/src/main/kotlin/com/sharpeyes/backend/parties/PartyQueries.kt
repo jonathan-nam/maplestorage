@@ -174,6 +174,7 @@ internal fun peopleFor(userId: String): List<PersonResponse> {
             name = it[Person.name],
             characters = characters.attributed[it[Person.id]].orEmpty(),
             ownedCharacters = characters.owned[it[Person.id]].orEmpty(),
+            linked = it[Person.linkedUserId] != null,
             pinned = it[Person.pinned],
         )
     }
