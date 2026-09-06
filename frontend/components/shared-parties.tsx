@@ -1,6 +1,8 @@
 import { clearClass, clearStateLabel } from "@/lib/boss-clears";
 import { difficultyLabel } from "@/lib/boss-difficulty";
+import { formatMesos } from "@/lib/drop-split";
 import { formatDropped, statusLabel } from "@/lib/loot";
+import { yourShare } from "@/lib/shared-parties";
 import type { Boss } from "@/types/boss";
 import type { SeatedParty } from "@/types/party";
 
@@ -9,16 +11,6 @@ import type { SeatedParty } from "@/types/party";
 // No controls. The pool is theirs to record and this account is reading it, so there is nothing
 // here to press: a member who wants a night changed asks the person who logged it. Whether that
 // ought to stay true is the open question behind the write path, not something this screen decides.
-
-/** Whether YOUR seat has been paid for this drop, or null when nobody is owed anything yet. */
-function yoursPaid(
-  payouts: { memberId: string; paid: boolean }[],
-  mySeatIds: string[],
-): boolean | null {
-  const mine = payouts.filter((p) => mySeatIds.includes(p.memberId));
-  if (mine.length === 0) return null;
-  return mine.every((p) => p.paid);
-}
 
 export function SharedParties({
   parties,
@@ -67,7 +59,7 @@ export function SharedParties({
           ) : (
             <ul className="shared-nights">
               {party.nights.map((night) => {
-                const paid = yoursPaid(night.payouts, party.mySeatIds);
+                const mine = yourShare(night, party);
                 return (
                   <li key={night.id}>
                     <span className="shared-night-drop">
@@ -78,8 +70,15 @@ export function SharedParties({
                     {/* Their word for the drop's stage, then yours for your own share of it: a pool
                         can be Awaiting payout while your seat is already settled. */}
                     <span className="shared-night-status">{statusLabel(night.status)}</span>
-                    {paid !== null && (
-                      <span className="shared-night-yours">{paid ? "You: paid" : "You: owed"}</span>
+                    {/* What the party got for it, so your own figure below can be checked against
+                        something rather than taken on trust. */}
+                    {night.saleAmount !== null && (
+                      <span className="shared-night-sold">{formatMesos(night.saleAmount)}</span>
+                    )}
+                    {mine && (
+                      <span className="shared-night-yours">
+                        You: {formatMesos(mine.nets)} {mine.paid ? "paid" : "owed"}
+                      </span>
                     )}
                   </li>
                 );

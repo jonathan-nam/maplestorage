@@ -967,7 +967,10 @@ export default function PartiesPage() {
               </div>
             </section>
 
-            {parties.length === 0 && (
+            {/* "No parties YET" is about parties of your own, and a member of somebody else's has
+                none by design: the section below is theirs. Saying it above that section read as
+                the page contradicting itself. */}
+            {parties.length === 0 && seated.length === 0 && (
               <>
                 <p className="finder-empty">
                   No parties yet. <Link href="/bosses/parties/edit">Set them up</Link>: pick a
