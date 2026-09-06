@@ -5,7 +5,8 @@ import { useEffect, useState } from "react";
 import { PageSwap } from "@/components/page-swap";
 import { SignInButton } from "@/components/sign-in-button";
 import { ApiError, apiFetch } from "@/lib/api";
-import { invitedSummary, joinCallbackPath, omittedSummary } from "@/lib/invite-link";
+import { difficultyLabel } from "@/lib/boss-difficulty";
+import { invitedSummary, joinCallbackPath, omittedSummary, partiesShown } from "@/lib/invite-link";
 import { useAuth } from "@/lib/use-auth";
 import type { AcceptedInvite, InvitePreview } from "@/types/invite";
 
@@ -33,12 +34,20 @@ export default function JoinPage() {
   const [state, setState] = useState<LoadState>(token === "" ? "gone" : "loading");
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
+  /**
+   * The characters ticked as yours, or null before the preview has said what they are.
+   *
+   * All of them to begin with. The sender is usually right, and a screen that starts with nothing
+   * ticked asks everybody to do the work for the rare case where they are not.
+   */
+  const [mine, setMine] = useState<string[] | null>(null);
 
   useEffect(() => {
     if (token === "") return;
     apiFetch<InvitePreview>(`/api/join/${encodeURIComponent(token)}`, { method: "GET" }, noToken)
       .then((result) => {
         setPreview(result);
+        setMine(result.characters);
         setState("loaded");
       })
       // Unknown, expired and already used are one answer from the backend on purpose, so they are
@@ -52,7 +61,7 @@ export default function JoinPage() {
     try {
       await apiFetch<AcceptedInvite>(
         `/api/invites/${encodeURIComponent(token)}/accept`,
-        { method: "POST" },
+        { method: "POST", body: JSON.stringify({ characters: mine ?? [] }) },
         getToken,
       );
       // Replace, not push: the token is spent, so the back button must not return to a page
@@ -88,20 +97,71 @@ export default function JoinPage() {
           {state === "loaded" && preview && (
             <>
               <h1>{preview.senderName} set up your parties</h1>
-              <p>{preview.characters.join(", ")}</p>
+
+              {/* Ticked, because it is the one thing on a link that has to be right. These names
+                  are the SENDER'S spelling of your characters, and one taken by mistake is a
+                  character you never added, a seat bound to it, and a figure in your Drop Log for a
+                  share you are not owed. The parties below are not ticked: you are a reader of
+                  those, so there is nothing there for you to get wrong. */}
+              <ul className="join-characters">
+                {preview.characters.map((name) => (
+                  <li key={name}>
+                    <label>
+                      <input
+                        type="checkbox"
+                        checked={mine?.includes(name) ?? false}
+                        disabled={busy}
+                        onChange={(e) =>
+                          setMine((was) =>
+                            e.target.checked
+                              ? [...(was ?? []), name]
+                              : (was ?? []).filter((n) => n !== name),
+                          )
+                        }
+                      />
+                      {name}
+                    </label>
+                  </li>
+                ))}
+              </ul>
+
               <p className="party-hint">
                 {invitedSummary({
-                  bosses: preview.bosses.length,
+                  parties: preview.parties.length,
                   peopleCount: preview.peopleCount,
                 })}
               </p>
+
+              {/* A few of them, to recognise the group by. The count above says how many there are,
+                  and every one of them would be a wall on the first screen anybody sees. */}
+              {preview.parties.length > 0 &&
+                (() => {
+                  const { shown, more } = partiesShown(preview.parties);
+                  return (
+                    <p className="party-hint join-parties">
+                      {shown
+                        .map((p) =>
+                          p.difficulty
+                            ? `${difficultyLabel(p.difficulty)} ${p.bossName}`
+                            : p.bossName,
+                        )
+                        .join(", ")}
+                      {more > 0 && `, and ${more} more`}
+                    </p>
+                  );
+                })()}
               {preview.omitted.length > 0 && (
                 <p className="party-hint">{omittedSummary(preview.omitted)}</p>
               )}
 
               {isLoaded && !isSignedIn && <SignInButton callbackPath={joinCallbackPath(token)} />}
               {isLoaded && isSignedIn && (
-                <button type="button" className="party-save" disabled={busy} onClick={accept}>
+                <button
+                  type="button"
+                  className="party-save"
+                  disabled={busy || (mine?.length ?? 0) === 0}
+                  onClick={accept}
+                >
                   {busy ? "Setting up..." : "Set up my account"}
                 </button>
               )}

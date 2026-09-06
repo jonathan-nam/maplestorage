@@ -85,13 +85,15 @@ MEMBER_CHAR="WalkMember$STAMP"
 
 say "3. the sender adds a character and a party seating them"
 SENDER_CHAR=$(api sender POST /api/characters -d "{\"name\":\"WalkSender$STAMP\"}" | field '["id"]')
+# Two seats for them, one of which the sender has wrong. The member confirms only the real one.
+WRONG_CHAR="WalkNotTheirs$STAMP"
 api sender POST /api/parties \
-  -d "{\"characterId\":\"$SENDER_CHAR\",\"bossKey\":\"kalos-the-guardian\",\"members\":[\"$MEMBER_CHAR\"],\"difficulty\":\"CHAOS\"}" \
+  -d "{\"characterId\":\"$SENDER_CHAR\",\"bossKey\":\"kalos-the-guardian\",\"members\":[\"$MEMBER_CHAR\",\"$WRONG_CHAR\"],\"difficulty\":\"CHAOS\"}" \
   >/dev/null
-echo "Chaos Kalos, seating $MEMBER_CHAR"
+echo "Chaos Kalos, seating $MEMBER_CHAR and $WRONG_CHAR"
 
 say "4. the sender says whose character that is"
-api sender PUT /api/people -d "{\"people\":[{\"name\":\"Walk Friend\",\"characters\":[\"$MEMBER_CHAR\"]}]}" >/dev/null
+api sender PUT /api/people -d "{\"people\":[{\"name\":\"Walk Friend\",\"characters\":[\"$MEMBER_CHAR\",\"$WRONG_CHAR\"]}]}" >/dev/null
 PERSON=$(api sender GET /api/people | field '[0]["id"]')
 echo "Walk Friend holds $MEMBER_CHAR"
 
@@ -106,8 +108,14 @@ say "6. what the link says before anyone signs in"
 curl -sS "$API/api/join/$TOKEN" | head -c 300
 echo
 
-say "7. the member accepts"
-api member POST "/api/invites/$TOKEN/accept" | head -c 300
+say "7. the link offers both characters, and the member confirms only one"
+curl -sS "$API/api/join/$TOKEN" | python3 -c '
+import json, sys
+p = json.load(sys.stdin)
+print("  offers characters:", ", ".join(p["characters"]))
+print("  parties:", ", ".join(f'"'"'{q["difficulty"] or ""} {q["bossName"]}'"'"'.strip() for q in p["parties"]))
+'
+api member POST "/api/invites/$TOKEN/accept" -d "{\"characters\":[\"$MEMBER_CHAR\"]}" | head -c 200
 echo
 
 say "8. the sender logs a drop into the PARTY's pool"
@@ -151,6 +159,10 @@ CHARS=$(api member GET /api/characters | python3 -c 'import json,sys; print(",".
 case "$CHARS" in
   *WalkTheirOwn*) echo "kept the character they had before accepting: $CHARS" ;;
   *) fail "the member lost their own character: $CHARS" ;;
+esac
+case "$CHARS" in
+  *WalkNotTheirs*) fail "took a character the member never confirmed: $CHARS" ;;
+  *) echo "did not take the one they left unticked" ;;
 esac
 
 say "done"

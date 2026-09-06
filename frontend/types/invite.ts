@@ -31,7 +31,9 @@ export type Invite = {
 export type InvitePreview = {
   senderName: string;
   characters: string[];
-  bosses: string[];
+  // The configs this link seats you in, one entry each. The boss's NAME, because this page is read
+  // before anyone signs in and so cannot fetch the catalog to turn a key into one.
+  parties: { bossName: string; difficulty: string | null }[];
   peopleCount: number;
   omitted: InviteOmission[];
 };

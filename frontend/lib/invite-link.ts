@@ -31,10 +31,10 @@ export function joinCallbackPath(token: string): string {
  * are a number until they exist. Zero of something is left out rather than said, so "no people"
  * never appears next to two of them.
  */
-export function invitedSummary(counts: { bosses: number; peopleCount: number }): string {
+export function invitedSummary(counts: { parties: number; peopleCount: number }): string {
   const parts: string[] = [];
-  if (counts.bosses > 0)
-    parts.push(`${counts.bosses} ${counts.bosses === 1 ? "party" : "parties"}`);
+  if (counts.parties > 0)
+    parts.push(`${counts.parties} ${counts.parties === 1 ? "party" : "parties"}`);
   if (counts.peopleCount > 0) {
     parts.push(`${counts.peopleCount} ${counts.peopleCount === 1 ? "person" : "people"}`);
   }
@@ -58,4 +58,20 @@ export function timeLeft(expiresAt: string, now: Date): string | null {
   const seconds = Math.floor((new Date(expiresAt).getTime() - now.getTime()) / 1000);
   if (seconds <= 0) return null;
   return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
+}
+
+/**
+ * How many of a link's parties to name, and how many are left over.
+ *
+ * A few is enough to recognise a group by, which is the only question this list answers: whether
+ * the link was meant for you. Every one of them would be a wall on the first screen anybody sees,
+ * and the count already says how many there are.
+ */
+export const PARTIES_SHOWN = 3;
+
+export function partiesShown<T>(parties: T[]): { shown: T[]; more: number } {
+  return {
+    shown: parties.slice(0, PARTIES_SHOWN),
+    more: Math.max(0, parties.length - PARTIES_SHOWN),
+  };
 }

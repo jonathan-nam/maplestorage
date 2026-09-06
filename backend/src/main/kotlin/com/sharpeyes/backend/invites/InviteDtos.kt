@@ -135,6 +135,19 @@ data class CreateInviteRequest(
 )
 
 /**
+ * What the recipient confirmed is theirs, by character name.
+ *
+ * Null is every character in the payload, which is what a client that does not ask sends. The names
+ * are the sender's spelling of YOUR characters, and they are the one thing on a link that has to be
+ * right: a character confirmed by mistake is a seat bound to it, nights you were not on, and a
+ * figure in your Drop Log for a share you are not owed.
+ */
+@Serializable
+data class AcceptInviteRequest(
+    val characters: List<String>? = null,
+)
+
+/**
  * A link the sender has made.
  *
  * `token` is set on the response to CREATE and never again: it is not stored, only its hash is, so
@@ -155,18 +168,32 @@ data class InviteResponse(
     val omitted: List<InviteOmission> = emptyList(),
 )
 
+/** One config on a link's landing page: what it is, in words a person recognises. */
+@Serializable
+data class InvitePartyLabel(
+    val bossName: String,
+    val difficulty: String?,
+)
+
 /**
  * What the landing page shows somebody who is not signed in yet.
  *
  * Deliberately thin. Anyone holding the URL sees this, so it names the sender, the characters they
- * attributed to the recipient and the bosses involved, and nothing that is not already implied by
+ * attributed to the recipient and the parties involved, and nothing that is not already implied by
  * having been sent the link.
  */
 @Serializable
 data class InvitePreview(
     val senderName: String,
     val characters: List<String>,
-    val bosses: List<String>,
+    /**
+     * The configs this link seats you in, one entry each, for showing a few of them by name.
+     *
+     * The boss's NAME rather than its key, because this page is read before anyone signs in and so
+     * cannot fetch the catalog to turn one into the other. The difficulty stays raw for the client
+     * to run through difficultyLabel, which is where every other screen formats one.
+     */
+    val parties: List<InvitePartyLabel> = emptyList(),
     val peopleCount: Int,
     val omitted: List<InviteOmission> = emptyList(),
 )

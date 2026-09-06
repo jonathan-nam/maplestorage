@@ -42,18 +42,35 @@ import kotlin.uuid.Uuid
 internal fun acceptInvite(
     payload: InvitePayload,
     userId: String,
+    /**
+     * The character names the recipient confirmed are theirs, or null for all of them.
+     *
+     * The one thing on a link that has to be right. These names are the SENDER'S spelling of your
+     * characters, so one taken by mistake is a character on your account you never added, a seat
+     * bound to it, nights you were not on, and a figure in your Drop Log for a share you are not
+     * owed. Everything else a link carries is either yours to edit afterwards or costs nothing.
+     */
+    confirmed: List<String>?,
     invitePersonId: Uuid,
     now: Instant,
 ): AcceptedInvite {
+    // Matched the way every character name in this app is matched. A name the payload does not
+    // carry is ignored rather than refused: the client sends back a subset of what it was shown.
+    val taken =
+        confirmed?.mapTo(mutableSetOf()) { it.lowercase() }?.let { wanted ->
+            payload.copy(characters = payload.characters.filter { it.name.lowercase() in wanted })
+        } ?: payload
     // Only where nobody has been asked. An account that has already chosen a world is not overruled
     // by somebody else's link: see V74, and the toggle is one click if the link is for the other.
     if (activeWorldFor(userId) == null) {
         Users.update({ Users.id eq userId }) { it[worldType] = payload.worldType }
     }
 
-    val characterIds = ensureCharacters(payload, userId, now)
+    // `taken` for the characters and the seats they bind, `payload` for everything else: the people
+    // list and the account link are not narrowed by which characters somebody ticked.
+    val characterIds = ensureCharacters(taken, userId, now)
     ensurePeople(payload, userId, now)
-    val seated = takeSeats(payload, characterIds)
+    val seated = takeSeats(taken, characterIds)
 
     linkAccounts(payload, userId, invitePersonId, now)
 
