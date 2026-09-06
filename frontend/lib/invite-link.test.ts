@@ -3,6 +3,7 @@ import {
   inviteUrl,
   invitedSummary,
   joinCallbackPath,
+  partiesShown,
   timeLeft,
   omittedSummary,
 } from "./invite-link";
@@ -30,18 +31,18 @@ describe("inviteUrl", () => {
 
 describe("invitedSummary", () => {
   it("counts both", () => {
-    expect(invitedSummary({ bosses: 4, peopleCount: 2 })).toBe("4 parties, 2 people");
+    expect(invitedSummary({ parties: 4, peopleCount: 2 })).toBe("4 parties, 2 people");
   });
 
   it("says one of each in the singular", () => {
-    expect(invitedSummary({ bosses: 1, peopleCount: 1 })).toBe("1 party, 1 person");
+    expect(invitedSummary({ parties: 1, peopleCount: 1 })).toBe("1 party, 1 person");
   });
 
   // "0 people" next to two of them is the kind of line that reads as a bug in the data rather
   // than as an absence.
   it("leaves out what there is none of", () => {
-    expect(invitedSummary({ bosses: 3, peopleCount: 0 })).toBe("3 parties");
-    expect(invitedSummary({ bosses: 0, peopleCount: 0 })).toBe("");
+    expect(invitedSummary({ parties: 3, peopleCount: 0 })).toBe("3 parties");
+    expect(invitedSummary({ parties: 0, peopleCount: 0 })).toBe("");
   });
 });
 
@@ -76,5 +77,18 @@ describe("timeLeft", () => {
   it("is nothing at all once the link is spent", () => {
     expect(at("2026-09-03T00:05:00Z")).toBeNull();
     expect(at("2026-09-03T00:06:00Z")).toBeNull();
+  });
+});
+
+describe("partiesShown", () => {
+  // A few is enough to recognise a group by, which is the only question the list answers: whether
+  // this link was meant for you.
+  it("names the first three and counts the rest", () => {
+    expect(partiesShown([1, 2, 3, 4, 5])).toEqual({ shown: [1, 2, 3], more: 2 });
+  });
+
+  it("has nothing left over when there are three or fewer", () => {
+    expect(partiesShown([1, 2])).toEqual({ shown: [1, 2], more: 0 });
+    expect(partiesShown([])).toEqual({ shown: [], more: 0 });
   });
 });

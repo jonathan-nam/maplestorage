@@ -1,12 +1,14 @@
 package com.sharpeyes.backend.invites
 
 import com.sharpeyes.backend.db.AccountInvite
+import com.sharpeyes.backend.db.BossCatalog
 import com.sharpeyes.backend.db.Person
 import com.sharpeyes.backend.plugins.principalIdAndEmail
 import com.sharpeyes.backend.users.ensureUser
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.call
 import io.ktor.server.request.receive
+import io.ktor.server.request.receiveNullable
 import io.ktor.server.response.respond
 import io.ktor.server.routing.Route
 import io.ktor.server.routing.RoutingContext
@@ -136,10 +138,21 @@ private suspend fun RoutingContext.previewInviteRoute() {
     val preview =
         transaction {
             val payload = liveInviteFor(token)?.second ?: return@transaction null
+            val bossNames =
+                BossCatalog
+                    .selectAll()
+                    .associate { it[BossCatalog.bossKey] to it[BossCatalog.name] }
+            // The key itself where this build does not know the boss, which is a link made against
+            // a newer catalog. Unreadable beats absent: the count is what the page leans on, and a
+            // missing row would understate it.
+            val parties =
+                payload.parties.map {
+                    InvitePartyLabel(bossNames[it.bossKey] ?: it.bossKey, it.difficulty)
+                }
             InvitePreview(
                 senderName = payload.senderName,
                 characters = payload.characters.map { it.name },
-                bosses = payload.parties.map { it.bossKey }.distinct(),
+                parties = parties,
                 peopleCount = payload.people.size,
                 omitted = payload.omitted,
             )
@@ -148,17 +161,20 @@ private suspend fun RoutingContext.previewInviteRoute() {
 }
 
 /**
- * Redeems a link into the signed-in account.
+ * Redeems a link into the signed-in account, for the characters the recipient confirmed are theirs.
  *
- * Refused on an account that already holds anything, and the refusal is the feature. Merging would
- * mean deciding whether the CreedBratton in the payload is the one already there, and a wrong
- * answer is a duplicate person or a second config for one boss that reads exactly like the real
- * one. See [accountIsEmpty].
+ * A body naming none of them is refused rather than obeyed. It would spend the token and write
+ * nothing, and a link that reports success having done nothing is the worst of both.
+ *
+ * The account itself need not be empty: acceptInvite binds a character it already has rather than
+ * making a second one.
  */
 private suspend fun RoutingContext.acceptInviteRoute() {
     val (userId, email) = call.principalIdAndEmail()
     val token = call.parameters["token"].orEmpty()
     val now = Clock.System.now()
+    // Absent is every character in the payload, which is what a client that does not ask sends.
+    val confirmed = call.receiveNullable<AcceptInviteRequest>()?.characters
 
     val outcome =
         transaction {
@@ -168,6 +184,9 @@ private suspend fun RoutingContext.acceptInviteRoute() {
             // Redeeming your own link would link an account to itself and copy its parties back
             // onto it under different ids.
             if (invite[AccountInvite.userId] == userId) return@transaction Refusal.Own
+            // Nothing to take is not the same as nothing to give: the link is left unspent so the
+            // same one still works once they know which of these characters is theirs.
+            if (confirmed != null && confirmed.isEmpty()) return@transaction Refusal.NothingTaken
 
             // Spent before the rows are written, inside the same transaction: two requests racing
             // the same link both pass the checks above, and the unique token_hash does not stop the
@@ -182,20 +201,22 @@ private suspend fun RoutingContext.acceptInviteRoute() {
                 } > 0
             if (!spent) return@transaction Refusal.Unknown
 
-            acceptInvite(payload, userId, invite[AccountInvite.personId], now)
+            acceptInvite(payload, userId, confirmed, invite[AccountInvite.personId], now)
         }
 
     when (outcome) {
         Refusal.Unknown -> call.respond(HttpStatusCode.NotFound)
         Refusal.Stale -> call.respond(HttpStatusCode.Gone, "this link is out of date, ask for a new one")
         Refusal.Own -> call.respond(HttpStatusCode.Conflict, "this is your own link")
+        Refusal.NothingTaken ->
+            call.respond(HttpStatusCode.BadRequest, "tick at least one character that is yours")
         is AcceptedInvite -> call.respond(outcome)
         else -> call.respond(HttpStatusCode.NotFound)
     }
 }
 
 /** Why a link was not redeemed. One type so the transaction can return either it or the result. */
-private enum class Refusal { Unknown, Stale, Own, NotEmpty }
+private enum class Refusal { Unknown, Stale, Own, NothingTaken }
 
 /**
  * The invite a token names, if it is still good, with its payload read out.

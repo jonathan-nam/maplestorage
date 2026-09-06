@@ -1290,6 +1290,32 @@ html.switching-world .world-veil {
   cursor: default;
 }
 
+/* --- Confirming a link ------------------------------------------------------------------ */
+
+/* The characters a link says are yours, ticked. The one thing on that page worth getting right. */
+.join-characters {
+  margin: 12px 0;
+  padding: 0;
+  list-style: none;
+  text-align: left;
+}
+
+.join-characters li {
+  padding: 3px 0;
+}
+
+.join-characters label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+/* A few party names, to recognise the group by. Not a list to work through. */
+.join-parties {
+  margin-top: 0;
+}
+
 /* --- Shared with you -------------------------------------------------------------------- */
 
 /* A party somebody else keeps the book for. No controls, so no hit targets and no hover. */

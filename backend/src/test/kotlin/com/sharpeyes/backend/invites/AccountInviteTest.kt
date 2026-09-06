@@ -593,7 +593,13 @@ class AccountInviteTest {
     ): AcceptedInvite {
         ensureUser(into, "$into@example.com")
         val personId = personRow(senderId, person)[Person.id]
-        return acceptInvite(buildInvitePayload(senderId, personId, "Jonathan")!!, into, personId, Clock.System.now())
+        return acceptInvite(
+            buildInvitePayload(senderId, personId, "Jonathan")!!,
+            into,
+            null,
+            personId,
+            Clock.System.now(),
+        )
     }
 
     private fun accept(
@@ -602,7 +608,7 @@ class AccountInviteTest {
         into: String = recipientId,
     ): AcceptedInvite {
         ensureUser(into, "$into@example.com")
-        return acceptInvite(payload, into, personRow(senderId, person)[Person.id], Clock.System.now())
+        return acceptInvite(payload, into, null, personRow(senderId, person)[Person.id], Clock.System.now())
     }
 
     private fun personRow(
@@ -664,4 +670,68 @@ class AccountInviteTest {
         } else {
             Characters.selectAll().where { Characters.id eq id }.single()[Characters.name]
         }
+
+    @Test
+    fun `a character the recipient did not confirm is not taken, and seats no one`() {
+        transaction {
+            val mine = addCharacter(senderId, "mechyfechy", position = 0)
+            // One person with two characters, so attribute() is not the helper: that one appends a
+            // new person each call and person is unique on (user_id, name).
+            savePeople(
+                senderId,
+                SavePeopleRequest(
+                    listOf(PersonRequest(null, "Bro", listOf("CreedBratton", "NotActuallyTheirs"))),
+                ),
+                Clock.System.now(),
+            )
+            val source = config(mine, "kalos-the-guardian", listOf("CreedBratton", "NotActuallyTheirs"))
+
+            // They tick one of the two. The sender was wrong about the other, which is the whole
+            // reason to ask: these names are the SENDER's spelling of somebody else's characters.
+            ensureUser(recipientId, "$recipientId@example.com")
+            val personId = personRow(senderId, "Bro")[Person.id]
+            acceptInvite(
+                buildInvitePayload(senderId, personId, "Jonathan")!!,
+                recipientId,
+                listOf("CreedBratton"),
+                personId,
+                Clock.System.now(),
+            )
+
+            assertEquals(
+                listOf("CreedBratton"),
+                Characters
+                    .selectAll()
+                    .where { Characters.userId eq recipientId }
+                    .map { it[Characters.name] },
+            )
+            // And the seat they did not claim stays unbound, so it gets them nothing: an unclaimed
+            // seat is not a party they are in.
+            assertNotNull(seatFor(source, "CreedBratton")[PartyMember.linkedCharacterId])
+            assertNull(seatFor(source, "NotActuallyTheirs")[PartyMember.linkedCharacterId])
+        }
+    }
+
+    @Test
+    fun `confirming everything is the same as not being asked`() {
+        transaction {
+            val mine = addCharacter(senderId, "mechyfechy", position = 0)
+            attribute("Bro", "CreedBratton")
+            val source = config(mine, "kalos-the-guardian", listOf("CreedBratton"))
+
+            ensureUser(recipientId, "$recipientId@example.com")
+            val personId = personRow(senderId, "Bro")[Person.id]
+            acceptInvite(
+                buildInvitePayload(senderId, personId, "Jonathan")!!,
+                recipientId,
+                // Their own spelling, which need not match the sender's: names are matched the way
+                // every other character name in this app is.
+                listOf("creedbratton"),
+                personId,
+                Clock.System.now(),
+            )
+
+            assertNotNull(seatFor(source, "CreedBratton")[PartyMember.linkedCharacterId])
+        }
+    }
 }
